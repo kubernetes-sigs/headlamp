@@ -16,7 +16,13 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ClusterPreOpenHook } from '../redux/clusterProviderSlice';
 import reducers from '../redux/reducers/reducers';
+import {
+  hasClusterPreOpenHooks,
+  resetClusterPreOpenHooksForTests,
+  runClusterPreOpenHooks,
+} from './clusterPreOpen';
 
 let activeStore: any;
 
@@ -34,12 +40,17 @@ vi.mock('../components/resourceMap/sources/definitions/relationIds', () => ({
   BUILT_IN_RELATION_IDS: ['owner', 'owner-reversed', 'pod-configmap'],
 }));
 
-import { registerClusterEmptyState, registerResourceRelationProvider } from './registry';
+import {
+  registerClusterEmptyState,
+  registerClusterProviderPreOpen,
+  registerResourceRelationProvider,
+} from './registry';
 
 describe('registerResourceRelationProvider', () => {
   let warnSpy: any;
 
   beforeEach(() => {
+    resetClusterPreOpenHooksForTests();
     activeStore = configureStore({
       reducer: reducers,
     });
@@ -47,6 +58,7 @@ describe('registerResourceRelationProvider', () => {
   });
 
   afterEach(() => {
+    resetClusterPreOpenHooksForTests();
     warnSpy.mockRestore();
   });
 
@@ -218,5 +230,130 @@ describe('registerResourceRelationProvider', () => {
     registerClusterEmptyState(emptyState);
 
     expect(activeStore.getState().clusterProvider.clusterEmptyState).toBe(emptyState);
+  });
+
+  it('keeps pre-open callbacks out of Redux state', async () => {
+    const hook = vi.fn(async () => {});
+
+    registerClusterProviderPreOpen(hook);
+
+    const state = activeStore.getState().clusterProvider;
+    expect(state).not.toHaveProperty('preOpenHooks');
+    expect(state.preOpenHooksRevision).toBe(1);
+    expect(hasClusterPreOpenHooks()).toBe(true);
+    const context = { cluster: 'test', clusterConf: null };
+    await runClusterPreOpenHooks(context, () => {});
+    expect(hook).toHaveBeenCalledWith(context);
+  });
+
+  it('does not expose hooks through replaced array methods', async () => {
+    const hook = vi.fn(async () => {});
+    const originalPush = Array.prototype.push;
+    const originalSlice = Array.prototype.slice;
+    const originalIterator = Array.prototype[Symbol.iterator];
+    const captured: unknown[] = [];
+    Array.prototype.push = function (...items: unknown[]) {
+      if (items.includes(hook)) {
+        Reflect.apply(originalPush, captured, items);
+      }
+      return Reflect.apply(originalPush, this, items);
+    };
+    Array.prototype.slice = function (...args: unknown[]) {
+      if (Reflect.apply(originalSlice, this, []).includes(hook)) {
+        Reflect.apply(originalPush, captured, [hook]);
+      }
+      return Reflect.apply(originalSlice, this, args);
+    };
+    Array.prototype[Symbol.iterator] = function () {
+      const values = Reflect.apply(originalSlice, this, []);
+      if (Reflect.apply(originalSlice, values, []).includes(hook)) {
+        Reflect.apply(originalPush, captured, [hook]);
+      }
+      return Reflect.apply(originalIterator, this, []);
+    };
+
+    try {
+      registerClusterProviderPreOpen(hook);
+      await runClusterPreOpenHooks({ cluster: 'test', clusterConf: null }, () => {});
+      expect(captured).toEqual([]);
+    } finally {
+      Array.prototype.push = originalPush;
+      Array.prototype.slice = originalSlice;
+      Array.prototype[Symbol.iterator] = originalIterator;
+    }
+  });
+
+  it('gives each pre-open hook an independent context snapshot', async () => {
+    let retainedContext: any;
+    const firstHook = vi.fn<ClusterPreOpenHook>(async context => {
+      retainedContext = context;
+      retainedContext.cluster = 'attacker-cluster';
+      retainedContext.clusterConf.meta_data.subscriptionId = 'attacker-subscription';
+    });
+    const secondHook = vi.fn<ClusterPreOpenHook>(async () => {});
+    registerClusterProviderPreOpen(firstHook);
+    registerClusterProviderPreOpen(secondHook);
+    const context = {
+      cluster: 'trusted-cluster',
+      clusterConf: { meta_data: { subscriptionId: 'trusted-subscription' } },
+    };
+
+    await runClusterPreOpenHooks(context, () => {});
+
+    expect(secondHook).toHaveBeenCalledWith({
+      cluster: 'trusted-cluster',
+      clusterConf: { meta_data: { subscriptionId: 'trusted-subscription' } },
+      reportProgress: undefined,
+      signal: undefined,
+    });
+    expect(secondHook.mock.calls[0][0]).not.toBe(retainedContext);
+    expect(secondHook.mock.calls[0][0].clusterConf).not.toBe(retainedContext.clusterConf);
+  });
+
+  it('does not invoke a hook when preparation is already aborted', async () => {
+    const hook = vi.fn(async () => {});
+    const controller = new AbortController();
+    const reason = new DOMException('Left cluster', 'AbortError');
+    controller.abort(reason);
+    registerClusterProviderPreOpen(hook);
+
+    await expect(
+      runClusterPreOpenHooks(
+        { cluster: 'test', clusterConf: null, signal: controller.signal },
+        () => {}
+      )
+    ).rejects.toBe(reason);
+    expect(hook).not.toHaveBeenCalled();
+  });
+
+  it('uses AbortError when an abort signal provides no reason', async () => {
+    const hook = vi.fn<ClusterPreOpenHook>(() => new Promise<void>(() => {}));
+    registerClusterProviderPreOpen(hook);
+    const createSignal = (aborted: boolean) => {
+      const signal = new EventTarget();
+      Object.defineProperties(signal, {
+        aborted: { value: aborted },
+        reason: { value: undefined },
+      });
+      return signal as AbortSignal;
+    };
+
+    await expect(
+      runClusterPreOpenHooks(
+        { cluster: 'test', clusterConf: null, signal: createSignal(true) },
+        () => {}
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(hook).not.toHaveBeenCalled();
+
+    const signal = createSignal(false);
+    const preparation = runClusterPreOpenHooks(
+      { cluster: 'test', clusterConf: null, signal },
+      () => {}
+    );
+    signal.dispatchEvent(new Event('abort'));
+
+    await expect(preparation).rejects.toMatchObject({ name: 'AbortError' });
+    expect(hook).toHaveBeenCalledOnce();
   });
 });

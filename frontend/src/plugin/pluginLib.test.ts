@@ -52,4 +52,15 @@ describe('pluginLib variable', () => {
     // It's an implementation detail of our pluginLib that plugins must not rely on.
     expect(window.pluginLib).not.toHaveProperty('queryClient');
   });
+
+  it('does not allow plugins to intercept pre-open registration', () => {
+    const windowDescriptor = Object.getOwnPropertyDescriptor(window, 'pluginLib');
+    const registrationDescriptor = Object.getOwnPropertyDescriptor(
+      window.pluginLib,
+      'registerClusterProviderPreOpen'
+    );
+
+    expect(windowDescriptor).toMatchObject({ configurable: false, writable: false });
+    expect(registrationDescriptor).toMatchObject({ configurable: false, writable: false });
+  });
 });

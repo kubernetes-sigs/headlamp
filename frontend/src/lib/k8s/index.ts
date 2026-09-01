@@ -128,21 +128,18 @@ export const ResourceClasses = {
  * */
 export function useClustersConf(): ConfigState['allClusters'] {
   const state = useTypedSelector(state => state.config);
-  const clusters = _.cloneDeep(state.clusters || {});
-  const allClusters = _.cloneDeep(state.allClusters || {});
-  Object.assign(allClusters, clusters);
+  return useMemo(() => {
+    if (state.clusters === null) {
+      return null;
+    }
 
-  if (state.statelessClusters) {
-    // Combine statelessClusters with clusters
-    const statelessClusters = _.cloneDeep(state.statelessClusters || {});
-    Object.assign(allClusters, statelessClusters);
-  }
-
-  return useMemo(
-    () => (state.clusters === null ? null : allClusters),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.clusters === null, Object.keys(allClusters).join(',')]
-  );
+    const allClusters = _.cloneDeep(state.allClusters || {});
+    Object.assign(allClusters, _.cloneDeep(state.clusters));
+    if (state.statelessClusters) {
+      Object.assign(allClusters, _.cloneDeep(state.statelessClusters));
+    }
+    return allClusters;
+  }, [state.allClusters, state.clusters, state.statelessClusters]);
 }
 
 export { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';

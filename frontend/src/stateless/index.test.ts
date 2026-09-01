@@ -365,14 +365,34 @@ describe('fetchStatelessClusterKubeConfigs', () => {
     expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
   });
 
-  it('does not dispatch when IndexedDB is empty and state is already clear', async () => {
-    // statelessClusters is null in the store (already clean)
+  it('marks stateless config loaded when IndexedDB is empty', async () => {
     expect(store.getState().config.statelessClusters).toBeNull();
 
     const dispatch = vi.fn();
     await fetchStatelessClusterKubeConfigs(dispatch);
 
-    expect(dispatch).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+  });
+
+  it('marks stateless config loaded when IndexedDB fails to open', async () => {
+    const openError = new Error('IndexedDB unavailable');
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      const request = {} as IDBOpenDBRequest;
+      queueMicrotask(() => request.onerror?.call(request, { target: { error: openError } } as any));
+      return request;
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const dispatch = vi.fn();
+
+    try {
+      await fetchStatelessClusterKubeConfigs(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+      expect(consoleError).toHaveBeenCalledWith('Error getting stateless config:', openError);
+    } finally {
+      open.mockRestore();
+      consoleError.mockRestore();
+    }
   });
 });
 
@@ -620,5 +640,32 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
 
     await inFlight;
     expect(settled).toHaveBeenCalledOnce();
+  });
+
+  it('settles stateless readiness when kubeconfig parsing fails', async () => {
+    await storeStatelessClusterKubeconfig('dummy-kubeconfig');
+    const parseError = new Error('parse failed');
+    vi.mocked(request).mockRejectedValue(parseError);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const dispatch = vi.fn();
+
+    try {
+      await fetchStatelessClusterKubeConfigs(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+      expect(consoleError).toHaveBeenCalledWith('Error getting stateless config:', parseError);
+
+      store.dispatch(
+        setStatelessConfig({
+          statelessClusters: { existing: { name: 'existing' } as any },
+        })
+      );
+      dispatch.mockClear();
+      await fetchStatelessClusterKubeConfigs(dispatch);
+
+      expect(dispatch).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

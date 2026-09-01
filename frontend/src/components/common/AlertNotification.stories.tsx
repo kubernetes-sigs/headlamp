@@ -177,3 +177,14 @@ OnNonClusterRoute.args = {
   simulateSnackbar: { show: false, message: '', variant: 'info' },
 };
 OnNonClusterRoute.storyName = 'On Non-Cluster Route (e.g., Global Settings)';
+
+export const Suppressed = Template.bind({});
+Suppressed.args = {
+  // Even though the health check fails (which would normally raise the
+  // "Lost connection" banner), `suppress` keeps it hidden — this is the state
+  // while a cluster is being prepared by a pre-open hook.
+  checkerFunction: async () => Promise.reject('Cluster unreachable (Simulated Error)'),
+  suppress: true,
+  simulateSnackbar: { show: false, message: '', variant: 'info' },
+};
+Suppressed.storyName = 'Suppressed (Cluster Preparing)';
