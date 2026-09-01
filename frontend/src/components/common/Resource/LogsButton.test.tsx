@@ -566,10 +566,15 @@ describe('LogsButton', () => {
     await waitFor(() => expect(onLogsCallback).toBeDefined());
 
     act(() => {
-      onLogsCallback({ logs: Array.from({ length: 1001 }, (_, index) => `line ${index}\n`) });
+      onLogsCallback({ logs: Array.from({ length: 2500 }, (_, index) => `line ${index}\n`) });
     });
     expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('line 999'));
     expect(requestAnimationFrameSpy).toHaveBeenCalled();
+
+    // A batch larger than the chunk size has to be drained completely, even if the
+    // stream goes quiet right after it.
+    expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('line 1000'));
+    expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('line 2499'));
 
     mockXTermWrite.mockClear();
     unmount();
@@ -901,6 +906,77 @@ describe('LogsButton', () => {
     // Verify stream was not restarted
     expect(getLogsCallCount).toBe(1);
   });
+  // A severity change repaints the terminal from the logs kept in state. Only the entries
+  // already drained are on screen, so repainting the whole batch would let the frames that
+  // are still queued append their entries a second time.
+  it('does not duplicate the queued tail when the severity changes mid-drain', async () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation(callback => {
+        frames.push(callback);
+        return frames.length;
+      });
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodData] }),
+    });
+
+    let onLogsCallback: any;
+    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
+      onLogsCallback = args.find(arg => typeof arg === 'function');
+      return () => {};
+    }) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    // The drain only runs for a single selected pod; "All pods" repaints wholesale.
+    await waitFor(() => expect(document.querySelectorAll('.MuiSelect-select')[0]).toBeTruthy());
+    fireEvent.mouseDown(document.querySelectorAll('.MuiSelect-select')[0]);
+    fireEvent.click(await screen.findByText('test-pod-1'));
+    await waitFor(() => expect(onLogsCallback).toBeDefined());
+
+    // Two chunks worth of entries, so the second one is left queued on a frame.
+    const newLogs = Array.from({ length: 1500 }, (_, index) => `[ERROR] line ${index}\n`);
+    act(() => onLogsCallback({ logs: newLogs }));
+    expect(frames).toHaveLength(1);
+
+    // Repaint under a narrowed severity while that frame is still pending. Clicking INFO
+    // deselects it, so the ERROR entries above stay on screen.
+    mockXTermWrite.mockClear();
+    const severitySelect = document.querySelectorAll('.MuiSelect-select')[3];
+    fireEvent.mouseDown(severitySelect);
+    await waitFor(() => expect(document.querySelector('.MuiList-root')).toBeInTheDocument());
+    const infoOption = Array.from(document.querySelectorAll('.MuiMenuItem-root')).find(
+      el => el.textContent === 'INFO'
+    );
+    fireEvent.click(infoOption!);
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    await waitFor(() => expect(mockXTermClear).toHaveBeenCalled());
+
+    // The repaint owes the terminal only what had been drained, so the frame that is still
+    // queued can append the rest without any entry reaching the terminal twice.
+    const repainted = mockXTermWrite.mock.calls.map(call => call[0]).join('');
+    expect(repainted).toContain('line 999');
+    expect(repainted).not.toContain('line 1000');
+
+    act(() => frames[0](0));
+
+    const written = mockXTermWrite.mock.calls.map(call => call[0]).join('');
+    const timesWritten = (index: number) => written.split(`line ${index}\r\n`).length - 1;
+    expect(timesWritten(999)).toBe(1);
+    expect(timesWritten(1000)).toBe(1);
+    expect(timesWritten(1499)).toBe(1);
+
+    requestAnimationFrameSpy.mockRestore();
+  });
+
   it('broadcasts severity updates to other hook instances', async () => {
     const getLogsMock = vi.fn(() => {
       return () => {};
