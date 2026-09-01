@@ -130,6 +130,9 @@ export function LogViewer(props: LogViewerProps) {
 
     return function cleanup() {
       window.removeEventListener('resize', pageResizeHandler);
+      fitAddonRef.current = null;
+      // xterm.dispose() already disposes all addons loaded via loadAddon()
+      // through its internal AddonManager, so no explicit fitAddon.dispose() needed.
       xtermRef.current?.dispose();
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
@@ -256,7 +259,9 @@ export function LogViewer(props: LogViewerProps) {
       title={title}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          if (fitAddonRef.current && typeof fitAddonRef.current.fit === 'function') {
+            fitAddonRef.current.fit();
+          }
         }, 1);
       }}
       withFullScreen
