@@ -127,8 +127,8 @@ func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL stri
 	t.Helper()
 
 	addRepo := helm.AddUpdateRepoRequest{
-		Name: "headlamp_test_repo",
-		URL:  "https://kubernetes-sigs.github.io/headlamp/",
+		Name: repoName,
+		URL:  repoURL,
 	}
 
 	addRepoRequest, err := http.NewRequestWithContext(context.Background(), "POST",
@@ -140,7 +140,7 @@ func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL stri
 	helmHandler.AddRepo(rr, addRepoRequest)
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	assert.True(t, checkRepoExists(t, helmHandler, "headlamp_test_repo"))
+	assert.True(t, checkRepoExists(t, helmHandler, repoName))
 }
 
 // TestAddRepositoryToHelm.
@@ -148,7 +148,10 @@ func TestAddRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("add_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+		ts := mockHelmServer()
+		defer ts.Close()
+
+		testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 	})
 
 	t.Run("invalid_add_repo_request", func(t *testing.T) {
@@ -193,7 +196,10 @@ func TestRemoveRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("remove_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+		ts := mockHelmServer()
+		defer ts.Close()
+
+		testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 		removeRepoRequest, err := http.NewRequestWithContext(context.Background(), "DELETE",
 			"/clusters/minikube/helm/repositories/?name=headlamp_test_repo", nil)
@@ -265,7 +271,10 @@ func TestUpdateRepo(t *testing.T) {
 func TestListRepositories(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	ts := mockHelmServer()
+	defer ts.Close()
+
+	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	listRepoReq, err := http.NewRequestWithContext(context.Background(),
 		"GET", "/clusters/minikube/helm/repositories", nil)
@@ -361,7 +370,10 @@ func TestAddRepositoryWithAuth(t *testing.T) {
 func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 	t.Helper()
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	ts := mockHelmServer()
+	defer ts.Close()
+
+	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	updateRepo := helm.AddUpdateRepoRequest{
 		Name: "headlamp_test_repo",
