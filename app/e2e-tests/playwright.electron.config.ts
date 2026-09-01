@@ -28,6 +28,7 @@ export default defineConfig({
   testMatch: [
     'backendToken.spec.ts',
     'buildManifest.spec.ts',
+    'buildManifestProduct.spec.ts',
     'clusterRename.spec.ts',
     'namespaces.spec.ts',
     'clusterAutoConnect.spec.ts',
@@ -35,6 +36,8 @@ export default defineConfig({
     'listenerCleanup.spec.ts',
     'runCommand.spec.ts',
     'updateChecks.spec.ts',
+    'oauthProvider.spec.ts',
+    'protocolScheme.spec.ts',
   ],
   timeout: 60 * 1000,
   expect: {

@@ -28,23 +28,24 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM --platform=${BUILDPLATFORM} node:22@sha256:0557ac14e0d45d02ed563067b82856ca5e7aa3437fa28d98d4350ea9c3d9494a AS frontend-build
 
-# We need .git and app/ in order to get the version and git version for the frontend/.env file
-# that's generated when building the frontend.
-COPY .git/ ./headlamp/.git/
-
-COPY app/package.json /headlamp/app/package.json
-
 # Keep npm install separated so source changes don't trigger install
 COPY frontend/package*.json /headlamp/frontend/
 WORKDIR /headlamp
 RUN cd ./frontend && npm ci --only=prod
 
 FROM frontend-build AS frontend
+ARG HEADLAMP_SOURCE_COMMIT
+ARG HEADLAMP_BUILD_MANIFEST
+ENV HEADLAMP_SOURCE_COMMIT=${HEADLAMP_SOURCE_COMMIT} \
+    HEADLAMP_BUILD_MANIFEST=${HEADLAMP_BUILD_MANIFEST}
+
 COPY ./frontend /headlamp/frontend
 
 WORKDIR /headlamp
 
-RUN cd ./frontend && npm run build
+# Expose app metadata and manifests only while generating the frontend build.
+RUN --mount=type=bind,source=app,target=/headlamp/app,ro \
+    cd ./frontend && npm run build
 
 RUN echo "*** Built Headlamp with version: ***"
 RUN cat ./frontend/.env

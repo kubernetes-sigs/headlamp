@@ -16,6 +16,9 @@
 
 import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
+import { NamespacesPage } from './namespacesPage';
+
+const PROJECT_ID_LABEL = 'headlamp.dev/project-id';
 
 test.describe('project header actions', () => {
   let projectName: string;
@@ -50,7 +53,7 @@ test.describe('project header actions', () => {
         kind: 'Namespace',
         metadata: {
           name: projectName,
-          labels: { 'headlamp.dev/project-id': projectName },
+          labels: { [PROJECT_ID_LABEL]: projectName },
         },
       },
     });
@@ -122,4 +125,43 @@ test('replaces a built-in project creation choice', async ({ page }) => {
     })
     .click();
   await expect(page).toHaveURL(/\/project\/create-yaml$/);
+});
+
+test('opens a project created from a labelled namespace', async ({ page }) => {
+  const namespaceName = 'testing-e2e-project';
+  const projectName = 'testing-e2e';
+  const headlampPage = new HeadlampPage(page);
+  const namespacesPage = new NamespacesPage(page);
+
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+
+  const content = await page.content();
+  test.skip(
+    !content.includes('Namespaces') || !content.includes('href="/c/test/namespaces'),
+    'Namespace permissions are required for this test'
+  );
+
+  await namespacesPage.navigateToNamespaces();
+  const setupStatus = await namespacesPage.createNamespace(namespaceName, {
+    [PROJECT_ID_LABEL]: projectName,
+  });
+
+  try {
+    await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+    await page.getByRole('tab', { name: 'Projects' }).click();
+
+    const projectLink = page.getByRole('link', { name: projectName, exact: true });
+    await expect(projectLink).toBeVisible();
+    await expect(projectLink).toHaveAttribute('href', `/project/${projectName}`);
+    await projectLink.click();
+
+    await expect(page).toHaveURL(new RegExp(`/project/${projectName}$`));
+    await expect(page.getByText(projectName, { exact: true }).first()).toBeVisible();
+  } finally {
+    if (setupStatus === 'created') {
+      await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+      await namespacesPage.navigateToNamespaces();
+      await namespacesPage.deleteNamespace(namespaceName);
+    }
+  }
 });
