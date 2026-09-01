@@ -498,7 +498,6 @@
                       autocorrect="off"
                       class="xterm-helper-textarea"
                       spellcheck="false"
-                      style="left: 0px; top: 0px; width: 0px; height: 0px; line-height: 0px; z-index: -5;"
                       tabindex="0"
                     />
                     <span
@@ -551,215 +550,96 @@
                       style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
                     >
                       <span>
-                        :"Item 13","active":false,"nested":{"value":1300}},{"id":14,"name":"Item 14","ac
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        tive":true,"nested":{"value":1400}},{"id":15,"name":"Item 15","active":false,"ne
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        sted":{"value":1500}},{"id":16,"name":"Item 16","active":true,"nested":{"value":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        1600}},{"id":17,"name":"Item 17","active":false,"nested":{"value":1700}},{"id":1
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        8,"name":"Item 18","active":true,"nested":{"value":1800}},{"id":19,"name":"Item 
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        19","active":false,"nested":{"value":1900}}]}2024-02-15T00:00:00.000Z {"level":"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        verbose","timestamp":"2024-02-15T00:00:00.000Z","message":"This log demonstrates
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                         all formatting capabilities","escapedValues":{"newlines":"First line\\nSecond l
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ine\\nThird line","tabs":"Column1\\tColumn2","quotes":"He said \\\"Hello world!\
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        \\"","backslashes":"Path: C:\\\\Program Files\\\\App","combined":"Line1\\n\\tInd
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ented\\nLine2\\\"quoted\\\"\\nPath: C:\\\\Windows"},"nested":{"level1":{"level2"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        :{"level3":{"value":"Deeply nested value","array":[1,2,3,{"nestedInArray":true}]
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        }}}},"specialChars":"✓ ✔ ✕ ✖ ✗ ✘ ♥ ❤ ❥ ❣ ❦ ❧ ☜ ☞ ☝ ☚ ☛ ☟ ✍ ✎ ✏ ✐ ✑ ✒","unicode":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "日本語 Español Français Deutsch Русский 中文","largeArray":[{"id":0,"name":"Ite
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        m 0","active":true,"nested":{"value":0}},{"id":1,"name":"Item 1","active":false,
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "nested":{"value":100}},{"id":2,"name":"Item 2","active":true,"nested":{"value":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        200}},{"id":3,"name":"Item 3","active":false,"nested":{"value":300}},{"id":4,"na
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        me":"Item 4","active":true,"nested":{"value":400}},{"id":5,"name":"Item 5","acti
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ve":false,"nested":{"value":500}},{"id":6,"name":"Item 6","active":true,"nested"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        :{"value":600}},{"id":7,"name":"Item 7","active":false,"nested":{"value":700}},{
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "id":8,"name":"Item 8","active":true,"nested":{"value":800}},{"id":9,"name":"Ite
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        m 9","active":false,"nested":{"value":900}},{"id":10,"name":"Item 10","active":t
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rue,"nested":{"value":1000}},{"id":11,"name":"Item 11","active":false,"nested":{
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "value":1100}},{"id":12,"name":"Item 12","active":true,"nested":{"value":1200}},
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        {"id":13,"name":"Item 13","active":false,"nested":{"value":1300}},{"id":14,"name
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ":"Item 14","active":true,"nested":{"value":1400}},{"id":15,"name":"Item 15","ac
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        tive":false,"nested":{"value":1500}},{"id":16,"name":"Item 16","active":true,"ne
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        sted":{"value":1600}},{"id":17,"name":"Item 17","active":false,"nested":{"value"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        :1700}},{"id":18,"name":"Item 18","active":true,"nested":{"value":1800}},{"id":1
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        9,"name":"Item 19","active":false,"nested":{"value":1900}}]}
-                      </span>
-                      <span>
                          
                       </span>
                     </div>
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
                   </div>
                   <div
                     aria-hidden="true"
