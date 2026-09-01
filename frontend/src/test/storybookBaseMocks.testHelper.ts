@@ -18,13 +18,13 @@ import type { http } from 'msw';
 
 export const CLUSTER_WIDE_PODS_URL = 'http://localhost:4466/api/v1/pods';
 export const NAMESPACED_PODS_URL = 'http://localhost:4466/api/v1/namespaces/default/pods';
-/** The apps/v1 workload collection fallbacks maintained by Storybook. */
-export const APPS_WORKLOAD_COLLECTION_URLS = [
-  'http://localhost:4466/apis/apps/v1/daemonsets',
-  'http://localhost:4466/apis/apps/v1/deployments',
-  'http://localhost:4466/apis/apps/v1/replicasets',
-  'http://localhost:4466/apis/apps/v1/statefulsets',
-];
+/** The apps/v1 workload collections expected in Storybook fallbacks. */
+export const APPS_WORKLOAD_COLLECTIONS = [
+  { resource: 'daemonsets', kind: 'DaemonSet' },
+  { resource: 'deployments', kind: 'Deployment' },
+  { resource: 'replicasets', kind: 'ReplicaSet' },
+  { resource: 'statefulsets', kind: 'StatefulSet' },
+] as const;
 /** The batch/v1 workload collection fallbacks maintained by Storybook. */
 export const BATCH_WORKLOAD_COLLECTION_URLS = [
   'http://localhost:4466/apis/batch/v1/cronjobs',
@@ -63,14 +63,31 @@ export function workloadCollectionUrls(handlers: HttpHandler[], apiGroup: string
 
   return handlers
     .filter(handler => {
-      if (handler.info.method !== 'GET') {
+      if (handler.info.method !== 'GET' || typeof handler.info.path !== 'string') {
         return false;
       }
 
-      const pathname = new URL(String(handler.info.path)).pathname;
+      const pathname = new URL(handler.info.path).pathname;
       const resourcePath = pathname.slice(collectionPathPrefix.length);
       return pathname.startsWith(collectionPathPrefix) && !resourcePath.includes('/');
     })
     .map(handler => String(handler.info.path))
     .sort();
+}
+
+/**
+ * Builds a Storybook backend URL for an apps/v1 workload collection.
+ *
+ * @param resource - Kubernetes collection resource name.
+ * @param options - Optional cluster and namespace path segments.
+ * @returns The absolute Storybook backend URL.
+ */
+export function appsWorkloadCollectionUrl(
+  resource: (typeof APPS_WORKLOAD_COLLECTIONS)[number]['resource'],
+  options: { cluster?: string; namespace?: string } = {}
+): string {
+  const clusterPath = options.cluster ? `/clusters/${options.cluster}` : '';
+  const namespacePath = options.namespace ? `/namespaces/${options.namespace}` : '';
+
+  return `http://localhost:4466${clusterPath}/apis/apps/v1${namespacePath}/${resource}`;
 }

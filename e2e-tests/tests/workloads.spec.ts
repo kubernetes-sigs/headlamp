@@ -39,6 +39,7 @@ const appsWorkloads = [
       numberAvailable: 1,
       numberReady: 1,
     },
+    expectedText: 'kubernetes.io/os: linux',
   },
   {
     resource: 'deployments',
@@ -55,10 +56,12 @@ const appsWorkloads = [
     },
     status: {
       availableReplicas: 1,
+      conditions: [{ type: 'Available', status: 'True', message: 'Deployment is available' }],
       readyReplicas: 1,
       replicas: 1,
       updatedReplicas: 1,
     },
+    expectedText: 'Available',
   },
   {
     resource: 'replicasets',
@@ -79,6 +82,7 @@ const appsWorkloads = [
       readyReplicas: 1,
       replicas: 1,
     },
+    expectedText: 'replica-server',
   },
   {
     resource: 'statefulsets',
@@ -102,6 +106,7 @@ const appsWorkloads = [
       updateRevision: 'database-1',
       updatedReplicas: 1,
     },
+    expectedText: '1/1',
   },
 ];
 
@@ -156,13 +161,19 @@ const batchWorkloads = [
   },
 ];
 
-test('loads apps workload list pages', async ({ page }) => {
-  const requestedResources = new Set<string>();
-
-  for (const workload of appsWorkloads) {
-    const collectionUrl = new RegExp(`/clusters/test/apis/apps/v1/${workload.resource}(?:\\?.*)?$`);
+for (const workload of appsWorkloads) {
+  test(`loads the ${workload.kind} list page`, async ({ page }) => {
+    let requestSeen = false;
+    const collectionUrl = new RegExp(
+      `/clusters/test/apis/apps/v1/(?:namespaces/[^/]+/)?${workload.resource}(?:\\?.*)?$`
+    );
     await page.route(collectionUrl, async route => {
-      requestedResources.add(workload.resource);
+      requestSeen = true;
+      const namespaceMatch = new URL(route.request().url()).pathname.match(
+        /\/namespaces\/([^/]+)\//
+      );
+      const namespace = namespaceMatch ? decodeURIComponent(namespaceMatch[1]) : 'default';
+
       await route.fulfill({
         json: {
           apiVersion: 'apps/v1',
@@ -174,7 +185,7 @@ test('loads apps workload list pages', async ({ page }) => {
               kind: workload.kind,
               metadata: {
                 name: workload.name,
-                namespace: 'default',
+                namespace,
                 resourceVersion: '1',
                 creationTimestamp: '2026-01-01T00:00:00Z',
                 uid: `${workload.resource}-uid`,
@@ -186,19 +197,19 @@ test('loads apps workload list pages', async ({ page }) => {
         },
       });
     });
-  }
 
-  const headlampPage = new HeadlampPage(page);
-  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
-
-  for (const workload of appsWorkloads) {
+    const headlampPage = new HeadlampPage(page);
+    await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
     await headlampPage.navigateTopage(`/c/test/${workload.resource}`, workload.title);
-    await expect.poll(() => requestedResources.has(workload.resource)).toBe(true);
-    const workloadLink = page.getByRole('link', { name: workload.name, exact: true });
 
-    await expect(workloadLink).toBeVisible();
-  }
-});
+    await expect.poll(() => requestSeen).toBe(true);
+    const workloadRow = page
+      .getByRole('row')
+      .filter({ has: page.getByRole('link', { name: workload.name, exact: true }) });
+    await expect(workloadRow).toBeVisible();
+    await expect(workloadRow.getByText(workload.expectedText, { exact: true })).toBeVisible();
+  });
+}
 
 test('loads batch workload list pages', async ({ page }) => {
   const requestedResources = new Set<string>();

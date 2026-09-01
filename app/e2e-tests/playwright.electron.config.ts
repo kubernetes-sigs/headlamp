@@ -36,6 +36,8 @@ export default defineConfig({
     'listenerCleanup.spec.ts',
     'runCommand.spec.ts',
     'updateChecks.spec.ts',
+    'oauthProvider.spec.ts',
+    'protocolScheme.spec.ts',
   ],
   timeout: 60 * 1000,
   expect: {

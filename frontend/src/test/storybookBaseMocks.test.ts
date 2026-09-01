@@ -18,7 +18,8 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
 import * as storybookMocks from '../../.storybook/baseMocks';
 import {
-  APPS_WORKLOAD_COLLECTION_URLS,
+  APPS_WORKLOAD_COLLECTIONS,
+  appsWorkloadCollectionUrl,
   BATCH_WORKLOAD_COLLECTION_URLS,
   CLUSTER_WIDE_PODS_URL,
   NAMESPACED_PODS_URL,
@@ -27,12 +28,6 @@ import {
 } from './storybookBaseMocks.testHelper';
 
 const server = setupServer();
-const appsWorkloadKinds: Record<string, string> = {
-  daemonsets: 'DaemonSet',
-  deployments: 'Deployment',
-  replicasets: 'ReplicaSet',
-  statefulsets: 'StatefulSet',
-};
 const batchWorkloadKinds: Record<string, string> = {
   cronjobs: 'CronJob',
   jobs: 'Job',
@@ -101,7 +96,31 @@ async function expectWorkloadFallbacks(
 }
 
 test('returns apps workload lists from the frontend fallbacks', async () => {
-  await expectWorkloadFallbacks('apps', APPS_WORKLOAD_COLLECTION_URLS, appsWorkloadKinds);
+  server.use(...storybookMocks.fallbackMocks);
+  const requestOptions = [
+    {},
+    { namespace: 'default' },
+    { cluster: 'cluster0' },
+    { cluster: 'cluster0', namespace: 'default' },
+  ];
+
+  for (const { resource, kind } of APPS_WORKLOAD_COLLECTIONS) {
+    for (const options of requestOptions) {
+      const collectionUrl = appsWorkloadCollectionUrl(resource, options);
+
+      for (const url of [collectionUrl, `${collectionUrl}?limit=500`]) {
+        const response = await fetch(url);
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({
+          kind: `${kind}List`,
+          apiVersion: 'apps/v1',
+          metadata: {},
+          items: [],
+        });
+      }
+    }
+  }
 });
 
 test('returns batch workload lists from the frontend fallbacks', async () => {

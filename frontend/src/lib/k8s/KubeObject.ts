@@ -382,12 +382,15 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster,
       clusters,
       namespace,
+      requests: requestedLists,
       refetchInterval,
       ...queryParams
     }: {
       cluster?: string;
       clusters?: string[];
       namespace?: string | string[];
+      /** Exact cluster and namespace combinations to list instead of building a cross-product. */
+      requests?: Array<{ cluster: string; namespaces?: string[] }>;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
     } & QueryParameters = {}
@@ -401,6 +404,16 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const { requests, emptyWhenNoRequests } = useMemo(() => {
+      if (requestedLists) {
+        return {
+          requests: requestedLists.map(request => ({
+            cluster: request.cluster,
+            namespaces: isNamespaced ? request.namespaces : undefined,
+          })),
+          emptyWhenNoRequests: false,
+        };
+      }
+
       const clusterList = cluster
         ? [cluster]
         : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
@@ -430,6 +443,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       clusters,
       fallbackClusters,
       namespace,
+      requestedLists,
       isNamespaced,
       allowedNamespacesResolutionKey,
     ]);

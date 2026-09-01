@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "Server nelze spustit ani po ukončení existujících procesů.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Nelze najít dostupný port v rozsahu {{startPort}}–{{endPort}}. Uvolněte prosím port a zkuste to znovu.",
   "Invalid URL": "Neplatná adresa URL",
-  "Application opened with an invalid URL: {{ url }}": "Aplikace se otevřela s neplatnou adresou URL: {{ url }}."
+  "Application opened with an invalid URL: {{ url }}": "Aplikace se otevřela s neplatnou adresou URL: {{ url }}.",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

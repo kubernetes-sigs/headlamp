@@ -20,10 +20,10 @@ import { baseMocks, fallbackMocks } from './config/.storybook/baseMocks';
 
 const server = setupServer();
 const appsWorkloads = [
-  { url: 'http://localhost:4466/apis/apps/v1/daemonsets', kind: 'DaemonSetList' },
-  { url: 'http://localhost:4466/apis/apps/v1/deployments', kind: 'DeploymentList' },
-  { url: 'http://localhost:4466/apis/apps/v1/replicasets', kind: 'ReplicaSetList' },
-  { url: 'http://localhost:4466/apis/apps/v1/statefulsets', kind: 'StatefulSetList' },
+  { resource: 'daemonsets', kind: 'DaemonSet' },
+  { resource: 'deployments', kind: 'Deployment' },
+  { resource: 'replicasets', kind: 'ReplicaSet' },
+  { resource: 'statefulsets', kind: 'StatefulSet' },
 ];
 const batchWorkloads = [
   { url: 'http://localhost:4466/apis/batch/v1/cronjobs', kind: 'CronJobList' },
@@ -34,18 +34,41 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
+test.each(appsWorkloads)('returns $kind lists for every apps request form', async workload => {
+  const requestPaths = [
+    `/apis/apps/v1/${workload.resource}`,
+    `/apis/apps/v1/namespaces/default/${workload.resource}`,
+    `/clusters/cluster0/apis/apps/v1/${workload.resource}`,
+    `/clusters/cluster0/apis/apps/v1/namespaces/default/${workload.resource}`,
+  ];
+  server.use(...fallbackMocks);
+
+  for (const requestPath of requestPaths) {
+    const collectionUrl = `http://localhost:4466${requestPath}`;
+
+    for (const url of [collectionUrl, `${collectionUrl}?limit=500`]) {
+      const response = await fetch(url);
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        kind: `${workload.kind}List`,
+        apiVersion: 'apps/v1',
+        metadata: {},
+        items: [],
+      });
+    }
+  }
+});
+
 // Keep this executable contract in the plugin package, where its MSW and Vite
 // dependencies are installed. It catches fallback handlers accidentally moving
 // into baseMocks and verifies that each URL returns its matching Kubernetes kind.
-test.each([
-  ['apps', appsWorkloads],
-  ['batch', batchWorkloads],
-])('returns %s workload lists from plugin-template fallbacks', async (apiGroup, workloads) => {
+test('returns batch workload lists from plugin-template fallbacks', async () => {
   const basePaths = baseMocks.map(handler => String(handler.info.path));
   const fallbackPaths = fallbackMocks.map(handler => String(handler.info.path));
   server.use(...fallbackMocks);
 
-  for (const workload of workloads) {
+  for (const workload of batchWorkloads) {
     expect(basePaths).not.toContain(workload.url);
     expect(fallbackPaths).toContain(workload.url);
 
@@ -54,7 +77,7 @@ test.each([
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       kind: workload.kind,
-      apiVersion: `${apiGroup}/v1`,
+      apiVersion: 'batch/v1',
       metadata: {},
       items: [],
     });

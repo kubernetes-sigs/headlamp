@@ -6,6 +6,7 @@ backend/cmd/static/*
 backend/dist/*
 backend/coverage.out
 backend/pkg/spa/static/*
+app/coverage/
 app/electron/src/*
 docs/development/storybook/
 .plugins

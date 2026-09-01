@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "Nie można uruchomić serwera nawet po zakończeniu istniejących procesów.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Nie można odnaleźć dostępnego portu w zakresie {{startPort}}-{{endPort}}. Zwolnij port i spróbuj ponownie.",
   "Invalid URL": "Nieprawidłowy adres URL",
-  "Application opened with an invalid URL: {{ url }}": "Aplikacja została otwarta z nieprawidłowym adresem URL: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "Aplikacja została otwarta z nieprawidłowym adresem URL: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }
