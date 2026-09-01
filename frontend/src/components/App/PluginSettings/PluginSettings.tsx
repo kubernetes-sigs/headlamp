@@ -282,7 +282,19 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                           size="small"
                           color="warning"
                           variant="outlined"
-                          sx={{ ml: 1, fontSize: '0.7rem', height: '18px' }}
+                          sx={(theme: Theme) => ({
+                            ml: 1,
+                            fontSize: '0.7rem',
+                            height: '18px',
+                            color:
+                              theme.palette.mode === 'light'
+                                ? '#7c3b00'
+                                : theme.palette.warning.main,
+                            borderColor:
+                              theme.palette.mode === 'light'
+                                ? '#c76a00'
+                                : theme.palette.warning.main,
+                          })}
                         />
                       )}
                     </Typography>
@@ -382,6 +394,12 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                         size="small"
                         color="warning"
                         variant="outlined"
+                        sx={(theme: Theme) => ({
+                          color:
+                            theme.palette.mode === 'light' ? '#7c3b00' : theme.palette.warning.main,
+                          borderColor:
+                            theme.palette.mode === 'light' ? '#c76a00' : theme.palette.warning.main,
+                        })}
                       />
                     </Tooltip>
                   );
