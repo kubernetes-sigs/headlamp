@@ -738,7 +738,7 @@
   "(Current/Target)": "(موجودہ/ہدف)",
   "MinReplicas": "کم از کم ریپلیکاز",
   "MaxReplicas": "زیادہ سے زیادہ ریپلیکاز",
-  "Deployment pods": "ڈیپلائمنٹ پوڈز",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} موجودہ / {{ desiredReplicas }} مطلوبہ",
   "Last Scale Time": "",
   "Targets": "اہداف",

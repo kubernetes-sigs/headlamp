@@ -748,7 +748,7 @@
   "(Current/Target)": "(Текущий/Цель)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Поды Deployment",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} текущих / {{ desiredReplicas }} желаемых",
   "Last Scale Time": "",
   "Targets": "Цели",

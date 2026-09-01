@@ -758,7 +758,7 @@
   "(Current/Target)": "(الحالي/المستهدف)",
   "MinReplicas": "الحد الأدنى للنسخ",
   "MaxReplicas": "الحد الأقصى للنسخ",
-  "Deployment pods": "Pods النشر",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} الحالي / {{ desiredReplicas }} المطلوب",
   "Last Scale Time": "",
   "Targets": "الأهداف",

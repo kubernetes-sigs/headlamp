@@ -738,7 +738,7 @@
   "(Current/Target)": "(Aktuellt/mål)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Distributionspoddar",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} nuvarande/{{ desiredReplicas }} önskad",
   "Last Scale Time": "",
   "Targets": "Mål",

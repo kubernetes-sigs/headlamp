@@ -738,7 +738,7 @@
   "(Current/Target)": "(Huidig/doel)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Implementatiepods",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} huidig/{{ desiredReplicas }} gewenst",
   "Last Scale Time": "",
   "Targets": "Doelen",
