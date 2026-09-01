@@ -2,6 +2,7 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,32 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
+
+type failingRESTGetter struct{}
+
+var _ genericclioptions.RESTClientGetter = (*failingRESTGetter)(nil)
+
+func (f *failingRESTGetter) ToRESTConfig() (*rest.Config, error) {
+	return nil, errors.New("rest config failed")
+}
+
+func (f *failingRESTGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, nil
+}
+
+func (f *failingRESTGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, nil
+}
+
+func (f *failingRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return nil
+}
 
 func TestGetActionStatus_NilErr(t *testing.T) {
 	h := &Handler{
@@ -73,4 +99,31 @@ func TestGetChart_InvalidType(t *testing.T) {
 	assert.Equal(t, "failed", statusMap.Status)
 	assert.NotNil(t, statusMap.Err)
 	assert.Contains(t, *statusMap.Err, "chart type \"library\" is not installable")
+}
+
+func TestInstallRelease_VerifyUserFailureSetsFailedStatus(t *testing.T) {
+	h := &Handler{
+		Cache:       cache.New[interface{}](),
+		EnvSettings: cli.New(),
+	}
+	actionConfig := &action.Configuration{
+		RESTClientGetter: &failingRESTGetter{},
+	}
+	req := InstallRequest{
+		CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+			Name:      "test-release",
+			Namespace: "default",
+			Chart:     "test-repo/test-chart",
+		},
+	}
+
+	require.NoError(t, h.setReleaseStatus("install", req.Name, processing, nil))
+
+	h.installRelease(req, actionConfig)
+
+	status, err := h.getReleaseStatus("install", req.Name)
+	require.NoError(t, err)
+	assert.Equal(t, failed, status.Status)
+	require.NotNil(t, status.Err)
+	assert.Contains(t, *status.Err, "rest config failed")
 }
