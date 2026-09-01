@@ -129,6 +129,109 @@ function getUniqueTestDir(basePath: string, testName: string): string {
 }
 
 describe('PluginManager', () => {
+  it('should list plugins even when a package.json has no artifacthub', () => {
+    // Regression test: a plugin without an artifacthub key used to throw
+    // TypeError inside list(), hiding all other plugins as well.
+    const pluginsDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'list-no-artifacthub');
+
+    const makePlugin = (name: string, packageJson: object) => {
+      const dir = path.join(pluginsDir, name);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'main.js'), '');
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(packageJson));
+    };
+
+    try {
+      makePlugin('no-artifacthub-plugin', {
+        name: 'no-artifacthub-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+      });
+      makePlugin('with-artifacthub-plugin', {
+        name: 'with-artifacthub-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: { title: 'With ArtifactHub' },
+      });
+      // artifacthub present but empty: subfields must normalize to null, not undefined.
+      makePlugin('empty-artifacthub-plugin', {
+        name: 'empty-artifacthub-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {},
+      });
+      const plugins = PluginManager.list(pluginsDir)!;
+      expect(plugins).toBeDefined();
+
+      const noArtifactHub = plugins.find(p => p.pluginName === 'no-artifacthub-plugin');
+      expect(noArtifactHub).toBeDefined();
+      expect(noArtifactHub!.pluginTitle).toBeNull();
+      // The sibling plugin must still be listed alongside it.
+      expect(plugins.some(p => p.pluginName === 'with-artifacthub-plugin')).toBe(true);
+
+      const emptyArtifactHub = plugins.find(p => p.pluginName === 'empty-artifacthub-plugin');
+      expect(emptyArtifactHub).toBeDefined();
+      expect(emptyArtifactHub!.pluginTitle).toBeNull();
+      expect(emptyArtifactHub!.author).toBeNull();
+    } finally {
+      fs.rmSync(pluginsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should throw when updating a plugin with no artifacthub metadata', async () => {
+    // list() now returns such plugins, so update() must reject explicitly
+    // instead of dereferencing the missing artifacthub object.
+    const pluginsDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'update-no-artifacthub');
+    const pluginDir = path.join(pluginsDir, 'no-artifacthub-plugin');
+
+    try {
+      fs.mkdirSync(pluginDir, { recursive: true });
+      fs.writeFileSync(path.join(pluginDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(pluginDir, 'package.json'),
+        JSON.stringify({
+          name: 'no-artifacthub-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+        })
+      );
+
+      await expect(
+        PluginManager.update('no-artifacthub-plugin', pluginsDir, HEADLAMP_VERSION, null, null)
+      ).rejects.toThrow('No artifacthub URL found for plugin');
+    } finally {
+      fs.rmSync(pluginsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should throw when plugin has an artifacthub url but no version', async () => {
+    // Regression test: a plugin with artifacthub.url but no artifacthub.version
+    // used to reach semver.lte with undefined.
+    const pluginsDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'partial-artifacthub');
+    const pluginDir = path.join(pluginsDir, 'partial-plugin');
+
+    try {
+      fs.mkdirSync(pluginDir, { recursive: true });
+      fs.writeFileSync(path.join(pluginDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(pluginDir, 'package.json'),
+        JSON.stringify({
+          name: 'partial-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+          // url present but version is intentionally missing
+          artifacthub: { url: 'https://artifacthub.io/packages/headlamp/test-repo/partial-plugin' },
+        })
+      );
+
+      await expect(
+        PluginManager.update('partial-plugin', pluginsDir, HEADLAMP_VERSION, null, null)
+      ).rejects.toThrow('No artifacthub version found for plugin');
+    } finally {
+      fs.rmSync(pluginsDir, { recursive: true, force: true });
+    }
+  });
+
   it('should install plugin with platform-specific binaries', async () => {
     // Create unique directories for this test
     const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'platform-specific-data');

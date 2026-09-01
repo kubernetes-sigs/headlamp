@@ -89,6 +89,98 @@ describe('PluginManager Test Cases', () => {
       });
     });
 
+    test('List Plugins when package.json has no artifacthub', () => {
+      // Regression test: a plugin without an artifacthub key used to throw
+      // TypeError inside list(), hiding all other plugins as well.
+      const noArtifactHubDir = path.join(workDir, 'no-artifacthub-plugin');
+      fs.mkdirSync(noArtifactHubDir);
+      fs.writeFileSync(path.join(noArtifactHubDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(noArtifactHubDir, 'package.json'),
+        JSON.stringify({
+          name: 'no-artifacthub-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+        })
+      );
+
+      PluginManager.list(workDir, mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'success',
+        message: 'Plugins Listed',
+        data: expect.any(Array),
+      });
+
+      const plugins = mockProgressCallback.mock.calls[0][0].data;
+      const noArtifactHub = plugins.find(p => p.pluginName === 'no-artifacthub-plugin');
+      expect(noArtifactHub).toBeDefined();
+      expect(noArtifactHub.pluginTitle).toBeNull();
+      // The pre-installed flux plugin must still be listed alongside it.
+      expect(plugins.some(p => p.pluginName === '@headlamp-k8s/flux')).toBe(true);
+    });
+
+    test('List Plugins normalizes missing artifacthub subfields to null', () => {
+      // artifacthub present but empty: subfields must be null, not undefined.
+      const emptyDir = path.join(workDir, 'empty-artifacthub-plugin');
+      fs.mkdirSync(emptyDir);
+      fs.writeFileSync(path.join(emptyDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(emptyDir, 'package.json'),
+        JSON.stringify({
+          name: 'empty-artifacthub-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+          artifacthub: {},
+        })
+      );
+
+      PluginManager.list(workDir, mockProgressCallback);
+
+      const plugins = mockProgressCallback.mock.calls[0][0].data;
+      const emptyArtifactHub = plugins.find(p => p.pluginName === 'empty-artifacthub-plugin');
+      expect(emptyArtifactHub).toBeDefined();
+      expect(emptyArtifactHub.pluginTitle).toBeNull();
+      expect(emptyArtifactHub.author).toBeNull();
+    });
+
+    test('Update Plugin throws when artifacthub URL is missing', async () => {
+      const noArtifactHubDir = path.join(workDir, 'no-artifacthub-plugin');
+      fs.mkdirSync(noArtifactHubDir);
+      fs.writeFileSync(path.join(noArtifactHubDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(noArtifactHubDir, 'package.json'),
+        JSON.stringify({
+          name: 'no-artifacthub-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+        })
+      );
+
+      await expect(
+        PluginManager.update('no-artifacthub-plugin', workDir, '', null, null)
+      ).rejects.toThrow('No artifacthub URL found for plugin');
+    });
+
+    test('Update Plugin throws when artifacthub version is missing', async () => {
+      // url present but version absent: semver.lte must never see undefined.
+      const partialDir = path.join(workDir, 'partial-artifacthub-plugin');
+      fs.mkdirSync(partialDir);
+      fs.writeFileSync(path.join(partialDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(partialDir, 'package.json'),
+        JSON.stringify({
+          name: 'partial-artifacthub-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+          artifacthub: { url: FLUX_URL },
+        })
+      );
+
+      await expect(
+        PluginManager.update('partial-artifacthub-plugin', workDir, '', null, null)
+      ).rejects.toThrow('No artifacthub version found for plugin');
+    });
+
     test('No Update available for Plugin', async () => {
       const packageJSONPath = `${workDir}/headlamp_flux/package.json`;
       const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
