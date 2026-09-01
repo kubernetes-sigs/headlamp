@@ -155,6 +155,11 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.invoke('secure-storage-delete', capability, key),
   },
 
+  commandCapabilities: {
+    register: (registrations: unknown[]) =>
+      ipcRenderer.invoke('register-plugin-command-capabilities', registrations),
+  },
+
   // Notify cluster change (for MCP server restart)
   notifyClusterChange: (cluster: string | null) => {
     ipcRenderer.send('cluster-changed', cluster);

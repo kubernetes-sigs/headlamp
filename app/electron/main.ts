@@ -36,6 +36,11 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import {
+  loadBuildManifest,
+  productPluginCommandPolicies,
+  resolveBuildManifestPath,
+} from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
 import { createCertificateSetup } from './certificates';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
@@ -206,10 +211,16 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
-const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
+const appBuildManifestPath = isDev
+  ? resolveBuildManifestPath()
+  : path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 const protocolScheme = readProtocolScheme(appBuildManifestPath);
 const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
+const productPluginCommandPolicy = productPluginCommandPolicies(
+  loadBuildManifest(appBuildManifestPath),
+  isDev ? 'development' : 'production'
+);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -505,7 +516,10 @@ class PluginManagerEventListeners {
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
 
-    removeRunCmdConsent(pluginName);
+    const installedPlugin = PluginManager.list(destinationFolder)?.find(
+      plugin => plugin.pluginName === pluginName
+    );
+    removeRunCmdConsent(pluginName, installedPlugin?.folderName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
@@ -1558,6 +1572,14 @@ function startElectron() {
       },
     });
     protocolHandler.attachToWebContents(mainWindow.webContents);
+    setupRunCmdHandlers(
+      mainWindow,
+      ipcMain,
+      productPluginCommandPolicy,
+      startUrl,
+      undefined,
+      isDev
+    );
 
     applyZoom();
 
@@ -1739,7 +1761,6 @@ function startElectron() {
       applyTrayIconSetting(enabled);
     });
 
-    setupRunCmdHandlers(mainWindow, ipcMain);
     setupSecureStorageHandlers(mainWindow, startUrl);
 
     new PluginManagerEventListeners().setupEventHandlers();
