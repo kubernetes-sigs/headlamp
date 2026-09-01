@@ -16,10 +16,12 @@
 
 import * as fc from 'fast-check';
 import {
+  compareQuantities,
   divideK8sResources,
   parseCpu,
   parseDiskSpace,
   parseRam,
+  splitQuantity,
   unparseCpu,
   unparseRam,
 } from './units';
@@ -351,5 +353,108 @@ describe('divideK8sResources', () => {
     expect(() => divideK8sResources('500m', 'invalid', 'cpu')).toThrow(
       'Divisor must be greater than 0: invalid'
     );
+  });
+});
+
+describe('splitQuantity', () => {
+  it.each([
+    ['8Gi', '8', 'Gi'],
+    ['500M', '500', 'M'],
+    ['1.5Ti', '1.5', 'Ti'],
+    ['512Ki', '512', 'Ki'],
+    ['100k', '100', 'k'],
+    ['500m', '500', 'm'],
+    ['500u', '500', 'u'],
+    ['500n', '500', 'n'],
+  ])('splits %s into its number and its suffix', (quantity, value, unit) => {
+    expect(splitQuantity(quantity)).toEqual({ value, unit });
+  });
+
+  it('reads a quantity without a suffix', () => {
+    expect(splitQuantity('1024')).toEqual({ value: '1024', unit: '' });
+  });
+
+  it('keeps every digit of a large quantity', () => {
+    expect(splitQuantity('9007199254740993')).toEqual({ value: '9007199254740993', unit: '' });
+  });
+
+  it('writes the number as a plain decimal', () => {
+    expect(splitQuantity('.5Gi')).toEqual({ value: '0.5', unit: 'Gi' });
+    expect(splitQuantity('8.Gi')).toEqual({ value: '8', unit: 'Gi' });
+    expect(splitQuantity('008.50Gi')).toEqual({ value: '8.5', unit: 'Gi' });
+    expect(splitQuantity('0')).toEqual({ value: '0', unit: '' });
+  });
+
+  it('ignores the surrounding space the API may report', () => {
+    expect(splitQuantity(' 8Gi ')).toEqual({ value: '8', unit: 'Gi' });
+  });
+
+  it('folds a decimal exponent into the decimal suffix it stands for', () => {
+    expect(splitQuantity('1e9')).toEqual({ value: '1', unit: 'G' });
+    expect(splitQuantity('2E6')).toEqual({ value: '2', unit: 'M' });
+    expect(splitQuantity('1.5e3')).toEqual({ value: '1.5', unit: 'k' });
+    expect(splitQuantity('5e-6')).toEqual({ value: '5', unit: 'u' });
+    expect(splitQuantity('1e0')).toEqual({ value: '1', unit: '' });
+  });
+
+  it('folds a decimal exponent without a matching suffix into the number', () => {
+    expect(splitQuantity('15e2')).toEqual({ value: '1500', unit: '' });
+    expect(splitQuantity('1.55e1')).toEqual({ value: '15.5', unit: '' });
+    expect(splitQuantity('15e-4')).toEqual({ value: '0.0015', unit: '' });
+  });
+
+  it('reads E as the exa suffix, and only as an exponent when digits follow', () => {
+    expect(splitQuantity('1E')).toEqual({ value: '1', unit: 'E' });
+    expect(splitQuantity('1E3')).toEqual({ value: '1', unit: 'k' });
+  });
+
+  it('gives up on a quantity it cannot read', () => {
+    expect(splitQuantity('')).toBeUndefined();
+    expect(splitQuantity('Gi')).toBeUndefined();
+    expect(splitQuantity('8Gib')).toBeUndefined();
+    expect(splitQuantity('8ki')).toBeUndefined();
+    // K on its own is not a Kubernetes suffix; kilo is a lowercase k.
+    expect(splitQuantity('8K')).toBeUndefined();
+    expect(splitQuantity('-16Gi')).toBeUndefined();
+    expect(splitQuantity('1e')).toBeUndefined();
+    expect(splitQuantity('1e999999999')).toBeUndefined();
+  });
+});
+
+describe('compareQuantities', () => {
+  it.each([
+    ['8Gi', '8192Mi'],
+    ['1.5Ti', '1536Gi'],
+    ['1G', '1e9'],
+    ['1500', '15e2'],
+    ['1', '1000m'],
+    ['1m', '1000u'],
+    ['1u', '1000n'],
+    ['1Ei', '1152921504606846976'],
+    ['0', '0Gi'],
+  ])('finds %s equal to %s', (a, b) => {
+    expect(compareQuantities(a, b)).toBe(0);
+    expect(compareQuantities(b, a)).toBe(0);
+  });
+
+  it.each([
+    ['900Mi', '8Gi'],
+    ['1G', '1Gi'],
+    // 2 Ki is smaller than 100 k, so a claim of 100k cannot be "grown" to it.
+    ['2Ki', '100k'],
+    ['999n', '1u'],
+    ['500u', '1m'],
+    ['0.1', '0.11'],
+    // These two are the same JavaScript number.
+    ['9007199254740992', '9007199254740993'],
+    ['1Ei', '1152921504606846977'],
+  ])('finds %s smaller than %s', (a, b) => {
+    expect(compareQuantities(a, b)).toBeLessThan(0);
+    expect(compareQuantities(b, a)).toBeGreaterThan(0);
+  });
+
+  it('gives up on a quantity it cannot read', () => {
+    expect(compareQuantities('', '8Gi')).toBeUndefined();
+    expect(compareQuantities('8Gi', '-16Gi')).toBeUndefined();
   });
 });

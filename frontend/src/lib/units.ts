@@ -134,3 +134,118 @@ export function divideK8sResources(
   const dividend = resourceType === 'cpu' ? parseCpu(a) : parseUnitsOfBytes(a);
   return dividend / divisor;
 }
+
+/** A Kubernetes quantity split into the number the user edits and its suffix. */
+export interface QuantityParts {
+  /** The number as text, e.g. '1.5', because a JavaScript number would round a large one. */
+  value: string;
+  /** The suffix as written, e.g. 'Gi' or 'M'. Empty when the quantity has no suffix. */
+  unit: string;
+}
+
+/** The power of ten each decimal suffix of the Kubernetes quantity grammar stands for. */
+const DECIMAL_SUFFIX_POWERS: Record<string, number> = {
+  n: -9,
+  u: -6,
+  m: -3,
+  '': 0,
+  k: 3,
+  M: 6,
+  G: 9,
+  T: 12,
+  P: 15,
+  E: 18,
+};
+
+/** The power of two each binary suffix of the Kubernetes quantity grammar stands for. */
+const BINARY_SUFFIX_POWERS: Record<string, number> = {
+  Ki: 10,
+  Mi: 20,
+  Gi: 30,
+  Ti: 40,
+  Pi: 50,
+  Ei: 60,
+};
+
+/** Moves the decimal point of an unsigned decimal, without rounding it. */
+function shiftDecimalPoint(value: string, places: number): string {
+  const [integer, fraction = ''] = value.split('.');
+  const digits = integer + fraction;
+  const point = integer.length + places;
+  const whole = point > 0 ? digits.padEnd(point, '0').slice(0, point) : '';
+  const rest = point > 0 ? digits.slice(point) : '0'.repeat(-point) + digits;
+
+  const trimmedWhole = whole.replace(/^0+(?=\d)/, '') || '0';
+  const trimmedRest = rest.replace(/0+$/, '');
+  return trimmedRest ? `${trimmedWhole}.${trimmedRest}` : trimmedWhole;
+}
+
+/**
+ * Splits a Kubernetes quantity into its number and its suffix.
+ *
+ * Quantities are written as a number followed by an optional suffix, e.g. '8Gi'. Editing
+ * one means editing the number while keeping the suffix the cluster reported. A decimal
+ * exponent, e.g. '1e9', has no suffix to keep, so it is folded into the decimal suffix it
+ * stands for, or into the number when there is none.
+ * @param quantity - The quantity to split, e.g. '8Gi'.
+ * @returns The number and the suffix, or undefined when the quantity cannot be read.
+ */
+export function splitQuantity(quantity: string): QuantityParts | undefined {
+  const groups =
+    /^(\d+(?:\.\d*)?|\.\d+)(?:[eE]([+-]?\d{1,3})|(Ki|Mi|Gi|Ti|Pi|Ei|n|u|m|k|M|G|T|P|E))?$/.exec(
+      quantity?.trim() ?? ''
+    );
+  if (!groups) {
+    return undefined;
+  }
+
+  const [, value, exponent, unit = ''] = groups;
+  if (exponent === undefined) {
+    return { value: shiftDecimalPoint(value, 0), unit };
+  }
+
+  const power = parseInt(exponent, 10);
+  const decimalSuffix = Object.keys(DECIMAL_SUFFIX_POWERS).find(
+    suffix => DECIMAL_SUFFIX_POWERS[suffix] === power
+  );
+  return decimalSuffix === undefined
+    ? { value: shiftDecimalPoint(value, power), unit: '' }
+    : { value: shiftDecimalPoint(value, 0), unit: decimalSuffix };
+}
+
+/**
+ * Compares two Kubernetes quantities exactly, whatever their size and suffix.
+ *
+ * It reads the quantities the way splitQuantity does, so that it agrees with the parts a
+ * user edits.
+ * @param a - The first quantity, e.g. '8Gi', '100k' or '1e9'.
+ * @param b - The second quantity.
+ * @returns A negative number, 0 or a positive number when a is smaller than, equal to or
+ * larger than b, or undefined when either cannot be read.
+ */
+export function compareQuantities(a: string, b: string): number | undefined {
+  const partsA = splitQuantity(a);
+  const partsB = splitQuantity(b);
+  if (!partsA || !partsB) {
+    return undefined;
+  }
+
+  const [scaledA, scaledB] = [partsA, partsB].map(({ value, unit }) => {
+    const [integer, fraction = ''] = value.split('.');
+    return {
+      digits: integer + fraction,
+      power: (DECIMAL_SUFFIX_POWERS[unit] ?? 0) - fraction.length,
+      // A power of two up to 2^60 is exact as a JavaScript number.
+      multiplier: BigInt(2 ** (BINARY_SUFFIX_POWERS[unit] ?? 0)),
+    };
+  });
+  const lowestPower = Math.min(scaledA.power, scaledB.power);
+  const [integerA, integerB] = [scaledA, scaledB].map(
+    ({ digits, power, multiplier }) => BigInt(digits + '0'.repeat(power - lowestPower)) * multiplier
+  );
+
+  if (integerA === integerB) {
+    return 0;
+  }
+  return integerA < integerB ? -1 : 1;
+}

@@ -14,8 +14,17 @@
  * limitations under the License.
  */
 
+import type { KubeCondition } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+
+/** The conditions about resizing, with the failures first because they need attention. */
+const RESIZE_CONDITIONS = [
+  'ControllerResizeError',
+  'NodeResizeError',
+  'FileSystemResizePending',
+  'Resizing',
+];
 
 export interface KubePersistentVolumeClaim extends KubeObjectInterface {
   spec?: {
@@ -38,6 +47,10 @@ export interface KubePersistentVolumeClaim extends KubeObjectInterface {
     };
     phase?: string;
     accessModes?: string[];
+    conditions?: KubeCondition[];
+    allocatedResources?: {
+      storage?: string;
+    };
     [other: string]: any;
   };
 }
@@ -74,6 +87,47 @@ class PersistentVolumeClaim extends KubeObject<KubePersistentVolumeClaim> {
 
   get status() {
     return this.jsonData.status;
+  }
+
+  /** The size asked for in the spec, which the provider grows the volume towards. */
+  get requestedStorage(): string | undefined {
+    return this.spec?.resources?.requests?.storage;
+  }
+
+  /** The size the volume actually has, which trails the request while it grows. */
+  get capacity(): string | undefined {
+    return this.status?.capacity?.storage;
+  }
+
+  /** Whether the volume, or the file system on it, is still growing or failed to grow. */
+  get resizeCondition(): KubeCondition | undefined {
+    const conditions = this.status?.conditions?.filter(
+      condition => RESIZE_CONDITIONS.includes(condition.type) && condition.status === 'True'
+    );
+    return conditions?.sort(
+      (a, b) => RESIZE_CONDITIONS.indexOf(a.type) - RESIZE_CONDITIONS.indexOf(b.type)
+    )[0];
+  }
+
+  /**
+   * Asks the storage provider for a larger volume.
+   *
+   * Only claims bound to a storage class that allows expansion can grow. A request that
+   * failed to grow can be lowered, but the API rejects lowering it to the capacity or below,
+   * because a volume cannot shrink.
+   * @param storage - The new size, as a Kubernetes quantity such as '20Gi'.
+   * @returns The patched claim.
+   */
+  expandTo(storage: string) {
+    return this.patch({
+      spec: {
+        resources: {
+          requests: {
+            storage,
+          },
+        },
+      },
+    });
   }
 }
 

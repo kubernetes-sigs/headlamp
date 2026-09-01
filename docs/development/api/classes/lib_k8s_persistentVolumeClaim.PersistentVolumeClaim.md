@@ -73,6 +73,54 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 ## Accessors
 
+### capacity
+
+• `get` **capacity**(): `undefined` \| `string`
+
+The size the volume actually has, which trails the request while it grows.
+
+#### Returns
+
+`undefined` \| `string`
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:98](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L98)
+
+___
+
+### requestedStorage
+
+• `get` **requestedStorage**(): `undefined` \| `string`
+
+The size asked for in the spec, which the provider grows the volume towards.
+
+#### Returns
+
+`undefined` \| `string`
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:93](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L93)
+
+___
+
+### resizeCondition
+
+• `get` **resizeCondition**(): `undefined` \| [`KubeCondition`](../interfaces/lib_k8s_cluster.KubeCondition.md)
+
+Whether the volume, or the file system on it, is still growing or failed to grow.
+
+#### Returns
+
+`undefined` \| [`KubeCondition`](../interfaces/lib_k8s_cluster.KubeCondition.md)
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:103](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L103)
+
+___
+
 ### spec
 
 • `get` **spec**(): `any`
@@ -126,6 +174,34 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 #### Defined in
 
 [lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+
+___
+
+### expandTo
+
+▸ **expandTo**(`storage`): `Promise`<`any`\>
+
+Asks the storage provider for a larger volume.
+
+Only claims bound to a storage class that allows expansion can grow. A request that
+failed to grow can be lowered, but the API rejects lowering it to the capacity or below,
+because a volume cannot shrink.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `storage` | `string` | The new size, as a Kubernetes quantity such as '20Gi'. |
+
+#### Returns
+
+`Promise`<`any`\>
+
+The patched claim.
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:121](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L121)
 
 ___
 
