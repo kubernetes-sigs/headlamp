@@ -8,25 +8,42 @@ set up an ingress server for having it available to users.
 
 ## Using Helm
 
-The easiest way to install headlamp in your existing cluster is to
-use [helm](https://helm.sh/docs/intro/quickstart/) with our [helm chart](https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp).
+The easiest way to install Headlamp in your existing cluster is to
+use [Helm](https://helm.sh/docs/intro/quickstart/) with our [Helm chart](https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp).
 
 ```bash
 # first add our custom repo to your local helm repositories
 helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
+helm repo update
 
-# now you should be able to install headlamp via helm
-helm install my-headlamp headlamp/headlamp --namespace kube-system
+# install headlamp in a dedicated namespace (recommended)
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace
 ```
+
+:::info Choosing a Namespace
+Deploying Headlamp into its own dedicated namespace (e.g. `headlamp` via `--namespace headlamp --create-namespace`) is recommended for production environments:
+- **Security & RBAC isolation:** Keeps Headlamp's namespaced objects (such as ServiceAccount, Roles, RoleBindings, and plugins) isolated without cluttering core Kubernetes system components. Note that by default the chart creates a `ClusterRoleBinding` granting `cluster-admin` access unless configured with restricted ClusterRoles.
+- **Lifecycle management:** Simplifies applying NetworkPolicies, ResourceQuotas, and managing clean uninstalls or upgrades.
+
+Installing into `kube-system` (e.g. `--namespace kube-system`) is also supported and was historically common in simple test setups or Minikube addons, but is not required.
+:::
 
 As usual, it is possible to configure the helm release via the [values file](https://github.com/kubernetes-sigs/headlamp/blob/main/charts/headlamp/values.yaml) or setting your preferred values directly.
 
 ```bash
 # install headlamp with your own values.yaml
-helm install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  -f values.yaml
 
 # install headlamp by setting your values directly
-helm install my-headlamp headlamp/headlamp --namespace kube-system --set replicaCount=2
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  --set replicaCount=2
 ```
 
 ### Cluster Inventory
@@ -68,7 +85,10 @@ config:
 Then install Headlamp with the values file:
 
 ```bash
-helm install my-headlamp headlamp/headlamp --namespace kube-system --values cluster-inventory-values.yaml
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  --values cluster-inventory-values.yaml
 ```
 
 The `accessProvidersConfig` object is the provider config consumed by the
@@ -135,12 +155,12 @@ restart the pod after changing them.
 :::
 
 First, store the kubeconfig for the extra cluster(s) in a Secret. The examples
-below assume Headlamp is installed in the `kube-system` namespace:
+below assume Headlamp is installed in the `headlamp` namespace:
 
 ```bash
 kubectl create secret generic headlamp-kubeconfig \
   --from-file=config=./my-kubeconfig \
-  --namespace kube-system
+  --namespace headlamp
 ```
 
 ### Option 1: Mount the kubeconfig at the default location
@@ -162,7 +182,10 @@ volumes:
 ```
 
 ```bash
-helm install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  -f values.yaml
 ```
 
 ### Option 2: Mount the kubeconfig anywhere and use the -kubeconfig argument
@@ -209,7 +232,7 @@ with a Secret that contains one key per kubeconfig file:
 kubectl create secret generic headlamp-kubeconfig \
   --from-file=cluster-a=./cluster-a-kubeconfig \
   --from-file=cluster-b=./cluster-b-kubeconfig \
-  --namespace kube-system
+  --namespace headlamp
 ```
 
 ### Using plain YAML instead of Helm
@@ -267,7 +290,7 @@ If you want to quickly access Headlamp (after having its service running) and
 don't want to set up an ingress for it, you can run use port-forwarding as follows:
 
 ```bash
-kubectl port-forward -n kube-system service/headlamp 8080:80
+kubectl port-forward -n headlamp service/headlamp 8080:80
 ```
 
 and then you can access `localhost:8080` in your browser.
@@ -324,7 +347,11 @@ installOptions:
 
 2. Install/upgrade Headlamp using the plugin configuration:
 ```bash
-helm upgrade --install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml --set pluginsManager.configContent="$(cat plugin.yml)"
+helm upgrade --install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  -f values.yaml \
+  --set pluginsManager.configContent="$(cat plugin.yml)"
 ```
 
 ### Plugin Configuration Format
