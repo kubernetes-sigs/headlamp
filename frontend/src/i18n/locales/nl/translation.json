@@ -1028,5 +1028,9 @@
   "Toggle Table Filters": "Tabelfilters in-/uitschakelen",
   "Toggle column filters in tables": "Kolomfilters in tabellen in-/uitschakelen",
   "Log Viewer Search": "Zoeken in logboekviewer",
-  "Toggle search in log viewer": "Zoeken in logboekviewer in-/uitschakelen"
+  "Toggle search in log viewer": "Zoeken in logboekviewer in-/uitschakelen",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": ""
 }

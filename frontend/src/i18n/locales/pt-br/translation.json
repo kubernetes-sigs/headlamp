@@ -1038,5 +1038,9 @@
   "Toggle Table Filters": "Alternar Filtros de Tabela",
   "Toggle column filters in tables": "Alternar filtros de coluna em tabelas",
   "Log Viewer Search": "Pesquisa do Visualizador de Logs",
-  "Toggle search in log viewer": "Alternar pesquisa no visualizador de log"
+  "Toggle search in log viewer": "Alternar pesquisa no visualizador de log",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": ""
 }

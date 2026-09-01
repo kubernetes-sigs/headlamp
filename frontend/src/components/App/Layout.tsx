@@ -26,13 +26,19 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { matchPath, useHistory, useLocation } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
+import { getRoute } from '../../lib/router/getRoute';
+import { getRoutePath } from '../../lib/router/getRoutePath';
 import { getSavedNamespaces } from '../../lib/storage';
+import { useShortcut } from '../../lib/useShortcut';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -205,6 +211,84 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+  const history = useHistory();
+
+  const location = useLocation();
+  const filterNamespaces = useTypedSelector(state => state.filter.namespaces);
+  const routes = useTypedSelector(state => state.routes.routes);
+
+  const routeSupportsNamespace = (routeName: string) => {
+    const targetRoute = getRoute(routeName);
+    if (!targetRoute) return false;
+
+    const allRoutes = [...Object.values(getDefaultRoutes()), ...Object.values(routes)];
+    return allRoutes.some(
+      r => r.path.startsWith(targetRoute.path) && r.path.includes('/:namespace')
+    );
+  };
+
+  const getActiveNamespace = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const queryNamespace = searchParams.get('namespace');
+    if (queryNamespace) {
+      return queryNamespace;
+    }
+
+    const allRoutes = [...Object.values(getDefaultRoutes()), ...Object.values(routes)];
+    let currentPathNamespace = '';
+    for (const route of allRoutes) {
+      if (route.path.includes(':namespace')) {
+        const match = matchPath<{ namespace?: string }>(location.pathname, {
+          path: getRoutePath(route),
+          exact: route.exact,
+        });
+        if (match && match.params.namespace) {
+          currentPathNamespace = match.params.namespace;
+          break;
+        }
+      }
+    }
+    if (currentPathNamespace) {
+      return currentPathNamespace;
+    }
+
+    if (filterNamespaces && filterNamespaces.size > 0) {
+      return [...filterNamespaces].join(' ');
+    }
+    return '';
+  };
+
+  const navigateToWithNamespace = (routeName: string) => {
+    const url = createRouteURL(routeName);
+    if (!url) return;
+
+    const activeNamespace = getActiveNamespace();
+    if (activeNamespace && routeSupportsNamespace(routeName)) {
+      const searchParams = new URLSearchParams();
+      searchParams.set('namespace', activeNamespace);
+      history.push(`${url}?${searchParams.toString()}`);
+    } else {
+      history.push(url);
+    }
+  };
+
+  useShortcut(
+    'NAVIGATE_TO_PODS',
+    () => {
+      navigateToWithNamespace('pods');
+    },
+    {},
+    [location.search, location.pathname, filterNamespaces, routes]
+  );
+
+  useShortcut(
+    'NAVIGATE_TO_DEPLOYMENTS',
+    () => {
+      navigateToWithNamespace('deployments');
+    },
+    {},
+    [location.search, location.pathname, filterNamespaces, routes]
+  );
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
