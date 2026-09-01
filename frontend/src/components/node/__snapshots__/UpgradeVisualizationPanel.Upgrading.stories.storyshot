@@ -224,7 +224,7 @@
               </span>
             </div>
             <div
-              class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+              class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-lsd13o-MuiChip-root"
             >
               <span
                 class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
