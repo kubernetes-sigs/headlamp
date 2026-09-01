@@ -819,6 +819,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "Pod hata ayıklama işlemi ayarlarda devre dışı bırakıldı",
   "Attaching to existing debug container...": "Mevcut hata ayıklama kapsayıcısına ekleniyor...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Kısa süreli hata ayıklama kapsayıcısı oluşturuluyor...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "Hata ayıklama kapsayıcısı oluşturulamadı: {{message}}",

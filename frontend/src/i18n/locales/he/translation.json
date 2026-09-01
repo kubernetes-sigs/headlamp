@@ -825,6 +825,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "Pod debug is disabled in settings",
   "Attaching to existing debug container...": "Attaching to existing debug container...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Creating ephemeral debug container...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "Failed to create debug container: {{message}}",
