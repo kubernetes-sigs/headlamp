@@ -97,6 +97,7 @@ type Config struct {
 	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
+	OidcAutoLogin                bool   `koanf:"oidc-auto-login"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -654,6 +655,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
+	f.Bool("oidc-auto-login", false, "Automatic Redirect to OIDC provider")
 	f.String("oidc-client-id", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")

@@ -795,6 +795,7 @@
   "Upgrading Nodes": "",
   "Surge Nodes": "",
   "Idle Nodes": "",
+  "Unable to access browser storage to complete authentication. Please enable cookies and storage in your browser settings and try again.": "",
   "Redirecting to main page…": "முக்கிய பக்கத்திற்கு திருப்பி விடுகிறது...",
   "Node": "நோட்",
   "Optional: schedule the pod on a specific node": "",
