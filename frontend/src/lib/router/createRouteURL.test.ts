@@ -25,6 +25,12 @@ vi.mock('./getRoute', () => ({
     if (name === 'pluginSimpleRoute') {
       return { path: '/plugin', useClusterURL: false };
     }
+    if (name === 'roles') {
+      return { path: '/c/:cluster/roles', useClusterURL: true };
+    }
+    if (name === 'roleBindings') {
+      return { path: '/c/:cluster/rolebindings', useClusterURL: true };
+    }
     return undefined;
   }),
 }));
@@ -70,5 +76,23 @@ describe('createRouteURL', () => {
     const message = warnSpy.mock.calls[0][0] as string;
     expect(message).toContain('pluginParameterizedRoute');
     expect(message).toContain('/plugin/:namespace/:name');
+  });
+
+  it('handles deprecated alias clusterRoles', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(createRouteURL('clusterRoles', { cluster: 'minikube' })).toBe('/c/minikube/roles');
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[Deprecation] Route name "clusterRoles" is deprecated. Please use "roles" instead.'
+    );
+  });
+
+  it('handles deprecated alias clusterRoleBindings', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(createRouteURL('clusterRoleBindings', { cluster: 'minikube' })).toBe(
+      '/c/minikube/rolebindings'
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[Deprecation] Route name "clusterRoleBindings" is deprecated. Please use "roleBindings" instead.'
+    );
   });
 });
