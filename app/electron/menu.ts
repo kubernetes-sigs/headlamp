@@ -15,9 +15,10 @@
  */
 
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
+import { isSafeExternalUrl } from './urlValidation';
 
 export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the app window) */
+  /** A URL to open in the external browser. Only http and https URLs are followed. */
   url?: string;
   /** The submenus of this menu */
   submenu?: AppMenu[];
@@ -61,11 +62,19 @@ export function menusToTemplate(
       menu.click = () => actions.setZoom(1.0);
     } else if (url) {
       menu.click = () => {
-        const openUrl =
-          mainWindow && !url.startsWith('http')
-            ? mainWindow.webContents.loadURL(url)
-            : actions.openExternal(url);
-        void openUrl.catch(error => console.error(`Failed to open menu URL ${url}:`, error));
+        // Only http and https menu URLs are followed, and always in the external
+        // browser. Other schemes (file://, smb://, data:, custom protocols) are
+        // ignored: a menu item can come from a plugin, and handing such a URL to
+        // the OS or loading it into the app window would run untrusted content
+        // with the app's privileges.
+        if (!isSafeExternalUrl(url)) {
+          console.error(`Ignoring menu URL ${url}: only http and https are allowed`);
+          return;
+        }
+
+        void actions
+          .openExternal(url)
+          .catch(error => console.error(`Failed to open menu URL ${url}:`, error));
       };
     }
 
