@@ -20,6 +20,7 @@ import { styled } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
 import { Handle, NodeProps, Position } from '@xyflow/react';
 import { memo, useEffect, useState } from 'react';
+import { useTypedSelector } from '../../../redux/hooks';
 import { Activity } from '../../activity/Activity';
 import { GraphNodeDetails } from '../details/GraphNodeDetails';
 import { getMainNode } from '../graph/graphGrouping';
@@ -158,6 +159,9 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const theme = useTheme();
   const graph = useGraphView();
+  const drawerLocation = useTypedSelector(
+    state => state?.drawerMode?.detailsDrawerLocation ?? 'split-right'
+  );
 
   const mainNode = node?.nodes ? getMainNode(node.nodes) : undefined;
   const kubeObject = node?.kubeObject ?? mainNode?.kubeObject;
@@ -212,7 +216,8 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
 
     Activity.launch({
       id: node.id,
-      location: 'split-right',
+      kind: 'details',
+      location: drawerLocation,
       temporary: true,
       cluster: node.kubeObject?.cluster,
       hideTitleInHeader: true,
