@@ -42,6 +42,8 @@ export const BUILT_IN_RELATION_IDS = [
   'httproute-service',
   'tcproute-gateway',
   'tcproute-service',
+  'tlsroute-gateway',
+  'tlsroute-service',
   'udproute-gateway',
   'udproute-service',
   'backendtlspolicy-service',

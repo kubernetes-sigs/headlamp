@@ -14,42 +14,18 @@
  * limitations under the License.
  */
 
-import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  GatewayL4RouteRule,
-  GatewayParentReference,
-  GatewayRouteParentStatus,
-  KubeGatewayL4Route,
-} from '../../lib/k8s/gateway';
-import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
+import TLSRoute from '../../lib/k8s/tlsRoute';
+import LabelListItem from '../common/LabelListItem';
 import ResourceListView from '../common/Resource/ResourceListView';
 
-export type GatewayL4Route = KubeObject<KubeGatewayL4Route> & {
-  rules: GatewayL4RouteRule[];
-  parentRefs: GatewayParentReference[];
-  parents: GatewayRouteParentStatus[];
-  /** Present on TLSRoute for SNI hostname matching; omitted by TCP/UDP. */
-  hostnames?: string[];
-};
-
-export type GatewayL4RouteClass = KubeObjectClass & {
-  new (json: KubeGatewayL4Route, cluster?: string): GatewayL4Route;
-};
-
-export interface L4RouteListProps {
-  resourceClass: GatewayL4RouteClass;
-  title: ReactNode;
-}
-
-export default function L4RouteList(props: L4RouteListProps) {
-  const { resourceClass, title } = props;
+export default function TLSRouteList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <ResourceListView
-      title={title}
-      resourceClass={resourceClass}
+      title={t('glossary|TLSRoutes')}
+      resourceClass={TLSRoute}
       headerProps={{ titleSideActions: [] }}
       enableRowActions={false}
       enableRowSelection={false}
@@ -58,9 +34,17 @@ export default function L4RouteList(props: L4RouteListProps) {
         'namespace',
         'cluster',
         {
+          id: 'hostnames',
+          label: t('Hostnames'),
+          getValue: (tlsRoute: TLSRoute) => tlsRoute.hostnames.join(''),
+          render: (tlsRoute: TLSRoute) => (
+            <LabelListItem labels={tlsRoute.hostnames.map(host => host || '*')} />
+          ),
+        },
+        {
           id: 'rules',
           label: t('glossary|Rules'),
-          getValue: (route: GatewayL4Route) => route.rules.length,
+          getValue: (tlsRoute: TLSRoute) => tlsRoute.rules.length,
         },
         'labels',
         'age',
