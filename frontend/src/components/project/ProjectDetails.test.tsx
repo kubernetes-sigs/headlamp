@@ -366,6 +366,55 @@ describe('ProjectDetails overview sections', () => {
   });
 });
 
+describe('ProjectDetails tabs', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+  });
+
+  it('ignores a tab enablement result from the previously rendered project', async () => {
+    let resolveFirstCheck: (enabled: boolean) => void = () => {};
+    const isEnabled = vi.fn(({ project: currentProject }: { project: ProjectDefinition }) =>
+      currentProject.id === overviewProject.id
+        ? new Promise<boolean>(resolve => {
+            resolveFirstCheck = resolve;
+          })
+        : Promise.resolve(false)
+    );
+    const store = configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
+    });
+    store.dispatch(
+      addDetailsTab({
+        id: 'project-specific-tab',
+        label: 'Stale project tab',
+        icon: 'mdi:tab',
+        component: () => <div>Stale tab content</div>,
+        isEnabled,
+      })
+    );
+
+    const { rerender } = render(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={overviewProject} />
+      </TestContext>
+    );
+    await waitFor(() => expect(isEnabled).toHaveBeenCalledWith({ project: overviewProject }));
+
+    const nextProject = { ...overviewProject, id: 'project-b' };
+    rerender(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={nextProject} />
+      </TestContext>
+    );
+    await waitFor(() => expect(isEnabled).toHaveBeenCalledWith({ project: nextProject }));
+
+    await act(async () => resolveFirstCheck(true));
+
+    expect(screen.queryByText('Stale project tab')).not.toBeInTheDocument();
+  });
+});
+
 describe('ProjectDetailsContent', () => {
   beforeEach(() => {
     vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
