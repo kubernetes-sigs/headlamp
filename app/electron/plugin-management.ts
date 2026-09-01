@@ -1120,6 +1120,46 @@ export function defaultKubeConfigsDir(): string {
 }
 
 /**
+ * Reports whether targetPath resolves to a location strictly inside baseDir.
+ *
+ * Used to validate renderer-supplied path segments (e.g. a plugin folder
+ * name) before they're used in filesystem operations, so a value like
+ * "../../../../etc" can't escape the intended directory.
+ *
+ * @param baseDir - The directory targetPath is expected to stay within.
+ * @param targetPath - The resolved path to check.
+ * @returns {boolean} True if targetPath is a strict subpath of baseDir.
+ */
+export function isPathWithinDirectory(baseDir: string, targetPath: string): boolean {
+  const relative = path.relative(baseDir, targetPath);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
+/**
+ * Reports whether targetPath is an existing directory.
+ *
+ * Used before handing a path to shell.openPath, which opens a directory in the
+ * file manager but launches a file with its OS handler. Plugin directories hold
+ * binaries as well as sources, so "open this plugin's folder" has to refuse
+ * anything that is not a folder.
+ *
+ * @param targetPath - The path to check.
+ * @returns {boolean} True if targetPath exists and is a directory.
+ */
+export function isExistingDirectory(targetPath: string): boolean {
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Checks if a given folder is a valid plugin bin folder.
  *
  * @param {string} folder - The path to the folder to check. Should not include /bin in the path.
