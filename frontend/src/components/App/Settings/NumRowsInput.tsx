@@ -162,6 +162,9 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
           size="small"
           variant="outlined"
           labelId={nameLabelID}
+          SelectDisplayProps={
+            nameLabelID ? undefined : { 'aria-label': t('translation|Number of rows for tables') }
+          }
         >
           {options.map(option => {
             const isCustom = !defaultTableRowsPerPageOptions.includes(option);
