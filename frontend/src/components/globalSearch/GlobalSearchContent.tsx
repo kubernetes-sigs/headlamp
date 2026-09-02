@@ -26,8 +26,8 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { forwardRef, HTMLProps, lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
@@ -514,6 +514,21 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   const listRef = useRef<FixedSizeList>(null);
 
+  const OuterElementType = useMemo(
+    () =>
+      // eslint-disable-next-line react/display-name
+      forwardRef<HTMLDivElement, HTMLProps<HTMLDivElement>>((props, ref) => (
+        <Box
+          ref={ref}
+          role="region"
+          tabIndex={0}
+          aria-label={t('translation|Search results')}
+          {...props}
+        />
+      )),
+    [t]
+  );
+
   return (
     <Box {...autocomplete.getRootProps()}>
       <TextField
@@ -521,9 +536,13 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         size="small"
         variant="outlined"
         placeholder={t('Search resources, pages, clusters by name')}
+        inputProps={{
+          'aria-label': t('Search resources, pages, clusters by name'),
+        }}
         InputProps={
           {
             ...autocomplete.getInputProps(),
+            'aria-label': t('Search resources, pages, clusters by name'),
             ref: (el: HTMLDivElement) => {
               const ac = autocomplete as any; // some types are wrong
               ac.setAnchorEl(el);
@@ -541,14 +560,17 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             autoFocus: true,
             endAdornment: (
               <>
-                <Tooltip title={<Trans>Clear</Trans>} sx={{ opacity: query.length ? 1 : 0 }}>
+                <Tooltip title={t('translation|Clear')} sx={{ opacity: query.length ? 1 : 0 }}>
                   <IconButton onClick={() => setQuery('')} aria-label={t('Clear')} size="small">
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </Tooltip>
                 {loading.length > 0 && (
                   <Delayed display="flex" mr={1}>
-                    <CircularProgress size="16px" />
+                    <CircularProgress
+                      size="16px"
+                      aria-label={t('translation|Loading resources…')}
+                    />
                   </Delayed>
                 )}
               </>
@@ -578,6 +600,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
               itemData={autocomplete}
               itemSize={50}
               width={'100%'}
+              outerElementType={OuterElementType}
             >
               {SearchRow}
             </FixedSizeList>
