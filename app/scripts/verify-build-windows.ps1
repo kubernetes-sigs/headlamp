@@ -219,6 +219,16 @@ if ($appPath -and (Test-Path $appPath)) {
 }
 
 Write-Host ""
+Write-Host "=== Verifying Electron App Metadata ===" -ForegroundColor Cyan
+$appCopyright = (Get-Item $appPath).VersionInfo.LegalCopyright
+if ($appCopyright -ne "Copyright The Kubernetes Authors") {
+  Write-Host "[FAIL] App has unexpected LegalCopyright: $appCopyright" -ForegroundColor Red
+  exit 1
+}
+Write-Host "App LegalCopyright: $appCopyright"
+Write-Host "[PASS] Electron app metadata is populated" -ForegroundColor Green
+
+Write-Host ""
 Write-Host "=== Verifying Server Cleanup After App Close ===" -ForegroundColor Cyan
 
 # Record existing headlamp-server PIDs to exclude them
@@ -296,4 +306,3 @@ if ($null -eq $serverPID) {
 
 Write-Host ""
 Write-Host "[PASS] All Windows verification checks passed" -ForegroundColor Green
-
