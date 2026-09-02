@@ -65,6 +65,19 @@ function Test-BackendBinary {
     exit 1
   }
   Write-Host "[PASS] Backend binary is working" -ForegroundColor Green
+
+  # Zero-trust allowlisting keys on these fields, and Go emits no VERSIONINFO
+  # unless the build links in a resource, so an empty one here means the
+  # generated .syso went missing rather than that a value was mistyped.
+  $info = (Get-Item $backendPath).VersionInfo
+  foreach ($field in @("CompanyName", "FileDescription", "ProductName")) {
+    if (-not $info.$field) {
+      Write-Host "[FAIL] Backend is missing $field in its version resource" -ForegroundColor Red
+      exit 1
+    }
+    Write-Host "Backend ${field}: $($info.$field)"
+  }
+  Write-Host "[PASS] Backend version resource is populated" -ForegroundColor Green
   return $true
 }
 

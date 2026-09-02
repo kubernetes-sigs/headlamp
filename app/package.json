@@ -36,6 +36,7 @@
   },
   "build": {
     "appId": "com.microsoft.Headlamp",
+    "copyright": "Copyright The Kubernetes Authors",
     "beforeBuild": "./scripts/build-backend.js",
     "afterPack": "./scripts/after-pack.js",
     "asar": false,
