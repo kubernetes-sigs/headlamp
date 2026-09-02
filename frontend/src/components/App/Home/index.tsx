@@ -19,7 +19,7 @@ import { Box, Tab, Tabs, Typography } from '@mui/material';
 import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessageReceiver';
 import { useAutoConnectClusters } from '../../../helpers/clusterAutoConnect';
 import { isBackstage } from '../../../helpers/isBackstage';
@@ -39,9 +39,13 @@ import RecentClusters from './RecentClusters';
 
 export default function Home() {
   const history = useHistory();
+  const location = useLocation();
   const clusters = useClustersConf();
+  // Arriving from the auth screen means the user asked to leave the cluster, so
+  // sending them back into it would just return them to the screen they left.
+  const { fromAuthChooser = false } = (location.state || {}) as { fromAuthChooser?: boolean };
 
-  if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
+  if (!isElectron() && !fromAuthChooser && clusters && Object.keys(clusters).length === 1) {
     history.push(createRouteURL('cluster', { cluster: Object.keys(clusters)[0] }));
     return null;
   }
