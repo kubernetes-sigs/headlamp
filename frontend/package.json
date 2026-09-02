@@ -15,7 +15,7 @@
     "@headlamp-k8s/eslint-config": "^0.6.0",
     "@iconify/icons-mdi": "^1.2.9",
     "@iconify/react": "^3.2.1",
-    "@monaco-editor/react": "^4.3.1",
+    "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^5.16.7",
     "@mui/lab": "^5.0.0-alpha.152",
     "@mui/material": "^5.15.14",
@@ -68,7 +68,7 @@
     "jsonpath-plus": "^10.3.0",
     "lodash": "^4.17.23",
     "material-react-table": "^2.13.3",
-    "monaco-editor": "^0.52.0",
+    "monaco-editor": "^0.56.0",
     "notistack": "^3.0.2",
     "openapi-types": "^9.3.0",
     "react": "^18.3.1",
@@ -100,7 +100,8 @@
     "typescript": "5.6.2",
     "cheerio": "1.0.0-rc.12",
     "js-yaml": "^4.1.1",
-    "eslint-plugin-react-hooks": "^7.0.1"
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "dompurify": "^3.4.12"
   },
   "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "*",
