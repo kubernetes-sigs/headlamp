@@ -12,6 +12,7 @@
           aria-autocomplete="list"
           aria-controls=":mock-test-id:"
           aria-expanded="true"
+          aria-label="Search resources, pages, clusters by name"
           autocapitalize="none"
           class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-focused MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
           role="combobox"
@@ -20,6 +21,7 @@
           <input
             aria-activedescendant=":mock-test-id:"
             aria-invalid="false"
+            aria-label="Search resources, pages, clusters by name"
             autocomplete="off"
             class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
             id=":mock-test-id:"
@@ -71,7 +73,11 @@
       role="listbox"
     >
       <div
+        aria-label="Search results"
+        class="MuiBox-root css-0"
+        role="region"
         style="position: relative; height: 100px; width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; will-change: transform; direction: ltr;"
+        tabindex="0"
       >
         <div
           style="height: 100px; width: 100%;"
