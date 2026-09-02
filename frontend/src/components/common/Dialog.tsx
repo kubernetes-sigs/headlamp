@@ -30,7 +30,9 @@ import ActionButton from './ActionButton';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
-export interface OurDialogTitleProps extends DialogTitleProps {
+// Omit 'component' so the div wrapper can't be overridden; omit 'ref' to
+// resolve a type conflict with the component="div" overload.
+export interface OurDialogTitleProps extends Omit<DialogTitleProps, 'component' | 'ref'> {
   /** true if you want the title focused in the dialog */
   focusTitle?: boolean;
   buttons?: React.ReactNode[];
@@ -40,7 +42,11 @@ export interface OurDialogTitleProps extends DialogTitleProps {
 /**
  * This is like Material-ui DialogTitle but fixes some a11y issues.
  *
- * First, it needs a h1 because other page content is aria-diable=true'd
+ * The title renders as an h1 because other page content is aria-hidden="true"'d
+ * when the dialog is open, so the dialog title should be the top-level heading.
+ *
+ * Note: with disableTypography, the title renders as a plain div with no
+ * heading element, so the caller is responsible for providing the heading.
  *
  * Additionally, it also focuses the title text as that is where
  * reading can begin.
@@ -63,7 +69,8 @@ export function DialogTitle(props: OurDialogTitleProps) {
   }
 
   return (
-    <MuiDialogTitle style={{ display: 'flex' }} {...other}>
+    // MuiDialogTitle renders as an h2 by default; render as div to avoid heading violations
+    <MuiDialogTitle component="div" style={{ display: 'flex' }} {...other}>
       <Grid container justifyContent="space-between" alignItems="center">
         {children && (
           <Grid item>
