@@ -15,3 +15,6 @@ node_modules
 plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
 .DS_Store
+
+# Generated Windows VERSIONINFO resources (see backend-versioninfo).
+backend/cmd/*.syso
