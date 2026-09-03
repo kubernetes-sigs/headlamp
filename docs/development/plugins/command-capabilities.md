@@ -246,6 +246,13 @@ developed and legacy plugins such as Minikube. It does not apply to the `user`
 inventory, whose plugins must have plugin-manager installation receipts for
 production capabilities.
 
+Packaged apps disable development-inventory command capabilities by default.
+Users must explicitly enable **Development Mode** in General Settings before
+those plugins can receive capabilities, then approve a native Electron warning.
+Changing the setting revokes existing capabilities and reloads the app. Electron
+development builds remain enabled so local plugin development does not require
+changing the packaged-app setting.
+
 The manifest does not have a `capabilities` wrapper. Internally, Headlamp still
 uses an opaque, short-lived capability token to avoid exposing product policy to
 plugin code or trusting a plugin identity on every invocation. Tokens are
