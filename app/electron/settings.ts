@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'path';
 
 export const SETTINGS_PATH = path.join(app?.getPath('userData') || 'testing', 'settings.json');
+const DEVELOPMENT_PLUGINS_SETTING = 'developmentPlugins';
 
 /**
  * Loads the user settings.
@@ -40,4 +41,29 @@ export function loadSettings(settingsPath: string): Record<string, any> {
  */
 export function saveSettings(settingsPath: string, settings: Record<string, any>) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings), 'utf-8');
+}
+
+/**
+ * Reads whether packaged apps may load development plugins and issue capabilities to them.
+ *
+ * @param settingsPath - Settings file to read.
+ * @returns Whether Plugin Development Mode is explicitly enabled.
+ */
+export function areDevelopmentPluginsEnabled(settingsPath: string = SETTINGS_PATH): boolean {
+  return loadSettings(settingsPath)[DEVELOPMENT_PLUGINS_SETTING] === true;
+}
+
+/**
+ * Persists whether packaged apps may load development plugins and issue capabilities to them.
+ *
+ * @param enabled - Whether Plugin Development Mode should be enabled.
+ * @param settingsPath - Settings file to update.
+ */
+export function setDevelopmentPluginsEnabled(
+  enabled: boolean,
+  settingsPath: string = SETTINGS_PATH
+): void {
+  const settings = loadSettings(settingsPath);
+  settings[DEVELOPMENT_PLUGINS_SETTING] = enabled;
+  saveSettings(settingsPath, settings);
 }

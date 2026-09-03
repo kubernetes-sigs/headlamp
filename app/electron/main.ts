@@ -43,6 +43,7 @@ import {
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
 import { createCertificateSetup } from './certificates';
+import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
 import {
@@ -75,7 +76,7 @@ import {
   setupRunCmdHandlers,
 } from './runCmd';
 import { setupSecureStorageHandlers } from './secureStorage';
-import { loadSettings, SETTINGS_PATH } from './settings';
+import { areDevelopmentPluginsEnabled, loadSettings, SETTINGS_PATH } from './settings';
 import { getShellEnv } from './shellEnv';
 import { shouldCheckForAppUpdates } from './shouldCheckForAppUpdates';
 import {
@@ -1578,7 +1579,8 @@ function startElectron() {
       productPluginCommandPolicy,
       startUrl,
       undefined,
-      isDev
+      isDev,
+      areDevelopmentPluginsEnabled
     );
 
     applyZoom();
@@ -1760,6 +1762,8 @@ function startElectron() {
       }
       applyTrayIconSetting(enabled);
     });
+
+    setupDevelopmentPluginsHandlers(mainWindow, ipcMain);
 
     setupSecureStorageHandlers(mainWindow, startUrl);
 

@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-backend-port',
       'request-tray-icon',
       'set-tray-icon',
+      'request-development-plugins',
+      'set-development-plugins',
       'cluster-changed',
       'route-changed',
     ];
@@ -69,6 +71,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'open-about-dialog',
       'backend-port',
       'tray-icon',
+      'development-plugins',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`

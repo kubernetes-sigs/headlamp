@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Development Mode": "",
+  "Enable Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "پلگ اِن کی معلومات حاصل کرنے میں ناکامی",
   "An error occurred while fetching plugin info from {{  URL }}.": "{{ URL }} سے پلگ اِن کی معلومات حاصل کرتے وقت ایک خرابی پیش آئی۔",
   "Yes": "ہاں",

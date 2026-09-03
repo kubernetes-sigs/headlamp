@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Development Mode": "",
+  "Enable Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "Nepovedlo se načíst informace o modulu plug-in.",
   "An error occurred while fetching plugin info from {{  URL }}.": "Při načítání informací o modulu plug-in z {{  URL }} došlo k chybě.",
   "Yes": "Ano",
