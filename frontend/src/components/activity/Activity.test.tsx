@@ -14,8 +14,21 @@
  * limitations under the License.
  */
 
-import { Activity } from './Activity';
+import { configureStore } from '@reduxjs/toolkit';
+import { render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
+import reducers from '../../redux/reducers/reducers';
+import { ActivitiesRenderer, Activity } from './Activity';
 import { activitySlice, ActivityState } from './activitySlice';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { title?: string }) =>
+      options?.title ? key.replace('{{title}}', options.title) : key,
+  }),
+}));
 
 const { reducer, actions } = activitySlice;
 const { launchActivity, close, update } = actions;
@@ -146,5 +159,43 @@ describe('activitySlice', () => {
       const nextState = reducer(stateWithActivity, update(updatedActivity));
       expect(nextState.history).toEqual([]);
     });
+  });
+});
+
+describe('ActivitiesRenderer', () => {
+  it('renders distinct accessible names for minimize and close buttons in multi-pane mode', () => {
+    const testStore = configureStore({
+      reducer: reducers,
+    });
+
+    testStore.dispatch(
+      launchActivity({
+        id: '1',
+        title: 'Left',
+        content: 'Left Content',
+        location: 'split-left',
+      })
+    );
+    testStore.dispatch(
+      launchActivity({
+        id: '2',
+        title: 'Right',
+        content: 'Right Content',
+        location: 'split-right',
+      })
+    );
+
+    render(
+      <Provider store={testStore}>
+        <MemoryRouter>
+          <ActivitiesRenderer />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Minimize: Left' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Minimize: Right' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close: Left' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close: Right' })).toBeInTheDocument();
   });
 });

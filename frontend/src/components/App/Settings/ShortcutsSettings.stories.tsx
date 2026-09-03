@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
+import reducers from '../../../redux/reducers/reducers';
+import { setShortcutsDialogOpen } from '../../../redux/shortcutsSlice';
 import store from '../../../redux/stores/store';
 import ShortcutsSettings from './ShortcutsSettings';
 
@@ -35,9 +38,36 @@ export default {
 } as Meta<typeof ShortcutsSettings>;
 
 const Template: StoryFn<typeof ShortcutsSettings> = () => {
-  store.dispatch({ type: 'shortcuts/setShortcutsDialogOpen', payload: true });
+  store.dispatch(setShortcutsDialogOpen(true));
   return <ShortcutsSettings />;
 };
 
 export const Default = Template.bind({});
 Default.args = {};
+
+export const ModifiedShortcut: StoryFn<typeof ShortcutsSettings> = () => {
+  const storyStore = configureStore({
+    reducer: reducers,
+    preloadedState: {
+      shortcuts: {
+        ...store.getState().shortcuts,
+        shortcuts: {
+          ...store.getState().shortcuts.shortcuts,
+          GLOBAL_SEARCH: {
+            ...store.getState().shortcuts.shortcuts.GLOBAL_SEARCH,
+            key: 'ctrl+k',
+          },
+        },
+        isShortcutsDialogOpen: true,
+      },
+    },
+  });
+
+  return (
+    <Provider store={storyStore}>
+      <MemoryRouter>
+        <ShortcutsSettings />
+      </MemoryRouter>
+    </Provider>
+  );
+};
