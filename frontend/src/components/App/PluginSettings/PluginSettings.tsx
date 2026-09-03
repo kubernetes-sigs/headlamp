@@ -27,6 +27,7 @@ import { MRT_Row } from 'material-react-table';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { isDevMode } from '../../../helpers/isDevMode';
 import { isElectron } from '../../../helpers/isElectron';
 import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
@@ -53,6 +54,9 @@ export interface PluginSettingsPureProps {
   onSave: (plugins: PluginInfo[]) => void;
   onDelete?: (plugin: PluginInfo) => Promise<void> | void;
   saveAlwaysEnable?: boolean;
+  showDevelopmentPluginsSetting?: boolean;
+  developmentPluginsEnabled?: boolean;
+  onDevelopmentPluginsChange?: (enabled: boolean) => void;
 }
 
 /** PluginSettingsProp intentially left empty to remain malleable */
@@ -245,6 +249,37 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 
   return (
     <>
+      {props.showDevelopmentPluginsSetting && (
+        <SectionBox title={t('translation|Plugin Development Mode')}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) auto',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <Box>
+              <Typography id="development-plugins-label">
+                {t('translation|Load development plugins')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t(
+                  'translation|Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.'
+                )}
+              </Typography>
+            </Box>
+            <Switch
+              color="primary"
+              checked={props.developmentPluginsEnabled === true}
+              onChange={event => props.onDevelopmentPluginsChange?.(event.target.checked)}
+              inputProps={{
+                'aria-labelledby': 'development-plugins-label',
+              }}
+            />
+          </Box>
+        </SectionBox>
+      )}
       <SectionBox
         title={<SectionFilterHeader title={t('translation|Plugins')} noNamespaceFilter />}
       >
@@ -512,15 +547,36 @@ export default function PluginSettings() {
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
   const handleDelete = usePluginDelete();
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PLUGIN_LIST_VIEW);
+  const showDevelopmentPluginsSetting = isElectron() && !isDevMode();
+  const [developmentPluginsEnabled, setDevelopmentPluginsEnabled] = useState(false);
 
   useEffect(() => {
     dispatchHeadlampEvent({ plugins: pluginSettings });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pluginSettings]);
 
+  useEffect(() => {
+    if (!showDevelopmentPluginsSetting) {
+      return;
+    }
+
+    const unsubscribe = window.desktopApi?.receive(
+      'development-plugins',
+      setDevelopmentPluginsEnabled
+    );
+    window.desktopApi?.send('request-development-plugins');
+    return unsubscribe;
+  }, [showDevelopmentPluginsSetting]);
+
   return (
     <PluginSettingsPure
       plugins={pluginSettings}
+      showDevelopmentPluginsSetting={showDevelopmentPluginsSetting}
+      developmentPluginsEnabled={developmentPluginsEnabled}
+      onDevelopmentPluginsChange={enabled => {
+        setDevelopmentPluginsEnabled(enabled);
+        window.desktopApi?.send('set-development-plugins', enabled);
+      }}
       onSave={plugins => {
         dispatch(setPluginSettings(plugins));
         dispatch(reloadPage());
