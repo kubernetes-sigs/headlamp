@@ -1919,14 +1919,25 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
 }
 
 if (isHeadlessMode) {
-  startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]).then(
-    serverProcess => {
+  startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')])
+    .then(serverProcess => {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
       setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
-    }
-  );
+    })
+    .catch((error: Error) => {
+      // Without this, a port-exhaustion rejection becomes an unhandled
+      // promise rejection: the user gets no browser window and no diagnostic.
+      console.error('Failed to start the backend server:', error);
+      dialog.showErrorBox(
+        i18n.t('Headlamp failed to start'),
+        i18n.t('The backend server could not be started:\n\n{{ error }}', {
+          error: error.message,
+        })
+      );
+      app.quit();
+    });
 } else {
   if (!isRunningScript) {
     startElectron();

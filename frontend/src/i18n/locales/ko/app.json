@@ -52,6 +52,8 @@
   "Failed to start": "",
   "Could not start the server even after terminating existing processes.": "",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
+  "Headlamp failed to start": "",
+  "The backend server could not be started:\n\n{{ error }}": "",
   "Invalid URL": "잘못된 URL",
   "Application opened with an invalid URL: {{ url }}": "잘못된 URL로 애플리케이션이 열렸습니다: {{ url }}",
   "OAuth callback failed": "",
