@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from '@mui/material/styles';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from '../../../App';
@@ -44,9 +44,50 @@ function renderWithProviders(children: ReactNode) {
   );
 }
 
-describe('Settings events', () => {
+describe('Settings theme', () => {
   afterEach(() => {
     window.history.pushState({}, '', '/');
+  });
+
+  it('resolves the theme-picker grid breakpoint from the live theme, not a static import', async () => {
+    // TestHelpers/theme.ts and lib/themes.ts's createMuiTheme both default `sm` to
+    // 600px, so a regression here (reading a hardcoded theme instead of the one
+    // from context) can't be caught by comparing against the *default* theme -
+    // both would render identically. Using a theme with a distinctive `sm` value
+    // makes a hardcoded-theme regression visible: only the live theme has 733.
+    const distinctiveSm = 733;
+    const liveTheme = createTheme({
+      ...createMuiTheme({ name: 'Light', base: 'light' }),
+      breakpoints: { values: { xs: 0, sm: distinctiveSm, md: 960, lg: 1280, xl: 1920 } },
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TestContext>
+          <ThemeProvider theme={liveTheme}>
+            <Settings />
+          </ThemeProvider>
+        </TestContext>
+      </QueryClientProvider>
+    );
+
+    // The theme swatches are the only "button" role divs in this view; their
+    // parent is the responsive grid whose breakpoint is under test.
+    const swatch = screen.getAllByRole('button').find(el => el.tagName === 'DIV');
+    const grid = swatch!.parentElement!;
+    const gridClass = Array.from(grid.classList).find(className => className.startsWith('css-'));
+
+    const emittedCss = Array.from(document.querySelectorAll('style'))
+      .map(styleTag => styleTag.textContent)
+      .join('\n');
+    // Match just the single @media rule scoped to the grid's own class, e.g.
+    // "@media (max-width:732.95px){.css-abc123{grid-template-columns:...}}" -
+    // not the substring-anywhere-after check a plain split('@media') would give.
+    const gridMediaQueryMatch = emittedCss.match(
+      new RegExp(`@media \\([^)]*\\)\\{\\.${gridClass}\\{[^}]*\\}\\}`)
+    );
+
+    expect(gridMediaQueryMatch?.[0]).toContain(`${distinctiveSm - 0.05}px`);
   });
 
   it('dispatches SETTINGS_VIEW with the active theme', async () => {

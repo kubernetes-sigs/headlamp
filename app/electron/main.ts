@@ -47,6 +47,7 @@ import {
 } from './legal-documents';
 import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
+import { AppMenu, menusToTemplate } from './menu';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
@@ -59,7 +60,8 @@ import {
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
-import { findProtocolUrl, isProtocolUrl, readProtocolScheme } from './protocol';
+import { readProtocolScheme } from './protocol';
+import { createProtocolHandler } from './protocolHandler';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -67,8 +69,10 @@ import {
   runScript,
   setupRunCmdHandlers,
 } from './runCmd';
+import { setupSecureStorageHandlers } from './secureStorage';
 import { loadSettings, SETTINGS_PATH } from './settings';
 import { getShellEnv } from './shellEnv';
+import { shouldCheckForAppUpdates } from './shouldCheckForAppUpdates';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -201,17 +205,23 @@ let actualPort = defaultPort; // Will be updated when backend starts
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
-const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
 const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 const protocolScheme = readProtocolScheme(appBuildManifestPath);
+const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
+
+const protocolHandler = createProtocolHandler({
+  protocolScheme,
+  startUrl,
+  getMainWindow: () => mainWindow,
+});
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -731,7 +741,12 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   actualPort = await findAvailablePort(defaultPort);
 
-  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
+  let serverArgs: string[] = [
+    '--listen-addr=localhost',
+    `--port=${actualPort}`,
+    '--app-name',
+    app.getName(),
+  ];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
@@ -1145,7 +1160,12 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   let menu: Electron.Menu;
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
-      menusToTemplate(appWindow, appMenu) || [];
+      menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        openExternal: url => shell.openExternal(url),
+        openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
+        adjustZoom,
+        setZoom,
+      }) || [];
     menu = Menu.buildFromTemplate(menuTemplate);
   } catch (e) {
     console.error(`Failed to build menus from template ${appMenu}:`, e);
@@ -1194,55 +1214,6 @@ function updateMenuLabels(menus: AppMenu[]) {
       menu.label = defaultMenusObj[menu.id].label;
     }
   });
-}
-
-export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
-  url?: string;
-  /** The submenus of this menu */
-  submenu?: AppMenu[];
-  /** A string identifying this menu */
-  id: string;
-  /** Whether to render this menu only after plugins are loaded (to give it time for the plugins
-   * to override the menu) */
-  afterPlugins?: boolean;
-}
-
-function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: AppMenu[]) {
-  const menusToDisplay: MenuItemConstructorOptions[] = [];
-  menusFromPlugins.forEach(appMenu => {
-    const { url, afterPlugins = false, ...otherProps } = appMenu;
-    const menu: MenuItemConstructorOptions = otherProps;
-
-    if (!loadFullMenu && !!afterPlugins) {
-      return;
-    }
-
-    // Handle the "About" menu item from the Help menu specially
-    if (appMenu.id === 'original-about-help') {
-      menu.click = () => {
-        mainWindow?.webContents.send('open-about-dialog');
-      };
-    } else if (!!url) {
-      menu.click = async () => {
-        // Open external links in the external browser.
-        if (!!mainWindow && !url.startsWith('http')) {
-          mainWindow.webContents.loadURL(url);
-        } else {
-          await shell.openExternal(url);
-        }
-      };
-    }
-
-    // If the menu has a submenu, then recursively convert it.
-    if (Array.isArray(otherProps.submenu)) {
-      menu.submenu = menusToTemplate(mainWindow, otherProps.submenu);
-    }
-
-    menusToDisplay.push(menu);
-  });
-
-  return menusToDisplay;
 }
 
 async function getRunningHeadlampPIDs() {
@@ -1397,77 +1368,11 @@ ipcMain.on('route-changed', () => {
 function startElectron() {
   console.info('App starting...');
 
-  let isMainWindowReady = false;
-  const pendingProtocolUrls: string[] = [];
-
-  function routeProtocolUrl(protocolUrl: string) {
-    let urlObj: URL;
-    try {
-      urlObj = new URL(protocolUrl);
-    } catch {
-      dialog.showErrorBox(
-        i18n.t('Invalid URL'),
-        i18n.t('Application opened with an invalid URL: {{ url }}', { url: protocolUrl })
-      );
-      return;
-    }
-
-    if (!isProtocolUrl(protocolUrl, protocolScheme)) {
-      dialog.showErrorBox(
-        i18n.t('Invalid URL'),
-        i18n.t('Application opened with an invalid URL: {{ url }}', { url: protocolUrl })
-      );
-      return;
-    }
-
-    if (!mainWindow || !isMainWindowReady) {
-      pendingProtocolUrls.push(protocolUrl);
-      return;
-    }
-
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-    mainWindow.focus();
-
-    const baseUrl = startUrl.endsWith('/') ? startUrl.slice(0, -1) : startUrl;
-    mainWindow.loadURL(baseUrl + '#' + urlObj.hostname + urlObj.search);
-  }
-
-  function routeProtocolUrlFromCommandLine(commandLine: readonly string[]) {
-    const protocolUrl = findProtocolUrl(commandLine, protocolScheme);
-    if (protocolUrl) {
-      routeProtocolUrl(protocolUrl);
-    }
-  }
-
   const gotTheLock = app.requestSingleInstanceLock();
   if (!gotTheLock) {
     app.quit();
     return;
   }
-
-  app.on('open-url', (event, protocolUrl) => {
-    event.preventDefault();
-    routeProtocolUrl(protocolUrl);
-  });
-
-  app.on('second-instance', (_event, commandLine) => {
-    const protocolUrl = findProtocolUrl(commandLine, protocolScheme);
-    if (protocolUrl) {
-      routeProtocolUrl(protocolUrl);
-      return;
-    }
-
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
-    }
-  });
-
-  routeProtocolUrlFromCommandLine(process.argv);
 
   // Increase max listeners to prevent false positive warnings
   // The app legitimately needs multiple IPC listeners (currently 11)
@@ -1635,8 +1540,6 @@ function startElectron() {
     const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
-    isMainWindowReady = false;
-
     // Flush any pending debounced zoom save before reading so reopening the
     // window immediately after a zoom change reads the latest factor.
     flushZoomFactorSave();
@@ -1645,7 +1548,6 @@ function startElectron() {
     // creation and the 'closed' handler; closing during the read would
     // otherwise leave a destroyed window that later loadURL/menu calls throw on.
     cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
-
     mainWindow = new BrowserWindow({
       width,
       height,
@@ -1655,6 +1557,7 @@ function startElectron() {
         preload: `${__dirname}/preload.js`,
       },
     });
+    protocolHandler.attachToWebContents(mainWindow.webContents);
 
     applyZoom();
 
@@ -1690,11 +1593,6 @@ function startElectron() {
       scheduleApplyZoom(true);
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
-
-      isMainWindowReady = true;
-      for (const protocolUrl of pendingProtocolUrls.splice(0)) {
-        routeProtocolUrl(protocolUrl);
-      }
     });
 
     mainWindow.webContents.on('did-frame-finish-load', (_event, isMainFrame) => {
@@ -1737,7 +1635,6 @@ function startElectron() {
     });
 
     mainWindow.on('closed', () => {
-      isMainWindowReady = false;
       mainWindow = null;
     });
 
@@ -1843,6 +1740,7 @@ function startElectron() {
     });
 
     setupRunCmdHandlers(mainWindow, ipcMain);
+    setupSecureStorageHandlers(mainWindow, startUrl);
 
     new PluginManagerEventListeners().setupEventHandlers();
 

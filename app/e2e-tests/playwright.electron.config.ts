@@ -27,9 +27,17 @@ export default defineConfig({
   testDir: './tests',
   testMatch: [
     'backendToken.spec.ts',
+    'buildManifest.spec.ts',
+    'buildManifestProduct.spec.ts',
     'clusterRename.spec.ts',
     'namespaces.spec.ts',
     'clusterAutoConnect.spec.ts',
+    'pluginSecureStorage.spec.ts',
+    'listenerCleanup.spec.ts',
+    'runCommand.spec.ts',
+    'updateChecks.spec.ts',
+    'oauthProvider.spec.ts',
+    'protocolScheme.spec.ts',
   ],
   timeout: 60 * 1000,
   expect: {

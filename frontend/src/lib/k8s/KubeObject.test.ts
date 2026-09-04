@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 
 vi.mock('../cluster', () => ({
@@ -43,9 +44,17 @@ vi.mock('./patchUtils', () => ({
   computeRawPatchCount: vi.fn(),
 }));
 
+import { useSelectedClusters } from './api/v1/hooks';
+import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import { KubeObject } from './KubeObject';
 
 describe('KubeObject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSelectedClusters).mockReturnValue([]);
+    vi.mocked(useKubeObjectList).mockReturnValue({} as any);
+  });
+
   it('returns no API group when the class does not define an API version', () => {
     expect(KubeObject.apiGroupName).toBeUndefined();
   });
@@ -61,5 +70,53 @@ describe('KubeObject', () => {
         new MyResource({ kind: 'MyResourceKind', metadata: { name: 'my-test-resource' } })
       )
     ).toBe(true);
+  });
+
+  it('uses exact namespace requests instead of constructing a cross-product', () => {
+    class MyNamespacedResource extends KubeObject {
+      static apiVersion = 'example.headlamp.dev/v1';
+      static kind = 'MyNamespacedResource';
+      static apiName = 'mynamespacedresources';
+      static isNamespaced = true;
+    }
+    const requests = [
+      { cluster: 'cluster-a', namespaces: ['foo'] },
+      { cluster: 'cluster-b', namespaces: ['bar'] },
+    ];
+
+    renderHook(() =>
+      MyNamespacedResource.useList({
+        clusters: ['cluster-a', 'cluster-b'],
+        namespace: ['foo', 'bar'],
+        requests,
+      })
+    );
+
+    expect(makeListRequests).not.toHaveBeenCalled();
+    expect(useKubeObjectList).toHaveBeenCalledWith(
+      expect.objectContaining({ kubeObjectClass: MyNamespacedResource, requests })
+    );
+  });
+
+  it('removes namespaces from exact requests for cluster-scoped resources', () => {
+    class MyClusterResource extends KubeObject {
+      static apiVersion = 'example.headlamp.dev/v1';
+      static kind = 'MyClusterResource';
+      static apiName = 'myclusterresources';
+      static isNamespaced = false;
+    }
+
+    renderHook(() =>
+      MyClusterResource.useList({
+        requests: [{ cluster: 'cluster-a', namespaces: ['foo'] }],
+      })
+    );
+
+    expect(useKubeObjectList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kubeObjectClass: MyClusterResource,
+        requests: [{ cluster: 'cluster-a', namespaces: undefined }],
+      })
+    );
   });
 });

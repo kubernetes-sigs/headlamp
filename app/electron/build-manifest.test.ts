@@ -23,11 +23,14 @@ import path from 'node:path';
 import * as tar from 'tar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  applyBuildResources,
+  applyBuildTargets,
   applyPlatformMetadata,
   applyProductMetadata,
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
   resolveBuildManifestPath,
+  verifyPackagedResources,
 } from '../scripts/build-manifest.ts';
 import {
   applyEnabledByDefault,
@@ -44,6 +47,272 @@ import {
 const require = createRequire(import.meta.url);
 const { getConfig } = require('app-builder-lib/out/util/config/config');
 const appPath = path.resolve(__dirname, '..');
+
+describe('build resource validation', () => {
+  it.each([null, [], 'manifest'])('rejects an invalid manifest value: %j', manifest => {
+    expect(() => applyBuildResources({}, manifest)).toThrow('Build manifest must be an object');
+  });
+
+  it('preserves the configuration when build resources are absent', () => {
+    const defaults = { extraResources: [{ from: '/headlamp/frontend' }] };
+
+    expect(applyBuildResources(defaults, {})).toBe(defaults);
+  });
+
+  it.each([null, [], 'resources'])('rejects an invalid resources value: %j', resources => {
+    expect(() => applyBuildResources({}, { resources })).toThrow(
+      'Build manifest resources must be an object'
+    );
+  });
+
+  it('rejects unsupported resource groups', () => {
+    expect(() => applyBuildResources({}, { resources: { windows: [] } })).toThrow(
+      'Unsupported build manifest resource group: windows'
+    );
+  });
+
+  it.each([null, {}, 'tools'])('rejects invalid common resources: %j', common => {
+    expect(() => applyBuildResources({}, { resources: { common } })).toThrow(
+      'Build manifest resources.common must be an array'
+    );
+  });
+
+  it('resolves and appends common and platform resources without mutating defaults', () => {
+    const manifestFile = path.join('/product', 'config', 'app-build-manifest.json');
+    const manifestDirectory = path.dirname(manifestFile);
+    const defaults = {
+      extraResources: [{ from: '/headlamp/frontend' }],
+      linux: { category: 'Network', extraResources: [{ from: '/headlamp/backend' }] },
+      mac: { hardenedRuntime: true },
+      win: null,
+    };
+
+    expect(
+      applyBuildResources(
+        defaults,
+        {
+          resources: {
+            common: [{ from: '../shared', to: 'shared', filter: ['**/*'] }],
+            linux: [{ from: './tools/linux', to: 'tools' }],
+            mac: [{ from: './tools/mac' }],
+            win: [{ from: '/absolute/tool.exe', to: 'tools/tool.exe' }],
+          },
+        },
+        manifestFile
+      )
+    ).toEqual({
+      extraResources: [
+        { from: '/headlamp/frontend' },
+        {
+          from: path.resolve(manifestDirectory, '../shared'),
+          to: 'shared',
+          filter: ['**/*'],
+        },
+      ],
+      linux: {
+        category: 'Network',
+        extraResources: [
+          { from: '/headlamp/backend' },
+          { from: path.resolve(manifestDirectory, './tools/linux'), to: 'tools' },
+        ],
+      },
+      mac: {
+        hardenedRuntime: true,
+        extraResources: [{ from: path.resolve(manifestDirectory, './tools/mac') }],
+      },
+      win: {
+        extraResources: [
+          { from: path.resolve(manifestDirectory, '/absolute/tool.exe'), to: 'tools/tool.exe' },
+        ],
+      },
+    });
+    expect(defaults).toEqual({
+      extraResources: [{ from: '/headlamp/frontend' }],
+      linux: { category: 'Network', extraResources: [{ from: '/headlamp/backend' }] },
+      mac: { hardenedRuntime: true },
+      win: null,
+    });
+  });
+
+  it.each([
+    {
+      commonResource: '../frontend/build',
+      platformResource: { from: '../backend/headlamp-server', to: 'backend/headlamp-server' },
+    },
+    {
+      commonResource: { from: '../frontend/build', to: 'frontend' },
+      platformResource: '../backend/headlamp-server',
+    },
+  ])(
+    'preserves singleton common and platform resources: %j',
+    ({ commonResource, platformResource }) => {
+      const manifestFile = path.join('/product', 'app-build-manifest.json');
+
+      expect(
+        applyBuildResources(
+          {
+            extraResources: commonResource,
+            mac: { extraResources: platformResource },
+          },
+          {
+            resources: {
+              common: [{ from: './shared' }],
+              mac: [{ from: './tools/mac' }],
+            },
+          },
+          manifestFile
+        )
+      ).toEqual({
+        extraResources: [
+          commonResource,
+          { from: path.resolve(path.dirname(manifestFile), './shared') },
+        ],
+        mac: {
+          extraResources: [
+            platformResource,
+            { from: path.resolve(path.dirname(manifestFile), './tools/mac') },
+          ],
+        },
+      });
+    }
+  );
+
+  it.each([null, [], 'tools', {}, { to: 'tools' }, { from: 1 }, { from: 'tools', to: 1 }])(
+    'rejects an invalid resource entry: %j',
+    resource => {
+      expect(() => applyBuildResources({}, { resources: { common: [resource] } })).toThrow(
+        'Invalid build manifest resources.common[0]'
+      );
+    }
+  );
+
+  it.each([
+    { from: 'tools', filter: 'bin' },
+    { from: 'tools', filter: [1] },
+    { from: 'tools', unsafe: true },
+  ])('rejects invalid resource options: %j', resource => {
+    expect(() => applyBuildResources({}, { resources: { mac: [resource] } })).toThrow(
+      'Invalid build manifest resources.mac[0]'
+    );
+  });
+});
+
+describe('build target validation', () => {
+  it('replaces platform targets without changing other platform settings', () => {
+    expect(
+      applyBuildTargets(
+        { mac: { hardenedRuntime: true, target: ['zip'] } },
+        { targets: { mac: [{ target: 'dmg', arch: ['arm64'] }] } }
+      )
+    ).toEqual({
+      mac: { hardenedRuntime: true, target: [{ target: 'dmg', arch: ['arm64'] }] },
+    });
+  });
+
+  it('rejects unknown architectures and empty target sets', () => {
+    expect(() => applyBuildTargets({}, { targets: { mac: [] } })).toThrow('non-empty array');
+    expect(() =>
+      applyBuildTargets({}, { targets: { mac: [{ target: 'dmg', arch: ['mips'] }] } })
+    ).toThrow('Invalid build manifest architecture for mac');
+  });
+
+  it('preserves the configuration when build targets are absent', () => {
+    const defaults = { mac: { target: ['zip'] } };
+
+    expect(applyBuildTargets(defaults, {})).toBe(defaults);
+  });
+
+  it.each([null, [], 'mac'])('rejects an invalid targets value: %j', targets => {
+    expect(() => applyBuildTargets({}, { targets })).toThrow(
+      'Build manifest targets must be an object'
+    );
+  });
+
+  it('rejects unsupported target platforms', () => {
+    expect(() => applyBuildTargets({}, { targets: { windows: ['nsis'] } })).toThrow(
+      'Unsupported build manifest target platform: windows'
+    );
+  });
+
+  it.each([null, {}, 'dmg', []])('rejects invalid mac targets: %j', mac => {
+    expect(() => applyBuildTargets({}, { targets: { mac } })).toThrow(
+      'Build manifest targets.mac must be a non-empty array'
+    );
+  });
+
+  it('accepts string targets for every supported platform', () => {
+    expect(
+      applyBuildTargets(
+        {
+          linux: { category: 'Network' },
+          mac: { hardenedRuntime: true },
+          win: { artifactName: 'headlamp-${version}.${ext}' },
+        },
+        { targets: { linux: ['AppImage'], mac: ['dmg'], win: ['nsis'] } }
+      )
+    ).toEqual({
+      linux: { category: 'Network', target: ['AppImage'] },
+      mac: { hardenedRuntime: true, target: ['dmg'] },
+      win: { artifactName: 'headlamp-${version}.${ext}', target: ['nsis'] },
+    });
+  });
+
+  it.each([
+    { platform: 'linux', architectures: ['arm64', 'armv7l', 'x64'] },
+    { platform: 'mac', architectures: ['arm64', 'universal', 'x64'] },
+    { platform: 'win', architectures: ['arm64', 'ia32', 'x64'] },
+  ])('accepts supported $platform architectures', ({ platform, architectures }) => {
+    expect(
+      applyBuildTargets(
+        {},
+        { targets: { [platform]: [{ target: 'package', arch: architectures }] } }
+      )
+    ).toEqual({
+      [platform]: { target: [{ target: 'package', arch: architectures }] },
+    });
+  });
+
+  it.each([
+    { platform: 'linux', architecture: 'ia32' },
+    { platform: 'linux', architecture: 'universal' },
+    { platform: 'mac', architecture: 'armv7l' },
+    { platform: 'mac', architecture: 'ia32' },
+    { platform: 'win', architecture: 'armv7l' },
+    { platform: 'win', architecture: 'universal' },
+  ])('rejects $architecture for $platform', ({ platform, architecture }) => {
+    expect(() =>
+      applyBuildTargets(
+        {},
+        { targets: { [platform]: [{ target: 'package', arch: [architecture] }] } }
+      )
+    ).toThrow(`Invalid build manifest architecture for ${platform}`);
+  });
+
+  it.each([null, {}, { target: 1, arch: [] }, { target: 'dmg', arch: 'arm64' }])(
+    'rejects an invalid mac target descriptor: %j',
+    target => {
+      expect(() => applyBuildTargets({}, { targets: { mac: [target] } })).toThrow(
+        'Invalid build manifest target for mac'
+      );
+    }
+  );
+
+  it.each(['', '  ', { target: '', arch: ['arm64'] }, { target: '  ', arch: ['arm64'] }])(
+    'rejects a blank mac target name: %j',
+    target => {
+      expect(() => applyBuildTargets({}, { targets: { mac: [target] } })).toThrow(
+        'Invalid build manifest target for mac'
+      );
+    }
+  );
+
+  it('rejects an empty architecture list', () => {
+    expect(() =>
+      applyBuildTargets({}, { targets: { linux: [{ target: 'AppImage', arch: [] }] } })
+    ).toThrow('Invalid build manifest architecture for linux');
+  });
+});
+
 describe('platform metadata', () => {
   afterEach(() => {
     delete process.env.HEADLAMP_BUILD_MANIFEST;
@@ -271,6 +540,193 @@ function temporaryFile(contents: string): string {
   fs.writeFileSync(file, contents);
   return file;
 }
+
+describe('packaged resource verification', () => {
+  it('preserves packages when verification is absent', () => {
+    expect(() => verifyPackagedResources('/missing', {}, 'linux')).not.toThrow();
+  });
+
+  it.each([
+    { runtimePlatform: 'darwin', manifestPlatform: 'mac' },
+    { runtimePlatform: 'mas', manifestPlatform: 'mac' },
+    { runtimePlatform: 'win32', manifestPlatform: 'win' },
+    { runtimePlatform: 'linux', manifestPlatform: 'linux' },
+  ])(
+    'accepts a matching digest for $runtimePlatform packages',
+    ({ runtimePlatform, manifestPlatform }) => {
+      const file = temporaryFile('bundled tool');
+      const digest = crypto.createHash('sha256').update('bundled tool').digest('hex').toUpperCase();
+
+      expect(() =>
+        verifyPackagedResources(
+          path.dirname(file),
+          {
+            verify: [{ path: path.basename(file), sha256: digest, platforms: [manifestPlatform] }],
+          },
+          runtimePlatform
+        )
+      ).not.toThrow();
+    }
+  );
+
+  it('skips entries for other packaged platforms', () => {
+    expect(() =>
+      verifyPackagedResources(
+        '/missing',
+        { verify: [{ path: 'tool.exe', sha256: '0'.repeat(64), platforms: ['win'] }] },
+        'linux'
+      )
+    ).not.toThrow();
+  });
+
+  it.each([null, [], 'manifest'])('rejects an invalid manifest value: %j', manifest => {
+    expect(() => verifyPackagedResources('/resources', manifest, 'linux')).toThrow(
+      'Build manifest must be an object'
+    );
+  });
+
+  it.each([null, {}, 'resource'])('rejects an invalid verify value: %j', verify => {
+    expect(() => verifyPackagedResources('/resources', { verify }, 'linux')).toThrow(
+      'Build manifest verify must be an array'
+    );
+  });
+
+  it.each([
+    null,
+    [],
+    'resource',
+    {},
+    { path: '', sha256: '0'.repeat(64) },
+    { path: 1, sha256: '0'.repeat(64) },
+    { path: 'tool', sha256: 1 },
+    { path: 'tool', sha256: '0'.repeat(64), platforms: 'linux' },
+    { path: 'tool', sha256: '0'.repeat(64), platforms: ['android'] },
+    { path: 'tool', sha256: '0'.repeat(64), unsafe: true },
+  ])('rejects an invalid verification entry: %j', verification => {
+    expect(() =>
+      verifyPackagedResources('/resources', { verify: [verification] }, 'linux')
+    ).toThrow('Invalid build manifest verify[0]');
+  });
+
+  it.each(['0', 'g'.repeat(64), `${'0'.repeat(64)}00`])(
+    'rejects an invalid SHA-256 digest: %s',
+    sha256 => {
+      expect(() =>
+        verifyPackagedResources('/resources', { verify: [{ path: 'tool', sha256 }] }, 'linux')
+      ).toThrow('Invalid SHA-256 for packaged resource tool');
+    }
+  );
+
+  it.each(['../tool', '/outside/tool'])(
+    'rejects a resource path outside the package: %s',
+    entry => {
+      const resourcesDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-resources-'));
+      temporaryDirectories.push(resourcesDirectory);
+
+      expect(() =>
+        verifyPackagedResources(
+          resourcesDirectory,
+          { verify: [{ path: entry, sha256: '0'.repeat(64) }] },
+          'linux'
+        )
+      ).toThrow('escapes the resources directory');
+    }
+  );
+
+  it('rejects resources reached through a parent directory symlink', () => {
+    const resourcesDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-resources-'));
+    const outsideDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-outside-'));
+    temporaryDirectories.push(resourcesDirectory, outsideDirectory);
+    const contents = 'bundled tool';
+    fs.writeFileSync(path.join(outsideDirectory, 'tool'), contents);
+    fs.symlinkSync(
+      outsideDirectory,
+      path.join(resourcesDirectory, 'tools'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+
+    expect(() =>
+      verifyPackagedResources(
+        resourcesDirectory,
+        {
+          verify: [
+            {
+              path: 'tools/tool',
+              sha256: crypto.createHash('sha256').update(contents).digest('hex'),
+            },
+          ],
+        },
+        'linux'
+      )
+    ).toThrow('escapes the resources directory');
+  });
+
+  it.each([
+    { name: 'missing files', prepare: () => undefined },
+    { name: 'directories', prepare: (resource: string) => fs.mkdirSync(resource) },
+    {
+      name: 'symbolic links',
+      prepare: (resource: string) => {
+        const target = `${resource}-target`;
+        fs.writeFileSync(target, 'bundled tool');
+        fs.symlinkSync(target, resource);
+      },
+    },
+  ])('rejects $name', ({ prepare }) => {
+    const resourcesDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-resources-'));
+    temporaryDirectories.push(resourcesDirectory);
+    const resource = path.join(resourcesDirectory, 'tool');
+    prepare(resource);
+
+    expect(() =>
+      verifyPackagedResources(
+        resourcesDirectory,
+        { verify: [{ path: 'tool', sha256: '0'.repeat(64) }] },
+        'linux'
+      )
+    ).toThrow('Packaged resource is not a regular file: tool');
+  });
+
+  it('rejects digest mismatches', () => {
+    const file = temporaryFile('bundled tool');
+
+    expect(() =>
+      verifyPackagedResources(
+        path.dirname(file),
+        { verify: [{ path: path.basename(file), sha256: '0'.repeat(64) }] },
+        'linux'
+      )
+    ).toThrow(`SHA-256 mismatch for packaged resource ${path.basename(file)}`);
+  });
+
+  it('hashes packaged resources without reading the whole file at once', () => {
+    const contents = Buffer.alloc(128 * 1024, 'a');
+    const resourcesDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-resources-'));
+    temporaryDirectories.push(resourcesDirectory);
+    fs.writeFileSync(path.join(resourcesDirectory, 'tool'), contents);
+    const readFileSync = vi.spyOn(fs, 'readFileSync');
+
+    try {
+      expect(() =>
+        verifyPackagedResources(
+          resourcesDirectory,
+          {
+            verify: [
+              {
+                path: 'tool',
+                sha256: crypto.createHash('sha256').update(contents).digest('hex'),
+              },
+            ],
+          },
+          'linux'
+        )
+      ).not.toThrow();
+      expect(readFileSync).not.toHaveBeenCalled();
+    } finally {
+      readFileSync.mockRestore();
+    }
+  });
+});
 
 describe('build manifest selection', () => {
   it('uses Headlamp defaults when no product manifest is configured', () => {

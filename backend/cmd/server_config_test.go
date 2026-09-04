@@ -29,6 +29,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 	t.Run("maps basic fields and splits proxy urls", func(t *testing.T) {
 		conf := &config.Config{
+			AppName:                    "Branded Headlamp",
 			Port:                       4444,
 			InCluster:                  true,
 			InClusterContextName:       "test-incluster",
@@ -45,6 +46,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 		headlampCFG := buildHeadlampCFG(conf, store)
 
+		assert.Equal(t, "Branded Headlamp", headlampCFG.AppName)
 		assert.Equal(t, uint(4444), headlampCFG.Port)
 		assert.True(t, headlampCFG.UseInCluster)
 		assert.Equal(t, "test-incluster", headlampCFG.InClusterContextName)

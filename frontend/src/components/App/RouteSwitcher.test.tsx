@@ -15,26 +15,36 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 
 vi.mock('../../lib/k8s', () => ({
   useCluster: vi.fn(() => null),
   useClustersConf: vi.fn(() => ({})),
-  useClustersVersion: vi.fn(() => ({})),
+  useClustersVersion: vi.fn(() => [{}, {}]),
   useConnectApi: vi.fn(),
   useSelectedClusters: vi.fn(() => []),
 }));
 
-vi.mock('../../lib/k8s/event', () => ({ default: class Event {} }));
+vi.mock('../../lib/k8s/event', () => ({
+  default: class Event {},
+  useEventWarningList: vi.fn(() => ({})),
+}));
 vi.mock('../common/ObjectEventList', () => ({ default: () => null }));
+vi.mock('./Home', () => ({ default: () => null }));
 
+import { useCluster } from '../../lib/k8s';
 import RouteSwitcher from './RouteSwitcher';
 
 // Verify RouteSwitcher renders stable route keys and handles an unset cluster.
 
 describe('RouteSwitcher', () => {
+  afterEach(() => {
+    vi.mocked(useCluster).mockReturnValue(null);
+    vi.unstubAllEnvs();
+  });
+
   it('assigns unique keys to all rendered AuthRoute components', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -77,5 +87,36 @@ describe('RouteSwitcher', () => {
         </QueryClientProvider>
       )
     ).not.toThrow();
+  });
+
+  it('includes the configured product name in the document title', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.stubEnv('REACT_APP_HEADLAMP_PRODUCT_NAME', 'AKS Desktop');
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TestContext>
+          <RouteSwitcher requiresToken={() => false} />
+        </TestContext>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(document.title).toBe('Choose a cluster - AKS Desktop'));
+  });
+
+  it('includes the cluster and fallback product names in the document title', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(useCluster).mockReturnValue('cluster-a');
+    vi.stubEnv('REACT_APP_HEADLAMP_PRODUCT_NAME', '');
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TestContext>
+          <RouteSwitcher requiresToken={() => false} />
+        </TestContext>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(document.title).toBe('cluster-a - Choose a cluster - Headlamp'));
   });
 });

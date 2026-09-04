@@ -91,9 +91,12 @@ export type PluginInfo = {
   isEnabled?: boolean;
 
   /**
-   * type indicates the source of the plugin: "development", "user", or "shipped"
+   * type controls plugin priority and migration behavior.
    */
   type?: 'development' | 'user' | 'shipped';
+
+  /** Inventory root containing the plugin, independently of migration behavior. */
+  source?: 'development' | 'user' | 'shipped';
 
   /**
    * isLoaded indicates if this plugin version is actually loaded and executed.

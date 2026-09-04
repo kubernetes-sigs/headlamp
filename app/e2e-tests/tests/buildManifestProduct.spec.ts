@@ -21,6 +21,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 const appPath = path.resolve(__dirname, '../..');
+const frontendPath = path.resolve(appPath, '../frontend');
+const appVersion = JSON.parse(fs.readFileSync(path.join(appPath, 'package.json'), 'utf8')).version;
 
 test('custom product metadata reaches the Electron Builder configuration', () => {
   const manifestDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-product-manifest-'));
@@ -63,6 +65,53 @@ test('custom product metadata reaches the Electron Builder configuration', () =>
       name: 'example-desktop',
       productName: 'Example Desktop',
       version: '1.2.3',
+    });
+  } finally {
+    fs.rmSync(manifestDirectory, { recursive: true, force: true });
+  }
+});
+
+test('custom product metadata reaches the frontend environment', () => {
+  const manifestDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-product-manifest-'));
+  const manifestFile = path.join(manifestDirectory, 'app-build-manifest.json');
+  const envFile = path.join(manifestDirectory, '.env');
+  fs.writeFileSync(
+    manifestFile,
+    JSON.stringify({
+      product: {
+        productName: 'C# $HOME Desktop',
+        version: '1.2.3=build',
+      },
+    })
+  );
+
+  try {
+    execFileSync(process.execPath, [path.join(frontendPath, 'make-env.js'), envFile], {
+      cwd: frontendPath,
+      env: {
+        ...process.env,
+        HEADLAMP_BUILD_MANIFEST: manifestFile,
+        HEADLAMP_SOURCE_COMMIT: '0123456789abcdef=source',
+      },
+    });
+    const env = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          "import { loadEnv } from 'vite'; process.stdout.write(JSON.stringify(loadEnv('test', process.argv[1], 'REACT_APP_')));",
+          manifestDirectory,
+        ],
+        { cwd: frontendPath, encoding: 'utf8' }
+      )
+    );
+
+    expect(env).toMatchObject({
+      REACT_APP_HEADLAMP_VERSION: appVersion,
+      REACT_APP_HEADLAMP_GIT_VERSION: '0123456789abcdef=source',
+      REACT_APP_HEADLAMP_PRODUCT_NAME: 'C# $HOME Desktop',
+      REACT_APP_HEADLAMP_PRODUCT_VERSION: '1.2.3=build',
     });
   } finally {
     fs.rmSync(manifestDirectory, { recursive: true, force: true });

@@ -44,9 +44,16 @@ export function ResourceCategoriesList({
 }) {
   return (
     <Box
-      sx={{
+      data-testid="project-resource-categories"
+      sx={theme => ({
         flexShrink: 0,
-      }}
+        [theme.breakpoints.down('md')]: {
+          '@media (max-height: 48rem)': {
+            maxHeight: '12.5rem',
+            overflowY: 'auto',
+          },
+        },
+      })}
     >
       <List dense>
         {categoryList.map(({ category, items, health }) => {
