@@ -15,7 +15,14 @@
  */
 
 import * as fc from 'fast-check';
-import { divideK8sResources, parseCpu, parseRam, unparseCpu, unparseRam } from './units';
+import {
+  divideK8sResources,
+  parseCpu,
+  parseRam,
+  splitQuantity,
+  unparseCpu,
+  unparseRam,
+} from './units';
 
 describe('parseRam', () => {
   it('should parse simple numbers', () => {
@@ -242,5 +249,30 @@ describe('divideK8sResources', () => {
     // These should still work as before (memory)
     expect(divideK8sResources('1Gi', '1Mi')).toBe(1024);
     expect(divideK8sResources('1M', '1K')).toBe(1000);
+  });
+});
+
+describe('splitQuantity', () => {
+  it('splits a quantity into its number and its suffix', () => {
+    expect(splitQuantity('8Gi')).toEqual({ value: 8, unit: 'Gi' });
+    expect(splitQuantity('500M')).toEqual({ value: 500, unit: 'M' });
+    expect(splitQuantity('1.5Ti')).toEqual({ value: 1.5, unit: 'Ti' });
+    expect(splitQuantity('512Ki')).toEqual({ value: 512, unit: 'Ki' });
+    expect(splitQuantity('100k')).toEqual({ value: 100, unit: 'k' });
+  });
+
+  it('reads a quantity without a suffix', () => {
+    expect(splitQuantity('1024')).toEqual({ value: 1024, unit: '' });
+  });
+
+  it('ignores the surrounding space the API may report', () => {
+    expect(splitQuantity(' 8Gi ')).toEqual({ value: 8, unit: 'Gi' });
+  });
+
+  it('gives up on a quantity it cannot read', () => {
+    expect(splitQuantity('')).toBeUndefined();
+    expect(splitQuantity('Gi')).toBeUndefined();
+    expect(splitQuantity('8Gib')).toBeUndefined();
+    expect(splitQuantity('8ki')).toBeUndefined();
   });
 });

@@ -17,8 +17,10 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
+import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
+import ExpandButton from './ExpandButton';
 import { StatusLabelByPhase } from './utils';
 
 export function makePVCStatusLabel(item: PersistentVolumeClaim) {
@@ -42,6 +44,16 @@ export default function VolumeClaimDetails(props: {
       namespace={namespace}
       cluster={cluster}
       withEvents
+      actions={item =>
+        item
+          ? [
+              {
+                id: DefaultHeaderAction.PVC_EXPAND,
+                action: <ExpandButton item={item} />,
+              },
+            ]
+          : []
+      }
       extraInfo={item =>
         item && [
           {
@@ -73,6 +85,13 @@ export default function VolumeClaimDetails(props: {
             name: t('Capacity'),
             value: item.status?.capacity?.storage ?? item.spec?.resources?.requests?.storage,
             hide: value => !value,
+          },
+          {
+            name: t('translation|Expansion'),
+            value: item.resizeCondition
+              ? item.resizeCondition.message ?? item.resizeCondition.type
+              : '',
+            hide: !item.resizeCondition,
           },
           {
             name: t('Access Modes'),

@@ -120,3 +120,27 @@ export function divideK8sResources(
   }
   return parseUnitsOfBytes(a) / parseUnitsOfBytes(b);
 }
+
+/** A Kubernetes quantity split into the number the user edits and its suffix. */
+export interface QuantityParts {
+  value: number;
+  /** The suffix as written, e.g. 'Gi' or 'M'. Empty when the quantity has no suffix. */
+  unit: string;
+}
+
+/**
+ * Splits a Kubernetes quantity into its number and its suffix.
+ *
+ * Quantities are written as a number followed by an optional suffix, e.g. '8Gi'. Editing
+ * one means editing the number while keeping the suffix the cluster reported.
+ * @param quantity - The quantity to split, e.g. '8Gi'.
+ * @returns The number and the suffix, or undefined when the quantity cannot be read.
+ */
+export function splitQuantity(quantity: string): QuantityParts | undefined {
+  const groups = /^(\d+(?:\.\d+)?)([EPTGMK]i?|k|m)?$/.exec(quantity?.trim() ?? '');
+  if (!groups) {
+    return undefined;
+  }
+
+  return { value: parseFloat(groups[1]), unit: groups[2] ?? '' };
+}
