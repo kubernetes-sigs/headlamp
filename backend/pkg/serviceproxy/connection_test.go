@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -43,16 +44,19 @@ func TestNewConnection(t *testing.T) {
 }
 
 var getTests = []struct {
-	name       string
-	uri        string
-	requestURI string
-	wantBody   []byte
-	wantErr    bool
+	name        string
+	uri         string
+	requestURI  string
+	wantPath    string
+	wantRawPath string
+	wantBody    []byte
+	wantErr     bool
 }{
 	{
 		name:       "valid request",
 		uri:        "http://example.com",
 		requestURI: "/test",
+		wantPath:   "/test",
 		wantBody:   []byte("Hello, World!"),
 		wantErr:    false,
 	},
@@ -95,8 +99,57 @@ var getTests = []struct {
 		name:       "empty path resolves without error",
 		uri:        "http://example.com",
 		requestURI: "",
+		wantPath:   "/",
 		wantBody:   []byte("Hello, World!"),
 		wantErr:    false,
+	},
+	{
+		name:       "prefixed URI preserves base path",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "/status",
+		wantPath:   "/api/v1/proxy/status",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:       "prefixed URI with traversal preserves prefix",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "/../status",
+		wantPath:   "/api/v1/proxy/status",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:       "prefixed URI with trailing slash and empty requestURI",
+		uri:        "http://example.com/api/v1/proxy/",
+		requestURI: "",
+		wantPath:   "/api/v1/proxy/",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:       "requestURI with trailing slash preserves trailing slash",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "/status/",
+		wantPath:   "/api/v1/proxy/status/",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:        "requestURI with encoded slash preserves raw path",
+		uri:         "http://example.com/api/v1/proxy",
+		requestURI:  "/items/a%2Fb",
+		wantPath:    "/api/v1/proxy/items/a/b",
+		wantRawPath: "/api/v1/proxy/items/a%2Fb",
+		wantBody:    []byte("Hello, World!"),
+		wantErr:     false,
+	},
+	{
+		name:       "traversal escaping base path rejected",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "../secret",
+		wantBody:   nil,
+		wantErr:    true,
 	},
 }
 
@@ -107,6 +160,12 @@ func TestGet(t *testing.T) {
 
 			if tt.wantBody != nil {
 				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tt.wantPath != "" && r.URL.Path != tt.wantPath {
+						t.Errorf("Expected path %s, got %s", tt.wantPath, r.URL.Path)
+					}
+					if tt.wantRawPath != "" && r.URL.RawPath != tt.wantRawPath {
+						t.Errorf("Expected raw path %s, got %s", tt.wantRawPath, r.URL.RawPath)
+					}
 					_, err := w.Write(tt.wantBody)
 					if err != nil {
 						t.Fatal(err)
@@ -114,7 +173,12 @@ func TestGet(t *testing.T) {
 				}))
 				defer ts.Close()
 
-				conn.URI = ts.URL
+				u, err := url.Parse(tt.uri)
+				if err == nil {
+					conn.URI = ts.URL + u.Path
+				} else {
+					conn.URI = ts.URL
+				}
 			}
 
 			w := httptest.NewRecorder()
