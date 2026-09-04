@@ -16,6 +16,7 @@
 
 import nock from 'nock';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { resetClusterConnectQueue } from '../../../../helpers/clusterConnectQueue';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
@@ -52,6 +53,7 @@ describe('clusterFetch', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    resetClusterConnectQueue();
     setBackendToken('desktop-token');
     (findKubeconfigByClusterName as Mock).mockResolvedValue(kubeconfig);
     (getUserIdFromLocalStorage as Mock).mockReturnValue(userID);
@@ -114,5 +116,19 @@ describe('clusterFetch', () => {
     nock(BASE_HTTP_URL).get(`/clusters/${clusterName}${testUrl}`).reply(500);
 
     await expect(clusterFetch(testUrl, { cluster: clusterName })).rejects.toThrow('Unreachable');
+  });
+
+  it('does not contact two clusters at once on their first request', async () => {
+    // Without serialization the undelayed cluster-b would answer first.
+    nock(BASE_HTTP_URL).get(`/clusters/cluster-a${testUrl}`).delay(50).reply(200, mockResponse);
+    nock(BASE_HTTP_URL).get(`/clusters/cluster-b${testUrl}`).reply(200, mockResponse);
+
+    const settled: string[] = [];
+    await Promise.all([
+      clusterFetch(testUrl, { cluster: 'cluster-a' }).then(() => settled.push('cluster-a')),
+      clusterFetch(testUrl, { cluster: 'cluster-b' }).then(() => settled.push('cluster-b')),
+    ]);
+
+    expect(settled).toEqual(['cluster-a', 'cluster-b']);
   });
 });

@@ -16,6 +16,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
+import { resetClusterConnectQueue } from '../../../../helpers/clusterConnectQueue';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
@@ -45,6 +46,7 @@ vi.mock('../../../auth', () => ({
 describe('clusterRequest transports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetClusterConnectQueue();
     vi.stubGlobal('fetch', vi.fn());
     setBackendToken('desktop-token');
     vi.mocked(isBackstage).mockReturnValue(false);
@@ -132,5 +134,76 @@ describe('clusterRequest transports', () => {
       status: 408,
       message: expect.stringContaining('Request timed-out'),
     });
+  });
+
+  it('does not contact two clusters at once on their first request', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    (fetch as Mock).mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      inFlight -= 1;
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    await Promise.all([
+      clusterRequest('/version', { cluster: 'cluster-a' }),
+      clusterRequest('/version', { cluster: 'cluster-b' }),
+    ]);
+
+    expect(maxInFlight).toBe(1);
+    expect((fetch as Mock).mock.calls).toHaveLength(2);
+  });
+
+  it('contacts a cluster in parallel once it has answered once', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    (fetch as Mock).mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      inFlight -= 1;
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    await clusterRequest('/version', { cluster: 'cluster-a' });
+    maxInFlight = 0;
+
+    await Promise.all([
+      clusterRequest('/version', { cluster: 'cluster-a' }),
+      clusterRequest('/api/v1/pods', { cluster: 'cluster-a' }),
+    ]);
+
+    expect(maxInFlight).toBe(2);
+  });
+
+  it('starts the request timeout only once the cluster has a queue slot', async () => {
+    // cluster-a holds the queue for longer than cluster-b's timeout. If the
+    // abort timer started before the slot was granted, cluster-b would time out
+    // while it was still only waiting.
+    (fetch as Mock).mockImplementation(
+      (url: string, init: RequestInit) =>
+        new Promise((resolve, reject) => {
+          const delay = String(url).includes('cluster-a') ? 60 : 5;
+          const timer = setTimeout(
+            () => resolve(new Response(JSON.stringify({}), { status: 200 })),
+            delay
+          );
+          init.signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            const abortError = new Error('aborted');
+            abortError.name = 'AbortError';
+            reject(abortError);
+          });
+        })
+    );
+
+    const results = Promise.all([
+      clusterRequest('/version', { cluster: 'cluster-a' }),
+      clusterRequest('/version', { cluster: 'cluster-b', timeout: 40 }),
+    ]);
+
+    await expect(results).resolves.toHaveLength(2);
   });
 });

@@ -18,6 +18,7 @@
 
 import type { OpPatch } from 'json-patch';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
+import { withClusterConnectSlot } from '../../../../helpers/clusterConnectQueue';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
@@ -163,13 +164,9 @@ export async function clusterRequest(
     fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
   }
 
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
   let url = combinePath(getAppUrl(), fullPath);
   url += asQuery(queryParams);
   const requestData = {
-    signal: controller.signal,
     credentials: 'include' as RequestCredentials,
     ...opts,
   };
@@ -178,15 +175,24 @@ export async function clusterRequest(
   }
   let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
   try {
-    response = await fetch(url, requestData);
+    response = await withClusterConnectSlot(cluster, async () => {
+      // The abort timer is started here, and not before the slot is granted, so
+      // that time spent waiting for another cluster's first contact is not
+      // counted against this request's timeout.
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      try {
+        return await fetch(url, { signal: controller.signal, ...requestData });
+      } finally {
+        clearTimeout(id);
+      }
+    });
   } catch (err) {
     if (err instanceof Error) {
       if (err.name === 'AbortError') {
         response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
       }
     }
-  } finally {
-    clearTimeout(id);
   }
 
   // The backend signals through this header that it wants a reload.
