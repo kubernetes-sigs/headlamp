@@ -16,6 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
@@ -75,6 +76,24 @@ describe('PluginSettingsPure', () => {
 
     const deleteButtons = screen.getAllByLabelText('Delete Plugin');
     expect(deleteButtons).toHaveLength(3);
+  });
+
+  it('enables local plugin development', async () => {
+    const onDevelopmentPluginsChange = vi.fn();
+    renderPluginSettings({
+      showDevelopmentPluginsSetting: true,
+      developmentPluginsEnabled: false,
+      onDevelopmentPluginsChange,
+    });
+
+    const pluginDevelopmentMode = screen.getByRole('checkbox', {
+      name: 'Load development plugins',
+    });
+    expect(pluginDevelopmentMode).not.toBeChecked();
+
+    await userEvent.click(pluginDevelopmentMode);
+
+    expect(onDevelopmentPluginsChange).toHaveBeenCalledWith(true);
   });
 
   it('calls onDelete when delete is confirmed', () => {

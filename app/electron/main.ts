@@ -36,8 +36,14 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import {
+  loadBuildManifest,
+  productPluginCommandPolicies,
+  resolveBuildManifestPath,
+} from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
 import { createCertificateSetup } from './certificates';
+import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
 import {
@@ -69,8 +75,8 @@ import {
   runScript,
   setupRunCmdHandlers,
 } from './runCmd';
-import { setupSecureStorageHandlers } from './secureStorage';
-import { loadSettings, SETTINGS_PATH } from './settings';
+import { isTrustedDocumentUrl, setupSecureStorageHandlers } from './secureStorage';
+import { areDevelopmentPluginsEnabled, loadSettings, SETTINGS_PATH } from './settings';
 import { getShellEnv } from './shellEnv';
 import { shouldCheckForAppUpdates } from './shouldCheckForAppUpdates';
 import {
@@ -206,13 +212,28 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
-const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
+const appBuildManifestPath = isDev
+  ? resolveBuildManifestPath()
+  : path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 const protocolScheme = readProtocolScheme(appBuildManifestPath);
 const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
+const productPluginCommandPolicy = productPluginCommandPolicies(
+  loadBuildManifest(appBuildManifestPath),
+  isDev ? 'development' : 'production'
+);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+
+function isFromMainWindowFrame(event: IpcMainEvent, window = mainWindow): boolean {
+  return (
+    !!window &&
+    event.sender === window.webContents &&
+    event.senderFrame === window.webContents.mainFrame &&
+    isTrustedDocumentUrl(event.senderFrame.url, startUrl)
+  );
+}
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
@@ -272,7 +293,7 @@ class PluginManagerEventListeners {
     };
   } = {};
 
-  constructor() {
+  constructor(private readonly window: BrowserWindow) {
     this.cache = {};
   }
 
@@ -305,6 +326,9 @@ class PluginManagerEventListeners {
    */
   setupEventHandlers() {
     ipcMain.on('plugin-manager', async (event, data) => {
+      if (!isFromMainWindowFrame(event, this.window)) {
+        return;
+      }
       let eventData: Action;
 
       try {
@@ -505,7 +529,10 @@ class PluginManagerEventListeners {
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
 
-    removeRunCmdConsent(pluginName);
+    const installedPlugin = PluginManager.list(destinationFolder)?.find(
+      plugin => plugin.pluginName === pluginName
+    );
+    removeRunCmdConsent(pluginName, installedPlugin?.folderName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
@@ -1379,8 +1406,11 @@ function startElectron() {
   // Default is 10, setting to 20 provides headroom for future additions
   ipcMain.setMaxListeners(20);
 
-  ipcMain.on('request-backend-token', () => {
-    mainWindow?.webContents.send('backend-token', backendToken);
+  ipcMain.on('request-backend-token', event => {
+    if (!isFromMainWindowFrame(event)) {
+      return;
+    }
+    event.sender.send('backend-token', backendToken);
   });
 
   let appVersion: string;
@@ -1554,10 +1584,20 @@ function startElectron() {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
         preload: `${__dirname}/preload.js`,
       },
     });
     protocolHandler.attachToWebContents(mainWindow.webContents);
+    setupRunCmdHandlers(
+      mainWindow,
+      ipcMain,
+      productPluginCommandPolicy,
+      startUrl,
+      undefined,
+      isDev,
+      areDevelopmentPluginsEnabled
+    );
 
     applyZoom();
 
@@ -1674,8 +1714,11 @@ function startElectron() {
       setMenu(mainWindow, currentMenu);
     });
 
-    ipcMain.on('appConfig', () => {
-      mainWindow?.webContents.send('appConfig', {
+    ipcMain.on('appConfig', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('appConfig', {
         checkForUpdates: shouldCheckForUpdates,
         appVersion,
         protocolScheme,
@@ -1689,14 +1732,17 @@ function startElectron() {
       readLegalDocument(legalDocumentsResourcePath, legalDocuments, id)
     );
 
-    ipcMain.on('pluginsLoaded', () => {
+    ipcMain.on('pluginsLoaded', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
       loadFullMenu = true;
       console.info('Plugins are loaded. Loading full menu.');
       setMenu(mainWindow, currentMenu);
     });
 
     ipcMain.on('setMenu', (event: IpcMainEvent, menus: any) => {
-      if (!mainWindow) {
+      if (!mainWindow || !isFromMainWindowFrame(event, mainWindow)) {
         return;
       }
 
@@ -1719,30 +1765,40 @@ function startElectron() {
     });
 
     ipcMain.on('locale', (event: IpcMainEvent, newLocale: string) => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
       if (!!newLocale && i18n.language !== newLocale) {
         i18n.changeLanguage(newLocale);
       }
     });
 
-    ipcMain.on('request-backend-port', () => {
-      mainWindow?.webContents.send('backend-port', actualPort);
+    ipcMain.on('request-backend-port', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('backend-port', actualPort);
     });
 
-    ipcMain.on('request-tray-icon', () => {
-      mainWindow?.webContents.send('tray-icon', isTrayIconEnabled());
+    ipcMain.on('request-tray-icon', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('tray-icon', isTrayIconEnabled());
     });
 
     ipcMain.on('set-tray-icon', (event: IpcMainEvent, enabled: boolean) => {
-      if (typeof enabled !== 'boolean') {
+      if (!isFromMainWindowFrame(event, mainWindow) || typeof enabled !== 'boolean') {
         return;
       }
       applyTrayIconSetting(enabled);
     });
 
-    setupRunCmdHandlers(mainWindow, ipcMain);
+    setupDevelopmentPluginsHandlers(mainWindow, ipcMain);
+
     setupSecureStorageHandlers(mainWindow, startUrl);
 
-    new PluginManagerEventListeners().setupEventHandlers();
+    new PluginManagerEventListeners(mainWindow).setupEventHandlers();
 
     // Handle opening plugin folder in file explorer
     ipcMain.on(
@@ -1751,6 +1807,9 @@ function startElectron() {
         event: IpcMainEvent,
         pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
       ) => {
+        if (!isFromMainWindowFrame(event, mainWindow)) {
+          return;
+        }
         let folderPath: string | null = null;
 
         if (pluginInfo.type === 'user') {
@@ -1785,7 +1844,7 @@ function startElectron() {
     if (ENABLE_MCP) {
       const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
       const settingsPath = path.join(app.getPath('userData'), 'mcp-tools-settings.json');
-      mcpClient = new MCPClient(configPath, settingsPath, ensureCertificates);
+      mcpClient = new MCPClient(configPath, settingsPath, ensureCertificates, startUrl);
       await mcpClient.initialize();
       mcpClient.setMainWindow(mainWindow);
     }

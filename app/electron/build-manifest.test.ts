@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
+import { buildSync } from 'esbuild';
 import nock from 'nock';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as tar from 'tar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -27,9 +32,12 @@ import {
   applyBuildTargets,
   applyPlatformMetadata,
   applyProductMetadata,
+  type BuildManifest,
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
+  productPluginCommandPolicies,
   resolveBuildManifestPath,
+  validateBuildManifest,
   verifyPackagedResources,
 } from '../scripts/build-manifest.ts';
 import {
@@ -38,6 +46,7 @@ import {
   extractArchive,
   getArchiveFileName,
   pathsReferToSameFile,
+  recordBundledPluginExecutableIntegrity,
   resolveLocalPluginArchive,
   validatePluginSource,
   verifyArchiveDigest,
@@ -729,8 +738,306 @@ describe('packaged resource verification', () => {
 });
 
 describe('build manifest selection', () => {
+  it('loads with the native TypeScript type-stripping runtime', () => {
+    const moduleUrl = pathToFileURL(path.join(appPath, 'scripts/build-manifest.ts')).href;
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [
+          '--experimental-strip-types',
+          '--input-type=module',
+          '--eval',
+          `await import('${moduleUrl}')`,
+        ],
+        { stdio: 'pipe' }
+      )
+    ).not.toThrow();
+  });
+  it('loads from Electron-compatible bundled CommonJS', () => {
+    const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-manifest-bundle-'));
+    temporaryDirectories.push(outputDirectory);
+    const outputFile = path.join(outputDirectory, 'build-manifest.cjs');
+    buildSync({
+      entryPoints: [path.join(appPath, 'scripts/build-manifest.ts')],
+      bundle: true,
+      format: 'cjs',
+      platform: 'node',
+      outfile: outputFile,
+    });
+
+    expect(() => execFileSync(process.execPath, [outputFile], { stdio: 'pipe' })).not.toThrow();
+  });
+
   it('uses Headlamp defaults when no product manifest is configured', () => {
     expect(resolveBuildManifestPath({}, '/product')).toBe(DEFAULT_MANIFEST_FILE);
+  });
+
+  it('keeps production command policies for legacy development inventory installs', () => {
+    const policies = productPluginCommandPolicies(
+      loadBuildManifest(DEFAULT_MANIFEST_FILE),
+      'production'
+    );
+    const identities = policies.map(
+      policy => `${policy.source}:${policy.bundleName}:${policy.packageName}`
+    );
+
+    expect(identities).toEqual(
+      expect.arrayContaining([
+        'development:headlamp_minikube:@headlamp-k8s/minikube',
+        'development:headlamp_minikubeprerelease:@headlamp-k8s/minikubeprerelease',
+        'user:headlamp_ai-assistant:@headlamp-k8s/ai-assistant',
+        'user:headlamp_ai_assistant:@headlamp-k8s/ai-assistant',
+        'development:headlamp_ai-assistant:@headlamp-k8s/ai-assistant',
+        'development:headlamp_ai_assistant:@headlamp-k8s/ai-assistant',
+        'shipped:headlamp_ai-assistant:@headlamp-k8s/ai-assistant',
+        'shipped:headlamp_ai_assistant:@headlamp-k8s/ai-assistant',
+        'shipped:headlamp_ai-assistantprerelease:@headlamp-k8s/ai-assistantprerelease',
+        'shipped:headlamp_ai_assistantprerelease:@headlamp-k8s/ai-assistantprerelease',
+      ])
+    );
+  });
+
+  it('pins immutable Artifact Hub IDs for every default user production policy', () => {
+    const policies = productPluginCommandPolicies(
+      loadBuildManifest(DEFAULT_MANIFEST_FILE),
+      'production'
+    ).filter(policy => policy.source === 'user');
+
+    expect(policies.length).toBeGreaterThan(0);
+    for (const policy of policies) {
+      expect(policy.artifactHub?.packageId).toMatch(/^[a-f0-9-]{36}$/i);
+      expect(policy.artifactHub?.repositoryId).toMatch(/^[a-f0-9-]{36}$/i);
+    }
+  });
+
+  it('omits Artifact Hub identity from default development-location policies', () => {
+    const policies = productPluginCommandPolicies(
+      loadBuildManifest(DEFAULT_MANIFEST_FILE),
+      'production'
+    ).filter(policy => policy.source === 'development');
+
+    expect(policies.length).toBeGreaterThan(0);
+    for (const policy of policies) {
+      expect(policy.artifactHub).toBeUndefined();
+    }
+  });
+
+  it('keeps development command policies for catalog and legacy managed installs', () => {
+    const policies = productPluginCommandPolicies(
+      loadBuildManifest(DEFAULT_MANIFEST_FILE),
+      'development'
+    );
+    const identities = policies.map(
+      policy => `${policy.source}:${policy.bundleName}:${policy.packageName}`
+    );
+
+    expect(identities).toEqual(
+      expect.arrayContaining([
+        'user:headlamp_minikube:@headlamp-k8s/minikube',
+        'development:headlamp_minikube:@headlamp-k8s/minikube',
+        'user:headlamp_minikubeprerelease:@headlamp-k8s/minikubeprerelease',
+        'development:headlamp_minikubeprerelease:@headlamp-k8s/minikubeprerelease',
+        'user:headlamp_ai-assistant:@headlamp-k8s/ai-assistant',
+        'user:headlamp_ai_assistant:@headlamp-k8s/ai-assistant',
+        'development:headlamp_ai-assistant:@headlamp-k8s/ai-assistant',
+        'development:headlamp_ai_assistant:@headlamp-k8s/ai-assistant',
+        'user:headlamp_ai-assistantprerelease:@headlamp-k8s/ai-assistantprerelease',
+        'user:headlamp_ai_assistantprerelease:@headlamp-k8s/ai-assistantprerelease',
+        'development:headlamp_ai-assistantprerelease:@headlamp-k8s/ai-assistantprerelease',
+        'development:headlamp_ai_assistantprerelease:@headlamp-k8s/ai-assistantprerelease',
+      ])
+    );
+  });
+
+  it('requires schema command arguments to contain a non-whitespace character', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const argumentPattern = new RegExp(
+      schema.definitions.commandGrant.properties.args.items.pattern
+    );
+
+    expect(argumentPattern.test('resource group')).toBe(true);
+    expect(argumentPattern.test(' \t\n')).toBe(false);
+    expect(argumentPattern.test('list\0all')).toBe(false);
+  });
+
+  it('rejects duplicate command grants in the schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    const grant = { tool: 'examplectl', args: ['list'] };
+
+    expect(
+      validate({
+        runCommands: [
+          {
+            environment: 'development',
+            pluginLocation: 'development',
+            plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+            commands: [grant, grant],
+          },
+        ],
+      })
+    ).toBe(false);
+    expect(validate.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ keyword: 'uniqueItems' })])
+    );
+  });
+
+  it('matches production identity and plugin executable runtime requirements', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    const policy = {
+      environment: 'production',
+      pluginLocation: 'user',
+      plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+      pluginExecutables: [{ tool: 'examplectl' }],
+      commands: [{ tool: 'examplectl', args: ['list'] }],
+    };
+
+    expect(validate({ runCommands: [policy] })).toBe(false);
+    expect(
+      validate({
+        runCommands: [
+          {
+            ...policy,
+            plugins: [
+              {
+                bundleName: 'example-plugin',
+                packageName: '@example/plugin',
+                artifactHubPackageId: 'fbc182b5-eb90-42b7-ace8-62a7576abafd',
+                artifactHubRepositoryId: '767e1f40-ee09-401b-b8d4-930740da5a8a',
+              },
+            ],
+          },
+        ],
+      })
+    ).toBe(false);
+    policy.plugins[0] = {
+      ...policy.plugins[0],
+      artifactHubPackage: 'headlamp-plugins/headlamp_minikube',
+    } as (typeof policy.plugins)[number];
+    expect(validate({ runCommands: [policy] })).toBe(true);
+    policy.plugins[0] = {
+      ...policy.plugins[0],
+      artifactHubPackageId: 'fbc182b5-eb90-42b7-ace8-62a7576abafd',
+      artifactHubRepositoryId: '767e1f40-ee09-401b-b8d4-930740da5a8a',
+    } as (typeof policy.plugins)[number];
+    expect(validate({ runCommands: [policy] })).toBe(true);
+    for (const bundleName of ['plugins/example-plugin', 'plugins\\example-plugin']) {
+      expect(
+        validate({
+          runCommands: [
+            {
+              ...policy,
+              plugins: [{ ...policy.plugins[0], bundleName }],
+            },
+          ],
+        })
+      ).toBe(false);
+    }
+    expect(
+      validate({
+        runCommands: [
+          {
+            ...policy,
+            pluginExecutables: [{ tool: 'examplectl', path: 'bin/examplectl' }],
+          },
+        ],
+      })
+    ).toBe(false);
+    policy.pluginExecutables[0] = { tool: 'scriptjs' };
+    expect(validate({ runCommands: [policy] })).toBe(false);
+  });
+
+  it('warns when production managed-plugin policies omit recommended UUID pins', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'user',
+          plugins: [
+            {
+              bundleName: 'example-plugin',
+              packageName: '@example/plugin',
+              artifactHubPackage: 'example-repository/example-plugin',
+            },
+          ],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+        },
+      ],
+    });
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('artifactHubPackageId'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('artifactHubRepositoryId'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('package_id'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('repository.repository_id'));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'https://artifacthub.io/api/v1/packages/headlamp/example-repository/example-plugin'
+      )
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('docs/development/plugins/command-capabilities.md')
+    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('command-capabilities'));
+    warn.mockRestore();
+  });
+
+  it.each([
+    { environment: 'development', pluginLocation: 'user' },
+    { environment: 'production', pluginLocation: 'development' },
+    { environment: 'production', pluginLocation: 'shipped' },
+  ])('warns when $environment $pluginLocation policies include UUID pins', policy => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    validateBuildManifest({
+      runCommands: [
+        {
+          ...policy,
+          plugins: [
+            {
+              bundleName: 'example-plugin',
+              packageName: '@example/plugin',
+              artifactHubPackage: 'example-repository/example-plugin',
+              artifactHubPackageId: 'fbc182b5-eb90-42b7-ace8-62a7576abafd',
+              artifactHubRepositoryId: '767e1f40-ee09-401b-b8d4-930740da5a8a',
+            },
+          ],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+        },
+      ],
+    } as BuildManifest);
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('should omit'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('command-capabilities'));
+    warn.mockRestore();
+  });
+
+  it('includes UUID recommendations and documentation in schema hovers', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const pluginIdentity = schema.definitions.pluginIdentity.properties;
+
+    for (const field of ['artifactHubPackage', 'artifactHubPackageId', 'artifactHubRepositoryId']) {
+      expect(pluginIdentity[field].description).toContain(
+        '../docs/development/plugins/command-capabilities.md'
+      );
+      expect(pluginIdentity[field].description).toContain('command-capabilities');
+      expect(pluginIdentity[field].description).toContain('https://headlamp.dev/');
+    }
+    expect(pluginIdentity.artifactHubPackageId.description).toContain('Recommended');
+    expect(pluginIdentity.artifactHubPackageId.description).toContain('omit');
   });
 
   it('resolves and loads an external product manifest', () => {
@@ -747,6 +1054,293 @@ describe('build manifest selection', () => {
 
   it('loads the default manifest when no path is supplied', () => {
     expect(loadBuildManifest()).toEqual(expect.objectContaining({ plugins: expect.any(Array) }));
+  });
+
+  it('loads plugin executables for shipped plugin identities', () => {
+    const manifest = {
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          pluginExecutables: [{ tool: 'examplectl' }],
+          commands: [{ tool: 'examplectl', args: ['project', 'list'], allowTrailingArgs: true }],
+        },
+      ],
+    };
+
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    expect(addFormats(new Ajv()).compile(schema)(manifest)).toBe(true);
+    expect(
+      productPluginCommandPolicies(
+        loadBuildManifest(temporaryFile(JSON.stringify(manifest))),
+        'production'
+      )
+    ).toEqual([
+      expect.objectContaining({
+        bundleName: 'example-plugin',
+        source: 'shipped',
+        grants: [
+          expect.objectContaining({
+            executable: { source: 'plugin', path: 'bin/examplectl' },
+          }),
+        ],
+      }),
+    ]);
+  });
+
+  it('rejects internal executable provenance in authored command grants', () => {
+    expect(() =>
+      loadBuildManifest(
+        temporaryFile(
+          JSON.stringify({
+            runCommands: [
+              {
+                environment: 'production',
+                pluginLocation: 'shipped',
+                plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+                commands: [
+                  {
+                    tool: 'examplectl',
+                    executable: { source: 'plugin', path: 'bin/examplectl' },
+                    args: ['project', 'list'],
+                  },
+                ],
+              },
+            ],
+          })
+        )
+      )
+    ).toThrow('Invalid build manifest runCommands[0].commands');
+  });
+
+  it('selects development permissions independently of production permissions', () => {
+    const commands = [{ tool: 'examplectl', args: ['development'] }];
+    const manifest = loadBuildManifest(
+      temporaryFile(
+        JSON.stringify({
+          runCommands: [
+            {
+              environment: 'development',
+              pluginLocation: 'development',
+              plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+              commands,
+            },
+            {
+              environment: 'production',
+              pluginLocation: 'user',
+              plugins: [
+                {
+                  bundleName: 'example_plugin',
+                  packageName: '@example/plugin',
+                  artifactHubPackage: 'example-repository/example-plugin',
+                },
+              ],
+              commands: [{ tool: 'examplectl', args: ['production'] }],
+            },
+          ],
+        })
+      )
+    );
+
+    expect(productPluginCommandPolicies(manifest, 'development')).toEqual([
+      {
+        bundleName: 'example-plugin',
+        packageName: '@example/plugin',
+        source: 'development',
+        grants: commands,
+      },
+    ]);
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      {
+        bundleName: 'example_plugin',
+        packageName: '@example/plugin',
+        source: 'user',
+        artifactHub: {
+          repository: 'example-repository',
+          package: 'example-plugin',
+        },
+        grants: [{ tool: 'examplectl', args: ['production'] }],
+      },
+    ]);
+  });
+
+  it('composes reusable command sets in declaration order', () => {
+    const commands = [
+      { tool: 'examplectl', args: ['list'], allowTrailingArgs: true },
+      { tool: 'scriptjs', args: ['example-plugin/run.js'] },
+    ];
+    const manifest = validateBuildManifest({
+      commandSets: { executable: [commands[0]], script: [commands[1]] },
+      runCommands: [
+        {
+          environment: 'development',
+          pluginLocation: 'development',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commandSets: ['executable', 'script'],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'development')[0].grants).toEqual(commands);
+  });
+
+  it.each([
+    { commandSets: ['missing'] },
+    { commandSets: ['example'], commands: [] },
+    { commandSets: [] },
+    { commandSets: ['example', 'example'] },
+    {},
+  ])('rejects an invalid command-set selection: %j', selection => {
+    expect(() =>
+      validateBuildManifest({
+        commandSets: { example: [{ tool: 'examplectl', args: ['list'] }] },
+        runCommands: [
+          {
+            environment: 'development',
+            pluginLocation: 'development',
+            plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+            ...selection,
+          },
+        ],
+      })
+    ).toThrow(/exactly one|Invalid/);
+  });
+
+  it('rejects a malformed command set even when no policy references it', () => {
+    expect(() =>
+      validateBuildManifest({
+        commandSets: { malformed: [{ tool: 'examplectl', executable: '/tmp/examplectl' }] },
+        runCommands: [
+          {
+            environment: 'development',
+            pluginLocation: 'development',
+            plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+            commands: [{ tool: 'examplectl', args: ['list'] }],
+          },
+        ],
+      })
+    ).toThrow('Invalid build manifest commandSets.malformed');
+  });
+
+  it('rejects production managed-plugin policy without Artifact Hub provenance', () => {
+    expect(() =>
+      loadBuildManifest(
+        temporaryFile(
+          JSON.stringify({
+            runCommands: [
+              {
+                environment: 'production',
+                pluginLocation: 'user',
+                plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+                commands: [{ tool: 'examplectl', args: ['list'] }],
+              },
+            ],
+          })
+        )
+      )
+    ).toThrow('Missing Artifact Hub identity');
+  });
+
+  it.each([
+    { bundleName: '', packageName: '@example/plugin' },
+    { bundleName: 'example-plugin', packageName: '' },
+    { bundleName: ' example-plugin', packageName: '@example/plugin' },
+    { bundleName: 'plugins/example-plugin', packageName: '@example/plugin' },
+    { bundleName: 'plugins\\example-plugin', packageName: '@example/plugin' },
+    { bundleName: 'example-plugin', packageName: '@example/plugin\0' },
+    {
+      bundleName: 'example-plugin',
+      packageName: '@example/plugin',
+      artifactHubPackageId: 'fbc182b5-eb90-42b7-ace8-62a7576abafd',
+    },
+    {
+      bundleName: 'example-plugin',
+      packageName: '@example/plugin',
+      artifactHubPackageId: 'not-a-uuid',
+      artifactHubRepositoryId: '767e1f40-ee09-401b-b8d4-930740da5a8a',
+    },
+    {
+      bundleName: 'example-plugin',
+      packageName: '@example/plugin',
+      artifactHubPackage: 'missing-package-separator',
+    },
+    {
+      bundleName: 'example-plugin',
+      packageName: '@example/plugin',
+      artifactHubPackage: `${'r'.repeat(256)}/package`,
+    },
+  ])('rejects malformed plugin identity %#', plugin => {
+    expect(() =>
+      loadBuildManifest(
+        temporaryFile(
+          JSON.stringify({
+            runCommands: [
+              {
+                environment: 'development',
+                pluginLocation: 'development',
+                plugins: [plugin],
+                commands: [{ tool: 'examplectl', args: ['list'] }],
+              },
+            ],
+          })
+        )
+      )
+    ).toThrow();
+  });
+
+  it.each([
+    {
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ command: 'examplectl', args: ['list'] }],
+        },
+      ],
+    },
+    {
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+        },
+      ],
+    },
+    {
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'user',
+          plugins: [{ bundleName: 'one', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['one'] }],
+        },
+        {
+          environment: 'production',
+          pluginLocation: 'user',
+          plugins: [{ bundleName: 'one', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['two'] }],
+        },
+      ],
+    },
+    {
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          pluginExecutables: [{ tool: 'examplectl', path: 'bin/examplectl' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+        },
+      ],
+    },
+  ])('rejects malformed or ambiguous product command policy', manifest => {
+    expect(() => loadBuildManifest(temporaryFile(JSON.stringify(manifest)))).toThrow();
   });
 
   it('rejects unsafe proxy URL patterns', () => {
@@ -801,6 +1395,70 @@ describe('build manifest selection', () => {
 });
 
 describe('plugin archive integrity', () => {
+  it('copies and records only declared bundled executables', async () => {
+    const sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-tar-source-'));
+    const extractionDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'headlamp-plugin-extraction-')
+    );
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-root-'));
+    temporaryDirectories.push(sourceDirectory, extractionDirectory, pluginRoot);
+    const sourcePlugin = path.join(sourceDirectory, 'plugin');
+    fs.mkdirSync(path.join(sourcePlugin, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(sourcePlugin, 'main.js'), 'main');
+    fs.writeFileSync(
+      path.join(sourcePlugin, 'package.json'),
+      JSON.stringify({ name: '@example/plugin' })
+    );
+    fs.writeFileSync(path.join(sourcePlugin, 'bin', 'examplectl'), 'trusted executable');
+    fs.writeFileSync(path.join(sourcePlugin, 'bin', 'undeclared'), 'not packaged');
+    const archive = path.join(sourceDirectory, 'plugin.tar.gz');
+    await tar.c({ cwd: sourceDirectory, file: archive, gzip: true }, ['plugin']);
+
+    await extractArchive('example-plugin', archive, extractionDirectory, pluginRoot, undefined, [
+      'bin/examplectl',
+    ]);
+    const bundlePath = path.join(pluginRoot, 'example-plugin');
+    await recordBundledPluginExecutableIntegrity(bundlePath, ['bin/examplectl']);
+
+    expect(fs.readFileSync(path.join(bundlePath, 'bin', 'examplectl'), 'utf8')).toBe(
+      'trusted executable'
+    );
+    expect(fs.existsSync(path.join(bundlePath, 'bin', 'undeclared'))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(path.join(bundlePath, 'package.json'), 'utf8'))).toEqual(
+      expect.objectContaining({
+        headlampPluginIntegrity: {
+          version: 1,
+          executables: {
+            'bin/examplectl': crypto
+              .createHash('sha256')
+              .update('trusted executable')
+              .digest('hex'),
+          },
+        },
+      })
+    );
+  });
+
+  it('rejects a shipped plugin archive missing a declared executable', async () => {
+    const sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-tar-source-'));
+    const extractionDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'headlamp-plugin-extraction-')
+    );
+    temporaryDirectories.push(sourceDirectory, extractionDirectory);
+    const sourcePlugin = path.join(sourceDirectory, 'plugin');
+    fs.mkdirSync(sourcePlugin);
+    fs.writeFileSync(path.join(sourcePlugin, 'main.js'), 'main');
+    fs.writeFileSync(path.join(sourcePlugin, 'package.json'), '{}');
+    const archive = path.join(sourceDirectory, 'plugin.tar.gz');
+    await tar.c({ cwd: sourceDirectory, file: archive, gzip: true }, ['plugin']);
+
+    await expect(
+      extractArchive('example-plugin', archive, extractionDirectory, undefined, undefined, [
+        'bin/examplectl',
+      ])
+    ).rejects.toThrow();
+  });
+
   it('rejects missing and malformed plugin archives', async () => {
     const extractionDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'headlamp-plugin-extraction-')

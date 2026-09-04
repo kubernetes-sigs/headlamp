@@ -18,7 +18,7 @@ import { has } from 'lodash';
 import React, { ReactNode } from 'react';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
 import { PluginManager } from '../components/App/pluginManager';
-import { runCommand } from '../components/App/runCommand';
+import { type PluginRunCommand, runCommand } from '../components/App/runCommand';
 import { setBrandingAppLogoComponent, themeSlice } from '../components/App/themeSlice';
 import { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
 import {
@@ -1416,4 +1416,4 @@ export {
   ConfigStore,
 };
 
-export type { CallbackActionOptions };
+export type { CallbackActionOptions, PluginRunCommand };

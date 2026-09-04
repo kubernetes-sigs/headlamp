@@ -32,6 +32,7 @@ const wrappedListeners = new WeakMap<
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
+  getDevelopmentPluginsEnabled: () => ipcRenderer.invoke('get-development-plugins'),
   send: (channel: string, data: unknown) => {
     // allowed channels
     const validChannels = [
@@ -47,6 +48,8 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-backend-port',
       'request-tray-icon',
       'set-tray-icon',
+      'request-development-plugins',
+      'set-development-plugins',
       'cluster-changed',
       'route-changed',
     ];
@@ -69,6 +72,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'open-about-dialog',
       'backend-port',
       'tray-icon',
+      'development-plugins',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
@@ -153,6 +157,11 @@ contextBridge.exposeInMainWorld('desktopApi', {
      */
     delete: (capability: string, key: string) =>
       ipcRenderer.invoke('secure-storage-delete', capability, key),
+  },
+
+  commandCapabilities: {
+    register: (registrations: unknown[]) =>
+      ipcRenderer.invoke('register-plugin-command-capabilities', registrations),
   },
 
   // Notify cluster change (for MCP server restart)

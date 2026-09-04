@@ -91,9 +91,15 @@ This command:
 - Makes the plugin available to Headlamp
 - Watches file changes to automatically rebuild the plugin
 
+When using a packaged Headlamp Desktop app, open **Settings > Plugins** and
+enable **Plugin Development Mode**. Packaged apps do not load plugins from the
+local development directory by default. Only enable this setting when you trust
+every plugin in that directory.
+
 ### Step 5: See Your Plugin in Action
 
-1. **Desktop App**: Open Headlamp desktop app - it automatically detects plugins in development mode; or
+1. **Desktop App**: Open Headlamp Desktop after enabling **Plugin
+   Development Mode** in **Settings > Plugins**; or
 2. **Run Headlamp in development mode**: Start the Headlamp development server (see [development guide](../index.md)).
 
 You should see "Hello" text in the top navigation bar!
