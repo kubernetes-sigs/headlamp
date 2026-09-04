@@ -59,6 +59,7 @@ import {
   PluginCommandCapability,
   preparePluginCommandCapabilities,
 } from './commandCapabilities';
+import { filterDisabledDevelopmentPlugins } from './developmentPlugins';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -458,9 +459,11 @@ export async function fetchAndExecutePlugins(
     name: string;
   }
 
-  const pluginMetadataList = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
-    resp.json()
-  )) as PluginMetadata[];
+  const pluginMetadataList = await filterDisabledDevelopmentPlugins(
+    (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
+      resp.json()
+    )) as PluginMetadata[]
+  );
 
   // Extract paths for fetching plugin files
   const pluginPaths = pluginMetadataList.map(metadata => metadata.path);

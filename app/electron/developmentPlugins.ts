@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import { BrowserWindow, dialog, IpcMain, IpcMainEvent } from 'electron';
+import { BrowserWindow, dialog, IpcMain, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import i18n from './i18next.config';
 import { revokeRunCmdCapabilities } from './runCmd';
 import { areDevelopmentPluginsEnabled, setDevelopmentPluginsEnabled } from './settings';
 
 type DevelopmentPluginsIpcListeners = {
-  requestDevelopmentPlugins: () => void;
+  requestDevelopmentPlugins: (event: IpcMainEvent) => void;
   setDevelopmentPlugins: (event: IpcMainEvent, enabled: boolean) => void;
+  getDevelopmentPlugins: (event: IpcMainInvokeEvent) => boolean;
 };
 
 const developmentPluginsIpcListeners = new WeakMap<IpcMain, DevelopmentPluginsIpcListeners>();
@@ -42,15 +43,15 @@ export function confirmEnableDevelopmentPlugins(mainWindow: BrowserWindow): bool
       defaultId: 1,
       cancelId: 1,
       noLink: true,
-      title: i18n.t('Development Mode'),
-      message: i18n.t('Enable Development Mode?'),
+      title: i18n.t('Plugin Development Mode'),
+      message: i18n.t('Enable Plugin Development Mode?'),
       detail: i18n.t(
         'Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.'
       ),
     });
     return response === 0;
   } catch (error) {
-    console.error('Failed to confirm Development Mode:', error);
+    console.error('Failed to confirm Plugin Development Mode:', error);
     return false;
   }
 }
@@ -70,10 +71,17 @@ export function setupDevelopmentPluginsHandlers(mainWindow: BrowserWindow, ipcMa
   if (previousListeners) {
     ipcMain.off('request-development-plugins', previousListeners.requestDevelopmentPlugins);
     ipcMain.off('set-development-plugins', previousListeners.setDevelopmentPlugins);
+    ipcMain.removeHandler('get-development-plugins');
   }
 
-  const requestDevelopmentPlugins = () => {
-    mainWindow.webContents.send('development-plugins', areDevelopmentPluginsEnabled());
+  const requestDevelopmentPlugins = (event: IpcMainEvent) => {
+    if (
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== mainWindow.webContents.mainFrame
+    ) {
+      return;
+    }
+    event.sender.send('development-plugins', areDevelopmentPluginsEnabled());
   };
 
   const setDevelopmentPlugins = (event: IpcMainEvent, enabled: boolean) => {
@@ -102,11 +110,22 @@ export function setupDevelopmentPluginsHandlers(mainWindow: BrowserWindow, ipcMa
     revokeRunCmdCapabilities(ipcMain);
     mainWindow.webContents.reload();
   };
+  const getDevelopmentPlugins = (event: IpcMainInvokeEvent) => {
+    if (
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== mainWindow.webContents.mainFrame
+    ) {
+      return false;
+    }
+    return areDevelopmentPluginsEnabled();
+  };
 
   ipcMain.on('request-development-plugins', requestDevelopmentPlugins);
   ipcMain.on('set-development-plugins', setDevelopmentPlugins);
+  ipcMain.handle('get-development-plugins', getDevelopmentPlugins);
   developmentPluginsIpcListeners.set(ipcMain, {
     requestDevelopmentPlugins,
     setDevelopmentPlugins,
+    getDevelopmentPlugins,
   });
 }

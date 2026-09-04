@@ -97,6 +97,12 @@ describe('setupDevelopmentPluginsHandlers', () => {
     on: vi.fn((channel: string, handler: (...args: any[]) => void) => {
       handlers.set(channel, handler);
     }),
+    handle: vi.fn((channel: string, handler: (...args: any[]) => void) => {
+      handlers.set(channel, handler);
+    }),
+    removeHandler: vi.fn((channel: string) => {
+      handlers.delete(channel);
+    }),
   } as any;
 
   beforeEach(() => {
@@ -113,6 +119,32 @@ describe('setupDevelopmentPluginsHandlers', () => {
     expect(setDevelopmentPluginsEnabled).not.toHaveBeenCalled();
     expect(revokeRunCmdCapabilities).not.toHaveBeenCalled();
     expect(webContents.reload).not.toHaveBeenCalled();
+  });
+
+  it('reports disabled to untrusted frames', () => {
+    areDevelopmentPluginsEnabled.mockReturnValue(true);
+
+    expect(handlers.get('get-development-plugins')!({ sender: webContents, senderFrame: {} })).toBe(
+      false
+    );
+    expect(areDevelopmentPluginsEnabled).not.toHaveBeenCalled();
+  });
+
+  it('does not disclose the persisted state through the send channel to untrusted frames', () => {
+    areDevelopmentPluginsEnabled.mockReturnValue(true);
+
+    handlers.get('request-development-plugins')!({ sender: webContents, senderFrame: {} });
+
+    expect(areDevelopmentPluginsEnabled).not.toHaveBeenCalled();
+    expect(webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('reports the persisted state to the main frame', () => {
+    areDevelopmentPluginsEnabled.mockReturnValue(true);
+
+    expect(
+      handlers.get('get-development-plugins')!({ sender: webContents, senderFrame: mainFrame })
+    ).toBe(true);
   });
 
   it('leaves the setting unchanged when native confirmation is cancelled', () => {
@@ -172,7 +204,11 @@ describe('setupDevelopmentPluginsHandlers', () => {
 
     expect(ipcMain.off).toHaveBeenCalledWith('request-development-plugins', previousRequestHandler);
     expect(ipcMain.off).toHaveBeenCalledWith('set-development-plugins', previousSetHandler);
-    handlers.get('request-development-plugins')!();
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith('get-development-plugins');
+    handlers.get('request-development-plugins')!({
+      sender: replacementWindow.webContents,
+      senderFrame: replacementWindow.webContents.mainFrame,
+    });
     expect(webContents.send).not.toHaveBeenCalled();
     expect(replacementWindow.webContents.send).toHaveBeenCalledWith('development-plugins', false);
   });
