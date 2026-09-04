@@ -94,7 +94,8 @@ declare global {
  * "url" field instead).
  */
 export interface AppMenu {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
+  /** A URL to open: an app URL is opened in the app window, an http(s) URL in the
+   * external browser. Other URLs are ignored. */
   url?: string;
   /** The submenus of this menu */
   submenu?: AppMenu[];

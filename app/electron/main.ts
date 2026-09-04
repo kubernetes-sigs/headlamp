@@ -80,6 +80,7 @@ import {
   isTrayIconEnabled,
   setTrayIconEnabled,
 } from './tray';
+import { isAppUrl, isSafeExternalUrl } from './urlSafety';
 import windowSize from './windowSize';
 import {
   clampZoom,
@@ -1161,6 +1162,7 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
       menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        startUrl,
         openExternal: url => shell.openExternal(url),
         openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
         adjustZoom,
@@ -1567,12 +1569,15 @@ function startElectron() {
     setMenu(mainWindow, currentMenu);
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      // allow all urls starting with app startUrl to open in electron
-      if (url.startsWith(startUrl)) {
+      // allow urls belonging to the app's own frontend to open in electron
+      if (isAppUrl(url, startUrl)) {
         return { action: 'allow' };
       }
-      // otherwise open url in a browser and prevent default
-      shell.openExternal(url);
+      // otherwise open url in a browser and prevent default, but only for
+      // safe schemes; renderer-supplied custom schemes never reach the OS.
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
       return { action: 'deny' };
     });
 
@@ -1662,11 +1667,14 @@ function startElectron() {
     */
     mainWindow.webContents.on('will-navigate', (event, encodedUrl) => {
       const url = decodeURI(encodedUrl);
-      if (url.startsWith(startUrl)) {
+      if (isAppUrl(url, startUrl)) {
         return;
       }
       event.preventDefault();
-      shell.openExternal(url);
+      // Only safe schemes reach the OS shell opener.
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
     });
 
     i18n.on('languageChanged', () => {
