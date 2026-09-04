@@ -45,14 +45,32 @@ func (c *Connection) Get(ctx context.Context, requestURI string, w http.Response
 
 	if rel.Path != "" {
 		cleaned := path.Clean(rel.Path)
-		if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		if cleaned == ".." || strings.HasPrefix(cleaned, "../") || rel.Path == ".." || strings.HasPrefix(rel.Path, "../") {
 			return fmt.Errorf("request uri must not traverse above base path")
 		}
-
-		rel.Path = cleaned
 	}
 
-	fullURL := base.ResolveReference(rel)
+	baseClean := path.Clean("/" + strings.TrimPrefix(base.Path, "/"))
+	if baseClean == "/" {
+		baseClean = ""
+	}
+
+	var relClean string
+	if rel.Path != "" {
+		relClean = path.Clean("/" + strings.TrimPrefix(rel.Path, "/"))
+	}
+
+	combinedPath := path.Clean(baseClean + relClean)
+	if baseClean != "" && combinedPath != baseClean && !strings.HasPrefix(combinedPath, baseClean+"/") {
+		return fmt.Errorf("request uri must not traverse above base path")
+	}
+
+	fullURL := &url.URL{
+		Scheme:   base.Scheme,
+		Host:     base.Host,
+		Path:     combinedPath,
+		RawQuery: rel.RawQuery,
+	}
 
 	return HTTPGetStream(ctx, fullURL.String(), w)
 }
