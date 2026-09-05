@@ -52,8 +52,10 @@ const (
 type PluginMetadata struct {
 	// Path is the URL path to access the plugin
 	Path string `json:"path"`
-	// Type indicates where the plugin comes from: "development", "user", or "shipped"
+	// Type controls plugin priority and migration behavior.
 	Type string `json:"type"`
+	// Source identifies the inventory root containing the plugin.
+	Source string `json:"source"`
 	// Name is the plugin's folder name
 	Name string `json:"name"`
 }
@@ -249,9 +251,10 @@ func GeneratePluginPaths(
 	for _, pluginURL := range pluginListURLStatic {
 		pluginName := filepath.Base(pluginURL)
 		pluginList = append(pluginList, PluginMetadata{
-			Path: pluginURL,
-			Type: "shipped",
-			Name: pluginName,
+			Path:   pluginURL,
+			Type:   PluginTypeShipped,
+			Source: PluginTypeShipped,
+			Name:   pluginName,
 		})
 	}
 
@@ -259,9 +262,10 @@ func GeneratePluginPaths(
 	for _, pluginURL := range pluginListURLUser {
 		pluginName := filepath.Base(pluginURL)
 		pluginList = append(pluginList, PluginMetadata{
-			Path: pluginURL,
-			Type: "user",
-			Name: pluginName,
+			Path:   pluginURL,
+			Type:   PluginTypeUser,
+			Source: PluginTypeUser,
+			Name:   pluginName,
 		})
 	}
 
@@ -284,9 +288,10 @@ func GeneratePluginPaths(
 		}
 
 		pluginList = append(pluginList, PluginMetadata{
-			Path: pluginURL,
-			Type: pluginType,
-			Name: pluginName,
+			Path:   pluginURL,
+			Type:   pluginType,
+			Source: PluginTypeDevelopment,
+			Name:   pluginName,
 		})
 	}
 

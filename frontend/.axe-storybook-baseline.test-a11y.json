@@ -26,7 +26,6 @@
     "TopBar/Version Dialog": ["aria-dialog-name"],
     "AuthToken/Show Error": ["empty-heading"],
     "AuthToken/Show Actions": ["empty-heading"],
-    "Activity/Basic": ["landmark-unique"],
     "AuthChooser/Basic Auth Chooser": ["empty-heading"],
     "AuthChooser/Testing": ["empty-heading"],
     "AuthChooser/Have Clusters": ["empty-heading"],

@@ -16,6 +16,10 @@
 
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  darkTheme as builtInDarkTheme,
+  lightTheme as builtInLightTheme,
+} from '../components/App/defaultAppThemes';
 import { AppTheme } from './AppTheme';
 import { createMuiTheme, getThemeName, setTheme, usePrefersColorScheme } from './themes';
 
@@ -67,6 +71,38 @@ describe('themes.ts', () => {
 
       expect(theme.palette.navbar.searchHint).toBe('#123456');
     });
+
+    it('should allow secondary contrast text override from AppTheme', () => {
+      const theme = createMuiTheme({
+        base: 'light',
+        name: 'Custom Theme',
+        secondary: '#123456',
+        secondaryContrastText: '#ffffff',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#ffffff');
+    });
+
+    it('should allow secondary contrast text override for dark themes', () => {
+      const theme = createMuiTheme({
+        base: 'dark',
+        name: 'Custom Dark Theme',
+        secondary: '#123456',
+        secondaryContrastText: '#ffffff',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#ffffff');
+    });
+
+    it('should use black contrast text by default for custom secondary colors', () => {
+      const theme = createMuiTheme({
+        base: 'light',
+        name: 'Custom Theme',
+        secondary: '#123456',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#000');
+    });
   });
 
   describe('getThemeName', () => {
@@ -79,7 +115,7 @@ describe('themes.ts', () => {
         matchMedia: vi.fn().mockReturnValue({ matches: false }),
       });
 
-      expect(getThemeName()).toBe('Light');
+      expect(getThemeName()).toBe(builtInLightTheme.name);
     });
 
     it('should return dark theme if user prefers dark mode', () => {
@@ -93,7 +129,7 @@ describe('themes.ts', () => {
         })),
       });
 
-      expect(getThemeName()).toBe('Dark');
+      expect(getThemeName()).toBe(builtInDarkTheme.name);
     });
 
     it('should return the theme stored in localStorage', () => {
@@ -296,7 +332,7 @@ describe('themes.ts', () => {
         defaultLightTheme: 'corporate-light',
       };
 
-      expect(getThemeName(backendConfig)).toBe('Dark');
+      expect(getThemeName(backendConfig)).toBe(builtInDarkTheme.name);
     });
 
     it('should handle both default themes with OS preference selection', () => {

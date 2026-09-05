@@ -18,9 +18,15 @@ import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
-const { getShellEnvironmentMock, spawnMock } = vi.hoisted(() => ({
+const { getShellEnvironmentMock, spawnMock, showMessageBoxSyncMock } = vi.hoisted(() => ({
   getShellEnvironmentMock: vi.fn(),
   spawnMock: vi.fn(),
+  showMessageBoxSyncMock: vi.fn(),
+}));
+
+vi.mock('electron', () => ({
+  BrowserWindow: class {},
+  dialog: { showMessageBoxSync: showMessageBoxSyncMock },
 }));
 
 vi.mock('child_process', () => ({
@@ -55,6 +61,8 @@ import {
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
+  removeRunCmdConsent,
+  setupRunCmdHandlers,
   validateCommandData,
 } from './runCmd';
 
@@ -65,6 +73,10 @@ it('does not cache process environment changes as shell overrides', () => {
       { PATH: '/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' }
     )
   ).toEqual({ PATH: '/opt/homebrew/bin:/usr/bin' });
+});
+
+it('uses process.env as the default comparison environment', () => {
+  expect(environmentOverrides(process.env)).toEqual({});
 });
 
 describe('checkPermissionSecret', () => {
@@ -156,6 +168,14 @@ describe('validateCommandData', () => {
     expect(validateCommandData('string' as any)[0]).toBe(false);
   });
 
+  it('returns false if id is missing, empty, or not a string', () => {
+    expect(validateCommandData({ command: 'gh', args: [], options: {} })[0]).toBe(false);
+    expect(validateCommandData({ id: '', command: 'gh', args: [], options: {} })[0]).toBe(false);
+    expect(validateCommandData({ id: 1 as any, command: 'gh', args: [], options: {} })[0]).toBe(
+      false
+    );
+  });
+
   it('returns false if command is missing or not a string', () => {
     expect(validateCommandData({ args: [], options: {}, permissionSecrets: {} })[0]).toBe(false);
     expect(
@@ -240,6 +260,7 @@ describe('validateCommandData', () => {
   it('returns true for valid minikube command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -251,6 +272,7 @@ describe('validateCommandData', () => {
   it('returns true for valid az command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'az',
         args: ['arg1'],
         options: {},
@@ -262,6 +284,7 @@ describe('validateCommandData', () => {
   it('returns true for valid scriptjs command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'scriptjs',
         args: ['myscript.js'],
         options: {},
@@ -321,6 +344,79 @@ describe('handleRunCommand', () => {
 
     expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn error']);
     expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+
+    childEmitter.emit('close', null);
+    expect(sentMessages.filter(([channel]) => channel === 'command-exit')).toHaveLength(1);
+  });
+
+  it('reports exit only after stdout and stderr close', async () => {
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: {},
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 });
+
+    childEmitter.emit('exit', 0);
+    childEmitter.stdout.emit('data', 'final output');
+    childEmitter.stderr.emit('data', 'final warning');
+
+    expect(sentMessages).toEqual([
+      ['command-stdout', 'test-id', 'final output'],
+      ['command-stderr', 'test-id', 'final warning'],
+    ]);
+
+    childEmitter.emit('close', 0);
+    expect(sentMessages.at(-1)).toEqual(['command-exit', 'test-id', 0]);
+  });
+
+  it.each([
+    ['missing window', { id: 'test-id' }, null, { 'runCmd-gh': 99 }, -1],
+    [
+      'invalid command data',
+      { id: 'test-id', command: 'invalid', args: [], options: {}, permissionSecrets: {} },
+      { id: 1 },
+      {},
+      -1,
+    ],
+    [
+      'invalid permission secret',
+      {
+        id: 'test-id',
+        command: 'gh',
+        args: ['auth', 'token'],
+        options: {},
+        permissionSecrets: { 'runCmd-gh': 1 },
+      },
+      { id: 1 },
+      { 'runCmd-gh': 99 },
+      -2,
+    ],
+  ])('reports a rejected exit for %s', async (_name, data, window, secrets, exitCode) => {
+    await handleRunCommand(fakeEvent, data as any, window as any, secrets);
+
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(sentMessages).toEqual([['command-exit', 'test-id', exitCode]]);
+  });
+
+  it('reports a rejected exit when command consent was denied previously', async () => {
+    const { loadSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { 'gh auth': false } });
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: {},
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 });
+
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(sentMessages).toEqual([['command-exit', 'test-id', -3]]);
   });
 
   it('reports synchronous spawn errors without rejecting', async () => {
@@ -364,6 +460,64 @@ describe('handleRunCommand', () => {
         env: expect.objectContaining({ HEADLAMP_TEST_ENV: 'current' }),
       })
     );
+  });
+
+  it('runs plugin scripts with the Electron executable', async () => {
+    const { loadSettings } = await import('./settings');
+    const originalResourcesPath = process.resourcesPath;
+    // @ts-ignore Electron defines this at runtime.
+    process.resourcesPath = '/resources';
+    vi.mocked(loadSettings).mockReturnValueOnce({
+      confirmedCommands: { 'scriptjs missing-plugin/script.js': true },
+    });
+    const eventData = {
+      id: 'script-id',
+      command: 'scriptjs',
+      args: ['missing-plugin/script.js', '--flag'],
+      options: {},
+      permissionSecrets: { 'runCmd-scriptjs-missing-plugin/script.js': 99 },
+    };
+
+    try {
+      await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, {
+        'runCmd-scriptjs-missing-plugin/script.js': 99,
+      });
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        process.execPath,
+        [path.join('/plugins/default', 'missing-plugin/script.js'), '--flag'],
+        expect.objectContaining({
+          env: expect.objectContaining({ HEADLAMP_RUN_SCRIPT: 'true' }),
+        })
+      );
+    } finally {
+      // @ts-ignore Electron defines this at runtime.
+      process.resourcesPath = originalResourcesPath;
+    }
+  });
+
+  it('initializes consent settings for a new command', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({});
+    vi.mocked(saveSettings).mockClear();
+    showMessageBoxSyncMock.mockReturnValueOnce(0);
+    const eventData = {
+      id: 'consent-id',
+      command: 'minikube',
+      args: [],
+      options: {},
+      permissionSecrets: { 'runCmd-minikube': 99 },
+    };
+
+    await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, {
+      'runCmd-minikube': 99,
+    });
+
+    expect(saveSettings).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({ confirmedCommands: { minikube: true } })
+    );
+    expect(spawnMock).toHaveBeenCalled();
   });
 });
 
@@ -477,5 +631,149 @@ describe('addRunCmdConsent', () => {
     for (const cmd of AI_ASSISTANT_COMMANDS) {
       expect(savedSettings?.confirmedCommands?.[cmd]).toBeUndefined();
     }
+  });
+
+  it('initializes consent settings and pre-populates minikube commands', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({});
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: 'headlamp_minikube' });
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    expect(savedSettings.confirmedCommands['minikube status']).toBe(true);
+  });
+
+  it('recognizes the development minikube plugin name', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: 'minikube' });
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    expect(savedSettings.confirmedCommands['minikube status']).toBe(true);
+    vi.unstubAllEnvs();
+  });
+});
+
+describe('removeRunCmdConsent', () => {
+  it('returns when consent settings do not exist', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({});
+    vi.mocked(saveSettings).mockClear();
+
+    removeRunCmdConsent('@headlamp-k8s/minikube');
+
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['@headlamp-k8s/minikube', 'minikube status'],
+    ['@headlamp-k8s/minikubeprerelease', 'minikube status'],
+    ['@headlamp-k8s/ai-assistant', 'gh auth'],
+    ['@headlamp-k8s/ai-assistantprerelease', 'gh auth'],
+  ])('removes consent for %s', async (pluginName, command) => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { [command]: true } });
+    vi.mocked(saveSettings).mockClear();
+
+    removeRunCmdConsent(pluginName);
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    expect(savedSettings.confirmedCommands[command]).toBeUndefined();
+  });
+});
+
+describe('setupRunCmdHandlers', () => {
+  it('does not register handlers without a main window', () => {
+    const ipcMain = { on: vi.fn() } as any;
+
+    setupRunCmdHandlers(null, ipcMain);
+
+    expect(ipcMain.on).not.toHaveBeenCalled();
+  });
+
+  it('sends permission secrets once per main-frame load', () => {
+    const ipcHandlers = new Map<string, (...args: any[]) => void>();
+    let frameLoadHandler: (_event: unknown, isMainFrame: boolean) => void = () => {};
+    const send = vi.fn();
+    const mainWindow = {
+      webContents: {
+        on: vi.fn((_event: string, handler: typeof frameLoadHandler) => {
+          frameLoadHandler = handler;
+        }),
+        send,
+      },
+    } as any;
+    const ipcMain = {
+      on: vi.fn((channel: string, handler: (...args: any[]) => void) => {
+        ipcHandlers.set(channel, handler);
+      }),
+    } as any;
+
+    setupRunCmdHandlers(mainWindow, ipcMain);
+    const requestSecrets = ipcHandlers.get('request-plugin-permission-secrets')!;
+    requestSecrets();
+    requestSecrets();
+    frameLoadHandler({}, false);
+    requestSecrets();
+    frameLoadHandler({}, true);
+    requestSecrets();
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(ipcHandlers.has('run-command')).toBe(true);
+  });
+});
+
+describe('command consent', () => {
+  const fakeMainWindow = { id: 1 } as any;
+  const permissionSecrets = { 'runCmd-gh': 99 };
+  const eventData = {
+    id: 'test-id',
+    command: 'gh',
+    args: ['auth', 'token'],
+    options: {},
+    permissionSecrets: { 'runCmd-gh': 99 },
+  };
+  let fakeEvent: any;
+
+  beforeEach(async () => {
+    const { loadSettings } = await import('./settings');
+    // No saved answer for "gh auth", so the consent dialog is shown.
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} });
+    getShellEnvironmentMock.mockReset();
+    getShellEnvironmentMock.mockResolvedValue(shellEnvironment);
+    spawnMock.mockReset();
+    spawnMock.mockReturnValue(
+      Object.assign(new EventEmitter(), {
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+      })
+    );
+    showMessageBoxSyncMock.mockReset();
+    fakeEvent = { sender: { send: vi.fn() } } as any;
+  });
+
+  it('does not run the command when the user denies consent', async () => {
+    // Second button is Deny.
+    showMessageBoxSyncMock.mockReturnValue(1);
+
+    await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    expect(showMessageBoxSyncMock).toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(fakeEvent.sender.send).toHaveBeenCalledWith('command-exit', 'test-id', -3);
+  });
+
+  it('runs the command when the user allows it', async () => {
+    // First button is Allow.
+    showMessageBoxSyncMock.mockReturnValue(0);
+
+    await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    expect(showMessageBoxSyncMock).toHaveBeenCalled();
+    expect(spawnMock).toHaveBeenCalled();
   });
 });

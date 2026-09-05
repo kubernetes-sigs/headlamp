@@ -112,9 +112,11 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
     return true;
   }
 
+  const trayIconFilename =
+    process.platform === 'darwin' ? 'tray-iconTemplate.png' : 'tray-icon.png';
   const iconPath = options.isDev
-    ? path.join(__dirname, '..', 'assets', 'tray-icon.png')
-    : path.join(process.resourcesPath, 'assets', 'tray-icon.png');
+    ? path.join(__dirname, '..', 'assets', trayIconFilename)
+    : path.join(process.resourcesPath, 'assets', trayIconFilename);
 
   const trayIcon = nativeImage.createFromPath(iconPath);
   if (trayIcon.isEmpty()) {
@@ -147,10 +149,11 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
   return true;
 }
 
-async function getClusterStatuses(options: HeadlampTrayOptions): Promise<ClusterStatus[]> {
+export async function getClusterStatuses(options: HeadlampTrayOptions): Promise<ClusterStatus[]> {
   try {
+    // Keep the app token separate from Authorization, which cluster routes reserve for Kubernetes credentials.
     const configResponse = await fetch(`http://localhost:${options.getBackendPort()}/config`, {
-      headers: { Authorization: `Bearer ${options.backendToken}` },
+      headers: { 'X-HEADLAMP_BACKEND-TOKEN': options.backendToken },
     });
 
     if (!configResponse.ok) {
@@ -175,7 +178,7 @@ async function getClusterStatuses(options: HeadlampTrayOptions): Promise<Cluster
         const healthResponse = await fetch(
           `http://localhost:${options.getBackendPort()}/clusters/${cluster.name}/healthz`,
           {
-            headers: { Authorization: `Bearer ${options.backendToken}` },
+            headers: { 'X-HEADLAMP_BACKEND-TOKEN': options.backendToken },
           }
         );
 

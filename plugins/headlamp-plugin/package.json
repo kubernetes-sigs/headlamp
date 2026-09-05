@@ -11,6 +11,7 @@
     "bundle-examples": "node scripts/bundle-examples.js",
     "fetch-official-plugins": "node scripts/fetch-official-plugins.js",
     "prepare-bundle": "npm run bundle-examples && npm run fetch-official-plugins",
+    "test:storybook-mocks": "vitest run -c config/vite.config.mjs storybookBaseMocks.test.ts",
     "update-dependencies": "node dependencies-sync.js update && npm install && node scripts/copy-package-lock.js",
     "check-dependencies": "node dependencies-sync.js check",
     "copy-package-lock": "node scripts/copy-package-lock.js"

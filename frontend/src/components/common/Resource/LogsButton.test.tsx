@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { labelSelectorToQuery } from '../../../lib/k8s';
 import Deployment from '../../../lib/k8s/deployment';
@@ -22,6 +22,7 @@ import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { TestContext } from '../../../test';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { launchWorkloadLogs, LogsButton, WorkloadLogs } from './LogsButton';
 
 const {
@@ -899,5 +900,58 @@ describe('LogsButton', () => {
 
     // Verify stream was not restarted
     expect(getLogsCallCount).toBe(1);
+  });
+  it('broadcasts severity updates to other hook instances', async () => {
+    const getLogsMock = vi.fn(() => {
+      return () => {};
+    });
+    Pod.prototype.getLogs = getLogsMock;
+
+    // 1. Render a consumer hook
+    const { result } = renderHook(() =>
+      useLocalStorageState<string[]>('headlamp.logs.severityFilter', ['error', 'warn', 'info'])
+    );
+
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodData] }),
+    });
+
+    mockActivityLaunch.mockClear();
+
+    // 2. Render the component and trigger log fetching
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    const button = screen.getByRole('button', { name: 'translation|Show logs' });
+    fireEvent.click(button);
+
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    // 3. Wait for the popup to open and mock the log response
+    await waitFor(() => {
+      expect(getLogsMock).toHaveBeenCalled();
+    });
+
+    // 4. Change severity filter directly in the UI
+    const selects = document.querySelectorAll('.MuiSelect-select');
+    const severitySelect = selects[3];
+    fireEvent.mouseDown(severitySelect);
+
+    await waitFor(() => {
+      expect(document.querySelector('.MuiList-root')).toBeInTheDocument();
+    });
+
+    const infoOption = Array.from(document.querySelectorAll('.MuiMenuItem-root')).find(
+      el => el.textContent === 'INFO'
+    );
+    // Uncheck INFO
+    fireEvent.click(infoOption!);
+
+    // 5. Verify the hook state reflects the unchecked INFO severity
+    // (default was ['error', 'warn', 'info'], so unchecking INFO leaves ['error', 'warn'])
+    expect(result.current[0]).toEqual(['error', 'warn']);
   });
 });
