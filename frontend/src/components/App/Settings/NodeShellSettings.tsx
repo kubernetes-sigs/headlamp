@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Typography } from '@mui/material';
+import { Icon } from '@iconify/react';
+import { IconButton, Tooltip, Typography } from '@mui/material';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import React from 'react';
@@ -46,10 +47,12 @@ export default function NodeShellSettings(props: SettingsProps) {
     DEFAULT_NODE_SHELL_NAMESPACE;
 
   const nodeShellLabelID = 'node-shell-enabled-label';
+  const chrootHostRootLabelID = 'node-shell-chroot-host-root-label';
 
   const namespace = clusterSettings.nodeShellTerminal?.namespace ?? '';
   const image = clusterSettings.nodeShellTerminal?.linuxImage ?? '';
   const isEnabled = clusterSettings.nodeShellTerminal?.isEnabled ?? true;
+  const chrootHostRoot = clusterSettings.nodeShellTerminal?.chrootHostRoot ?? false;
 
   const [namespaceInput, setNamespaceInput] = React.useState(namespace);
   React.useEffect(() => {
@@ -79,6 +82,34 @@ export default function NodeShellSettings(props: SettingsProps) {
                 inputProps={{ 'aria-labelledby': nodeShellLabelID }}
                 checked={isEnabled}
                 onChange={e => updateNodeShell({ isEnabled: e.target.checked })}
+              />
+            ),
+          },
+          {
+            name: (
+              <>
+                <Typography id={chrootHostRootLabelID} display="inline">
+                  {t('translation|Chroot to host')}
+                </Typography>
+                <Tooltip
+                  describeChild
+                  title={t('translation|Start the Node Shell with chroot /host.')}
+                >
+                  <IconButton
+                    aria-label={t('translation|Chroot to host')}
+                    size="small"
+                    sx={{ ml: 0.5, p: 0, verticalAlign: 'middle' }}
+                  >
+                    <Icon icon="mdi:information-outline" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ),
+            value: (
+              <Switch
+                inputProps={{ 'aria-labelledby': chrootHostRootLabelID }}
+                checked={chrootHostRoot}
+                onChange={e => updateNodeShell({ chrootHostRoot: e.target.checked })}
               />
             ),
           },

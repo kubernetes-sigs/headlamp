@@ -156,6 +156,8 @@
   "Example: mdi:kubernetes, mdi:cloud-outline": "উদাহরণ: mdi:kubernetes, mdi:cloud-outline",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "namespace গুলিতে অবশ্যই কেবল ছোট alphanumeric অক্ষর বা '-' থাকতে হবে এবং এটি অবশ্যই একটি বর্ণনামূলক চরিত্রের সাথে শুরু এবং শেষ করতে হবে।",
   "Node Shell Settings": "Node Shell সেটিংস",
+  "Start the Node Shell with chroot /host.": "",
+  "Chroot to host": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "Default চিত্রটি একটি Node Shell ফেলে দেওয়ার জন্য ব্যবহৃত হয় (যখন সরাসরি নির্দিষ্ট করা হয় না)।",
   "Linux image": "Linux ইমেজ",
   "The default namespace is {{ namespace }}.": "ডিফল্ট নেমস্পেস হলো {{ namespace }}।",

@@ -156,6 +156,8 @@
   "Example: mdi:kubernetes, mdi:cloud-outline": "",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "命名空间只能包含小写字母数字字符或 '-'，且必须以字母数字字符开头和结尾。",
   "Node Shell Settings": "节点 Shell 设置",
+  "Start the Node Shell with chroot /host.": "",
+  "Chroot to host": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "默认镜像用于在节点中启动 shell（当未直接指定时）。",
   "Linux image": "",
   "The default namespace is {{ namespace }}.": "默认命名空间为 {{ namespace }}。",

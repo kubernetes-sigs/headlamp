@@ -156,6 +156,8 @@
   "Example: mdi:kubernetes, mdi:cloud-outline": "Exemplo: mdi:kubernetes, mdi:cloud-outline",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Os namespaces devem conter apenas caracteres alfanuméricos minúsculos ou '-', e devem começar e terminar com um carácter alfanumérico.",
   "Node Shell Settings": "Configurações do Shell do Nó",
+  "Start the Node Shell with chroot /host.": "",
+  "Chroot to host": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "A imagem padrão é usada para soltar um shell em um nó (quando não especificado diretamente).",
   "Linux image": "Imagem do Linux",
   "The default namespace is {{ namespace }}.": "",

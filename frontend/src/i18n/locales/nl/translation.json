@@ -156,6 +156,8 @@
   "Example: mdi:kubernetes, mdi:cloud-outline": "Voorbeeld: mdi:kubernetes, mdi:cloud-outline",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Naamruimten mogen alleen kleine alfanumerieke tekens of -bevatten en moeten beginnen en eindigen met een alfanumeriek teken.",
   "Node Shell Settings": "Instellingen voor knooppunt-shell",
+  "Start the Node Shell with chroot /host.": "",
+  "Chroot to host": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "De standaardinstallatiekopie wordt gebruikt voor het neerzetten van een shell in een knooppunt (indien niet rechtstreeks opgegeven).",
   "Linux image": "Linux-installatiekopie",
   "The default namespace is {{ namespace }}.": "",
