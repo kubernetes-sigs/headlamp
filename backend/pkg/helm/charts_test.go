@@ -18,6 +18,7 @@ package helm_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -68,6 +69,40 @@ func TestListChart(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "headlamp_test_repo/headlamp")
 	assert.NotContains(t, rr.Body.String(), "non-existing-chart")
+}
+
+func TestListChartReturnsOneEntryPerChart(t *testing.T) {
+	cache := cache.New[interface{}]()
+	require.NotNil(t, cache)
+
+	helmHandler, err := helm.NewHandlerWithSettings(cache, settings)
+	require.NoError(t, err)
+
+	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+
+	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
+		"GET", "/clusters/minikube/helm/repositories/charts?filter=headlamp", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+
+	helmHandler.ListCharts(rr, listChartsRequest)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var listChartsResponse helm.ListAllChartsResponse
+
+	err = json.Unmarshal(rr.Body.Bytes(), &listChartsResponse)
+	require.NoError(t, err)
+
+	seen := map[string]int{}
+	for _, chart := range listChartsResponse.Charts {
+		seen[chart.Name]++
+	}
+
+	// The repository publishes many historical versions of the "headlamp" chart.
+	// Listing charts should return one entry per chart name, not one per version.
+	assert.Equal(t, 1, seen["headlamp_test_repo/headlamp"])
 }
 
 func TestListChartReturnsErrorWithoutSuccessPayload(t *testing.T) {
