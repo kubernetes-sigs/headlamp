@@ -159,6 +159,7 @@ describe('useGetAllSources', () => {
     expect(scheduling.isEnabledByDefault).toBe(false);
     expect(scheduling.sources.map(source => source.id)).toEqual([
       'scheduling.k8s.io/Workload',
+      'scheduling.k8s.io/CompositePodGroup',
       'scheduling.k8s.io/PodGroup',
     ]);
   });

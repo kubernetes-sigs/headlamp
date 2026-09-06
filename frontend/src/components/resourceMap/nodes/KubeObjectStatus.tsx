@@ -15,6 +15,7 @@
  */
 
 import { KubeObject, Workload } from '../../../lib/k8s/cluster';
+import type CompositePodGroup from '../../../lib/k8s/compositePodGroup';
 import Pod from '../../../lib/k8s/pod';
 import type PodGroup from '../../../lib/k8s/podGroup';
 import { getReadyReplicas, getTotalReplicas } from '../../../lib/util';
@@ -64,6 +65,20 @@ function getPodGroupStatus(podGroup: PodGroup): KubeObjectStatus {
   return podGroup.schedulingCondition?.status === 'True' ? 'success' : 'warning';
 }
 
+/** Narrows a resource to a CompositePodGroup of the scheduling API */
+function isCompositePodGroup(w: KubeObject): w is CompositePodGroup {
+  return w.kind === 'CompositePodGroup' && w._class().apiGroupName === POD_GROUP_API_GROUP;
+}
+
+/**
+ * Returns a generic status for the given CompositePodGroup
+ * The condition is terminal and is not set by every controller, so only an explicit
+ * False is a warning; a missing condition says nothing about the subtree below
+ */
+function getCompositePodGroupStatus(group: CompositePodGroup): KubeObjectStatus {
+  return group.schedulingCondition?.status === 'False' ? 'warning' : 'success';
+}
+
 /**
  * Returns status for a given Kube resource
  * Not all kinds of resources have a status and/or supported
@@ -72,6 +87,8 @@ export function getStatus(w: KubeObject): KubeObjectStatus {
   if (Pod.isClassOf(w)) return getPodStatus(w);
 
   if (isPodGroup(w)) return getPodGroupStatus(w);
+
+  if (isCompositePodGroup(w)) return getCompositePodGroupStatus(w);
 
   if (['DaemonSet', 'ReplicaSet', 'StatefulSet', 'Deployment'].includes(w.kind)) {
     const workload = w as Workload;

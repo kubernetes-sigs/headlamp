@@ -17,6 +17,7 @@
 import { useMemo } from 'react';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -458,7 +459,8 @@ const podGroupToWorkload = makeRelation(
   'podgroup-workload',
   PodGroup,
   SchedulingWorkload,
-  (podGroup, workload) => podGroup.workloadName === workload.metadata.name
+  (podGroup, workload) =>
+    !podGroup.parentCompositePodGroupName && podGroup.workloadName === workload.metadata.name
 );
 
 const podToPodGroup = makeRelation(
@@ -466,6 +468,30 @@ const podToPodGroup = makeRelation(
   Pod,
   PodGroup,
   (pod, podGroup) => pod.spec.schedulingGroup?.podGroupName === podGroup.metadata.name
+);
+
+const compositePodGroupToWorkload = makeRelation(
+  'compositepodgroup-workload',
+  CompositePodGroup,
+  SchedulingWorkload,
+  (composite, workload) =>
+    !composite.parentCompositePodGroupName && composite.workloadName === workload.metadata.name
+);
+
+const compositePodGroupToParent = makeRelation(
+  'compositepodgroup-parent',
+  CompositePodGroup,
+  CompositePodGroup,
+  (child, parent) =>
+    child.metadata.uid !== parent.metadata.uid &&
+    child.parentCompositePodGroupName === parent.metadata.name
+);
+
+const podGroupToCompositePodGroup = makeRelation(
+  'podgroup-compositepodgroup',
+  PodGroup,
+  CompositePodGroup,
+  (podGroup, composite) => podGroup.parentCompositePodGroupName === composite.metadata.name
 );
 
 const backendTLSPolicyToService = makeRelation(
@@ -522,6 +548,9 @@ const staticRelations = [
   backendTrafficPolicyToService,
   podGroupToWorkload,
   podToPodGroup,
+  compositePodGroupToWorkload,
+  compositePodGroupToParent,
+  podGroupToCompositePodGroup,
 ];
 
 export { BUILT_IN_RELATION_IDS };

@@ -15,6 +15,9 @@
  */
 
 import App from '../../../App';
+import CompositePodGroup, {
+  COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION,
+} from '../../../lib/k8s/compositePodGroup';
 import PodGroup, {
   POD_GROUP_INITIALLY_SCHEDULED_CONDITION,
   POD_GROUP_SCHEDULED_CONDITION,
@@ -63,5 +66,42 @@ describe('getStatus for a PodGroup', () => {
 
     expect(getGraphNodeStatus({ kubeObject: unscheduled })).toBe('warning');
     expect(getGraphNodeStatus({ kubeObject: unscheduled, status: 'success' })).toBe('success');
+  });
+});
+
+const compositePodGroup = (conditions?: Record<string, any>[]) =>
+  new CompositePodGroup(
+    {
+      apiVersion: 'scheduling.k8s.io/v1alpha3',
+      kind: 'CompositePodGroup',
+      metadata: { uid: 'composite', name: 'serving', namespace: 'namespace-a' },
+      spec: { schedulingPolicy: { gang: { minGroupCount: 2 } } },
+      status: conditions ? { conditions } : {},
+    } as any,
+    'cluster-a'
+  );
+
+describe('getStatus for a CompositePodGroup', () => {
+  it('warns only when the group reports an explicit scheduling failure', () => {
+    expect(
+      getStatus(
+        compositePodGroup([
+          { type: COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION, status: 'False' },
+        ])
+      )
+    ).toBe('warning');
+  });
+
+  it('does not warn while the terminal condition is absent', () => {
+    // Not every controller sets it, so a missing condition must not mark a healthy
+    // group forever.
+    expect(getStatus(compositePodGroup())).toBe('success');
+    expect(
+      getStatus(
+        compositePodGroup([
+          { type: COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION, status: 'True' },
+        ])
+      )
+    ).toBe('success');
   });
 });
