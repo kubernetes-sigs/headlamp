@@ -119,6 +119,7 @@ const dispatchCases = [
   ['PriorityClass', 'PriorityClass'],
   ['ResourceQuota', 'ResourceQuota'],
   ['ClusterRole', 'Role'],
+  ['ClusterRoleBinding', 'RoleBinding'],
   ['Role', 'Role'],
   ['RoleBinding', 'RoleBinding'],
   ['RuntimeClass', 'RuntimeClass'],
