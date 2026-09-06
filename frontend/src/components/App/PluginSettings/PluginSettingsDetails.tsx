@@ -122,7 +122,12 @@ export default function PluginSettingsDetails() {
     return <NotFoundComponent />;
   }
 
-  return <PluginSettingsDetailsInitializer plugin={plugin} />;
+  // Remount when navigating between different plugins' settings pages so
+  // PluginSettingsDetailsPure's internal data state doesn't carry over from
+  // the previously viewed plugin.
+  return (
+    <PluginSettingsDetailsInitializer key={plugin.name + (plugin.type || '')} plugin={plugin} />
+  );
 }
 
 const ScrollableBox = (props: BoxProps) => (
