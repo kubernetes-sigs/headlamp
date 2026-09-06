@@ -49,6 +49,7 @@ import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PDB from '../../../../lib/k8s/podDisruptionBudget';
+import PodGroup from '../../../../lib/k8s/podGroup';
 import PriorityClass from '../../../../lib/k8s/priorityClass';
 import ReferenceGrant from '../../../../lib/k8s/referenceGrant';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
@@ -56,6 +57,8 @@ import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
 import { RuntimeClass } from '../../../../lib/k8s/runtime';
+import { useSchedulingApisEnabled } from '../../../../lib/k8s/schedulingApis';
+import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
@@ -163,6 +166,7 @@ export function useGetAllSources(): GraphSource[] {
     queryKey: ['api-discovery', ...selectedClusters],
   });
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
+  const schedulingEnabled = useSchedulingApisEnabled();
   const gatewayEnabled =
     (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
     !!availableGatewayL4RouteKinds?.length;
@@ -290,6 +294,24 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Lease),
         ],
       },
+      ...(schedulingEnabled
+        ? [
+            {
+              id: 'scheduling',
+              label: t('glossary|Scheduling (alpha)'),
+              icon: (
+                <Icon
+                  icon="mdi:group"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('workloads')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [makeKubeSource(SchedulingWorkload), makeKubeSource(PodGroup)],
+            },
+          ]
+        : []),
       ...(gatewayEnabled
         ? [
             {
@@ -352,5 +374,13 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled, tcpRouteEnabled, udpRouteEnabled, t]);
+  }, [
+    CustomResourceDefinition,
+    vpaEnabled,
+    gatewayEnabled,
+    tcpRouteEnabled,
+    udpRouteEnabled,
+    schedulingEnabled,
+    t,
+  ]);
 }
