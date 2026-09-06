@@ -16,10 +16,13 @@
 
 import { KubeObject, Workload } from '../../../lib/k8s/cluster';
 import Pod from '../../../lib/k8s/pod';
+import type PodGroup from '../../../lib/k8s/podGroup';
 import { getReadyReplicas, getTotalReplicas } from '../../../lib/util';
 import type { GraphNode } from '../graph/graphModel';
 
 export type KubeObjectStatus = 'error' | 'success' | 'warning';
+
+const POD_GROUP_API_GROUP = 'scheduling.k8s.io';
 
 /**
  * Returns a generic status for the given Pod
@@ -44,11 +47,31 @@ function getPodStatus(pod: Pod): KubeObjectStatus {
 }
 
 /**
+ * Narrows a resource to a PodGroup of the scheduling API
+ * The group is checked as well as the kind, so that a custom resource of the same kind,
+ * such as the Volcano PodGroup, is not mistaken for one
+ */
+function isPodGroup(w: KubeObject): w is PodGroup {
+  return w.kind === 'PodGroup' && w._class().apiGroupName === POD_GROUP_API_GROUP;
+}
+
+/**
+ * Returns a generic status for the given PodGroup
+ * A group that is not scheduled yet is a warning, so that it stands out on the map
+ * without being opened
+ */
+function getPodGroupStatus(podGroup: PodGroup): KubeObjectStatus {
+  return podGroup.schedulingCondition?.status === 'True' ? 'success' : 'warning';
+}
+
+/**
  * Returns status for a given Kube resource
  * Not all kinds of resources have a status and/or supported
  */
 export function getStatus(w: KubeObject): KubeObjectStatus {
   if (Pod.isClassOf(w)) return getPodStatus(w);
+
+  if (isPodGroup(w)) return getPodGroupStatus(w);
 
   if (['DaemonSet', 'ReplicaSet', 'StatefulSet', 'Deployment'].includes(w.kind)) {
     const workload = w as Workload;
