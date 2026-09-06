@@ -22,6 +22,8 @@ import Gateway from '../../../../lib/k8s/gateway';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import PodGroup from '../../../../lib/k8s/podGroup';
+import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
@@ -94,6 +96,19 @@ const l4Route = (
 
 const gateway = (metadata: Record<string, any>, cluster = 'cluster-a') =>
   new Gateway({ metadata, spec: { gatewayClassName: 'example' }, status: {} } as any, cluster);
+
+const podGroup = (
+  metadata: Record<string, any>,
+  spec: Record<string, any> = {},
+  cluster = 'cluster-a'
+) =>
+  new PodGroup(
+    { metadata, spec: { schedulingPolicy: { basic: {} }, ...spec }, status: {} } as any,
+    cluster
+  );
+
+const schedulingWorkload = (metadata: Record<string, any>, cluster = 'cluster-a') =>
+  new SchedulingWorkload({ metadata, spec: { podGroupTemplates: [] } } as any, cluster);
 
 describe('KubeObject class matching', () => {
   it('does not match a generic plugin object to a typed resource class', () => {
@@ -323,6 +338,17 @@ describe('useGetAllRelations', () => {
     expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
   });
 
+  it('registers the scheduling relation IDs as built-in', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const expectedIds = ['podgroup-workload', 'pod-podgroup'];
+
+    expect(result.current.map(relation => relation.id)).toEqual(
+      expect.arrayContaining(expectedIds)
+    );
+    expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
+  });
+
   it('exercises volume, environment, and projected-secret predicates', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({
       items: [],
@@ -446,6 +472,91 @@ describe('useGetAllRelations', () => {
         node(new KubeObject({ metadata: { uid: 'other' } } as any, 'cluster-a'))
       )
     ).toBe(false);
+  });
+
+  it('links pod groups to the workload they were templated from', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'podgroup-workload');
+    const workload = schedulingWorkload({
+      uid: 'workload',
+      name: 'training',
+      namespace: 'namespace-a',
+    });
+    const groupOf = (spec: Record<string, any>, cluster = 'cluster-a') =>
+      podGroup({ uid: 'group', name: 'group', namespace: 'namespace-a' }, spec, cluster);
+
+    expect(
+      relation.predicate(
+        node(groupOf({ workloadRef: { workloadName: 'training', templateName: 'workers' } })),
+        node(workload)
+      )
+    ).toBe(true);
+
+    expect(
+      relation.predicate(
+        node(
+          groupOf({
+            podGroupTemplateRef: {
+              workload: { workloadName: 'training', podGroupTemplateName: 'workers' },
+            },
+          })
+        ),
+        node(workload)
+      )
+    ).toBe(true);
+
+    expect(
+      relation.predicate(
+        node(groupOf({ workloadRef: { workloadName: 'other', templateName: 'workers' } })),
+        node(workload)
+      )
+    ).toBe(false);
+
+    expect(relation.predicate(node(groupOf({})), node(workload))).toBe(false);
+
+    expect(
+      relation.predicate(
+        node(
+          groupOf(
+            { workloadRef: { workloadName: 'training', templateName: 'workers' } },
+            'cluster-b'
+          )
+        ),
+        node(workload)
+      )
+    ).toBe(false);
+
+    expect(
+      relation.predicate(
+        node(groupOf({ workloadRef: { workloadName: 'training', templateName: 'workers' } })),
+        node(
+          schedulingWorkload({
+            uid: 'other-namespace',
+            name: 'training',
+            namespace: 'namespace-b',
+          })
+        )
+      )
+    ).toBe(false);
+  });
+
+  it('links pods to their scheduling group', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'pod-podgroup');
+    const group = podGroup({ uid: 'group', name: 'workers', namespace: 'namespace-a' });
+    const podIn = (podGroupName?: string, cluster = 'cluster-a') =>
+      pod(
+        { uid: 'pod', name: 'pod', namespace: 'namespace-a' },
+        podGroupName ? { schedulingGroup: { podGroupName } } : {},
+        cluster
+      );
+
+    expect(relation.predicate(node(podIn('workers')), node(group))).toBe(true);
+    expect(relation.predicate(node(podIn('leaders')), node(group))).toBe(false);
+    expect(relation.predicate(node(podIn()), node(group))).toBe(false);
+    expect(relation.predicate(node(podIn('workers', 'cluster-b')), node(group))).toBe(false);
   });
 
   it('marks pvc-pod edges as nonGroupingSide for RWX PVCs only', () => {
