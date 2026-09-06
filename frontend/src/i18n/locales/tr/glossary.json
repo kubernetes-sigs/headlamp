@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Pod Kesinti Bütçesi",
   "Workload": "",
   "Pod Groups": "",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Bağlantı Noktası İletme",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Çoğaltma Kümeleri",

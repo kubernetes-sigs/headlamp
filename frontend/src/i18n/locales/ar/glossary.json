@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "ميزانية تعطّل الـ Pod",
   "Workload": "حِمل العمل",
   "Pod Groups": "مجموعات البودات",
+  "Composite Pod Groups": "",
   "Port Forwarding": "تمرير المنافذ",
   "PriorityClass": "فئة الأولوية",
   "Replica Sets": "مجموعات النسخ",
