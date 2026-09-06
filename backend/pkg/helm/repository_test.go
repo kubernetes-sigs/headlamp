@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -440,6 +441,127 @@ func TestUpdateRepositoryPreservesAuth(t *testing.T) {
 
 	assert.Equal(t, testUsername, updatedEntry.Username)
 	assert.Equal(t, testPassword, updatedEntry.Password)
+}
+
+// newHelmHandlerWithRepoFile creates a Handler whose repository config is
+// seeded with the given entries, so tests can set server-side fields
+// (credentials, TLS file paths) that the HTTP API does not accept.
+func newHelmHandlerWithRepoFile(t *testing.T, entries ...*repo.Entry) *helm.Handler {
+	t.Helper()
+
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(t.TempDir(), "repositories.yaml")
+
+	repoFile := repo.NewFile()
+	for _, entry := range entries {
+		repoFile.Update(entry)
+	}
+
+	require.NoError(t, repoFile.WriteFile(customSettings.RepositoryConfig, 0o644))
+
+	c := cache.New[interface{}]()
+	require.NotNil(t, c)
+
+	helmHandler, err := helm.NewHandlerWithSettings(c, customSettings)
+	require.NoError(t, err)
+
+	return helmHandler
+}
+
+// TestAddRepoPreservesExistingServerSideFields is a regression test for
+// AddRepo replacing an existing repository entry wholesale, silently wiping
+// the server-side fields (username, password, certFile, keyFile, caFile) that
+// the HTTP API deliberately does not accept from clients.
+func TestAddRepoPreservesExistingServerSideFields(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != testUsername || pass != testPassword {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"apiVersion":"v1","entries":{},"generated":"2025-01-01T00:00:00Z"}`))
+	}))
+	defer ts.Close()
+
+	// The server certificate acts as the CA file the entry references, so the
+	// index download only succeeds if the preserved fields are actually used.
+	caPath := filepath.Join(t.TempDir(), "ca.pem")
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.Certificate().Raw})
+	require.NoError(t, os.WriteFile(caPath, caPEM, 0o600))
+
+	helmHandler := newHelmHandlerWithRepoFile(t, &repo.Entry{
+		Name:     "private_repo",
+		URL:      ts.URL,
+		Username: testUsername,
+		Password: testPassword,
+		CAFile:   caPath,
+	})
+
+	// Re-add the same repository with only name and URL, as the frontend does.
+	addRepo := helm.AddUpdateRepoRequest{
+		Name: "private_repo",
+		URL:  ts.URL,
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST",
+		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.AddRepo(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	repoFile, err := repo.LoadFile(helmHandler.RepositoryConfig)
+	require.NoError(t, err)
+
+	entry := repoFile.Get("private_repo")
+	require.NotNil(t, entry)
+	assert.Equal(t, testUsername, entry.Username)
+	assert.Equal(t, testPassword, entry.Password)
+	assert.Equal(t, caPath, entry.CAFile)
+}
+
+// TestAddRepoRequestFieldsOverrideExisting verifies that fields supplied in
+// the add request still win over the preserved server-side values.
+func TestAddRepoRequestFieldsOverrideExisting(t *testing.T) {
+	ts := newAuthRepoIndexServer(t)
+	defer ts.Close()
+
+	helmHandler := newHelmHandlerWithRepoFile(t, &repo.Entry{
+		Name:     "auth_override_repo",
+		URL:      ts.URL,
+		Username: "olduser",
+		Password: "oldpass",
+	})
+
+	username := testUsername
+	password := testPassword
+
+	addRepo := helm.AddUpdateRepoRequest{
+		Name:     "auth_override_repo",
+		URL:      ts.URL,
+		Username: &username,
+		Password: &password,
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST",
+		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.AddRepo(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	repoFile, err := repo.LoadFile(helmHandler.RepositoryConfig)
+	require.NoError(t, err)
+
+	entry := repoFile.Get("auth_override_repo")
+	require.NotNil(t, entry)
+	assert.Equal(t, testUsername, entry.Username)
+	assert.Equal(t, testPassword, entry.Password)
 }
 
 func TestCreateFileIfNotThere(t *testing.T) {

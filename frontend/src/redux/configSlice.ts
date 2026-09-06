@@ -88,6 +88,7 @@ export interface ConfigState {
     timezone: string;
     sidebarSortAlphabetically: boolean;
     useEvict: boolean;
+    expandLargeGraph: boolean;
     [key: string]: any;
   };
 }
@@ -151,6 +152,9 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.useEvict)) {
       sanitizedSettings.useEvict = parsedSettings.useEvict;
     }
+    if (isBoolean(parsedSettings.expandLargeGraph)) {
+      sanitizedSettings.expandLargeGraph = parsedSettings.expandLargeGraph;
+    }
 
     return sanitizedSettings;
   } catch {
@@ -174,6 +178,7 @@ export const initialState: ConfigState = {
       storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
+    expandLargeGraph: storedSettings.expandLargeGraph ?? false,
     useEvict: storedSettings.useEvict ?? true,
   },
 };

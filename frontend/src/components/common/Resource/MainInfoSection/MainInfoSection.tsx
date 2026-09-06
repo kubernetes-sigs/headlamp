@@ -24,6 +24,7 @@ import { HeaderAction } from '../../../../redux/actionButtonsSlice';
 import Loader from '../../../common/Loader';
 import { HeaderStyle } from '../../../common/SectionHeader';
 import { NameValueTableRow } from '../../../common/SimpleTable';
+import { DetailsGridContext } from '../../../DetailsViewSection/detailsViewSectionSlice';
 import Empty from '../../EmptyContent';
 import SectionBox from '../../SectionBox';
 import A8RInfo from '../A8RInfo';
@@ -60,9 +61,14 @@ export function MainInfoSection<T extends KubeObject>(props: MainInfoSectionProp
     error = null,
   } = props;
   const { t } = useTranslation();
+  const { isInPanel } = React.useContext(DetailsGridContext);
   const header = typeof headerSection === 'function' ? headerSection(resource) : headerSection;
 
   function getBackLink() {
+    if (isInPanel) {
+      return false;
+    }
+
     if (backLink === null) {
       return false;
     }

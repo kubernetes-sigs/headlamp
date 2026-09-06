@@ -26,13 +26,92 @@ import nock from 'nock';
 import os from 'os';
 import path from 'path';
 import * as tar from 'tar';
-import { describe, expect, it, vi } from 'vitest';
-import { PluginManager } from './plugin-management';
-import { getExtraFiles } from './plugin-management';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import envPaths from './env-paths';
+import {
+  defaultKubeConfigsDir,
+  defaultPluginsDir,
+  defaultUserPluginsDir,
+  getExtraFiles,
+  PluginManager,
+  setAppConfigDirName,
+} from './plugin-management';
 
 const TEST_DATA_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-data');
 const PLUGIN_DEST_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-plugins');
 const HEADLAMP_VERSION = '0.30.0';
+const ORIGINAL_PLATFORM = process.platform;
+
+describe('default plugin directories', () => {
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: ORIGINAL_PLATFORM });
+    setAppConfigDirName('Headlamp');
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['plugins', defaultPluginsDir],
+    ['user-plugins', defaultUserPluginsDir],
+  ])('uses the branded data directory for %s when it exists', (subdirectory, getDirectory) => {
+    const appName = 'Example Desktop';
+    const paths = envPaths(appName, { suffix: '' });
+    setAppConfigDirName(appName);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+
+    expect(getDirectory()).toBe(path.join(paths.data, subdirectory));
+  });
+
+  it.each([
+    ['plugins', defaultPluginsDir],
+    ['user-plugins', defaultUserPluginsDir],
+  ])('uses the branded config directory for %s otherwise', (subdirectory, getDirectory) => {
+    const appName = 'Example Desktop';
+    const paths = envPaths(appName, { suffix: '' });
+    setAppConfigDirName(appName);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    expect(getDirectory()).toBe(path.join(paths.config, subdirectory));
+  });
+
+  it.each([
+    ['darwin', 'data'],
+    ['linux', 'config'],
+    ['win32', 'config'],
+  ] as const)(
+    'uses the backend-compatible kubeconfig directory on %s',
+    (platform, baseDirectory) => {
+      const appName = 'Example Desktop';
+      Object.defineProperty(process, 'platform', { value: platform });
+      const paths = envPaths(appName, { suffix: '' });
+      const existsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      setAppConfigDirName(appName);
+
+      expect(defaultKubeConfigsDir()).toBe(path.join(paths[baseDirectory], 'kubeconfigs'));
+      expect(existsSync).not.toHaveBeenCalled();
+    }
+  );
+});
+
+describe('plugin management loading', () => {
+  it('defers installation-only dependencies', async () => {
+    const tarFactory = vi.fn(() => ({}));
+    const semverFactory = vi.fn(() => ({}));
+
+    vi.resetModules();
+    vi.doMock('tar', tarFactory);
+    vi.doMock('semver', semverFactory);
+
+    try {
+      await import('./plugin-management');
+
+      expect(tarFactory).not.toHaveBeenCalled();
+      expect(semverFactory).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('tar');
+      vi.doUnmock('semver');
+    }
+  });
+});
 
 /**
  * Creates a unique test directory for a test

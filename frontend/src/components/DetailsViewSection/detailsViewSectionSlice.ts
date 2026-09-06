@@ -16,7 +16,7 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
-import { ReactNode } from 'react';
+import { createContext, ReactNode } from 'react';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { DetailsViewSectionType } from './DetailsViewSection';
 
@@ -34,6 +34,9 @@ export enum DefaultDetailsViewSection {
   LOADING = 'LOADING',
   CHILDREN = 'CHILDREN',
 }
+
+/** Set to true when resource details render in a side panel rather than a full page, to omit the back link. */
+export const DetailsGridContext = createContext<{ isInPanel?: boolean }>({});
 
 type HeaderActionFuncType = (
   resource: KubeObject | null,

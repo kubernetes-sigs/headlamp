@@ -21,6 +21,8 @@ import type Event from '../lib/k8s/event';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 import type Pod from '../lib/k8s/pod';
 import type { Plugin } from '../plugin/lib';
+import type { PluginInfo } from '../plugin/pluginsSlice';
+import type { ProjectDefinition, ProjectDetailsTab } from './projectsSlice';
 import type { RootState } from './reducers/reducers';
 
 /**
@@ -63,6 +65,24 @@ export enum HeadlampEventType {
   LIST_VIEW = 'headlamp.list-view',
   /** Events related to loading events for a resource. */
   OBJECT_EVENTS = 'headlamp.object-events',
+  /** Events related to loading the project list view. */
+  PROJECT_LIST_VIEW = 'headlamp.project-list-view',
+  /** Events related to loading a project in the project details view. */
+  PROJECT_DETAILS_VIEW = 'headlamp.project-details-view',
+  /** Events related to switching tabs in the project details view. */
+  PROJECT_DETAILS_TAB_CHANGE = 'headlamp.project-details-tab-change',
+  /** Events related to creating a project. */
+  CREATE_PROJECT = 'headlamp.create-project',
+  /** Events related to deleting a project. */
+  DELETE_PROJECT = 'headlamp.delete-project',
+  /** Events related to loading the general settings view. */
+  SETTINGS_VIEW = 'headlamp.settings-view',
+  /** Events related to loading the cluster settings view. */
+  CLUSTER_SETTINGS_VIEW = 'headlamp.cluster-settings-view',
+  /** Events related to loading the plugin list in the settings view. */
+  PLUGIN_LIST_VIEW = 'headlamp.plugin-list-view',
+  /** Events related to loading a plugin's settings details view. */
+  PLUGIN_DETAILS_VIEW = 'headlamp.plugin-details-view',
 }
 
 /**
@@ -352,6 +372,120 @@ export interface EventListEvent {
   };
 }
 
+/**
+ * Event fired when the project list view is loaded.
+ */
+export interface ProjectListViewLoadedEvent
+  extends HeadlampEvent<HeadlampEventType.PROJECT_LIST_VIEW> {
+  data: {
+    /** The list of projects that were loaded. */
+    projects: ProjectDefinition[];
+  };
+}
+
+/**
+ * Event fired when a project is loaded in the project details view.
+ */
+export interface ProjectDetailsViewLoadedEvent
+  extends HeadlampEvent<HeadlampEventType.PROJECT_DETAILS_VIEW> {
+  data: {
+    /** The project that was loaded. */
+    project: ProjectDefinition;
+    /** The resources belonging to the project. */
+    resources: KubeObject[];
+  };
+}
+
+/**
+ * Event fired when the user switches to a different tab in the project details view.
+ */
+export interface ProjectDetailsTabChangeEvent
+  extends HeadlampEvent<HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE> {
+  data: {
+    /** The project whose details view the tab belongs to. */
+    project: ProjectDefinition;
+    /** The tab that is now selected. */
+    tab: ProjectDetailsTab;
+    /** The tab that was selected before. */
+    previousTab: ProjectDetailsTab;
+    /** The resources belonging to the project. */
+    resources: KubeObject[];
+  };
+}
+
+/**
+ * Event fired when a project is to be created.
+ */
+export interface CreateProjectEvent extends HeadlampEvent<HeadlampEventType.CREATE_PROJECT> {
+  data: {
+    /** The project for which the creation was called. */
+    project: ProjectDefinition;
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms the creation of a
+     * project. For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when a project is to be deleted.
+ */
+export interface DeleteProjectEvent extends HeadlampEvent<HeadlampEventType.DELETE_PROJECT> {
+  data: {
+    /** The project for which the deletion was called. */
+    project: ProjectDefinition;
+    /** Whether the project's namespaces are deleted along with the project. */
+    deleteNamespaces: boolean;
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms the deletion of a
+     * project. For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when the general settings view is loaded.
+ */
+export interface SettingsViewLoadedEvent extends HeadlampEvent<HeadlampEventType.SETTINGS_VIEW> {
+  data: {
+    /** The name of the theme that is currently applied. */
+    theme: string;
+  };
+}
+
+/**
+ * Event fired when the cluster settings view is loaded.
+ */
+export interface ClusterSettingsViewLoadedEvent
+  extends HeadlampEvent<HeadlampEventType.CLUSTER_SETTINGS_VIEW> {
+  data: {
+    /** The cluster whose settings are being displayed. */
+    cluster: string;
+  };
+}
+
+/**
+ * Event fired when the plugin list is loaded in the settings view.
+ */
+export interface PluginListViewLoadedEvent
+  extends HeadlampEvent<HeadlampEventType.PLUGIN_LIST_VIEW> {
+  data: {
+    /** The plugins that were listed. */
+    plugins: PluginInfo[];
+  };
+}
+
+/**
+ * Event fired when a plugin's settings details view is loaded.
+ */
+export interface PluginDetailsViewLoadedEvent
+  extends HeadlampEvent<HeadlampEventType.PLUGIN_DETAILS_VIEW> {
+  data: {
+    /** The plugin whose details are being displayed. */
+    plugin: PluginInfo;
+  };
+}
+
 export type HeadlampEventCallback = (data: HeadlampEvent) => void;
 
 const initialState: {
@@ -451,6 +585,33 @@ export function useEventCallback(
 export function useEventCallback(
   eventInfo: HeadlampEventType.OBJECT_EVENTS
 ): (events: Event[], resource?: KubeObject) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.PROJECT_LIST_VIEW
+): (data: EventDataType<ProjectListViewLoadedEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.PROJECT_DETAILS_VIEW
+): (data: EventDataType<ProjectDetailsViewLoadedEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE
+): (data: EventDataType<ProjectDetailsTabChangeEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.CREATE_PROJECT
+): (data: EventDataType<CreateProjectEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.DELETE_PROJECT
+): (data: EventDataType<DeleteProjectEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.SETTINGS_VIEW
+): (data: EventDataType<SettingsViewLoadedEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.CLUSTER_SETTINGS_VIEW
+): (data: EventDataType<ClusterSettingsViewLoadedEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.PLUGIN_LIST_VIEW
+): (data: EventDataType<PluginListViewLoadedEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.PLUGIN_DETAILS_VIEW
+): (data: EventDataType<PluginDetailsViewLoadedEvent>) => void;
 export function useEventCallback(eventType?: HeadlampEventType | string) {
   const dispatch = useDispatch();
 
@@ -533,6 +694,32 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
           })
         );
       };
+    case HeadlampEventType.PROJECT_LIST_VIEW:
+      return dispatchDataEventFunc<ProjectListViewLoadedEvent>(HeadlampEventType.PROJECT_LIST_VIEW);
+    case HeadlampEventType.PROJECT_DETAILS_VIEW:
+      return dispatchDataEventFunc<ProjectDetailsViewLoadedEvent>(
+        HeadlampEventType.PROJECT_DETAILS_VIEW
+      );
+    case HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE:
+      return dispatchDataEventFunc<ProjectDetailsTabChangeEvent>(
+        HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE
+      );
+    case HeadlampEventType.CREATE_PROJECT:
+      return dispatchDataEventFunc<CreateProjectEvent>(HeadlampEventType.CREATE_PROJECT);
+    case HeadlampEventType.DELETE_PROJECT:
+      return dispatchDataEventFunc<DeleteProjectEvent>(HeadlampEventType.DELETE_PROJECT);
+    case HeadlampEventType.SETTINGS_VIEW:
+      return dispatchDataEventFunc<SettingsViewLoadedEvent>(HeadlampEventType.SETTINGS_VIEW);
+    case HeadlampEventType.CLUSTER_SETTINGS_VIEW:
+      return dispatchDataEventFunc<ClusterSettingsViewLoadedEvent>(
+        HeadlampEventType.CLUSTER_SETTINGS_VIEW
+      );
+    case HeadlampEventType.PLUGIN_LIST_VIEW:
+      return dispatchDataEventFunc<PluginListViewLoadedEvent>(HeadlampEventType.PLUGIN_LIST_VIEW);
+    case HeadlampEventType.PLUGIN_DETAILS_VIEW:
+      return dispatchDataEventFunc<PluginDetailsViewLoadedEvent>(
+        HeadlampEventType.PLUGIN_DETAILS_VIEW
+      );
     default:
       break;
   }

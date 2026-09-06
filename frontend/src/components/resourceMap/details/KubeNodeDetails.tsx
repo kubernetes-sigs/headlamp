@@ -15,15 +15,16 @@
  */
 
 import { Box } from '@mui/system';
-import { memo, ReactElement, useEffect } from 'react';
+import { lazy, memo, ReactElement, Suspense, useEffect } from 'react';
 import Deployment from '../../../lib/k8s/deployment';
 import JobSet from '../../../lib/k8s/jobSet';
+import LeaderWorkerSet from '../../../lib/k8s/leaderWorkerSet';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
-import CronJobDetails from '../../cronjob/Details';
 import DaemonSetDetails from '../../daemonset/Details';
+import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionSlice';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -32,6 +33,8 @@ import GatewayDetails from '../../gateway/GatewayDetails';
 import GRPCRouteDetails from '../../gateway/GRPCRouteDetails';
 import HTTPRouteDetails from '../../gateway/HTTPRouteDetails';
 import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
+import TCPRouteDetails from '../../gateway/TCPRouteDetails';
+import UDPRouteDetails from '../../gateway/UDPRouteDetails';
 import HpaDetails from '../../horizontalPodAutoscaler/Details';
 import IngressClassDetails from '../../ingress/ClassDetails';
 import IngressDetails from '../../ingress/Details';
@@ -61,6 +64,9 @@ import MutatingWebhookConfigList from '../../webhookconfiguration/MutatingWebhoo
 import ValidatingWebhookConfigurationDetails from '../../webhookconfiguration/ValidatingWebhookConfigDetails';
 import WorkloadDetails from '../../workload/Details';
 
+// Avoid retaining the CronJob detail module unless the selected resource needs it.
+const CronJobDetails = lazy(() => import('../../cronjob/Details'));
+
 const kindComponentMap: Record<
   string,
   (props: { name?: string; namespace?: string; cluster?: string }) => ReactElement
@@ -70,8 +76,13 @@ const kindComponentMap: Record<
   ReplicaSet: props => <WorkloadDetails {...props} workloadKind={ReplicaSet} />,
   Job: JobDetails,
   JobSet: props => <WorkloadDetails {...props} workloadKind={JobSet} />,
+  LeaderWorkerSet: props => <WorkloadDetails {...props} workloadKind={LeaderWorkerSet} />,
   Service: ServiceDetails,
-  CronJob: CronJobDetails,
+  CronJob: props => (
+    <Suspense fallback={null}>
+      <CronJobDetails {...props} />
+    </Suspense>
+  ),
   DaemonSet: DaemonSetDetails,
   ConfigMap: ConfigDetails,
   Endpoints: EndpointDetails,
@@ -107,6 +118,8 @@ const kindComponentMap: Record<
   GatewayClass: GatewayClassDetails,
   HTTPRoute: HTTPRouteDetails,
   GRPCRoute: GRPCRouteDetails,
+  TCPRoute: TCPRouteDetails,
+  UDPRoute: UDPRouteDetails,
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,
   XBackendTrafficPolicy: BackendTLSPolicyDetails,
@@ -166,9 +179,9 @@ export const KubeObjectDetails = memo(
     }, [kind, kindComponentMap]);
 
     return (
-      <Box>
-        <Box sx={{ marginTop: '-70px' }}>{content}</Box>
-      </Box>
+      <DetailsGridContext.Provider value={{ isInPanel: true }}>
+        <Box>{content}</Box>
+      </DetailsGridContext.Provider>
     );
   }
 );

@@ -214,6 +214,14 @@ export default {
               items: [],
             })
           ),
+          http.get(`${API_BASE}/apis/leaderworkerset.x-k8s.io/v1/leaderworkersets`, () =>
+            HttpResponse.json({
+              kind: 'LeaderWorkerSetList',
+              apiVersion: 'leaderworkerset.x-k8s.io/v1',
+              metadata: {},
+              items: [],
+            })
+          ),
         ],
       },
     },

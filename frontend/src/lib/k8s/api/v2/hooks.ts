@@ -15,7 +15,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
@@ -111,6 +111,7 @@ export function useKubeObject<K extends KubeObject>({
   name,
   cluster = getCluster() ?? '',
   queryParams,
+  initialData,
 }: {
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -121,6 +122,7 @@ export function useKubeObject<K extends KubeObject>({
   /** Cluster name */
   cluster?: string;
   queryParams?: QueryParameters;
+  initialData?: K;
 }): [K | null, ApiError | null] & QueryResponse<K, ApiError> {
   type Instance = K;
   const { endpoint, error: endpointError } = useEndpoints(
@@ -145,6 +147,7 @@ export function useKubeObject<K extends KubeObject>({
   );
 
   const client = useQueryClient();
+  const [seededInitialData, setSeededInitialData] = useState<K | null>(null);
   const query = useQuery<Instance | null, ApiError>({
     enabled: !!endpoint,
     placeholderData: null,
@@ -163,7 +166,17 @@ export function useKubeObject<K extends KubeObject>({
     },
   });
 
-  const data: Instance | null = query.error ? null : query.data ?? null;
+  useLayoutEffect(() => {
+    if (!endpoint || !initialData) {
+      return;
+    }
+
+    client.setQueryData(queryKey, initialData);
+    setSeededInitialData(initialData);
+  }, [client, endpoint, initialData, queryKey]);
+
+  const queryData: Instance | null = query.error ? null : query.data ?? null;
+  const data = initialData && seededInitialData !== initialData ? initialData : queryData;
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {

@@ -22,6 +22,7 @@ describe('graphViewSlice', () => {
       graphSources: [],
       kindIcons: {},
       glances: {},
+      relations: [],
     });
   });
 

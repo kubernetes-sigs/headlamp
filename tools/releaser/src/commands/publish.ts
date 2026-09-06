@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { getRelease, publishDraftRelease, associateTagWithRelease } from '../utils/github.js';
 import { pushTag } from '../utils/git.js';
-import { sanitizeVersion } from '../utils/version.js';
+import { sanitizeVersion, isValidVersion } from '../utils/version.js';
 
 interface PublishOptions {
   force?: boolean;
@@ -10,6 +10,10 @@ interface PublishOptions {
 
 export async function publishRelease(releaseVersion: string, options: PublishOptions): Promise<void> {
   const version = sanitizeVersion(releaseVersion);
+  if (!isValidVersion(version)) {
+    console.error(chalk.red(`Error: Invalid semantic version format "${version}".`));
+    process.exit(1);
+  }
   console.log(chalk.blue(`Publishing release v${version}...`));
 
   try {

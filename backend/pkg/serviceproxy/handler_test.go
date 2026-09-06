@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -225,6 +226,41 @@ func TestDisableResponseCaching(t *testing.T) {
 	assert.Equal(t, "no-cache, private, max-age=0", w.Header().Get("Cache-Control"))
 	assert.Equal(t, "no-cache", w.Header().Get("Pragma"))
 	assert.Equal(t, "0", w.Header().Get("X-Accel-Expires"))
+}
+
+// TestRequestHandlerSendsNoCacheHeaders is a regression test for the
+// cache-suppression headers being registered with defer, which ran only after
+// the response had been written and therefore never reached the client. The
+// headers must be observed from a real server round-trip: a ResponseRecorder's
+// live header map would show them even when they were set too late to be sent.
+func TestRequestHandlerSendsNoCacheHeaders(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = mux.SetURLVars(r, map[string]string{"clusterName": "unknown", "namespace": "default", "name": "svc"})
+		RequestHandler(store, false, w, r)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	// The unknown cluster makes the handler take the early 404 error path;
+	// the no-cache headers must be present on every response.
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, "no-cache, private, max-age=0", resp.Header.Get("Cache-Control"))
+	assert.Equal(t, "no-cache", resp.Header.Get("Pragma"))
+	assert.Equal(t, "0", resp.Header.Get("X-Accel-Expires"))
+	assert.NotEmpty(t, resp.Header.Get("Expires"))
 }
 
 // createMockService creates a mock Kubernetes service for testing.

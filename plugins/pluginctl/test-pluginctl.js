@@ -32,9 +32,6 @@ function testPluginctl() {
   // remove some temporary files.
   cleanup();
 
-  // Install dependencies
-  run("npm", ["install"]);
-
   // Use "link" to test the repo version of the pluginctl tool.
   run("npm", ["link"]);
   curDir = process.cwd();

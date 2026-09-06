@@ -21,13 +21,13 @@ import "github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 // StorePortForwardForTest inserts a portForward entry into the cache as
 // StartPortForward would for a dynamic cluster, allowing unit tests to
 // exercise GetPortForwards without a real Kubernetes cluster.
-func StorePortForwardForTest(c cache.Cache[interface{}], clusterName, userID string) error {
+func StorePortForwardForTest(c cache.Cache[interface{}], clusterName, contextKey string) error {
 	pf := portForward{
 		ID:         "test-id-001",
 		Pod:        "test-pod",
 		Namespace:  "default",
 		Cluster:    clusterName,
-		cacheKey:   clusterName + userID,
+		cacheKey:   contextKey,
 		Port:       "8080",
 		TargetPort: "80",
 		Status:     RUNNING,

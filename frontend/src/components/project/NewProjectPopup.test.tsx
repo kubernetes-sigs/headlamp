@@ -18,7 +18,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
 
-const { MockKubeObject, mockApply, mockHistoryPush } = vi.hoisted(() => {
+const { MockKubeObject, mockApply, mockHistoryPush, mockUseTypedSelector } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
     static kind = '';
@@ -34,7 +34,8 @@ const { MockKubeObject, mockApply, mockHistoryPush } = vi.hoisted(() => {
   }
   const mockApply = vi.fn().mockResolvedValue({});
   const mockHistoryPush = vi.fn();
-  return { MockKubeObject, mockApply, mockHistoryPush };
+  const mockUseTypedSelector = vi.fn().mockReturnValue({});
+  return { MockKubeObject, mockApply, mockHistoryPush, mockUseTypedSelector };
 });
 
 vi.mock('../../lib/k8s/KubeObject', () => ({ KubeObject: MockKubeObject }));
@@ -71,21 +72,41 @@ vi.mock('react-i18next', async () => {
   };
 });
 vi.mock('../../redux/hooks', () => ({
-  useTypedSelector: vi.fn().mockReturnValue({}),
+  useTypedSelector: mockUseTypedSelector,
 }));
 vi.mock('@iconify/react', () => ({
   Icon: () => <span />,
 }));
 
-import { TestContext } from '../../test';
+import { EventStatus, HeadlampEventType } from '../../redux/headlampEventSlice';
+import { recordHeadlampEvents, TestContext } from '../../test';
 import { NewProjectPopup } from './NewProjectPopup';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 describe('NewProjectPopup', () => {
   const mockOnClose = vi.fn();
 
+  /** Fills in the create form with a valid project and returns the enabled Create button. */
+  async function fillCreateForm(projectName: string, namespace: string) {
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), { target: { value: projectName } });
+
+    const clusterInput = screen.getByLabelText('Clusters');
+    fireEvent.mouseDown(clusterInput);
+    fireEvent.click(screen.getByText('cluster-1'));
+
+    const nsInput = screen.getByLabelText('Namespace');
+    fireEvent.change(nsInput, { target: { value: namespace } });
+    fireEvent.keyDown(nsInput, { key: 'Enter' });
+
+    const createBtn = screen.getByRole('button', { name: 'Create' });
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    return createBtn;
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseTypedSelector.mockReturnValue({});
     (MockKubeObject.useList as any).mockReturnValue({ items: [], errors: [], isLoading: false });
   });
 
@@ -172,7 +193,7 @@ describe('NewProjectPopup', () => {
     expect(screen.getByText('A project with this name already exists')).toBeInTheDocument();
   });
 
-  test('successfully creates a new project', async () => {
+  test('normalizes the project name when the field loses focus', () => {
     render(
       <TestContext>
         <NewProjectPopup open onClose={mockOnClose} />
@@ -180,26 +201,177 @@ describe('NewProjectPopup', () => {
     );
 
     fireEvent.click(screen.getByText('New Project'));
+    const projectNameInput = screen.getByLabelText(/Project Name/i);
+    fireEvent.change(projectNameInput, { target: { value: 'My Project!' } });
+    fireEvent.blur(projectNameInput);
 
-    fireEvent.change(screen.getByLabelText(/Project Name/i), { target: { value: 'new-project' } });
+    expect(projectNameInput).toHaveValue('my-project');
+  });
 
-    const clusterInput = screen.getByLabelText('Clusters');
-    fireEvent.mouseDown(clusterInput);
+  test('assigns an existing namespace without creating it again', async () => {
+    const existingNamespace = {
+      cluster: 'cluster-1',
+      metadata: { name: 'existing-ns', labels: {} },
+      patch: vi.fn().mockResolvedValue({}),
+    };
+    (MockKubeObject.useList as any).mockReturnValue({
+      items: [existingNamespace],
+      errors: [],
+      isLoading: false,
+    });
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), {
+      target: { value: 'existing-namespace-project' },
+    });
+    fireEvent.mouseDown(screen.getByLabelText('Clusters'));
     fireEvent.click(screen.getByText('cluster-1'));
+    fireEvent.mouseDown(screen.getByLabelText('Namespace'));
+    fireEvent.click(screen.getByText('existing-ns'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-    const nsInput = screen.getByLabelText('Namespace');
-    fireEvent.change(nsInput, { target: { value: 'new-ns' } });
-    fireEvent.keyDown(nsInput, { key: 'Enter' });
+    await waitFor(() => {
+      expect(existingNamespace.patch).toHaveBeenCalledWith({
+        metadata: { labels: { [PROJECT_ID_LABEL]: 'existing-namespace-project' } },
+      });
+    });
+    expect(mockApply).not.toHaveBeenCalled();
+  });
 
-    const createBtn = screen.getByRole('button', { name: 'Create' });
-    await waitFor(() => expect(createBtn).not.toBeDisabled());
+  test('creates a namespace when namespace list data is unavailable', async () => {
+    (MockKubeObject.useList as any).mockReturnValue({
+      items: undefined,
+      errors: [],
+      isLoading: true,
+    });
 
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('new-project', 'new-ns');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalled());
+  });
+
+  test('opens a custom project creator', () => {
+    const CustomProject = ({ onBack }: { onBack: () => void }) => (
+      <button onClick={onBack}>Custom project content</button>
+    );
+    mockUseTypedSelector.mockReturnValue({
+      custom: {
+        id: 'custom',
+        name: 'Custom project',
+        description: 'Create a custom project',
+        icon: () => <span>Custom icon</span>,
+        component: CustomProject,
+      },
+      customWithStringIcon: {
+        id: 'custom-with-string-icon',
+        name: 'String icon project',
+        description: 'Create a project with a named icon',
+        icon: 'mdi:folder-star',
+        component: CustomProject,
+      },
+    });
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    expect(screen.getByText('Custom icon')).toBeInTheDocument();
+    expect(screen.getByText('String icon project')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Custom project'));
+    fireEvent.click(screen.getByText('Custom project content'));
+
+    expect(screen.getByText('Create a Project')).toBeInTheDocument();
+  });
+
+  test('successfully creates a new project', async () => {
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('new-project', 'new-ns');
     fireEvent.click(createBtn);
 
     await waitFor(() => {
       expect(mockApply).toHaveBeenCalled();
       expect(mockHistoryPush).toHaveBeenCalledWith(expect.stringContaining('new-project'));
     });
+  });
+
+  test('dispatches CREATE_PROJECT when the user confirms creation', async () => {
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('new-project', 'new-ns');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalled());
+
+    expect(events.filter(e => e.type === HeadlampEventType.CREATE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.CREATE_PROJECT,
+        data: {
+          project: {
+            id: 'new-project',
+            namespaces: ['new-ns'],
+            clusters: ['cluster-1'],
+          },
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
+  });
+
+  test('dispatches CREATE_PROJECT even when the namespace creation fails', async () => {
+    mockApply.mockRejectedValueOnce(new Error('nope'));
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('failing-project', 'failing-ns');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalled());
+
+    expect(events.filter(e => e.type === HeadlampEventType.CREATE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.CREATE_PROJECT,
+        data: {
+          project: {
+            id: 'failing-project',
+            namespaces: ['failing-ns'],
+            clusters: ['cluster-1'],
+          },
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
+    expect(mockHistoryPush).not.toHaveBeenCalled();
   });
 
   test('navigates back to selection from New Project step', () => {

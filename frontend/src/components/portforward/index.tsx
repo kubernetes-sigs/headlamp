@@ -58,15 +58,14 @@ export default function PortForwardingList() {
   const portForwardInActionRef = React.useRef(portForwardInAction);
   const { enqueueSnackbar } = useSnackbar();
   const cluster = getCluster();
-  const { t, i18n } = useTranslation(['translation', 'glossary']);
+  const { t } = useTranslation(['translation', 'glossary']);
   const optionsTranslated = React.useMemo(
     () => ({
       [PortForwardAction.Start]: t('translation|Start'),
       [PortForwardAction.Stop]: t('translation|Stop'),
       [PortForwardAction.Delete]: t('translation|Delete'),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [i18n.language]
+    [t]
   );
   const options = Object.keys(optionsTranslated) as (keyof typeof optionsTranslated)[];
 

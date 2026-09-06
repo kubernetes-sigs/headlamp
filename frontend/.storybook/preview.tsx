@@ -18,7 +18,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import '../src/index.css';
 import { Title, Subtitle, Description, Primary, Controls } from '@storybook/addon-docs/blocks';
-import { baseMocks } from './baseMocks';
+import { baseMocks, fallbackMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { darkTheme, lightTheme } from '../src/components/App/defaultAppThemes';
 import { createMuiTheme } from '../src/lib/themes';
@@ -101,6 +101,8 @@ export const parameters = {
        * }
        */
       base: baseMocks,
+      story: [],
+      fallback: fallbackMocks,
     },
   },
 };

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -38,55 +38,44 @@ const appPath = path.resolve(__dirname, '../../');
 let electronApp;
 let electronPage: Page;
 
-if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
-  test.beforeAll(async () => {
-    fs.writeFileSync(
-      ISOLATED_KUBECONFIG,
-      execSync('kubectl --context minikube config view --minify --raw --flatten', {
-        encoding: 'utf8',
-      }),
-      { mode: 0o600 }
-    );
+test.beforeAll(async () => {
+  fs.writeFileSync(
+    ISOLATED_KUBECONFIG,
+    execSync('kubectl --context minikube config view --minify --raw --flatten', {
+      encoding: 'utf8',
+    }),
+    { mode: 0o600 }
+  );
 
-    electronApp = await electron.launch({
-      cwd: appPath,
-      executablePath: electronPath,
-      args: ['.'],
-      env: {
-        ...process.env,
-        NODE_ENV: 'development',
-        ELECTRON_DEV: 'true',
-        KUBECONFIG: ISOLATED_KUBECONFIG,
-      },
-    });
-
-    electronPage = await electronApp.firstWindow();
+  electronApp = await electron.launch({
+    cwd: appPath,
+    executablePath: electronPath,
+    args: ['.'],
+    env: {
+      ...process.env,
+      NODE_ENV: 'development',
+      ELECTRON_DEV: 'true',
+      KUBECONFIG: ISOLATED_KUBECONFIG,
+    },
   });
 
-  // The app holds a single-instance lock, so it must be closed or a later
-  // launch in the same run is denied the lock and quits immediately.
-  test.afterAll(async () => {
-    await electronApp?.close();
-    fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
-  });
+  electronPage = await electronApp.firstWindow();
+});
 
-  test.beforeEach(async ({ page }) => {
-    if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
-      await page.close();
-    }
-  });
-}
+// The app holds a single-instance lock, so it must be closed or a later
+// launch in the same run is denied the lock and quits immediately.
+test.afterAll(async () => {
+  await electronApp?.close();
+  fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+});
 
-// note: this test is for local app development testing and will require:
-// - a running minikube cluster named 'minikube'
-// - an ENV variable of PLAYWRIGHT_TEST_MODE=app
+// note: this test is for local app development testing and requires a
+// running minikube cluster named 'minikube'.
 test.describe('create a namespace with the minimal editor', async () => {
   // A real timeout, so a failure surfaces as a failure rather than hanging forever.
   test.setTimeout(3 * 60 * 1000);
-  test('create a namespace with the minimal editor then delete it', async ({
-    page: browserPage,
-  }) => {
-    const page = process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
+  test('create a namespace with the minimal editor then delete it', async () => {
+    const page = electronPage;
     const name = 'testing-e2e';
     const headlampPage = new HeadlampPage(page);
     const namespacesPage = new NamespacesPage(page);
@@ -97,6 +86,48 @@ test.describe('create a namespace with the minimal editor', async () => {
 
     await namespacesPage.navigateToNamespaces();
     await namespacesPage.createNamespace(name);
+    await namespacesPage.deleteNamespace(name);
+  });
+
+  test('keeps the namespace editor usable at 200% zoom', async () => {
+    const page = electronPage;
+    const name = 'testing-e2e-high-zoom';
+    const yaml = `
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${name}
+    `;
+    const headlampPage = new HeadlampPage(page);
+    const namespacesPage = new NamespacesPage(page);
+
+    await headlampPage.authenticate();
+    await namespacesPage.navigateToNamespaces();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    const minimalEditorSwitch = page.getByRole('checkbox', { name: 'Use minimal editor' });
+    await minimalEditorSwitch.check();
+    const editor = page.getByRole('textbox', { name: 'yaml Code' });
+
+    try {
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2);
+      });
+
+      await expect(editor).toBeInViewport();
+      await editor.focus();
+      await expect(editor).toBeFocused();
+      await editor.fill(yaml);
+
+      const applyButton = page.getByRole('button', { name: 'Apply', exact: true });
+      await expect(applyButton).toBeInViewport();
+      await applyButton.click();
+      await page.waitForSelector(`text=Applied ${name}`);
+    } finally {
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1);
+      });
+    }
+
     await namespacesPage.deleteNamespace(name);
   });
 });

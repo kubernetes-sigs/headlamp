@@ -468,6 +468,14 @@
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   >
                                     <path
                                       aria-label="0.0 %"

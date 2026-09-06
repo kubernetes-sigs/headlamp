@@ -32,6 +32,60 @@ export interface GatewayParentReference {
 }
 
 /**
+ * BackendObjectReference identifies a backend API object to which a route can forward traffic.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#backendobjectreference} Gateway API reference for BackendObjectReference
+ */
+export interface GatewayBackendReference {
+  group?: string;
+  kind?: string;
+  name: string;
+  namespace?: string;
+  port?: number;
+  weight?: number;
+}
+
+/**
+ * L4RouteRule defines a TCPRoute or UDPRoute rule and its backend references.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#tcprouterule} Gateway API reference for TCPRouteRule
+ */
+export interface GatewayL4RouteRule {
+  name?: string;
+  backendRefs?: GatewayBackendReference[];
+}
+
+/**
+ * RouteParentStatus describes the status of a route as seen by one of its parents.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#routeparentstatus} Gateway API reference for RouteParentStatus
+ */
+export interface GatewayRouteParentStatus {
+  parentRef: GatewayParentReference;
+  controllerName: string;
+  conditions?: KubeCondition[];
+}
+
+/** The common spec shared by Gateway API L4 route resources. */
+export interface GatewayL4RouteSpec {
+  parentRefs?: GatewayParentReference[];
+  rules?: GatewayL4RouteRule[];
+  [key: string]: any;
+}
+
+/** The common status shared by Gateway API L4 route resources. */
+export interface GatewayL4RouteStatus {
+  parents?: GatewayRouteParentStatus[];
+  [key: string]: any;
+}
+
+/** The common Kubernetes object shape shared by Gateway API L4 route resources. */
+export interface KubeGatewayL4Route extends KubeObjectInterface {
+  spec: GatewayL4RouteSpec;
+  status?: GatewayL4RouteStatus;
+}
+
+/**
  * Listener embodies the concept of a logical endpoint where a Gateway accepts network connections.
  *
  * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#listener} Gateway API reference for Listener

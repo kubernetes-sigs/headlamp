@@ -101,7 +101,7 @@ PodEvict.parameters = {
   docs: {
     description: {
       story:
-        'When the item is a Pod, demonstrates the Pod-specific delete path. The button shows "Evict" instead of "Delete" when the useEvict cluster setting is enabled.',
+        'When the item is a Pod, both Delete and Evict are offered as a split button. The primary action follows the useEvict cluster setting; the other option is in the dropdown.',
     },
   },
 };

@@ -16,7 +16,7 @@
 
 import { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
 import { KubeBackendTrafficPolicy } from '../../lib/k8s/backendTrafficPolicy';
-import { KubeGateway } from '../../lib/k8s/gateway';
+import { KubeGateway, type KubeGatewayL4Route } from '../../lib/k8s/gateway';
 import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
 import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
@@ -162,6 +162,106 @@ export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
     parentRefs: [],
     rules: [],
   },
+};
+
+export const DEFAULT_TCP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'TCPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T09:00:00Z',
+    name: 'default-tcproute',
+    namespace: 'default',
+    resourceVersion: '12345',
+    uid: 'tcp-route-uid',
+  },
+  spec: {
+    parentRefs: [{ name: 'default-gateway', sectionName: 'tcp' }],
+    rules: [
+      {
+        name: 'tcp-backend',
+        backendRefs: [{ name: 'tcp-service', port: 9000, weight: 1 }],
+      },
+    ],
+  },
+  status: {
+    parents: [
+      {
+        parentRef: { name: 'default-gateway', sectionName: 'tcp' },
+        controllerName: 'gateway.example.com/controller',
+        conditions: [
+          {
+            lastProbeTime: null,
+            lastTransitionTime: '2025-08-07T09:01:00Z',
+            reason: 'Accepted',
+            status: 'True',
+            type: 'Accepted',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const EMPTY_TCP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha2',
+  kind: 'TCPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T09:00:00Z',
+    name: 'empty-tcproute',
+    namespace: 'default',
+    uid: 'empty-tcp-route-uid',
+  },
+  spec: {},
+};
+
+export const DEFAULT_UDP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'UDPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T10:00:00Z',
+    name: 'default-udproute',
+    namespace: 'default',
+    resourceVersion: '54321',
+    uid: 'udp-route-uid',
+  },
+  spec: {
+    parentRefs: [{ name: 'default-gateway', sectionName: 'udp' }],
+    rules: [
+      {
+        name: 'udp-backend',
+        backendRefs: [{ name: 'udp-service', port: 5353 }],
+      },
+    ],
+  },
+  status: {
+    parents: [
+      {
+        parentRef: { name: 'default-gateway', sectionName: 'udp' },
+        controllerName: 'gateway.example.com/controller',
+        conditions: [
+          {
+            lastProbeTime: null,
+            lastTransitionTime: '2025-08-07T10:01:00Z',
+            reason: 'Accepted',
+            status: 'True',
+            type: 'Accepted',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const EMPTY_UDP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha2',
+  kind: 'UDPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T10:00:00Z',
+    name: 'empty-udproute',
+    namespace: 'default',
+    uid: 'empty-udp-route-uid',
+  },
+  spec: {},
 };
 
 export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
