@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { TestContext } from '../../test';
 import IngressDetails from './Details';
+import { LinkStringFormat } from './Details';
 
 const { mockDetailsGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
@@ -179,5 +180,58 @@ describe('IngressDetails', () => {
     expect(sections).toHaveLength(1);
     expect(sections[0].id).toBe('headlamp.ingress-rules');
     expect(sections[0].section).toBeTruthy();
+  });
+
+  it('resolves https:// for all hosts when a TLS entry lists multiple hosts', () => {
+    const multiHostIngress: any = {
+      jsonData: {
+        spec: {
+          tls: [{ hosts: ['foo.example.com', 'bar.example.com'], secretName: 'tls-secret' }],
+        },
+      },
+      spec: {
+        tls: [{ hosts: ['foo.example.com', 'bar.example.com'], secretName: 'tls-secret' }],
+        rules: [
+          {
+            host: 'foo.example.com',
+            http: {
+              paths: [
+                {
+                  path: '/',
+                  pathType: 'Prefix',
+                  backend: { service: { name: 'svc', port: { number: 80 } } },
+                },
+              ],
+            },
+          },
+          {
+            host: 'bar.example.com',
+            http: {
+              paths: [
+                {
+                  path: '/',
+                  pathType: 'Prefix',
+                  backend: { service: { name: 'svc', port: { number: 80 } } },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const { rerender } = render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-ingress' }}>
+        <LinkStringFormat url="foo.example.com" item={multiHostIngress} />
+      </TestContext>
+    );
+    expect(screen.getByRole('link').getAttribute('href')).toMatch(/^https:\/\//);
+
+    rerender(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-ingress' }}>
+        <LinkStringFormat url="bar.example.com" item={multiHostIngress} />
+      </TestContext>
+    );
+    expect(screen.getByRole('link').getAttribute('href')).toMatch(/^https:\/\//);
   });
 });
