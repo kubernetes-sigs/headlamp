@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Tijdelijke containers",
   "Owner": "Eigenaar",
   "Container": "Container",
+  "Pod": "",
   "Config Maps": "ConfigMaps",
   "Definition": "Definitie",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

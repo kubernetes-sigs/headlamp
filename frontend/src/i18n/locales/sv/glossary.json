@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Tillfälliga containrar",
   "Owner": "Ägare",
   "Container": "Container",
+  "Pod": "",
   "Config Maps": "Konfigurationskartor",
   "Definition": "Definition",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Dočasné kontejnery",
   "Owner": "Vlastník",
   "Container": "Kontejner",
+  "Pod": "",
   "Config Maps": "Konfigurační mapy",
   "Definition": "Definice",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Kontainer Sementara",
   "Owner": "Pemilik",
   "Container": "Kontainer",
+  "Pod": "",
   "Config Maps": "Peta Konfigurasi",
   "Definition": "Definisi",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

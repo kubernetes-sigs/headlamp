@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Kısa Ömürlü Kapsayıcılar",
   "Owner": "Sahip",
   "Container": "Kapsayıcı",
+  "Pod": "",
   "Config Maps": "Yapılandırma Eşlemeleri",
   "Definition": "Tanım",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",
