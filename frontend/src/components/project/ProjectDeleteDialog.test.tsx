@@ -99,6 +99,16 @@ describe('ProjectDeleteDialog', () => {
       },
     ] as any;
 
+  const makePairedProject = () => ({
+    id: 'test-project',
+    namespaces: ['ns1', 'ns2'],
+    clusters: ['cluster-a', 'cluster-b'],
+    namespaceRefs: [
+      { name: 'ns1', cluster: 'cluster-a' },
+      { name: 'ns2', cluster: 'cluster-b' },
+    ],
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockClusterAction.mockReturnValue({ type: 'clusterAction/mock' });
@@ -179,6 +189,48 @@ describe('ProjectDeleteDialog', () => {
     expect(namespaces[0].delete).not.toHaveBeenCalled();
     expect(namespaces[1].delete).not.toHaveBeenCalled();
     expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  test('does not remove labels from cross-cluster namespace siblings', async () => {
+    let capturedActionFn: (() => Promise<void>) | null = null;
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
+
+    const namespaces = [
+      {
+        metadata: { name: 'ns1' },
+        cluster: 'cluster-a',
+        update: vi.fn().mockResolvedValue(undefined),
+        jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
+      },
+      {
+        metadata: { name: 'ns1' },
+        cluster: 'cluster-b',
+        update: vi.fn().mockResolvedValue(undefined),
+        jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
+      },
+    ] as any;
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={makePairedProject()}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+    if (capturedActionFn) {
+      await (capturedActionFn as () => Promise<void>)();
+    }
+
+    expect(namespaces[0].update).toHaveBeenCalledTimes(1);
+    expect(namespaces[1].update).not.toHaveBeenCalled();
   });
 
   test('calls clusterAction (namespace delete) when checkbox is checked and confirmed', async () => {

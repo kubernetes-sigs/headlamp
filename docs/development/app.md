@@ -133,14 +133,72 @@ npm run app:package:mac      # macOS
 npm run app:package:win:msi  # Windows MSI installer
 ```
 
+### Custom product builds
+
+Product builds can select an alternative app build manifest and record the
+source revision used to assemble the package:
+
+| Environment variable      | Default                           | Description                                                                                                                          |
+| ------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `HEADLAMP_BUILD_MANIFEST` | `app/app-build-manifest.json`     | Path to the JSON build manifest. The checked-in default configures both Electron packaging and generated frontend metadata.          |
+| `HEADLAMP_SOURCE_COMMIT`  | Current Git revision or `unknown` | Source revision written to `REACT_APP_HEADLAMP_GIT_VERSION`. Set this when building from packaged source without its Git repository. |
+
+The manifest's `product.productName` and `product.version` fields configure the
+identity displayed by the frontend as well as the packaged desktop app. Missing
+or empty fields retain the values from `app/package.json`.
+
+For example:
+
+```json
+{
+  "product": {
+    "name": "example-desktop",
+    "productName": "Example Desktop",
+    "version": "1.2.3"
+  }
+}
+```
+
+Build the app with the selected manifest and source revision:
+
+```bash
+HEADLAMP_BUILD_MANIFEST=./product/app-build-manifest.json \
+HEADLAMP_SOURCE_COMMIT=0123456789abcdef \
+npm run app:build
+```
+
+Frontend environment generation resolves a relative manifest path from the
+`app/` directory. Electron packaging resolves it from the process working
+directory. The root app scripts run Electron packaging from `app/`, so the
+example above selects `app/product/app-build-manifest.json` for both consumers.
+Use an absolute manifest path when invoking either consumer directly from a
+different working directory.
+
+The standard `make image` and `npm run image:build` commands pass the current
+Git revision to container builds. Direct Docker callers selecting a custom
+product manifest should pass both the manifest path and source revision:
+
+```bash
+docker buildx build \
+  --build-arg HEADLAMP_BUILD_MANIFEST=./product/app-build-manifest.json \
+  --build-arg HEADLAMP_SOURCE_COMMIT=0123456789abcdef \
+  -f Dockerfile .
+```
+
+The manifest must remain available throughout the frontend and app packaging
+steps. An unreadable manifest, a non-object `product`, non-string
+`productName`/`version` fields, or values containing newlines stop the frontend
+build rather than silently using an inconsistent product identity. The frontend
+environment generator also rejects values containing both a single quote and a
+backtick when they additionally contain either a double quote or a literal
+backslash-`n`/backslash-`r` sequence, because no dotenv quote delimiter can
+represent them without changing the value.
+
 ### Build manifest resources
 
-Set `HEADLAMP_BUILD_MANIFEST` to package Headlamp with a product-specific build
-manifest. Relative environment paths use the current working directory, while
-resource `from` paths use the directory containing the selected manifest.
-
 The `resources` field appends common or platform-specific files and directories
-to Electron Builder's existing `extraResources`:
+to Electron Builder's existing `extraResources`. Resource `from` paths resolve
+from the directory containing the selected manifest:
 
 ```json
 {

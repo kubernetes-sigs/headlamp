@@ -87,6 +87,7 @@
     "shx": "^0.4.0",
     "simple-eval": "^2.0.0",
     "spacetime": "^7.4.0",
+    "tsx": "4.23.1",
     "typescript": "5.6.2",
     "vite": "^6.4.1",
     "vite-plugin-node-polyfills": "^0.23.0",
@@ -112,7 +113,7 @@
     "preview": "vite preview",
     "prebuild": "npm run make-version",
     "build": "cross-env PUBLIC_URL=./ NODE_OPTIONS=--max-old-space-size=8096 vite build && npx shx rm -f build/frontend/index.baseUrl.html",
-    "postbuild": "node --experimental-strip-types ./scripts/precompress-build.ts build",
+    "postbuild": "tsx ./scripts/precompress-build.ts build",
     "pretest": "npm run make-version",
     "test": "vitest",
     "test:a11y": "npm run build-storybook && node test-a11y-with-baseline.mjs",
@@ -129,7 +130,7 @@
     "make-version": "node ./make-env.js",
     "star": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp rsbuild dev",
     "build:rsbuild": "rsbuild build",
-    "postbuild:rsbuild": "node --experimental-strip-types ./scripts/precompress-build.ts build"
+    "postbuild:rsbuild": "tsx ./scripts/precompress-build.ts build"
   },
   "browserslist": {
     "production": [

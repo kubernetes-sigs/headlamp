@@ -16,58 +16,50 @@
 
 import { Icon } from '@iconify/react';
 import { Box, Button, Typography } from '@mui/material';
-import { groupBy, uniq } from 'lodash';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
-import { ProjectDefinition } from '../../redux/projectsSlice';
+import type { ProjectDefinition } from '../../redux/projectsSlice';
 import AllowedNamespacesSelectorGate from '../App/AllowedNamespacesSelectorGate';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
 import Table, { TableColumn } from '../common/Table/Table';
 import { NewProjectPopup } from './NewProjectPopup';
+import { findProject, groupNamespacesIntoProjects, projectLinkSearch } from './projectGrouping';
 import { getHealthIcon, getResourcesHealth, PROJECT_ID_LABEL } from './projectUtils';
 import { useProjectItems } from './useProjectResources';
 
-// The labelSelector on Namespace.useList filters at the API level, but the
-// returned list can still transiently include items without metadata.labels
-// populated (multi-cluster fan-out, react-query cache during a label
-// removal). Without the filter below an unguarded access crashed the
-// Projects page. See issue #5254.
-export function groupNamespacesIntoProjects(
-  namespaces: ReadonlyArray<{
-    metadata: { name: string; labels?: Record<string, string> };
-    cluster: string;
-  }>
-): ProjectDefinition[] {
-  const labelled = namespaces.filter(n => n.metadata.labels?.[PROJECT_ID_LABEL]);
-  return Object.entries(groupBy(labelled, n => n.metadata.labels![PROJECT_ID_LABEL])).map(
-    ([id, ns]) => ({
-      id,
-      namespaces: uniq(ns.map(it => it.metadata.name)),
-      clusters: uniq(ns.map(it => it.cluster)),
-    })
-  );
-}
+export { groupNamespacesIntoProjects } from './projectGrouping';
 
 const useProjects = (): ProjectDefinition[] => {
   const clusterConf = useClustersConf();
   const clusters = Object.values(clusterConf ?? {});
+  const projectGrouping = useTypedSelector(state => state.projects.projectGrouping);
 
   const { items: namespaces } = Namespace.useList({
     clusters: clusters.map(c => c.name),
     labelSelector: PROJECT_ID_LABEL,
   });
 
-  return useMemo(() => groupNamespacesIntoProjects(namespaces ?? []), [namespaces]);
+  return useMemo(
+    () => groupNamespacesIntoProjects(namespaces ?? [], projectGrouping),
+    [namespaces, projectGrouping]
+  );
 };
 
 export const useProject = (name: string) => {
   const clusterConf = useClustersConf();
   const clusters = Object.values(clusterConf ?? {});
+  const location = useLocation();
+  const projectGrouping = useTypedSelector(state => state.projects.projectGrouping);
+  const projectKey = useMemo(
+    () => new URLSearchParams(location.search).get('projectKey'),
+    [location.search]
+  );
 
   const { items: namespaces, isLoading } = Namespace.useList({
     clusters: clusters.map(c => c.name),
@@ -78,14 +70,18 @@ export const useProject = (name: string) => {
     () => ({
       isLoading,
       project: namespaces
-        ? groupNamespacesIntoProjects(namespaces).find(project => project.id === name) ?? {
+        ? findProject(
+            groupNamespacesIntoProjects(namespaces, projectGrouping),
+            name,
+            projectKey
+          ) ?? {
             id: name,
             clusters: [],
             namespaces: [],
           }
         : undefined,
     }),
-    [namespaces, name, isLoading]
+    [isLoading, name, namespaces, projectGrouping, projectKey]
   );
 };
 
@@ -113,11 +109,13 @@ function ProjectListContent() {
         header: t('Name'),
         accessorFn: it => it.id,
         Cell: ({ row: { original } }) => (
-          <>
-            <Link routeName="projectDetails" params={{ name: original.id }}>
-              {original.id}
-            </Link>
-          </>
+          <Link
+            routeName="projectDetails"
+            params={{ name: original.id }}
+            search={projectLinkSearch(original)}
+          >
+            {original.id}
+          </Link>
         ),
       },
       {

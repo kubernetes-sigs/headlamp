@@ -40,6 +40,8 @@ jobs:
         go-version: '1.26.*'
     - name: Run tests
       run: make app-test
+    - name: Verify OAuth callback coverage
+      run: npm --prefix app run test:oauth-coverage
     - name: Run tsc type checker
       run: make app-tsc
     - name: Run app-i18n-check
@@ -54,6 +56,8 @@ jobs:
         npx playwright install --with-deps chromium
     - name: Test desktop listener cleanup
       run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts
+    - name: Test desktop OAuth callbacks
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
     - name: Verify Linux build
       run: npm run app:verify-build-linux
     - name: Start Minikube
