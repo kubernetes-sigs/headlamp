@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { ThemeProvider } from '@mui/material/styles';
+import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
+import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import IngressDetails from './Details';
 
@@ -179,5 +181,40 @@ describe('IngressDetails', () => {
     expect(sections).toHaveLength(1);
     expect(sections[0].id).toBe('headlamp.ingress-rules');
     expect(sections[0].section).toBeTruthy();
+  });
+
+  it("shows each path's own pathType when rules share a host and path", () => {
+    // (host, path) is not unique across rules: the API accepts both of these, and
+    // each row has to report its own pathType rather than the first match.
+    const backend = { service: { name: 'service1', port: { number: 80 } } };
+    const duplicatePathIngress: any = {
+      cluster: 'cluster-1',
+      jsonData: { spec: {} },
+      spec: {},
+      getRules: () => [
+        { host: 'example.com', http: { paths: [{ path: '/', pathType: 'Prefix', backend }] } },
+        { host: 'example.com', http: { paths: [{ path: '/', pathType: 'Exact', backend }] } },
+      ],
+    };
+
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-ingress' }}>
+        <IngressDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const [rules] = props.extraSections(duplicatePathIngress);
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={createMuiTheme({ base: 'light', name: 'light' })}>
+          {rules.section}
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(screen.getByText('(Prefix)')).toBeInTheDocument();
+    expect(screen.getByText('(Exact)')).toBeInTheDocument();
   });
 });
