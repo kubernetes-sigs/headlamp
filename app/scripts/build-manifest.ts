@@ -18,6 +18,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { ProductMetadata } from './product-metadata.ts';
+import { readProductMetadata } from './product-metadata.ts';
+
+export { readProductMetadata } from './product-metadata.ts';
 
 type ManifestEnvironment = {
   [key: string]: string | undefined;
@@ -80,15 +84,6 @@ type BuildVerification = {
 
   /** Expected hexadecimal SHA-256 digest. */
   sha256: string;
-};
-
-type ProductMetadata = {
-  name?: string;
-  productName?: string;
-  version?: string;
-  appId?: string;
-  artifactName?: string;
-  protocols?: Record<string, unknown>;
 };
 
 /**
@@ -312,49 +307,10 @@ export function validateBuildManifest(value: unknown): BuildManifest {
  * @throws When the manifest or product metadata is malformed.
  */
 export function applyProductMetadata<T extends object>(config: T, manifest: unknown): T {
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-    throw new Error('Build manifest must be an object');
-  }
-
-  const product = (manifest as BuildManifest).product;
-  if (product === undefined) {
+  const metadata = readProductMetadata(manifest);
+  if (metadata === undefined) {
     return config;
   }
-  if (!product || typeof product !== 'object' || Array.isArray(product)) {
-    throw new Error('Build manifest product must be an object');
-  }
-
-  const scalarFields = ['name', 'productName', 'version', 'appId', 'artifactName'] as const;
-  for (const field of scalarFields) {
-    if (product[field] !== undefined && typeof product[field] !== 'string') {
-      throw new Error(`Build manifest product.${field} must be a string`);
-    }
-  }
-  if (
-    product.protocols !== undefined &&
-    (!product.protocols ||
-      typeof product.protocols !== 'object' ||
-      Array.isArray(product.protocols))
-  ) {
-    throw new Error('Build manifest product.protocols must be an object');
-  }
-  if (product.protocols !== undefined) {
-    // The app reads this same field at runtime to decide which deep links to
-    // accept, so an unusable value would silently fall back to the Headlamp
-    // scheme while the installer registers something else.
-    const schemes = (product.protocols as Record<string, unknown>).schemes;
-    if (
-      !Array.isArray(schemes) ||
-      schemes.length === 0 ||
-      schemes.some(scheme => typeof scheme !== 'string' || scheme === '')
-    ) {
-      throw new Error(
-        'Build manifest product.protocols.schemes must be a non-empty array of strings'
-      );
-    }
-  }
-
-  const metadata = product as ProductMetadata;
   const configRecord = config as Record<string, unknown>;
 
   const currentExtraMetadata =

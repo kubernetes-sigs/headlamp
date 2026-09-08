@@ -47,6 +47,19 @@ test('headlamp is there and so is minikube', async () => {
   await headlampPage.hasURLContaining(/.*test/);
 });
 
+test('version dialog shows Headlamp version information', async ({ page }) => {
+  await page.getByRole('button', { name: 'Account of current user' }).click();
+  await page
+    .locator('#primary-user-menu')
+    .getByText(/^Headlamp /)
+    .click();
+
+  const versionDialog = page.getByRole('dialog', { name: 'Headlamp' });
+  await expect(versionDialog).toBeVisible();
+  await expect(versionDialog.getByText('Version', { exact: true })).toBeVisible();
+  await expect(versionDialog.getByText('Git Commit', { exact: true })).toBeVisible();
+});
+
 test('main page should have Network tab', async () => {
   await headlampPage.hasNetworkTab();
   await headlampPage.a11y();

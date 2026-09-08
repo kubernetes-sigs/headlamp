@@ -37,8 +37,8 @@ vi.mock('../../lib/k8s/api/v1/clusterApi', () => ({
 }));
 vi.mock('../../lib/auth', () => ({ logout: vi.fn() }));
 vi.mock('../../helpers/getProductInfo', () => ({
+  getDisplayVersion: vi.fn(() => '0.0.0'),
   getProductName: vi.fn(() => 'Headlamp'),
-  getVersion: vi.fn(() => ({ VERSION: '0.0.0' })),
 }));
 vi.mock('../../lib/router/createRouteURL', () => ({ createRouteURL: vi.fn(() => '/') }));
 vi.mock('../../redux/hooks', () => ({ useTypedSelector: vi.fn(() => undefined) }));
