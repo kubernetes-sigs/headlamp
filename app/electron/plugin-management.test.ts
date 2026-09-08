@@ -20,6 +20,7 @@
  * These tests focus on downloading and installing plugins from local artifacthub pkg files,
  * including testing platform-specific annotations that allow additional binaries to be included.
  */
+import { spawnSync } from 'child_process';
 import crypto from 'crypto';
 import fs from 'fs';
 import nock from 'nock';
@@ -40,6 +41,8 @@ import {
 const TEST_DATA_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-data');
 const PLUGIN_DEST_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-plugins');
 const HEADLAMP_VERSION = '0.30.0';
+const TXN_ID = '0123456789abcdef';
+const TXN_DIR = '.headlamp-txn';
 const ORIGINAL_PLATFORM = process.platform;
 
 describe('default plugin directories', () => {
@@ -126,6 +129,15 @@ function getUniqueTestDir(basePath: string, testName: string): string {
     fs.mkdirSync(dir, { recursive: true });
   }
   return dir;
+}
+
+/**
+ * Returns the pid of a process that has already exited, so a lock file
+ * recording it is treated as belonging to a dead process.
+ */
+function getDeadPid(): number {
+  const child = spawnSync(process.execPath, ['-e', '']);
+  return child.pid!;
 }
 
 describe('PluginManager', () => {
@@ -289,6 +301,330 @@ describe('PluginManager', () => {
       fs.rmSync(testDataDir, { recursive: true });
     }
   }, 30000);
+
+  it('should update a plugin via a staging/backup swap without leftover transaction state', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'update-swap-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'update-swap-plugins');
+
+    await createMinimalPluginTarball(testDataDir);
+
+    const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+    const progress: any[] = [];
+    const progressCallback = (update: any) => {
+      progress.push(update);
+    };
+
+    // Install version 0.1.0
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, '0.1.0');
+    await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, progressCallback, null);
+
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    const installedPackageJson = JSON.parse(
+      fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8')
+    );
+    expect(installedPackageJson.artifacthub.version).toBe('0.1.0');
+
+    // Update to version 0.2.0
+    progress.length = 0;
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, '0.2.0');
+    await PluginManager.update(
+      'headlamp_minikube',
+      pluginDestDir,
+      HEADLAMP_VERSION,
+      progressCallback,
+      null
+    );
+
+    // The plugin directory must exist with the new version
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    const updatedPackageJson = JSON.parse(
+      fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8')
+    );
+    expect(updatedPackageJson.artifacthub.version).toBe('0.2.0');
+
+    // No transaction state may be left behind
+    expect(fs.existsSync(path.join(pluginDestDir, TXN_DIR))).toBe(false);
+    const leftoverEntries = fs
+      .readdirSync(pluginDestDir, { withFileTypes: true })
+      .filter(entry => entry.name.includes('staging') || entry.name.includes('backup'));
+    expect(leftoverEntries).toHaveLength(0);
+
+    const successMessages = progress.filter(p => p.type === 'success');
+    expect(successMessages.length).toBe(1);
+    expect(successMessages[0].message).toBe('Plugin Updated');
+
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+    if (fs.existsSync(testDataDir)) {
+      fs.rmSync(testDataDir, { recursive: true });
+    }
+  }, 30000);
+
+  it('should roll back to the previous version when the swap rename fails', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'update-rollback-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'update-rollback-plugins');
+
+    await createMinimalPluginTarball(testDataDir);
+
+    const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+    const progress: any[] = [];
+    const progressCallback = (update: any) => {
+      progress.push(update);
+    };
+
+    // Install version 0.1.0
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, '0.1.0');
+    await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, progressCallback, null);
+
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    expect(fs.existsSync(pluginDir)).toBe(true);
+
+    // Update to version 0.2.0, but force the staging -> plugin rename to fail
+    progress.length = 0;
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, '0.2.0');
+
+    const realRenameSync = fs.renameSync.bind(fs);
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(((
+      src: fs.PathLike,
+      dst: fs.PathLike
+    ) => {
+      if (String(src).includes('.staging.') && String(dst) === pluginDir) {
+        throw new Error('simulated rename failure');
+      }
+      realRenameSync(src, dst);
+    }) as typeof fs.renameSync);
+
+    await PluginManager.update(
+      'headlamp_minikube',
+      pluginDestDir,
+      HEADLAMP_VERSION,
+      progressCallback,
+      null
+    );
+    renameSpy.mockRestore();
+
+    // The failure must be reported
+    const errorMessages = progress.filter(p => p.type === 'error');
+    expect(errorMessages.some(e => e.message.includes('simulated rename failure'))).toBe(true);
+
+    // The previous version must still be in place and usable
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    const packageJson = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'));
+    expect(packageJson.artifacthub.version).toBe('0.1.0');
+
+    // No transaction state may be left behind
+    expect(fs.existsSync(path.join(pluginDestDir, TXN_DIR))).toBe(false);
+
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+    if (fs.existsSync(testDataDir)) {
+      fs.rmSync(testDataDir, { recursive: true });
+    }
+  }, 30000);
+
+  it('should reject installing a plugin named .headlamp-txn', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'reserved-name-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'reserved-name-plugins');
+
+    await createMinimalPluginTarball(testDataDir);
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, '0.1.0', TXN_DIR);
+
+    const pluginURL = `https://artifacthub.io/packages/headlamp/test-repo/${TXN_DIR}`;
+    const progress: any[] = [];
+
+    await PluginManager.install(
+      pluginURL,
+      pluginDestDir,
+      HEADLAMP_VERSION,
+      update => {
+        progress.push(update);
+      },
+      null
+    );
+
+    const errorMessages = progress.filter(p => p.type === 'error');
+    expect(errorMessages.some(e => e.message.includes('Invalid plugin name'))).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, TXN_DIR))).toBe(false);
+
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+    if (fs.existsSync(testDataDir)) {
+      fs.rmSync(testDataDir, { recursive: true });
+    }
+  }, 30000);
+});
+
+describe('PluginManager.list interrupted update recovery', () => {
+  it('should not touch legitimate plugin directories named *.backup or *.staging', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-suffix-collision');
+    fs.mkdirSync(path.join(pluginDestDir, 'foo.backup'), { recursive: true });
+    fs.mkdirSync(path.join(pluginDestDir, 'foo.staging'), { recursive: true });
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(path.join(pluginDestDir, 'foo.backup'))).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, 'foo.staging'))).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, 'foo'))).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should not touch a legitimate plugin named like a transaction directory', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-txn-name-collision');
+    const pluginDir = path.join(pluginDestDir, `foo.staging.${TXN_ID}`);
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'main.js'), '// plugin');
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, 'foo'))).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should defensively leave a directory occupying the .headlamp-txn name alone', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-txn-dir-plugin');
+    const txnPluginDir = path.join(pluginDestDir, TXN_DIR);
+    fs.mkdirSync(txnPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(txnPluginDir, 'package.json'), '{}');
+    fs.writeFileSync(path.join(txnPluginDir, 'main.js'), '// plugin');
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(txnPluginDir)).toBe(true);
+    expect(fs.existsSync(path.join(txnPluginDir, 'main.js'))).toBe(true);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should restore a backup whose plugin directory is missing', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-backup-restore');
+    const backupDir = path.join(pluginDestDir, TXN_DIR, `bar.backup.${TXN_ID}`);
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), '// old plugin');
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(backupDir)).toBe(false);
+    expect(fs.existsSync(path.join(pluginDestDir, 'bar'))).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, TXN_DIR))).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should remove a stale backup whose plugin directory exists', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-backup-stale');
+    const backupDir = path.join(pluginDestDir, TXN_DIR, `qux.backup.${TXN_ID}`);
+    const pluginDir = path.join(pluginDestDir, 'qux');
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.mkdirSync(pluginDir, { recursive: true });
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(backupDir)).toBe(false);
+    expect(fs.existsSync(pluginDir)).toBe(true);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should remove a stale staging directory', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-staging-stale');
+    const stagingDir = path.join(pluginDestDir, TXN_DIR, `baz.staging.${TXN_ID}`);
+    fs.mkdirSync(stagingDir, { recursive: true });
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(stagingDir)).toBe(false);
+    expect(fs.existsSync(path.join(pluginDestDir, 'baz'))).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should remove a stale staging directory even when the plugin directory exists', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-staging-with-plugin');
+    const stagingDir = path.join(pluginDestDir, TXN_DIR, `quux.staging.${TXN_ID}`);
+    const pluginDir = path.join(pluginDestDir, 'quux');
+    fs.mkdirSync(stagingDir, { recursive: true });
+    fs.mkdirSync(pluginDir, { recursive: true });
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(stagingDir)).toBe(false);
+    expect(fs.existsSync(pluginDir)).toBe(true);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should not touch an active staging transaction owned by a live process', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-active-staging');
+    const txnRoot = path.join(pluginDestDir, TXN_DIR);
+    const stagingDir = path.join(txnRoot, `baz.staging.${TXN_ID}`);
+    const lockFile = path.join(txnRoot, `${TXN_ID}.lock`);
+    fs.mkdirSync(stagingDir, { recursive: true });
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid }));
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(stagingDir)).toBe(true);
+    expect(fs.existsSync(lockFile)).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, 'baz'))).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should not restore a backup owned by a live process', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-active-backup');
+    const txnRoot = path.join(pluginDestDir, TXN_DIR);
+    const backupDir = path.join(txnRoot, `bar.backup.${TXN_ID}`);
+    const lockFile = path.join(txnRoot, `${TXN_ID}.lock`);
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), '// old plugin');
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid }));
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(backupDir)).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, 'bar'))).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should recover a transaction whose lock owner is dead', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-dead-lock');
+    const txnRoot = path.join(pluginDestDir, TXN_DIR);
+    const stagingDir = path.join(txnRoot, `baz.staging.${TXN_ID}`);
+    const lockFile = path.join(txnRoot, `${TXN_ID}.lock`);
+    fs.mkdirSync(stagingDir, { recursive: true });
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: getDeadPid() }));
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(stagingDir)).toBe(false);
+    expect(fs.existsSync(lockFile)).toBe(false);
+    expect(fs.existsSync(txnRoot)).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
+
+  it('should remove an orphan lock file whose owner is dead', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'recovery-orphan-lock');
+    const txnRoot = path.join(pluginDestDir, TXN_DIR);
+    const lockFile = path.join(txnRoot, `${TXN_ID}.lock`);
+    fs.mkdirSync(txnRoot, { recursive: true });
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: getDeadPid() }));
+
+    PluginManager.list(pluginDestDir);
+
+    expect(fs.existsSync(lockFile)).toBe(false);
+    expect(fs.existsSync(txnRoot)).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true });
+  });
 });
 
 /**
@@ -458,7 +794,11 @@ function mockArtifactHubAPI(testDataDir: string) {
 /**
  * Mock the ArtifactHub API without platform-specific archives
  */
-function mockArtifactHubAPIWithoutPlatformSpecific(testDataDir: string) {
+function mockArtifactHubAPIWithoutPlatformSpecific(
+  testDataDir: string,
+  version = '0.1.0',
+  name = 'headlamp_minikube'
+) {
   try {
     // Calculate checksums for the tarball
     const pluginTarballPath = path.join(testDataDir, 'plugin-tarball.tar.gz');
@@ -478,11 +818,11 @@ function mockArtifactHubAPIWithoutPlatformSpecific(testDataDir: string) {
 
     // Mock the ArtifactHub API response without platform-specific data
     nock('https://artifacthub.io')
-      .get('/api/v1/packages/headlamp/test-repo/headlamp_minikube')
+      .get('/api/v1/packages/headlamp/test-repo/' + name)
       .reply(200, {
-        name: 'headlamp_minikube',
+        name: name,
         display_name: 'Minikube',
-        version: '0.1.0',
+        version: version,
         repository: {
           name: 'test-repo',
           user_alias: 'tester',

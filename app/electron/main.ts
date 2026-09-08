@@ -59,6 +59,7 @@ import {
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
+  recoverInterruptedUpdate,
   setAppConfigDirName,
 } from './plugin-management';
 import { readProtocolScheme } from './protocol';
@@ -1369,6 +1370,10 @@ ipcMain.on('route-changed', () => {
 function startElectron() {
   console.info('App starting...');
 
+  // Force a single instance. This must happen before any work that could
+  // race with another instance (e.g. recovering interrupted plugin update
+  // transactions) so a second instance can never interfere with a live
+  // update transaction in the first instance.
   const gotTheLock = app.requestSingleInstanceLock();
   if (!gotTheLock) {
     app.quit();
@@ -1827,6 +1832,9 @@ function startElectron() {
   }
 
   app.on('ready', async () => {
+    // Restore any plugins left broken by an update that was interrupted
+    // mid-swap, before the backend starts serving the plugins directory.
+    recoverInterruptedUpdate(defaultUserPluginsDir());
     await Promise.all([startServerIfNeeded(), createWindow()]);
     hasTray = createHeadlampTray(buildTrayOptions());
   });
