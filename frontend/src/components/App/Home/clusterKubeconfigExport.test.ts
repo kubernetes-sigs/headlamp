@@ -14,72 +14,33 @@
  * limitations under the License.
  */
 
-import * as yaml from 'js-yaml';
-import { describe, expect, it } from 'vitest';
-import { KubeconfigObject } from '../../../lib/k8s/kubeconfig';
-import { filterKubeconfigForCluster } from './clusterKubeconfigExport';
+import { describe, expect, it, vi } from 'vitest';
+import { clusterRequest } from '../../../lib/k8s/api/v1/clusterRequests';
+import { getClusterKubeconfigYaml } from './clusterKubeconfigExport';
 
-function makeKubeconfig(): KubeconfigObject {
-  return {
-    apiVersion: 'v1',
-    kind: 'Config',
-    clusters: [
-      { name: 'cluster-a', cluster: { server: 'https://a.example.com' } },
-      { name: 'cluster-b', cluster: { server: 'https://b.example.com' } },
-    ],
-    users: [
-      { name: 'user-a', user: { token: 'token-a' } },
-      { name: 'user-b', user: { token: 'token-b' } },
-    ],
-    contexts: [
-      { name: 'context-a', context: { cluster: 'cluster-a', user: 'user-a' } },
-      {
-        name: 'context-b',
-        context: {
-          cluster: 'cluster-b',
-          user: 'user-b',
-          extensions: [{ name: 'headlamp_info', extension: { customName: 'renamed-cluster' } }],
-        },
-      },
-    ],
-  } as KubeconfigObject;
-}
+vi.mock('../../../lib/k8s/api/v1/clusterRequests', () => ({
+  clusterRequest: vi.fn(),
+}));
 
-describe('filterKubeconfigForCluster', () => {
-  it('filters down to only the matching cluster, user, and context', () => {
-    const result = filterKubeconfigForCluster(makeKubeconfig(), 'context-a');
-    const parsed = yaml.load(result!) as KubeconfigObject;
+describe('getClusterKubeconfigYaml', () => {
+  it('returns the kubeconfig YAML text from the backend for the given cluster', async () => {
+    const yamlText = 'apiVersion: v1\nkind: Config\n';
+    vi.mocked(clusterRequest).mockResolvedValueOnce(new Response(yamlText));
 
-    expect(parsed.clusters).toEqual([
-      { name: 'cluster-a', cluster: { server: 'https://a.example.com' } },
-    ]);
-    expect(parsed.users).toEqual([{ name: 'user-a', user: { token: 'token-a' } }]);
-    expect(parsed.contexts).toHaveLength(1);
-    expect(parsed.contexts[0].name).toBe('context-a');
-    expect((parsed as any)['current-context']).toBe('context-a');
+    const result = await getClusterKubeconfigYaml('my-cluster');
+
+    expect(clusterRequest).toHaveBeenCalledWith('/kubeconfig', {
+      cluster: 'my-cluster',
+      isJSON: false,
+    });
+    expect(result).toBe(yamlText);
   });
 
-  it('matches a stateless cluster renamed via headlamp_info.customName', () => {
-    const result = filterKubeconfigForCluster(makeKubeconfig(), 'renamed-cluster');
-    const parsed = yaml.load(result!) as KubeconfigObject;
+  it('returns null when the backend has no kubeconfig for the cluster', async () => {
+    vi.mocked(clusterRequest).mockRejectedValueOnce(new Error('Not Found'));
 
-    expect(parsed.contexts).toHaveLength(1);
-    expect(parsed.contexts[0].name).toBe('context-b');
-    expect(parsed.clusters).toEqual([
-      { name: 'cluster-b', cluster: { server: 'https://b.example.com' } },
-    ]);
-  });
+    const result = await getClusterKubeconfigYaml('missing-cluster');
 
-  it('preserves the actual context name as current-context, not the custom name', () => {
-    const result = filterKubeconfigForCluster(makeKubeconfig(), 'renamed-cluster');
-    const parsed = yaml.load(result!) as any;
-
-    expect(parsed['current-context']).toBe('context-b');
-    expect(parsed['current-context']).not.toBe('renamed-cluster');
-  });
-
-  it('returns null when no context matches the cluster name', () => {
-    const result = filterKubeconfigForCluster(makeKubeconfig(), 'does-not-exist');
     expect(result).toBeNull();
   });
 });

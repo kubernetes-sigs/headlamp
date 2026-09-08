@@ -14,48 +14,37 @@
  * limitations under the License.
  */
 
-import * as yaml from 'js-yaml';
-import { KubeconfigObject } from '../../../lib/k8s/kubeconfig';
-import { findMatchingContexts } from '../../../stateless';
+import { clusterRequest } from '../../../lib/k8s/api/v1/clusterRequests';
 
 /**
- * Filters a full kubeconfig blob down to just the cluster, user, and context entries
- * for a single cluster, so the exported file doesn't leak credentials for unrelated
- * clusters that happen to share the same kubeconfig source.
+ * Fetches a standalone, single-context kubeconfig YAML for the given cluster from the
+ * backend. This works for any cluster type (kubeconfig file, dynamically-added, or
+ * stateless/browser-imported) since the backend builds it from whatever it already
+ * holds in memory for that cluster, rather than requiring the original file.
  *
- * The cluster may have been renamed in Headlamp (a `headlamp_info.customName`
- * extension on the context), in which case `clusterName` won't match the context's
- * own `name`. `findMatchingContexts` accounts for that, and the actual context name
- * (not the possibly-renamed `clusterName`) is preserved as `current-context` so the
- * exported kubeconfig remains valid for tools like kubectl.
- *
- * @returns The filtered kubeconfig as YAML, or null if no matching context is found.
+ * @returns The kubeconfig as YAML, or null if the backend has no config for this cluster.
  */
-export function filterKubeconfigForCluster(
-  full: KubeconfigObject,
-  clusterName: string,
-  clusterID?: string
-): string | null {
-  const { matchingContext, matchingKubeconfig } = findMatchingContexts(
-    clusterName,
-    full,
-    clusterID
-  );
-  const context = matchingContext ?? matchingKubeconfig;
-  if (!context) {
+export async function getClusterKubeconfigYaml(clusterName: string): Promise<string | null> {
+  try {
+    const response: Response = await clusterRequest('/kubeconfig', {
+      cluster: clusterName,
+      isJSON: false,
+    });
+    return await response.text();
+  } catch (err) {
     return null;
   }
+}
 
-  const matchedCluster = full.clusters?.find(c => c.name === context.context.cluster);
-  const matchedUser = full.users?.find(u => u.name === context.context.user);
-
-  const filtered: KubeconfigObject = {
-    apiVersion: full.apiVersion ?? 'v1',
-    kind: full.kind ?? 'Config',
-    'current-context': context.name,
-    clusters: matchedCluster ? [matchedCluster] : [],
-    users: matchedUser ? [matchedUser] : [],
-    contexts: [context],
-  };
-  return yaml.dump(filtered);
+/** Triggers a browser download of the given kubeconfig YAML as `<clusterName>-kubeconfig.yaml`. */
+export function downloadKubeconfigYaml(clusterName: string, kubeconfigYaml: string) {
+  const blob = new Blob([kubeconfigYaml], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${clusterName}-kubeconfig.yaml`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

@@ -832,6 +832,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}),
 	)).Methods("GET")
 
+	// Export a standalone kubeconfig for a single cluster, regardless of how it was added.
+	r.Handle("/clusters/{clusterName}/kubeconfig", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.getClusterKubeconfig),
+	)).Methods("GET")
+
 	config.handleClusterRequests(r)
 
 	externalProxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2184,6 +2189,40 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 	}
 
 	return clusters
+}
+
+// getClusterKubeconfig returns a standalone, single-context kubeconfig YAML for the
+// named cluster, built from whatever this Headlamp instance already holds for it in
+// memory (works the same regardless of whether the cluster came from a kubeconfig
+// file, a dynamically-added/stateless cluster, or in-cluster config).
+func (c *HeadlampConfig) getClusterKubeconfig(w http.ResponseWriter, r *http.Request) {
+	clusterName := mux.Vars(r)["clusterName"]
+
+	kubeContext, err := c.KubeConfigStore.GetContext(clusterName)
+	if err != nil || kubeContext == nil || kubeContext.Internal ||
+		kubeContext.KubeContext == nil || kubeContext.Cluster == nil || kubeContext.AuthInfo == nil {
+		http.Error(w, "cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	cfg := api.NewConfig()
+	cfg.Clusters[kubeContext.KubeContext.Cluster] = kubeContext.Cluster
+	cfg.AuthInfos[kubeContext.KubeContext.AuthInfo] = kubeContext.AuthInfo
+	cfg.Contexts[kubeContext.Name] = kubeContext.KubeContext
+	cfg.CurrentContext = kubeContext.Name
+
+	kubeconfigBytes, err := clientcmd.Write(*cfg)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err,
+			"serializing kubeconfig")
+		http.Error(w, "failed to build kubeconfig", http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/yaml")
+	w.Write(kubeconfigBytes) //nolint:errcheck
 }
 
 // parseCustomNameClusters parses the custom name clusters from the kubeconfig.
