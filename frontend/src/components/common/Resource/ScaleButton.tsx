@@ -38,6 +38,7 @@ import {
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
+import { addOptimisticUpdate, removeOptimisticUpdate } from '../../../redux/optimisticUpdatesSlice';
 import { AppDispatch } from '../../../redux/stores/store';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import { LightTooltip } from '../Tooltip';
@@ -62,10 +63,20 @@ export default function ScaleButton(props: ScaleButtonProps) {
   function handleSave(numReplicas: number) {
     const cancelUrl = location.pathname;
     const itemName = item.metadata.name;
+    const uid = item.metadata.uid;
 
     setOpenDialog(false);
 
-    // setOpenDialog(false);
+    if (uid) {
+      dispatch(
+        addOptimisticUpdate({
+          uid,
+          action: 'scale',
+          patch: { spec: { replicas: numReplicas } },
+        })
+      );
+    }
+
     dispatch(
       clusterAction(() => applyFunc(numReplicas), {
         startMessage: t('Scaling {{ itemName }}…', { itemName }),
@@ -74,9 +85,18 @@ export default function ScaleButton(props: ScaleButtonProps) {
         errorMessage: t('Failed to scale {{ itemName }}.', { itemName }),
         cancelUrl,
         errorUrl: cancelUrl,
+        cancelCallback: () => {
+          if (uid) dispatch(removeOptimisticUpdate(uid));
+          if (options.cancelCallback) options.cancelCallback();
+        },
         ...options,
       })
-    );
+    ).finally(() => {
+      if (uid) {
+        // Remove the optimistic update after a delay to allow the WebSocket to catch up
+        setTimeout(() => dispatch(removeOptimisticUpdate(uid)), 2000);
+      }
+    });
   }
 
   function handleClose() {

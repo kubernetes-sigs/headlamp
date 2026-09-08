@@ -50,6 +50,10 @@ vi.mock('./fetch', () => ({
   clusterFetch: vi.fn(),
 }));
 
+vi.mock('../../../../redux/hooks', () => ({
+  useAppSelector: vi.fn(() => ({})),
+}));
+
 describe('makeListRequests', () => {
   describe('for non namespaced resource', () => {
     it('should not include namespace in requests', () => {

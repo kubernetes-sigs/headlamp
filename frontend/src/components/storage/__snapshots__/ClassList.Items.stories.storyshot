@@ -681,12 +681,16 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                 >
-                  <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                    href="/"
+                  <div
+                    class="MuiBox-root css-1rp7amx"
                   >
-                    storage-class-expandable
-                  </a>
+                    <a
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                      href="/"
+                    >
+                      storage-class-expandable
+                    </a>
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ilsbxl-MuiTableCell-root"
@@ -775,12 +779,16 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                 >
-                  <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                    href="/"
+                  <div
+                    class="MuiBox-root css-1rp7amx"
                   >
-                    storage-class-non-expandable
-                  </a>
+                    <a
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                      href="/"
+                    >
+                      storage-class-non-expandable
+                    </a>
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ilsbxl-MuiTableCell-root"
@@ -869,12 +877,16 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                 >
-                  <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                    href="/"
+                  <div
+                    class="MuiBox-root css-1rp7amx"
                   >
-                    storage-class
-                  </a>
+                    <a
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                      href="/"
+                    >
+                      storage-class
+                    </a>
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ilsbxl-MuiTableCell-root"

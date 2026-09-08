@@ -82,7 +82,6 @@ const dependenciesToNotCopy = [
 // Dependencies that can have different versions
 const differentlyVersionedDependencies = ['eslint-plugin-react-hooks'];
 
-const yargs = require('yargs/yargs');
 const fs = require('fs-extra');
 const headlampPluginPkg = require('./package.json');
 const frontendPkg = require('../../frontend/package.json');
@@ -272,18 +271,12 @@ function check() {
   return updateDependencies('package.json', true);
 }
 
-yargs(process.argv.slice(2))
-  .command('check', 'Check if dependency updates are needed from frontend/package.json', {}, () => {
-    process.exitCode = check();
-  })
-  .command(
-    'update',
-    'Update dependencies from frontend/package.json in headlamp-plugin/package.json',
-    {},
-    () => {
-      process.exitCode = update();
-    }
-  )
-  .demandCommand(1, '')
-  .strict()
-  .help().argv;
+const args = process.argv.slice(2);
+if (args[0] === 'check') {
+  process.exitCode = check();
+} else if (args[0] === 'update') {
+  process.exitCode = update();
+} else {
+  console.log('Usage: node dependencies-sync.js [check|update]');
+  process.exitCode = 1;
+}

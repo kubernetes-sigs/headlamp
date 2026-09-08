@@ -166,6 +166,7 @@ describe('GraphSourceManager', () => {
         source: 'first-node',
         target: 'second-node',
         label: undefined,
+        data: { isCrossCluster: false },
       },
     ]);
     expect(relationPredicate).toHaveBeenCalledTimes(1);
@@ -314,6 +315,7 @@ describe('GraphSourceManager', () => {
         source: 'first-node',
         target: 'second-node',
         label: undefined,
+        data: { isCrossCluster: false },
       },
     ]);
   });
@@ -353,6 +355,7 @@ describe('GraphSourceManager', () => {
         target: 'second-node',
         label: undefined,
         nonGroupingSide: 'source',
+        data: { isCrossCluster: false },
       },
     ]);
   });
@@ -393,6 +396,7 @@ describe('GraphSourceManager', () => {
         source: 'first-node',
         target: 'second-node',
         label: undefined,
+        data: { isCrossCluster: false },
       },
     ]);
   });

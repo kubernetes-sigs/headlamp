@@ -157,11 +157,11 @@
                         class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
                       />
                     </span>
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-7zkzxr-MuiTypography-root"
                     >
                       Use minimal editor
-                    </span>
+                    </p>
                   </label>
                   <button
                     class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"

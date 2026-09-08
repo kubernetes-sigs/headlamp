@@ -16,6 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
@@ -490,8 +491,23 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               header: t('translation|Name'),
               gridTemplate: 'auto',
               accessorFn: (item: RowItem) => item.metadata.name,
-              Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
-                row.original && <Link kubeObject={row.original} />,
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) => {
+                const isDeleteOptimistic =
+                  (row.original as any)?._optimisticState?.action === 'delete';
+                return (
+                  row.original && (
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      sx={{ opacity: isDeleteOptimistic ? 0.5 : 1 }}
+                    >
+                      {isDeleteOptimistic && <CircularProgress size={14} />}
+                      <Link kubeObject={row.original} />
+                    </Box>
+                  )
+                );
+              },
             };
           case 'age':
             return {

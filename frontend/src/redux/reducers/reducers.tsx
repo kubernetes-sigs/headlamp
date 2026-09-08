@@ -27,6 +27,7 @@ import configReducer from '../configSlice';
 import drawerModeSlice from '../drawerModeSlice';
 import filterReducer from '../filterSlice';
 import eventCallbackReducer from '../headlampEventSlice';
+import optimisticUpdatesReducer from '../optimisticUpdatesSlice';
 import overviewChartsReducer from '../overviewChartsSlice';
 import projectsReducer from '../projectsSlice';
 import routesReducer from '../routesSlice';
@@ -60,6 +61,7 @@ const reducers = combineReducers({
   activity: activityReducer,
   projects: projectsReducer,
   shortcuts: shortcutsReducer,
+  optimisticUpdates: optimisticUpdatesReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;

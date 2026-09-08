@@ -37,7 +37,13 @@ import { useEffect, useState } from 'react';
  * @param {string} [props.ariaLabel=''] - Optional accessibility label for the input.
  * @returns {JSX.Element} The AutoSaveInput component.
  */
-function AutoSaveInput({ onSave, defaultValue = '', delay = 1000, helperText = '', ariaLabel = '' }) {
+function AutoSaveInput({
+  onSave,
+  defaultValue = '',
+  delay = 1000,
+  helperText = '',
+  ariaLabel = '',
+}) {
   const [value, setValue] = useState(defaultValue);
   const [timer, setTimer] = useState(null);
 
