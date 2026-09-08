@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { groupBy } from 'lodash';
+import { groupBy as lodashGroupBy } from 'lodash';
 import Namespace from '../../../lib/k8s/namespace';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
@@ -22,7 +22,7 @@ import { addPerformanceMetric } from '../PerformanceStats';
 import { makeGraphLookup } from './graphLookup';
 import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
 
-export type GroupBy = 'node' | 'namespace' | 'instance';
+export type GroupBy = 'node' | 'namespace' | 'instance' | 'cluster';
 
 /** Label used for pods that have not been assigned to a Kubernetes Node. */
 export const UNSCHEDULED_GROUP = 'Unscheduled';
@@ -447,7 +447,7 @@ const groupByProperty = (
   }
 ) => {
   const groups = Object.entries(
-    groupBy(nodes, node => {
+    lodashGroupBy(nodes, node => {
       return accessor(node);
     })
   ).map(
@@ -574,6 +574,50 @@ export function groupGraph(
         return node.kubeObject?.metadata?.labels?.['app.kubernetes.io/instance'];
       },
       { label: 'Instance' }
+    );
+  }
+
+  if (groupBy === 'cluster') {
+    // Partition mixed components by cluster before grouping
+    const partitionedComponents: GraphNode[] = [];
+
+    components.forEach(comp => {
+      if (comp.nodes) {
+        const byCluster = lodashGroupBy(comp.nodes, n => n.kubeObject?.cluster || '');
+        const clusters = Object.keys(byCluster);
+        if (clusters.length > 1) {
+          clusters.forEach(cluster => {
+            const clusterNodes = byCluster[cluster];
+            const nodeIds = new Set(clusterNodes.map(n => n.id));
+            const internalEdges =
+              comp.edges?.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target)) ?? [];
+            const outgoingExternalEdges =
+              comp.edges?.filter(e => nodeIds.has(e.source) && !nodeIds.has(e.target)) ?? [];
+
+            partitionedComponents.push({
+              id: `${comp.id}-${cluster}`,
+              nodes: clusterNodes,
+              edges: [...internalEdges, ...outgoingExternalEdges],
+            });
+          });
+        } else {
+          partitionedComponents.push(comp);
+        }
+      } else {
+        partitionedComponents.push(comp);
+      }
+    });
+
+    // Create groups based on the cluster
+    components = groupByProperty(
+      partitionedComponents,
+      node => {
+        if (node.nodes) {
+          return node.nodes.find(n => n.kubeObject)?.kubeObject?.cluster;
+        }
+        return node.kubeObject?.cluster;
+      },
+      { label: 'Cluster', allowSingleMemberGroup: true }
     );
   }
 

@@ -25,7 +25,7 @@
       "src/lib/k8s/",
       "src/redux/reducers/reducers.tsx",
       "src/lib/k8s/cluster.ts",
-      "src/lib/router.tsx",
+      "src/lib/router/index.tsx",
       "src/lib/util.ts",
       "src/lib/AppTheme.ts",
       "src/plugin/lib.ts",
