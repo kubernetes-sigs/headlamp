@@ -302,6 +302,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
 
     return function cleanup() {
       xtermRef.current?.xterm.dispose();
+      fitAddonRef.current?.dispose();
       streamRef.current?.cancel();
       window.removeEventListener('resize', resizeHandler);
     };
