@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
@@ -225,5 +225,53 @@ describe('ResourceTable Column Visibility', () => {
     );
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
+  });
+});
+
+describe("ResourceTable shared 'age' column", () => {
+  beforeEach(() => {
+    lastTablePropsHolder.current = null;
+  });
+
+  function renderTableWithAgeColumn(data: any[]) {
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <ResourceTable id="age-table" columns={['age']} data={data} />
+        </ThemeProvider>
+      </TestContext>
+    );
+    return lastTablePropsHolder.current.columns.find((c: any) => c.id === 'age');
+  }
+
+  // Regression test: a row lacking metadata.creationTimestamp (e.g. a
+  // namespace placeholder shown when its per-name GET was denied) used to
+  // make accessorFn compute -new Date(undefined).getTime(), which is NaN and
+  // breaks sorting, and hand the missing value straight to DateLabel.
+  it('sorts a row with no creationTimestamp as null instead of NaN', () => {
+    const ageColumn = renderTableWithAgeColumn([{ metadata: { name: 'placeholder' } }]);
+
+    expect(ageColumn.accessorFn({ metadata: { name: 'placeholder' } })).toBeNull();
+  });
+
+  it("renders 'Unknown' for a row with no creationTimestamp, without throwing", () => {
+    const ageColumn = renderTableWithAgeColumn([{ metadata: { name: 'placeholder' } }]);
+    const row = { original: { metadata: { name: 'placeholder' } } };
+
+    expect(() => render(<ageColumn.Cell row={row} />)).not.toThrow();
+    expect(screen.getByText('translation|Unknown')).toBeInTheDocument();
+  });
+
+  it('still renders a real date for a row with a creationTimestamp', () => {
+    const item = {
+      metadata: { name: 'mypod1', creationTimestamp: '2021-12-15T14:57:13Z' },
+    };
+    const ageColumn = renderTableWithAgeColumn([item]);
+    const row = { original: item };
+
+    expect(ageColumn.accessorFn(item)).toBe(-new Date(item.metadata.creationTimestamp).getTime());
+
+    render(<ageColumn.Cell row={row} />);
+    expect(screen.queryByText('translation|Unknown')).not.toBeInTheDocument();
   });
 });
