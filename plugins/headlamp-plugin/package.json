@@ -57,7 +57,7 @@
     "@types/semver": "^7.3.8",
     "@typescript-eslint/eslint-plugin": "^8.3.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-istanbul": "3.2.7",
+    "@vitest/coverage-istanbul": "5.0.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
     "@xterm/xterm": "^5.5.0",
@@ -120,7 +120,7 @@
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-plugin-static-copy": "^3.1.2",
     "vite-plugin-svgr": "^4.3.0",
-    "vitest": "3.2.7",
+    "vitest": "5.0.0",
     "yaml": "^2.7.0",
     "yargs": "^17.7.2"
   },
