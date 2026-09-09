@@ -16,15 +16,15 @@
         >
           Uh-oh! Something went wrong.
         </h1>
-        <h2
+        <div
           class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
         >
-          <h3
-            class="MuiTypography-root MuiTypography-h3 css-3hjpok-MuiTypography-root"
+          <h2
+            class="MuiTypography-root MuiTypography-h2 css-1lpv617-MuiTypography-root"
           >
             Not sure what to do!
-          </h3>
-        </h2>
+          </h2>
+        </div>
       </div>
     </div>
   </div>

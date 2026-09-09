@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Typography from '@mui/material/Typography';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ErrorComponent from './ErrorPage';
@@ -85,6 +86,34 @@ describe('ErrorComponent', () => {
     render(<ErrorComponent message="Try again later" />);
 
     expect(screen.getByRole('heading', { name: 'Try again later' })).toBeVisible();
+  });
+
+  it('renders custom message content without invalid heading nesting warnings', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    render(<ErrorComponent message={<Typography variant="h3">Not sure what to do!</Typography>} />);
+
+    const customHeading = screen.getByRole('heading', { level: 3, name: 'Not sure what to do!' });
+
+    expect(customHeading.closest('h2')).toBeNull();
+    expect(
+      consoleErrorSpy.mock.calls.some(call =>
+        call.some(arg => String(arg).includes('validateDOMNesting'))
+      )
+    ).toBe(false);
+  });
+
+  it('renders numeric zero as a custom message', () => {
+    render(<ErrorComponent message={0} />);
+
+    expect(screen.getByRole('heading', { level: 2, name: '0' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'home' })).not.toBeInTheDocument();
+  });
+
+  it('renders the fallback message for boolean false', () => {
+    render(<ErrorComponent message={false} />);
+
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/^Head back\s+home\.$/);
   });
 
   it('copies error details', async () => {
