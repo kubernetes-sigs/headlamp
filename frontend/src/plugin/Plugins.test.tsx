@@ -16,16 +16,20 @@
 
 import { render, waitFor } from '@testing-library/react';
 import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../test';
-import Plugins from './Plugins';
 
-const { mockFetchAndExecutePlugins, mockEnqueueSnackbar } = vi.hoisted(() => ({
-  mockFetchAndExecutePlugins: vi.fn(),
-  mockEnqueueSnackbar: vi.fn(),
-}));
+const { mockFetchAndExecutePlugins, mockInitializePlugins, mockEnqueueSnackbar } = vi.hoisted(
+  () => ({
+    mockFetchAndExecutePlugins: vi.fn(),
+    mockInitializePlugins: vi.fn(),
+    mockEnqueueSnackbar: vi.fn(),
+  })
+);
 
 vi.mock('./index', () => ({
   fetchAndExecutePlugins: mockFetchAndExecutePlugins,
+  initializePlugins: mockInitializePlugins,
 }));
 
 vi.mock('notistack', () => ({
@@ -36,14 +40,25 @@ vi.mock('notistack', () => ({
   SnackbarProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+let mockClusterValue: string | null = null;
+vi.mock('../lib/k8s', () => ({
+  useCluster: () => mockClusterValue,
+}));
+
+import Plugins from './Plugins';
+
 // Silence expected console.error calls in tests
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.clearAllMocks();
+  mockClusterValue = null;
+  mockFetchAndExecutePlugins.mockResolvedValue(undefined);
+  mockInitializePlugins.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  mockClusterValue = null;
 });
 
 describe('Plugins', () => {
@@ -82,5 +97,87 @@ describe('Plugins', () => {
       expect.anything(),
       expect.objectContaining({ variant: 'error' })
     );
+  });
+
+  it('calls initializePlugins when cluster becomes available after no-cluster initial load', async () => {
+    // Initial render: no cluster in URL
+    mockClusterValue = null;
+
+    const { rerender } = render(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    expect(mockInitializePlugins).not.toHaveBeenCalled();
+
+    // Cluster becomes available (user logs in, URL changes to /c/main/...)
+    mockClusterValue = 'main';
+    rerender(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    // pluginsReady is set asynchronously once fetchAndExecutePlugins resolves,
+    // so we wait for initializePlugins to be called.
+    await waitFor(() => expect(mockInitializePlugins).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not call initializePlugins when cluster is already available at mount', async () => {
+    // When the cluster is in the URL from the start, loadedWithoutCluster stays false
+    // so the re-initialization effect must not fire.
+    mockClusterValue = 'my-cluster';
+
+    const { rerender } = render(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    // Wait for pluginsReady to settle (fetchAndExecutePlugins mock resolves)
+    await waitFor(() => expect(mockFetchAndExecutePlugins).toHaveBeenCalledTimes(1));
+
+    expect(mockInitializePlugins).not.toHaveBeenCalled();
+
+    // Cluster changes (e.g. user switches cluster) — should still NOT call
+    mockClusterValue = 'other-cluster';
+    rerender(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    expect(mockInitializePlugins).not.toHaveBeenCalled();
+  });
+
+  it('only initializes once even if cluster value changes multiple times', async () => {
+    mockClusterValue = null;
+
+    const { rerender } = render(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    mockClusterValue = 'main';
+    rerender(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    // Wait for the one expected call (triggered after pluginsReady becomes true)
+    await waitFor(() => expect(mockInitializePlugins).toHaveBeenCalledTimes(1));
+
+    // Subsequent re-renders with a different cluster must not call initializePlugins again
+    mockClusterValue = 'other-cluster';
+    rerender(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    expect(mockInitializePlugins).toHaveBeenCalledTimes(1);
   });
 });
