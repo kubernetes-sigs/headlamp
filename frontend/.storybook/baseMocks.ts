@@ -16,6 +16,7 @@
 
 import { http, HttpResponse } from 'msw';
 import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
+import { API_BASE } from '../src/test';
 
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
 
@@ -25,6 +26,7 @@ import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
  *
  */
 export const baseMocks = [
+  http.get(`${API_BASE}/plugin-manager`, () => new HttpResponse(null, { status: 404 })),
   http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.error()),
   http.get('https://api.iconify.design/mdi.json', () => HttpResponse.json({})),
   http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>

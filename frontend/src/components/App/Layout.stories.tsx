@@ -22,6 +22,11 @@ import store from '../../redux/stores/store';
 import { API_BASE, TestContext } from '../../test';
 import Layout from './Layout';
 
+const pluginManagerMock = http.get(
+  `${API_BASE}/plugin-manager`,
+  () => new HttpResponse(null, { status: 404 })
+);
+
 export default {
   title: 'App/Layout',
   component: Layout,
@@ -35,6 +40,7 @@ export default {
     },
     msw: {
       handlers: [
+        pluginManagerMock,
         // Mock cluster config
         http.get(`${API_BASE}/config`, () =>
           HttpResponse.json({
@@ -154,6 +160,7 @@ LoadingState.parameters = {
   },
   msw: {
     handlers: [
+      pluginManagerMock,
       // Delay config response to show loading for 5 seconds
       http.get(`${API_BASE}/config`, async () => {
         await delay(5000);
@@ -194,6 +201,7 @@ ErrorState.parameters = {
   },
   msw: {
     handlers: [
+      pluginManagerMock,
       http.get(`${API_BASE}/config`, () => HttpResponse.error()),
       http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),
       http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
@@ -234,6 +242,7 @@ MultiCluster.parameters = {
   },
   msw: {
     handlers: [
+      pluginManagerMock,
       http.get(`${API_BASE}/config`, () =>
         HttpResponse.json({
           clusters: {
