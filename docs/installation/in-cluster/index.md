@@ -40,6 +40,9 @@ Create `cluster-inventory-values.yaml`:
 
 ```yaml
 config:
+  extraArgs:
+    - "-cluster-inventory-auth-type=access-provider"
+    - "-cluster-inventory-access-providers=secretreader,kubeconfig-secretreader"
   clusterInventory:
     enabled: true
     accessProvidersConfig:
@@ -95,6 +98,26 @@ Each selected namespace requires permission to get, list, and watch
 ClusterProfiles. Set `namespaces` to `["*"]` to watch all namespaces. `*`
 cannot be combined with named namespaces, and all-namespace discovery requires
 equivalent cluster-wide access.
+
+Cluster Inventory authentication defaults to OIDC. In OIDC mode, the token used
+to sign in to the origin Headlamp cluster is forwarded to discovered targets;
+the targets must accept the same issuer and audience. No per-spoke login window
+is opened. The current chart's Cluster Inventory helper still renders the
+provider ConfigMap, so an OIDC values file can use an empty provider list while
+passing the trusted status provider names explicitly:
+
+```yaml
+config:
+  extraArgs:
+    - "-cluster-inventory-access-providers=shared-oidc"
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers: []
+```
+
+Headlamp watches the selected ClusterProfiles with its pod service account, so
+open UIs receive registration additions and removals without a page reload.
 
 ## Using simple yaml
 

@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -45,6 +46,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterregistration"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
@@ -437,6 +439,62 @@ func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	err := json.Unmarshal(recorder.Body.Bytes(), &config)
 	require.NoError(t, err)
 	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
+}
+
+func registerSpoke(
+	t *testing.T, registry *clusterregistration.Registry, name string, kubeContext *kubeconfig.Context,
+) string {
+	t.Helper()
+
+	id, err := registry.Upsert(clusterregistration.Candidate{
+		DisplayName: name,
+		Source:      "cluster-inventory",
+		Origin: clusterregistration.Origin{
+			Cluster: "hub",
+			Resource: clusterregistration.Resource{
+				APIVersion: "multicluster.x-k8s.io/v1alpha1",
+				Kind:       "ClusterProfile",
+				Namespace:  "headlamp",
+				Name:       name,
+				UID:        "uid-" + name,
+			},
+		},
+		Context: kubeContext,
+	})
+	require.NoError(t, err)
+
+	return id
+}
+
+func TestGetConfigAnnouncesRegistrationsWithoutPublishingThem(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	registry := clusterregistration.New(store)
+
+	registerSpoke(t, registry, "spoke", &kubeconfig.Context{
+		Name:        "temporary",
+		KubeContext: &api.Context{Cluster: "temporary", AuthInfo: "temporary"},
+		Cluster:     &api.Cluster{Server: "https://private-spoke.example"},
+		AuthInfo:    &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:     "headlamp",
+			ClientSecret: "private-client-secret",
+		},
+	})
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:              &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+		ClusterRegistrationStore: registry,
+	}}
+	recorder := httptest.NewRecorder()
+	c.getConfig(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil))
+
+	assert.NotContains(t, recorder.Body.String(), "private-spoke.example")
+	assert.NotContains(t, recorder.Body.String(), "private-client-secret")
+
+	var result clientConfig
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &result))
+	assert.Empty(t, result.Clusters)
+	assert.True(t, result.ClusterRegistrationsEnabled)
 }
 
 //nolint:gocognit,funlen
@@ -2704,8 +2762,7 @@ func TestStartHeadlampServer(t *testing.T) {
 	config := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				// port comes from net.TCPAddr.Port and is always in [0, 65535], so uint conversion is safe.
-				Port:            uint(port),
+				Port:            uint(port), //nolint:gosec // net.TCPAddr.Port is always in [0, 65535]
 				PluginDir:       tempDir,
 				KubeConfigStore: kubeconfig.NewContextStore(),
 			},
@@ -4257,6 +4314,97 @@ func TestClusterRequestHandlerFallsBackToClusterContextForWebSocketCookie(t *tes
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "Bearer cookie-token", receivedAuth)
 	assert.Equal(t, "v4.channel.k8s.io", receivedProtocol)
+}
+
+func TestFederatedClusterRequest(t *testing.T) { //nolint:funlen
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	spokeCluster := &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true}
+	store := kubeconfig.NewContextStore()
+	registry := clusterregistration.New(store)
+
+	oidcTarget := registerSpoke(t, registry, "spoke", &kubeconfig.Context{
+		Name:        "temporary",
+		KubeContext: &api.Context{Cluster: "temporary", AuthInfo: "temporary"},
+		Cluster:     spokeCluster,
+		AuthInfo:    &api.AuthInfo{},
+		OidcConf:    &kubeconfig.OidcConfig{ClientID: "headlamp"},
+	})
+	plainTarget := registerSpoke(t, registry, "access-provider-spoke", &kubeconfig.Context{
+		KubeContext: &api.Context{},
+		Cluster:     spokeCluster,
+		AuthInfo:    &api.AuthInfo{},
+	})
+
+	router := mux.NewRouter()
+	handleClusterAPI(&HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:              &headlampconfig.HeadlampCFG{UseInCluster: true, KubeConfigStore: store},
+		ClusterRegistrationStore: registry,
+		Cache:                    cache.New[interface{}](),
+		TelemetryConfig:          GetDefaultTestTelemetryConfig(),
+		TelemetryHandler:         &telemetry.RequestHandler{},
+	}}, router)
+
+	tests := []struct {
+		name              string
+		origin            string
+		target            string
+		headers           http.Header
+		wantCode          int
+		wantAuthorization string
+	}{
+		{
+			name: "uses the origin cookie", origin: "hub", target: oidcTarget,
+			wantCode: http.StatusOK, wantAuthorization: "Bearer hub-user-token",
+		},
+		{
+			name: "keeps an explicit authorization header", origin: "hub", target: oidcTarget,
+			headers:  http.Header{"Authorization": []string{"Bearer explicit-token"}},
+			wantCode: http.StatusOK, wantAuthorization: "Bearer explicit-token",
+		},
+		{
+			name: "withholds the origin cookie from a non-OIDC target", origin: "hub", target: plainTarget,
+			wantCode: http.StatusOK, wantAuthorization: "",
+		},
+		{
+			name: "rejects a mismatched origin", origin: "other", target: oidcTarget,
+			wantCode: http.StatusNotFound,
+		},
+		{
+			name: "rejects an unknown target", origin: "hub", target: "hr-v1-unknown",
+			wantCode: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				"/clusters/"+tt.origin+"/federated/"+tt.target+"/api/v1/pods", nil)
+			maps.Copy(req.Header, tt.headers)
+			req.AddCookie(&http.Cookie{
+				Name:     "headlamp-auth-hub.0",
+				Value:    "hub-user-token",
+				Secure:   true,
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			receivedAuth = ""
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+
+			assert.Equal(t, tt.wantCode, recorder.Code)
+			assert.Equal(t, tt.wantAuthorization, receivedAuth)
+		})
+	}
 }
 
 func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {

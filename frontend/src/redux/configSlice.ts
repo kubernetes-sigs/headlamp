@@ -16,6 +16,7 @@
 
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
+import type { RegisteredCluster } from '../lib/clusterRegistration';
 import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
@@ -42,6 +43,18 @@ export interface ConfigState {
   allClusters: {
     [clusterName: string]: Cluster;
   } | null;
+  /**
+   * Cluster Registrations is a map of opaque registration IDs to the clusters
+   * discovered by backend adapters, such as Cluster Inventory or Cluster API.
+   * Null indicates that the registrations have not been loaded yet.
+   */
+  clusterRegistrations: {
+    [registrationID: string]: RegisteredCluster;
+  } | null;
+  /**
+   * Whether the backend discovers and serves cluster registrations.
+   */
+  clusterRegistrationsEnabled: boolean;
   /**
    * Whether dynamic clusters are enabled.
    * When true, users can add and delete clusters dynamically.
@@ -168,6 +181,8 @@ export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
   allClusters: null,
+  clusterRegistrations: null,
+  clusterRegistrationsEnabled: false,
   isDynamicClusterEnabled: false,
   allowKubeconfigChanges: false,
   defaultPodDebugImage: '',
@@ -196,6 +211,7 @@ const configSlice = createSlice({
       state,
       action: PayloadAction<{
         clusters: ConfigState['clusters'];
+        clusterRegistrationsEnabled?: boolean;
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
@@ -207,6 +223,9 @@ const configSlice = createSlice({
       }>
     ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.clusterRegistrationsEnabled !== undefined) {
+        state.clusterRegistrationsEnabled = action.payload.clusterRegistrationsEnabled;
+      }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
       }
@@ -238,6 +257,14 @@ const configSlice = createSlice({
       state.statelessClusters = action.payload.statelessClusters;
     },
     /**
+     * Save the clusters discovered by backend adapters.
+     * @param state - The current state.
+     * @param action - The payload action containing the registrations.
+     */
+    setClusterRegistrations(state, action: PayloadAction<ConfigState['clusterRegistrations']>) {
+      state.clusterRegistrations = action.payload;
+    },
+    /**
      * Save the settings. To both the store, and localStorage.
      * @param state - The current state.
      * @param action - The payload action containing the settings.
@@ -251,6 +278,7 @@ const configSlice = createSlice({
   },
 });
 
-export const { setConfig, setAppSettings, setStatelessConfig } = configSlice.actions;
+export const { setConfig, setAppSettings, setStatelessConfig, setClusterRegistrations } =
+  configSlice.actions;
 
 export default configSlice.reducer;

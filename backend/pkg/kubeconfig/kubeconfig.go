@@ -57,11 +57,15 @@ func buildUserAgent() string {
 // DefaultInClusterContextName is the default name used for the in-cluster context.
 const DefaultInClusterContextName = "main"
 
+// AuthTypeOIDC is the AuthType of contexts that authenticate the end user with an OIDC token.
+const AuthTypeOIDC = "oidc"
+
 const (
 	KubeConfig = 1 << iota
 	DynamicCluster
 	InCluster
 	ClusterInventory
+	ClusterAPI
 )
 
 // Context contains all information related to a kubernetes context.
@@ -426,6 +430,8 @@ func (c *Context) SourceStr() string {
 		return "incluster"
 	case ClusterInventory:
 		return "cluster_inventory"
+	case ClusterAPI:
+		return "cluster_api"
 	default:
 		return "unknown"
 	}
@@ -442,7 +448,7 @@ func (c *Context) SetupProxy() error {
 
 	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
 	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
-	if c.AuthType() == "oidc" {
+	if c.AuthType() == AuthTypeOIDC {
 		// Log at most once per proxy to avoid flooding the logs on repeated 401s.
 		var warnOnce sync.Once
 
@@ -488,7 +494,7 @@ func (c *Context) SetupProxy() error {
 // AuthType returns the authentication type for the context.
 func (c *Context) AuthType() string {
 	if (c.OidcConf != nil) || (c.AuthInfo != nil && c.AuthInfo.AuthProvider != nil) {
-		return "oidc"
+		return AuthTypeOIDC
 	}
 
 	return ""

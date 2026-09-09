@@ -24,7 +24,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	clientfeatures "k8s.io/client-go/features"
 	clientfeaturestesting "k8s.io/client-go/features/testing"
@@ -44,6 +44,7 @@ import (
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterregistration"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	apisv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 	ciaclient "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned"
@@ -76,15 +77,29 @@ func writeProviderFile(t *testing.T) string {
 	return path
 }
 
-func newTestRunner(t *testing.T, opts Options) *Runner {
+// newTestRunner applies the option defaults NewRunner requires and registers discovered
+// contexts in store.
+func newTestRunner(t *testing.T, store kubeconfig.ContextStore, opts Options) *Runner {
 	t.Helper()
-
-	if opts.Store == nil {
-		opts.Store = kubeconfig.NewContextStore()
-	}
 
 	if opts.ProviderFile == "" {
 		opts.ProviderFile = writeProviderFile(t)
+	}
+
+	if opts.AuthType == "" {
+		opts.AuthType = AuthTypeAccessProvider
+	}
+
+	if opts.AccessProviders == "" {
+		opts.AccessProviders = "static-token"
+	}
+
+	if opts.HubCluster == "" {
+		opts.HubCluster = kubeconfig.DefaultInClusterContextName
+	}
+
+	if opts.Registry == nil {
+		opts.Registry = clusterregistration.New(store)
 	}
 
 	runner, err := NewRunner(opts)
@@ -98,6 +113,7 @@ func clusterProfile(name, providerName, server string) *apisv1alpha1.ClusterProf
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      name,
+			UID:       types.UID("uid-" + name),
 		},
 	}
 
@@ -154,7 +170,19 @@ func namespacedProfileClient() *ciafake.Clientset {
 }
 
 func getProfileContext(store kubeconfig.ContextStore, profileKey string) (*kubeconfig.Context, error) {
-	return store.GetContext(contextNameFromProfileKey(profileKey))
+	contexts, err := store.GetContexts()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, headlampContext := range contexts {
+		if headlampContext.ClusterInventory != nil &&
+			headlampContext.ClusterInventory.Profile.Key == profileKey {
+			return headlampContext, nil
+		}
+	}
+
+	return nil, errors.New("profile context not found")
 }
 
 func testStoreContext(name string, source int, server, token string, internal bool) *kubeconfig.Context {
@@ -173,10 +201,9 @@ func testRunnerContext(t *testing.T, runner *Runner) context.Context {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	t.Cleanup(func() {
-		cancel()
-		runner.stopAllRoots()
-	})
+	// Cleanups run last-registered-first, so this cancels before stopping the roots.
+	t.Cleanup(runner.stopAllRoots)
+	t.Cleanup(cancel)
 
 	return ctx
 }
@@ -251,110 +278,60 @@ func (watchListClient) IsWatchListSemanticsUnSupported() bool {
 	return false
 }
 
-type removeLockDetectingStore struct {
-	kubeconfig.ContextStore
-	runner            *Runner
-	removeWhileLocked atomic.Bool
+func TestNewRunnerAllowsOIDCWithoutProviderFile(t *testing.T) {
+	_, err := NewRunner(Options{AuthType: kubeconfig.AuthTypeOIDC})
+	require.NoError(t, err)
 }
 
-func (s *removeLockDetectingStore) RemoveContext(name string) error {
-	if s.runner != nil {
-		if s.runner.mu.TryLock() {
-			s.runner.mu.Unlock()
-		} else {
-			s.removeWhileLocked.Store(true)
-		}
-	}
-
-	return s.ContextStore.RemoveContext(name)
+func TestNewRunnerRequiresHubClusterForInClusterDiscovery(t *testing.T) {
+	_, err := NewRunner(Options{HubConfig: &rest.Config{}})
+	require.ErrorContains(t, err, "hub cluster is required")
 }
 
-func TestNewRunnerValidatesProviderFile(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-
-	_, err := NewRunner(Options{Store: store})
-	require.ErrorContains(t, err, "provider file is required")
-
-	_, err = NewRunner(Options{Store: store, ProviderFile: "/does/not/exist"})
-	require.ErrorContains(t, err, "load cluster inventory provider file")
-
-	malformed := filepath.Join(t.TempDir(), "malformed.json")
-	require.NoError(t, os.WriteFile(malformed, []byte("{"), 0o600))
-
-	_, err = NewRunner(Options{Store: store, ProviderFile: malformed})
-	require.ErrorContains(t, err, "load cluster inventory provider file")
-
-	_, err = NewRunner(Options{
-		Store:         store,
-		ProviderFile:  writeProviderFile(t),
-		LabelSelector: "headlamp.dev/ignore in (",
-	})
-	require.ErrorContains(t, err, "invalid cluster-inventory-label-selector")
-
-	_, err = NewRunner(Options{
-		Store:        store,
-		ProviderFile: writeProviderFile(t),
-		Namespaces:   "team-a,Team B",
-	})
-	require.ErrorContains(t, err, "invalid cluster-inventory-namespaces")
-
-	_, err = NewRunner(Options{
-		Store:        store,
-		ProviderFile: writeProviderFile(t),
-		Namespaces:   "team-a,*",
-	})
-	require.ErrorContains(t, err, `"*" must be used on its own`)
-}
-
-func TestNormalizeNamespaces(t *testing.T) {
+func TestParseAccessProviders(t *testing.T) {
 	tests := []struct {
-		name    string
-		value   string
-		want    []string
-		wantErr string
+		name  string
+		value string
+		want  []string
 	}{
 		{name: "unset", value: "  "},
 		{
-			name:  "trimmed, sorted and deduplicated",
-			value: " team-b,team-a, team-b ",
-			want:  []string{"team-a", "team-b"},
+			name:  "trimmed and case-sensitive, in the configured order",
+			value: " OIDC,oidc,static-token ",
+			want:  []string{"OIDC", "oidc", "static-token"},
 		},
-		{name: "all namespaces", value: "*", want: []string{metav1.NamespaceAll}},
-		{
-			name:    "repeated all namespaces are rejected",
-			value:   "*,*",
-			wantErr: `"*" must be used on its own`,
-		},
-		{
-			name:    "all namespaces cannot be combined with a listed namespace",
-			value:   "team-a,*",
-			wantErr: `"*" must be used on its own`,
-		},
-		{
-			name:    "empty entries are rejected",
-			value:   "team-a,,team-b",
-			wantErr: "namespace must not be empty",
-		},
-		{
-			name:    "invalid namespaces are rejected",
-			value:   "Team-A",
-			wantErr: "invalid cluster-inventory-namespaces",
-		},
+		{name: "empty entries are skipped", value: "oidc,,static-token", want: []string{"oidc", "static-token"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := normalizeNamespaces(tt.value)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, parseAccessProviders(tt.value))
 		})
 	}
+}
+
+func TestOIDCContextUsesFirstAllowedAccessProvider(t *testing.T) {
+	runner := newTestRunner(t, kubeconfig.NewContextStore(), Options{
+		AuthType:        kubeconfig.AuthTypeOIDC,
+		AccessProviders: "preferred,fallback",
+		OIDCConfig:      &kubeconfig.OidcConfig{ClientID: "headlamp"},
+	})
+	cp := clusterProfile("spoke-a", "fallback", "https://fallback.example.com")
+	cp.Status.AccessProviders = append(cp.Status.AccessProviders, apisv1alpha1.AccessProvider{
+		Name: "preferred",
+		Cluster: clientcmdv1.Cluster{
+			Server:                   "https://preferred.example.com",
+			CertificateAuthorityData: []byte("preferred-ca"),
+		},
+	})
+
+	headlampContext, ok := runner.contextFromClusterProfile("hub/default/spoke-a", cp)
+	require.True(t, ok)
+	assert.Equal(t, "https://preferred.example.com", headlampContext.Cluster.Server)
+	assert.Equal(t, []byte("preferred-ca"), headlampContext.Cluster.CertificateAuthorityData)
+	require.NotNil(t, headlampContext.OidcConf)
+	assert.Equal(t, "headlamp", headlampContext.OidcConf.ClientID)
+	assert.Nil(t, headlampContext.AuthInfo, "the OIDC path must not materialize provider credentials")
 }
 
 func TestRestConfigToContextPreservesConfig(t *testing.T) {
@@ -386,10 +363,9 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 		},
 	}
 
-	ctx, err := restConfigToContext(restConfig, "ctx-name", "root/ns/spoke")
+	ctx, err := restConfigToContext(restConfig)
 	require.NoError(t, err)
 
-	assert.Equal(t, "ctx-name", ctx.Name)
 	assert.Equal(t, "https://spoke.example.com", ctx.Cluster.Server)
 	assert.Equal(t, []byte("ca-data"), ctx.Cluster.CertificateAuthorityData)
 	assert.Equal(t, "/tmp/ca.pem", ctx.Cluster.CertificateAuthority)
@@ -397,7 +373,6 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 	assert.Equal(t, "spoke.internal", ctx.Cluster.TLSServerName)
 	assert.Equal(t, "http://proxy.example.com:8080", ctx.Cluster.ProxyURL)
 	assert.Equal(t, kubeconfig.ClusterInventory, ctx.Source)
-	assert.Equal(t, "cluster-inventory/root/ns/spoke", ctx.ClusterID)
 	require.NotNil(t, ctx.AuthInfo.Exec)
 	assert.Equal(t, "/bin/token", ctx.AuthInfo.Exec.Command)
 	assert.Equal(t, clientcmdapi.NeverExecInteractiveMode, ctx.AuthInfo.Exec.InteractiveMode)
@@ -405,7 +380,7 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 }
 
 func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
-	runner := newTestRunner(t, Options{})
+	runner := newTestRunner(t, kubeconfig.NewContextStore(), Options{})
 	profileKey := "in-cluster/default/spoke-a"
 	cp := clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com")
 	cp.Status.Conditions = []metav1.Condition{
@@ -448,35 +423,37 @@ func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
 	}, headlampContext.ClusterInventory.Properties)
 }
 
-func TestClusterProfileDeletePrunesContextOutsideRunnerLock(t *testing.T) {
-	store := &removeLockDetectingStore{ContextStore: kubeconfig.NewContextStore()}
-	runner := newTestRunner(t, Options{
-		Store:     store,
+func TestClusterProfileDeletePrunesRegistrationAndTracking(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
-	store.runner = runner
 
-	state := &rootState{rootID: inClusterRootID}
-	profileKey := makeProfileKey(state.rootID, "default/spoke-a")
-	contextName := contextNameFromProfileKey(profileKey)
-	require.NoError(t, store.AddContext(&kubeconfig.Context{Name: contextName}))
+	state := &rootState{rootID: inClusterRootID, originCluster: kubeconfig.DefaultInClusterContextName}
+	cp := clusterProfile("spoke-a", "", "")
+	profileKey := makeProfileKey(state.rootID, cp)
+	registrationID, err := runner.registry.Upsert(clusterregistration.Candidate{
+		DisplayName: "spoke-a",
+		Source:      registrationSource,
+		Origin: clusterregistration.OriginFor(
+			kubeconfig.DefaultInClusterContextName,
+			apisv1alpha1.GroupVersion.WithKind(apisv1alpha1.ClusterProfileKind),
+			cp,
+		),
+		Context: testStoreContext("temporary", kubeconfig.ClusterInventory,
+			"https://spoke-a.example.com", "", false),
+	})
+	require.NoError(t, err)
 
 	runner.mu.Lock()
 	runner.roots[state.rootID] = state
 	runner.profileKeysByRoot[state.rootID] = map[string]string{profileKey: "default"}
-	runner.profiles[profileKey] = profileState{contextName: contextName}
+	runner.profiles[profileKey] = registrationID
 	runner.mu.Unlock()
 
-	runner.handleClusterProfileDelete(state, &apisv1alpha1.ClusterProfile{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "spoke-a",
-		},
-	})
+	runner.handleClusterProfileDelete(state, cp)
 
-	assert.False(t, store.removeWhileLocked.Load())
-
-	_, err := store.GetContext(contextName)
+	_, err = store.GetContext(registrationID)
 	require.Error(t, err)
 
 	runner.mu.Lock()
@@ -488,37 +465,9 @@ func TestClusterProfileDeletePrunesContextOutsideRunnerLock(t *testing.T) {
 	assert.False(t, rootProfileExists)
 }
 
-func TestContextNameFromProfileKey(t *testing.T) {
-	tests := []struct {
-		profileKey string
-		want       string
-	}{
-		{"in-cluster/ns/name", "cluster-inventory-in-cluster--ns--name--c2adabb8b734"},
-		{"store/minikube/ns/name", "cluster-inventory-store--minikube--ns--name--f8b7bcd1f9fb"},
-		{"store/seed/ns/name with space", "cluster-inventory-store--seed--ns--name__with__space--86a59f47f71a"},
-		{"ns/a--b", "cluster-inventory-ns--a--b--3a9038b84ee9"},
-		{"ns--a/b", "cluster-inventory-ns--a--b--7bc90dd90ccb"},
-		{"ns/a_b + c", "cluster-inventory-ns--a_b__+__c--b955996621e2"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.profileKey, func(t *testing.T) {
-			assert.Equal(t, tt.want, contextNameFromProfileKey(tt.profileKey))
-		})
-	}
-}
-
-func TestContextNameFromProfileKeyAvoidsSeparatorCollisions(t *testing.T) {
-	assert.NotEqual(t,
-		contextNameFromProfileKey("ns/a--b"),
-		contextNameFromProfileKey("ns--a/b"),
-	)
-}
-
 func TestInformerInitialSyncUsesAccessProviders(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -570,8 +519,7 @@ func TestInformerWatchesNamespaces(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := kubeconfig.NewContextStore()
-			runner := newTestRunner(t, Options{
-				Store:        store,
+			runner := newTestRunner(t, store, Options{
 				HubConfig:    &rest.Config{Host: "https://hub.example.com"},
 				HubNamespace: tt.hubNamespace,
 				Namespaces:   tt.namespaces,
@@ -599,8 +547,7 @@ func TestInformerInitialSyncIgnoresLabelSelectedProfiles(t *testing.T) {
 	ignoredProfile := clusterProfile("ignored", "static-token", "https://ignored.example.com")
 	ignoredProfile.Labels = map[string]string{"headlamp.dev/ignore": "true"}
 
-	runner := newTestRunner(t, Options{
-		Store:         store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig:     &rest.Config{Host: "https://hub.example.com"},
 		LabelSelector: "!headlamp.dev/ignore",
 	})
@@ -621,8 +568,7 @@ func TestInformerInitialSyncIgnoresLabelSelectedProfiles(t *testing.T) {
 
 func TestTransientWatchFailureDoesNotPrunePreviousContexts(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -645,8 +591,7 @@ func TestTransientWatchFailureDoesNotPrunePreviousContexts(t *testing.T) {
 
 func TestInitialSyncFailureDoesNotPrunePreviousContexts(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -672,8 +617,7 @@ func TestInitialSyncFailureDoesNotPrunePreviousContexts(t *testing.T) {
 
 func TestNamespaceSyncFailureOnlyPreservesFailedNamespace(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:      store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig:  &rest.Config{Host: "https://hub.example.com"},
 		Namespaces: "team-a,team-b",
 	})
@@ -725,38 +669,47 @@ func TestNamespaceSyncFailureOnlyPreservesFailedNamespace(t *testing.T) {
 	requireProfileContextEventually(t, store, "in-cluster/team-b/from-b")
 }
 
-func TestProviderFailureDoesNotPrunePreviousContext(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
-		HubConfig: &rest.Config{Host: "https://hub.example.com"},
-	})
-
-	client := ciafake.NewSimpleClientset(
-		clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com"),
-	)
-
-	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
-		return client, nil
+func TestRoutabilityLossPrunesPreviousContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		server   string
+	}{
+		{name: "provider removed", provider: "missing-provider", server: "https://spoke-a-updated.example.com"},
+		{name: "endpoint removed", provider: "static-token", server: ""},
 	}
 
-	ctx := testRunnerContext(t, runner)
-	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
-	headlampContext := requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
-	require.Equal(t, "https://spoke-a.example.com", headlampContext.Cluster.Server)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			runner := newTestRunner(t, store, Options{
+				HubConfig: &rest.Config{Host: "https://hub.example.com"},
+			})
 
-	updated := clusterProfile("spoke-a", "missing-provider", "https://spoke-a-updated.example.com")
-	_, err := client.ApisV1alpha1().ClusterProfiles("default").Update(ctx, updated, metav1.UpdateOptions{})
-	require.NoError(t, err)
+			client := ciafake.NewSimpleClientset(
+				clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com"),
+			)
+			runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
+				return client, nil
+			}
 
-	headlampContext = requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
-	assert.Equal(t, "https://spoke-a.example.com", headlampContext.Cluster.Server)
+			ctx := testRunnerContext(t, runner)
+			reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+			headlampContext := requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+			require.Equal(t, "https://spoke-a.example.com", headlampContext.Cluster.Server)
+
+			updated := clusterProfile("spoke-a", tt.provider, tt.server)
+			_, err := client.ApisV1alpha1().ClusterProfiles("default").Update(ctx, updated, metav1.UpdateOptions{})
+			require.NoError(t, err)
+
+			requireNoProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+		})
+	}
 }
 
 func TestInformerDoesNotDiscoverClusterProfilesFromDiscoveredClusters(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -789,8 +742,7 @@ func TestInformerDoesNotDiscoverClusterProfilesFromDiscoveredClusters(t *testing
 
 func TestInitialSyncPrunesMissingDirectProfiles(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -819,7 +771,7 @@ func TestInitialSyncPrunesMissingDirectProfiles(t *testing.T) {
 	requireProfileContextEventually(t, store, "in-cluster/default/spoke-b")
 }
 
-func TestStoreSeedsSkipClusterInventoryAndAllowSameServerPerRoot(t *testing.T) {
+func TestStoreSeedsSkipInternalContextsAndAllowSameServerPerRoot(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	require.NoError(t, store.AddContext(testStoreContext(
 		"seed-a", kubeconfig.KubeConfig, "https://shared.example.com", "token-a", false)))
@@ -828,12 +780,9 @@ func TestStoreSeedsSkipClusterInventoryAndAllowSameServerPerRoot(t *testing.T) {
 	require.NoError(t, store.AddContext(testStoreContext(
 		"internal-seed", kubeconfig.DynamicCluster, "https://internal.example.com", "token-internal", true)))
 	require.NoError(t, store.AddContext(testStoreContext(
-		"discovered", kubeconfig.ClusterInventory, "https://ignored.example.com", "", false)))
+		"discovered", kubeconfig.ClusterInventory, "https://ignored.example.com", "", true)))
 
-	runner := newTestRunner(t, Options{
-		Store:             store,
-		DiscoverFromStore: true,
-	})
+	runner := newTestRunner(t, store, Options{SeedStore: store})
 
 	requestedTokens := map[string]int{}
 	requestedHosts := map[string]int{}
@@ -874,10 +823,7 @@ func TestRemovedStoreSeedStopsWatcherAndPrunesDiscoveredContexts(t *testing.T) {
 	require.NoError(t, store.AddContext(testStoreContext(
 		"seed-a", kubeconfig.KubeConfig, "https://seed-a.example.com", "token-a", false)))
 
-	runner := newTestRunner(t, Options{
-		Store:             store,
-		DiscoverFromStore: true,
-	})
+	runner := newTestRunner(t, store, Options{SeedStore: store})
 
 	requestedHosts := map[string]int{}
 	runner.clientForConfig = func(config *rest.Config) (ciaclient.Interface, error) {
@@ -919,10 +865,7 @@ func TestStoreSeedConfigChangeRestartsWatcher(t *testing.T) {
 	require.NoError(t, store.AddContext(testStoreContext(
 		"seed-a", kubeconfig.KubeConfig, "https://seed.example.com", "token-a", false)))
 
-	runner := newTestRunner(t, Options{
-		Store:             store,
-		DiscoverFromStore: true,
-	})
+	runner := newTestRunner(t, store, Options{SeedStore: store})
 
 	requestedTokens := map[string]int{}
 	runner.clientForConfig = func(config *rest.Config) (ciaclient.Interface, error) {
@@ -965,10 +908,7 @@ func TestStoreSeedNamespaceChangeRestartsWatcher(t *testing.T) {
 	seed.KubeContext.Namespace = "team-a"
 	require.NoError(t, store.AddContext(seed))
 
-	runner := newTestRunner(t, Options{
-		Store:             store,
-		DiscoverFromStore: true,
-	})
+	runner := newTestRunner(t, store, Options{SeedStore: store})
 
 	client := namespacedProfileClient()
 	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
@@ -1030,8 +970,7 @@ func TestRootFingerprintIncludesNamespaces(t *testing.T) {
 
 func TestSelfReferencingProfileDoesNotTriggerChildWatcher(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -1053,8 +992,7 @@ func TestSelfReferencingProfileDoesNotTriggerChildWatcher(t *testing.T) {
 
 func TestWatchAddUpdateDeleteSyncsContext(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -1098,8 +1036,7 @@ func TestWatchAddUpdateDeleteSyncsContext(t *testing.T) {
 
 func TestWatchUpdateSyncsClusterInventoryConditions(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
 
@@ -1154,8 +1091,7 @@ func TestWatchUpdateSyncsClusterInventoryConditions(t *testing.T) {
 
 func TestClusterProfileUpdateToIgnoredLabelPrunesContext(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:         store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig:     &rest.Config{Host: "https://hub.example.com"},
 		LabelSelector: "!headlamp.dev/ignore",
 	})
@@ -1188,8 +1124,7 @@ func TestClusterProfileUpdateToIgnoredLabelPrunesContext(t *testing.T) {
 
 func TestNoCRDPrunesAndSuppressesRootUntilTTL(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:         store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig:     &rest.Config{Host: "https://hub.example.com"},
 		NoCRDCacheTTL: time.Minute,
 	})
@@ -1247,8 +1182,7 @@ func TestClusterProfileInformerUsesWatchListOptions(t *testing.T) {
 	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, true)
 
 	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:         store,
+	runner := newTestRunner(t, store, Options{
 		HubConfig:     &rest.Config{Host: "https://hub.example.com"},
 		LabelSelector: "!headlamp.dev/ignore",
 	})
@@ -1350,14 +1284,17 @@ func TestNoCRDErrorClassification(t *testing.T) {
 }
 
 func TestNoCRDCacheTTL(t *testing.T) {
-	runner := newTestRunner(t, Options{
+	runner := newTestRunner(t, kubeconfig.NewContextStore(), Options{
 		NoCRDCacheTTL: time.Minute,
 	})
 
 	now := time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)
 	runner.now = func() time.Time { return now }
 
-	runner.markNoCRD("https://no-crd.example.com")
+	state := &rootState{rootID: "root", serverURL: "https://no-crd.example.com", cancel: func() {}}
+	runner.roots[state.rootID] = state
+
+	runner.markRootNoCRD(state)
 	assert.True(t, runner.hasNoCRD("https://no-crd.example.com"))
 
 	now = now.Add(2 * time.Minute)

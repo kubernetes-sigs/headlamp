@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package clusterinventory discovers ClusterProfile resources and adds them to
-// Headlamp's context store as Cluster Inventory contexts.
+// Package clusterinventory discovers ClusterProfile resources and registers the
+// clusters they publish.
 package clusterinventory
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -39,12 +40,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd/api"
+	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterregistration"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	apisv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
@@ -59,12 +61,15 @@ const (
 	// DefaultNoCRDCacheTTL is the default TTL for API servers that do not have the ClusterProfile CRD.
 	DefaultNoCRDCacheTTL = 2 * time.Hour
 
-	clusterInventoryContextPrefix = "cluster-inventory-"
-	clusterInventoryIDPrefix      = "cluster-inventory/"
-	inClusterRootID               = "in-cluster"
-	storeRootPrefix               = "store/"
+	inClusterRootID = "in-cluster"
+	storeRootPrefix = "store/"
 
 	clusterExecConfigExtensionKey = "client.authentication.k8s.io/exec"
+
+	// AuthTypeAccessProvider uses the configured Cluster Inventory exec provider.
+	AuthTypeAccessProvider = "access-provider"
+
+	registrationSource = "cluster-inventory"
 )
 
 // Structured-log field names that recur across many log sites.
@@ -73,18 +78,28 @@ const (
 	logFieldClusterProfile = "clusterprofile"
 	logFieldServer         = "server"
 	logFieldNamespace      = "namespace"
+	logFieldRegistration   = "registration"
 )
 
 // Options controls Cluster Inventory discovery.
 type Options struct {
-	// Store is the Headlamp context store that receives discovered contexts.
-	Store kubeconfig.ContextStore
+	// SeedStore holds the non-internal contexts that seed discovery roots. Nil discovers
+	// from HubConfig only.
+	SeedStore kubeconfig.ContextStore
+	// Registry stores source-independent, routable cluster registrations.
+	Registry *clusterregistration.Registry
 	// ProviderFile is the Cluster Inventory access provider configuration file.
 	ProviderFile string
+	// AuthType selects per-user OIDC or access-provider authentication.
+	AuthType string
+	// AccessProviders is a comma-separated, ordered, exact provider-name allowlist.
+	AccessProviders string
+	// OIDCConfig is copied to OIDC-backed discovered contexts.
+	OIDCConfig *kubeconfig.OidcConfig
 	// LabelSelector filters ClusterProfile resources before they are synced.
 	LabelSelector string
-	// Namespaces limits ClusterProfile discovery to a comma-separated list of namespaces.
-	// A value of "*" watches all namespaces; empty watches each root's default namespace.
+	// Namespaces limits ClusterProfile discovery as parsed by
+	// [clusterregistration.ParseNamespaces]. Empty watches each root's default namespace.
 	Namespaces string
 	// RootReconcileInterval controls how often root clusters are reconciled.
 	// Values less than or equal to zero use DefaultRootReconcileInterval.
@@ -96,40 +111,44 @@ type Options struct {
 	HubConfig *rest.Config
 	// HubNamespace is the default namespace for the in-cluster root.
 	HubNamespace string
-	// DiscoverFromStore enables discovery from non-internal contexts already in Store.
-	DiscoverFromStore bool
+	// HubCluster is the Headlamp cluster ID for the in-cluster discovery root.
+	HubCluster string
 }
 
-// Runner watches ClusterProfile resources and syncs them into Headlamp's context store.
+// Runner watches ClusterProfile resources and syncs them into the shared registry.
 type Runner struct {
-	store                 kubeconfig.ContextStore
+	seedStore             kubeconfig.ContextStore
+	registry              *clusterregistration.Registry
 	accessConfig          *access.Config
+	accessProviders       []string
+	oidcConfig            *kubeconfig.OidcConfig
 	rootReconcileInterval time.Duration
 	noCRDCacheTTL         time.Duration
 	labelSelector         labels.Selector
 	namespaces            []string
 	hubConfig             *rest.Config
 	hubNamespace          string
-	discoverFromStore     bool
+	hubCluster            string
 
 	clientForConfig func(*rest.Config) (ciaclient.Interface, error)
 	now             func() time.Time
 
 	mu                sync.Mutex
 	roots             map[string]*rootState
-	profiles          map[string]profileState
+	profiles          map[string]string
 	profileKeysByRoot map[string]map[string]string
 	noCRD             map[string]time.Time
 }
 
 // rootState tracks the active informers and identity for one discovery root.
 type rootState struct {
-	rootID      string
-	serverURL   string
-	fingerprint string
-	ctx         context.Context
-	cancel      context.CancelFunc
-	watches     []rootWatch
+	rootID        string
+	serverURL     string
+	fingerprint   string
+	ctx           context.Context
+	cancel        context.CancelFunc
+	watches       []rootWatch
+	originCluster string
 }
 
 // rootWatch pairs a ClusterProfile informer with the factory that owns it.
@@ -141,36 +160,29 @@ type rootWatch struct {
 
 // rootConfig contains the Kubernetes client config and watched namespaces for one root.
 type rootConfig struct {
-	restConfig *rest.Config
-	namespaces []string
+	restConfig    *rest.Config
+	namespaces    []string
+	originCluster string
 }
 
-// profileState tracks the Headlamp context created from one ClusterProfile.
-type profileState struct {
-	contextName string
-}
-
-// NewRunner validates options, parses the provider file, and returns a discovery runner.
+// NewRunner validates options and returns a discovery runner.
 func NewRunner(opts Options) (*Runner, error) {
-	if opts.Store == nil {
-		return nil, errors.New("context store is required")
+	if opts.HubConfig != nil && opts.HubCluster == "" {
+		return nil, errors.New("hub cluster is required for in-cluster discovery")
 	}
 
-	if opts.ProviderFile == "" {
-		return nil, errors.New("cluster inventory provider file is required")
+	var accessConfig *access.Config
+
+	if opts.AuthType == AuthTypeAccessProvider {
+		var err error
+
+		accessConfig, err = access.NewFromFile(opts.ProviderFile)
+		if err != nil {
+			return nil, fmt.Errorf("load provider file: %w", err)
+		}
 	}
 
-	accessConfig, err := access.NewFromFile(opts.ProviderFile)
-	if err != nil {
-		return nil, fmt.Errorf("load cluster inventory provider file: %w", err)
-	}
-
-	labelSelector, err := normalizeLabelSelector(opts.LabelSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	namespaces, err := normalizeNamespaces(opts.Namespaces)
+	labelSelector, namespaces, err := clusterregistration.ParseSelectors(opts.LabelSelector, opts.Namespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -186,21 +198,24 @@ func NewRunner(opts Options) (*Runner, error) {
 	}
 
 	return &Runner{
-		store:                 opts.Store,
+		seedStore:             opts.SeedStore,
+		registry:              opts.Registry,
 		accessConfig:          accessConfig,
+		accessProviders:       parseAccessProviders(opts.AccessProviders),
+		oidcConfig:            opts.OIDCConfig,
 		rootReconcileInterval: rootReconcileInterval,
 		noCRDCacheTTL:         noCRDCacheTTL,
 		labelSelector:         labelSelector,
 		namespaces:            namespaces,
 		hubConfig:             opts.HubConfig,
 		hubNamespace:          opts.HubNamespace,
-		discoverFromStore:     opts.DiscoverFromStore,
+		hubCluster:            opts.HubCluster,
 		clientForConfig: func(config *rest.Config) (ciaclient.Interface, error) {
 			return ciaclient.NewForConfig(config)
 		},
 		now:               time.Now,
 		roots:             map[string]*rootState{},
-		profiles:          map[string]profileState{},
+		profiles:          map[string]string{},
 		profileKeysByRoot: map[string]map[string]string{},
 		noCRD:             map[string]time.Time{},
 	}, nil
@@ -238,12 +253,13 @@ func (r *Runner) reconcileRoots(ctx context.Context) {
 	if r.hubConfig != nil {
 		presentRoots[inClusterRootID] = struct{}{}
 		desiredRoots[inClusterRootID] = rootConfig{
-			restConfig: r.hubConfig,
-			namespaces: r.namespacesForRoot(r.hubNamespace),
+			restConfig:    r.hubConfig,
+			namespaces:    clusterregistration.NamespacesOrDefault(r.namespaces, r.hubNamespace),
+			originCluster: r.hubCluster,
 		}
 	}
 
-	if r.discoverFromStore {
+	if r.seedStore != nil {
 		storeRootsLoaded = r.collectStoreSeedRoots(desiredRoots, presentRoots)
 	}
 
@@ -266,7 +282,7 @@ func (r *Runner) collectStoreSeedRoots(
 	desiredRoots map[string]rootConfig,
 	presentRoots map[string]struct{},
 ) bool {
-	contexts, err := r.store.GetContexts()
+	contexts, err := r.seedStore.GetContexts()
 	if err != nil {
 		logger.Log(logger.LevelWarn, nil, err, "cluster-inventory: failed to get seed contexts")
 
@@ -278,10 +294,6 @@ func (r *Runner) collectStoreSeedRoots(
 	})
 
 	for _, headlampContext := range contexts {
-		if headlampContext.Source == kubeconfig.ClusterInventory {
-			continue
-		}
-
 		if headlampContext.Internal {
 			continue
 		}
@@ -299,7 +311,9 @@ func (r *Runner) collectStoreSeedRoots(
 
 		desiredRoots[rootID] = rootConfig{
 			restConfig: seedConfig,
-			namespaces: r.namespacesForRoot(headlampContext.KubeContext.Namespace),
+			namespaces: clusterregistration.NamespacesOrDefault(
+				r.namespaces, headlampContext.KubeContext.Namespace),
+			originCluster: headlampContext.Name,
 		}
 	}
 
@@ -375,12 +389,13 @@ func (r *Runner) newRootState(
 
 	rootCtx, cancel := context.WithCancel(ctx)
 	state := &rootState{
-		rootID:      rootID,
-		serverURL:   serverURL,
-		fingerprint: fingerprint,
-		ctx:         rootCtx,
-		cancel:      cancel,
-		watches:     make([]rootWatch, 0, len(root.namespaces)),
+		rootID:        rootID,
+		serverURL:     serverURL,
+		fingerprint:   fingerprint,
+		ctx:           rootCtx,
+		cancel:        cancel,
+		watches:       make([]rootWatch, 0, len(root.namespaces)),
+		originCluster: root.originCluster,
 	}
 
 	for _, namespace := range root.namespaces {
@@ -439,18 +454,14 @@ func (r *Runner) newRootWatch(
 
 // clusterProfileInformerOptions returns informer options for one namespace of a root.
 func (r *Runner) clusterProfileInformerOptions(namespace string) []externalversions.SharedInformerOption {
-	options := make([]externalversions.SharedInformerOption, 0, 2)
-	options = append(options, externalversions.WithNamespace(namespace))
-
-	if r.labelSelector == nil {
-		return options
-	}
-
 	selector := r.labelSelector.String()
 
-	return append(options, externalversions.WithTweakListOptions(func(listOptions *metav1.ListOptions) {
-		listOptions.LabelSelector = selector
-	}))
+	return []externalversions.SharedInformerOption{
+		externalversions.WithNamespace(namespace),
+		externalversions.WithTweakListOptions(func(listOptions *metav1.ListOptions) {
+			listOptions.LabelSelector = selector
+		}),
+	}
 }
 
 // activateRoot records a root as active and returns any previous active root.
@@ -484,6 +495,7 @@ func (r *Runner) runRootInformer(state *rootState) {
 		}, nil, "cluster-inventory: starting ClusterProfile watch")
 
 		watch.factory.Start(state.ctx.Done())
+
 		go r.waitForRootWatchSync(state, watch)
 	}
 
@@ -499,9 +511,9 @@ func (r *Runner) waitForRootWatchSync(state *rootState, watch rootWatch) {
 	r.completeRootWatchSyncFromCache(state, watch)
 }
 
-// handleClusterProfileUpsert syncs an added or updated ClusterProfile into the context store.
+// handleClusterProfileUpsert registers an added or updated ClusterProfile.
 func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
-	cp, ok := clusterProfileFromObject(obj)
+	cp, ok := clusterregistration.ObjectFromEvent[*apisv1alpha1.ClusterProfile](obj)
 	if !ok {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID}, nil,
 			"cluster-inventory: ignored non-ClusterProfile informer event")
@@ -509,9 +521,9 @@ func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 		return
 	}
 
-	profileKey := makeProfileKey(state.rootID, cp.Namespace+"/"+cp.Name)
-	if !r.clusterProfileMatchesSelector(cp) {
-		r.pruneClusterProfile(state, profileKey)
+	profileKey := makeProfileKey(state.rootID, cp)
+	if !r.labelSelector.Matches(labels.Set(cp.Labels)) {
+		r.dropClusterProfile(state, profileKey, true)
 
 		return
 	}
@@ -523,9 +535,9 @@ func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 	r.syncClusterProfile(state.ctx, state, profileKey, cp)
 }
 
-// handleClusterProfileDelete removes context state for a deleted ClusterProfile.
+// handleClusterProfileDelete removes the registration of a deleted ClusterProfile.
 func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
-	cp, ok := clusterProfileFromObject(obj)
+	cp, ok := clusterregistration.ObjectFromEvent[*apisv1alpha1.ClusterProfile](obj)
 	if !ok {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID}, nil,
 			"cluster-inventory: ignored non-ClusterProfile delete event")
@@ -533,8 +545,8 @@ func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
 		return
 	}
 
-	profileKey := makeProfileKey(state.rootID, cp.Namespace+"/"+cp.Name)
-	r.pruneClusterProfile(state, profileKey)
+	profileKey := makeProfileKey(state.rootID, cp)
+	r.dropClusterProfile(state, profileKey, true)
 }
 
 // handleRootWatchError reacts to ClusterProfile watch errors for one namespace of a root.
@@ -552,7 +564,7 @@ func (r *Runner) handleRootWatchError(state *rootState, namespace string, err er
 	}, err, "cluster-inventory: ClusterProfile watch error")
 }
 
-// syncClusterProfile converts a ClusterProfile to a Headlamp context and stores it.
+// syncClusterProfile converts a ClusterProfile to a Headlamp context and registers it.
 func (r *Runner) syncClusterProfile(
 	ctx context.Context,
 	state *rootState,
@@ -569,21 +581,32 @@ func (r *Runner) syncClusterProfile(
 
 	headlampContext, ok := r.contextFromClusterProfile(profileKey, cp)
 	if !ok {
+		// Keep tracking the profile, so it is registered again once it recovers.
+		r.dropClusterProfile(state, profileKey, false)
+
 		return
 	}
 
-	if !r.isCurrentRoot(state) {
-		return
-	}
-
-	if err := r.store.AddContext(headlampContext); err != nil {
+	registrationID, err := r.registry.Upsert(clusterregistration.Candidate{
+		DisplayName: cmp.Or(strings.TrimSpace(cp.Spec.DisplayName), cp.Name),
+		Source:      registrationSource,
+		Origin: clusterregistration.OriginFor(
+			state.originCluster,
+			apisv1alpha1.GroupVersion.WithKind(apisv1alpha1.ClusterProfileKind),
+			cp,
+		),
+		Context: headlampContext,
+	})
+	if err != nil {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
-			"cluster-inventory: failed to add context")
+			"cluster-inventory: failed to register cluster")
 
 		return
 	}
 
-	r.recordSyncedProfile(state, profileKey, headlampContext.Name)
+	if orphaned := r.recordSyncedProfile(state, profileKey, registrationID); orphaned != "" {
+		r.removeRegistrations(orphaned)
+	}
 }
 
 // contextFromClusterProfile builds a Headlamp context from a ClusterProfile access provider.
@@ -591,34 +614,25 @@ func (r *Runner) contextFromClusterProfile(
 	profileKey string,
 	cp *apisv1alpha1.ClusterProfile,
 ) (*kubeconfig.Context, bool) {
-	if len(cp.Status.AccessProviders) == 0 {
+	provider, ok := selectAccessProvider(cp, r.accessProviders)
+	if !ok {
 		logger.Log(logger.LevelInfo, map[string]string{logFieldClusterProfile: profileKey}, nil,
-			"cluster-inventory: ClusterProfile has no access providers")
+			"cluster-inventory: ClusterProfile has no allowed access provider")
 
 		return nil, false
 	}
 
-	restConfig, err := copyAccessConfig(r.accessConfig).BuildConfigFromCP(accessOnlyClusterProfile(cp))
+	if strings.TrimSpace(provider.Cluster.Server) == "" {
+		logger.Log(logger.LevelInfo, map[string]string{logFieldClusterProfile: profileKey}, nil,
+			"cluster-inventory: ClusterProfile access provider has no API server endpoint")
+
+		return nil, false
+	}
+
+	headlampContext, err := r.clusterContext(provider, cp)
 	if err != nil {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
-			"cluster-inventory: failed to build rest config")
-
-		return nil, false
-	}
-
-	contextName := contextNameFromProfileKey(profileKey)
-
-	headlampContext, err := restConfigToContext(restConfig, contextName, profileKey)
-	if err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
-			"cluster-inventory: failed to convert rest config")
-
-		return nil, false
-	}
-
-	if err := headlampContext.SetupProxy(); err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
-			"cluster-inventory: failed to setup proxy")
+			"cluster-inventory: failed to build cluster connection")
 
 		return nil, false
 	}
@@ -662,16 +676,24 @@ func clusterInventoryMetadataFromProfile(
 	return metadata
 }
 
-// recordSyncedProfile stores the context name for a successfully synced ClusterProfile.
-func (r *Runner) recordSyncedProfile(state *rootState, profileKey string, contextName string) {
+// recordSyncedProfile stores the registration ID of a successfully synced ClusterProfile
+// and returns the registration that is now orphaned, if any.
+func (r *Runner) recordSyncedProfile(state *rootState, profileKey, registrationID string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.roots[state.rootID] != state {
-		return
+		return registrationID
 	}
 
-	r.profiles[profileKey] = profileState{contextName: contextName}
+	previousID := r.profiles[profileKey]
+	r.profiles[profileKey] = registrationID
+
+	if previousID == registrationID {
+		return ""
+	}
+
+	return previousID
 }
 
 // completeRootWatchSyncFromCache prunes profiles missing from one synced namespace cache.
@@ -687,29 +709,29 @@ func (r *Runner) completeRootWatchSyncFromCache(state *rootState, watch rootWatc
 
 	previous := r.profileKeysByRoot[state.rootID]
 
-	var contextNames []string
+	var registrationIDs []string
 
 	if watch.namespace == metav1.NamespaceAll {
-		contextNames = r.syncAllNamespaceProfilesLocked(state.rootID, previous, seen)
+		registrationIDs = r.syncAllNamespaceProfilesLocked(state.rootID, previous, seen)
 	} else {
-		contextNames = r.syncNamedNamespaceProfilesLocked(state, watch.namespace, previous, seen)
+		registrationIDs = r.syncNamedNamespaceProfilesLocked(state, watch.namespace, previous, seen)
 	}
 
 	r.mu.Unlock()
 
-	r.removeContexts(contextNames)
+	r.removeRegistrations(registrationIDs...)
 }
 
 func (r *Runner) profileKeysFromRootWatch(rootID string, watch rootWatch) map[string]string {
 	seen := map[string]string{}
 
 	for _, obj := range watch.informer.GetIndexer().List() {
-		cp, ok := clusterProfileFromObject(obj)
-		if !ok || !r.clusterProfileMatchesSelector(cp) {
+		cp, ok := clusterregistration.ObjectFromEvent[*apisv1alpha1.ClusterProfile](obj)
+		if !ok || !r.labelSelector.Matches(labels.Set(cp.Labels)) {
 			continue
 		}
 
-		profileKey := makeProfileKey(rootID, cp.Namespace+"/"+cp.Name)
+		profileKey := makeProfileKey(rootID, cp)
 		seen[profileKey] = cp.Namespace
 	}
 
@@ -722,17 +744,17 @@ func (r *Runner) syncAllNamespaceProfilesLocked(
 	seen map[string]string,
 ) []string {
 	r.profileKeysByRoot[rootID] = seen
-	contextNames := []string{}
+	registrationIDs := []string{}
 
 	for profileKey := range previous {
 		if _, ok := seen[profileKey]; ok {
 			continue
 		}
 
-		contextNames = append(contextNames, r.pruneProfileLocked(profileKey)...)
+		registrationIDs = append(registrationIDs, r.pruneProfileLocked(profileKey)...)
 	}
 
-	return contextNames
+	return registrationIDs
 }
 
 func (r *Runner) syncNamedNamespaceProfilesLocked(
@@ -746,7 +768,7 @@ func (r *Runner) syncNamedNamespaceProfilesLocked(
 		next[profileKey] = profileNamespace
 	}
 
-	contextNames := []string{}
+	registrationIDs := []string{}
 
 	for profileKey, profileNamespace := range previous {
 		_, stillPresent := seen[profileKey]
@@ -760,7 +782,7 @@ func (r *Runner) syncNamedNamespaceProfilesLocked(
 		}
 
 		delete(next, profileKey)
-		contextNames = append(contextNames, r.pruneProfileLocked(profileKey)...)
+		registrationIDs = append(registrationIDs, r.pruneProfileLocked(profileKey)...)
 	}
 
 	for profileKey, profileNamespace := range seen {
@@ -769,7 +791,7 @@ func (r *Runner) syncNamedNamespaceProfilesLocked(
 
 	r.profileKeysByRoot[state.rootID] = next
 
-	return contextNames
+	return registrationIDs
 }
 
 // rootWatchesNamespace reports whether a root state intentionally watches a namespace.
@@ -801,25 +823,22 @@ func (r *Runner) recordRootProfile(state *rootState, profileKey string, namespac
 	return true
 }
 
-// clusterProfileMatchesSelector reports whether a ClusterProfile passes the configured selector.
-func (r *Runner) clusterProfileMatchesSelector(cp *apisv1alpha1.ClusterProfile) bool {
-	return r.labelSelector == nil || r.labelSelector.Matches(labels.Set(cp.Labels))
-}
+// dropClusterProfile removes the registration of one ClusterProfile of a current root,
+// and stops tracking the profile unless it is expected to come back.
+func (r *Runner) dropClusterProfile(state *rootState, profileKey string, stopTracking bool) {
+	var registrationIDs []string
 
-// pruneClusterProfile removes tracking and context state for one ClusterProfile.
-func (r *Runner) pruneClusterProfile(state *rootState, profileKey string) {
 	r.mu.Lock()
+	if r.roots[state.rootID] == state {
+		if stopTracking {
+			delete(r.profileKeysByRoot[state.rootID], profileKey)
+		}
 
-	if r.roots[state.rootID] != state {
-		r.mu.Unlock()
-		return
+		registrationIDs = r.pruneProfileLocked(profileKey)
 	}
-
-	delete(r.profileKeysByRoot[state.rootID], profileKey)
-	contextNames := r.pruneProfileLocked(profileKey)
 	r.mu.Unlock()
 
-	r.removeContexts(contextNames)
+	r.removeRegistrations(registrationIDs...)
 }
 
 // stopMissingRoots stops roots that are no longer present in the desired root set.
@@ -828,7 +847,7 @@ func (r *Runner) stopMissingRoots(presentRoots map[string]struct{}, storeRootsLo
 
 	cancels := make([]context.CancelFunc, 0, len(r.roots))
 
-	var contextNames []string
+	var registrationIDs []string
 
 	for rootID, state := range r.roots {
 		if _, ok := presentRoots[rootID]; ok {
@@ -842,23 +861,23 @@ func (r *Runner) stopMissingRoots(presentRoots map[string]struct{}, storeRootsLo
 		cancels = append(cancels, state.cancel)
 
 		delete(r.roots, rootID)
-		contextNames = append(contextNames, r.pruneRootLocked(rootID)...)
+		registrationIDs = append(registrationIDs, r.pruneRootLocked(rootID)...)
 	}
 
 	r.mu.Unlock()
 
-	r.removeContexts(contextNames)
+	r.removeRegistrations(registrationIDs...)
 
 	for _, cancel := range cancels {
 		cancel()
 	}
 }
 
-// stopRoot stops one active root and optionally prunes its discovered contexts.
+// stopRoot stops one active root and optionally prunes its registrations.
 func (r *Runner) stopRoot(rootID string, prune bool) {
 	var (
-		cancel       context.CancelFunc
-		contextNames []string
+		cancel          context.CancelFunc
+		registrationIDs []string
 	)
 
 	r.mu.Lock()
@@ -869,18 +888,18 @@ func (r *Runner) stopRoot(rootID string, prune bool) {
 	}
 
 	if prune {
-		contextNames = r.pruneRootLocked(rootID)
+		registrationIDs = r.pruneRootLocked(rootID)
 	}
 	r.mu.Unlock()
 
-	r.removeContexts(contextNames)
+	r.removeRegistrations(registrationIDs...)
 
 	if cancel != nil {
 		cancel()
 	}
 }
 
-// stopAllRoots cancels all active root informers without pruning their contexts.
+// stopAllRoots cancels all active root informers without pruning their registrations.
 func (r *Runner) stopAllRoots() {
 	r.mu.Lock()
 
@@ -898,37 +917,37 @@ func (r *Runner) stopAllRoots() {
 	}
 }
 
-// pruneRootLocked removes all profile tracking for a root and returns contexts to remove.
+// pruneRootLocked removes all profile tracking for a root and returns the registrations to remove.
 func (r *Runner) pruneRootLocked(rootID string) []string {
-	contextNames := make([]string, 0, len(r.profileKeysByRoot[rootID]))
+	registrationIDs := make([]string, 0, len(r.profileKeysByRoot[rootID]))
 
 	for profileKey := range r.profileKeysByRoot[rootID] {
-		contextNames = append(contextNames, r.pruneProfileLocked(profileKey)...)
+		registrationIDs = append(registrationIDs, r.pruneProfileLocked(profileKey)...)
 	}
 
 	delete(r.profileKeysByRoot, rootID)
 
-	return contextNames
+	return registrationIDs
 }
 
-// pruneProfileLocked removes one profile from tracking and returns its context to remove.
+// pruneProfileLocked removes one profile from tracking and returns its registration to remove.
 func (r *Runner) pruneProfileLocked(profileKey string) []string {
-	state, ok := r.profiles[profileKey]
+	registrationID, ok := r.profiles[profileKey]
 	if !ok {
 		return nil
 	}
 
 	delete(r.profiles, profileKey)
 
-	return []string{state.contextName}
+	return []string{registrationID}
 }
 
-// removeContexts removes contexts from the store and logs failures.
-func (r *Runner) removeContexts(contextNames []string) {
-	for _, contextName := range contextNames {
-		if err := r.store.RemoveContext(contextName); err != nil {
-			logger.Log(logger.LevelWarn, map[string]string{"context": contextName}, err,
-				"cluster-inventory: failed to prune context")
+// removeRegistrations removes registrations and their materialized contexts.
+func (r *Runner) removeRegistrations(registrationIDs ...string) {
+	for _, registrationID := range registrationIDs {
+		if err := r.registry.Remove(registrationID); err != nil {
+			logger.Log(logger.LevelWarn, map[string]string{logFieldRegistration: registrationID}, err,
+				"cluster-inventory: failed to prune registration")
 		}
 	}
 }
@@ -951,19 +970,11 @@ func (r *Runner) hasNoCRD(serverURL string) bool {
 	return true
 }
 
-// markNoCRD caches a server as missing the ClusterProfile CRD.
-func (r *Runner) markNoCRD(serverURL string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.noCRD[serverURL] = r.now().Add(r.noCRDCacheTTL)
-}
-
 // markRootNoCRD stops a root once and caches its server as missing the ClusterProfile CRD.
 func (r *Runner) markRootNoCRD(state *rootState) {
 	var (
-		cancel       context.CancelFunc
-		contextNames []string
+		cancel          context.CancelFunc
+		registrationIDs []string
 	)
 
 	r.mu.Lock()
@@ -971,11 +982,11 @@ func (r *Runner) markRootNoCRD(state *rootState) {
 		r.noCRD[state.serverURL] = r.now().Add(r.noCRDCacheTTL)
 		cancel = state.cancel
 		delete(r.roots, state.rootID)
-		contextNames = r.pruneRootLocked(state.rootID)
+		registrationIDs = r.pruneRootLocked(state.rootID)
 	}
 	r.mu.Unlock()
 
-	r.removeContexts(contextNames)
+	r.removeRegistrations(registrationIDs...)
 
 	if cancel != nil {
 		cancel()
@@ -992,90 +1003,9 @@ func (r *Runner) isCurrentRoot(state *rootState) bool {
 	return r.roots[state.rootID] == state
 }
 
-// makeProfileKey combines a root ID and ClusterProfile path into a stable profile key.
-func makeProfileKey(rootID, profilePath string) string {
-	return rootID + "/" + profilePath
-}
-
-// normalizeLabelSelector parses a user-provided label selector.
-func normalizeLabelSelector(selector string) (labels.Selector, error) {
-	selector = strings.TrimSpace(selector)
-	if selector == "" {
-		return nil, nil
-	}
-
-	parsed, err := labels.Parse(selector)
-	if err != nil {
-		return nil, fmt.Errorf("invalid cluster-inventory-label-selector: %w", err)
-	}
-
-	return parsed, nil
-}
-
-// normalizeNamespaces parses a user-provided comma-separated namespace list.
-func normalizeNamespaces(value string) ([]string, error) {
-	if strings.TrimSpace(value) == "" {
-		return nil, nil
-	}
-
-	var (
-		namespaces    = make([]string, 0, strings.Count(value, ",")+1)
-		allNamespaces bool
-	)
-
-	for _, namespace := range strings.Split(value, ",") {
-		namespace = strings.TrimSpace(namespace)
-
-		switch namespace {
-		case "":
-			return nil, errors.New("invalid cluster-inventory-namespaces: namespace must not be empty")
-		case "*":
-			if allNamespaces {
-				return nil, errors.New(`invalid cluster-inventory-namespaces: "*" must be used on its own`)
-			}
-
-			allNamespaces = true
-		default:
-			if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
-				return nil, fmt.Errorf("invalid cluster-inventory-namespaces: %q: %s",
-					namespace, strings.Join(errs, "; "))
-			}
-
-			namespaces = append(namespaces, namespace)
-		}
-	}
-
-	if allNamespaces {
-		if len(namespaces) > 0 {
-			return nil, errors.New(`invalid cluster-inventory-namespaces: "*" must be used on its own`)
-		}
-
-		return []string{metav1.NamespaceAll}, nil
-	}
-
-	slices.Sort(namespaces)
-
-	return slices.Compact(namespaces), nil
-}
-
-// ValidateNamespaces validates a comma-separated Cluster Inventory namespace list.
-func ValidateNamespaces(value string) error {
-	_, err := normalizeNamespaces(value)
-
-	return err
-}
-
-// namespacesForRoot returns the configured namespaces, or the root's default namespace.
-func (r *Runner) namespacesForRoot(defaultNamespace string) []string {
-	if len(r.namespaces) > 0 {
-		return r.namespaces
-	}
-
-	if defaultNamespace == "" {
-		defaultNamespace = metav1.NamespaceDefault
-	}
-
-	return []string{defaultNamespace}
+// makeProfileKey combines a root ID and ClusterProfile into a stable profile key.
+func makeProfileKey(rootID string, cp *apisv1alpha1.ClusterProfile) string {
+	return rootID + "/" + cache.NewObjectName(cp.Namespace, cp.Name).String()
 }
 
 // namespaceLogValue renders the all-namespace sentinel in a human-readable form.
@@ -1085,21 +1015,6 @@ func namespaceLogValue(namespace string) string {
 	}
 
 	return namespace
-}
-
-// contextNameFromProfileKey builds a stable Headlamp context name for a profile key.
-func contextNameFromProfileKey(profileKey string) string {
-	return clusterInventoryContextPrefix +
-		kubeconfig.MakeDNSFriendly(profileKey) +
-		"--" +
-		profileKeyHashSuffix(profileKey)
-}
-
-// profileKeyHashSuffix returns the hash suffix used to avoid context name collisions.
-func profileKeyHashSuffix(profileKey string) string {
-	sum := sha256.Sum256([]byte(profileKey))
-
-	return hex.EncodeToString(sum[:6])
 }
 
 // normalizeServerURL normalizes a REST config host for root identity and CRD caching.
@@ -1120,6 +1035,7 @@ func normalizeServerURL(host string) string {
 func rootFingerprint(root rootConfig) string {
 	fingerprintHash := sha256.New()
 
+	writeHashString(fingerprintHash, root.originCluster)
 	writeRestConfigFingerprint(fingerprintHash, root.restConfig)
 	writeTLSConfigFingerprint(fingerprintHash, root.restConfig)
 	writeImpersonateFingerprint(fingerprintHash, root.restConfig)
@@ -1231,48 +1147,87 @@ func writeHashBytes(fingerprintHash hash.Hash, value []byte) {
 	_, _ = fingerprintHash.Write([]byte{0})
 }
 
-// clusterProfileFromObject extracts a ClusterProfile from informer event objects.
-func clusterProfileFromObject(obj interface{}) (*apisv1alpha1.ClusterProfile, bool) {
-	switch typed := obj.(type) {
-	case *apisv1alpha1.ClusterProfile:
-		return typed, true
-	case cache.DeletedFinalStateUnknown:
-		return clusterProfileFromObject(typed.Obj)
-	case *cache.DeletedFinalStateUnknown:
-		return clusterProfileFromObject(typed.Obj)
-	default:
-		return nil, false
-	}
-}
+// parseAccessProviders parses a comma-separated, ordered provider allowlist. Names are
+// matched exactly, so they are neither sorted nor deduplicated.
+func parseAccessProviders(value string) []string {
+	var providers []string
 
-// accessOnlyClusterProfile returns a copy containing only access-provider status.
-func accessOnlyClusterProfile(cp *apisv1alpha1.ClusterProfile) *apisv1alpha1.ClusterProfile {
-	return &apisv1alpha1.ClusterProfile{
-		TypeMeta:   cp.TypeMeta,
-		ObjectMeta: *cp.ObjectMeta.DeepCopy(),
-		Spec:       cp.Spec,
-		Status: apisv1alpha1.ClusterProfileStatus{
-			AccessProviders: append([]apisv1alpha1.AccessProvider(nil), cp.Status.AccessProviders...),
-		},
-	}
-}
-
-// copyAccessConfig returns a shallow access config copy with independent exec slices.
-func copyAccessConfig(in *access.Config) *access.Config {
-	out := &access.Config{Providers: make([]access.Provider, len(in.Providers))}
-	for i, provider := range in.Providers {
-		out.Providers[i] = provider
-		if provider.ExecConfig == nil {
-			continue
+	for _, item := range strings.Split(value, ",") {
+		if name := strings.TrimSpace(item); name != "" {
+			providers = append(providers, name)
 		}
-
-		execConfig := *provider.ExecConfig
-		execConfig.Args = append([]string(nil), provider.ExecConfig.Args...)
-		execConfig.Env = append([]api.ExecEnvVar(nil), provider.ExecConfig.Env...)
-		out.Providers[i].ExecConfig = &execConfig
 	}
 
-	return out
+	return providers
+}
+
+// selectAccessProvider returns the first exact allowlist match. AccessProviders
+// takes precedence over the deprecated CredentialProviders field.
+func selectAccessProvider(
+	cp *apisv1alpha1.ClusterProfile,
+	allowed []string,
+) (apisv1alpha1.AccessProvider, bool) {
+	providers := slices.Concat(cp.Status.AccessProviders, cp.Status.CredentialProviders)
+
+	for _, name := range allowed {
+		for _, provider := range providers {
+			if provider.Name == name {
+				return provider, true
+			}
+		}
+	}
+
+	return apisv1alpha1.AccessProvider{}, false
+}
+
+// accessConfigForProvider returns an access config holding only the named provider.
+func accessConfigForProvider(in *access.Config, providerName string) *access.Config {
+	index := slices.IndexFunc(in.Providers, func(provider access.Provider) bool {
+		return provider.Name == providerName
+	})
+	if index < 0 {
+		return access.New(nil)
+	}
+
+	provider := in.Providers[index]
+	provider.ExecConfig = provider.ExecConfig.DeepCopy()
+
+	return access.New([]access.Provider{provider})
+}
+
+// clusterContext builds the connection for an access provider. It uses the configured
+// Cluster Inventory exec provider when there is one, and the end user's OIDC token otherwise.
+func (r *Runner) clusterContext(
+	provider apisv1alpha1.AccessProvider,
+	cp *apisv1alpha1.ClusterProfile,
+) (*kubeconfig.Context, error) {
+	if r.accessConfig == nil {
+		return oidcContextFromAccessProvider(provider, r.oidcConfig)
+	}
+
+	restConfig, err := accessConfigForProvider(r.accessConfig, provider.Name).BuildConfigFromCP(cp)
+	if err != nil {
+		return nil, fmt.Errorf("build rest config: %w", err)
+	}
+
+	return restConfigToContext(restConfig)
+}
+
+// oidcContextFromAccessProvider builds a context that forwards the end user's OIDC token.
+func oidcContextFromAccessProvider(
+	provider apisv1alpha1.AccessProvider,
+	oidcConfig *kubeconfig.OidcConfig,
+) (*kubeconfig.Context, error) {
+	cluster := api.NewCluster()
+	if err := clientcmdlatest.Scheme.Convert(&provider.Cluster, cluster, nil); err != nil {
+		return nil, fmt.Errorf("convert access provider cluster: %w", err)
+	}
+
+	return &kubeconfig.Context{
+		Cluster:  cluster,
+		OidcConf: oidcConfig,
+		Source:   kubeconfig.ClusterInventory,
+	}, nil
 }
 
 // isNoCRDError reports whether an error means the ClusterProfile CRD is unavailable.
@@ -1345,19 +1300,7 @@ func proxyURLFromRestConfig(restConfig *rest.Config) (string, error) {
 }
 
 // restConfigToContext builds a Headlamp kubeconfig.Context from a generated rest.Config.
-func restConfigToContext(restConfig *rest.Config, contextName, profileKey string) (*kubeconfig.Context, error) {
-	if restConfig == nil {
-		return nil, errors.New("restConfig is nil")
-	}
-
-	if contextName == "" {
-		return nil, errors.New("contextName is empty")
-	}
-
-	if profileKey == "" {
-		return nil, errors.New("profileKey is empty")
-	}
-
+func restConfigToContext(restConfig *rest.Config) (*kubeconfig.Context, error) {
 	cluster := &api.Cluster{
 		Server:                   restConfig.Host,
 		CertificateAuthorityData: restConfig.CAData,
@@ -1387,18 +1330,9 @@ func restConfigToContext(restConfig *rest.Config, contextName, profileKey string
 		authInfo.Exec.InteractiveMode = api.NeverExecInteractiveMode
 	}
 
-	kubeContext := &api.Context{
-		Cluster:  contextName,
-		AuthInfo: contextName,
-	}
-
 	return &kubeconfig.Context{
-		Name:           contextName,
-		KubeContext:    kubeContext,
-		Cluster:        cluster,
-		AuthInfo:       authInfo,
-		Source:         kubeconfig.ClusterInventory,
-		KubeConfigPath: "",
-		ClusterID:      clusterInventoryIDPrefix + profileKey,
+		Cluster:  cluster,
+		AuthInfo: authInfo,
+		Source:   kubeconfig.ClusterInventory,
 	}, nil
 }

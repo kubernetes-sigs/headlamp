@@ -27,6 +27,7 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
+import { getClusterRoute } from '../../../clusterRegistration';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
@@ -160,7 +161,7 @@ export async function clusterRequest(
       opts.headers['X-HEADLAMP-USER-ID'] = userID;
     }
 
-    fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
+    fullPath = combinePath(`/${CLUSTERS_PREFIX}/${getClusterRoute(cluster)}`, path);
   }
 
   const controller = new AbortController();

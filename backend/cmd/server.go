@@ -30,6 +30,7 @@ import (
 	"github.com/cli/browser"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterregistration"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
@@ -99,6 +100,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		EnableHelm:             conf.EnableHelm,
 		EnableDynamicClusters:  conf.EnableDynamicClusters,
 		EnableClusterInventory: conf.EnableClusterInventory,
+		EnableClusterAPI:       conf.EnableClusterAPI,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
@@ -111,10 +113,14 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 			return strings.Split(conf.ProxyURLs, ",")
 		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
+		ClusterInventoryAuthType:              conf.ClusterInventoryAuthType,
+		ClusterInventoryAccessProviders:       conf.ClusterInventoryAccessProviders,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
 		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,
 		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
 		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
+		ClusterAPILabelSelector:               conf.ClusterAPILabelSelector,
+		ClusterAPINamespaces:                  conf.ClusterAPINamespaces,
 		TLSCertPath:                           conf.TLSCertPath,
 		TLSKeyPath:                            conf.TLSKeyPath,
 		SessionTTL:                            conf.SessionTTL,
@@ -206,6 +212,11 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
+	var registrationStore *clusterregistration.Registry
+	if conf.EnableClusterInventory || conf.EnableClusterAPI {
+		registrationStore = clusterregistration.New(kubeConfigStore)
+	}
+
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
 		OidcClientID:              conf.OidcClientID,
@@ -226,6 +237,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
+		ClusterRegistrationStore:  registrationStore,
 	}
 
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled

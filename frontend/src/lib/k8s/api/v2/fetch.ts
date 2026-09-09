@@ -19,6 +19,7 @@ import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { getClusterRoute } from '../../../clusterRegistration';
 import { ApiError } from './ApiError';
 import { makeUrl } from './makeUrl';
 
@@ -94,7 +95,7 @@ export async function clusterFetch(url: string | URL, init: RequestInit & { clus
     init.headers.set('X-HEADLAMP-USER-ID', userID);
   }
 
-  const urlParts = init.cluster ? ['clusters', init.cluster, url] : [url];
+  const urlParts = init.cluster ? ['clusters', getClusterRoute(init.cluster), url] : [url];
 
   try {
     const response = await backendFetch(makeUrl(urlParts), init);

@@ -17,6 +17,41 @@ Headlamp can discover additional clusters from Cluster Inventory API
 backend uses `sigs.k8s.io/cluster-inventory-api v0.1.3`, the `pkg/access`
 provider configuration package, and `ClusterProfile.status.accessProviders`.
 
+Discovery uses Kubernetes LIST/WATCH with the Headlamp pod's service account.
+Added, changed, and deleted registrations are streamed to open browsers, so a
+page reload is not required. Headlamp publishes only a stable opaque ID,
+display name, source, and origin resource for each currently routable cluster;
+API endpoints and credentials remain backend-only.
+
+## Authentication and provider selection
+
+`--cluster-inventory-auth-type` accepts `oidc` or `access-provider` and defaults
+to `oidc`. In OIDC mode, Headlamp uses the token from the registration's origin
+cluster when proxying to the discovered cluster. This does not start a separate
+OIDC flow or open one browser tab per spoke. Every target API server must accept
+the origin token's issuer and audience; otherwise that target returns an
+authentication error.
+
+`--cluster-inventory-access-providers` is required in both modes. It is an
+ordered, comma-separated allowlist. Names are matched exactly and
+case-sensitively against `status.accessProviders` (or the deprecated
+`status.credentialProviders`), and the first match wins. No provider name is
+special-cased.
+
+For example, an in-cluster OIDC setup can use:
+
+```bash
+./backend/headlamp-server -in-cluster \
+  --enable-cluster-inventory \
+  --cluster-inventory-auth-type=oidc \
+  --cluster-inventory-access-providers=shared-oidc,secondary-oidc \
+  --cluster-inventory-namespaces=headlamp
+```
+
+`--cluster-inventory-provider-file` is read only in `access-provider` mode. A
+provider file is required in that mode, and Headlamp limits it to the selected
+provider before constructing the target connection.
+
 For a local end-to-end environment, follow the setup in
 [`e2e-tests/README.md`](https://github.com/kubernetes-sigs/headlamp/blob/main/e2e-tests/README.md).
 It uses the regular E2E `test` and `test2` kind clusters and deploys Cluster
@@ -56,11 +91,19 @@ HEADLAMP_BACKEND_TOKEN=headlamp \
 HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
 ./backend/headlamp-server -dev -listen-addr=localhost \
   --enable-cluster-inventory \
+  --cluster-inventory-auth-type=access-provider \
+  --cluster-inventory-access-providers=static-token-spoke-a \
   --cluster-inventory-provider-file "$WORK/provider-config.json" \
   --cluster-inventory-label-selector='!headlamp.dev/ignore' \
   --cluster-inventory-namespaces=inventory-e2e \
   --cluster-inventory-root-reconcile-interval=10s \
   --cluster-inventory-no-crd-cache-ttl=30s
+```
+
+In another terminal:
+
+```bash
+npm run frontend:start
 ```
 
 Without `--cluster-inventory-namespaces`, each root is watched in its own
@@ -69,11 +112,36 @@ kubecontext namespace (or `default`) for roots seeded from the kubeconfig.
 Pass a comma-separated list to watch more than one namespace. Use `*` on its
 own to watch all namespaces.
 
-In another terminal:
+A ClusterProfile is registered only when one of the allowed providers supplies
+a non-empty API server endpoint and Headlamp can construct its connection.
+Removing the endpoint or allowed provider removes the registration. The
+ClusterProfile object itself remains available to plugins through ordinary
+Kubernetes resource hooks on the origin cluster.
+
+## Cluster API discovery
+
+`--enable-cluster-api` enables the same registration flow for Cluster API
+Cluster resources. Headlamp prefers `cluster.x-k8s.io/v1beta2` when the API
+server serves it and falls back to `cluster.x-k8s.io/v1beta1`. Headlamp reads
+only `spec.controlPlaneEndpoint` and never reads the CAPI kubeconfig Secret. A
+Cluster without an endpoint is not registered; it is added automatically if an
+endpoint appears later.
 
 ```bash
-npm run frontend:start
+./backend/headlamp-server -in-cluster \
+  --enable-cluster-api \
+  --cluster-api-namespaces=headlamp \
+  --cluster-api-label-selector='!headlamp.dev/ignore'
 ```
+
+The pod service account needs `list` and `watch` permission for each enabled
+source in every selected namespace. All-namespace discovery requires the
+equivalent cluster-wide permissions.
+
+A cluster discovered by both sources is registered twice, once per source.
+
+Plugins consume registrations with the `useRegisteredClusters` hook, documented in
+[Plugins: Registered Clusters](https://headlamp.dev/docs/latest/development/plugins/functionality/#registered-clusters).
 
 Install the `v0.1.3` CRD on clusters that publish inventory:
 

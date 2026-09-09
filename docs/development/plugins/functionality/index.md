@@ -186,6 +186,31 @@ be shared with workloads or other cluster users.
 
 - Example plugin: [How To Use Plugin Secure Storage](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/secure-storage)
 
+### Registered Clusters
+
+Subscribe to routable clusters discovered by backend adapters with
+`useRegisteredClusters`. The returned opaque IDs can be passed unchanged to
+existing Kubernetes hooks, including multi-cluster list calls:
+
+```tsx
+import { K8s, useRegisteredClusters } from '@kinvolk/headlamp-plugin/lib';
+
+const registrations = useRegisteredClusters({ source: 'cluster-inventory' });
+const result = K8s.ResourceClasses.ConfigMap.useList({
+  clusters: registrations.map(registration => registration.id),
+  namespace: 'knative-serving',
+});
+```
+
+The optional `source`, `originCluster`, and `originNamespace` filters select the
+source adapter, the Headlamp ID of the origin cluster, and the namespace holding
+the origin resource. Each result carries `id`, `displayName`, `source`, and
+`origin`. Endpoints and credentials stay in the backend. The hook updates when
+registrations are added, changed, or removed, and HTTP and WebSocket routing
+resolves transparently through the origin cluster.
+
+- Backend setup: [Cluster Inventory](../../cluster-inventory.md)
+
 ### Route
 
 Show a component in the main area at a given URL with

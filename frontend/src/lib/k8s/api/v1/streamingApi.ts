@@ -20,6 +20,7 @@ import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPI
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
+import { getClusterRoute } from '../../../clusterRegistration';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
@@ -450,7 +451,7 @@ export async function connectStreamWithParams<T>(
   let fullPath = path;
   let url = '';
   if (cluster) {
-    fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
+    fullPath = combinePath(`/${CLUSTERS_PREFIX}/${getClusterRoute(cluster)}`, path);
     try {
       const kubeconfig = await findKubeconfigByClusterName(cluster);
 

@@ -28,28 +28,39 @@ test.describe('Cluster Inventory', () => {
   test.skip(!shouldRun, 'Set HEADLAMP_CLUSTER_INVENTORY_E2E=true to run Cluster Inventory E2E');
 
   test('discovers clusters and proxies to them', async ({ request }) => {
-    const configResponse = await request.get('/config', requestOptions);
-    expect(configResponse.status()).toBe(200);
+    const registrationsResponse = await request.get('/cluster-registrations', requestOptions);
+    expect(registrationsResponse.status()).toBe(200);
 
-    const config = await configResponse.json();
-    const inventoryClusters = config.clusters.filter(
-      (cluster: any) => cluster.meta_data?.source === 'cluster_inventory'
+    const snapshot = await registrationsResponse.json();
+    const inventoryRegistrations = snapshot.items.filter(
+      (registration: any) => registration.source === 'cluster-inventory'
     );
-    expect(inventoryClusters).toHaveLength(1);
+    expect(inventoryRegistrations).toHaveLength(1);
 
-    const cluster = inventoryClusters[0];
-    expect(cluster.meta_data.clusterInventory.profile).toMatchObject({
-      namespace: 'kube-system',
-      name: 'inventory-test2',
+    const registration = inventoryRegistrations[0];
+    expect(registration).toMatchObject({
+      displayName: 'inventory-test2',
+      origin: {
+        cluster: 'main',
+        resource: {
+          apiVersion: 'multicluster.x-k8s.io/v1alpha1',
+          kind: 'ClusterProfile',
+          namespace: 'kube-system',
+          name: 'inventory-test2',
+        },
+      },
     });
 
-    const clusterName = encodeURIComponent(cluster.name);
+    const originCluster = encodeURIComponent(registration.origin.cluster);
+    const targetCluster = encodeURIComponent(registration.id);
     const response = await request.get(
-      `/clusters/${clusterName}/api/v1/namespaces/inventory-demo/pods`,
+      `/clusters/${originCluster}/federated/${targetCluster}/api/v1/namespaces/inventory-demo/pods`,
       requestOptions
     );
 
-    expect(response.status(), `expected pod proxy to work for ${cluster.name}`).toBe(200);
+    expect(response.status(), `expected pod proxy to work for ${registration.displayName}`).toBe(
+      200
+    );
 
     const body = await response.json();
     expect(body.items).toHaveLength(1);

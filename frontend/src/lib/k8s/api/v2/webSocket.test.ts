@@ -20,6 +20,8 @@ import WS from 'vitest-websocket-mock';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { makeRegisteredCluster } from '../../../../test/clusterRegistration';
+import { setRegisteredClusterSnapshot } from '../../../clusterRegistration';
 import { openWebSocket, useWebSockets } from './webSocket';
 import { BASE_WS_URL } from './webSocket';
 
@@ -110,10 +112,33 @@ describe('useWebSockets', () => {
       ]);
       expect(onMessage).toHaveBeenCalledWith('binary-data');
     });
+
+    it('routes a registered cluster websocket through its origin cluster', async () => {
+      setRegisteredClusterSnapshot({ items: [makeRegisteredCluster()] });
+      (findKubeconfigByClusterName as Mock).mockResolvedValue(null);
+
+      const socket = { addEventListener: vi.fn(), binaryType: '' };
+      const WebSocketMock = vi.fn(function () {
+        return socket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      await openWebSocket('/api/v1/pods', {
+        cluster: 'hr-v1-spoke',
+        type: 'binary',
+        onMessage: vi.fn(),
+      });
+
+      expect(WebSocketMock).toHaveBeenCalledWith(
+        expect.stringContaining('/clusters/hub/federated/hr-v1-spoke/api/v1/pods'),
+        ['base64.binary.k8s.io']
+      );
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    setRegisteredClusterSnapshot(undefined);
     WS.clean();
   });
 
