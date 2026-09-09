@@ -30,6 +30,10 @@ const packageJson = JSON.parse(
       executableName?: string;
     };
   };
+  /** Dependency lifecycle scripts explicitly approved by npm. */
+  allowScripts?: Record<string, boolean>;
+  /** Desktop build dependencies keyed by package name. */
+  devDependencies: Record<string, string>;
   optionalDependencies: Record<string, string>;
 };
 const require = createRequire(import.meta.url);
@@ -38,6 +42,28 @@ const { expandMsiArtifactName } = require('../windows/msi/artifact-name.js') as 
 };
 
 describe('desktop package configuration', () => {
+  it('allows only the Electron install script', () => {
+    const packageLock = JSON.parse(
+      fs.readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
+    );
+    const lockedElectron = packageLock.packages['node_modules/electron'];
+
+    expect(packageJson.allowScripts).toEqual({ electron: true });
+    expect(lockedElectron.hasInstallScript).toBe(true);
+    expect(packageJson.devDependencies.electron).toBe(`^${lockedElectron.version}`);
+  });
+
+  it('has the Electron binary installed by its approved script', () => {
+    const electronDirectory = new URL('../node_modules/electron/', import.meta.url);
+    const electronPackage = JSON.parse(
+      fs.readFileSync(new URL('package.json', electronDirectory), 'utf8')
+    );
+    const executablePath = fs.readFileSync(new URL('path.txt', electronDirectory), 'utf8').trim();
+
+    expect(electronPackage.scripts.postinstall).toBe('node install.js');
+    expect(fs.existsSync(new URL(`dist/${executablePath}`, electronDirectory))).toBe(true);
+  });
+
   it('uses the product name for artifact filenames', () => {
     expect(packageJson.build.artifactName).toBe('${productName}-${version}-${os}-${arch}.${ext}');
   });

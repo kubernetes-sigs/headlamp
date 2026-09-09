@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import './runtimeProductIdentity';
 import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';

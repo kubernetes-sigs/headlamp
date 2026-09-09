@@ -48,6 +48,8 @@ jobs:
 
       - name: Setup Minikube
         uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+        with:
+          container-runtime: docker
 
       - name: Build image & Run chart-testing (install)
         run: |
