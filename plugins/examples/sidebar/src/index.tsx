@@ -15,14 +15,82 @@
  */
 
 import {
+  registerHomeSidebarEntryFilter,
   registerRoute,
   registerRouteFilter,
   registerSidebarEntry,
   registerSidebarEntryFilter,
 } from '@kinvolk/headlamp-plugin/lib';
-import { SectionBox } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
+import { SectionBox, Table, TableColumn } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
+import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
 import React from 'react';
+
+interface TablePropsTestRow {
+  /** Display name for the fixture row. */
+  name: string;
+  /** Initial value shown by the custom selection cell. */
+  selected: boolean;
+}
+
+/**
+ * Renders the checkbox used to verify that disabled row selection leaves custom cells alone.
+ *
+ * @returns An uncontrolled checkbox for the fixture row.
+ */
+function CustomSelectionCheckbox(): React.ReactElement {
+  return <Checkbox inputProps={{ 'aria-label': 'Custom row checkbox' }} />;
+}
+
+const tablePropsColumns: TableColumn<TablePropsTestRow>[] = [
+  {
+    accessorKey: 'selected',
+    header: 'Selected',
+    Cell: CustomSelectionCheckbox,
+  },
+  {
+    accessorKey: 'name',
+    header: 'Name',
+  },
+];
+
+/**
+ * Renders a table fixture with its top toolbar and MRT row selection disabled.
+ *
+ * @returns The Table props end-to-end fixture.
+ */
+function TablePropsTestPage(): React.ReactElement {
+  return (
+    <SectionBox title="Table Fixture">
+      <Table
+        columns={tablePropsColumns}
+        data={[{ name: 'Custom selection row', selected: false }]}
+        enableRowSelection={false}
+        enableTopToolbar={false}
+      />
+    </SectionBox>
+  );
+}
+
+registerRoute({
+  path: '/table-props',
+  sidebar: null,
+  name: 'table-props',
+  exact: true,
+  component: TablePropsTestPage,
+});
+
+// A non-clickable section header in the sidebar.
+registerSidebarEntry({
+  parent: null,
+  name: 'feedback-section',
+  label: 'Feedback Tools',
+  entryType: 'subheader',
+  sx: {
+    fontSize: '0.8rem',
+    textTransform: 'none',
+  },
+});
 
 // A top level item in the sidebar.
 // The sidebar link URL is: /c/mycluster/feedback
@@ -222,3 +290,6 @@ registerRouteFilter(route => (route.path === '/workloads' ? null : route));
 registerSidebarEntryFilter(entry => (entry.name === 'namespaces' ? null : entry));
 // Remove "/namespaces" route
 registerRouteFilter(route => (route.path === '/namespaces' ? null : route));
+
+// Remove "settings" from the HOME sidebar
+registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));

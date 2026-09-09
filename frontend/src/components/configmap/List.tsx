@@ -32,7 +32,11 @@ export default function ConfigMapList() {
         {
           id: 'data',
           label: t('translation|Data'),
-          getValue: (configmap: ConfigMap) => Object.keys(configmap.data || {}).length || 0,
+          getValue: (configMap: ConfigMap) => {
+            const dataKeys = Object.keys(configMap.data ?? {});
+            const binaryDataKeys = Object.keys(configMap.binaryData ?? {});
+            return dataKeys.length + binaryDataKeys.length;
+          },
           gridTemplate: 'min-content',
         },
         'labels',

@@ -26,12 +26,17 @@ import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
 import GatewayClass from '../../../../lib/k8s/gatewayClass';
+import {
+  resolveGatewayBackendReference,
+  resolveGatewayParentReference,
+} from '../../../../lib/k8s/gatewayReferences';
 import HPA from '../../../../lib/k8s/hpa';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import Job from '../../../../lib/k8s/job';
 import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import LeaderWorkerSet, { LEADER_WORKER_SET_NAME_LABEL } from '../../../../lib/k8s/leaderWorkerSet';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
@@ -43,10 +48,14 @@ import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
+import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
-import { Relation } from '../../graph/graphModel';
+import { useTypedSelector } from '../../../../redux/hooks';
+import { GraphEdge, GraphNode, Relation } from '../../graph/graphModel';
 import { makeKubeSourceId } from './graphDefinitionUtils';
+import { BUILT_IN_RELATION_IDS } from './relationIds';
 
 /**
  * Check if the given item has matching labels
@@ -60,10 +69,16 @@ export const matchesLabels = (matchLabels: Record<string, string>, item: KubeObj
 };
 
 const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
+  id: string,
   from: From,
   to: To,
-  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown
+  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown,
+  edgeAttributes?: (
+    a: InstanceType<From>,
+    b: InstanceType<To>
+  ) => Partial<Omit<GraphEdge, 'id' | 'source' | 'target'>>
 ): Relation => ({
+  id,
   fromSource: makeKubeSourceId(from),
   toSource: makeKubeSourceId(to),
   predicate(fromNode, toNode) {
@@ -81,9 +96,17 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
       Boolean(selector(fromObject, toObject))
     );
   },
+  edgeAttributes: edgeAttributes
+    ? (fromNode, toNode) =>
+        edgeAttributes(
+          fromNode.kubeObject as InstanceType<From>,
+          toNode.kubeObject as InstanceType<To>
+        )
+    : undefined,
 });
 
 const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
+  id: `owner-${makeKubeSourceId(cl)}`,
   fromSource: makeKubeSourceId(cl),
   predicate(from, to) {
     const obj = from.kubeObject as KubeObject;
@@ -93,9 +116,25 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
       undefined
     );
   },
+  buildEdgesWithIndex(fromNodes, nodesByUid) {
+    const edges: GraphEdge[] = [];
+    for (const from of fromNodes) {
+      const obj = from.kubeObject as KubeObject;
+      const refs = obj.metadata.ownerReferences;
+      if (!refs) continue;
+      for (const owner of refs) {
+        const to = nodesByUid.get(owner.uid);
+        if (to) {
+          edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+        }
+      }
+    }
+    return edges;
+  },
 });
 
 const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
+  id: `owner-reversed-${makeKubeSourceId(cl)}`,
   fromSource: makeKubeSourceId(cl),
   predicate(from, to) {
     const obj = to.kubeObject as KubeObject;
@@ -105,19 +144,49 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
       undefined
     );
   },
+  buildEdgesWithIndex(fromNodes, nodesByUid) {
+    // Reversed: "from" is the owner, "to" has the ownerReference pointing at "from".
+    // Build a reverse index: for each node with ownerRefs, map ownerUID → [node].
+    const refIndex = new Map<string, GraphNode[]>();
+    for (const [, node] of nodesByUid) {
+      const refs = (node.kubeObject as KubeObject)?.metadata?.ownerReferences;
+      if (!refs) continue;
+      for (const ref of refs) {
+        let list = refIndex.get(ref.uid);
+        if (!list) {
+          list = [];
+          refIndex.set(ref.uid, list);
+        }
+        list.push(node);
+      }
+    }
+
+    const edges: GraphEdge[] = [];
+    for (const from of fromNodes) {
+      const uid = from.kubeObject?.metadata?.uid;
+      if (!uid) continue;
+      const targets = refIndex.get(uid);
+      if (!targets) continue;
+      for (const to of targets) {
+        edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+      }
+    }
+    return edges;
+  },
 });
 
-const configMapUsedInPods = makeRelation(Pod, ConfigMap, (pod, configMap) =>
+const configMapUsedInPods = makeRelation('pod-configmap', Pod, ConfigMap, (pod, configMap) =>
   pod.spec.volumes?.find(volume => volume.configMap?.name === configMap.metadata.name)
 );
 
-const configMapUsedInJobs = makeRelation(Job, ConfigMap, (job, configMap) =>
+const configMapUsedInJobs = makeRelation('job-configmap', Job, ConfigMap, (job, configMap) =>
   job.spec.template.spec.volumes?.find(
     volume => volume?.configMap?.name === configMap.metadata.name
   )
 );
 
 const secretsUsedInPods = makeRelation(
+  'pod-secret',
   Pod,
   Secret,
   (pod, secret) =>
@@ -129,13 +198,14 @@ const secretsUsedInPods = makeRelation(
     )
 );
 
-const secretsUsedInJobs = makeRelation(Job, Secret, (job, secret) =>
+const secretsUsedInJobs = makeRelation('job-secret', Job, Secret, (job, secret) =>
   job.spec.template.spec.containers?.find(container =>
     container.env?.find(env => secret.metadata.name === env.valueFrom?.secretKeyRef?.name)
   )
 );
 
 const hpaToDeployment = makeRelation(
+  'hpa-deployment',
   HPA,
   Deployment,
   (hpa, deployment) =>
@@ -145,6 +215,7 @@ const hpaToDeployment = makeRelation(
 );
 
 const hpaToStatefulSet = makeRelation(
+  'hpa-statefulset',
   HPA,
   StatefulSet,
   (hpa, statefulSet) =>
@@ -153,57 +224,73 @@ const hpaToStatefulSet = makeRelation(
     hpa.spec.scaleTargetRef?.name === statefulSet.metadata.name
 );
 
-const vwcToService = makeRelation(ValidatingWebhookConfiguration, Service, (vwc, service) =>
-  vwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
+const vwcToService = makeRelation(
+  'vwc-service',
+  ValidatingWebhookConfiguration,
+  Service,
+  (vwc, service) =>
+    vwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
 );
 
-const mwcToService = makeRelation(MutatingWebhookConfiguration, Service, (mwc, service) =>
-  mwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
+const mwcToService = makeRelation(
+  'mwc-service',
+  MutatingWebhookConfiguration,
+  Service,
+  (mwc, service) =>
+    mwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
 );
 
-const serviceToPods = makeRelation(Service, Pod, (service, pod) =>
+const serviceToPods = makeRelation('service-pod', Service, Pod, (service, pod) =>
   matchesLabels(service.spec.selector, pod)
 );
 
 const endpointsToServices = makeRelation(
+  'endpoints-service',
   Endpoints,
   Service,
   (endpoint, service) => endpoint.getName() === service.getName()
 );
 
 const endpointSlicesToServices = makeRelation(
+  'endpointslices-service',
   EndpointSlice,
   Service,
   (endpoint, service) => endpoint.getOwnerServiceName() === service.getName()
 );
 
-const ingressToService = makeRelation(Ingress, Service, (ingress, service) =>
+const ingressToService = makeRelation('ingress-service', Ingress, Service, (ingress, service) =>
   ingress.spec?.rules?.find((rule: any) =>
     rule.http?.paths?.find((path: any) => service.metadata.name === path?.backend?.service?.name)
   )
 );
 
-const ingressToSecret = makeRelation(Ingress, Secret, (ingress, secret) =>
+const ingressToSecret = makeRelation('ingress-secret', Ingress, Secret, (ingress, secret) =>
   ingress.spec.tls?.find(tls => tls.secretName === secret.metadata.name)
 );
 
-const networkPolicyToPod = makeRelation(NetworkPolicy, Pod, (np, pod) =>
+const networkPolicyToPod = makeRelation('networkpolicy-pod', NetworkPolicy, Pod, (np, pod) =>
   matchesLabels(np.spec.podSelector.matchLabels ?? {}, pod)
 );
 
 const roleBindingsToRole = makeRelation(
+  'rolebinding-role',
   RoleBinding,
   Role,
   (binding, role) => role.metadata.name === binding.roleRef.name
 );
 
-const roleBindingToServiceAccount = makeRelation(RoleBinding, ServiceAccount, (binding, sa) =>
-  binding.subjects.find(
-    subject => subject.kind === 'ServiceAccount' && sa.metadata.name === subject.name
-  )
+const roleBindingToServiceAccount = makeRelation(
+  'rolebinding-sa',
+  RoleBinding,
+  ServiceAccount,
+  (binding, sa) =>
+    binding.subjects.find(
+      subject => subject.kind === 'ServiceAccount' && sa.metadata.name === subject.name
+    )
 );
 
 const serviceAccountToDeployments = makeRelation(
+  'sa-deployment',
   ServiceAccount,
   Deployment,
   (sa, deployment) =>
@@ -212,6 +299,7 @@ const serviceAccountToDeployments = makeRelation(
 );
 
 const serviceAccountToDaemonSets = makeRelation(
+  'sa-daemonset',
   ServiceAccount,
   DaemonSet,
   (sa, ds) =>
@@ -219,12 +307,22 @@ const serviceAccountToDaemonSets = makeRelation(
     ds.metadata.namespace === sa.metadata.namespace
 );
 
-const pvcToPods = makeRelation(PersistentVolumeClaim, Pod, (pvc, pod) =>
-  pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name)
+const pvcToPods = makeRelation(
+  'pvc-pod',
+  PersistentVolumeClaim,
+  Pod,
+  (pvc, pod) =>
+    pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name),
+  // A ReadWriteMany PVC can be mounted by many otherwise-unrelated Pods; don't let
+  // it bridge their components into one giant group (see #4310). 'source' names the
+  // PVC (this relation's `from`), not the Pod, as the one allowed to be shared/split.
+  // eslint-disable-next-line no-unused-vars
+  (pvc, _pod) =>
+    pvc.spec?.accessModes?.includes('ReadWriteMany') ? { nonGroupingSide: 'source' } : {}
 );
 
 const podToOwner = makeOwnerRelation(Pod);
-const repliaceSetToOwner = makeOwnerRelation(ReplicaSet);
+const replicaSetToOwner = makeOwnerRelation(ReplicaSet);
 
 const useGetCRToOwnerRelations = () => {
   const namespace = useNamespaces();
@@ -233,38 +331,126 @@ const useGetCRToOwnerRelations = () => {
   return useMemo(() => {
     if (!crds) return [];
 
-    return crds.map(crd => {
-      const CRClass = crd.makeCRClass(); // or makeCRClass(crd)
-      return makeOwnerRelationReversed(CRClass);
+    return crds.flatMap(crd => {
+      const CRClass = crd.makeCRClassOrNull();
+      if (!CRClass) {
+        // CRD with incomplete spec; skip it (#4824).
+        return [];
+      }
+      return [makeOwnerRelationReversed(CRClass)];
     });
   }, [crds]);
 };
 
-const jobToCronJob = makeRelation(Job, CronJob, (job, cronJob) =>
+const jobToCronJob = makeRelation('job-cronjob', Job, CronJob, (job, cronJob) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === cronJob.metadata.uid)
 );
 
-const jobToJobSet = makeRelation(Job, JobSet, (job, jobSet) =>
+const jobToJobSet = makeRelation('job-jobset', Job, JobSet, (job, jobSet) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === jobSet.metadata.uid)
 );
 
+// A leader worker set has a stateful set per group, and the pods hang off those
+// stateful sets, so the chain in the map is LWS -> StatefulSet -> Pod. Only the
+// leader stateful set is owned by the leader worker set itself; each group's
+// worker stateful set is owned by that group's leader pod. Matching on owner
+// references would therefore leave every worker group detached from its leader
+// worker set, so the controller's label is used instead. makeRelation already
+// scopes the match to the same cluster and namespace.
+const statefulSetToLeaderWorkerSet = makeRelation(
+  'statefulset-leaderworkerset',
+  StatefulSet,
+  LeaderWorkerSet,
+  (statefulSet, leaderWorkerSet) =>
+    statefulSet.metadata.labels?.[LEADER_WORKER_SET_NAME_LABEL] === leaderWorkerSet.metadata.name
+);
+
 const gatewayToGatewayClass = makeRelation(
+  'gateway-gatewayclass',
   Gateway,
   GatewayClass,
-  (gateway, gatewayClass) => gateway.spec.gatewayClassName === gatewayClass.metadata.name
+  (gateway, gatewayClass) => gateway.spec?.gatewayClassName === gatewayClass.metadata.name
 );
 
-const httpRouteToGateway = makeRelation(HTTPRoute, Gateway, (httpRoute, gateway) =>
-  httpRoute.spec.parentRefs?.find(ref => ref.name === gateway.metadata.name)
+const httpRouteToGateway = makeRelation(
+  'httproute-gateway',
+  HTTPRoute,
+  Gateway,
+  (httpRoute, gateway) => httpRoute.spec.parentRefs?.find(ref => ref.name === gateway.metadata.name)
 );
 
-const httpRouteToService = makeRelation(HTTPRoute, Service, (httpRoute, service) =>
-  httpRoute.spec.rules?.find(rule =>
-    rule.backendRefs?.find(backend => backend.name === service.metadata.name)
-  )
+const httpRouteToService = makeRelation(
+  'httproute-service',
+  HTTPRoute,
+  Service,
+  (httpRoute, service) =>
+    httpRoute.spec.rules?.find(rule =>
+      rule.backendRefs?.find(backend => backend.name === service.metadata.name)
+    )
 );
+
+type L4Route = TCPRoute | UDPRoute;
+type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
+
+const makeL4RouteToGatewayRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(Gateway),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as L4Route;
+    const gateway = toNode.kubeObject as Gateway;
+
+    return (
+      route.cluster === gateway.cluster &&
+      Boolean(
+        route.spec.parentRefs?.some(parentRef => {
+          const reference = resolveGatewayParentReference(parentRef, route.metadata.namespace);
+          return (
+            reference.group === Gateway.apiGroupName &&
+            reference.kind === Gateway.kind &&
+            reference.name === gateway.metadata.name &&
+            reference.namespace === gateway.metadata.namespace
+          );
+        })
+      )
+    );
+  },
+});
+
+const makeL4RouteToServiceRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(Service),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as L4Route;
+    const service = toNode.kubeObject as Service;
+
+    return (
+      route.cluster === service.cluster &&
+      Boolean(
+        route.spec.rules?.some(rule =>
+          rule.backendRefs?.some(backendRef => {
+            const reference = resolveGatewayBackendReference(backendRef, route.metadata.namespace);
+            return (
+              reference.group === (Service.apiGroupName ?? '') &&
+              reference.kind === Service.kind &&
+              reference.name === service.metadata.name &&
+              reference.namespace === service.metadata.namespace
+            );
+          })
+        )
+      )
+    );
+  },
+});
+
+const tcpRouteToGateway = makeL4RouteToGatewayRelation('tcproute-gateway', TCPRoute);
+const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRoute);
+const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
+const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
 
 const backendTLSPolicyToService = makeRelation(
+  'backendtlspolicy-service',
   BackendTLSPolicy,
   Service,
   (tlsPolicy, service) =>
@@ -273,6 +459,7 @@ const backendTLSPolicyToService = makeRelation(
 );
 
 const backendTrafficPolicyToService = makeRelation(
+  'backendtrafficpolicy-service',
   BackendTrafficPolicy,
   Service,
   (trafficPolicy, service) =>
@@ -301,17 +488,48 @@ const staticRelations = [
   serviceAccountToDaemonSets,
   pvcToPods,
   podToOwner,
-  repliaceSetToOwner,
+  replicaSetToOwner,
   jobToCronJob,
   jobToJobSet,
+  statefulSetToLeaderWorkerSet,
   gatewayToGatewayClass,
   httpRouteToGateway,
   httpRouteToService,
+  tcpRouteToGateway,
+  tcpRouteToService,
+  udpRouteToGateway,
+  udpRouteToService,
   backendTLSPolicyToService,
   backendTrafficPolicyToService,
 ];
+
+export { BUILT_IN_RELATION_IDS };
+
 export function useGetAllRelations(): Relation[] {
   const crdRelations = useGetCRToOwnerRelations();
+  const pluginRelations = useTypedSelector(state => state.graphView.relations);
 
-  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations]);
+  const safePluginRelations = useMemo(() => {
+    if (!pluginRelations) return [];
+    return pluginRelations
+      .filter(relation => typeof relation.predicate === 'function')
+      .map(relation => {
+        return {
+          ...relation,
+          predicate(from: GraphNode, to: GraphNode) {
+            try {
+              return relation.predicate(from, to);
+            } catch (e) {
+              console.error(`Error executing plugin relation predicate [${relation.id}]:`, e);
+              return false;
+            }
+          },
+        };
+      });
+  }, [pluginRelations]);
+
+  return useMemo(
+    () => [...staticRelations, ...crdRelations, ...safePluginRelations],
+    [crdRelations, safePluginRelations]
+  );
 }

@@ -18,7 +18,7 @@ import { has } from 'lodash';
 import React, { ReactNode } from 'react';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
 import { PluginManager } from '../components/App/pluginManager';
-import { runCommand } from '../components/App/runCommand';
+import { type PluginRunCommand, runCommand } from '../components/App/runCommand';
 import { setBrandingAppLogoComponent, themeSlice } from '../components/App/themeSlice';
 import { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
 import {
@@ -33,10 +33,15 @@ import {
   DetailsViewsSectionProcessor,
   setDetailsViewSection,
 } from '../components/DetailsViewSection/detailsViewSectionSlice';
-import { GraphSource } from '../components/resourceMap/graph/graphModel';
+import { GraphSource, Relation } from '../components/resourceMap/graph/graphModel';
 import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
+import { BUILT_IN_RELATION_IDS } from '../components/resourceMap/sources/definitions/relationIds';
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
-import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
+import {
+  setHomeSidebarItemFilter,
+  setSidebarItem,
+  setSidebarItemFilter,
+} from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { AppTheme } from '../lib/AppTheme';
 import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -66,14 +71,19 @@ import {
   addClusterStatus,
   addDialog,
   addMenuItem,
+  ClusterEmptyStateComponent,
   ClusterProviderInfo,
   ClusterStatusComponent,
   DialogComponent,
   MenuItemComponent,
+  setClusterEmptyState,
 } from '../redux/clusterProviderSlice';
 import {
   addEventCallback,
+  ClusterSettingsViewLoadedEvent,
+  CreateProjectEvent,
   CreateResourceEvent,
+  DeleteProjectEvent,
   DeleteResourceEvent,
   EditResourceEvent,
   ErrorBoundaryEvent,
@@ -82,13 +92,19 @@ import {
   HeadlampEventCallback,
   HeadlampEventType,
   LogsEvent,
+  PluginDetailsViewLoadedEvent,
+  PluginListViewLoadedEvent,
   PluginLoadingErrorEvent,
   PluginsLoadedEvent,
   PodAttachEvent,
+  ProjectDetailsTabChangeEvent,
+  ProjectDetailsViewLoadedEvent,
+  ProjectListViewLoadedEvent,
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   RestartResourceEvent,
   ScaleResourceEvent,
+  SettingsViewLoadedEvent,
   TerminalEvent,
 } from '../redux/headlampEventSlice';
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
@@ -101,9 +117,11 @@ import {
   CustomCreateProject,
   ProjectDeleteButton,
   ProjectDetailsTab,
+  ProjectGrouping,
   ProjectHeaderAction,
   ProjectOverviewSection,
   setProjectDeleteButton,
+  setProjectGrouping,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
@@ -114,6 +132,8 @@ import {
   PluginSettingsDetailsProps,
   setPluginSettingsComponent,
 } from './pluginsSlice';
+
+export { DefaultCreateProject } from '../redux/projectsSlice';
 
 export interface SectionFuncProps {
   title: string;
@@ -145,11 +165,21 @@ export type {
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   EventListEvent,
+  ProjectListViewLoadedEvent,
+  ProjectDetailsViewLoadedEvent,
+  ProjectDetailsTabChangeEvent,
+  CreateProjectEvent,
+  DeleteProjectEvent,
+  SettingsViewLoadedEvent,
+  ClusterSettingsViewLoadedEvent,
+  PluginListViewLoadedEvent,
+  PluginDetailsViewLoadedEvent,
   PluginSettingsDetailsProps,
   PluginSettingsComponentType,
   GraphSource,
   IconDefinition,
   OverviewChartsProcessor,
+  Relation,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -302,6 +332,8 @@ export function registerSidebarEntry({
   useClusterURL = true,
   icon,
   sidebar,
+  entryType,
+  sx,
 }: SidebarEntryProps) {
   store.dispatch(
     setSidebarItem({
@@ -312,6 +344,8 @@ export function registerSidebarEntry({
       useClusterURL,
       icon,
       sidebar,
+      entryType,
+      sx,
     })
   );
 }
@@ -357,9 +391,9 @@ export function registerKubeObjectGlance(glance: Glance) {
 }
 
 /**
- * Remove sidebar menu items.
+ * Filter or modify IN_CLUSTER sidebar menu items.
  *
- * @param filterFunc - a function for filtering sidebar entries.
+ * @param filterFunc - a function for filtering or modifying IN_CLUSTER sidebar entries. Return null to remove the entry, or the (optionally modified) entry to keep it.
  *
  * @example
  *
@@ -376,9 +410,28 @@ export function registerSidebarEntryFilter(
 }
 
 /**
- * Remove routes.
+ * Filter HOME sidebar menu items (return null to remove, or return a modified entry to update it).
  *
- * @param filterFunc - a function for filtering routes.
+ * @param filterFunc - a function for filtering or modifying HOME sidebar entries. Return null to remove the entry, or the (optionally modified) entry to keep it.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerHomeSidebarEntryFilter } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));
+ * ```
+ */
+export function registerHomeSidebarEntryFilter(
+  filterFunc: (entry: SidebarEntryProps) => SidebarEntryProps | null
+) {
+  store.dispatch(setHomeSidebarItemFilter(filterFunc));
+}
+
+/**
+ * Filter or modify routes.
+ *
+ * @param filterFunc - a function for filtering or modifying routes. Return null to remove the route, or the (optionally modified) route to keep it.
  *
  * @example
  *
@@ -917,6 +970,32 @@ export function registerClusterStatus(item: ClusterStatusComponent) {
 }
 
 /**
+ * Replace the empty state shown on the Home page when no clusters are configured.
+ *
+ * The component receives Headlamp's default content so a product can wrap it.
+ * Registering another component replaces the previous registration.
+ *
+ * @param component - Product-owned empty state component.
+ * @returns Nothing.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerClusterEmptyState } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerClusterEmptyState(({ defaultContent }) => (
+ *   <section>
+ *     <p>Choose how to connect your first cluster.</p>
+ *     {defaultContent}
+ *   </section>
+ * ));
+ * ```
+ */
+export function registerClusterEmptyState(component: ClusterEmptyStateComponent): void {
+  store.dispatch(setClusterEmptyState(component));
+}
+
+/**
  * Register a new cluster provider dialog.
  *
  * These dialogs are used to show actions that can be performed on a cluster.
@@ -1068,21 +1147,51 @@ export function registerUIPanel(panel: UIPanel) {
  *
  * @example
  * ```tsx
+ * import {
+ *   DefaultCreateProject,
+ *   registerCustomCreateProject,
+ * } from '@kinvolk/headlamp-plugin/lib';
+ *
  * registerCustomCreateProject({
- *   id: "custom-create",
- *   name: "Create Helm Project",
- *   description: "Create new project from Helm chart",
- *   Component: ({onBack}) => <div>
- *     Create project
- *     <input name="helm-chart-id" />
- *     <button>Create</button>
- *     <button onClick={onBack}>Back</button>
- *   </div>,
- * })
+ *   id: DefaultCreateProject.NEW_PROJECT,
+ *   name: 'Create Managed Project',
+ *   description: 'Create a project managed by the platform',
+ *   icon: 'mdi:folder-plus',
+ *   component: ({ onBack }) => (
+ *     <div>
+ *       Create project
+ *       <button onClick={onBack}>Back</button>
+ *     </div>
+ *   ),
+ * });
  * ```
  */
 export function registerCustomCreateProject(customCreateProject: CustomCreateProject) {
   store.dispatch(addCustomCreateProject(customCreateProject));
+}
+
+/**
+ * Register custom grouping for project namespaces.
+ *
+ * The returned key is opaque and only distinguishes entries that share a project ID.
+ * Return the project ID to retain Headlamp's default cross-cluster grouping.
+ *
+ * @param projectGrouping - Project grouping definition
+ *
+ * @example
+ * ```tsx
+ * registerProjectGrouping({
+ *   getProjectKey: ({ namespace, projectId }) =>
+ *     namespace.metadata.labels?.['example.com/separate-by-cluster'] === 'true'
+ *       ? `${projectId}:${namespace.cluster}`
+ *       : projectId,
+ * });
+ * ```
+ *
+ * @returns Nothing.
+ */
+export function registerProjectGrouping(projectGrouping: ProjectGrouping) {
+  store.dispatch(setProjectGrouping(projectGrouping));
 }
 
 /**
@@ -1119,13 +1228,16 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  *
  * @param projectOverviewSection - The section configuration to register
  * @param projectOverviewSection.id - Unique identifier for the section
- * @param projectOverviewSection.component - React component to render in the section
+ * @param projectOverviewSection.component - React component receiving the current project and its loaded resources. Return `null` to hide the section's card; a wrapper element that renders nothing still shows an empty card.
+ * @param projectOverviewSection.isEnabled - Optional asynchronous predicate receiving the project being evaluated
+ * @returns void
  *
  * @example
  * ```tsx
  * registerProjectOverviewSection({
  *   id: 'resource-usage',
- *   component: ({ project }) => <ResourceUsageChart project={project} />
+ *   component: ({ project }) => <ResourceUsageChart project={project} />,
+ *   isEnabled: async ({ project }) => project.clusters.length > 1,
  * });
  * ```
  */
@@ -1151,16 +1263,16 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  *
  * @param projectHeaderAction - The action configuration to register
  * @param projectHeaderAction.id - Unique identifier for the action
- * @param projectHeaderAction.component - React component to render as the action button
+ * @param projectHeaderAction.component - React component to render as the action button. It receives the project and an optional `setSelectedTab?: (tabId: string) => void` callback.
  * @param projectHeaderAction.isEnabled - Optional function to determine if action is displayed
  *
  * @example
  * ```tsx
  * registerProjectHeaderAction({
- *   id: 'deploy-app',
- *   component: ({ project }) => (
- *     <Button onClick={() => navigate(`/deploy/${project.id}`)}>
- *       Deploy App
+ *   id: 'view-resources',
+ *   component: ({ setSelectedTab }) => (
+ *     <Button onClick={() => setSelectedTab?.('headlamp-projects.tabs.resources')}>
+ *       View resources
  *     </Button>
  *   )
  * });
@@ -1218,6 +1330,83 @@ export function registerProjectApiResource(apiResource: ApiResource) {
   store.dispatch(addProjectApiResource(normalizedResource));
 }
 
+/**
+ * Registers a custom resource relation definition (a Relation object) for the Resource Map.
+ *
+ * @param relation - The Relation definition object to add.
+ *                   Note: relation.id must be globally unique (across core, CRD, and plugin relations)
+ *                   to prevent silent edge loss and collision-based deduplication issues.
+ *                   It is highly recommended to namespace the ID with the plugin name
+ *                   (e.g., `'my-plugin.deployment-secret'`).
+ *
+ * @example
+ * ```tsx
+ * registerResourceRelationProvider({
+ *   id: 'my-plugin.deployment-secret',
+ *   fromSource: 'apps/Deployment',
+ *   toSource: 'Secret',
+ *   label: 'Uses Secret',
+ *   predicate: (from, to) => ...
+ * });
+ * ```
+ */
+
+export function registerResourceRelationProvider(relation: Relation) {
+  if (
+    !relation ||
+    typeof relation.id !== 'string' ||
+    relation.id.length === 0 ||
+    typeof relation.fromSource !== 'string' ||
+    relation.fromSource.length === 0 ||
+    typeof relation.predicate !== 'function'
+  ) {
+    console.warn(
+      `Invalid relation registration: relation must have a non-empty "id" string, a non-empty "fromSource" string, and a "predicate" function.`
+    );
+    return;
+  }
+
+  if (
+    relation.toSource !== undefined &&
+    (typeof relation.toSource !== 'string' || relation.toSource.length === 0)
+  ) {
+    console.warn(
+      `Invalid relation registration: if "toSource" is provided, it must be a non-empty string.`
+    );
+    return;
+  }
+
+  if (
+    relation.label !== undefined &&
+    (typeof relation.label !== 'string' || relation.label.length === 0)
+  ) {
+    console.warn(
+      `Invalid relation registration: if "label" is provided, it must be a non-empty string.`
+    );
+    return;
+  }
+
+  const isBuiltIn =
+    BUILT_IN_RELATION_IDS.includes(relation.id) ||
+    relation.id.startsWith('owner-') ||
+    relation.id.startsWith('owner-reversed-');
+
+  if (isBuiltIn) {
+    console.warn(
+      `Relation with id "${relation.id}" collides with a built-in relation ID. Skipping.`
+    );
+    return;
+  }
+
+  const relations = store.getState().graphView.relations;
+  const exists = relations.some(r => r.id === relation.id);
+  if (exists) {
+    console.warn(`Relation with id "${relation.id}" already exists. Skipping.`);
+    return;
+  }
+  store.dispatch(graphViewSlice.actions.addRelation(relation));
+}
+
 export {
   DefaultAppBarAction,
   DefaultDetailsViewSection,
@@ -1227,4 +1416,4 @@ export {
   ConfigStore,
 };
 
-export type { CallbackActionOptions };
+export type { CallbackActionOptions, PluginRunCommand };

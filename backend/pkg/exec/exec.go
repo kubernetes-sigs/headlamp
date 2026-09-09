@@ -350,7 +350,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	creds, err := r.a.getCreds()
 	if err != nil {
-		return nil, fmt.Errorf("getting credentials: %v", err)
+		return nil, fmt.Errorf("getting credentials: %w", err)
 	}
 	if creds.token != "" {
 		req.Header.Set("Authorization", "Bearer "+creds.token)
@@ -434,7 +434,7 @@ func (a *Authenticator) refreshCredsLocked() error {
 	env := append(a.environ(), a.env...)
 	data, err := runtime.Encode(codecs.LegacyCodec(a.group), cred)
 	if err != nil {
-		return fmt.Errorf("encode ExecCredentials: %v", err)
+		return fmt.Errorf("encode ExecCredentials: %w", err)
 	}
 	env = append(env, fmt.Sprintf("%s=%s", execInfoEnv, data))
 
@@ -460,7 +460,7 @@ func (a *Authenticator) refreshCredsLocked() error {
 
 	_, gvk, err := codecs.UniversalDecoder(a.group).Decode(stdout.Bytes(), nil, cred)
 	if err != nil {
-		return fmt.Errorf("decoding stdout: %v", err)
+		return fmt.Errorf("decoding stdout: %w", err)
 	}
 	if gvk.Group != a.group.Group || gvk.Version != a.group.Version {
 		return fmt.Errorf("exec plugin is configured to use API version %s, plugin returned version %s",
@@ -489,7 +489,7 @@ func (a *Authenticator) refreshCredsLocked() error {
 	if cred.Status.ClientKeyData != "" && cred.Status.ClientCertificateData != "" {
 		cert, err := tls.X509KeyPair([]byte(cred.Status.ClientCertificateData), []byte(cred.Status.ClientKeyData))
 		if err != nil {
-			return fmt.Errorf("failed parsing client key/certificate: %v", err)
+			return fmt.Errorf("failed parsing client key/certificate: %w", err)
 		}
 
 		// Leaf is initialized to be nil:
@@ -500,7 +500,7 @@ func (a *Authenticator) refreshCredsLocked() error {
 		// certificate values.
 		cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
 		if err != nil {
-			return fmt.Errorf("failed parsing client leaf certificate: %v", err)
+			return fmt.Errorf("failed parsing client leaf certificate: %w", err)
 		}
 		newCreds.cert = &cert
 	}
@@ -552,6 +552,6 @@ func (a *Authenticator) wrapCmdRunErrorLocked(err error) error {
 		)
 
 	default:
-		return fmt.Errorf("exec: %v", err)
+		return fmt.Errorf("exec: %w", err)
 	}
 }

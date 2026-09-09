@@ -35,7 +35,8 @@ releaser <command>
 export GITHUB_TOKEN=your-token-here
 
 # 1. Start the release (creates branch hl-rc-0.42.0, bumps version
-#    in app/package.json, runs npm install, and commits)
+#    in app/package.json and charts/headlamp/Chart.yaml, runs npm install,
+#    regenerates Helm templates, and commits)
 releaser start 0.42.0
 
 # 2. Create the GitHub draft release
@@ -79,7 +80,7 @@ For published releases, this also checks extended assets such as container image
 
 ### `start` — Start a new release
 
-Update `app/package.json` with the new version, run `npm install` in the app directory, and commit the changes. By default, a release branch named `hl-rc-<version>` is created.
+Update `app/package.json` and `charts/headlamp/Chart.yaml` with the new version, run `npm install` in the app directory, regenerate Helm expected templates via `make helm-update-template-version` (requires `make`, `bash`, and `helm` on PATH), and commit the changes. By default, a release branch named `hl-rc-<version>` is created.
 
 ```bash
 releaser start <release-version> [options]
@@ -169,13 +170,23 @@ releaser ci app --list
 releaser ci app --list --platform mac --latest 3 --output json
 ```
 
+### `security-check` — Scan the backend and Dockerfiles for security issues
+
+Runs [`govulncheck`](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) against the Go backend module to catch known vulnerabilities, and [`hadolint`](https://github.com/hadolint/hadolint) against `Dockerfile`, `Dockerfile.plugins`, and `docker-extension/Dockerfile` to catch Dockerfile security issues (e.g. unpinned packages, missing pipefail on piped `RUN` commands). Exits non-zero if any check reports a real problem.
+
+Requires the Go toolchain (for `govulncheck`) and Docker (used to run `hadolint` without a local install) to be available on `PATH`; a check is skipped with a warning if its tool isn't found.
+
+```bash
+releaser security-check
+```
+
 ## Development
 
 Source code is in `src/` and is organized as follows:
 
 - `src/index.ts` — CLI entry point and command definitions
-- `src/commands/` — Individual command implementations (`check`, `start`, `tag`, `publish`, `build`, `get-app-runs`)
-- `src/utils/` — Shared utilities (`git`, `github`, `version`)
+- `src/commands/` — Individual command implementations (`check`, `start`, `tag`, `publish`, `build`, `get-app-runs`, `security-check`)
+- `src/utils/` — Shared utilities (`git`, `github`, `version`, `security`)
 
 To rebuild after making changes:
 

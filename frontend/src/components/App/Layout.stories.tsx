@@ -19,7 +19,7 @@ import { delay, http, HttpResponse } from 'msw';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import store from '../../redux/stores/store';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Layout from './Layout';
 
 export default {
@@ -36,7 +36,7 @@ export default {
     msw: {
       handlers: [
         // Mock cluster config
-        http.get('http://localhost:4466/config', () =>
+        http.get(`${API_BASE}/config`, () =>
           HttpResponse.json({
             clusters: {
               minikube: {
@@ -51,9 +51,9 @@ export default {
           })
         ),
         // Mock plugins
-        http.get('http://localhost:4466/plugins', () => HttpResponse.json([])),
+        http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),
         // Mock cluster version
-        http.get('http://localhost:4466/version', () =>
+        http.get(`${API_BASE}/version`, () =>
           HttpResponse.json({
             major: '1',
             minor: '28',
@@ -61,14 +61,14 @@ export default {
           })
         ),
         // Mock events
-        http.get('http://localhost:4466/*/api/v1/events', () =>
+        http.get(`${API_BASE}/*/api/v1/events`, () =>
           HttpResponse.json({
             kind: 'EventList',
             items: [],
           })
         ),
         // Mock namespaces
-        http.get('http://localhost:4466/*/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/*/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [
@@ -81,23 +81,19 @@ export default {
           })
         ),
         // Mock CRDs
-        http.get(
-          'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: [],
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: [],
+            metadata: {},
+          })
         ),
-        http.get(
-          'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: [],
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: [],
+            metadata: {},
+          })
         ),
       ],
     },
@@ -159,7 +155,7 @@ LoadingState.parameters = {
   msw: {
     handlers: [
       // Delay config response to show loading for 5 seconds
-      http.get('http://localhost:4466/config', async () => {
+      http.get(`${API_BASE}/config`, async () => {
         await delay(5000);
         return HttpResponse.json({
           clusters: {
@@ -170,22 +166,20 @@ LoadingState.parameters = {
           },
         });
       }),
-      http.get('http://localhost:4466/plugins', () => HttpResponse.json([])),
-      http.get('http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions', () =>
+      http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),
+      http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
         HttpResponse.json({
           kind: 'List',
           items: [],
           metadata: {},
         })
       ),
-      http.get(
-        'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-        () =>
-          HttpResponse.json({
-            kind: 'List',
-            items: [],
-            metadata: {},
-          })
+      http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+        HttpResponse.json({
+          kind: 'List',
+          items: [],
+          metadata: {},
+        })
       ),
     ],
   },
@@ -200,23 +194,21 @@ ErrorState.parameters = {
   },
   msw: {
     handlers: [
-      http.get('http://localhost:4466/config', () => HttpResponse.error()),
-      http.get('http://localhost:4466/plugins', () => HttpResponse.json([])),
-      http.get('http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions', () =>
+      http.get(`${API_BASE}/config`, () => HttpResponse.error()),
+      http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),
+      http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
         HttpResponse.json({
           kind: 'List',
           items: [],
           metadata: {},
         })
       ),
-      http.get(
-        'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-        () =>
-          HttpResponse.json({
-            kind: 'List',
-            items: [],
-            metadata: {},
-          })
+      http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+        HttpResponse.json({
+          kind: 'List',
+          items: [],
+          metadata: {},
+        })
       ),
     ],
   },
@@ -242,7 +234,7 @@ MultiCluster.parameters = {
   },
   msw: {
     handlers: [
-      http.get('http://localhost:4466/config', () =>
+      http.get(`${API_BASE}/config`, () =>
         HttpResponse.json({
           clusters: {
             minikube: {
@@ -260,22 +252,20 @@ MultiCluster.parameters = {
           },
         })
       ),
-      http.get('http://localhost:4466/plugins', () => HttpResponse.json([])),
-      http.get('http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions', () =>
+      http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),
+      http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
         HttpResponse.json({
           kind: 'List',
           items: [],
           metadata: {},
         })
       ),
-      http.get(
-        'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-        () =>
-          HttpResponse.json({
-            kind: 'List',
-            items: [],
-            metadata: {},
-          })
+      http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+        HttpResponse.json({
+          kind: 'List',
+          items: [],
+          metadata: {},
+        })
       ),
     ],
   },

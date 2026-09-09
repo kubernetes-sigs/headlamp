@@ -16,6 +16,7 @@
 
 import { Meta, StoryObj } from '@storybook/react';
 import { screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import React from 'react';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import { TestContext } from '../../test';
@@ -110,5 +111,41 @@ export const NotValidNameLong: StoryObj = {
 
     expect(errorMessage).toBeVisible();
     expect(button).not.toBeEnabled();
+  },
+};
+export const NamespaceAlreadyExists: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: {
+        story: [
+          http.post('*/api/v1/namespaces', () =>
+            HttpResponse.json({ message: 'namespace already exists' }, { status: 409 })
+          ),
+        ],
+      },
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Create'));
+
+    await waitFor(() => expect(screen.getByLabelText('Dialog')).toBeVisible());
+
+    await waitFor(() => userEvent.type(screen.getByRole('textbox'), 'existing-namespace'), {
+      timeout: 5000,
+    });
+
+    const createButton = await screen.findByRole('button', { name: 'Create' });
+    await userEvent.click(createButton);
+
+    const errorMessage = await screen.findByText('A namespace with this name already exists.');
+    expect(errorMessage).toBeVisible();
+
+    await waitFor(() => userEvent.type(screen.getByRole('textbox'), '-edited'), {
+      timeout: 5000,
+    });
+
+    expect(
+      screen.queryByText('A namespace with this name already exists.')
+    ).not.toBeInTheDocument();
   },
 };

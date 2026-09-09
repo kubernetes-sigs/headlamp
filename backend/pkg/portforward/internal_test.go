@@ -20,19 +20,25 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // Cover the legacy client-go fallback error.
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
+	streamhttp "k8s.io/streaming/pkg/httpstream"
 )
 
 // TestHandlePortForwardReadiness tests handlePortForwardReadiness function.
@@ -239,62 +245,71 @@ func TestPortForwardRequestValidate(t *testing.T) {
 // TestBuildPortForwardURL ensures the upstream port-forward URL preserves the
 // kubeconfig server's path prefix (relevant when the cluster is fronted by a
 // path-routing reverse proxy such as Warpgate).
-func TestBuildPortForwardURL(t *testing.T) {
-	tests := []struct {
-		name      string
-		host      string
-		namespace string
-		podName   string
-		want      string
-	}{
-		{
-			name:      "no path prefix",
-			host:      "https://kubernetes.default.svc:443",
-			namespace: "default",
-			podName:   "my-pod",
-			want:      "https://kubernetes.default.svc:443/api/v1/namespaces/default/pods/my-pod/portforward",
-		},
-		{
-			name:      "single segment path prefix",
-			host:      "https://example.com/k8s",
-			namespace: "default",
-			podName:   "my-pod",
-			want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward",
-		},
-		{
-			name:      "trailing slash path prefix",
-			host:      "https://example.com/k8s/",
-			namespace: "default",
-			podName:   "my-pod",
-			want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward",
-		},
-		{
-			name:      "Warpgate-style multi-segment prefix",
-			host:      "https://k8s.example.com:443/proxy-routed-cluster",
-			namespace: "kube-system",
-			podName:   "traefik-69fpr",
-			want: "https://k8s.example.com:443/proxy-routed-cluster" +
-				"/api/v1/namespaces/kube-system/pods/traefik-69fpr/portforward",
-		},
-		{
-			name:      "missing scheme defaults to https",
-			host:      "kubernetes.default.svc:443",
-			namespace: "default",
-			podName:   "my-pod",
-			want:      "https://kubernetes.default.svc:443/api/v1/namespaces/default/pods/my-pod/portforward",
-		},
-		{
-			name:      "bare hostname defaults to https",
-			host:      "example.com",
-			namespace: "default",
-			podName:   "my-pod",
-			want:      "https://example.com/api/v1/namespaces/default/pods/my-pod/portforward",
-		},
-	}
+var buildPortForwardURLTests = []struct {
+	name      string
+	host      string
+	namespace string
+	podName   string
+	want      string
+}{
+	{
+		name:      "no path prefix",
+		host:      "https://kubernetes.default.svc:443",
+		namespace: "default",
+		podName:   "my-pod",
+		want:      "https://kubernetes.default.svc:443/api/v1/namespaces/default/pods/my-pod/portforward?ports=4466",
+	},
+	{
+		name:      "single segment path prefix",
+		host:      "https://example.com/k8s",
+		namespace: "default",
+		podName:   "my-pod",
+		want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward?ports=4466",
+	},
+	{
+		name:      "trailing slash path prefix",
+		host:      "https://example.com/k8s/",
+		namespace: "default",
+		podName:   "my-pod",
+		want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward?ports=4466",
+	},
+	{
+		name:      "Warpgate-style multi-segment prefix",
+		host:      "https://k8s.example.com:443/proxy-routed-cluster",
+		namespace: "kube-system",
+		podName:   "traefik-69fpr",
+		want: "https://k8s.example.com:443/proxy-routed-cluster" +
+			"/api/v1/namespaces/kube-system/pods/traefik-69fpr/portforward?ports=4466",
+	},
+	{
+		name:      "missing scheme defaults to https",
+		host:      "kubernetes.default.svc:443",
+		namespace: "default",
+		podName:   "my-pod",
+		want:      "https://kubernetes.default.svc:443/api/v1/namespaces/default/pods/my-pod/portforward?ports=4466",
+	},
+	{
+		name:      "bare hostname defaults to https",
+		host:      "example.com",
+		namespace: "default",
+		podName:   "my-pod",
+		want:      "https://example.com/api/v1/namespaces/default/pods/my-pod/portforward?ports=4466",
+	},
+	{
+		name:      "existing query parameter is preserved",
+		host:      "https://example.com/k8s?tenant=demo",
+		namespace: "default",
+		podName:   "my-pod",
+		want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward?ports=4466&tenant=demo",
+	},
+}
 
-	for _, tt := range tests {
+func TestBuildPortForwardURL(t *testing.T) {
+	const targetPort = "4466"
+
+	for _, tt := range buildPortForwardURLTests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := buildPortForwardURL(tt.host, tt.namespace, tt.podName)
+			got, err := buildPortForwardURL(tt.host, tt.namespace, tt.podName, targetPort)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.String())
 		})
@@ -315,27 +330,30 @@ func TestBuildPortForwardURLInvalidHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := buildPortForwardURL(tt.host, "ns", "pod")
+			_, err := buildPortForwardURL(tt.host, "ns", "pod", "4466")
 			assert.Error(t, err)
 		})
 	}
 }
 
-// TestBuildPortForwardDialer verifies dialer selection: with a valid REST
-// config we get a WebSocket-first FallbackDialer (which itself falls back to
-// SPDY on upgrade failures); when the WebSocket dialer cannot be created we
-// fall back to a SPDY-only dialer rather than erroring.
+// TestBuildPortForwardDialer verifies direct API endpoints use SPDY while
+// path-routed proxies use WebSocket first and fall back to SPDY.
 func TestBuildPortForwardDialer(t *testing.T) {
-	fullURL, err := url.Parse("https://example.com/api/v1/namespaces/default/pods/p/portforward")
-	require.NoError(t, err)
-
 	tests := []struct {
 		name         string
+		url          string
 		rConf        *rest.Config
 		wantFallback bool
 	}{
 		{
-			name:         "websocket dialer available, wraps in FallbackDialer",
+			name:         "direct API endpoint uses SPDY",
+			url:          "https://example.com/api/v1/namespaces/default/pods/p/portforward",
+			rConf:        &rest.Config{Host: "https://example.com"},
+			wantFallback: false,
+		},
+		{
+			name:         "path-routed proxy uses WebSocket fallback dialer",
+			url:          "https://example.com/proxy/api/v1/namespaces/default/pods/p/portforward",
 			rConf:        &rest.Config{Host: "https://example.com"},
 			wantFallback: true,
 		},
@@ -343,6 +361,7 @@ func TestBuildPortForwardDialer(t *testing.T) {
 			// Insecure + CAData makes TLSConfigFor (called by
 			// websocket.RoundTripperFor) fail, exercising the SPDY-only path.
 			name: "websocket dialer unavailable, returns SPDY-only dialer",
+			url:  "https://example.com/proxy/api/v1/namespaces/default/pods/p/portforward",
 			rConf: &rest.Config{
 				Host: "https://example.com",
 				TLSClientConfig: rest.TLSClientConfig{
@@ -356,11 +375,49 @@ func TestBuildPortForwardDialer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			fullURL, err := url.Parse(tt.url)
+			require.NoError(t, err)
+
 			d := buildPortForwardDialer(tt.rConf, fullURL, nil, nil)
 			require.NotNil(t, d)
 
 			_, isFallback := d.(*portforward.FallbackDialer)
 			assert.Equal(t, tt.wantFallback, isFallback)
+		})
+	}
+}
+
+func TestShouldFallbackToSPDY(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "legacy upgrade failure",
+			err:  &httpstream.UpgradeFailureError{Cause: errors.New("legacy upgrade failed")},
+			want: true,
+		},
+		{
+			name: "streaming upgrade failure",
+			err:  &streamhttp.UpgradeFailureError{Cause: errors.New("websocket upgrade failed")},
+			want: true,
+		},
+		{
+			name: "HTTPS proxy failure",
+			err:  errors.New("proxy: unknown scheme: https"),
+			want: true,
+		},
+		{
+			name: "other failure",
+			err:  errors.New("connection refused"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shouldFallbackToSPDY(tt.err))
 		})
 	}
 }
@@ -529,7 +586,7 @@ func TestGetPortForwardByID_UserIDKeyIsolation(t *testing.T) {
 }
 
 // TestGetPortForwardsHandler_UserIDKeyIsolation uses the exported HTTP handler
-// to verify that the X-HEADLAMP-USER-ID header causes a different cache lookup.
+// to verify that a different context key causes a different cache lookup.
 func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
@@ -537,12 +594,12 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	pf := portForward{ID: "pf-3", Cluster: "cluster", Pod: "nginx", Namespace: "default", Status: RUNNING}
 	portforwardstore(c, pf)
 
-	// Request WITHOUT user ID header — should return the seeded entry.
+	// Request with the base cluster context key — should return the seeded entry.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward/list", nil)
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 
-	GetPortForwards(c, w, r)
+	GetPortForwards(c, "cluster", w, r)
 
 	res := w.Result()
 
@@ -554,13 +611,12 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "pf-3")
 
-	// Request WITH user ID header — should return empty list.
+	// Request with a user-specific context key — should return empty list.
 	w2 := httptest.NewRecorder()
 	r2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward/list", nil)
 	r2 = mux.SetURLVars(r2, map[string]string{"clusterName": "cluster"})
-	r2.Header.Set("X-HEADLAMP-USER-ID", "user999")
 
-	GetPortForwards(c, w2, r2)
+	GetPortForwards(c, "clusteruser999", w2, r2)
 
 	res2 := w2.Result()
 
@@ -574,7 +630,7 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 }
 
 // TestGetPortForwardByIDHandler_UserIDKeyIsolation uses the exported HTTP handler
-// to verify that the X-HEADLAMP-USER-ID header causes a different cache lookup.
+// to verify that a different context key causes a different cache lookup.
 func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
@@ -582,13 +638,13 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 	pf := portForward{ID: "pf-4", Cluster: "cluster", Pod: "redis", Namespace: "cache", Status: RUNNING}
 	portforwardstore(c, pf)
 
-	// Request WITHOUT user ID header — should find the entry.
+	// Request with the base cluster context key — should find the entry.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?id=pf-4", nil)
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 	r.URL = &url.URL{RawQuery: "id=pf-4"}
 
-	GetPortForwardByID(c, w, r)
+	GetPortForwardByID(c, "cluster", w, r)
 
 	res := w.Result()
 
@@ -596,14 +652,13 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	// Request WITH user ID header — should NOT find it.
+	// Request with a user-specific context key — should NOT find it.
 	w2 := httptest.NewRecorder()
 	r2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?id=pf-4", nil)
 	r2 = mux.SetURLVars(r2, map[string]string{"clusterName": "cluster"})
 	r2.URL = &url.URL{RawQuery: "id=pf-4"}
-	r2.Header.Set("X-HEADLAMP-USER-ID", "user999")
 
-	GetPortForwardByID(c, w2, r2)
+	GetPortForwardByID(c, "clusteruser999", w2, r2)
 
 	res2 := w2.Result()
 
@@ -613,8 +668,38 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 		"user-specific lookup must not find entries under base cluster key")
 }
 
+func TestGetPortForwardByIDHandler_ReturnsRouteClusterName(t *testing.T) {
+	c := cache.New[interface{}]()
+	contextKey := "cluster\x00user"
+
+	pf := portForward{
+		ID: "pf-context-key", Cluster: contextKey, cacheKey: contextKey,
+		Pod: "redis", Namespace: "cache", Status: RUNNING,
+	}
+	portforwardstore(c, pf)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?id=pf-context-key", nil)
+	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
+	r.URL = &url.URL{RawQuery: "id=pf-context-key"}
+
+	GetPortForwardByID(c, contextKey, w, r)
+
+	res := w.Result()
+	defer func() { _ = res.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	var response struct {
+		Cluster string `json:"cluster"`
+	}
+
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&response))
+	assert.Equal(t, "cluster", response.Cluster)
+}
+
 // TestStopOrDeletePortForwardHandler_UserIDKeyIsolation verifies that
-// StopOrDeletePortForward uses cluster+userID as the cache key.
+// StopOrDeletePortForward uses the provided context key as the cache key.
 func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
@@ -623,16 +708,15 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	pf := portForward{ID: "pf-5", Cluster: "cluster", Pod: "app", Namespace: "ns", Status: RUNNING, closeChan: ch}
 	portforwardstore(c, pf)
 
-	// Try to stop with a user ID header — should fail because the key is different.
+	// Try to stop with a user-specific context key — should fail because the key is different.
 	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "stopOrDelete": true})
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/portforward", bytes.NewReader(payload))
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
-	r.Header.Set("X-HEADLAMP-USER-ID", "user999")
 
-	StopOrDeletePortForward(c, w, r)
+	StopOrDeletePortForward(c, "clusteruser999", w, r)
 
 	res := w.Result()
 
@@ -640,4 +724,154 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode,
 		"stop request with user ID must not find entries stored under base cluster key")
+}
+
+// TestStartPortForward_DuplicateIDConflict verifies that StartPortForward
+// returns a 409 Conflict if a port-forward with the same ID is already running.
+func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
+	const (
+		clusterName = "test-cluster"
+		contextKey  = clusterName + "\x00user"
+	)
+
+	c := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	// Seed a running port-forward in the cache
+	pf := portForward{
+		ID:        "duplicate-id",
+		Cluster:   clusterName,
+		cacheKey:  contextKey,
+		Pod:       "some-pod",
+		Namespace: "default",
+		Status:    RUNNING,
+	}
+	portforwardstore(c, pf)
+
+	reqPayload := map[string]interface{}{
+		"id":         "duplicate-id",
+		"pod":        "another-pod",
+		"namespace":  "default",
+		"targetPort": "8080",
+	}
+	jsonReq, err := json.Marshal(reqPayload)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(jsonReq))
+	r.Header.Set("X-HEADLAMP-USER-ID", "user")
+	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
+
+	StartPortForward(kubeConfigStore, c, false, contextKey, w, r)
+
+	res := w.Result()
+
+	defer func() { _ = res.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
+}
+
+// blockingContextStore makes GetContext block until released, and signals via
+// `entered` (closed once) that a caller is inside, meaning it holds the in-flight lock.
+type blockingContextStore struct {
+	kubeconfig.ContextStore
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingContextStore) GetContext(name string) (*kubeconfig.Context, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+
+	return nil, fmt.Errorf("context not found: %s", name)
+}
+
+// TestStartPortForward_ConcurrentRequests verifies the in-flight lock deterministically:
+// G1 acquires the lock and blocks in GetContext; only then is G2 started (guaranteed 409).
+// G2 completes, the test unblocks G1, which returns 500 on the missing context.
+//
+//nolint:funlen
+func TestStartPortForward_ConcurrentRequests(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	store := &blockingContextStore{
+		ContextStore: kubeconfig.NewContextStore(),
+		entered:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+
+	makeRequest := func() *httptest.ResponseRecorder {
+		payload := map[string]interface{}{
+			"id":         "concurrent-id",
+			"pod":        "some-pod",
+			"namespace":  "default",
+			"targetPort": "8080",
+		}
+
+		body, err := json.Marshal(payload)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(body))
+		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+
+		StartPortForward(store, c, false, "test-cluster", w, r)
+
+		return w
+	}
+
+	// Separate WaitGroups: wg2 lets us wait for G2 alone while G1 is still blocked.
+	var (
+		wg1, wg2 sync.WaitGroup
+		rec      [2]*httptest.ResponseRecorder
+	)
+
+	wg1.Add(1)
+
+	go func() {
+		defer wg1.Done()
+
+		rec[0] = makeRequest()
+	}()
+
+	// Wait (bounded) for G1 to enter GetContext (holding the lock); otherwise fail instead of hanging.
+	select {
+	case <-store.entered:
+		// G1 is now inside GetContext
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first request to enter GetContext")
+	}
+
+	wg2.Add(1)
+
+	go func() {
+		defer wg2.Done()
+
+		rec[1] = makeRequest()
+	}()
+
+	wg2.Wait()           // G2 short-circuits at 409; doesn't call GetContext.
+	close(store.release) // unblock G1.
+	wg1.Wait()
+
+	res0 := rec[0].Result()
+	defer func() { _ = res0.Body.Close() }()
+
+	res1 := rec[1].Result()
+	defer func() { _ = res1.Body.Close() }()
+
+	statusCodes := []int{res0.StatusCode, res1.StatusCode}
+
+	conflicts := 0
+
+	for _, sc := range statusCodes {
+		if sc == http.StatusConflict {
+			conflicts++
+		}
+	}
+
+	assert.Equal(t, 1, conflicts, "expected exactly one 409 Conflict from the in-flight lock")
+	assert.Contains(t, statusCodes, http.StatusInternalServerError,
+		"expected the winning request to return 500 for missing context")
 }

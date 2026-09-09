@@ -1,9 +1,13 @@
 import chalk from 'chalk';
 import { getRelease, checkArtifactsForRelease, checkExtendedAssets } from '../utils/github.js';
-import { sanitizeVersion } from '../utils/version.js';
+import { sanitizeVersion, isValidVersion } from '../utils/version.js';
 
 export async function checkRelease(releaseVersion: string): Promise<void> {
   const version = sanitizeVersion(releaseVersion);
+  if (!isValidVersion(version)) {
+    console.error(chalk.red(`Error: Invalid semantic version format "${version}".`));
+    process.exit(1);
+  }
   console.log(chalk.blue(`Checking release for version ${version}...`));
 
   try {

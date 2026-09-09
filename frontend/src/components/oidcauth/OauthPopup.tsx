@@ -16,6 +16,7 @@
 
 import Button from '@mui/material/Button';
 import React, { ReactNode } from 'react';
+import { AUTH_STATUS_KEY } from './constants';
 
 interface OauthPopupProps {
   width?: number;
@@ -90,10 +91,10 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
 
     const storageListener = () => {
       try {
-        const authStatus = localStorage.getItem('auth_status');
+        const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
         if (authStatus) {
           onCode(authStatus);
-          localStorage.removeItem('auth_status');
+          localStorage.removeItem(AUTH_STATUS_KEY);
           cleanupPopup(true);
         }
       } catch (e) {

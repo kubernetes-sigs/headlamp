@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { generateK8sResourceList } from '../../test/mocker';
 import List from './List';
 import { jobSets } from './storyHelper';
@@ -77,25 +77,66 @@ export default {
       );
     },
   ],
-  parameters: {
-    msw: {
-      handlers: {
-        story: [
-          http.get('http://localhost:4466/apis/jobset.x-k8s.io/v1alpha2/jobsets', () =>
-            HttpResponse.json({
-              kind: 'JobSetList',
-              metadata: {},
-              items: jobSetList,
-            })
-          ),
-        ],
-      },
-    },
-  },
 } as Meta;
 
 const Template: StoryFn = () => {
   return <List />;
 };
 
+const jobSetApiGroupUrl = `${API_BASE}/apis/jobset.x-k8s.io/v1alpha2`;
+const jobSetListUrl = `${API_BASE}/apis/jobset.x-k8s.io/v1alpha2/jobsets`;
+
 export const Items = Template.bind({});
+Items.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        // JobSet.isEnabled() looks for this resource name on the API group.
+        http.get(jobSetApiGroupUrl, () => HttpResponse.json({ resources: [{ name: 'jobsets' }] })),
+        http.get(jobSetListUrl, () =>
+          HttpResponse.json({
+            kind: 'JobSetList',
+            metadata: {},
+            items: jobSetList,
+          })
+        ),
+      ],
+    },
+  },
+};
+
+/**
+ * Keeps JobSet.isEnabled() pending so List.tsx stays on jobSetEnabled === null
+ * ("Checking if JobSet is enabled…").
+ * Storyshots disabled: a never-resolving handler never fires request:end.
+ */
+export const Checking = Template.bind({});
+Checking.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [http.get(jobSetApiGroupUrl, () => new Promise(() => {}))],
+    },
+  },
+};
+
+/**
+ * API group responds without jobsets, so JobSet.isEnabled() resolves false
+ * and List.tsx shows the not-enabled empty state.
+ */
+export const NotEnabled = Template.bind({});
+NotEnabled.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(jobSetApiGroupUrl, () =>
+          HttpResponse.json({
+            kind: 'APIResourceList',
+            groupVersion: 'jobset.x-k8s.io/v1alpha2',
+            resources: [],
+          })
+        ),
+      ],
+    },
+  },
+};

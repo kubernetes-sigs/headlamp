@@ -37,6 +37,7 @@ const (
 
 type Config struct {
 	Version              bool   `koanf:"version"`
+	AppName              string `koanf:"app-name"`
 	InCluster            bool   `koanf:"in-cluster"`
 	InClusterContextName string `koanf:"in-cluster-context-name"`
 	DevMode              bool   `koanf:"dev"`
@@ -55,6 +56,7 @@ type Config struct {
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
 	Port                   uint   `koanf:"port"`
 	KubeConfigPath         string `koanf:"kubeconfig"`
+	KubeConfigDir          string `koanf:"kubeconfig-dir"`
 	SkippedKubeContexts    string `koanf:"skipped-kube-contexts"`
 	StaticDir              string `koanf:"html-static-dir"`
 	PluginsDir             string `koanf:"plugins-dir"`
@@ -62,10 +64,13 @@ type Config struct {
 	BaseURL                string `koanf:"base-url"`
 	SessionTTL             int    `koanf:"session-ttl"`
 	PodDebugImage          string `koanf:"pod-debug-image"`
+	NodeShellImage         string `koanf:"node-shell-image"`
+	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
+	ClusterInventoryNamespaces            string        `koanf:"cluster-inventory-namespaces"`
 	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
 	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
 
@@ -120,6 +125,10 @@ func (c *Config) warnRedundantThemeDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := c.validateAppName(); err != nil {
+		return err
+	}
+
 	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
 		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
@@ -152,7 +161,6 @@ func (c *Config) Validate() error {
 	}
 
 	const oneYearInSeconds = 31536000
-
 	if c.SessionTTL > oneYearInSeconds {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
@@ -176,6 +184,18 @@ func (c *Config) Validate() error {
 
 	if err := c.validateClusterInventory(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateAppName ensures the application name is safe for use in Kubernetes User-Agent headers.
+func (c *Config) validateAppName() error {
+	for index := 0; index < len(c.AppName); index++ {
+		character := c.AppName[index]
+		if (character < ' ' && character != '\t') || character == 0x7f {
+			return errors.New("app-name contains invalid HTTP header characters")
+		}
 	}
 
 	return nil
@@ -229,6 +249,10 @@ func (c *Config) validateClusterInventory() error {
 	}
 
 	c.ClusterInventoryLabelSelector = labelSelector
+
+	if err := clusterinventory.ValidateNamespaces(c.ClusterInventoryNamespaces); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -328,9 +352,9 @@ func unmarshalConfig(k *koanf.Koanf, config *Config) error {
 	return nil
 }
 
-// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag.
-func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag or env var.
+func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool, watchPluginsChangesEnvSet bool) {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet {
 		config.WatchPluginsChanges = false
 	}
 }
@@ -405,9 +429,14 @@ func setMeDefaults(config *Config) {
 // the value of port will be 3456.
 
 func Parse(args []string) (*Config, error) {
+	return ParseWithAppNameDefault(args, "Headlamp")
+}
+
+// ParseWithAppNameDefault loads the config using appName as the application name default.
+func ParseWithAppNameDefault(args []string, appName string) (*Config, error) {
 	var config Config
 
-	f := flagset()
+	f := flagset(appName)
 
 	k := koanf.New(".")
 
@@ -427,6 +456,8 @@ func Parse(args []string) (*Config, error) {
 	explicitFlags := recordExplicitFlags(f)
 
 	// 4. Load config from environment variables.
+	_, watchPluginsChangesEnvSet := os.LookupEnv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES")
+
 	if err := loadConfigFromEnv(k); err != nil {
 		return nil, err
 	}
@@ -442,7 +473,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	// 7. Post-process: patch plugin flag and kubeconfig path.
-	patchWatchPluginsChanges(&config, explicitFlags)
+	patchWatchPluginsChanges(&config, explicitFlags, watchPluginsChangesEnvSet)
 
 	if err := setKubeConfigPath(&config); err != nil {
 		return nil, err
@@ -468,6 +499,16 @@ func Parse(args []string) (*Config, error) {
 // MakeHeadlampKubeConfigsDir returns the default directory to store kubeconfig
 // files of clusters that are loaded in Headlamp.
 func MakeHeadlampKubeConfigsDir() (string, error) {
+	return MakeKubeConfigsDir("")
+}
+
+// MakeKubeConfigsDir returns the configured directory for persisted kubeconfigs.
+// When kubeConfigDir is empty, it uses Headlamp's platform-specific default.
+func MakeKubeConfigsDir(kubeConfigDir string) (string, error) {
+	if kubeConfigDir != "" {
+		return makeConfiguredKubeConfigsDir(kubeConfigDir)
+	}
+
 	userConfigDir, err := os.UserConfigDir()
 	if err == nil {
 		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
@@ -492,11 +533,26 @@ func MakeHeadlampKubeConfigsDir() (string, error) {
 		return filepath.Dir(ex), nil
 	}
 
-	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %v", err)
+	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %w", err)
 }
 
+// makeConfiguredKubeConfigsDir creates and returns the configured kubeconfig directory.
+func makeConfiguredKubeConfigsDir(kubeConfigDir string) (string, error) {
+	if err := os.MkdirAll(kubeConfigDir, fs.FileMode(0o755)); err != nil {
+		return "", fmt.Errorf("creating kubeconfig persistence directory: %w", err)
+	}
+
+	return kubeConfigDir, nil
+}
+
+// DefaultHeadlampKubeConfigFile returns Headlamp's default persisted kubeconfig file.
 func DefaultHeadlampKubeConfigFile() (string, error) {
-	kubeConfigDir, err := MakeHeadlampKubeConfigsDir()
+	return DefaultKubeConfigFile("")
+}
+
+// DefaultKubeConfigFile returns the persisted kubeconfig file in kubeConfigDir.
+func DefaultKubeConfigFile(kubeConfigDir string) (string, error) {
+	kubeConfigDir, err := MakeKubeConfigsDir(kubeConfigDir)
 	if err != nil {
 		return "", err
 	}
@@ -522,10 +578,10 @@ func validateOpenBrowser(config *Config, explicitFlags map[string]bool) error {
 	return nil
 }
 
-func flagset() *flag.FlagSet {
+func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	addGeneralFlags(f)
+	addGeneralFlags(f, appName)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -534,10 +590,18 @@ func flagset() *flag.FlagSet {
 	return f
 }
 
-func addGeneralFlags(f *flag.FlagSet) {
+func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Bool("version", false, "Print version information and exit")
+	f.String(
+		"app-name",
+		appName,
+		"Application name used in version output, the browser title, and Kubernetes User-Agent headers",
+	)
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
-	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
+	f.String("in-cluster-context-name", "",
+		"Name to use for the in-cluster Kubernetes context. "+
+			"If unset, it is derived from the kube-system/kubeadm-config ConfigMap (treating \"kubernetes\" as unset), "+
+			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
@@ -551,6 +615,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
 
 	f.String("kubeconfig", "", "Absolute path to the kubeconfig file")
+	f.String("kubeconfig-dir", "", "Directory for Headlamp-managed kubeconfig files")
 	f.String("skipped-kube-contexts", "", "Context name which should be ignored in kubeconfig file")
 	f.String("html-static-dir", "", "Static HTML directory to serve")
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
@@ -559,6 +624,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Int("session-ttl", defaultSessionTTL, "The time in seconds for the session to be valid"+
 		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
 	f.String("pod-debug-image", "", "Default image to use when creating pod debug containers")
+	f.String("node-shell-image", "", "Default image to use when creating node shell pods")
+	f.String("node-shell-namespace", "", "Default namespace to use when creating node shell pods")
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
@@ -569,6 +636,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
 	f.String("cluster-inventory-label-selector", "",
 		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
+	f.String("cluster-inventory-namespaces", "",
+		"Comma-separated namespaces watched for experimental/alpha ClusterProfile resources; \"*\" watches all")
 	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
 		"Interval for reconciling experimental/alpha Cluster Inventory roots")
 	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,

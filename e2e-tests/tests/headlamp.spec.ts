@@ -47,8 +47,22 @@ test('headlamp is there and so is minikube', async () => {
   await headlampPage.hasURLContaining(/.*test/);
 });
 
+test('version dialog shows Headlamp version information', async ({ page }) => {
+  await page.getByRole('button', { name: 'Account of current user' }).click();
+  await page
+    .locator('#primary-user-menu')
+    .getByText(/^Headlamp /)
+    .click();
+
+  const versionDialog = page.getByRole('dialog', { name: 'Headlamp' });
+  await expect(versionDialog).toBeVisible();
+  await expect(versionDialog.getByText('Version', { exact: true })).toBeVisible();
+  await expect(versionDialog.getByText('Git Commit', { exact: true })).toBeVisible();
+});
+
 test('main page should have Network tab', async () => {
   await headlampPage.hasNetworkTab();
+  await headlampPage.a11y();
 });
 
 test('main page should have global search along with react-hotkey hint text', async () => {
@@ -79,21 +93,33 @@ test('service page should have headlamp service', async () => {
 
   // Check if there is text "headlamp" on the page
   await headlampPage.checkPageContent('headlamp');
-  await headlampPage.a11y();
+  await servicesPage.a11y();
 });
 
-test('headlamp service page should contain port', async () => {
+test('headlamp service page should contain port', async ({ page }) => {
   await servicesPage.navigateToServices();
   await servicesPage.clickOnServicesSection();
   await servicesPage.goToParticularService('headlamp');
 
   // Check if there is text "TCP" on the page
   await headlampPage.checkPageContent('TCP');
+  const portsTable = page
+    .getByRole('table')
+    .filter({ has: page.getByRole('columnheader', { name: 'Protocol', exact: true }) });
+  await expect(portsTable.getByRole('cell', { name: 'TCP', exact: true })).toHaveCSS(
+    'overflow',
+    'visible'
+  );
   await headlampPage.a11y();
 });
 
 test('main page should have Security tab', async () => {
   await headlampPage.hasSecurityTab();
+});
+
+test('security page is accessible', async () => {
+  await securityPage.navigateToSecurity();
+  await securityPage.a11y();
 });
 
 test('Service account tab should have headlamp-admin', async () => {

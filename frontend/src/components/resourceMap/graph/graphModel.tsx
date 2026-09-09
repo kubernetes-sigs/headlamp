@@ -82,6 +82,21 @@ export interface GraphEdge {
   label?: ReactNode;
   /** Custom data for this node */
   data?: any;
+  /**
+   * Names which endpoint of *this* edge ('source' or 'target') is allowed to be
+   * treated as a shareable resource that shouldn't bridge unrelated groups — e.g. for
+   * a PVC→Pod edge, 'source' names the PVC, not the Pod. This only changes grouping
+   * for a node when *every* edge touching it names that same node as its
+   * `nonGroupingSide` and the node touches more than one distinct neighbor (e.g. a
+   * ReadWriteMany PVC mounted by several otherwise-unrelated Deployments). Such a node
+   * is then split out of grouping and cloned back into each component it touches,
+   * instead of merging them into one.
+   *
+   * Being edge-role-specific (rather than a plain boolean flag on the edge) keeps the
+   * *other* endpoint — e.g. a Pod that happens to mount only RWX PVCs and so has no
+   * "normal" edges — from being misidentified as shareable itself.
+   */
+  nonGroupingSide?: 'source' | 'target';
 }
 
 /**
@@ -176,9 +191,28 @@ export type GraphSource = {
 );
 
 export interface Relation {
+  id: string;
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+  /**
+   * Optional index-based edge builder. When provided, this is used instead of the
+   * O(fromNodes × toNodes) nested-loop predicate scan. The function receives the
+   * fromNodes array and a Map<uid, GraphNode> index of all candidate target nodes,
+   * and returns edges in O(fromNodes × avgRefs) time instead of O(fromNodes × allNodes).
+   */
+  buildEdgesWithIndex?: (fromNodes: GraphNode[], nodesByUid: Map<string, GraphNode>) => GraphEdge[];
+  label?: string;
+  /**
+   * Optional extra attributes to apply to an edge created by this relation
+   * when its predicate matches (e.g. marking a `nonGroupingSide`). Structural
+   * fields (`id`/`source`/`target`) are always assigned by the caller and are
+   * excluded from this callback's return type so they can't be overwritten.
+   */
+  edgeAttributes?: (
+    from: GraphNode,
+    to: GraphNode
+  ) => Partial<Omit<GraphEdge, 'id' | 'source' | 'target'>>;
 }
 
 /**
@@ -197,6 +231,7 @@ const DEFAULT_NODE_WEIGHTS = {
   // Tier 3: Job-based Workloads
   CronJob: 960,
   JobSet: 960,
+  LeaderWorkerSet: 960,
   Job: 920,
 
   // Tier 4: Intermediate Controllers

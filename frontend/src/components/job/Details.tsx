@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
-import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import Job from '../../lib/k8s/job';
-import { KubeObject } from '../../lib/k8s/KubeObject';
-import Pod from '../../lib/k8s/pod';
 import { formatDuration } from '../../lib/util';
 import { useEventCallback } from '../../redux/headlampEventSlice';
+import Link from '../common/Link';
 import {
   ConditionsSection,
   ContainersSection,
@@ -32,24 +30,12 @@ import {
   MetadataDictGrid,
   OwnedPodsSection,
 } from '../common/Resource';
-import { WorkloadDiagnosticsSection } from '../diagnostics/Diagnostics';
 import { makeJobStatusLabel } from './List';
 
 export default function JobDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
-  const [ownedPods, setOwnedPods] = useState<{
-    workloadUid?: string;
-    pods: Pod[] | null;
-    errors: ApiError[] | null;
-  }>({ pods: null, errors: null });
-  const handleOwnedPodsUpdate = useCallback(
-    (resource: KubeObject, pods: Pod[] | null, errors: ApiError[] | null) => {
-      setOwnedPods({ workloadUid: resource.metadata.uid, pods, errors });
-    },
-    []
-  );
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const autoLaunchView = queryParams.get('view');
@@ -78,11 +64,6 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
       withEvents
       onResourceUpdate={item => {
         setWorkloadItem(item);
-        setOwnedPods(prev =>
-          prev.workloadUid === item?.metadata?.uid
-            ? prev
-            : { workloadUid: item?.metadata?.uid, pods: null, errors: null }
-        );
       }}
       actions={item =>
         item
@@ -102,6 +83,26 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
             name: t('translation|Status'),
             value: statusLabel,
             hide: !statusLabel,
+          },
+          {
+            name: t('Service Account'),
+            value: (
+              <Link
+                routeName="serviceAccount"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name:
+                    item.spec?.template?.spec?.serviceAccountName ||
+                    item.spec?.template?.spec?.serviceAccount ||
+                    'default',
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.spec?.template?.spec?.serviceAccountName ||
+                  item.spec?.template?.spec?.serviceAccount ||
+                  'default'}
+              </Link>
+            ),
           },
           {
             name: t('glossary|Completions'),
@@ -165,22 +166,12 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
         item
           ? [
               {
-                id: 'headlamp.job-diagnostics',
-                section: (
-                  <WorkloadDiagnosticsSection
-                    workload={item}
-                    pods={ownedPods.workloadUid === item.metadata.uid ? ownedPods.pods : null}
-                    errors={ownedPods.workloadUid === item.metadata.uid ? ownedPods.errors : null}
-                  />
-                ),
-              },
-              {
                 id: 'headlamp.job-conditions',
                 section: <ConditionsSection resource={item?.jsonData} />,
               },
               {
                 id: 'headlamp.job-owned-pods',
-                section: <OwnedPodsSection resource={item} onPodsUpdate={handleOwnedPodsUpdate} />,
+                section: <OwnedPodsSection resource={item} />,
               },
               {
                 id: 'headlamp.job-containers',

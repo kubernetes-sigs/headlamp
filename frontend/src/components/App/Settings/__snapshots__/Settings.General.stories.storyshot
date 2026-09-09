@@ -285,14 +285,14 @@
                   >
                     <input
                       aria-autocomplete="both"
-                      aria-describedby="cluster-selector-autocomplete-helper-text"
+                      aria-describedby="timezone-selector-autocomplete-helper-text"
                       aria-expanded="false"
                       aria-invalid="false"
                       aria-labelledby="timezone-label"
                       autocapitalize="none"
                       autocomplete="off"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
-                      id="cluster-selector-autocomplete"
+                      id="timezone-selector-autocomplete"
                       role="combobox"
                       spellcheck="false"
                       type="text"
@@ -341,7 +341,7 @@
                   </div>
                   <p
                     class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
-                    id="cluster-selector-autocomplete-helper-text"
+                    id="timezone-selector-autocomplete-helper-text"
                   >
                     Timezone
                   </p>
@@ -382,13 +382,13 @@
             </span>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
             id="use-evict-label"
           >
             Use evict for pod deletion
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <span
               class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
@@ -399,6 +399,38 @@
                 <input
                   aria-labelledby="use-evict-label"
                   checked=""
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                  type="checkbox"
+                />
+                <span
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                />
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+              />
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            id="expand-graph-label"
+          >
+            Keep Large Graph Groups Expanded
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <span
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+              >
+                <input
+                  aria-labelledby="expand-graph-label"
                   class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                   type="checkbox"
                 />
@@ -529,7 +561,7 @@
                 <div
                   class="MuiBox-root css-164r41r"
                 >
-                  Headlamp classic
+                  Headlamp Classic
                 </div>
               </div>
               <div
@@ -562,7 +594,7 @@
                 <div
                   class="MuiBox-root css-164r41r"
                 >
-                  Lights out
+                  Lights Out
                 </div>
               </div>
               <div
@@ -595,7 +627,7 @@
                 <div
                   class="MuiBox-root css-164r41r"
                 >
-                  Monochrome light
+                  Monochrome Light
                 </div>
               </div>
             </div>

@@ -1,69 +1,74 @@
-# e2e test for local playwright app mode
+# e2e tests for the desktop (Electron) app
 
-Currently we have the original e2e tests for the web mode in the `e2e-tests` directory. We are adding new tests for the app mode in the `app-e2e-tests` directory for local testing. Unlike the other tests, these tests do not require a token to run so the setup is as followed:
+These are the Playwright tests for the desktop app, driven via
+`npm run test-app`, which launches the real Electron app. The web-mode tests for
+in-cluster Headlamp live in the top-level `e2e-tests` directory.
 
-## Running app mode tests
+## Prerequisites
 
-## Setup
+The cluster workflow specs need a running minikube cluster named `minikube`:
 
-- Before running the tests, be sure to have an instance of Minikube running with the name `minikube`
+```bash
+minikube start
+kubectl config current-context   # should print: minikube
+```
 
-### Running the tests
+The name matters. `clusterRename.spec.ts` expects a cluster called `minikube`,
+and `clusterAutoConnect.spec.ts` shells out to `minikube` directly to create and
+delete its own throwaway profile, so `minikube` and `kubectl` must both be on
+`PATH`. `listenerCleanup.spec.ts` does not require minikube.
 
-To run the tests for the app mode, follow the steps below:
+`listenerCleanup.spec.ts` runs `gh --version`, so the GitHub CLI must also be
+installed and available on `PATH`.
 
-- cd into the e2e-tests directory within the headlamp repository
-  `cd headlamp/app/e2e-tests`
+App mode runs the app from source rather than from a packaged build, so the
+things the app loads in dev mode have to exist first:
 
-- npm install the needed packages
-  `npm install`
+```bash
+# from the repository root
+npm run frontend:install
+npm run frontend:build   # -> frontend/build/index.html
+npm run backend:build    # -> backend/headlamp-server
+npm run app:install
+```
 
-- run the following command
-  `npm run test-app`
-  (optional: include `-- --headed` to run the tests in headed mode)
-  (optional: include `-- --ui` to run the tests in ui mode)
+`app/build/main.js`, the Electron entry point, is built automatically by the
+`pretest-app` script, so there is no separate step for it.
 
-## Running web mode tests
+Then install the test dependencies:
 
-Running the tests for the web mode requires the backend and frontend to be running. Follow the steps below to run the tests for the web mode:
+```bash
+cd app/e2e-tests
+npm install
+```
 
-Note: You may encouter issues switching from the app mode tests to the web mode tests. If you do, search for any running headlamp server processes and end them before running the web mode tests or app mode tests.
+## Running the tests
 
-## Setup
+```bash
+cd app/e2e-tests
+npm run test-app
+```
 
-- Before running the tests, be sure to have an instance of Minikube running with the name `minikube`
+Or from the repository root:
 
-### Backend
+```bash
+npm run app:test:e2e
+```
 
-To run the tests for the web mode, you will need to have the backend running. Follow the steps below to run the backend:
+Optional flags can be passed from either directory:
 
-- cd into the headlamp directory in a singular terminal
-  `cd headlamp`
+```bash
+# from app/e2e-tests
+npm run test-app -- --headed   # watch it run
+npm run test-app -- --ui       # Playwright UI mode
 
-- run the following command
-  `npm run backend:build` followed by `npm run backend:start`
+# from the repository root
+npm run app:test:e2e -- --headed
+npm run app:test:e2e -- --ui
+```
 
-### Frontend
+## Troubleshooting
 
-To run the tests for the web mode, you will need to have the frontend running. Follow the steps below to run the frontend:
-
-- cd into the headlamp directory in a separate terminal
-  `cd headlamp`
-
-- run the following command
-  `npm run frontend:build` followed by `npm run frontend:start`
-
-### Running the tests
-
-To run the tests for the web mode, follow the steps below:
-
-- cd into the e2e-tests directory within the headlamp repository in a separate terminal
-  `cd headlamp/app/e2e-tests`
-
-- npm install the needed packages
-  `npm install`
-
-- run the following command
-  `npm run test-web`
-  (optional: include `-- --headed` to run the tests in headed mode)
-  (optional: include `-- --ui` to run the tests in ui mode)
+**`electron.launch: Process failed to launch!`** The app takes a
+single-instance lock, so only one instance can run at a time. Check for a
+leftover Electron process from an earlier interrupted run.

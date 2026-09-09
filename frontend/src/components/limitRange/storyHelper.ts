@@ -41,6 +41,10 @@ export const LIMIT_RANGE_DUMMY_DATA = [
             cpu: '500m',
             memory: '1Gi',
           },
+          maxLimitRequestRatio: {
+            cpu: '2',
+            memory: '1.5',
+          },
           min: {
             cpu: '10m',
             memory: '4Mi',

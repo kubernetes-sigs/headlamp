@@ -78,7 +78,7 @@ export default function NavigationTabs() {
 
   const tabChangeHandler = useCallback(
     (index: number) => {
-      const item = level1Tabs[index];
+      const item = level1Tabs.filter(it => !it.hide)[index];
       if (item.url && item.useClusterURL && getCluster()) {
         history.push({
           pathname: generatePath(getClusterPrefixedPath(item.url), { cluster: getCluster()! }),
@@ -98,7 +98,7 @@ export default function NavigationTabs() {
       if (!level2Tabs) {
         return;
       }
-      const tab = level2Tabs[index];
+      const tab = level2Tabs.filter(it => !it.hide)[index];
       const url = tab.url;
       const useClusterURL = !!tab.useClusterURL;
       if (url && useClusterURL && getCluster()) {
@@ -145,7 +145,12 @@ export default function NavigationTabs() {
       <Tabs
         tabs={level1TabRoutes}
         onTabChanged={tabChangeHandler}
-        defaultIndex={level1SelectedItem ? level1Tabs.indexOf(level1SelectedItem) : 0}
+        defaultIndex={(() => {
+          const idx = level1SelectedItem
+            ? level1Tabs.filter(item => !item.hide).indexOf(level1SelectedItem)
+            : 0;
+          return idx >= 0 ? idx : null;
+        })()}
         sx={{
           maxWidth: '85vw',
           [theme.breakpoints.down('sm')]: {
@@ -159,9 +164,13 @@ export default function NavigationTabs() {
         <>
           <Tabs
             tabs={level2TabRoutes!!}
-            defaultIndex={
-              level2Tabs && level2SelectedItem ? level2Tabs?.indexOf(level2SelectedItem) : 0
-            }
+            defaultIndex={(() => {
+              const idx =
+                level2Tabs && level2SelectedItem
+                  ? level2Tabs.filter(item => !item.hide).indexOf(level2SelectedItem)
+                  : 0;
+              return idx >= 0 ? idx : null;
+            })()}
             onTabChanged={tabSecondLevelChangeHandler}
             ariaLabel={t('translation|Navigation Tabs')}
           />

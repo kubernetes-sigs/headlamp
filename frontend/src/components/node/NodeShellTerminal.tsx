@@ -17,7 +17,9 @@
 import Box from '@mui/material/Box';
 import DialogContent from '@mui/material/DialogContent';
 import _ from 'lodash';
+import { useSnackbar } from 'notistack';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
@@ -29,6 +31,7 @@ import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
 import { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
+import store from '../../redux/stores/store';
 
 interface NodeShellTerminalProps {
   item: Node;
@@ -103,22 +106,36 @@ function uniqueString() {
   return res;
 }
 
-async function shell(item: Node, onExec: StreamResultsCb) {
-  const cluster = getCluster();
-  if (!cluster) {
-    return {};
-  }
-
+/**
+ * Creates the node debugger pod and opens an attach stream to it.
+ *
+ * @param item - Node to open a shell on
+ * @param cluster - Cluster the node belongs to, already resolved by the caller
+ * @param onExec - Stream results callback
+ * @param onError - Error handler callback, called with the pod creation failure message when the
+ *                  thrown value carries one, and with undefined otherwise so the caller can supply a
+ *                  translated fallback
+ * @returns Object with the stream if successful, empty object on error
+ */
+async function shell(
+  item: Node,
+  cluster: string,
+  onExec: StreamResultsCb,
+  onError: (message?: string) => void
+) {
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
-  const linuxImage = config?.linuxImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
-  const namespace = config?.namespace || DEFAULT_NODE_SHELL_NAMESPACE;
+  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
+  const defaultImage = store.getState().config.defaultNodeShellImage;
+  const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
+  const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {
-    await apply(kubePod);
+    await apply(kubePod, cluster);
   } catch (e) {
     console.error('Error:DebugNode: creating pod', e);
+    onError(e instanceof Error ? e.message : undefined);
     return {};
   }
   const tty = true;
@@ -135,7 +152,7 @@ async function shell(item: Node, onExec: StreamResultsCb) {
     'channel.k8s.io',
   ];
   return {
-    stream: stream(url, onExec, { additionalProtocols, isJson: false }),
+    stream: stream(url, onExec, { cluster, additionalProtocols, isJson: false }),
   };
 }
 
@@ -144,12 +161,30 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const { t } = useTranslation(['translation']);
+  const { enqueueSnackbar } = useSnackbar();
 
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
     connectStream: async onDataCallback => {
+      const cluster = getCluster();
+      if (!cluster) {
+        const message = t('translation|No cluster selected');
+        enqueueSnackbar(message, { variant: 'error' });
+        return {
+          stream: null,
+          initialMessage: `${t('translation|Error')}: ${message}`,
+        };
+      }
+
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, onDataCallback);
+      const { stream } = await shell(item, cluster, onDataCallback, (errorMessage?: string) => {
+        const message = errorMessage || t('translation|Failed to create node shell pod');
+        enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
+          variant: 'error',
+        });
+        xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
+      });
       return {
         stream,
       };

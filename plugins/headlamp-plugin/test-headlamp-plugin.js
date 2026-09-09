@@ -31,7 +31,10 @@ function testHeadlampPlugin() {
 
   // Make a package file of headlamp-plugin we can test
   run('npm', ['install']);
+  run('npm', ['run', 'test:storybook-mocks']);
   run('npm', ['run', 'build']);
+  checkFileContains(join('lib', 'index.js'), 'DefaultCreateProject');
+  checkFileContains(join('lib', 'index.d.ts'), 'DefaultCreateProject');
 
   // test that example and official plugins are bundled after build
   console.log('Testing that example and official plugins are bundled...');
@@ -87,6 +90,9 @@ function testHeadlampPlugin() {
   // test headlamp-plugin build
   run('node', [join('..', 'bin', 'headlamp-plugin.js'), 'build']);
   checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js'));
+  // brotli sidecar must be present alongside main.js
+  checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js.br'));
+  console.log('✓ brotli sidecar main.js.br created after build (package dir)');
 
   // test headlamp-plugin build folder
   curDir = '.';
@@ -97,6 +103,9 @@ function testHeadlampPlugin() {
   curDir = '.';
   run('node', ['bin/headlamp-plugin.js', 'build', PACKAGE_NAME]);
   checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js'));
+  // brotli sidecar must also be present when building a named folder
+  checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js.br'));
+  console.log('✓ brotli sidecar main.js.br created after build (folder arg)');
 
   fs.writeFileSync(join(PACKAGE_NAME, 'dist', 'extra.txt'), 'All dist/ files will be copied.');
 
@@ -281,6 +290,12 @@ function runAndCaptureOutput(cmd, args) {
 function checkFileExists(fname) {
   if (!fs.existsSync(fname)) {
     exit(`Error: ${fname} does not exist.`);
+  }
+}
+function checkFileContains(fname, expectedContent) {
+  checkFileExists(fname);
+  if (!fs.readFileSync(fname, 'utf8').includes(expectedContent)) {
+    exit(`Error: ${fname} does not export ${expectedContent}.`);
   }
 }
 function exit(message) {

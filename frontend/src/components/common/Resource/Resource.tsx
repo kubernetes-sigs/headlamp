@@ -40,18 +40,18 @@ import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
-import type Event from '../../../lib/k8s/event';
-import { KubeEvent } from '../../../lib/k8s/event';
+import type { default as Event, KubeEvent } from '../../../lib/k8s/event';
 import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import { LEADER_WORKER_SET_NAME_LABEL } from '../../../lib/k8s/leaderWorkerSet';
 import Pod, { KubePod, KubeVolume } from '../../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../../lib/k8s/PodMetrics';
 import Secret from '../../../lib/k8s/secret';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { RouteURLProps } from '../../../lib/router';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { getThemeName } from '../../../lib/themes';
 import { divideK8sResources } from '../../../lib/units';
 import { localeDate, useId } from '../../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
@@ -61,10 +61,12 @@ import { SectionBox } from '../../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../../common/SimpleTable';
 import {
   DefaultDetailsViewSection,
+  DetailsGridContext,
   DetailsViewSection,
 } from '../../DetailsViewSection/detailsViewSectionSlice';
 import { JobsListRenderer } from '../../job/List';
 import { PodListProps, PodListRenderer } from '../../pod/List';
+import { StatefulSetsListRenderer } from '../../statefulset/List';
 import { LightTooltip, Loader, ObjectEventList } from '..';
 import BackLink from '../BackLink';
 import Empty from '../EmptyContent';
@@ -156,6 +158,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const { t } = useTranslation();
   const location = useLocation<{ backLink: NavLinkProps['location'] }>();
   const hasPreviousRoute = useHasPreviousRoute();
+  const { isInPanel } = React.useContext(DetailsGridContext);
   const detailViews = useTypedSelector(state => state.detailsViewSection.detailsViewSections);
   const detailViewsProcessors = useTypedSelector(
     state => state.detailsViewSection.detailsViewSectionsProcessors
@@ -209,6 +212,11 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   }, [item, error]);
 
   const actualBackLink: string | Location | undefined = React.useMemo(() => {
+    // No back link in side panels
+    if (isInPanel) {
+      return undefined;
+    }
+
     if (!!backLink || backLink === '') {
       return backLink;
     }
@@ -242,7 +250,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
 
     return createRouteURL(route);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, isInPanel]);
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
 
@@ -382,31 +390,64 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     sectionsProcessed = processorsSections;
   }
 
+  // IDs of sections that belong in the sticky header
+  const STICKY_HEADER_IDS: ReadonlySet<string> = new Set([
+    DefaultDetailsViewSection.BACK_LINK,
+    DefaultDetailsViewSection.MAIN_HEADER,
+  ]);
+
+  const isHeaderSection = (section: DetailsViewSection | ReactNode): boolean =>
+    has(section, 'id') && STICKY_HEADER_IDS.has((section as DetailsViewSection).id);
+
+  // Split processed sections into header (sticky) vs body (scrollable)
+  const headerSections = sectionsProcessed.filter(isHeaderSection);
+  const bodySections = sectionsProcessed.filter(s => !isHeaderSection(s));
+
+  /** Renders a single section, handling DetailsViewSection objects, ReactElements, and components. */
+  const renderSection = (section: DetailsViewSection | ReactNode) => {
+    const Section = has(section, 'section') ? (section as DetailsViewSection).section : section;
+    if (React.isValidElement(Section)) {
+      return <ErrorBoundary>{Section}</ErrorBoundary>;
+    } else if (Section === null) {
+      return null;
+    } else if (typeof Section === 'function') {
+      return (
+        <ErrorBoundary>
+          <Section resource={item} />
+        </ErrorBoundary>
+      );
+    }
+    // Direct ReactNode values (strings, numbers, fragments, arrays) render as-is.
+    return Section as ReactNode;
+  };
+
   return (
-    <PageGrid
-      sx={theme => ({
-        marginBottom: theme.spacing(2),
-      })}
-    >
-      {React.Children.toArray(
-        sectionsProcessed.map(section => {
-          const Section = has(section, 'section')
-            ? (section as DetailsViewSection).section
-            : section;
-          if (React.isValidElement(Section)) {
-            return <ErrorBoundary>{Section}</ErrorBoundary>;
-          } else if (Section === null) {
-            return null;
-          } else if (typeof Section === 'function') {
-            return (
-              <ErrorBoundary>
-                <Section resource={item} />
-              </ErrorBoundary>
-            );
-          }
-        })
+    <>
+      {/* Sticky header: Back button + resource title + action buttons */}
+      {headerSections.length > 0 && (
+        <Box
+          sx={theme => ({
+            position: { xs: 'static', sm: 'sticky' },
+            top: { sm: 0 },
+            zIndex: { sm: 10 },
+            backgroundColor: theme.palette.background.default,
+            borderBottom: { sm: `1px solid ${theme.palette.divider}` },
+            paddingBottom: { sm: theme.spacing(1) },
+          })}
+        >
+          {React.Children.toArray(headerSections.map(renderSection))}
+        </Box>
       )}
-    </PageGrid>
+
+      {/* Body: metadata, custom sections, events */}
+      <PageGrid
+        sx={theme => ({
+          marginBottom: theme.spacing(2),
+        })}
+      >
+        {React.Children.toArray(bodySections.map(renderSection))}
+      </PageGrid>
+    </>
   );
 }
 
@@ -458,8 +499,7 @@ export interface DataFieldProps extends BaseTextFieldProps {
 export function DataField(props: DataFieldProps) {
   const { disableLabel, label, value, onSave, onChange } = props;
   // Make sure we reload after a theme change
-  useTheme();
-  const themeName = getThemeName();
+  const theme = useTheme();
 
   const [data, setData] = React.useState(value as string);
 
@@ -470,22 +510,25 @@ export function DataField(props: DataFieldProps) {
     }
   };
 
-  function handleEditorDidMount(editor: any) {
-    const editorElement: HTMLElement | null = editor.getDomNode();
-    if (!editorElement) {
-      return;
+  const editorHeight = React.useMemo(() => {
+    let lineCount = 1;
+    const str = data ?? '';
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] === '\n') {
+        lineCount++;
+        if (lineCount > 10) {
+          break;
+        }
+      }
     }
-
-    const lineCount = editor.getModel()?.getLineCount() || 1;
     if (lineCount < 2) {
-      editorElement.style.height = '3vh';
+      return '3vh';
     } else if (lineCount <= 10) {
-      editorElement.style.height = '10vh';
-    } else {
-      editorElement.style.height = '40vh';
+      return '10vh';
     }
-    editor.layout();
-  }
+    return '40vh';
+  }, [data]);
+
   let language = (label as string).split('.').pop() as string;
   if (language !== 'json') {
     language = 'yaml';
@@ -493,12 +536,12 @@ export function DataField(props: DataFieldProps) {
 
   const editorComponent = (
     <Editor
+      height={editorHeight}
       value={data}
       language={language}
       onChange={handleChange}
-      onMount={handleEditorDidMount}
       options={{ lineNumbers: 'off', automaticLayout: true }}
-      theme={themeName === 'dark' ? 'vs-dark' : 'light'}
+      theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
     />
   );
 
@@ -513,7 +556,7 @@ export function DataField(props: DataFieldProps) {
           <Box width="100%" borderTop={1} height={'1px'}></Box>
         </Box>
       )}
-      <Box mt={1} px={1} pb={1}>
+      <Box mt={1} px={1} pb={1} sx={{ minHeight: editorHeight }}>
         {editorComponent}
       </Box>
     </Box>
@@ -711,7 +754,7 @@ interface FetchedResource {
  * Extracts all environment variable references from a container spec.
  * This is a pure function with no hooks.
  */
-function extractEnvVarReferences(container: KubeContainer): EnvVarReference[] {
+export function extractEnvVarReferences(container: KubeContainer): EnvVarReference[] {
   const refs: EnvVarReference[] = [];
 
   // Process env variables
@@ -825,7 +868,7 @@ function ConfigMapFetcher(props: {
  * Builds environment variables from references and fetched resources.
  * This is a pure function with no hooks.
  */
-function buildEnvironmentVariables(
+export function buildEnvironmentVariables(
   references: EnvVarReference[],
   fetchedSecrets: Map<string, FetchedResource>,
   fetchedConfigMaps: Map<string, FetchedResource>,
@@ -869,7 +912,7 @@ function buildEnvironmentVariables(
           });
         } else if (secret) {
           const secretData = (secret as any).data || {};
-          const value = secretData[ref.key!] ? atob(secretData[ref.key!]) : '';
+          const value = secretData[ref.key!] ? Base64.decode(secretData[ref.key!]) : '';
           variables.set(ref.name, {
             value,
             from: secret,
@@ -928,7 +971,7 @@ function buildEnvironmentVariables(
           const outOfSync = isOutOfSync(secret.metadata?.creationTimestamp);
           Object.entries(secretData).forEach(([key, value]) => {
             variables.set(`${prefix}${key}`, {
-              value: atob(value as string),
+              value: value ? Base64.decode(value as string) : '',
               from: secret,
               isError: false,
               isSecret: true,
@@ -1358,8 +1401,9 @@ export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe']
   return (
     <Box display="flex" flexDirection="column">
       <LivenessProbeItem>
-        {`http-get, path: ${liveness?.httpGet?.path}, port: ${liveness?.httpGet?.port},
-    scheme: ${liveness?.httpGet?.scheme}`}
+        {liveness?.httpGet &&
+          `http-get, path: ${liveness.httpGet.path}, port: ${liveness.httpGet.port},
+    scheme: ${liveness.httpGet.scheme}`}
       </LivenessProbeItem>
 
       <LivenessProbeItem>
@@ -1711,6 +1755,14 @@ export function ContainerInfo(props: ContainerInfoProps) {
   );
 }
 
+/**
+ * Pods shown under a JobSet or LeaderWorkerSet are owned by the parent and
+ * should not be edited or deleted individually from the parent's page.
+ */
+function isOwnedListReadOnly(resource: KubeObject) {
+  return resource.kind === 'JobSet' || resource.kind === 'LeaderWorkerSet';
+}
+
 export interface OwnedPodsSectionProps {
   resource: KubeObject;
   hideColumns?: PodListProps['hideColumns'];
@@ -1735,6 +1787,8 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     labelSelector = labelSelectorToQuery(resource?.jsonData?.spec?.selector);
   } else if (resource.kind === 'JobSet') {
     labelSelector = `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`;
+  } else if (resource.kind === 'LeaderWorkerSet') {
+    labelSelector = `${LEADER_WORKER_SET_NAME_LABEL}=${resource.metadata.name}`;
   }
 
   const queryData = {
@@ -1782,8 +1836,45 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
       metrics={podMetrics}
       noNamespaceFilter={hideNamespaceFilter}
       hideCreateButton
-      enableRowActions={resource.kind === 'JobSet' ? false : undefined}
-      enableRowSelection={resource.kind === 'JobSet' ? false : undefined}
+      enableRowActions={isOwnedListReadOnly(resource) ? false : undefined}
+      enableRowSelection={isOwnedListReadOnly(resource) ? false : undefined}
+    />
+  );
+}
+
+export interface TargetedPodsSectionProps {
+  /** Namespace to look for the pods in. */
+  namespace?: string;
+  /** Label selector query identifying the targeted pods. */
+  labelSelector: string;
+  cluster?: string;
+}
+
+/**
+ * Lists the pods matched by a label selector, e.g. the pods a Service or
+ * NetworkPolicy targets. Unlike OwnedPodsSection it takes an explicit selector
+ * instead of deriving one from spec.selector, so it works for a Service (whose
+ * selector is a plain label map) and a NetworkPolicy (spec.podSelector).
+ */
+export function TargetedPodsSection(props: TargetedPodsSectionProps) {
+  const { namespace, labelSelector, cluster } = props;
+  const queryData = { namespace, labelSelector, cluster };
+  const { items: pods, errors } = Pod.useList(queryData);
+  const { items: podMetrics } = PodMetrics.useList({
+    ...queryData,
+    refetchInterval: METRIC_REFETCH_INTERVAL_MS,
+  });
+
+  return (
+    <PodListRenderer
+      hideColumns={namespace ? ['namespace'] : undefined}
+      pods={pods}
+      errors={errors}
+      metrics={podMetrics}
+      noNamespaceFilter={!!namespace}
+      hideCreateButton
+      enableRowActions={false}
+      enableRowSelection={false}
     />
   );
 }
@@ -1812,6 +1903,40 @@ function OwnedJobsSectionContent({ resource }: OwnedJobsSectionProps) {
   return (
     <JobsListRenderer
       jobs={jobs}
+      errors={errors}
+      hideColumns={['namespace']}
+      noNamespaceFilter
+      enableRowActions={false}
+      enableRowSelection={false}
+      hideCreateButton
+    />
+  );
+}
+
+export interface OwnedStatefulSetsSectionProps {
+  resource: KubeObject;
+}
+
+export function OwnedStatefulSetsSection(props: OwnedStatefulSetsSectionProps) {
+  const { resource } = props;
+
+  if (resource.kind !== 'LeaderWorkerSet') {
+    return null;
+  }
+
+  return <OwnedStatefulSetsSectionContent resource={resource} />;
+}
+
+function OwnedStatefulSetsSectionContent({ resource }: OwnedStatefulSetsSectionProps) {
+  const { items: statefulSets, errors } = StatefulSet.useList({
+    namespace: resource.metadata.namespace,
+    labelSelector: `${LEADER_WORKER_SET_NAME_LABEL}=${resource.metadata.name}`,
+    cluster: resource.cluster,
+  });
+
+  return (
+    <StatefulSetsListRenderer
+      statefulSets={statefulSets}
       errors={errors}
       hideColumns={['namespace']}
       noNamespaceFilter

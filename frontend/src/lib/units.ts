@@ -38,6 +38,12 @@ export function parseRam(value: string) {
 function parseUnitsOfBytes(value: string): number {
   if (!value) return 0;
 
+  // "m" suffix means milli-bytes (1/1000 of a byte), e.g. "11973899059200m" from kubectl
+  // Support integer and decimal milli-byte values like "1000m" or "1.5m"
+  if (/^\d+(?:\.\d+)?m$/.test(value)) {
+    return parseFloat(value.slice(0, -1)) / 1000;
+  }
+
   const groups = value.match(/(\d+(?:\.\d+)?)([BKMGTPEe])?(i)?(\d+)?/) || [];
   const number = parseFloat(groups[1]);
 
@@ -78,7 +84,9 @@ export function unparseRam(value: number) {
 export function parseCpu(value: string) {
   if (!value) return 0;
 
-  const number = parseInt(value, 10);
+  // parseFloat (not parseInt) so decimal-core quantities like "0.5" or "1.5"
+  // keep their fractional part. Suffixed forms still parse ("500m" -> 500).
+  const number = parseFloat(value);
   if (value.endsWith('n')) return number;
   if (value.endsWith('u')) return number * 1000;
   if (value.endsWith('m')) return number * 1000 * 1000;

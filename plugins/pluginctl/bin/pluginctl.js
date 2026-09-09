@@ -506,7 +506,7 @@ yargs(process.argv.slice(2))
     }
   )
   .command(
-    "update <pluginName>",
+    "update <pluginName> [folderName] [headlampVersion]",
     "Update a plugin to the latest version",
     (yargs) => {
       yargs

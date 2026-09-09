@@ -15,6 +15,7 @@
  */
 
 import { useTheme } from '@mui/material/styles';
+import { useQuery } from '@tanstack/react-query';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,9 +23,11 @@ import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
+import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
+import PodGroup from '../../lib/k8s/podGroup';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
-import { DefaultSidebars, SidebarItemProps } from '.';
+import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
 import ClusterBadge from './ClusterBadge';
 
 /** Iterates over every entry in the list, including children */
@@ -57,16 +60,36 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const settings = useTypedSelector(state => state.config.settings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
+  const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
   const allClustersConf = useClustersConf();
   const { t } = useTranslation();
   const theme = useTheme();
 
+  const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
+  const gatewayKinds = useMemo(
+    () => new Set(availableGatewayL4RouteKinds),
+    [availableGatewayL4RouteKinds]
+  );
+
   const [crds, error] = CRD.useList();
   if (error !== null) {
     console.error('Failed to fetch CRDs:', error);
   }
+
+  // The workload aware scheduling APIs are alpha and are only served when the cluster
+  // enables the GenericWorkload feature gate, so only show them when they are available.
+  const { data: schedulingWorkloadsEnabled = false } = useQuery({
+    queryKey: ['schedulingWorkloadsEnabled', ...selectedClusters],
+    queryFn: async () => {
+      const enabledPerCluster = await Promise.all(
+        selectedClusters.map(cluster => PodGroup.isEnabled(cluster))
+      );
+      return enabledPerCluster.some(Boolean);
+    },
+    enabled: selectedClusters.length > 0,
+  });
 
   const crdsSidebarEntries = useMemo(() => {
     const crdsSidebarEntries: SidebarItemProps[] = [];
@@ -80,7 +103,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
     const entriesGroup = new Map<string, SidebarItemProps>();
     crds.forEach(item => {
-      const group = item.jsonData.spec.group;
+      // A partially-populated CRD (transient watch update, in-flight refetch)
+      // can arrive with `spec.names` or `spec.group` undefined. Skip those
+      // rather than crash the whole sidebar via `Cannot read properties of
+      // undefined (reading 'kind')`; the CRD will re-render into the sidebar
+      // on a later fetch once the spec is fully populated (#4824).
+      const group = item.jsonData.spec?.group;
+      const kind = item.jsonData.spec?.names?.kind;
+      if (!group || !kind) {
+        return;
+      }
       if (!entriesGroup.has(group)) {
         entriesGroup.set(group, {
           name: `group-${group}`,
@@ -89,7 +121,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           subList: [
             {
               name: item.jsonData.metadata.name,
-              label: item.jsonData.spec.names.kind,
+              label: kind,
               isCR: true,
             },
           ],
@@ -102,7 +134,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           if (!entryGroup.subList.some(subItem => subItem.name === crdName)) {
             entryGroup.subList.push({
               name: crdName,
-              label: item.jsonData.spec.names.kind,
+              label: kind,
               isCR: true,
             });
           }
@@ -248,6 +280,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'JobSets',
             label: t('glossary|Job Sets'),
           },
+          {
+            name: 'LeaderWorkerSets',
+            label: t('glossary|Leader Worker Sets'),
+          },
         ],
       },
       {
@@ -330,6 +366,22 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'grpcroutes',
             label: t('glossary|GRPC Routes'),
           },
+          ...(gatewayKinds.has('TCPRoute')
+            ? [
+                {
+                  name: 'tcproutes',
+                  label: t('glossary|TCP Routes'),
+                },
+              ]
+            : []),
+          ...(gatewayKinds.has('UDPRoute')
+            ? [
+                {
+                  name: 'udproutes',
+                  label: t('glossary|UDP Routes'),
+                },
+              ]
+            : []),
           {
             name: 'referencegrants',
             label: t('glossary|Reference Grants'),
@@ -420,6 +472,24 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       },
     ];
 
+    if (schedulingWorkloadsEnabled) {
+      inClusterItems.push({
+        name: 'scheduling',
+        label: t('glossary|Scheduling (alpha)'),
+        icon: 'mdi:group',
+        subList: [
+          {
+            name: 'podGroups',
+            label: t('glossary|Pod Groups'),
+          },
+          {
+            name: 'schedulingWorkloads',
+            label: t('glossary|Workloads'),
+          },
+        ],
+      });
+    }
+
     if (crdsSidebarEntries.length !== 0) {
       const sublist: SidebarItemProps[] = [
         {
@@ -494,21 +564,41 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
     const sidebars = Object.fromEntries(sidebarsList.map(item => [item.name, item.subList]));
 
+    const filterSublist = (
+      item: SidebarItemProps,
+      filter: (entry: SidebarEntryProps) => SidebarEntryProps | null
+    ): SidebarItemProps | null => {
+      const filtered = filter(item);
+      if (!filtered) {
+        return null;
+      }
+
+      const newItem = { ...item, ...filtered };
+
+      if (newItem.subList) {
+        newItem.subList = newItem.subList
+          .map(it => filterSublist(it, filter))
+          .filter((it): it is SidebarItemProps => it !== null);
+      }
+
+      return newItem;
+    };
+
     // Filter in-cluster sidebar
     if (customSidebarFilters.length > 0) {
-      const filterSublist = (item: SidebarItemProps, filter: any) => {
-        if (item.subList) {
-          item.subList = item.subList.filter(it => filter(it));
-          item.subList = item.subList.map(it => filterSublist(it, filter));
-        }
-
-        return item;
-      };
-
       customSidebarFilters.forEach(customFilter => {
-        sidebars[DefaultSidebars.IN_CLUSTER] = sidebars[DefaultSidebars.IN_CLUSTER]!.filter(it =>
-          customFilter(it)
-        ).map(it => filterSublist(it, customFilter));
+        sidebars[DefaultSidebars.IN_CLUSTER] = sidebars[DefaultSidebars.IN_CLUSTER]!.map(it =>
+          filterSublist(it, customFilter)
+        ).filter((it): it is SidebarItemProps => it !== null);
+      });
+    }
+
+    // Filter home sidebar
+    if (customHomeSidebarFilters.length > 0) {
+      customHomeSidebarFilters.forEach(customFilter => {
+        sidebars[DefaultSidebars.HOME] = sidebars[DefaultSidebars.HOME]!.map(it =>
+          filterSublist(it, customFilter)
+        ).filter((it): it is SidebarItemProps => it !== null);
       });
     }
 
@@ -517,12 +607,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   }, [
     customSidebarEntries,
     shouldShowHomeItem,
+    customSidebarFilters,
+    customHomeSidebarFilters,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     Object.keys(clusters).join(','),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
+    gatewayKinds,
+    schedulingWorkloadsEnabled,
     t,
   ]);
 

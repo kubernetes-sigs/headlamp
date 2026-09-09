@@ -15,12 +15,13 @@
  */
 
 import { Icon } from '@iconify/react';
+import { TFunction } from 'i18next';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { normalizeBaselineForPatch } from '../../../lib/k8s/patchUtils';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -33,6 +34,7 @@ import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
+import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 import ViewButton from './ViewButton';
 
 interface EditButtonProps {
@@ -42,37 +44,101 @@ interface EditButtonProps {
   afterConfirm?: () => void;
 }
 
-export default function EditButton(props: EditButtonProps) {
+function makeErrorMessage(err: any, t: TFunction) {
+  const status = err?.status;
+  if (status === 409) {
+    return t(
+      'translation|This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.'
+    );
+  }
+  if (typeof status === 'number') {
+    return t('translation|Failed to perform operation: code {{ status }}.', { status });
+  }
+  const fallbackMessage = t('translation|unknown error');
+  return t('translation|Failed to perform operation: {{ message }}.', {
+    message: err?.message || fallbackMessage,
+  });
+}
+
+interface EditorActivityContentProps {
+  item: KubeObject;
+  activityId: string;
+  options: CallbackActionOptions;
+  afterConfirm?: () => void;
+}
+
+/**
+ * Content rendered inside the edit Activity. It owns the live watch and the save
+ * flow, so their lifecycle is tied to the Activity itself rather than to the
+ * EditButton that launched it. This keeps conflict detection working even if the
+ * user navigates away from the originating page while the editor stays open
+ * (Activities are minimized on navigation, not closed).
+ */
+function EditorActivityContent({
+  item,
+  activityId,
+  options,
+  afterConfirm,
+}: EditorActivityContentProps) {
   const dispatch: AppDispatch = useDispatch();
-  const { item, options = {}, buttonStyle, afterConfirm } = props;
-  const [isReadOnly, setIsReadOnly] = React.useState(false);
-  const [errorMessage, setErrorMessage] = React.useState<string>('');
   const location = useLocation();
   const { t } = useTranslation(['translation', 'resource']);
   const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
-  const activityId = 'edit-' + item.metadata.uid;
+  const [errorMessage, setErrorMessage] = React.useState<string>('');
 
-  const originalItemRef = React.useRef<KubeObjectInterface | null>(null);
+  // Live watch, so the open editor keeps receiving resourceVersion updates for as
+  // long as this Activity is open, regardless of the page that launched it.
+  const ItemClass = item.constructor as (new (...args: any) => KubeObject) & typeof KubeObject;
+  const [watchedItem] = ItemClass.useGet(item.metadata.name, item.metadata.namespace, {
+    cluster: item.cluster,
+    initialData: item,
+  });
 
-  function makeErrorMessage(err: any) {
-    const status = err?.status;
-    if (status === 409) {
-      return t('translation|Conflicts when trying to perform operation (code 409).');
+  // `item` is the freshest version we explicitly fetched to launch this editor.
+  // `initialData` above is only honoured when useGet's cache has no entry yet — a
+  // pre-existing cache entry (e.g. from the details page this was launched from) can
+  // still serve stale data, and the watch ignores its own initial ADDED event, so that
+  // staleness can otherwise outlive `item`. Only trust watchedItem once it reports a
+  // version at least as new as the one we launched with.
+  const initialVersionRef = React.useRef(item.metadata?.resourceVersion ?? '');
+  const watchedIsFresh = React.useMemo(() => {
+    if (!watchedItem) {
+      return false;
     }
-    if (typeof status === 'number') {
-      return t('translation|Failed to perform operation: code {{ status }}.', { status });
+    const watchedVersion = watchedItem.metadata?.resourceVersion ?? '';
+    const initialVersion = initialVersionRef.current;
+    if (watchedVersion === initialVersion) {
+      return true;
     }
-    const fallbackMessage = t('translation|unknown error');
-    return t('translation|Failed to perform operation: {{ message }}.', {
-      message: err?.message || fallbackMessage,
-    });
-  }
+    const watchedNum = Number(watchedVersion);
+    const initialNum = Number(initialVersion);
+    if (Number.isFinite(watchedNum) && Number.isFinite(initialNum)) {
+      return watchedNum >= initialNum;
+    }
+    // Non-numeric resourceVersion is opaque per the API contract — can't compare, so
+    // trust the watch rather than getting stuck on `item` forever.
+    return true;
+  }, [watchedItem]);
+  const watched = watchedIsFresh ? watchedItem! : item;
+  const watchedVersion = watched.metadata?.resourceVersion ?? '';
+  // Keep the editor item reference stable across renders, recomputing only when the
+  // resourceVersion changes or when the watch first resolves (watchedItem null -> set,
+  // even at the same version) — so the editor renders the live object and EditorDialog
+  // re-evaluates its conflict check on real updates rather than on every watch tick.
+  const editorItem = React.useMemo(
+    () => watched.getEditableObject() as KubeObjectInterface,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [watchedVersion, Boolean(watchedItem)]
+  );
+
+  // Keep the patch baseline tied to the fetched object the user started editing.
+  // Later watch updates must not rebase unsaved edits onto a different server version.
+  const originalItemRef = React.useRef<KubeObjectInterface>(
+    normalizeBaselineForPatch(item.getEditableObject() as KubeObjectInterface)
+  );
 
   async function updateFunc(newItem: KubeObjectInterface) {
     const original = originalItemRef.current;
-    if (!original) {
-      throw new Error('Cannot compute patch: original resource state was not captured');
-    }
     try {
       await item.patchUpdate(original, newItem);
       // Use a normalized clone of the modified object (what the editor shows)
@@ -82,40 +148,90 @@ export default function EditButton(props: EditButtonProps) {
       Activity.close(activityId);
     } catch (err) {
       Activity.update(activityId, { minimized: false });
-      setErrorMessage(makeErrorMessage(err));
+      setErrorMessage(makeErrorMessage(err, t));
       throw err;
     }
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const applyFunc = React.useCallback(updateFunc, [item]);
+  const applyFunc = React.useCallback(updateFunc, [item, activityId, t]);
 
-  function handleSave(items: KubeObjectInterface[]) {
-    const newItemDef = Array.isArray(items) ? items[0] : items;
-    const cancelUrl = location.pathname;
-    const itemName = item.metadata.name;
+  // Called when the user discards their edits via "Undo Changes" while a conflict
+  // warning is showing — rebase the patch baseline to match, so a subsequent edit +
+  // save diffs against the version the editor now shows rather than the stale one.
+  // Never called while the user's unsaved edits are being preserved (no Undo click),
+  // so a plain "keep editing through the warning" save still diffs against the
+  // version the user actually started from.
+  const handleBaselineAccepted = React.useCallback((rebasedItem: KubeObjectInterface) => {
+    originalItemRef.current = normalizeBaselineForPatch(rebasedItem);
+  }, []);
 
-    Activity.update(activityId, { minimized: true });
-    dispatch(
-      clusterAction(() => applyFunc(newItemDef), {
-        startMessage: t('translation|Applying changes to {{ itemName }}…', { itemName }),
-        cancelledMessage: t('translation|Cancelled changes to {{ itemName }}.', { itemName }),
-        successMessage: t('translation|Applied changes to {{ itemName }}.', { itemName }),
-        errorMessage: t('translation|Failed to apply changes to {{ itemName }}.', { itemName }),
-        cancelUrl,
-        errorUrl: cancelUrl,
-        ...options,
-      })
-    );
+  const handleSave = React.useCallback(
+    (items: KubeObjectInterface[]) => {
+      const newItemDef = Array.isArray(items) ? items[0] : items;
+      const cancelUrl = location.pathname;
+      const itemName = item.metadata.name;
 
-    dispatchHeadlampEditEvent({
-      resource: item,
-      status: EventStatus.CLOSED,
-    });
-    if (afterConfirm) {
-      afterConfirm();
-    }
-  }
+      Activity.update(activityId, { minimized: true });
+      dispatch(
+        clusterAction(() => applyFunc(newItemDef), {
+          startMessage: t('translation|Applying changes to {{ itemName }}…', { itemName }),
+          cancelledMessage: t('translation|Cancelled changes to {{ itemName }}.', { itemName }),
+          successMessage: t('translation|Applied changes to {{ itemName }}.', { itemName }),
+          errorMessage: t('translation|Failed to apply changes to {{ itemName }}.', { itemName }),
+          cancelUrl,
+          errorUrl: cancelUrl,
+          ...options,
+        })
+      );
+
+      dispatchHeadlampEditEvent({
+        resource: item,
+        status: EventStatus.CLOSED,
+      });
+      if (afterConfirm) {
+        afterConfirm();
+      }
+    },
+    [
+      activityId,
+      afterConfirm,
+      applyFunc,
+      dispatch,
+      dispatchHeadlampEditEvent,
+      item,
+      location,
+      options,
+      t,
+    ]
+  );
+
+  const handleClose = React.useCallback(() => {
+    Activity.close(activityId);
+  }, [activityId]);
+
+  return (
+    <EditorDialog
+      noDialog
+      item={editorItem}
+      open
+      onClose={handleClose}
+      onSave={handleSave}
+      allowToHideManagedFields
+      errorMessage={errorMessage}
+      onEditorChanged={() => setErrorMessage('')}
+      onBaselineAccepted={handleBaselineAccepted}
+    />
+  );
+}
+
+export default function EditButton(props: EditButtonProps) {
+  const { item, options = {}, buttonStyle, afterConfirm } = props;
+  const [isReadOnly, setIsReadOnly] = React.useState(false);
+  const { t } = useTranslation(['translation', 'resource']);
+  const { enqueueSnackbar } = useSnackbar();
+  const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
+  const activityId = 'edit-' + item.metadata.uid;
+  const editRequestRef = React.useRef(0);
 
   if (!item) {
     return null;
@@ -140,38 +256,63 @@ export default function EditButton(props: EditButtonProps) {
       <ActionButton
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
-        onClick={() => {
+        onClick={async () => {
+          const requestId = ++editRequestRef.current;
           if (afterConfirm) {
             afterConfirm();
           }
-          const editableObject = item.getEditableObject() as KubeObjectInterface;
-          // Normalize the baseline to match what EditorDialog presents to the
-          // user (which by default hides metadata.managedFields). Otherwise a
-          // "save without changes" produces a managedFields-only diff that
-          // patchUpdate would reject.
-          originalItemRef.current = normalizeBaselineForPatch(editableObject);
+          let editorItem = item;
+          try {
+            editorItem = await fetchLatestKubeObject(item);
+          } catch (err) {
+            if (requestId !== editRequestRef.current) {
+              return;
+            }
+
+            const status = (err as any)?.status;
+            const message = makeErrorMessage(err, t);
+            console.error(
+              'Error while fetching latest resource for YAML edit:',
+              {
+                kind: item.kind,
+                name: item.metadata.name,
+                namespace: item.metadata.namespace,
+                cluster: item.cluster,
+              },
+              err
+            );
+            if (status === 401 || status === 403) {
+              enqueueSnackbar(message, { variant: 'warning' });
+              editorItem = item;
+            } else {
+              enqueueSnackbar(message, { variant: 'error' });
+              return;
+            }
+          }
+
+          if (requestId !== editRequestRef.current) {
+            return;
+          }
+
+          Activity.close(activityId);
           Activity.launch({
             id: activityId,
-            title: t('translation|Edit') + ': ' + item.metadata.name,
+            title: t('translation|Edit') + ': ' + editorItem.metadata.name,
             icon: <Icon icon="mdi:pencil" />,
-            cluster: item.cluster,
+            cluster: editorItem.cluster,
             content: (
-              <EditorDialog
-                noDialog
-                item={editableObject}
-                open
-                onClose={() => Activity.close(activityId)}
-                onSave={handleSave}
-                allowToHideManagedFields
-                errorMessage={errorMessage}
-                onEditorChanged={() => setErrorMessage('')}
+              <EditorActivityContent
+                item={editorItem}
+                activityId={activityId}
+                options={options}
+                afterConfirm={afterConfirm}
               />
             ),
             location: 'full',
           });
 
           dispatchHeadlampEditEvent({
-            resource: item,
+            resource: editorItem,
             status: EventStatus.OPENED,
           });
         }}

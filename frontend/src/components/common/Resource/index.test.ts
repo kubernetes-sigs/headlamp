@@ -26,7 +26,12 @@ const avoidCheck = [
   'ActionsNotifier',
   'AlertNotification',
   'ErrorBoundary',
+  'fetchLatestKubeObject',
   'logSeverityFilter',
+  'CopyableCell',
+  // Internal helper exported only so `ResourceTable` and its co-located
+  // tests can import it; deliberately kept out of the barrel.
+  'getResourceRowId',
 ];
 
 const checkExports = [

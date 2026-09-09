@@ -18,8 +18,9 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
+import { DefaultCreateProject } from '../../redux/projectsSlice';
 import reducers from '../../redux/reducers/reducers';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { NewProjectPopup } from './NewProjectPopup';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
@@ -30,7 +31,7 @@ export default {
   decorators: [Story => <Story />],
 } as Meta;
 
-const makeStore = () => {
+const makeStore = (customCreateProject = {}) => {
   return configureStore({
     reducer: reducers,
     preloadedState: {
@@ -46,14 +47,17 @@ const makeStore = () => {
           timezone: 'UTC',
           sidebarSortAlphabetically: false,
           useEvict: true,
+          expandLargeGraph: false,
         },
         isDynamicClusterEnabled: false,
         allowKubeconfigChanges: false,
         defaultPodDebugImage: '',
+        defaultNodeShellImage: '',
+        defaultNodeShellNamespace: '',
       },
       projects: {
         headerActions: {},
-        customCreateProject: {},
+        customCreateProject,
         detailsTabs: {},
         overviewSections: {},
         apiResources: [],
@@ -81,7 +85,7 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [],
@@ -101,7 +105,7 @@ WithExistingProjects.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [
@@ -144,3 +148,31 @@ WithExistingProjects.parameters = {
   },
 };
 WithExistingProjects.storyName = 'With Existing Projects (for duplicate name testing)';
+
+const ReplacementForm = ({ onBack }: { onBack: () => void }) => (
+  <div>
+    <h2>Managed project</h2>
+    <button onClick={onBack}>Back</button>
+  </div>
+);
+
+export const WithReplacedChoices = Template.bind({});
+WithReplacedChoices.args = {
+  store: makeStore({
+    [DefaultCreateProject.NEW_PROJECT]: {
+      id: DefaultCreateProject.NEW_PROJECT,
+      name: 'Create Managed Project',
+      description: 'Create a project managed by the platform',
+      icon: 'mdi:folder-plus',
+      component: ReplacementForm,
+    },
+    [DefaultCreateProject.FROM_YAML]: {
+      id: DefaultCreateProject.FROM_YAML,
+      name: 'Import Platform Project',
+      description: 'Import a project from a platform definition',
+      icon: 'mdi:file-document-add',
+      component: ReplacementForm,
+    },
+  }),
+};
+WithReplacedChoices.parameters = Default.parameters;

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+import { useQueries } from '@tanstack/react-query';
 import _ from 'lodash';
-import React, { useContext, useMemo } from 'react';
-import { useHistory, useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
-import { getCluster, getSelectedClusters } from '../cluster';
+import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
@@ -42,6 +42,7 @@ import Ingress from './ingress';
 import IngressClass from './ingressClass';
 import Job from './job';
 import JobSet from './jobSet';
+import LeaderWorkerSet from './leaderWorkerSet';
 import { Lease } from './lease';
 import { LimitRange } from './limitRange';
 import Namespace from './namespace';
@@ -51,18 +52,21 @@ import PersistentVolume from './persistentVolume';
 import PersistentVolumeClaim from './persistentVolumeClaim';
 import Pod from './pod';
 import PodDisruptionBudget from './podDisruptionBudget';
+import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
 import ReplicaSet from './replicaSet';
 import ResourceQuota from './resourceQuota';
 import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
+import SchedulingWorkload from './schedulingWorkload';
 import Secret from './secret';
-import { SelectedClustersContext } from './SelectedClustersContext';
 import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
+import TCPRoute from './tcpRoute';
+import UDPRoute from './udpRoute';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -82,11 +86,13 @@ export const ResourceClasses = {
   ResourceQuota,
   HorizontalPodAutoscaler: HPA,
   PodDisruptionBudget,
+  PodGroup,
   PriorityClass,
   Ingress,
   IngressClass,
   Job,
   JobSet,
+  LeaderWorkerSet,
   Namespace,
   NetworkPolicy,
   Node,
@@ -107,6 +113,10 @@ export const ResourceClasses = {
   GatewayClass,
   HTTPRoute,
   GRPCRoute,
+  TCPRoute,
+  UDPRoute,
+  // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
+  Workload: SchedulingWorkload,
 };
 
 /** Hook for getting or fetching the clusters configuration.
@@ -135,53 +145,8 @@ export function useClustersConf(): ConfigState['allClusters'] {
   );
 }
 
-/**
- * Get the currently selected cluster name.
- *
- * If more than one cluster is selected it will return:
- *  - On details pages: the cluster of the currently viewed resource
- *  - On any other page: one of the selected clusters
- *
- * To get all currently selected clusters please use {@link useSelectedClusters}
- *
- * @returns currently selected cluster
- */
-export function useCluster() {
-  const history = useHistory();
-
-  const [cluster, setCluster] = React.useState(getCluster());
-
-  React.useEffect(() => {
-    // Listen to route changes
-    return history.listen(() => {
-      const newCluster = getCluster(history.location.pathname);
-      // Update the state only when the cluster changes
-      setCluster(currentCluster => (newCluster !== currentCluster ? newCluster : currentCluster));
-    });
-  }, [history]);
-
-  return cluster;
-}
-
-/**
- * Get a list of selected clusters. Updates when the cluster changes.
- *
- * @returns list of selected clusters. if no clusters are selected, an empty list is returned.
- */
-export function useSelectedClusters(): string[] {
-  const clusterInURL = useCluster();
-  const location = useLocation();
-  const maybeSelectedClusters = useContext(SelectedClustersContext);
-
-  const clusterGroup = React.useMemo(() => {
-    return getSelectedClusters([], location.pathname);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusterInURL, location.pathname]);
-
-  return maybeSelectedClusters && maybeSelectedClusters.length > 0
-    ? maybeSelectedClusters
-    : clusterGroup;
-}
+export { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';
+export type { CancellablePromise } from './api/v1/hooks';
 
 /**
  * Gets the version of the cluster given by the parameter.
@@ -191,35 +156,6 @@ export function useSelectedClusters(): string[] {
  */
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
-}
-
-export type CancellablePromise = Promise<() => void>;
-
-/**
- * Hook to manage multiple cancellable API calls tied to the active cluster.
- *
- * @param apiCalls - functions returning cancellable promises for API calls.
- */
-export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
-  // Use the location to make sure the API calls are changed, as they may depend on the cluster
-  // (defined in the URL ATM).
-  const cluster = useCluster();
-
-  React.useEffect(
-    () => {
-      const cancellables = apiCalls.map(func => func());
-
-      return function cleanup() {
-        for (const cancellablePromise of cancellables) {
-          cancellablePromise.then(cancellable => cancellable());
-        }
-      };
-    },
-    // If we add the apiCalls to the dependency list, then it actually
-    // results in undesired reloads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cluster]
-  );
 }
 
 /**
@@ -348,6 +284,8 @@ export function matchExpressionSimplifier(
   return segments;
 }
 
+const versionFetchInterval = 10000; // ms
+
 /** Hook to get the version of the clusters given by the parameter.
  *
  * @param clusters
@@ -359,88 +297,35 @@ export function useClustersVersion(clusters: Cluster[]) {
     error: ApiError | null;
   };
 
-  const [clusterNames, setClusterNames] = React.useState<string[]>(
-    Object.values(clusters).map(c => c.name)
+  const [clusterNames, setClusterNames] = React.useState<string[]>(() =>
+    Object.values(clusters)
+      .map(c => c.name)
+      .sort()
   );
-  const [versions, setVersions] = React.useState<{ [cluster: string]: VersionInfo }>({});
-  const versionFetchInterval = 10000; // ms
-  const cancelledRef = React.useRef(false);
-  const lastUpdateRef = React.useRef(0);
 
+  // clusters gets a new array reference on every render; only update clusterNames when
+  // the actual set of names changes to avoid unnecessary query resets.
   React.useEffect(() => {
-    // We sort the lists so the order of clusters doesn't influence our comparison. We only
-    // care for presence, not for order.
-    const newClusterNames = Object.values(clusters)
+    const nextClusterNames = Object.values(clusters)
       .map(c => c.name)
       .sort();
-    const sortedClusterNames = [...clusterNames].sort();
-    if (_.isEqual(sortedClusterNames, clusterNames)) {
-      return;
-    }
+    setClusterNames(prev => (_.isEqual(prev, nextClusterNames) ? prev : nextClusterNames));
+  }, [clusters]);
 
-    setClusterNames(newClusterNames);
-    lastUpdateRef.current = Date.now();
-  }, [clusters, clusterNames]);
+  const queries = React.useMemo(
+    () =>
+      clusterNames.map(clusterName => ({
+        queryKey: ['clusterVersion', clusterName],
+        queryFn: () => getVersion(clusterName),
+        refetchInterval: versionFetchInterval,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: 'always' as const,
+        retry: false, // surface errors immediately rather than hammering unreachable clusters
+      })),
+    [clusterNames]
+  );
 
-  React.useEffect(() => {
-    const newVersions: typeof versions = {};
-
-    function updateValues() {
-      if (cancelledRef.current) {
-        return;
-      }
-
-      let needsUpdate = false;
-
-      setVersions(currentVersions => {
-        const newVersionsToSet = { ...currentVersions };
-        for (const clusterName in newVersions) {
-          if (!_.isEqual(newVersionsToSet[clusterName], newVersions[clusterName])) {
-            needsUpdate = true;
-            newVersionsToSet[clusterName] = newVersions[clusterName];
-          }
-        }
-
-        return needsUpdate ? newVersionsToSet : currentVersions;
-      });
-    }
-
-    clusterNames.forEach(clusterName => {
-      getVersion(clusterName)
-        .then(version => {
-          newVersions[clusterName] = { version, error: null };
-        })
-        .catch(err => {
-          newVersions[clusterName] = { version: null, error: err };
-        })
-        .finally(() => {
-          updateValues();
-        });
-    });
-  }, [clusterNames]);
-
-  React.useEffect(() => {
-    cancelledRef.current = false;
-    // Trigger periodically
-    const timeout = setInterval(() => {
-      if (cancelledRef.current) {
-        return;
-      }
-
-      if (Date.now() - lastUpdateRef.current > versionFetchInterval - 1) {
-        // Refreshes the list of clusters
-        // Creating a new array will trigger the useEffect above
-        // effectively refreshing the versions/errors/statuses
-        setClusterNames([...clusterNames]);
-      }
-    }, versionFetchInterval);
-
-    return function cleanup() {
-      cancelledRef.current = true;
-      clearInterval(timeout);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const results = useQueries({ queries });
 
   return React.useMemo<
     [{ [clusterName: string]: StringDict }, { [clusterName: string]: VersionInfo['error'] }]
@@ -448,15 +333,20 @@ export function useClustersVersion(clusters: Cluster[]) {
     const versionsInfo: { [clusterName: string]: StringDict } = {};
     const errorsInfo: { [clusterName: string]: VersionInfo['error'] } = {};
 
-    Object.entries(versions).forEach(([clusterName, versionInfo]) => {
-      if (!!versionInfo.version) {
-        versionsInfo[clusterName] = versionInfo.version;
+    clusterNames.forEach((clusterName, i) => {
+      const { data, error } = results[i];
+      if (data) {
+        versionsInfo[clusterName] = data;
       }
-      errorsInfo[clusterName] = versionInfo.error;
+      // Only set the error key once the query has resolved. An absent key (undefined)
+      // signals "still loading" to getClusterStatus; null means the cluster is active.
+      if (!results[i].isPending) {
+        errorsInfo[clusterName] = (error as ApiError | null) ?? null;
+      }
     });
 
     return [versionsInfo, errorsInfo];
-  }, [versions]);
+  }, [clusterNames, results]);
 }
 
 // Other exports that can be used by plugins:
@@ -474,11 +364,14 @@ export * as ingress from './ingress';
 export * as ingressClass from './ingressClass';
 export * as job from './job';
 export * as jobSet from './jobSet';
+export * as leaderWorkerSet from './leaderWorkerSet';
 export * as namespace from './namespace';
 export * as node from './node';
 export * as persistentVolume from './persistentVolume';
 export * as persistentVolumeClaim from './persistentVolumeClaim';
 export * as pod from './pod';
+export * as podGroup from './podGroup';
+export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';
 export * as role from './role';
 export * as roleBinding from './roleBinding';

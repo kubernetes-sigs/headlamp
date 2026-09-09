@@ -16,9 +16,9 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './ClassDetails';
-import { BASE_SC } from './storyHelper';
+import { BASE_SC_EXPLICIT_EXPANDABLE } from './storyHelper';
 
 export default {
   title: 'StorageClass/DetailsView',
@@ -27,7 +27,7 @@ export default {
   decorators: [
     Story => {
       return (
-        <TestContext routerMap={{ name: 'my-sc' }}>
+        <TestContext routerMap={{ name: 'storage-class-expandable' }}>
           <Story />
         </TestContext>
       );
@@ -44,12 +44,10 @@ Base.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/storage.k8s.io/v1/storageclasses/my-sc', () =>
-          HttpResponse.json(BASE_SC)
+        http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses/storage-class-expandable`, () =>
+          HttpResponse.json(BASE_SC_EXPLICIT_EXPANDABLE)
         ),
-        http.get('http://localhost:4466/apis/storage.k8s.io/v1/storageclasses', () =>
-          HttpResponse.error()
-        ),
+        http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () => HttpResponse.error()),
       ],
     },
   },

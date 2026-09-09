@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
+import { getCluster } from '../../../lib/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
@@ -56,32 +57,36 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
-  if (!VALID_AUTH_VERBS.includes(authVerb)) {
-    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
-    return null;
-  }
+  const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
+
+  useEffect(() => {
+    if (!isAuthVerbValid) {
+      console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+    }
+  }, [isAuthVerbValid, authVerb]);
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
+  const cluster = (item as KubeObject)?.cluster ?? getCluster();
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useQuery<any>({
-    enabled: !!item,
+    enabled: !!item && isAuthVerbValid,
     queryKey: [
       'authVisible',
       itemName,
-      itemClass.apiName,
-      itemClass.apiVersion,
+      itemClass?.apiName,
+      itemClass?.apiVersion,
       authVerb,
       subresource,
       namespace,
+      cluster,
     ],
     queryFn: async () => {
       try {
         const res = await item!.getAuthorization(
           authVerb,
           { subresource, namespace },
-          (item as any).cluster
+          cluster ?? undefined
         );
         return res;
       } catch (e: any) {
@@ -92,7 +97,6 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const visible = data?.status?.allowed ?? false;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (data) {
       onAuthResult?.({
@@ -102,6 +106,10 @@ export default function AuthVisible(props: AuthVisibleProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  if (!isAuthVerbValid) {
+    return null;
+  }
 
   if (!visible) {
     return null;

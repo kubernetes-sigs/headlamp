@@ -19,7 +19,27 @@ import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
+import { addEventCallback, HeadlampEvent } from '../redux/headlampEventSlice';
 import defaultStore from '../redux/stores/store';
+
+/**
+ * Origin (scheme/host/port) of the dev/test backend that MSW handlers intercept
+ * in stories and tests. Matches the default dev backend port used by `getAppUrl`
+ * (4466) but intentionally omits any baseUrl/trailing slash.
+ */
+export const API_BASE = 'http://localhost:4466';
+
+/**
+ * Collects the Headlamp events dispatched while a test runs, so tests can assert
+ * on the plugin-facing event contract (type + payload).
+ *
+ * Event callbacks cannot be unregistered, so every call gets its own array.
+ */
+export function recordHeadlampEvents(store: { dispatch: (action: any) => any } = defaultStore) {
+  const events: HeadlampEvent[] = [];
+  store.dispatch(addEventCallback(event => events.push(event)));
+  return events;
+}
 
 export type TestContextProps = PropsWithChildren<{
   store?: ReturnType<typeof configureStore>;

@@ -79,7 +79,7 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-1gh0c7s-MuiDialogContent-root"
+          class="MuiDialogContent-root css-d6bo4z-MuiDialogContent-root"
         >
           <div
             class="MuiBox-root css-1jpm9pd"
@@ -213,7 +213,7 @@
                   class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-1-Editor-tabs-id"
                   role="tab"
-                  tabindex="-1"
+                  tabindex="0"
                   type="button"
                 >
                   Documentation
@@ -227,7 +227,7 @@
                   class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-2-Editor-tabs-id"
                   role="tab"
-                  tabindex="-1"
+                  tabindex="0"
                   type="button"
                 >
                   Review Changes
@@ -244,13 +244,13 @@
           </div>
           <div
             aria-labelledby="full-width-tab-0-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
             id="full-width-tabpanel-0-Editor-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           >
             <div
               class="MuiBox-root css-10klw3m"
-              id="editor-textarea-id"
             >
               <div
                 class="mock-monaco-editor"
@@ -259,10 +259,11 @@
           </div>
           <div
             aria-labelledby="full-width-tab-1-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
             hidden=""
             id="full-width-tabpanel-1-Editor-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           >
             <div
               class="MuiBox-root css-u718rw"
@@ -280,10 +281,11 @@
           </div>
           <div
             aria-labelledby="full-width-tab-2-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
             hidden=""
             id="full-width-tabpanel-2-Editor-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           />
         </div>
         <div
@@ -317,6 +319,7 @@
             />
           </button>
           <button
+            aria-controls="editor-textarea-id"
             class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1uk0gch-MuiButtonBase-root-MuiButton-root"
             disabled=""
             tabindex="-1"

@@ -1,34 +1,22 @@
 #!/usr/bin/env node
-const setTimeout = require('timers/promises').setTimeout;
-const { execSync } = require('child_process');
-const yargs = require('yargs');
-const { assertContextKwok } = require('./helpers');
+const yargs = require("yargs");
+const { assertContextKwok, batchApply } = require("./helpers");
 
-/**
- * Creates Kubernetes pods using kubectl.
- *
- * @param {number} numPods - The number of pods to create.
- * @param {number} sleepInterval - The sleep interval in seconds.
- */
-async function createPods(numPods, sleepInterval) {
-  const now = new Date();
-
-  for (let x = 0; x < numPods; x++) {
-    const inputString = `
-apiVersion: apps/v1
+function podYaml(index) {
+  return `apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fake-pod-${x}
+  name: fake-pod-${index}
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: fake-pod-${x}
+      app: fake-pod-${index}
   template:
     metadata:
       labels:
-        app: fake-pod-${x}
+        app: fake-pod-${index}
     spec:
       affinity:
         nodeAffinity:
@@ -45,50 +33,48 @@ spec:
         effect: "NoSchedule"
       containers:
       - name: fake-container
-        image: fake-image
-`;
+        image: fake-image`;
+}
 
-    // create the pod
-    try {
-      const result = execSync('kubectl apply -f -', {
-        input: inputString,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      const stdoutData = result.toString();
-      process.stdout.write(stdoutData);
-    } catch (error) {
-      console.log(error);
-      console.error('Error:', error.stderr.toString());
-      if (error.status !== null) {
-        console.log('Exit code:', error.status);
-      }
-    }
+/**
+ * Creates Kubernetes pods (as Deployments) using batch kubectl apply.
+ *
+ * @param {number} numPods - The number of pods to create.
+ */
+function createPods(numPods) {
+  console.log(`Creating ${numPods} pod deployments...`);
+  const start = Date.now();
 
-    if (sleepInterval > 0) {
-      await setTimeout(sleepInterval * 1000);
-    }
+  const yamls = [];
+  for (let x = 0; x < numPods; x++) {
+    yamls.push(podYaml(x));
   }
+  batchApply(yamls);
+
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  console.log(`Created ${numPods} pod deployments in ${elapsed}s`);
 }
 
 yargs
-  .scriptName('create-pods')
-  .usage('$0 <cmd> [args]')
+  .scriptName("create-pods")
+  .usage("$0 <cmd> [args]")
   .command(
-    '$0 <numPods> <sleepInterval>',
-    'Create Kubernetes pods',
+    "$0 <numPods> [sleepInterval]",
+    "Create Kubernetes pods",
     (yargs) => {
-      yargs.positional('numPods', {
-        describe: 'Number of pods to create',
-        type: 'number',
+      yargs.positional("numPods", {
+        describe: "Number of pods to create",
+        type: "number",
       });
-      yargs.positional('sleepInterval', {
-        describe: 'Sleep interval in seconds between pods',
-        type: 'number',
+      yargs.positional("sleepInterval", {
+        describe: "Deprecated, ignored. Kept for backward compatibility.",
+        type: "number",
+        default: 0,
       });
     },
-    async (argv) => {
+    (argv) => {
       assertContextKwok();
-      await createPods(argv.numPods, argv.sleepInterval);
-    }
+      createPods(argv.numPods);
+    },
   )
   .help().argv;

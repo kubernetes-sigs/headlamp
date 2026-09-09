@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class podsPage {
   constructor(private page: Page) {}
 
-  async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+  /** Checks the pods page while ignoring tooltip landmark placement. */
+  async a11y(): Promise<void> {
+    await runA11yScan(this.page, expect, ['[role="tooltip"]']);
   }
 
   async navigateToPods() {
@@ -74,7 +73,9 @@ spec:
     await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Apply', exact: true }).click();
 
-    await page.waitForSelector(`text=Applied ${name}`);
+    const appliedSnackbar = page.getByText(`Applied ${name}`, { exact: true });
+    await appliedSnackbar.waitFor({ state: 'visible' });
+    await appliedSnackbar.waitFor({ state: 'hidden' });
 
     const podLink = page.getByRole('link', { name: name });
     try {
@@ -85,6 +86,9 @@ spec:
     await expect(podLink).toBeVisible();
 
     console.log(`Created pod ${name}`);
+    await expect(page.getByText(`Applied ${name}.`, { exact: true })).toBeHidden({
+      timeout: 10000,
+    });
     await this.a11y();
   }
 
@@ -99,10 +103,10 @@ spec:
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete' }).click();
 
-    await page.waitForSelector(`text=Are you sure you want to delete item ${name}?`);
+    await expect(page.getByRole('dialog')).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'Yes' })).toBeVisible();
-    await page.getByRole('button', { name: 'Yes' }).click();
+    await expect(page.locator('button[aria-label="confirm-button"]')).toBeVisible();
+    await page.locator('button[aria-label="confirm-button"]').click();
 
     await page.waitForSelector(`text=Deleted item ${name}`);
 

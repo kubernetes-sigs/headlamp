@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import { request } from './api/v1/clusterRequests';
+import { isConditionTrue } from './conditions';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import type { WorkloadHealthCategory } from './Workload';
 
 export interface KubeJobSet extends KubeObjectInterface {
   spec: {
@@ -37,12 +40,50 @@ class JobSet extends KubeObject<KubeJobSet> {
   static apiVersion = 'jobset.x-k8s.io/v1alpha2';
   static isNamespaced = true;
 
+  /**
+   * Whether the JobSet API is available on the current cluster.
+   * Probes the API group for the `jobsets` resource; missing group or
+   * resource means JobSet is not installed.
+   */
+  static async isEnabled(): Promise<boolean> {
+    try {
+      const res = await request('/apis/jobset.x-k8s.io/v1alpha2');
+      const resources = (res as { resources?: Array<{ name: string }> } | undefined)?.resources;
+      return !!resources?.some(r => r.name === 'jobsets');
+    } catch (e) {
+      return false;
+    }
+  }
+
   get spec() {
     return this.jsonData.spec;
   }
 
   get status() {
     return this.jsonData.status;
+  }
+
+  /**
+   * Classifies the job set into a coarse health category for the Workloads
+   * overview chart. Job sets have no replica fields, so the replica-mismatch
+   * logic used for other workloads can't apply. This relies on the same
+   * conditions the Job Sets list shows (Failed / Completed / Suspended); a job
+   * set with no terminal condition yet is still running and treated as
+   * transitional.
+   */
+  getHealth(): WorkloadHealthCategory {
+    const conditions = this.status?.conditions;
+
+    if (isConditionTrue(conditions, 'Failed')) {
+      return 'failed';
+    }
+    if (isConditionTrue(conditions, 'Completed')) {
+      return 'healthy';
+    }
+    if (isConditionTrue(conditions, 'Suspended')) {
+      return 'degraded';
+    }
+    return 'transitional';
   }
 
   static getBaseObject(): KubeJobSet {

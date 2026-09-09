@@ -17,6 +17,7 @@
 import type { KubeContainer } from './cluster';
 import type { KubeMetadata } from './KubeMetadata';
 import { KubeObject, type KubeObjectInterface } from './KubeObject';
+import type { WorkloadHealthCategory } from './Workload';
 
 /**
  * CronJob structure returned by the k8s API.
@@ -102,6 +103,28 @@ class CronJob extends KubeObject<KubeCronJob> {
 
   getContainers(): KubeContainer[] {
     return this.spec.jobTemplate?.spec?.template?.spec?.containers || [];
+  }
+
+  /**
+   * Classifies the cron job into a coarse health category for the Workloads
+   * overview chart. Cron jobs have no replica fields, so the replica-mismatch
+   * logic used for other workloads can't apply. A suspended cron job is
+   * degraded, one with running jobs is transitional, and one whose last run was
+   * scheduled but never recorded a success is treated as failed.
+   */
+  getHealth(): WorkloadHealthCategory {
+    if (this.spec?.suspend) {
+      return 'degraded';
+    }
+    if ((this.status?.active?.length ?? 0) > 0) {
+      return 'transitional';
+    }
+    const lastSchedule = this.status?.lastScheduleTime;
+    const lastSuccess = this.status?.lastSuccessfulTime;
+    if (lastSchedule && (!lastSuccess || new Date(lastSchedule) > new Date(lastSuccess))) {
+      return 'failed';
+    }
+    return 'healthy';
   }
 }
 

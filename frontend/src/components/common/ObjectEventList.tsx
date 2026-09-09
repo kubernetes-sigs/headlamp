@@ -20,6 +20,7 @@ import Event, { KubeEvent } from '../../lib/k8s/event';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate, timeAgo } from '../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import EventsLifetimeInfo from '../common/EventsLifetimeInfo';
 import { HoverInfoLabel } from '../common/Label';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -90,18 +91,28 @@ export default function ObjectEventList(props: ObjectEventListProps) {
   const fetchedEvents = useObjectEvents(props.events === undefined ? props.object : null);
   const events = props.events ?? fetchedEvents;
   const dispatchEventList = useEventCallback(HeadlampEventType.OBJECT_EVENTS);
+  // Stable identity so a changed object re-dispatches even when events stays
+  // referentially equal (e.g. an empty array reused across objects).
+  const objectKey = getObjectEventsKey(props.object);
 
   useEffect(() => {
     if (events) {
       dispatchEventList(events, props.object);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events]);
+  }, [events, objectKey]);
 
   const { t } = useTranslation(['translation', 'glossary']);
 
   return (
-    <SectionBox title={t('glossary|Events')}>
+    <SectionBox
+      title={t('glossary|Events')}
+      headerProps={{
+        noPadding: false,
+        headerStyle: 'subsection',
+        titleSideActions: [<EventsLifetimeInfo key="event-lifetime-info" />],
+      }}
+    >
       <SimpleTable
         columns={[
           {

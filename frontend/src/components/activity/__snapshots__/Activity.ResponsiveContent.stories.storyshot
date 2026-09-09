@@ -1,0 +1,400 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-y7vegm"
+    >
+      <div
+        class="MuiBox-root css-5lww48"
+        id="main"
+      />
+      <div
+        class="MuiBox-root css-11hh78l"
+      />
+      <div
+        aria-label="Pod metrics collector for a very long deployment name in the activity view"
+        class="MuiBox-root css-3xoqkk"
+        role="complementary"
+      >
+        <div
+          class="MuiBox-root css-eyh8nb"
+        >
+          <div
+            class="MuiBox-root css-ha4r1w"
+          >
+            <div
+              class="MuiBox-root css-1ww6zew"
+            />
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              title="Pod metrics collector for a very long deployment name in the activity view"
+            >
+              Pod metrics collector for a very long deployment name in the activity view
+            </p>
+            <div
+              class="MuiBox-root css-1po99kh"
+            />
+            <div
+              class="MuiBox-root css-117i2fq"
+            >
+              <span
+                class="MuiBox-root css-1yu1mww"
+                title="docker-desktop-development-cluster-with-a-very-long-name"
+              >
+                docker-desktop-development-cluster-with-a-very-long-name
+              </span>
+            </div>
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Window"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Minimize"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Close"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+          <div
+            class="MuiBox-root css-wqatdk"
+          >
+            Long content
+          </div>
+        </div>
+      </div>
+      <div
+        aria-label="SomeAreVeryLongAndMightLookDifferent resource details and live logs"
+        class="MuiBox-root css-3xoqkk"
+        role="complementary"
+      >
+        <div
+          class="MuiBox-root css-1u6as83"
+        >
+          <div
+            class="MuiBox-root css-ha4r1w"
+          >
+            <div
+              class="MuiBox-root css-1ww6zew"
+            />
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              title="SomeAreVeryLongAndMightLookDifferent resource details and live logs"
+            >
+              SomeAreVeryLongAndMightLookDifferent resource details and live logs
+            </p>
+            <div
+              class="MuiBox-root css-1po99kh"
+            />
+            <div
+              class="MuiBox-root css-117i2fq"
+            >
+              <span
+                class="MuiBox-root css-1yu1mww"
+                title="prod-eu-west-1-internal-observability"
+              >
+                prod-eu-west-1-internal-observability
+              </span>
+            </div>
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Window"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Minimize"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Close"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+          <div
+            class="MuiBox-root css-wqatdk"
+          >
+            Second long content
+          </div>
+        </div>
+      </div>
+      <div
+        aria-label="Pod"
+        class="MuiBox-root css-3xoqkk"
+        role="complementary"
+      >
+        <div
+          class="MuiBox-root css-1j4p9ms"
+        >
+          <div
+            class="MuiBox-root css-ha4r1w"
+          >
+            <div
+              class="MuiBox-root css-1ww6zew"
+            />
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              title="Pod"
+            >
+              Pod
+            </p>
+            <div
+              class="MuiBox-root css-1po99kh"
+            />
+            <div
+              class="MuiBox-root css-117i2fq"
+            >
+              <span
+                class="MuiBox-root css-1yu1mww"
+                title="dev"
+              >
+                dev
+              </span>
+            </div>
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Window"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              >
+                <span
+                  class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+                  style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
+                >
+                  <span
+                    class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                  />
+                </span>
+              </span>
+            </button>
+            <button
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Minimize"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              title="Close"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+          <div
+            class="MuiBox-root css-wqatdk"
+          >
+            Short content
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-124lm9m"
+      >
+        <div
+          class="MuiBox-root css-1mw5uhz"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <div
+              class="MuiBox-root css-1aihc2e"
+            >
+              <div
+                class="MuiBox-root css-12dbwng"
+              >
+                <div
+                  class="MuiBox-root css-14itjq4"
+                />
+                <div
+                  class="MuiBox-root css-asfkam"
+                  title="dev"
+                >
+                  dev
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-r1zxuf"
+                title="Pod"
+              >
+                Pod
+              </div>
+            </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Close"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+        <div
+          class="MuiBox-root css-1oygo4f"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <div
+              class="MuiBox-root css-1aihc2e"
+            >
+              <div
+                class="MuiBox-root css-12dbwng"
+              >
+                <div
+                  class="MuiBox-root css-14itjq4"
+                />
+                <div
+                  class="MuiBox-root css-asfkam"
+                  title="prod-eu-west-1-internal-observability"
+                >
+                  prod-eu-west-1-internal-observability
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-r1zxuf"
+                title="SomeAreVeryLongAndMightLookDifferent resource details and live logs"
+              >
+                SomeAreVeryLongAndMightLookDifferent resource details and live logs
+              </div>
+            </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Close"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+        <div
+          class="MuiBox-root css-1oygo4f"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <div
+              class="MuiBox-root css-1aihc2e"
+            >
+              <div
+                class="MuiBox-root css-12dbwng"
+              >
+                <div
+                  class="MuiBox-root css-14itjq4"
+                />
+                <div
+                  class="MuiBox-root css-asfkam"
+                  title="docker-desktop-development-cluster-with-a-very-long-name"
+                >
+                  docker-desktop-development-cluster-with-a-very-long-name
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-r1zxuf"
+                title="Pod metrics collector for a very long deployment name in the activity view"
+              >
+                Pod metrics collector for a very long deployment name in the activity view
+              </div>
+            </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Close"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+        <div
+          class="MuiBox-root css-a9us1r"
+        >
+          <button
+            aria-label="Overview"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

@@ -69,7 +69,7 @@ function GatewayListenerTable(props: {
     },
     {
       name: t('translation|Conditions'),
-      value: status?.conditions.map(c => makeStatusLabel(c)),
+      value: status?.conditions?.map(c => makeStatusLabel(c)),
     },
   ];
   return <NameValueTable rows={mainRows} />;
@@ -138,7 +138,7 @@ export default function GatewayDetails(props: { name?: string; namespace?: strin
                     .map((listener: GatewayListener) => (
                       <GatewayListenerTable
                         listener={listener}
-                        status={item.getListernerStatusByName(listener.name)}
+                        status={item.getListenerStatusByName(listener.name)}
                       />
                     ))
                 )}

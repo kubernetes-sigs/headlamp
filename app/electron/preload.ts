@@ -15,6 +15,19 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { LegalDocumentResult, LegalDocumentSummary } from './legal-documents';
+
+// Keeps the mapping between a caller-provided listener and the wrapped one we
+// actually register with ipcRenderer, so removeListener can still unsubscribe
+// the listener when callers pass the original function reference.
+// Using a WeakMap so the mapping itself doesn't retain listeners; note this
+// doesn't avoid leaks on its own - ipcRenderer holds a strong reference to
+// the wrapped listener (which closes over the original) until the caller
+// unsubscribes via the returned function or removeListener.
+const wrappedListeners = new WeakMap<
+  (...args: unknown[]) => void,
+  { channel: string; wrapped: (event: unknown, ...args: unknown[]) => void }
+>();
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -32,7 +45,10 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-plugin-permission-secrets',
       'open-plugin-folder',
       'request-backend-port',
+      'request-tray-icon',
+      'set-tray-icon',
       'cluster-changed',
+      'route-changed',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -52,14 +68,30 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'plugin-permission-secrets',
       'open-about-dialog',
       'backend-port',
+      'tray-icon',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
-      ipcRenderer.on(channel, (event, ...args) => func(...args));
+      const wrapped = (event: unknown, ...args: unknown[]) => func(...args);
+      ipcRenderer.on(channel, wrapped);
+      wrappedListeners.set(func, { channel, wrapped });
+      // Also return an unsubscribe function for new callers; older callers
+      // that prefer `removeListener(channel, originalFunc)` keep working too.
+      return () => {
+        ipcRenderer.removeListener(channel, wrapped);
+        wrappedListeners.delete(func);
+      };
     }
   },
 
   removeListener: (channel: string, func: (...args: unknown[]) => void) => {
+    const entry = wrappedListeners.get(func);
+    if (entry && entry.channel === channel) {
+      ipcRenderer.removeListener(channel, entry.wrapped);
+      wrappedListeners.delete(func);
+      return;
+    }
+    // Fallback for listeners registered without going through `receive`.
     ipcRenderer.removeListener(channel, func);
   },
 
@@ -83,8 +115,67 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.invoke('mcp-cluster-change', { cluster }),
   },
 
+  /** Secure storage operations exposed to the trusted renderer. */
+  secureStorage: {
+    /**
+     * Registers plugin namespaces for the current page load.
+     *
+     * @param namespaces - Plugin package names requesting storage.
+     * @returns Opaque capabilities keyed by plugin namespace.
+     */
+    register: (namespaces: string[]): Promise<Record<string, string>> =>
+      ipcRenderer.invoke('secure-storage-register', namespaces),
+    /**
+     * Saves an encrypted value for a plugin capability.
+     *
+     * @param capability - The plugin's opaque capability.
+     * @param key - The plugin-local storage key.
+     * @param value - The plaintext value to encrypt.
+     * @returns The operation result.
+     */
+    save: (capability: string, key: string, value: string) =>
+      ipcRenderer.invoke('secure-storage-save', capability, key, value),
+    /**
+     * Loads a decrypted value for a plugin capability.
+     *
+     * @param capability - The plugin's opaque capability.
+     * @param key - The plugin-local storage key.
+     * @returns The operation result and loaded value.
+     */
+    load: (capability: string, key: string) =>
+      ipcRenderer.invoke('secure-storage-load', capability, key),
+    /**
+     * Deletes a value for a plugin capability.
+     *
+     * @param capability - The plugin's opaque capability.
+     * @param key - The plugin-local storage key.
+     * @returns The operation result.
+     */
+    delete: (capability: string, key: string) =>
+      ipcRenderer.invoke('secure-storage-delete', capability, key),
+  },
+
+  commandCapabilities: {
+    register: (registrations: unknown[]) =>
+      ipcRenderer.invoke('register-plugin-command-capabilities', registrations),
+  },
+
   // Notify cluster change (for MCP server restart)
   notifyClusterChange: (cluster: string | null) => {
     ipcRenderer.send('cluster-changed', cluster);
   },
+
+  platform: process.platform,
+
+  /** @returns Legal documents declared by the packaged application manifest. */
+  getLegalDocuments: (): Promise<LegalDocumentSummary[]> =>
+    ipcRenderer.invoke('get-legal-documents'),
+  /**
+   * Reads a packaged legal document.
+   *
+   * @param id - Stable identifier returned by `getLegalDocuments`.
+   * @returns Document content or a stable failure result.
+   */
+  getLegalDocument: (id: string): Promise<LegalDocumentResult> =>
+    ipcRenderer.invoke('get-legal-document', id),
 });

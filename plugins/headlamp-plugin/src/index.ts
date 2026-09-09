@@ -22,6 +22,7 @@ declare module '@mui/private-theming' {
 
 import { Activity } from './components/activity/Activity';
 import * as CommonComponents from './components/common';
+import * as ResourceMap from './components/resourceMap';
 import type { AppTheme } from './lib/AppTheme';
 import * as K8s from './lib/k8s';
 import * as ApiProxy from './lib/k8s/apiProxy';
@@ -31,13 +32,19 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type { CallbackActionOptions, HeadlampEvent } from './plugin/registry';
+import type {
+  CallbackActionOptions,
+  HeadlampEvent,
+  PluginRunCommand,
+  Relation,
+} from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
   ClusterChooserProps,
   ConfigStore,
   DefaultAppBarAction,
+  DefaultCreateProject,
   DefaultDetailsViewSection,
   DefaultHeadlampEvents,
   DefaultSidebars,
@@ -50,6 +57,7 @@ import Registry, {
   registerAppLogo,
   registerAppTheme,
   registerClusterChooser,
+  registerClusterEmptyState,
   registerClusterProviderDialog,
   registerClusterProviderMenuItem,
   registerClusterStatus,
@@ -60,6 +68,7 @@ import Registry, {
   registerDetailsViewSectionsProcessor,
   registerGetTokenFunction,
   registerHeadlampEventCallback,
+  registerHomeSidebarEntryFilter,
   registerKindIcon,
   registerKubeObjectGlance,
   registerMapSource,
@@ -68,8 +77,10 @@ import Registry, {
   registerProjectApiResource,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
+  registerProjectGrouping,
   registerProjectHeaderAction,
   registerProjectOverviewSection,
+  registerResourceRelationProvider,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
@@ -78,6 +89,7 @@ import Registry, {
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
+import type { ClusterEmptyStateProps } from './redux/clusterProviderSlice';
 export type { ApiResource } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
@@ -86,6 +98,7 @@ export {
   K8s,
   K8s as k8s,
   CommonComponents,
+  ResourceMap,
   Utils,
   Router,
   Plugin,
@@ -93,6 +106,7 @@ export {
   Headlamp,
   Notification,
   DefaultAppBarAction,
+  DefaultCreateProject,
   DefaultDetailsViewSection,
   DefaultHeadlampEvents,
   DetailsViewDefaultHeaderActions,
@@ -100,6 +114,7 @@ export {
   registerAppLogo,
   registerAppBarAction,
   registerClusterChooser,
+  registerClusterEmptyState,
   registerDetailsViewHeaderAction,
   registerDetailsViewSection,
   registerDetailsViewSectionsProcessor,
@@ -107,6 +122,7 @@ export {
   registerRouteFilter,
   registerSidebarEntry,
   registerSidebarEntryFilter,
+  registerHomeSidebarEntryFilter,
   registerDetailsViewHeaderActionsProcessor,
   registerGetTokenFunction,
   registerResourceTableColumnsProcessor,
@@ -121,6 +137,7 @@ export {
   ConfigStore,
   registerKindIcon,
   registerMapSource,
+  registerResourceRelationProvider,
   PluginManager,
   registerUIPanel,
   registerAppTheme,
@@ -130,6 +147,7 @@ export {
   getSupportedLocales,
   registerCustomCreateProject,
   registerProjectDetailsTab,
+  registerProjectGrouping,
   registerProjectOverviewSection,
   registerProjectHeaderAction,
   registerClusterStatus,
@@ -144,7 +162,10 @@ export type {
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,
+  ClusterEmptyStateProps,
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,
+  PluginRunCommand,
+  Relation,
 };

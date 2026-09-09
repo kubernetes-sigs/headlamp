@@ -33,6 +33,7 @@ import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
+import { LightTooltip } from '../common/Tooltip';
 import {
   addSavedAdvancedSearch,
   deleteSavedAdvancedSearch,
@@ -247,24 +248,27 @@ export function SavedSearches({
                     />
                   ) : (
                     <>
-                      <Typography variant="subtitle2" noWrap title={search.name}>
-                        {search.name}
-                      </Typography>
-                      <Typography
-                        component="pre"
-                        variant="caption"
-                        title={search.query}
-                        sx={{
-                          color: 'text.secondary',
-                          fontFamily: 'monospace',
-                          margin: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {search.query}
-                      </Typography>
+                      <LightTooltip title={search.name}>
+                        <Typography variant="subtitle2" noWrap>
+                          {search.name}
+                        </Typography>
+                      </LightTooltip>
+                      <LightTooltip title={search.query}>
+                        <Typography
+                          component="pre"
+                          variant="caption"
+                          sx={{
+                            color: 'text.secondary',
+                            fontFamily: 'monospace',
+                            margin: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {search.query}
+                        </Typography>
+                      </LightTooltip>
                     </>
                   )}
                 </Box>

@@ -19,6 +19,7 @@ func TestMain(m *testing.M) {
 		"HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY",
 		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE",
 		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_NAMESPACES",
 		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_ROOT_RECONCILE_INTERVAL",
 		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_NO_CRD_CACHE_TTL",
 	}
@@ -68,6 +69,19 @@ func writeClusterInventoryProviderFile(t *testing.T) string {
 	return path
 }
 
+func setUserConfigDir(t *testing.T, dir string) {
+	t.Helper()
+
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("APPDATA", dir)
+	case "darwin":
+		t.Setenv("HOME", dir)
+	default:
+		t.Setenv("XDG_CONFIG_HOME", dir)
+	}
+}
+
 func TestParseBasic(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -97,10 +111,17 @@ func TestParseBasic(t *testing.T) {
 		},
 		{
 			name: "with_args",
-			args: []string{"go run ./cmd", "--port=3456", "--pod-debug-image=registry.example.com/debug:latest"},
+			args: []string{
+				"go run ./cmd", "--port=3456",
+				"--pod-debug-image=registry.example.com/debug:latest",
+				"--node-shell-image=registry.example.com/shell:latest",
+				"--node-shell-namespace=custom-ns",
+			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, uint(3456), conf.Port)
 				assert.Equal(t, "registry.example.com/debug:latest", conf.PodDebugImage)
+				assert.Equal(t, "registry.example.com/shell:latest", conf.NodeShellImage)
+				assert.Equal(t, "custom-ns", conf.NodeShellNamespace)
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
 			},
 		},
@@ -121,6 +142,91 @@ func TestParseBasic(t *testing.T) {
 			require.NotNil(t, conf)
 
 			tt.verify(t, conf)
+		})
+	}
+}
+
+func TestParseAppName(t *testing.T) {
+	tests := []struct {
+		name           string
+		args           []string
+		defaultAppName string
+		envValue       string
+		expected       string
+	}{
+		{
+			name:           "default",
+			defaultAppName: "Headlamp",
+			expected:       "Headlamp",
+		},
+		{
+			name:           "linker default",
+			defaultAppName: "Branded Headlamp",
+			expected:       "Branded Headlamp",
+		},
+		{
+			name:           "environment",
+			defaultAppName: "Branded Headlamp",
+			envValue:       "Environment Headlamp",
+			expected:       "Environment Headlamp",
+		},
+		{
+			name:           "flag overrides environment",
+			args:           []string{"headlamp-server", "--app-name=Flag Headlamp"},
+			defaultAppName: "Branded Headlamp",
+			envValue:       "Environment Headlamp",
+			expected:       "Flag Headlamp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue == "" {
+				require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_APP_NAME"))
+				t.Cleanup(func() {
+					_ = os.Unsetenv("HEADLAMP_CONFIG_APP_NAME")
+				})
+			} else {
+				t.Setenv("HEADLAMP_CONFIG_APP_NAME", tt.envValue)
+			}
+
+			conf, err := config.ParseWithAppNameDefault(tt.args, tt.defaultAppName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, conf.AppName)
+		})
+	}
+}
+
+func TestParseInvalidAppName(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		envValue string
+	}{
+		{
+			name: "carriage return from flag",
+			args: []string{"headlamp-server", "--app-name=Headlamp\rInjected"},
+		},
+		{
+			name:     "line feed from environment",
+			args:     []string{"headlamp-server"},
+			envValue: "Headlamp\nInjected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue == "" {
+				require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_APP_NAME"))
+				t.Cleanup(func() {
+					_ = os.Unsetenv("HEADLAMP_CONFIG_APP_NAME")
+				})
+			} else {
+				t.Setenv("HEADLAMP_CONFIG_APP_NAME", tt.envValue)
+			}
+
+			_, err := config.Parse(tt.args)
+			require.ErrorContains(t, err, "app-name contains invalid HTTP header characters")
 		})
 	}
 }
@@ -226,19 +332,46 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, "X-Env-Token-Header", conf.ProxyAuthTokenHeader)
 		},
 	},
+	{
+		name: "watch_plugins_changes_env_kept_in_cluster",
+		args: []string{"go run ./cmd", "--in-cluster"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.WatchPluginsChanges)
+		},
+	},
+	{
+		name: "watch_plugins_changes_env_kept_in_cluster_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_IN_CLUSTER":            "true",
+			"HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.InCluster)
+			assert.Equal(t, true, conf.WatchPluginsChanges)
+		},
+	},
+	{
+		name: "watch_plugins_changes_env_false_kept_in_cluster",
+		args: []string{"go run ./cmd", "--in-cluster"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES": "false",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, false, conf.WatchPluginsChanges)
+		},
+	},
 }
 
 func TestParseWithEnv(t *testing.T) {
 	for _, tt := range ParseWithEnvTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				require.NoError(t, os.Setenv(key, value))
+				t.Setenv(key, value)
 			}
-			defer func(env map[string]string) {
-				for key := range env {
-					require.NoError(t, os.Unsetenv(key))
-				}
-			}(tt.env)
 
 			conf, err := config.Parse(tt.args)
 			require.NoError(t, err)
@@ -454,6 +587,7 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 		"--enable-cluster-inventory",
 		"--cluster-inventory-provider-file=" + providerFile,
 		"--cluster-inventory-label-selector=environment=prod,!headlamp.dev/ignore",
+		"--cluster-inventory-namespaces=team-a,team-b",
 		"--cluster-inventory-root-reconcile-interval=15s",
 		"--cluster-inventory-no-crd-cache-ttl=1m",
 	})
@@ -462,6 +596,7 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 	assert.True(t, conf.EnableClusterInventory)
 	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
 	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
+	assert.Equal(t, "team-a,team-b", conf.ClusterInventoryNamespaces)
 	assert.Equal(t, 15*time.Second, conf.ClusterInventoryRootReconcileInterval)
 	assert.Equal(t, time.Minute, conf.ClusterInventoryNoCRDCacheTTL)
 }
@@ -471,6 +606,7 @@ func TestParseClusterInventoryEnv(t *testing.T) {
 	t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", providerFile)
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR", "!headlamp.dev/ignore")
+	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_NAMESPACES", "*")
 
 	conf, err := config.Parse([]string{"go run ./cmd"})
 	require.NoError(t, err)
@@ -478,6 +614,7 @@ func TestParseClusterInventoryEnv(t *testing.T) {
 	assert.True(t, conf.EnableClusterInventory)
 	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
 	assert.Equal(t, "!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
+	assert.Equal(t, "*", conf.ClusterInventoryNamespaces)
 }
 
 func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
@@ -493,6 +630,7 @@ func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
 	assert.Equal(t, clusterinventory.DefaultRootReconcileInterval, conf.ClusterInventoryRootReconcileInterval)
 	assert.Equal(t, clusterinventory.DefaultNoCRDCacheTTL, conf.ClusterInventoryNoCRDCacheTTL)
 	assert.Empty(t, conf.ClusterInventoryLabelSelector)
+	assert.Empty(t, conf.ClusterInventoryNamespaces)
 }
 
 func TestClusterInventoryValidation(t *testing.T) {
@@ -545,6 +683,32 @@ func TestClusterInventoryValidation(t *testing.T) {
 		require.Nil(t, conf)
 		assert.Contains(t, err.Error(), "invalid cluster-inventory-provider-file")
 	})
+}
+
+func TestClusterInventoryRejectsInvalidNamespaces(t *testing.T) {
+	invalidNamespaces := []struct {
+		name       string
+		namespaces string
+	}{
+		{name: "invalid DNS label", namespaces: "Team_A"},
+		{name: "empty list entry", namespaces: "team-a,,team-b"},
+		{name: "repeated wildcard", namespaces: "*,*"},
+	}
+
+	for _, tt := range invalidNamespaces {
+		t.Run("enabled rejects "+tt.name, func(t *testing.T) {
+			providerFile := writeClusterInventoryProviderFile(t)
+			conf, err := config.Parse([]string{
+				"go run ./cmd",
+				"--enable-cluster-inventory",
+				"--cluster-inventory-provider-file=" + providerFile,
+				"--cluster-inventory-namespaces=" + tt.namespaces,
+			})
+			require.Error(t, err)
+			require.Nil(t, conf)
+			assert.Contains(t, err.Error(), "invalid cluster-inventory-namespaces")
+		})
+	}
 }
 
 func TestClusterInventoryRejectsInvalidLabelSelector(t *testing.T) {
@@ -759,6 +923,20 @@ func TestApplyMeDefaults(t *testing.T) {
 	}
 }
 
+func TestApplyMeDefaults_TrimsWhitespace(t *testing.T) {
+	gotUsername, gotEmail, gotGroups, gotUserInfo := config.ApplyMeDefaults(
+		"  user.name  ",
+		"  user.email  ",
+		"  user.groups  ",
+		"  /oauth2/userinfo  ",
+	)
+
+	assert.Equal(t, "user.name", gotUsername)
+	assert.Equal(t, "user.email", gotEmail)
+	assert.Equal(t, "user.groups", gotGroups)
+	assert.Equal(t, "/oauth2/userinfo", gotUserInfo)
+}
+
 func TestValidateSessionTTL(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -902,6 +1080,52 @@ func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
 	assert.True(t, strings.HasPrefix(dir, tmpDir))
 }
 
+func TestMakeKubeConfigsDir(t *testing.T) {
+	t.Run("creates configured directory", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "custom", "kubeconfigs")
+
+		actual, err := config.MakeKubeConfigsDir(dir)
+		require.NoError(t, err)
+		assert.Equal(t, dir, actual)
+
+		info, err := os.Stat(actual)
+		require.NoError(t, err)
+		assert.True(t, info.IsDir())
+	})
+
+	t.Run("uses Headlamp default when unset", func(t *testing.T) {
+		setUserConfigDir(t, t.TempDir())
+
+		dir, err := config.MakeKubeConfigsDir("")
+		require.NoError(t, err)
+		assert.Contains(t, dir, filepath.Join("Headlamp", "kubeconfigs"))
+	})
+
+	t.Run("falls back to the executable directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UserConfigDir uses a Windows API instead of an environment variable")
+		}
+
+		setUserConfigDir(t, "")
+		t.Setenv("HOME", "")
+
+		dir, err := config.MakeKubeConfigsDir("")
+		require.NoError(t, err)
+
+		executable, err := os.Executable()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Dir(executable), dir)
+	})
+
+	t.Run("reports configured directory creation errors", func(t *testing.T) {
+		parentFile := filepath.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(parentFile, []byte("not a directory"), 0o600))
+
+		_, err := config.MakeKubeConfigsDir(filepath.Join(parentFile, "kubeconfigs"))
+		require.Error(t, err)
+	})
+}
+
 func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -923,6 +1147,40 @@ func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	info, err := os.Stat(filepath.Dir(path))
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
+}
+
+func TestDefaultKubeConfigFile(t *testing.T) {
+	t.Run("returns the config file in the configured directory", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "custom", "kubeconfigs")
+
+		path, err := config.DefaultKubeConfigFile(dir)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(dir, "config"), path)
+	})
+
+	t.Run("reports directory creation errors", func(t *testing.T) {
+		parentFile := filepath.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(parentFile, []byte("not a directory"), 0o600))
+
+		_, err := config.DefaultKubeConfigFile(filepath.Join(parentFile, "kubeconfigs"))
+		require.Error(t, err)
+	})
+}
+
+func TestKubeConfigDirParsing(t *testing.T) {
+	t.Run("defaults to empty", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		assert.Empty(t, conf.KubeConfigDir)
+	})
+
+	t.Run("flag overrides environment", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_KUBECONFIG_DIR", "/env/kubeconfigs")
+
+		conf, err := config.Parse([]string{"go run ./cmd", "--kubeconfig-dir=/flag/kubeconfigs"})
+		require.NoError(t, err)
+		assert.Equal(t, "/flag/kubeconfigs", conf.KubeConfigDir)
+	})
 }
 
 func TestProxyAuthFlagOverridesEnv(t *testing.T) {

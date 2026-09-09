@@ -15,10 +15,12 @@
  */
 
 import { KubeContainer, LabelSelector } from './cluster';
+import { isConditionTrue } from './conditions';
 import { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import { KubePodSpec } from './pod';
+import type { WorkloadHealthCategory } from './Workload';
 
 export interface KubeJob extends KubeObjectInterface {
   spec: {
@@ -66,6 +68,28 @@ class Job extends KubeObject<KubeJob> {
     return this.spec?.template?.spec?.containers || [];
   }
 
+  /**
+   * Classifies the job into a coarse health category for the Workloads overview
+   * chart. Jobs have no replica fields, so the replica-mismatch logic used for
+   * other workloads can't apply. This relies on the same conditions the Jobs
+   * list shows (Complete / Failed / Suspended); a job with no terminal
+   * condition yet is still running and treated as transitional.
+   */
+  getHealth(): WorkloadHealthCategory {
+    const conditions = this.status?.conditions;
+
+    if (isConditionTrue(conditions, 'Failed')) {
+      return 'failed';
+    }
+    if (isConditionTrue(conditions, 'Complete')) {
+      return 'healthy';
+    }
+    if (isConditionTrue(conditions, 'Suspended')) {
+      return 'degraded';
+    }
+    return 'transitional';
+  }
+
   /** Returns the duration of the job in milliseconds. */
   getDuration(): number {
     const startTime = this.status?.startTime;
@@ -83,10 +107,11 @@ class Job extends KubeObject<KubeJob> {
       namespace: '',
       labels: { app: 'headlamp' },
     };
+    // No spec.selector: the Job controller auto-generates one with a
+    // `batch.kubernetes.io/controller-uid` label. Supplying a hand-written
+    // selector without `spec.manualSelector: true` is rejected as
+    // "selector not auto-generated".
     baseObject.spec = {
-      selector: {
-        matchLabels: { app: 'headlamp' },
-      },
       template: {
         spec: {
           containers: [

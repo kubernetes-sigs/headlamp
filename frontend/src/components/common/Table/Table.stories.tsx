@@ -61,7 +61,7 @@ const Template: StoryFn<TableProps<any>> = args => (
 );
 
 const fixtureData = {
-  rowsPerPage: [15, 25, 50],
+  rowsPerPage: [15, 25, 50, 100],
   errorMessage: null,
   columns: [
     {
@@ -291,7 +291,7 @@ const TemplateWithFilter: StoryFn<{
 };
 
 const podData: TableProps<any> = {
-  rowsPerPage: [15, 25, 50],
+  rowsPerPage: [15, 25, 50, 100],
   errorMessage: null,
   columns: [
     {

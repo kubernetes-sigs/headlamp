@@ -22,11 +22,17 @@ import {
   frFR,
   heIL,
   hiIN,
+  huHU,
+  idID,
   itIT,
   jaJP,
   koKR,
+  nlNL,
+  plPL,
+  ptBR,
   ptPT,
   ruRU,
+  trTR,
   urPK,
   zhCN,
   zhTW,
@@ -47,9 +53,17 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   const LOCALES = {
     en: enUS,
-    pt: ptPT,
+    cs: enUS, // @todo: material ui needs a translation for this.
+    hu: huHU,
+    id: idID,
+    nl: nlNL,
+    pl: plPL,
+    'pt-pt': ptPT,
+    'pt-br': ptBR,
     ru: ruRU,
     es: esES,
+    sv: enUS, // @todo: material ui needs a translation for this.
+    tr: trTR,
     de: deDE,
     ta: enUS, // @todo: material ui needs a translation for this.
     hi: hiIN,
@@ -66,7 +80,13 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   type LocalesType =
     | 'en'
-    | 'pt'
+    | 'cs'
+    | 'hu'
+    | 'id'
+    | 'nl'
+    | 'pl'
+    | 'pt-pt'
+    | 'pt-br'
     | 'ru'
     | 'es'
     | 'ta'
@@ -80,7 +100,9 @@ function getLocale(locale: string | undefined): typeof enUS {
     | 'zh'
     | 'ar'
     | 'ur'
-    | 'he';
+    | 'he'
+    | 'sv'
+    | 'tr';
 
   return normalizedLocale in LOCALES ? LOCALES[normalizedLocale as LocalesType] : LOCALES['en'];
 }
@@ -114,13 +136,15 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
    */
   function changeLang(lng: string) {
     if (lng) {
-      const dir = supportedLanguages[lng]?.dir || 'ltr';
+      // A legacy region-less "pt" resolves to the concrete pt-PT catalog.
+      const resolved = i18n.resolvedLanguage || lng;
+      const dir = supportedLanguages[resolved]?.dir || 'ltr';
 
-      document.documentElement.lang = lng;
+      document.documentElement.lang = resolved;
       document.documentElement.dir = dir;
       document.body.dir = dir;
 
-      setLang(lng);
+      setLang(resolved);
     }
   }
 

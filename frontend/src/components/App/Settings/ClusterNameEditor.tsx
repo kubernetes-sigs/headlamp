@@ -23,6 +23,8 @@ import { ClusterSettings } from '../../../helpers/clusterSettings';
 import { parseKubeConfig, renameCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
+import store from '../../../redux/stores/store';
+import { mergeStatelessConfigState } from '../../../stateless';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { updateStatelessClusterKubeconfig } from '../../../stateless/updateStatelessClusterKubeconfig';
 import { ConfirmButton, ConfirmDialog, NameValueTable } from '../../common';
@@ -123,9 +125,14 @@ export function ClusterNameEditor({
               const updatedKubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
               if (updatedKubeconfig !== null) {
                 parseKubeConfig({ kubeconfig: updatedKubeconfig })
-                  .then((config: any) => {
+                  .then((parsedConfig: any) => {
                     storeNewClusterName(newClusterName);
-                    dispatch(setStatelessConfig(config));
+                    const currentStatelessClusters = store.getState().config.statelessClusters;
+                    dispatch(
+                      setStatelessConfig(
+                        mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
+                      )
+                    );
                   })
                   .catch((err: Error) => {
                     console.error('Error updating cluster name:', err.message);

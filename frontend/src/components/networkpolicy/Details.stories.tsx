@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { NetworkPolicyDetails } from './Details';
 import { NETWORK_POLICY_DETAIL, NETWORK_POLICY_ITEMS } from './storyHelper';
 
@@ -45,19 +45,17 @@ Default.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/networking.k8s.io/v1/namespaces/default/networkpolicies/allow-frontend-traffic',
+          `${API_BASE}/apis/networking.k8s.io/v1/namespaces/default/networkpolicies/allow-frontend-traffic`,
           () => HttpResponse.json(NETWORK_POLICY_DETAIL)
         ),
-        http.get(
-          'http://localhost:4466/apis/networking.k8s.io/v1/namespaces/default/networkpolicies',
-          () =>
-            HttpResponse.json({
-              kind: 'NetworkPolicyList',
-              items: NETWORK_POLICY_ITEMS,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/networking.k8s.io/v1/namespaces/default/networkpolicies`, () =>
+          HttpResponse.json({
+            kind: 'NetworkPolicyList',
+            items: NETWORK_POLICY_ITEMS,
+            metadata: {},
+          })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({
             kind: 'EventList',
             items: [],

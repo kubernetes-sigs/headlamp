@@ -91,7 +91,7 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     <FormControl {...formControlProps}>
       {props.showTitle && <FormLabel component="legend">{t('Select locale')}</FormLabel>}
       <Select
-        value={i18n.language ? i18n.language : 'en'}
+        value={i18n.resolvedLanguage || i18n.language || 'en'}
         onChange={changeLng}
         size="small"
         variant="outlined"

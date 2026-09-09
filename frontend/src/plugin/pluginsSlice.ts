@@ -42,6 +42,14 @@ export type PluginSettingsComponentType =
   | ReactElement
   | null;
 
+/** Headlamp-specific fields stored in a plugin package.json. */
+export interface PluginPackageHeadlampConfig {
+  /** Whether a shipped plugin is enabled when first discovered. */
+  enabledByDefault?: boolean;
+  /** Array of supported locales for i18n. */
+  i18n?: string[];
+}
+
 /**
  * PluginInfo is the shape of the metadata information for individual plugin objects.
  */
@@ -83,9 +91,12 @@ export type PluginInfo = {
   isEnabled?: boolean;
 
   /**
-   * type indicates the source of the plugin: "development", "user", or "shipped"
+   * type controls plugin priority and migration behavior.
    */
   type?: 'development' | 'user' | 'shipped';
+
+  /** Inventory root containing the plugin, independently of migration behavior. */
+  source?: 'development' | 'user' | 'shipped';
 
   /**
    * isLoaded indicates if this plugin version is actually loaded and executed.
@@ -103,6 +114,9 @@ export type PluginInfo = {
    * isCompatible is true when the plugin is compatible with this version of Headlamp.
    */
   isCompatible?: boolean;
+
+  /** Headlamp-specific plugin package configuration. */
+  headlamp?: PluginPackageHeadlampConfig;
 
   version?: string; // unused by PluginSettings
   author?: string; // unused by PluginSettings
@@ -131,11 +145,37 @@ export interface PluginsState {
   /** Information stored by settings about plugins. */
   pluginSettings: PluginInfo[];
 }
+// Load from local storage, falling back to empty if unavailable, missing or invalid.
+function loadPluginSettings(): PluginInfo[] {
+  try {
+    // Accessing localStorage can itself throw in restricted contexts (e.g. a
+    // SecurityError from a throwing getter), so keep the availability check
+    // inside the try so every failure path falls back to empty.
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
+    const parsed: unknown = JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]');
+    if (!Array.isArray(parsed)) {
+      // Avoid logging the value itself: plugin settings may hold sensitive data.
+      console.warn(
+        `Stored plugin settings are not an array (got ${
+          parsed === null ? 'null' : typeof parsed
+        }), falling back to empty.`
+      );
+      return [];
+    }
+    return parsed as PluginInfo[];
+  } catch (error) {
+    console.warn('Failed to read stored plugin settings, falling back to empty:', error);
+    return [];
+  }
+}
+
 const initialState: PluginsState = {
   /** Once the plugins have been fetched and executed. */
   loaded: false,
   /** If plugin settings are saved use those. */
-  pluginSettings: JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]'),
+  pluginSettings: loadPluginSettings(),
 };
 
 export const pluginsSlice = createSlice({

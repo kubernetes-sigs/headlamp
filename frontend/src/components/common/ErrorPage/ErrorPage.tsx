@@ -28,19 +28,25 @@ import { useSnackbar } from 'notistack';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import headlampBrokenImage from '../../../assets/headlamp-broken.svg';
-import { getVersion } from '../../../helpers/getProductInfo';
+import {
+  getErrorPageGraphic,
+  getErrorPageTitle,
+  getVersion,
+} from '../../../helpers/getProductInfo';
 
 const WidthImg = styled('img')({
   width: '100%',
 });
 
 export interface ErrorComponentProps {
-  /** The main title to display. By default it is: "Uh-oh! Something went wrong." */
+  /** The main title to display. Defaults to the product-configured title, then Headlamp's
+   * "Uh-oh! Something went wrong." fallback. */
   title?: React.ReactNode;
   /** The message to display. By default it is: "Head back <a href="..."> home</a>." */
   message?: React.ReactNode;
   /** The graphic or element to display as a main graphic. If used as a string, it will be
-   * used as the source for displaying an image. By default it is "headlamp-broken.svg". */
+   * used as the source for displaying an image. Defaults to the product-configured graphic,
+   * then Headlamp's "headlamp-broken.svg" fallback. */
   graphic?: React.ReactNode;
   /** Whether to use Typography or not. By default it is true. */
   withTypography?: boolean;
@@ -103,10 +109,10 @@ export default function ErrorComponent(props: ErrorComponentProps) {
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
   const {
-    title = t('Uh-oh! Something went wrong.'),
+    title = getErrorPageTitle('error') || t('Uh-oh! Something went wrong.'),
     message = '',
     withTypography = true,
-    graphic = headlampBrokenImage,
+    graphic = getErrorPageGraphic('error') || headlampBrokenImage,
     error,
   } = props;
   return (

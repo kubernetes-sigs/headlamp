@@ -21,9 +21,9 @@ import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
-export function makePVCStatusLabel(item: PersistentVolumeClaim, t: (key: string) => string) {
+export function makePVCStatusLabel(item: PersistentVolumeClaim) {
   const status = item.status?.phase ?? '';
-  return StatusLabelByPhase(status, t);
+  return StatusLabelByPhase(status);
 }
 
 export default function VolumeClaimDetails(props: {
@@ -46,7 +46,7 @@ export default function VolumeClaimDetails(props: {
         item && [
           {
             name: t('translation|Status'),
-            value: makePVCStatusLabel(item, t),
+            value: makePVCStatusLabel(item),
           },
           {
             name: t('Volume'),

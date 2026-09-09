@@ -18,7 +18,7 @@ import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import MutatingWebhookConfiguration from '../../lib/k8s/mutatingWebhookConfiguration';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { generateK8sResourceList } from '../../test/mocker';
 import List from './MutatingWebhookConfigList';
 import { createMWC } from './storyHelper';
@@ -71,7 +71,7 @@ Items.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations',
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations`,
           () =>
             HttpResponse.json({
               kind: 'WebhookConfigurationList',

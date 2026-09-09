@@ -16,81 +16,106 @@
 
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 
-export const jobs: KubeObjectInterface[] = [
-  {
-    apiVersion: 'batch/v1',
-    kind: 'Job',
-    metadata: {
-      name: '',
-      creationTimestamp: '2023-07-28T08:00:00Z',
-      generation: 1,
-      labels: {
+// A fully-populated, completed Job used both for the list fixture and as the
+// base for the Details-view fixtures below.
+const baseJob: KubeObjectInterface = {
+  apiVersion: 'batch/v1',
+  kind: 'Job',
+  metadata: {
+    name: '',
+    creationTimestamp: '2023-07-28T08:00:00Z',
+    generation: 1,
+    labels: {
+      'controller-uid': 'c1234',
+    },
+    namespace: 'default',
+    ownerReferences: [
+      {
+        apiVersion: 'batch/v1',
+        blockOwnerDeletion: true,
+        controller: true,
+        kind: 'CronJob',
+        name: 'hello',
+        uid: 'c1234',
+      },
+    ],
+    resourceVersion: '123456',
+    uid: 'abc123',
+  },
+  spec: {
+    backoffLimit: 6,
+    completionMode: 'NonIndexed',
+    completions: 1,
+    parallelism: 1,
+    selector: {
+      matchLabels: {
         'controller-uid': 'c1234',
       },
-      namespace: 'default',
-      ownerReferences: [
-        {
-          apiVersion: 'batch/v1',
-          blockOwnerDeletion: true,
-          controller: true,
-          kind: 'CronJob',
-          name: 'hello',
-          uid: 'c1234',
-        },
-      ],
-      resourceVersion: '123456',
-      uid: 'abc123',
     },
-    spec: {
-      backoffLimit: 6,
-      completionMode: 'NonIndexed',
-      completions: 1,
-      parallelism: 1,
-      selector: {
-        matchLabels: {
+    suspend: false,
+    template: {
+      metadata: {
+        creationTimestamp: null,
+        labels: {
           'controller-uid': 'c1234',
         },
       },
-      suspend: false,
-      template: {
-        metadata: {
-          creationTimestamp: null,
-          labels: {
-            'controller-uid': 'c1234',
+      spec: {
+        containers: [
+          {
+            command: ['/bin/sh', '-c', 'date; echo Hello from the Kubernetes cluster'],
+            image: 'busybox:1.28',
+            imagePullPolicy: 'IfNotPresent',
+            name: 'hello',
+            resources: {},
+            terminationMessagePath: '/dev/termination-log',
+            terminationMessagePolicy: 'File',
           },
-        },
-        spec: {
-          containers: [
-            {
-              command: ['/bin/sh', '-c', 'date; echo Hello from the Kubernetes cluster'],
-              image: 'busybox:1.28',
-              imagePullPolicy: 'IfNotPresent',
-              name: 'hello',
-              resources: {},
-              terminationMessagePath: '/dev/termination-log',
-              terminationMessagePolicy: 'File',
-            },
-          ],
-          dnsPolicy: 'ClusterFirst',
-          restartPolicy: 'OnFailure',
-          schedulerName: 'default-scheduler',
-          securityContext: {},
-          terminationGracePeriodSeconds: 30,
-        },
+        ],
+        dnsPolicy: 'ClusterFirst',
+        restartPolicy: 'OnFailure',
+        schedulerName: 'default-scheduler',
+        securityContext: {},
+        terminationGracePeriodSeconds: 30,
       },
     },
-    status: {
-      completionTime: '2023-07-28T08:01:00Z',
-      conditions: [
-        {
-          lastProbeTime: '2023-07-28T08:01:00Z',
-          lastTransitionTime: '2023-07-28T08:01:00Z',
-          status: 'True',
-          type: 'Complete',
-        },
-      ],
-      startTime: '2023-07-28T00:00:00Z',
-      succeeded: 1,
-    },
   },
-];
+  status: {
+    completionTime: '2023-07-28T08:01:00Z',
+    conditions: [
+      {
+        lastProbeTime: '2023-07-28T08:01:00Z',
+        lastTransitionTime: '2023-07-28T08:01:00Z',
+        status: 'True',
+        type: 'Complete',
+      },
+    ],
+    startTime: '2023-07-28T00:00:00Z',
+    succeeded: 1,
+  },
+};
+
+export const jobs: KubeObjectInterface[] = [baseJob];
+
+/** A completed Job with a real name, for the Details view. */
+export const JOB_COMPLETE: KubeObjectInterface = {
+  ...baseJob,
+  metadata: {
+    ...baseJob.metadata,
+    name: 'hello',
+    uid: 'job-complete-uid',
+  },
+};
+
+/** A Job that is still running: one active pod, no completion time or conditions. */
+export const JOB_RUNNING: KubeObjectInterface = {
+  ...JOB_COMPLETE,
+  metadata: {
+    ...JOB_COMPLETE.metadata,
+    uid: 'job-running-uid',
+  },
+  status: {
+    active: 1,
+    startTime: '2023-07-28T08:00:00Z',
+  },
+};

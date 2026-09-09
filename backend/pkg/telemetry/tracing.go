@@ -23,6 +23,13 @@ func TracingMiddleware(serviceName string) func(http.Handler) http.Handler {
 				propagation.TraceContext{},
 				propagation.Baggage{},
 			)),
+			// Recent otelhttp versions default the span name to the HTTP method
+			// (e.g. "GET") per the stable semconv conventions. Preserve the
+			// legacy behaviour of naming the span after the operation passed to
+			// NewHandler, which downstream dashboards rely on.
+			otelhttp.WithSpanNameFormatter(func(operation string, _ *http.Request) string {
+				return operation
+			}),
 		)
 	}
 }

@@ -16,6 +16,7 @@
 
 import _ from 'lodash';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
+import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { request } from '../lib/k8s/api/v1/clusterRequests';
 import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';
 import { Cluster } from '../lib/k8s/cluster';
@@ -29,12 +30,55 @@ import { updateStatelessClusterKubeconfig } from './updateStatelessClusterKubeco
 
 /**
  * ParsedConfig is the object that is fetched from the backend.
- * It has cluster information as keys. The values are the same as the KubeconfigObject.
+ * It contains a list of parsed cluster entries under the `clusters` field.
+ * Each item corresponds to a parsed cluster object used by stateless config state.
  * @see KubeconfigObject
  * @see fetchStatelessClusterKubeConfigs
  */
 interface ParsedConfig {
-  [prop: string]: Cluster[];
+  clusters?: Cluster[];
+}
+
+/**
+ * Converts parsed `/parseKubeConfig` response data into the redux stateless state shape.
+ *
+ * @param parsedConfig Parsed backend response that may include a `clusters` array.
+ * @returns Object with `statelessClusters` indexed by cluster name.
+ */
+export function toStatelessConfigState(parsedConfig: ParsedConfig | null | undefined) {
+  const statelessClusters: NonNullable<ConfigState['statelessClusters']> = {};
+
+  if (parsedConfig?.clusters && Array.isArray(parsedConfig.clusters)) {
+    parsedConfig.clusters.forEach((cluster: Cluster) => {
+      statelessClusters[cluster.name] = cluster;
+    });
+  }
+
+  return { statelessClusters };
+}
+
+/**
+ * Merges freshly parsed stateless clusters into the currently loaded stateless map.
+ *
+ * Existing clusters are preserved, and clusters with matching names are overwritten
+ * by the latest parsed values.
+ *
+ * @param currentStatelessClusters Current stateless cluster map from redux state.
+ * @param parsedConfig Newly parsed backend response.
+ * @returns Merged `statelessClusters` payload suitable for `setStatelessConfig`.
+ */
+export function mergeStatelessConfigState(
+  currentStatelessClusters: ConfigState['statelessClusters'],
+  parsedConfig: ParsedConfig | null | undefined
+) {
+  const nextState = toStatelessConfigState(parsedConfig);
+
+  return {
+    statelessClusters: {
+      ...(currentStatelessClusters || {}),
+      ...nextState.statelessClusters,
+    },
+  };
 }
 
 /**
@@ -373,40 +417,39 @@ export function isEqualClusterConfigs(
  */
 export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
   const config = await getStatelessClusterKubeConfigs();
-  const statelessClusters = store.getState().config.statelessClusters;
+
+  if (!config || config.length === 0) {
+    const statelessClusters = store.getState().config.statelessClusters;
+    if (statelessClusters && Object.keys(statelessClusters).length > 0) {
+      dispatch(setStatelessConfig({ statelessClusters: {} }));
+    }
+    return;
+  }
+
   const headers = addBackstageAuthHeaders(JSON_HEADERS);
   const clusterReq = {
     kubeconfigs: config,
   };
 
-  // Parses statelessCluster config
-  request(
+  return request(
     '/parseKubeConfig',
     {
       method: 'POST',
       body: JSON.stringify(clusterReq),
       headers: {
         ...headers,
+        ...getHeadlampAPIHeaders(),
       },
     },
     false,
     false
   )
     .then((config: ParsedConfig) => {
-      const clustersToConfig: ConfigState['statelessClusters'] = {};
-      if (config?.clusters && Array.isArray(config.clusters)) {
-        config?.clusters.forEach((cluster: Cluster) => {
-          clustersToConfig[cluster.name] = cluster;
-        });
-      }
+      const nextState = toStatelessConfigState(config);
+      const statelessClusters = store.getState().config.statelessClusters;
 
-      const configToStore = {
-        statelessClusters: clustersToConfig,
-      };
-      if (statelessClusters === null) {
-        dispatch(setStatelessConfig({ ...configToStore }));
-      } else if (Object.keys(clustersToConfig).length !== Object.keys(statelessClusters).length) {
-        dispatch(setStatelessConfig({ ...configToStore }));
+      if (isEqualClusterConfigs(statelessClusters, nextState.statelessClusters)) {
+        dispatch(setStatelessConfig(nextState));
       }
     })
     .catch((err: Error) => {

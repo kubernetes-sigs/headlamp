@@ -26,6 +26,7 @@ import Select from '@mui/material/Select';
 import { styled } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
+import { t } from 'i18next';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,7 @@ import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
+import { useId } from '../../../lib/util';
 import {
   EventStatus,
   HeadlampEvent,
@@ -47,12 +49,16 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { Activity } from '../../activity/Activity';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
 
-// Component props interface
+export interface WorkloadLogsProps {
+  item: KubeObject;
+}
+
 interface LogsButtonProps {
   item: KubeObject | null;
 }
@@ -89,7 +95,10 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   paddingRight: theme.spacing(2),
 }));
 
-function LogsButtonContent({ item }: LogsButtonProps) {
+/**
+ * Workload log controls and output for embedding outside the Activity view.
+ */
+export function WorkloadLogs({ item }: WorkloadLogsProps) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
   const [selectedContainer, setSelectedContainer] = useState('');
@@ -100,29 +109,28 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   });
   const [allPodLogs, setAllPodLogs] = useState<{ [podName: string]: string[] }>({});
 
-  const [showTimestamps, setShowTimestamps] = useState<boolean>(true);
-  const [follow, setFollow] = useState<boolean>(true);
+  const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
+    'headlamp.logs.showTimestamps',
+    true
+  );
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
-  const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>(() => {
-    try {
-      const stored = localStorage.getItem('headlamp.logs.severityFilter');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Normalize and validate against ALL_SEVERITIES
-          const validSeverities = parsed.filter(s => ALL_SEVERITIES.includes(s as LogSeverity));
-          if (validSeverities.length > 0) {
-            return validSeverities as LogSeverity[];
-          }
-        }
+  const [storedSeverities, setStoredSeverities] = useLocalStorageState<LogSeverity[]>(
+    'headlamp.logs.severityFilter',
+    [...ALL_SEVERITIES]
+  );
+
+  const selectedSeverities = React.useMemo(() => {
+    if (Array.isArray(storedSeverities) && storedSeverities.length > 0) {
+      const validSeverities = storedSeverities.filter(s => ALL_SEVERITIES.includes(s));
+      if (validSeverities.length > 0) {
+        return validSeverities;
       }
-    } catch {
-      // ignore parse errors
     }
     return [...ALL_SEVERITIES];
-  });
+  }, [storedSeverities]);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
   const processLogsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,6 +151,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSeverities]);
   const { t } = useTranslation(['glossary', 'translation']);
+  const selectLabelId = useId('logs-button-');
   const { enqueueSnackbar } = useSnackbar();
 
   const clearLogs = React.useCallback(() => {
@@ -227,7 +236,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
         console.error('Error fetching pods:', error);
         enqueueSnackbar(
           t('translation|Failed to fetch pods: {{error}}', {
-            error: error instanceof Error ? error.message : t('translation|Unknown error'),
+            error: error instanceof Error ? error.message : t('translation|unknown error'),
           }),
           {
             variant: 'error',
@@ -486,8 +495,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     >
       {/* Pod selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Select Pod')}</InputLabel>
+        <InputLabel id={`${selectLabelId}-pod-label`}>{t('translation|Select Pod')}</InputLabel>
         <Select
+          labelId={`${selectLabelId}-pod-label`}
+          id={`${selectLabelId}-pod`}
           value={selectedPodIndex}
           onChange={event => {
             setSelectedPodIndex(event.target.value as number | 'all');
@@ -506,8 +517,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Container selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Container')}</InputLabel>
+        <InputLabel id={`${selectLabelId}-container-label`}>
+          {t('translation|Container')}
+        </InputLabel>
         <Select
+          labelId={`${selectLabelId}-container-label`}
+          id={`${selectLabelId}-container`}
           value={selectedContainer}
           onChange={event => {
             setSelectedContainer(event.target.value);
@@ -529,28 +544,35 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Lines selector */}
       <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel>Lines</InputLabel>
-        <Select value={lines} onChange={handleLinesChange}>
+        <InputLabel id={`${selectLabelId}-lines-label`}>{t('translation|Lines')}</InputLabel>
+        <Select
+          labelId={`${selectLabelId}-lines-label`}
+          id={`${selectLabelId}-lines`}
+          label={t('translation|Lines')}
+          value={lines}
+          onChange={handleLinesChange}
+        >
           {[100, 1000, 2500].map(i => (
             <MenuItem key={i} value={i}>
               {i}
             </MenuItem>
           ))}
-          <MenuItem value={-1}>All</MenuItem>
+          <MenuItem value={-1}>{t('translation|All')}</MenuItem>
         </Select>
       </FormControl>
 
       {/* Severity filter dropdown */}
       <FormControl sx={{ minWidth: 140 }}>
-        <InputLabel>{t('translation|Severity')}</InputLabel>
+        <InputLabel id={`${selectLabelId}-severity-label`}>{t('translation|Severity')}</InputLabel>
         <Select
+          labelId={`${selectLabelId}-severity-label`}
+          id={`${selectLabelId}-severity`}
           multiple
           value={selectedSeverities}
           onChange={event => {
             const value = event.target.value as LogSeverity[];
             if (value.length > 0) {
-              setSelectedSeverities(value);
-              localStorage.setItem('headlamp.logs.severityFilter', JSON.stringify(value));
+              setStoredSeverities(value);
             }
           }}
           label={t('translation|Severity')}
@@ -666,11 +688,11 @@ export function launchWorkloadLogs(
   }
   Activity.launch({
     id: 'logs-' + item.metadata.uid,
-    title: 'Logs: ' + item.metadata.name,
+    title: t('glossary|Logs: {{ itemName }}', { itemName: item.metadata.name }),
     icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
     cluster: item.cluster,
     location: 'full',
-    content: <LogsButtonContent item={item} />,
+    content: <WorkloadLogs item={item} />,
   });
   dispatchHeadlampEvent?.({
     type: HeadlampEventType.LOGS,

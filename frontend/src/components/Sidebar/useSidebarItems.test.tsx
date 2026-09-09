@@ -20,6 +20,7 @@ import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
+import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -31,10 +32,15 @@ import { useSidebarItems } from './useSidebarItems';
 // eslint-disable-next-line no-unused-vars
 const DontDeleteMe = App;
 
+vi.mock('../../lib/k8s/gatewayL4RouteAvailability', () => ({
+  useGatewayL4RouteAvailability: vi.fn(),
+}));
+
 describe('useSidebarItems', () => {
   const mockStore = (
     customSidebarEntries: { [name: string]: SidebarEntry },
-    customSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[]
+    customSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[],
+    customHomeSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[] = []
   ) => {
     return configureStore({
       reducer: reducers,
@@ -42,6 +48,7 @@ describe('useSidebarItems', () => {
         sidebar: {
           entries: customSidebarEntries,
           filters: customSidebarFilters,
+          homeFilters: customHomeSidebarFilters,
           selected: { item: null, sidebar: DefaultSidebars.IN_CLUSTER },
           isVisible: true,
         },
@@ -60,6 +67,61 @@ describe('useSidebarItems', () => {
           </Provider>
         </TestContext>
       );
+
+  beforeEach(() => {
+    queryClient.clear();
+    vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useGatewayL4RouteAvailability
+    >);
+  });
+
+  it.each([
+    { label: 'neither route kind', kinds: [], tcpVisible: false, udpVisible: false },
+    {
+      label: 'only TCPRoute',
+      kinds: ['TCPRoute'],
+      tcpVisible: true,
+      udpVisible: false,
+    },
+    {
+      label: 'only UDPRoute',
+      kinds: ['UDPRoute'],
+      tcpVisible: false,
+      udpVisible: true,
+    },
+    {
+      label: 'both route kinds',
+      kinds: ['TCPRoute', 'UDPRoute'],
+      tcpVisible: true,
+      udpVisible: true,
+    },
+  ])(
+    'independently gates Gateway API L4 routes when focused discovery returns $label',
+    ({ kinds, tcpVisible, udpVisible }) => {
+      queryClient.setQueryData(
+        ['api-discovery'],
+        [
+          { groupName: 'gateway.networking.k8s.io', kind: 'TCPRoute' },
+          { groupName: 'gateway.networking.k8s.io', kind: 'UDPRoute' },
+        ]
+      );
+      vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({
+        data: kinds,
+      } as unknown as ReturnType<typeof useGatewayL4RouteAvailability>);
+      const store = mockStore({}, []);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(store),
+      });
+
+      const gatewayItems = result.current.find(item => item.name === 'gatewayapi')?.subList ?? [];
+      expect(gatewayItems.some(item => item.name === 'gateways')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'gatewayclasses')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'httproutes')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'grpcroutes')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'tcproutes')).toBe(tcpVisible);
+      expect(gatewayItems.some(item => item.name === 'udproutes')).toBe(udpVisible);
+    }
+  );
 
   it('should include customSidebarEntries', () => {
     const customEntries = {
@@ -148,6 +210,34 @@ describe('useSidebarItems', () => {
     ).toBeDefined();
   });
 
+  it('should include subheader entry fields from customSidebarEntries', () => {
+    const sx = { fontSize: '1.1rem', textTransform: 'none' };
+    const customEntries: { [name: string]: SidebarEntry } = {
+      customSection: {
+        name: 'customSection',
+        label: 'Custom Section',
+        entryType: 'subheader',
+        sx,
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    expect(result.current).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'customSection',
+          label: 'Custom Section',
+          entryType: 'subheader',
+          sx,
+        }),
+      ])
+    );
+  });
+
   it('should apply customSidebarFilters', () => {
     const customEntries = {
       custom1: { name: 'custom1', label: 'Custom 1', url: '/custom1' },
@@ -202,5 +292,24 @@ describe('useSidebarItems', () => {
     if (clusterItem?.subtitle && typeof clusterItem.subtitle !== 'string') {
       expect(React.isValidElement(clusterItem.subtitle)).toBe(true);
     }
+  });
+
+  it('should apply customHomeSidebarFilters to the HOME sidebar', () => {
+    const homeFilters = [
+      (entry: SidebarEntry) =>
+        entry.name === 'settings' || entry.name === 'notifications' ? null : entry,
+    ];
+
+    const store = mockStore({}, [], homeFilters);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    // Check that settings and notifications are removed
+    expect(result.current.find(it => it.name === 'settings')).toBeUndefined();
+    expect(result.current.find(it => it.name === 'notifications')).toBeUndefined();
+
+    // Check that home is still present
+    expect(result.current.find(it => it.name === 'home')).toBeDefined();
   });
 });

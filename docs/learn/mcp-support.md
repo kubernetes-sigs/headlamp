@@ -59,6 +59,33 @@ You can configure servers using the form-based UI or by editing the JSON configu
 
 <img width="1430" height="829" alt="MCP configuration" src="https://github.com/user-attachments/assets/4a8ad48b-0b54-4d8d-9eeb-dc06d1d358ff" />
 
+### Example MCP Servers
+
+Each of the servers below runs as a local command, which is what the desktop app expects. Install the tool first, then add it from the AI Assistant settings using the fields above.
+
+[Flux Operator MCP](https://github.com/controlplaneio-fluxcd/flux-operator/tree/main/cmd/mcp) surfaces Flux sources, Kustomizations, and HelmReleases.
+
+- **Name** — `flux`
+- **Command** — `flux-operator-mcp`
+- **Args** — `serve --kube-context HEADLAMP_CURRENT_CLUSTER`
+
+As noted above, `HEADLAMP_CURRENT_CLUSTER` is not something you set yourself. Headlamp replaces it with the name of the selected cluster when it starts the server.
+
+[K8sGPT](https://github.com/k8sgpt-ai/k8sgpt) analyzes cluster issues and returns AI-assisted explanations. The `serve --mcp` command runs its MCP server over stdio, which needs no environment variables or extra configuration.
+
+- **Name** — `k8sgpt`
+- **Command** — `k8sgpt`
+- **Args** — `serve --mcp`
+
+[Inspektor Gadget](https://github.com/inspektor-gadget/ig-mcp-server) exposes eBPF gadgets for tracing DNS, TCP connections, process execution, and more. It needs either a gadget discoverer or an explicit list of gadgets, otherwise it will not start.
+
+- **Name** — `inspektor-gadget`
+- **Command** — `ig-mcp-server`
+- **Args** — `-gadget-discoverer=artifacthub`
+- **Example (pin specific gadgets)** — `-gadget-images=trace_dns:latest,trace_tcp:latest` loads only the listed gadgets instead of discovering all of them
+
+Each project keeps its own install steps and flags up to date, so check its page for the latest options.
+
 ## Managing MCP Tools
 
 Once a server is connected, Headlamp lists the tools it exposes.

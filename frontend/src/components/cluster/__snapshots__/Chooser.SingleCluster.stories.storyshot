@@ -171,8 +171,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="only-cluster"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="only-cluster"
+                          data-mui-internal-clone-element="true"
                         >
                           only-cluster
                         </p>
@@ -207,8 +208,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="only-cluster"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="only-cluster"
+                          data-mui-internal-clone-element="true"
                         >
                           only-cluster
                         </p>

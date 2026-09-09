@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-linux:
     runs-on: ubuntu-22.04
@@ -35,11 +39,19 @@ jobs:
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.25.*'
+        go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
     - name: Run tests
       run: make app-test
+    - name: Verify OAuth callback coverage
+      run: npm --prefix app run test:oauth-coverage
     - name: Run tsc type checker
       run: make app-tsc
     - name: Run app-i18n-check
@@ -47,22 +59,58 @@ jobs:
     - name: App linux
       run: |
         make app-linux
+    - name: Install desktop e2e dependencies
+      run: |
+        cd app/e2e-tests
+        npm ci
+        npx playwright install --with-deps chromium
+    - name: Test desktop listener cleanup
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts
+    - name: Test desktop OAuth callbacks
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
     - name: Verify Linux build
       run: npm run app:verify-build-linux
+    - name: Start Minikube
+      uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+    - name: Verify Minikube
+      run: |
+        minikube status
+        kubectl config use-context minikube
+        kubectl get nodes
+    - name: Run app e2e tests
+      env:
+        HEADLAMP_APP_E2E_CONTEXT: minikube
+      run: |
+        make backend
+        npm --prefix app/e2e-tests ci
+        npm --prefix app/e2e-tests exec -- playwright install --with-deps chromium
+          xvfb-run npm run app:test:e2e -- backendToken.spec.ts
   build-windows:
-    runs-on: windows-2025
     strategy:
       matrix:
-        node-version: [22.x]
+        include:
+          - arch: x64
+            runner: windows-2022
+            node-version: 22.x
+          - arch: arm64
+            runner: windows-11-arm
+            node-version: 22.x
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.25.*'
+        go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
     - name: Dependencies
       uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
       with:
@@ -71,8 +119,14 @@ jobs:
       run: make app-test
     - name: Run tsc type checker
       run: make app-tsc
-    - name: App Windows
-      run: make app-win
+    - name: App Windows ${{ matrix.arch }}
+      run: |
+        cd app
+        npm ci --force
+        cd ..
+        make app-build
+        cd app
+        npm run package -- --win --${{ matrix.arch }}
     - name: Verify Windows build
       shell: pwsh
       run: npm run app:verify-build-windows
@@ -87,9 +141,15 @@ jobs:
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.25.*'
+        go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
     - name: Dependencies
       run: brew install make
     - name: Run tests

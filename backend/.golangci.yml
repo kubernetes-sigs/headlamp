@@ -44,6 +44,19 @@ linters:
     - nlreturn
     - sqlclosecheck
     - depguard
+  settings:
+    goconst:
+      # goconst defaults in golangci-lint v2.12 are aggressive enough to flag
+      # short, generic strings ("pods", "true", "cluster", log-field keys) and
+      # test-table fixtures, neither of which benefit from extraction. Restore
+      # the pre-v2.12 signal/noise ratio:
+      #   * ignore-tests skips repeated literals in *_test.go (table-driven
+      #     tests intentionally inline values for readability),
+      #   * min-len rules out 3-char generic Kubernetes nouns,
+      #   * min-occurrences keeps the linter focused on truly recurring values.
+      ignore-tests: true
+      min-len: 4
+      min-occurrences: 5
 
 formatters:
   enable:

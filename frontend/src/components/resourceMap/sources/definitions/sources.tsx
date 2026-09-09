@@ -17,6 +17,7 @@
 import { Icon } from '@iconify/react';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
@@ -30,6 +31,7 @@ import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
 import GatewayClass from '../../../../lib/k8s/gatewayClass';
+import { useGatewayL4RouteAvailability } from '../../../../lib/k8s/gatewayL4RouteAvailability';
 import GRPCRoute from '../../../../lib/k8s/grpcRoute';
 import HPA from '../../../../lib/k8s/hpa';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
@@ -38,10 +40,12 @@ import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
 import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../../../lib/k8s/leaderWorkerSet';
 import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
+import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PDB from '../../../../lib/k8s/podDisruptionBudget';
@@ -56,6 +60,8 @@ import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
+import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import VPA from '../../../../lib/k8s/vpa';
 import { useNamespaces } from '../../../../redux/filterSlice';
@@ -98,13 +104,28 @@ const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
   const groupedSources = new Map<string, GraphSource[]>();
 
   for (const crd of crds) {
-    const kind = crd.spec.names.kind;
-    if (BUILTIN_CRD_KINDS.includes(kind) && (kind !== 'VerticalPodAutoscaler' || vpaEnabled)) {
+    const kind = crd.spec?.names?.kind;
+    if (!kind) {
+      // CRD with incomplete spec; skip it (#4824).
+      continue;
+    }
+    const isGatewayL4Route =
+      crd.spec?.group === 'gateway.networking.k8s.io' &&
+      (kind === 'TCPRoute' || kind === 'UDPRoute');
+    if (
+      isGatewayL4Route ||
+      (BUILTIN_CRD_KINDS.includes(kind) && (kind !== 'VerticalPodAutoscaler' || vpaEnabled))
+    ) {
       continue;
     }
 
-    const [group] = crd.getMainAPIGroup();
-    const source = makeKubeSource(crd.makeCRClass());
+    const apiGroup = crd.getMainAPIGroupOrNull();
+    const crClass = crd.makeCRClassOrNull();
+    if (!apiGroup || !crClass) {
+      continue;
+    }
+    const [group] = apiGroup;
+    const source = makeKubeSource(crClass);
     // Add crd prefix to avoid id clashes with resources already defined in other places
     source.id = 'crd-' + source.id;
 
@@ -129,6 +150,7 @@ const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
 };
 
 export function useGetAllSources(): GraphSource[] {
+  const { t } = useTranslation(['glossary']);
   const namespaces = useNamespaces();
   const { items: CustomResourceDefinition } = CRD.useList({ namespace: namespaces });
   const cluster = useCluster();
@@ -140,8 +162,13 @@ export function useGetAllSources(): GraphSource[] {
     queryFn: () => apiDiscovery([...selectedClusters]),
     queryKey: ['api-discovery', ...selectedClusters],
   });
+  const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
   const gatewayEnabled =
-    discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false;
+    (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
+    !!availableGatewayL4RouteKinds?.length;
+  const gatewayKinds = new Set(availableGatewayL4RouteKinds);
+  const tcpRouteEnabled = gatewayKinds.has('TCPRoute');
+  const udpRouteEnabled = gatewayKinds.has('UDPRoute');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -178,6 +205,7 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Job),
           makeKubeSource(CronJob),
           makeKubeSource(JobSet),
+          makeKubeSource(LeaderWorkerSet),
         ],
       },
       {
@@ -192,6 +220,15 @@ export function useGetAllSources(): GraphSource[] {
           />
         ),
         sources: [makeKubeSource(PersistentVolumeClaim)],
+      },
+      {
+        id: 'cluster',
+        label: 'Cluster',
+        icon: (
+          <Icon icon="mdi:server" width="100%" height="100%" color={getKindGroupColor('other')} />
+        ),
+        isEnabledByDefault: false,
+        sources: [makeKubeSource(Node)],
       },
       {
         id: 'network',
@@ -272,6 +309,22 @@ export function useGetAllSources(): GraphSource[] {
                 makeKubeSource(Gateway),
                 makeKubeSource(HTTPRoute),
                 makeKubeSource(GRPCRoute),
+                ...(tcpRouteEnabled
+                  ? [
+                      {
+                        ...makeKubeSource(TCPRoute),
+                        label: t('glossary|TCP Routes'),
+                      },
+                    ]
+                  : []),
+                ...(udpRouteEnabled
+                  ? [
+                      {
+                        ...makeKubeSource(UDPRoute),
+                        label: t('glossary|UDP Routes'),
+                      },
+                    ]
+                  : []),
                 makeKubeSource(ReferenceGrant),
                 makeKubeSource(BackendTLSPolicy),
                 makeKubeSource(BackendTrafficPolicy),
@@ -299,5 +352,5 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled]);
+  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled, tcpRouteEnabled, udpRouteEnabled, t]);
 }

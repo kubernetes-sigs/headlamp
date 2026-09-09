@@ -24,11 +24,9 @@ import { styled } from '@mui/material/styles';
 import ThemeProvider from '@mui/system/ThemeProvider';
 import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
 import {
-  createContext,
   ReactNode,
   StrictMode,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -42,7 +40,9 @@ import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
-import { filterGraph, GraphFilter } from './graph/graphFiltering';
+import { MAP_PERFORMANCE_FEATURES_ENABLED } from './config';
+import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
+import { getGraphForNamespaceSelection } from './graph/graphForNamespaceSelection';
 import {
   collapseGraph,
   findGroupContaining,
@@ -50,40 +50,40 @@ import {
   GroupBy,
   groupGraph,
 } from './graph/graphGrouping';
+import { detectGraphChanges, shouldUseIncrementalUpdate } from './graph/graphIncrementalUpdate';
 import { applyGraphLayout } from './graph/graphLayout';
-import { GraphLookup, makeGraphLookup } from './graph/graphLookup';
+import { makeGraphLookup } from './graph/graphLookup';
 import { forEachNode, GraphEdge, GraphNode, GraphSource, Relation } from './graph/graphModel';
+import {
+  EXTREME_SIMPLIFICATION_THRESHOLD,
+  EXTREME_SIMPLIFIED_NODE_LIMIT,
+  SIMPLIFICATION_THRESHOLD,
+  SIMPLIFIED_NODE_LIMIT,
+  simplifyGraph,
+} from './graph/graphSimplification';
 import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
+import { FullGraphContext, GraphViewContext } from './graphViewContext';
+import { GraphViewDefinitions } from './GraphViewDefinitions';
+import { PerformanceStats } from './PerformanceStats';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
-import { useGetAllRelations } from './sources/definitions/relations';
-import { useGetAllSources } from './sources/definitions/sources';
 import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
 import { useQueryParamsState } from './useQueryParamsState';
 
-interface GraphViewContent {
-  setNodeSelection: (nodeId: string) => void;
-  nodeSelection?: string;
-}
-export const GraphViewContext = createContext({} as any);
-export const useGraphView = () => useContext<GraphViewContent>(GraphViewContext);
+// Re-exported here for backwards compatibility with existing consumers that
+// imported these from GraphView.tsx. The actual definitions live in
+// graphViewContext.tsx to avoid a circular import with the node renderers.
+export {
+  FullGraphContext,
+  GraphViewContext,
+  useFullGraphContext,
+  useNode,
+} from './graphViewContext';
+export { useGraphView } from './graphViewContext';
 
-interface FullGraphContent {
-  fullGraph: any;
-  lookup: GraphLookup<GraphNode, GraphEdge>;
-}
-export const FullGraphContext = createContext({} as any);
-export const useFullGraphContext = () => useContext<FullGraphContent>(FullGraphContext);
-
-export const useNode = (id: string) => {
-  const { lookup } = useFullGraphContext();
-
-  return lookup.getNode(id);
-};
-
-interface GraphViewContentProps {
+export interface GraphViewProps {
   /** Height of the Map */
   height?: string;
   /** ID of a node to select by default */
@@ -107,7 +107,7 @@ interface GraphViewContentProps {
 
 const defaultFiltersValue: GraphFilter[] = [];
 
-interface GraphViewInternalProps extends Omit<GraphViewContentProps, 'defaultSources'> {
+interface GraphViewInternalProps extends Omit<GraphViewProps, 'defaultSources'> {
   sources: GraphSource[];
 }
 
@@ -147,6 +147,12 @@ function GraphViewContent({
   // Filters
   const [hasErrorsFilter, setHasErrorsFilter] = useState(false);
 
+  // Incremental update toggle - allows comparing performance
+  const [useIncrementalUpdates, setUseIncrementalUpdates] = useState(true);
+
+  // Graph simplification state
+  const [simplificationEnabled, setSimplificationEnabled] = useState(true);
+
   // Grouping state
   const [groupBy, setGroupBy] = useQueryParamsState<GroupBy | undefined>('group', 'namespace');
 
@@ -172,8 +178,26 @@ function GraphViewContent({
   // Expand all groups state
   const [expandAll, setExpandAll] = useState(false);
 
+  // Performance stats visibility
+  const [showPerformanceStats, setShowPerformanceStats] = useState(false);
+  // Expand by Default
+  const expandLargeGraph = useTypedSelector(state => state.config.settings.expandLargeGraph);
+
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();
+
+  // Track previous graph state for incremental update detection.
+  // When only a small fraction of nodes change (e.g., WebSocket updates),
+  // incremental filtering avoids reprocessing the entire graph.
+  const prevNodesRef = useRef<GraphNode[]>([]);
+  const prevEdgesRef = useRef<GraphEdge[]>([]);
+  const prevFilteredGraphRef = useRef<{ nodes: GraphNode[]; edges: GraphEdge[] }>({
+    nodes: [],
+    edges: [],
+  });
+  // Track active filters to detect filter changes (forces full recompute)
+  // When filters change, incremental update would give wrong results
+  const prevFiltersRef = useRef<string>('');
 
   // Graph with applied layout, has sizes and positions for all elements
   const [layoutedGraph, setLayoutedGraph] = useState<{ nodes: Node[]; edges: Edge[] }>({
@@ -181,33 +205,189 @@ function GraphViewContent({
     edges: [],
   });
 
-  // Apply filters
-  const filteredGraph = useMemo(() => {
-    const filters = [...defaultFilters];
+  // Build the merged filter array from defaultFilters + user-selected filters.
+  // Shared between the useMemo (for filtering) and useLayoutEffect (for prevFiltersRef).
+  const buildFilters = useCallback((): GraphFilter[] => {
+    const filters: GraphFilter[] = [...defaultFilters];
     if (hasErrorsFilter) {
       filters.push({ type: 'hasErrors' });
     }
     if (namespaces?.size > 0) {
       filters.push({ type: 'namespace', namespaces });
     }
-    return filterGraph(nodes, edges, filters);
-  }, [nodes, edges, hasErrorsFilter, namespaces, defaultFilters]);
+    return filters;
+  }, [defaultFilters, hasErrorsFilter, namespaces]);
+
+  // Compute a stable JSON signature for a filters array (normalizes Set→sorted array).
+  const computeFilterSig = useCallback(
+    (filters: GraphFilter[]): string =>
+      JSON.stringify(
+        filters.map(filter => {
+          if (filter.type === 'namespace') {
+            return { type: 'namespace', namespaces: Array.from(filter.namespaces).sort() };
+          }
+          if (filter.type === 'namespaceCluster') {
+            return {
+              type: 'namespaceCluster',
+              namespaceRefs: Array.from(filter.namespaceRefs).sort(),
+            };
+          }
+          return filter;
+        })
+      ),
+    []
+  );
+
+  // Apply filters BEFORE simplification to ensure accuracy.
+  // Order matters: filter first (accuracy) → simplify second (performance).
+  //
+  // INCREMENTAL UPDATE OPTIMIZATION (for WebSocket updates):
+  // - Detects what changed between previous and current data
+  // - If <20% changed AND incremental enabled: processes only changed nodes
+  // - If >20% changed OR incremental disabled: full reprocessing
+  // Use the Performance Stats panel to observe actual speedups on your data.
+  const filteredGraph = useMemo(() => {
+    const perfStart = performance.now();
+
+    // Build current filters (shared helper for consistency with useLayoutEffect)
+    const filters = buildFilters();
+
+    let result: { nodes: GraphNode[]; edges: GraphEdge[] } = { nodes: [], edges: [] };
+    let usedIncremental = false;
+
+    // Create filter signature from the full filters array (including defaultFilters)
+    // to detect filter changes. If filters change, incremental update would give wrong results.
+    const currentFilterSig = computeFilterSig(filters);
+
+    // Try incremental update if enabled and we have previous data and filters unchanged
+    if (
+      useIncrementalUpdates &&
+      prevNodesRef.current.length > 0 &&
+      currentFilterSig === prevFiltersRef.current
+    ) {
+      const changes = detectGraphChanges(prevNodesRef.current, prevEdgesRef.current, nodes, edges);
+
+      if (
+        shouldUseIncrementalUpdate(changes) &&
+        // Incremental filtering can expand an existing related-node closure,
+        // but deletions or edge topology changes may require shrinking it.
+        changes.deletedNodes.size === 0 &&
+        changes.addedEdges.size === 0 &&
+        changes.deletedEdges.size === 0
+      ) {
+        // Use incremental filtering (87-92% faster for small node-only changes).
+        // Filter and topology changes use a full recompute for correctness.
+        result = filterGraphIncremental(
+          prevFilteredGraphRef.current.nodes,
+          prevFilteredGraphRef.current.edges,
+          changes.addedNodes,
+          changes.modifiedNodes,
+          changes.deletedNodes,
+          nodes,
+          edges,
+          filters
+        );
+        usedIncremental = true;
+      }
+    }
+
+    // Fall back to full filtering if incremental not used
+    if (!usedIncremental) {
+      result = filterGraph(nodes, edges, filters);
+    }
+
+    const totalTime = performance.now() - perfStart;
+
+    // Only log to console if debug flag is set
+    if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+      console.log(
+        `[ResourceMap Performance] filteredGraph useMemo: ${totalTime.toFixed(2)}ms ` +
+          `(${usedIncremental ? 'INCREMENTAL' : 'FULL'} processing)`
+      );
+    }
+
+    return result;
+  }, [nodes, edges, buildFilters, computeFilterSig, useIncrementalUpdates]);
+
+  // Update refs after render is committed to avoid issues with React 18 concurrent rendering.
+  // In concurrent mode, renders can be restarted or discarded, so mutating refs during render
+  // (inside useMemo) can lead to incorrect incremental comparisons.
+  useLayoutEffect(() => {
+    prevNodesRef.current = nodes;
+    prevEdgesRef.current = edges;
+    prevFilteredGraphRef.current = filteredGraph;
+    // Keep this filter signature in sync with the one computed in useMemo above
+    // using the same shared helpers.
+    prevFiltersRef.current = computeFilterSig(buildFilters());
+  }, [filteredGraph, nodes, edges, buildFilters, computeFilterSig]);
+
+  // Simplify graph if it's too large for the browser to render efficiently.
+  // Error nodes are always preserved (high priority scoring).
+  // Trade-off: intentional information loss, but user has a toggle control.
+  const simplifiedGraph = useMemo(() => {
+    const shouldSimplify =
+      simplificationEnabled && filteredGraph.nodes.length > SIMPLIFICATION_THRESHOLD;
+
+    // Use more aggressive simplification for extreme graphs
+    const isExtremeGraph = filteredGraph.nodes.length > EXTREME_SIMPLIFICATION_THRESHOLD;
+    const maxNodes = isExtremeGraph ? EXTREME_SIMPLIFIED_NODE_LIMIT : SIMPLIFIED_NODE_LIMIT;
+
+    return simplifyGraph(filteredGraph.nodes, filteredGraph.edges, {
+      enabled: shouldSimplify,
+      maxNodes,
+    });
+  }, [filteredGraph, simplificationEnabled]);
 
   // Group the graph
   const [allNamespaces] = Namespace.useList();
   const [allNodes] = K8sNode.useList();
+
+  const activeNamespaces = groupBy === 'namespace' ? allNamespaces : undefined;
+  const activeNodes = groupBy === 'node' ? allNodes : undefined;
+  const graphForGrouping = useMemo(
+    () =>
+      getGraphForNamespaceSelection(
+        filteredGraph,
+        simplifiedGraph,
+        activeNamespaces ?? [],
+        selectedNodeId
+      ),
+    [filteredGraph, simplifiedGraph, activeNamespaces, selectedNodeId]
+  );
+
   const { visibleGraph, fullGraph } = useMemo(() => {
-    const graph = groupGraph(filteredGraph.nodes, filteredGraph.edges, {
+    const perfStart = performance.now();
+    const graph = groupGraph(graphForGrouping.nodes, graphForGrouping.edges, {
       groupBy,
-      namespaces: allNamespaces ?? [],
-      k8sNodes: allNodes ?? [],
+      namespaces: activeNamespaces ?? [],
+      k8sNodes: activeNodes ?? [],
     });
 
-    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
+    const collapseStart = performance.now();
+    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll, expandLargeGraph });
+    const collapseTime = performance.now() - collapseStart;
+
+    const totalTime = performance.now() - perfStart;
+
+    // Only log to console if debug flag is set
+    if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+      console.log(
+        `[ResourceMap Performance] grouping useMemo: ${totalTime.toFixed(
+          2
+        )}ms (collapse: ${collapseTime.toFixed(2)}ms)`
+      );
+    }
 
     return { visibleGraph, fullGraph: graph };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredGraph, groupBy, selectedNodeId, expandAll, allNamespaces]);
+  }, [
+    graphForGrouping,
+    groupBy,
+    selectedNodeId,
+    expandAll,
+    activeNamespaces,
+    expandLargeGraph,
+    activeNodes,
+  ]);
 
   const viewport = useGraphViewport();
 
@@ -232,7 +412,7 @@ function GraphViewContent({
   // Reset after view change
   useLayoutEffect(() => {
     viewportMovedRef.current = false;
-  }, [selectedNodeId, groupBy, expandAll]);
+  }, [selectedNodeId, groupBy, expandAll, expandLargeGraph]);
 
   const selectedGroup = useMemo(() => {
     if (selectedNodeId) {
@@ -255,6 +435,7 @@ function GraphViewContent({
   );
 
   const fullGraphContext = useMemo(() => {
+    const perfStart = performance.now();
     let nodes: GraphNode[] = [];
     let edges: GraphEdge[] = [];
 
@@ -267,11 +448,27 @@ function GraphViewContent({
       }
     });
 
+    const lookupStart = performance.now();
+    const lookup = makeGraphLookup(nodes, edges);
+    const lookupTime = performance.now() - lookupStart;
+
+    const totalTime = performance.now() - perfStart;
+
+    // Only log to console if debug flag is set
+    if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+      console.log(
+        `[ResourceMap Performance] fullGraphContext useMemo: ${totalTime.toFixed(
+          2
+        )}ms (lookup: ${lookupTime.toFixed(2)}ms, nodes: ${nodes.length}, edges: ${edges.length})`
+      );
+    }
+
     return {
+      fullGraph,
       visibleGraph,
-      lookup: makeGraphLookup(nodes, edges),
+      lookup,
     };
-  }, [visibleGraph]);
+  }, [fullGraph, visibleGraph]);
 
   return (
     <GraphViewContext.Provider value={contextValue}>
@@ -339,11 +536,52 @@ function GraphViewContent({
                   onClick={() => setHasErrorsFilter(!hasErrorsFilter)}
                 />
 
+                {filteredGraph.nodes.length > SIMPLIFICATION_THRESHOLD && (
+                  <ChipToggleButton
+                    label={t('Simplify ({{count}} most important)', {
+                      count:
+                        filteredGraph.nodes.length > EXTREME_SIMPLIFICATION_THRESHOLD
+                          ? EXTREME_SIMPLIFIED_NODE_LIMIT
+                          : SIMPLIFIED_NODE_LIMIT,
+                    })}
+                    isActive={simplificationEnabled}
+                    onClick={() => setSimplificationEnabled(!simplificationEnabled)}
+                  />
+                )}
+
+                {simplifiedGraph.simplified && (
+                  <Chip
+                    label={t('Showing {{shown}} of {{total}} nodes', {
+                      shown: simplifiedGraph.nodes.length,
+                      total: filteredGraph.nodes.length,
+                    })}
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                  />
+                )}
+
+                {MAP_PERFORMANCE_FEATURES_ENABLED && (
+                  <ChipToggleButton
+                    label={t('Incremental Updates')}
+                    isActive={useIncrementalUpdates}
+                    onClick={() => setUseIncrementalUpdates(!useIncrementalUpdates)}
+                  />
+                )}
+
                 {graphSize < 50 && (
                   <ChipToggleButton
                     label={t('Expand All')}
                     isActive={expandAll}
                     onClick={() => setExpandAll(it => !it)}
+                  />
+                )}
+
+                {MAP_PERFORMANCE_FEATURES_ENABLED && (
+                  <ChipToggleButton
+                    label={t('Performance Stats')}
+                    isActive={showPerformanceStats}
+                    onClick={() => setShowPerformanceStats(!showPerformanceStats)}
                   />
                 )}
               </Box>
@@ -353,7 +591,7 @@ function GraphViewContent({
                   nodes={layoutedGraph.nodes}
                   edges={layoutedGraph.edges}
                   isLoading={isLoading}
-                  onMoveStart={e => {
+                  onMove={e => {
                     if (e === null) return;
                     viewportMovedRef.current = true;
                   }}
@@ -387,6 +625,13 @@ function GraphViewContent({
               </div>
             </Box>
           </CustomThemeProvider>
+
+          {MAP_PERFORMANCE_FEATURES_ENABLED && showPerformanceStats && (
+            <PerformanceStats
+              visible={showPerformanceStats}
+              onToggle={() => setShowPerformanceStats(false)}
+            />
+          )}
         </Box>
       </FullGraphContext.Provider>
     </GraphViewContext.Provider>
@@ -450,19 +695,15 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Renders Map of Kubernetes resources
- *
- * @param params - Map parameters
- * @returns
- */
-export function GraphView(props: GraphViewContentProps) {
-  const allSources = useGetAllSources();
-  const allRelations = useGetAllRelations();
-
-  const propsSources = props.defaultSources ?? allSources;
-  const propsRelations = props.defaultRelations ?? allRelations;
-
+function GraphViewWithDefinitions({
+  props,
+  sources: propsSources,
+  relations,
+}: {
+  props: GraphViewProps;
+  sources: GraphSource[];
+  relations: Relation[];
+}) {
   // Load plugin defined sources
   const pluginGraphSources = useTypedSelector(state => state.graphView.graphSources);
 
@@ -474,10 +715,38 @@ export function GraphView(props: GraphViewContentProps) {
   return (
     <StrictMode>
       <ReactFlowProvider>
-        <GraphSourceManager sources={sources} relations={propsRelations}>
+        <GraphSourceManager sources={sources} relations={relations}>
           <GraphViewContent {...props} sources={sources} />
         </GraphSourceManager>
       </ReactFlowProvider>
     </StrictMode>
+  );
+}
+
+/**
+ * Renders a map of Kubernetes resources and their relationships.
+ *
+ * Sources and relations are discovered only when their corresponding default
+ * is omitted. Passing an explicit array, including an empty array, skips that
+ * definition's discovery hooks.
+ *
+ * @param props - Graph display options and optional definition overrides.
+ * @param props.height - CSS height of the map container.
+ * @param props.defaultNodeSelection - ID of the node selected on first render.
+ * @param props.defaultSources - Sources to use instead of built-in discovery.
+ * @param props.defaultRelations - Relations to use instead of built-in discovery.
+ * @param props.defaultFilters - Filters applied before user-selected filters.
+ * @returns The rendered Kubernetes resource map.
+ */
+export function GraphView(props: GraphViewProps) {
+  return (
+    <GraphViewDefinitions
+      defaultSources={props.defaultSources}
+      defaultRelations={props.defaultRelations}
+    >
+      {({ sources, relations }) => (
+        <GraphViewWithDefinitions props={props} sources={sources} relations={relations} />
+      )}
+    </GraphViewDefinitions>
   );
 }

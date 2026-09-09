@@ -69,7 +69,7 @@ NOTE: the release isn't frozen yet for testing.
 Please write a comment if you're going to test an item and if you've completed testing an item.
 
 - [ ] **Test web sockets**
-  - Run the app in static server mode (\`./backend/headlamp-server -static-html-dir ./frontend/build...\`)
+  - Run the app in static server mode (\`./backend/headlamp-server -html-static-dir ./frontend/build...\`)
   - Open the pods list view
   - Delete a pod using kubectl
   - Verify that the list reflects the changes

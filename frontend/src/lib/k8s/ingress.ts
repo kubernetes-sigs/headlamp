@@ -93,7 +93,7 @@ export interface KubeIngress extends KubeObjectInterface {
 class Ingress extends KubeObject<KubeIngress> {
   static kind = 'Ingress';
   static apiName = 'ingresses';
-  static apiVersion = ['networking.k8s.io/v1', 'extensions/v1beta1'];
+  static apiVersion = ['networking.k8s.io/v1'];
   static isNamespaced = true;
 
   static getBaseObject(): KubeIngress {

@@ -18,7 +18,7 @@ import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { KubeDeployment } from '../../lib/k8s/deployment';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import List from './List';
 
 const items: KubeDeployment[] = [
@@ -201,7 +201,7 @@ Deployments.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/apps/v1/deployments', () =>
+        http.get(`${API_BASE}/apis/apps/v1/deployments`, () =>
           HttpResponse.json({
             kind: 'DeploymentList',
             items,

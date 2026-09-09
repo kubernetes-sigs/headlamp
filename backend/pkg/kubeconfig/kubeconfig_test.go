@@ -3,16 +3,18 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
-	"github.com/pkg/errors"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -328,6 +330,16 @@ users:
 	})
 }
 
+func TestOidcConfigWithNilAuthInfo(t *testing.T) {
+	context := &kubeconfig.Context{AuthInfo: nil}
+
+	oidcConfig, err := context.OidcConfig()
+
+	require.Error(t, err, "Expected an error when AuthInfo is nil")
+	assert.Nil(t, oidcConfig, "Expected nil OIDC config when AuthInfo is nil")
+	assert.EqualError(t, err, "authProvider is nil")
+}
+
 // createTempKubeconfig creates a temporary kubeconfig file for testing.
 func createTempKubeconfig(t *testing.T, content string) string {
 	t.Helper()
@@ -395,6 +407,48 @@ func TestContext(t *testing.T) {
 	t.Logf("Proxy request Response: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "major")
 	assert.Contains(t, rr.Body.String(), "minor")
+}
+
+// Check that a hint is logged when an OIDC cluster returns a 401.
+func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
+	tests := []struct {
+		name     string
+		oidc     bool
+		status   int
+		wantWarn bool
+	}{
+		{"oidc 401 warns", true, http.StatusUnauthorized, true},
+		{"oidc 200 is silent", true, http.StatusOK, false},
+		{"non-oidc 401 is silent", false, http.StatusUnauthorized, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warned := false
+
+			original := logger.SetLogFunc(func(_ uint, _ map[string]string, _ interface{}, msg string) {
+				warned = warned || strings.Contains(msg, "rejected the forwarded bearer token")
+			})
+			defer logger.SetLogFunc(original)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer server.Close()
+
+			ctx := &kubeconfig.Context{Name: "oidc-test-context", Cluster: &api.Cluster{Server: server.URL}}
+			if tt.oidc {
+				ctx.OidcConf = &kubeconfig.OidcConfig{ClientID: "test-client-id", IdpIssuerURL: "https://oidc.example.com"}
+			}
+
+			request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
+			require.NoError(t, err)
+			request.Header.Set("Authorization", "Bearer test-token")
+
+			require.NoError(t, ctx.ProxyRequest(httptest.NewRecorder(), request))
+			assert.Equal(t, tt.wantWarn, warned)
+		})
+	}
 }
 
 func TestLoadContextsFromBase64String(t *testing.T) {
@@ -1035,4 +1089,312 @@ users:
 			}
 		})
 	})
+}
+
+func TestContextAuthType(t *testing.T) {
+	tests := []struct {
+		name     string
+		context  *kubeconfig.Context
+		expected string
+	}{
+		{
+			name: "OIDC configuration present",
+			context: &kubeconfig.Context{
+				OidcConf: &kubeconfig.OidcConfig{},
+			},
+			expected: "oidc",
+		},
+		{
+			name: "AuthProvider present",
+			context: &kubeconfig.Context{
+				AuthInfo: &api.AuthInfo{
+					AuthProvider: &api.AuthProviderConfig{},
+				},
+			},
+			expected: "oidc",
+		},
+		{
+			name: "No auth configuration",
+			context: &kubeconfig.Context{
+				AuthInfo: &api.AuthInfo{},
+			},
+			expected: "",
+		},
+		{
+			name:     "Nil auth info and oidc config",
+			context:  &kubeconfig.Context{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.context.AuthType())
+		})
+	}
+}
+
+// writeRelativePKIFixture creates a kubeconfig with relative certificate paths
+// under dir/pki/, matching the layout reported in issue #2413.
+func writeRelativePKIFixture(t *testing.T, dir, contextName string) string {
+	t.Helper()
+
+	pkiDir := filepath.Join(dir, "pki")
+	require.NoError(t, os.MkdirAll(pkiDir, 0o750))
+
+	caPath := filepath.Join(pkiDir, "ca.pem")
+	certPath := filepath.Join(pkiDir, "admin.pem")
+	keyPath := filepath.Join(pkiDir, "admin.key")
+	tokenPath := filepath.Join(pkiDir, "token")
+
+	for _, path := range []string{caPath, certPath, keyPath, tokenPath} {
+		require.NoError(t, os.WriteFile(path, []byte("test-pki-material\n"), 0o600))
+	}
+
+	kubeconfigPath := filepath.Join(dir, "config")
+	content := fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: pki/ca.pem
+    server: https://127.0.0.1:6443
+  name: %s
+contexts:
+- context:
+    cluster: %s
+    user: %s-admin
+  name: %s
+current-context: %s
+kind: Config
+preferences: {}
+users:
+- name: %s-admin
+  user:
+    client-certificate: pki/admin.pem
+    client-key: pki/admin.key
+    tokenFile: pki/token
+`, contextName, contextName, contextName, contextName, contextName, contextName)
+	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0o600))
+
+	return kubeconfigPath
+}
+
+func TestResolveKubeconfigPathsNoopForEmptyOrigin(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, kubeconfig.ResolveKubeconfigPaths(nil, "ignored-kubeconfig-path"))
+
+	cfg := api.NewConfig()
+	cfg.Clusters["c"] = &api.Cluster{
+		Server:               "https://127.0.0.1:6443",
+		CertificateAuthority: "pki/ca.pem",
+	}
+	cfg.AuthInfos["u"] = &api.AuthInfo{
+		ClientCertificate: "pki/admin.pem",
+		ClientKey:         "pki/admin.key",
+		TokenFile:         "pki/token",
+	}
+
+	require.NoError(t, kubeconfig.ResolveKubeconfigPaths(cfg, ""))
+	assert.Equal(t, "pki/ca.pem", cfg.Clusters["c"].CertificateAuthority)
+	assert.Equal(t, "pki/admin.pem", cfg.AuthInfos["u"].ClientCertificate)
+	assert.Equal(t, "pki/admin.key", cfg.AuthInfos["u"].ClientKey)
+	assert.Equal(t, "pki/token", cfg.AuthInfos["u"].TokenFile)
+}
+
+func TestLoadContextsFromFileResolvesRelativePKIPaths(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeRelativePKIFixture(t, dir, "kubernetes80")
+
+	absCA := filepath.Join(dir, "pki", "ca.pem")
+	absCert := filepath.Join(dir, "pki", "admin.pem")
+	absKey := filepath.Join(dir, "pki", "admin.key")
+	absToken := filepath.Join(dir, "pki", "token")
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeconfigPath, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, contexts, 1)
+
+	ctx := contexts[0]
+	require.NotNil(t, ctx.Cluster)
+	require.NotNil(t, ctx.AuthInfo)
+
+	assert.Equal(t, absCA, ctx.Cluster.CertificateAuthority)
+	assert.Equal(t, absCert, ctx.AuthInfo.ClientCertificate)
+	assert.Equal(t, absKey, ctx.AuthInfo.ClientKey)
+	assert.Equal(t, absToken, ctx.AuthInfo.TokenFile)
+	assert.True(t, filepath.IsAbs(ctx.Cluster.CertificateAuthority))
+	assert.True(t, filepath.IsAbs(ctx.AuthInfo.ClientCertificate))
+	assert.True(t, filepath.IsAbs(ctx.AuthInfo.ClientKey))
+	assert.True(t, filepath.IsAbs(ctx.AuthInfo.TokenFile))
+}
+
+func TestLoadContextsFromFileKeepsAbsolutePKIPaths(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	pkiDir := filepath.Join(dir, "certs")
+	require.NoError(t, os.MkdirAll(pkiDir, 0o750))
+
+	absCA := filepath.Join(pkiDir, "ca.pem")
+	absCert := filepath.Join(pkiDir, "admin.pem")
+	absKey := filepath.Join(pkiDir, "admin.key")
+	absToken := filepath.Join(pkiDir, "token")
+
+	for _, path := range []string{absCA, absCert, absKey, absToken} {
+		require.NoError(t, os.WriteFile(path, []byte("test-pki-material\n"), 0o600))
+	}
+
+	kubeconfigPath := filepath.Join(dir, "config")
+	content := fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: '%s'
+    server: https://127.0.0.1:6443
+  name: abs-cluster
+contexts:
+- context:
+    cluster: abs-cluster
+    user: abs-admin
+  name: abs-context
+current-context: abs-context
+kind: Config
+users:
+- name: abs-admin
+  user:
+    client-certificate: '%s'
+    client-key: '%s'
+    tokenFile: '%s'
+`, absCA, absCert, absKey, absToken)
+	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0o600))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeconfigPath, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, contexts, 1)
+
+	ctx := contexts[0]
+	assert.Equal(t, absCA, ctx.Cluster.CertificateAuthority)
+	assert.Equal(t, absCert, ctx.AuthInfo.ClientCertificate)
+	assert.Equal(t, absKey, ctx.AuthInfo.ClientKey)
+	assert.Equal(t, absToken, ctx.AuthInfo.TokenFile)
+}
+
+func TestLoadContextsFromMultipleFilesResolvesRelativeToEachFile(t *testing.T) {
+	t.Parallel()
+
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+	pathA := writeRelativePKIFixture(t, dirA, "cluster-a")
+	pathB := writeRelativePKIFixture(t, dirB, "cluster-b")
+
+	combined := pathA + string(os.PathListSeparator) + pathB
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromMultipleFiles(combined, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, contexts, 2)
+
+	byName := map[string]kubeconfig.Context{}
+	for _, ctx := range contexts {
+		byName[ctx.Name] = ctx
+	}
+
+	require.Contains(t, byName, "cluster-a")
+	require.Contains(t, byName, "cluster-b")
+
+	assert.Equal(t, filepath.Join(dirA, "pki", "ca.pem"), byName["cluster-a"].Cluster.CertificateAuthority)
+	assert.Equal(t, filepath.Join(dirA, "pki", "admin.pem"), byName["cluster-a"].AuthInfo.ClientCertificate)
+	assert.Equal(t, filepath.Join(dirA, "pki", "admin.key"), byName["cluster-a"].AuthInfo.ClientKey)
+	assert.Equal(t, filepath.Join(dirA, "pki", "token"), byName["cluster-a"].AuthInfo.TokenFile)
+
+	assert.Equal(t, filepath.Join(dirB, "pki", "ca.pem"), byName["cluster-b"].Cluster.CertificateAuthority)
+	assert.Equal(t, filepath.Join(dirB, "pki", "admin.pem"), byName["cluster-b"].AuthInfo.ClientCertificate)
+	assert.Equal(t, filepath.Join(dirB, "pki", "admin.key"), byName["cluster-b"].AuthInfo.ClientKey)
+	assert.Equal(t, filepath.Join(dirB, "pki", "token"), byName["cluster-b"].AuthInfo.TokenFile)
+}
+
+func TestLoadContextsFromBase64StringLeavesRelativePKIPathsUnresolved(t *testing.T) {
+	t.Parallel()
+
+	content := `apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: pki/ca.pem
+    server: https://127.0.0.1:6443
+  name: b64-cluster
+contexts:
+- context:
+    cluster: b64-cluster
+    user: b64-admin
+  name: b64-context
+current-context: b64-context
+kind: Config
+users:
+- name: b64-admin
+  user:
+    client-certificate: pki/admin.pem
+    client-key: pki/admin.key
+    tokenFile: pki/token
+`
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(encoded, kubeconfig.DynamicCluster)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, contexts, 1)
+
+	ctx := contexts[0]
+	assert.Equal(t, "pki/ca.pem", ctx.Cluster.CertificateAuthority)
+	assert.Equal(t, "pki/admin.pem", ctx.AuthInfo.ClientCertificate)
+	assert.Equal(t, "pki/admin.key", ctx.AuthInfo.ClientKey)
+	assert.Equal(t, "pki/token", ctx.AuthInfo.TokenFile)
+}
+
+func TestLoadContextsFromFileResolvesParentRelativePKIPaths(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pkiDir := filepath.Join(root, "pki")
+	configDir := filepath.Join(root, "kube")
+
+	require.NoError(t, os.MkdirAll(pkiDir, 0o750))
+	require.NoError(t, os.MkdirAll(configDir, 0o750))
+
+	require.NoError(t, os.WriteFile(filepath.Join(pkiDir, "ca.pem"), []byte("ca\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkiDir, "admin.pem"), []byte("cert\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(pkiDir, "admin.key"), []byte("key\n"), 0o600))
+
+	kubeconfigPath := filepath.Join(configDir, "config")
+	content := `apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: ../pki/ca.pem
+    server: https://127.0.0.1:6443
+  name: parent-rel
+contexts:
+- context:
+    cluster: parent-rel
+    user: parent-rel-admin
+  name: parent-rel
+current-context: parent-rel
+kind: Config
+users:
+- name: parent-rel-admin
+  user:
+    client-certificate: ../pki/admin.pem
+    client-key: ../pki/admin.key
+`
+	require.NoError(t, os.WriteFile(kubeconfigPath, []byte(content), 0o600))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeconfigPath, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, contexts, 1)
+
+	ctx := contexts[0]
+	assert.Equal(t, filepath.Join(root, "pki", "ca.pem"), filepath.Clean(ctx.Cluster.CertificateAuthority))
+	assert.Equal(t, filepath.Join(root, "pki", "admin.pem"), filepath.Clean(ctx.AuthInfo.ClientCertificate))
+	assert.Equal(t, filepath.Join(root, "pki", "admin.key"), filepath.Clean(ctx.AuthInfo.ClientKey))
 }

@@ -15,7 +15,9 @@
  */
 
 import { IconProps } from '@iconify/react';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { castDraft } from 'immer';
 import React from 'react';
 
 export enum DefaultSidebars {
@@ -60,6 +62,14 @@ export interface SidebarEntry {
   /** The sidebar to display this item in. If not specified, it will be displayed in the default sidebar.
    */
   sidebar?: DefaultSidebars | string;
+  /**
+   * The type of sidebar entry to render. Defaults to a clickable link item.
+   */
+  entryType?: 'link' | 'subheader';
+  /**
+   * Custom style overrides for subheader entries.
+   */
+  sx?: SxProps<Theme>;
 }
 
 export interface SidebarState {
@@ -87,9 +97,13 @@ export interface SidebarState {
    */
   entries: { [propName: string]: SidebarEntry };
   /**
-   * Filters to apply to the sidebar entries.
+   * Filters to apply to the IN_CLUSTER sidebar entries.
    */
   filters: ((entry: SidebarEntry) => SidebarEntry | null)[];
+  /**
+   * Filters to apply to the HOME sidebar entries.
+   */
+  homeFilters: ((entry: SidebarEntry) => SidebarEntry | null)[];
 }
 
 export function setInitialSidebarOpen() {
@@ -143,6 +157,7 @@ export const initialState: SidebarState = {
   ...setInitialSidebarOpen(),
   entries: {},
   filters: [],
+  homeFilters: [],
 };
 
 const sidebarSlice = createSlice({
@@ -171,17 +186,27 @@ const sidebarSlice = createSlice({
      * Sets an item in the sidebar.
      */
     setSidebarItem(state, action: PayloadAction<SidebarEntry>) {
-      state.entries[action.payload.name] = action.payload;
+      state.entries[action.payload.name] = castDraft(action.payload);
     },
 
     /**
-     * Sets a filter for sidebar items.
+     * Sets a filter for IN_CLUSTER sidebar items.
      */
     setSidebarItemFilter(
       state,
       action: PayloadAction<(entry: SidebarEntry) => SidebarEntry | null>
     ) {
       state.filters.push(action.payload);
+    },
+
+    /**
+     * Sets a filter for HOME sidebar items.
+     */
+    setHomeSidebarItemFilter(
+      state,
+      action: PayloadAction<(entry: SidebarEntry) => SidebarEntry | null>
+    ) {
+      state.homeFilters.push(action.payload);
     },
 
     /**
@@ -200,6 +225,7 @@ export const {
   setSidebarVisible,
   setSidebarItem,
   setSidebarItemFilter,
+  setHomeSidebarItemFilter,
   setWhetherSidebarOpen,
 } = sidebarSlice.actions;
 

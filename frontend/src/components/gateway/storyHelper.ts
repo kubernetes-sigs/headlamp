@@ -16,14 +16,14 @@
 
 import { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
 import { KubeBackendTrafficPolicy } from '../../lib/k8s/backendTrafficPolicy';
-import { KubeGateway } from '../../lib/k8s/gateway';
+import { KubeGateway, type KubeGatewayL4Route } from '../../lib/k8s/gateway';
 import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
 import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
 import { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
 
 export const DEFAULT_GATEWAY: KubeGateway = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'Gateway',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -50,8 +50,27 @@ export const DEFAULT_GATEWAY: KubeGateway = {
   },
 };
 
+// Regression fixture: the API can return a Gateway with no `spec`,
+// which previously crashed the list view. `spec` is optional on KubeGateway, so this
+// reproduces that case without a cast. apiVersion is v1 to match the endpoint that
+// serves this fixture in the BrokenSpec story.
+export const BROKEN_GATEWAY: KubeGateway = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'Gateway',
+  metadata: {
+    creationTimestamp: '2023-07-19T09:48:42Z',
+    generation: 1,
+    name: 'broken-gateway',
+    namespace: 'default',
+    resourceVersion: '12346',
+    uid: 'abc999',
+  },
+  // no `spec` at all — the list view must handle this gracefully
+  status: {},
+};
+
 export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GatewayClass',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -68,7 +87,7 @@ export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
 };
 
 export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'HTTPRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -128,7 +147,7 @@ export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
 };
 
 export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'HTTPRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -145,8 +164,108 @@ export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
   },
 };
 
+export const DEFAULT_TCP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'TCPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T09:00:00Z',
+    name: 'default-tcproute',
+    namespace: 'default',
+    resourceVersion: '12345',
+    uid: 'tcp-route-uid',
+  },
+  spec: {
+    parentRefs: [{ name: 'default-gateway', sectionName: 'tcp' }],
+    rules: [
+      {
+        name: 'tcp-backend',
+        backendRefs: [{ name: 'tcp-service', port: 9000, weight: 1 }],
+      },
+    ],
+  },
+  status: {
+    parents: [
+      {
+        parentRef: { name: 'default-gateway', sectionName: 'tcp' },
+        controllerName: 'gateway.example.com/controller',
+        conditions: [
+          {
+            lastProbeTime: null,
+            lastTransitionTime: '2025-08-07T09:01:00Z',
+            reason: 'Accepted',
+            status: 'True',
+            type: 'Accepted',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const EMPTY_TCP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha2',
+  kind: 'TCPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T09:00:00Z',
+    name: 'empty-tcproute',
+    namespace: 'default',
+    uid: 'empty-tcp-route-uid',
+  },
+  spec: {},
+};
+
+export const DEFAULT_UDP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'UDPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T10:00:00Z',
+    name: 'default-udproute',
+    namespace: 'default',
+    resourceVersion: '54321',
+    uid: 'udp-route-uid',
+  },
+  spec: {
+    parentRefs: [{ name: 'default-gateway', sectionName: 'udp' }],
+    rules: [
+      {
+        name: 'udp-backend',
+        backendRefs: [{ name: 'udp-service', port: 5353 }],
+      },
+    ],
+  },
+  status: {
+    parents: [
+      {
+        parentRef: { name: 'default-gateway', sectionName: 'udp' },
+        controllerName: 'gateway.example.com/controller',
+        conditions: [
+          {
+            lastProbeTime: null,
+            lastTransitionTime: '2025-08-07T10:01:00Z',
+            reason: 'Accepted',
+            status: 'True',
+            type: 'Accepted',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const EMPTY_UDP_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha2',
+  kind: 'UDPRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T10:00:00Z',
+    name: 'empty-udproute',
+    namespace: 'default',
+    uid: 'empty-udp-route-uid',
+  },
+  spec: {},
+};
+
 export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GRPCRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -224,7 +343,7 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
 };
 
 export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'ReferenceGrant',
   metadata: {
     uid: 'abc1234',
@@ -251,7 +370,7 @@ export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
 };
 
 export const DEFAULT_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
-  apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'BackendTLSPolicy',
   metadata: {
     uid: 'abc1234',

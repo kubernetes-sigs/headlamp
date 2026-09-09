@@ -396,3 +396,38 @@ func sumDataPoints(data metricdata.Aggregation) int64 {
 
 	return 0
 }
+
+func TestInitRequestMetrics(t *testing.T) {
+	provider, _ := setupTestMeter(t)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+	})
+
+	meter := otel.Meter("headlamp-test")
+	metrics := &tel.Metrics{}
+
+	err := tel.InitRequestMetricsForTest(meter, metrics)
+	require.NoError(t, err)
+
+	require.NotNil(t, metrics.RequestCounter, "RequestCounter should be initialized")
+	require.NotNil(t, metrics.RequestDuration, "RequestDuration should be initialized")
+	require.NotNil(t, metrics.ActiveRequestsGauge, "ActiveRequestsGauge should be initialized")
+	require.NotNil(t, metrics.ClusterProxyRequests, "ClusterProxyRequests should be initialized")
+}
+
+func TestInitApplicationMetrics(t *testing.T) {
+	provider, _ := setupTestMeter(t)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+	})
+
+	meter := otel.Meter("headlamp-test")
+	metrics := &tel.Metrics{}
+
+	err := tel.InitApplicationMetricsForTest(meter, metrics)
+	require.NoError(t, err)
+
+	require.NotNil(t, metrics.PluginLoadCount, "PluginLoadCount should be initialized")
+	require.NotNil(t, metrics.PluginDeleteCount, "PluginDeleteCount should be initialized")
+	require.NotNil(t, metrics.ErrorCounter, "ErrorCounter should be initialized")
+}

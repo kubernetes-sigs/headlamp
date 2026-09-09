@@ -84,7 +84,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
     'headlamp.logs.showTimestamps',
     true
   );
-  const [follow, setFollow] = React.useState<boolean>(true);
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [prettifyLogs, setPrettifyLogs] = useLocalStorageState<boolean>(
     'headlamp.logs.prettifyLogs',
     false
@@ -102,7 +102,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
-    [...ALL_SEVERITIES]
+    ALL_SEVERITIES
   );
   const selectedSeveritiesRef = React.useRef(selectedSeverities);
 
@@ -588,7 +588,7 @@ export default function PodDetails(props: PodDetailsProps) {
   const [podItem, setPodItem] = React.useState<Pod | null>(null);
 
   const launchLogs = React.useCallback(
-    (item: Pod) => {
+    (item: Pod, container?: string) => {
       Activity.launch({
         id: 'logs-' + item.metadata.uid,
         title: t('Logs: {{ itemName }}', { itemName: item.metadata.name }),
@@ -601,7 +601,7 @@ export default function PodDetails(props: PodDetailsProps) {
             open
             item={item}
             onClose={() => {}}
-            initialContainer={autoLaunchContainer}
+            initialContainer={container ?? autoLaunchContainer}
           />
         ),
       });
@@ -684,7 +684,7 @@ export default function PodDetails(props: PodDetailsProps) {
       extraInfo = [
         {
           name: t('State'),
-          value: makePodStatusLabel(item, false),
+          value: makePodStatusLabel(item, false, t),
         },
         {
           name: t('Node'),
@@ -774,6 +774,24 @@ export default function PodDetails(props: PodDetailsProps) {
             ''
           ),
           hide: !item.spec.priorityClassName,
+        },
+        {
+          name: t('Pod Group'),
+          value: item.spec.schedulingGroup?.podGroupName ? (
+            <Link
+              routeName="PodGroup"
+              params={{
+                namespace: item.metadata.namespace,
+                name: item.spec.schedulingGroup.podGroupName,
+              }}
+              activeCluster={item.cluster}
+            >
+              {item.spec.schedulingGroup.podGroupName}
+            </Link>
+          ) : (
+            ''
+          ),
+          hide: !item.spec.schedulingGroup?.podGroupName,
         },
         {
           name: t('Runtime Class'),
@@ -895,7 +913,13 @@ export default function PodDetails(props: PodDetailsProps) {
         item && [
           {
             id: 'headlamp.pod-diagnostics',
-            section: <PodDiagnosticsSection pod={item} events={context.events} />,
+            section: (
+              <PodDiagnosticsSection
+                pod={item}
+                events={context.events}
+                onViewLogs={container => launchLogs(item, container)}
+              />
+            ),
           },
           {
             id: 'headlamp.pod-tolerations',
