@@ -70,6 +70,12 @@ export interface SidebarEntry {
    * Custom style overrides for subheader entries.
    */
   sx?: SxProps<Theme>;
+  /**
+   * Name of the plugin that registered this entry, set automatically by
+   * `registerSidebarEntry`. `null`/`undefined` for entries not attributed to a plugin
+   * (e.g. built-in entries, or registrations made outside a plugin's synchronous load).
+   */
+  plugin?: string | null;
 }
 
 export interface SidebarState {

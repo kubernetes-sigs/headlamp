@@ -448,6 +448,39 @@ func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
 	}, headlampContext.ClusterInventory.Properties)
 }
 
+func TestContextFromClusterProfileForwardsLabels(t *testing.T) {
+	runner := newTestRunner(t, Options{})
+	profileKey := "in-cluster/default/spoke-a"
+	cp := clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com")
+	cp.Labels = map[string]string{
+		"tenant":      "a",
+		"has-velero":  "true",
+		"environment": "prod",
+	}
+
+	headlampContext, ok := runner.contextFromClusterProfile(profileKey, cp)
+	require.True(t, ok)
+
+	require.NotNil(t, headlampContext.ClusterInventory)
+	assert.Equal(t, map[string]string{
+		"tenant":      "a",
+		"has-velero":  "true",
+		"environment": "prod",
+	}, headlampContext.ClusterInventory.Labels)
+}
+
+func TestContextFromClusterProfileOmitsLabelsWhenNone(t *testing.T) {
+	runner := newTestRunner(t, Options{})
+	profileKey := "in-cluster/default/spoke-a"
+	cp := clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com")
+
+	headlampContext, ok := runner.contextFromClusterProfile(profileKey, cp)
+	require.True(t, ok)
+
+	require.NotNil(t, headlampContext.ClusterInventory)
+	assert.Nil(t, headlampContext.ClusterInventory.Labels)
+}
+
 func TestClusterProfileDeletePrunesContextOutsideRunnerLock(t *testing.T) {
 	store := &removeLockDetectingStore{ContextStore: kubeconfig.NewContextStore()}
 	runner := newTestRunner(t, Options{

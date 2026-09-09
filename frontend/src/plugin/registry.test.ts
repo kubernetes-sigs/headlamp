@@ -34,7 +34,15 @@ vi.mock('../components/resourceMap/sources/definitions/relationIds', () => ({
   BUILT_IN_RELATION_IDS: ['owner', 'owner-reversed', 'pod-configmap'],
 }));
 
-import { registerClusterEmptyState, registerResourceRelationProvider } from './registry';
+import { setCurrentPluginName } from './pluginContext';
+import {
+  registerAppBarAction,
+  registerClusterEmptyState,
+  registerResourceRelationProvider,
+  registerResourceTableColumnsProcessor,
+  registerRoute,
+  registerSidebarEntry,
+} from './registry';
 
 describe('registerResourceRelationProvider', () => {
   let warnSpy: any;
@@ -218,5 +226,93 @@ describe('registerResourceRelationProvider', () => {
     registerClusterEmptyState(emptyState);
 
     expect(activeStore.getState().clusterProvider.clusterEmptyState).toBe(emptyState);
+  });
+});
+
+describe('plugin attribution', () => {
+  beforeEach(() => {
+    activeStore = configureStore({
+      reducer: reducers,
+    });
+  });
+
+  afterEach(() => {
+    setCurrentPluginName(null);
+  });
+
+  it('stamps registerSidebarEntry with the currently executing plugin', () => {
+    setCurrentPluginName('my-plugin');
+
+    registerSidebarEntry({ parent: null, name: 'traces', label: 'Traces', url: '/traces' });
+
+    const entry = activeStore.getState().sidebar.entries['traces'];
+    expect(entry).toBeDefined();
+    expect(entry.plugin).toBe('my-plugin');
+  });
+
+  it('stamps registerSidebarEntry with null when no plugin is executing', () => {
+    setCurrentPluginName(null);
+
+    registerSidebarEntry({
+      parent: null,
+      name: 'no-plugin-entry',
+      label: 'No Plugin',
+      url: '/npe',
+    });
+
+    const entry = activeStore.getState().sidebar.entries['no-plugin-entry'];
+    expect(entry.plugin).toBeNull();
+  });
+
+  it('does not let a registered entry spoof a different plugin name', () => {
+    setCurrentPluginName('real-plugin');
+
+    // Even if a plugin-supplied field happened to carry a "plugin" key, registerSidebarEntry
+    // only forwards a fixed allowlist of fields to the store, so it can't be spoofed this way.
+    registerSidebarEntry({
+      parent: null,
+      name: 'spoofed',
+      label: 'Spoofed',
+      url: '/spoofed',
+      ...({ plugin: 'someone-elses-plugin' } as any),
+    });
+
+    const entry = activeStore.getState().sidebar.entries['spoofed'];
+    expect(entry.plugin).toBe('real-plugin');
+  });
+
+  it('stamps registerRoute with the currently executing plugin and cannot be spoofed', () => {
+    setCurrentPluginName('route-plugin');
+
+    registerRoute({
+      path: '/my-route',
+      sidebar: null,
+      component: () => null,
+      ...({ plugin: 'spoofed-plugin' } as any),
+    });
+
+    const route = activeStore.getState().routes.routes['/my-route'];
+    expect(route).toBeDefined();
+    expect(route.plugin).toBe('route-plugin');
+  });
+
+  it('stamps registerAppBarAction with the currently executing plugin', () => {
+    setCurrentPluginName('appbar-plugin');
+
+    registerAppBarAction(() => null);
+
+    const actions = activeStore.getState().actionButtons.appBarActions;
+    expect(actions).toHaveLength(1);
+    expect(actions[0].plugin).toBe('appbar-plugin');
+  });
+
+  it('stamps registerResourceTableColumnsProcessor with the currently executing plugin', () => {
+    setCurrentPluginName('table-plugin');
+
+    registerResourceTableColumnsProcessor(({ columns }) => columns);
+
+    const processors = activeStore.getState().resourceTable.tableColumnsProcessors;
+    expect(processors).toHaveLength(1);
+    expect(processors[0].plugin).toBe('table-plugin');
   });
 });

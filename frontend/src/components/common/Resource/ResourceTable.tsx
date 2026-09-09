@@ -46,6 +46,10 @@ import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { useFilterFunc } from '../../../lib/util';
+import {
+  isPluginApplicable,
+  usePluginApplicabilityMap,
+} from '../../../plugin/useIsPluginApplicableToCluster';
 import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
 import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
@@ -335,7 +339,15 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const theme = useTheme();
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const clusters = useSelectedClusters();
-  const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
+  const pluginApplicabilityMap = usePluginApplicabilityMap();
+  const rawTableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
+  const tableProcessors = useMemo(
+    () =>
+      rawTableProcessors.filter(processor =>
+        isPluginApplicable(pluginApplicabilityMap, processor.plugin)
+      ),
+    [rawTableProcessors, pluginApplicabilityMap]
+  );
   const defaultFilterFunc = useFilterFunc();
   const [columnVisibility, setColumnVisibility] = useState(() =>
     initColumnVisibilityState(columns, id)

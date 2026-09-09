@@ -642,6 +642,15 @@ func clusterInventoryMetadataFromProfile(
 		Conditions: append([]metav1.Condition(nil), cp.Status.Conditions...),
 	}
 
+	if len(cp.Labels) > 0 {
+		labels := make(map[string]string, len(cp.Labels))
+		for k, v := range cp.Labels {
+			labels[k] = v
+		}
+
+		metadata.Labels = labels
+	}
+
 	if cp.Status.Version.Kubernetes != "" {
 		metadata.Version = &inventorymetadata.Version{
 			Kubernetes: cp.Status.Version.Kubernetes,

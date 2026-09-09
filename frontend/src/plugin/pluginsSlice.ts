@@ -48,6 +48,18 @@ export interface PluginPackageHeadlampConfig {
   enabledByDefault?: boolean;
   /** Array of supported locales for i18n. */
   i18n?: string[];
+  /**
+   * Label selector (e.g. `"tenant=a,has-velero=true"`) declaring which clusters this
+   * plugin applies to. Evaluated against the active cluster's labels at render time to
+   * gate the plugin's sidebar entries, routes, appbar actions, and resource table column
+   * processors. Omit to apply the plugin to every cluster (the default, unchanged
+   * behavior). A cluster with no labels available (e.g. manually added via kubeconfig,
+   * with no Cluster Inventory ClusterProfile) always matches.
+   *
+   * @see useIsPluginApplicableToCluster
+   * @see matchesClusterSelector
+   */
+  clusterSelector?: string;
 }
 
 /**

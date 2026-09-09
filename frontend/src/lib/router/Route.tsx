@@ -45,4 +45,10 @@ export interface Route {
   disabled?: boolean;
   /** Render route for full width */
   isFullWidth?: boolean;
+  /**
+   * Name of the plugin that registered this route, set automatically by `registerRoute`.
+   * `null`/`undefined` for routes not attributed to a plugin (e.g. built-in routes, or
+   * registrations made outside a plugin's synchronous load).
+   */
+  plugin?: string | null;
 }

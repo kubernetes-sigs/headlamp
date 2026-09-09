@@ -60,6 +60,7 @@ import {
   preparePluginCommandCapabilities,
 } from './commandCapabilities';
 import { Headlamp, Plugin } from './lib';
+import { setCurrentPluginName } from './pluginContext';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
@@ -358,7 +359,22 @@ function runPluginInner(info: runPluginProps) {
   const values = info[6];
   const privateRunPlugin = info[7];
 
-  privateRunPlugin(source, packageName, packageVersion, handleError, PrivateFunction, args, values);
+  // Track which plugin is currently loading so registry.tsx can attribute register*
+  // calls made during this plugin's synchronous top-level execution (see pluginContext.ts).
+  setCurrentPluginName(packageName);
+  try {
+    privateRunPlugin(
+      source,
+      packageName,
+      packageVersion,
+      handleError,
+      PrivateFunction,
+      args,
+      values
+    );
+  } finally {
+    setCurrentPluginName(null);
+  }
 }
 
 const PLUGIN_LOADING_ERROR = HeadlampEventType.PLUGIN_LOADING_ERROR;
