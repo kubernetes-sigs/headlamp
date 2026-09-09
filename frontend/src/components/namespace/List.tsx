@@ -16,18 +16,13 @@
 
 import { useTranslation } from 'react-i18next';
 import Namespace from '../../lib/k8s/namespace';
-import { StatusLabel } from '../common/Label';
+import { PhaseLabel } from '../common/PhaseLabel';
 import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import CreateNamespaceButton from './CreateNamespaceButton';
 
 export default function NamespacesList() {
   const { t } = useTranslation(['glossary', 'translation']);
-
-  function makeStatusLabel(namespace: Namespace) {
-    const status = namespace.status.phase;
-    return <StatusLabel status={status === 'Active' ? 'success' : 'error'}>{status}</StatusLabel>;
-  }
 
   return (
     <ResourceListView
@@ -46,7 +41,7 @@ export default function NamespacesList() {
           label: t('translation|Status'),
           filterVariant: 'multi-select',
           getValue: ns => ns.status.phase,
-          render: makeStatusLabel,
+          render: ns => <PhaseLabel phase={ns.status.phase} />,
         },
         {
           id: 'labels',
