@@ -15,6 +15,7 @@
  */
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
+import { withClusterConnectSlot } from '../../../../helpers/clusterConnectQueue';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
@@ -97,7 +98,9 @@ export async function clusterFetch(url: string | URL, init: RequestInit & { clus
   const urlParts = init.cluster ? ['clusters', init.cluster, url] : [url];
 
   try {
-    const response = await backendFetch(makeUrl(urlParts), init);
+    const response = await withClusterConnectSlot(init.cluster, () =>
+      backendFetch(makeUrl(urlParts), init)
+    );
 
     return response;
   } catch (e) {
