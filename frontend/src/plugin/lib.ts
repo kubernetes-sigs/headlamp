@@ -80,8 +80,10 @@ declare global {
     pluginLib: {
       [libName: string]: any;
     };
-    plugins: {
-      [pluginId: string]: Plugin;
+    Headlamp: {
+      plugins: {
+        [pluginId: string]: Plugin;
+      };
     };
     registerPlugin: (pluginId: string, pluginObj: Plugin) => void;
     desktopApi: DesktopApi;
@@ -132,7 +134,7 @@ export abstract class Headlamp {
   static registerPlugin(pluginId: string, pluginObj: Plugin) {
     // @todo: what happens if this plugin exists? (and is already initialized?)
     //        Should it raise an error? Silently keep going? Do we need quit() methods on plugins?
-    window.plugins[pluginId] = pluginObj;
+    window.Headlamp.plugins[pluginId] = pluginObj;
   }
 
   /**
