@@ -40,12 +40,37 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
-	oldTokenTTL   = time.Second * 10 // seconds
-	oidcKeyPrefix = "oidc-token-"
+	oldTokenTTL             = time.Second * 10 // seconds
+	oidcKeyPrefix           = "oidc-token-"
+	refreshedTokenKeyPrefix = "oidc-refreshed-token-" //nolint:gosec // cache key prefix, not a credential
+	// refreshTimeout bounds the detached context used for the shared IdP
+	// exchange in GetNewToken, so a hung IdP can't block waiting callers
+	// indefinitely.
+	refreshTimeout = 30 * time.Second
 )
+
+// refreshGroup deduplicates concurrent OIDC refreshes for the same token.
+//
+// The OIDC refresh middleware runs independently for every incoming request, and
+// Headlamp's frontend commonly fires many concurrent requests against a cluster.
+// Without this, every request that observes the same soon-to-expire token would
+// race to exchange the same cached refresh token with the IdP: only the first
+// exchange succeeds, and the rest fail (or, on providers with refresh-token
+// rotation and reuse detection, can revoke the whole token family and force the
+// user to fully re-authenticate). Keying on the old token string is sufficient
+// since it uniquely identifies the in-flight refresh for a given session.
+//
+// This only dedupes calls that overlap in time. A request can still observe the
+// old, about-to-expire token via RefreshTokenIfNeeded's IsTokenAboutToExpire
+// check, then reach GetNewToken after some other request already completed a
+// refresh for that same token (the singleflight.Group forgets a key as soon as
+// its Do call returns). refreshedTokenKeyPrefix below covers that non-overlapping
+// case.
+var refreshGroup singleflight.Group
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
@@ -186,9 +211,70 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 // GetNewToken uses the provided credentials and fetches the old refresh
 // token from the cache to obtain a new OAuth2 token
 // from the specified token URL endpoint.
+//
+// Concurrent calls for the same token are deduplicated via refreshGroup: only
+// one of them performs the actual cache read, IdP exchange, and cache write,
+// and all of them receive the same resulting token. This avoids racing
+// multiple exchanges of the same refresh token, which fails outright on IdPs
+// that rotate refresh tokens on use.
+//
+// A caller can also reach this function for a token that was already refreshed
+// by an earlier, now-completed call (e.g. the middleware read the old token
+// before a concurrent request refreshed it, but only got scheduled here
+// afterwards). refreshTokenFromIDP checks for that case first, inside the
+// singleflight execution, so it reuses the already-refreshed token instead of
+// attempting a second exchange with a refresh token the IdP already rotated
+// out. Checking outside the singleflight call would leave the same gap: the
+// check and the exchange itself must happen as one atomic unit per key.
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType string, token string, tokenURL string, ctx context.Context,
 ) (*oauth2.Token, error) {
+	result, err, _ := refreshGroup.Do(token, func() (interface{}, error) {
+		// Detach from the caller's context so that one request's cancellation (e.g.
+		// the client disconnecting) doesn't abort the shared refresh that other
+		// concurrent requests for the same token are waiting on. Bound it with its
+		// own timeout so a hung IdP can't block waiting callers indefinitely.
+		//
+		// Created here, inside the singleflight closure, so it's allocated exactly
+		// once per in-flight refresh rather than once per waiting caller.
+		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refreshTimeout)
+		defer cancel()
+
+		return refreshTokenFromIDP(refreshCtx, clientID, clientSecret, cache, tokenType, token, tokenURL)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	newToken, ok := result.(*oauth2.Token)
+	if !ok {
+		return nil, fmt.Errorf("unexpected refresh result type %T", result)
+	}
+
+	return newToken, nil
+}
+
+// refreshTokenFromIDP performs the actual refresh-token exchange with the IdP
+// and updates the token cache. It is only ever invoked once per in-flight
+// token, via refreshGroup in GetNewToken, even when multiple goroutines call
+// GetNewToken concurrently for the same token.
+//
+// The very first thing it does is check whether this old token was already
+// refreshed by an earlier, now-completed singleflight call for the same key.
+// That check has to live here, inside the singleflight execution, rather than
+// in GetNewToken before calling refreshGroup.Do: checking there would leave a
+// window between the check and the Do call where a concurrent refresh could
+// complete, so a late caller could still retry the exchange with a refresh
+// token the IdP already rotated out.
+func refreshTokenFromIDP(ctx context.Context, clientID, clientSecret string, cache cache.Cache[interface{}],
+	tokenType, token, tokenURL string,
+) (*oauth2.Token, error) {
+	if cached, err := cache.Get(ctx, refreshedTokenKeyPrefix+token); err == nil {
+		if cachedToken, ok := cached.(*oauth2.Token); ok {
+			return cachedToken, nil
+		}
+	}
+
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
@@ -218,6 +304,14 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	// update the refresh token in the cache
 	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
 		return nil, fmt.Errorf("caching refreshed token: %w", err)
+	}
+
+	// Remember the outcome of this refresh under the old token for a short
+	// grace period, so a request that checked the old token before this
+	// refresh happened but only reaches GetNewToken afterwards reuses this
+	// result instead of retrying the exchange with a now-stale refresh token.
+	if err := cache.SetWithTTL(ctx, refreshedTokenKeyPrefix+token, newToken, oldTokenTTL); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to cache refresh outcome")
 	}
 
 	return newToken, nil
@@ -649,4 +743,23 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 
 		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
 	}
+}
+
+// RefreshTokenIfNeeded checks whether params.Token is close to expiring and, if
+// so, refreshes it via RefreshAndSetToken. It reports whether a refresh was
+// attempted, so callers can tell "token still valid, nothing to do" apart from
+// "token was expiring, refresh was attempted" without checking expiry themselves.
+//
+// This keeps the expiry decision next to the refresh machinery it gates,
+// instead of split out into the caller (e.g. the middleware): the caller no
+// longer needs its own IsTokenAboutToExpire check before deciding whether to
+// invoke a refresh.
+func RefreshTokenIfNeeded(params RefreshAndSetTokenParams) bool {
+	if !IsTokenAboutToExpire(params.Token) {
+		return false
+	}
+
+	RefreshAndSetToken(params)
+
+	return true
 }
