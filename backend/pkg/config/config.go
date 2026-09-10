@@ -278,10 +278,21 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 
 // validateOidcImpersonationFlag ensures --oidc-use-impersonation is only used with --in-cluster,
 // since it relies on the pod's own in-cluster service account credential to authenticate to the
-// API server while impersonating the OIDC user.
+// API server while impersonating the OIDC user. It also rejects combining it with
+// --unsafe-use-service-account-token: the two flags authenticate every request as the same
+// trusted in-cluster credential, but --unsafe-use-service-account-token additionally discards
+// the caller's identity instead of impersonating it, so --oidc-use-impersonation would silently
+// never take effect (see shouldUseUnsafeServiceAccountTokenForContext, checked first).
 func (c *Config) validateOidcImpersonationFlag() error {
 	if c.OidcUseImpersonation && !c.InCluster {
 		return errors.New("--oidc-use-impersonation is only meant to be used with --in-cluster")
+	}
+
+	if c.OidcUseImpersonation && c.UnsafeUseServiceAccountToken {
+		return errors.New("--oidc-use-impersonation cannot be used together with " +
+			"--unsafe-use-service-account-token: the latter already authenticates every request " +
+			"as the pod's service account without impersonation, so --oidc-use-impersonation " +
+			"would have no effect")
 	}
 
 	return nil

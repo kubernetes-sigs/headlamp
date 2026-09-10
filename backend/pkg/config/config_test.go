@@ -421,6 +421,17 @@ func TestParseErrors(t *testing.T) {
 			errorContains: "--oidc-use-impersonation is only meant to be used with --in-cluster",
 		},
 		{
+			name: "oidc_use_impersonation_with_unsafe_service_account_token",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-use-impersonation",
+				"--unsafe-use-service-account-token",
+			},
+			errorContains: "--oidc-use-impersonation cannot be used together with " +
+				"--unsafe-use-service-account-token",
+		},
+		{
 			name:          "invalid_base_url",
 			args:          []string{"go run ./cmd", "--base-url=testingthis"},
 			errorContains: "base-url",
