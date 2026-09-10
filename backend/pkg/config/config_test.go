@@ -416,6 +416,11 @@ func TestParseErrors(t *testing.T) {
 			errorContains: "--service-account-token-path requires --unsafe-use-service-account-token",
 		},
 		{
+			name:          "oidc_use_impersonation_without_incluster",
+			args:          []string{"go run ./cmd", "--oidc-use-impersonation"},
+			errorContains: "--oidc-use-impersonation is only meant to be used with --in-cluster",
+		},
+		{
 			name:          "invalid_base_url",
 			args:          []string{"go run ./cmd", "--base-url=testingthis"},
 			errorContains: "base-url",
@@ -505,6 +510,17 @@ var parseFlagTests = []parseFlagTest{
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, true, conf.UnsafeUseServiceAccountToken)
 			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+	{
+		name: "oidc_use_impersonation_flag",
+		args: []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-use-impersonation",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcUseImpersonation)
 		},
 	},
 }

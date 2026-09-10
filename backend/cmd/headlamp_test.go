@@ -4584,3 +4584,151 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
+
+// makeUnsignedTestToken builds a JWT-shaped (but unsigned) token for testing claim
+// extraction. Headlamp trusts the token's signature was already verified during the
+// initial OIDC login/callback; the impersonation path only re-decodes claims from a
+// token that was already accepted, so an unsigned test fixture is sufficient here.
+func makeUnsignedTestToken(t *testing.T, claims map[string]interface{}) string {
+	t.Helper()
+
+	header := map[string]string{"alg": "none", "typ": "JWT"}
+
+	headerJSON, err := json.Marshal(header)
+	require.NoError(t, err)
+
+	claimsJSON, err := json.Marshal(claims)
+	require.NoError(t, err)
+
+	return fmt.Sprintf("%s.%s.signature",
+		base64.RawURLEncoding.EncodeToString(headerJSON),
+		base64.RawURLEncoding.EncodeToString(claimsJSON),
+	)
+}
+
+//nolint:funlen
+func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	var receivedAuth, receivedUser string
+
+	var receivedGroups []string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeConfigStore,
+			},
+			MeUsernamePaths:  "email",
+			MeGroupsPaths:    "groups",
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	token := makeUnsignedTestToken(t, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []string{"dev", "ops"},
+		"exp":    float64(time.Now().Add(time.Hour).Unix()),
+	})
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	req.AddCookie(&http.Cookie{Name: "headlamp-auth-" + cluster + ".0", Value: token})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	// The real API server never sees the raw OIDC token: the connection authenticates as
+	// Headlamp's own in-cluster service account token instead.
+	assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
+	// Per-user identity is preserved via impersonation headers, derived from the OIDC
+	// token's claims using the configured me-username-path/me-groups-path JMESPaths.
+	assert.Equal(t, "alice@example.com", receivedUser)
+	assert.ElementsMatch(t, []string{"dev", "ops"}, receivedGroups)
+}
+
+func TestHandleClusterAPI_OIDCImpersonation_NoTokenRejected(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("the API server should not be contacted when no identity could be resolved")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeConfigStore,
+			},
+			MeUsernamePaths:  "email",
+			MeGroupsPaths:    "groups",
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	// No auth cookie/token presented at all.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}

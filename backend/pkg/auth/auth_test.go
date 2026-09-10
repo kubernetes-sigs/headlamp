@@ -1368,3 +1368,64 @@ func TestHandleMe_MissingCookie(t *testing.T) {
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
 }
+
+func TestExtractImpersonationIdentity_Success(t *testing.T) {
+	t.Parallel()
+
+	usernamePaths := auth.CompileJMESPaths("email")
+	groupsPaths := auth.CompileJMESPaths("groups")
+
+	token := makeTestToken(t, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []string{"dev", "ops"},
+		"exp":    float64(time.Now().Add(time.Hour).Unix()),
+	})
+
+	identity, err := auth.ExtractImpersonationIdentity(token, usernamePaths, groupsPaths)
+	require.NoError(t, err)
+	assert.Equal(t, "alice@example.com", identity.Username)
+	assert.Equal(t, []string{"dev", "ops"}, identity.Groups)
+}
+
+func TestExtractImpersonationIdentity_ExpiredToken(t *testing.T) {
+	t.Parallel()
+
+	usernamePaths := auth.CompileJMESPaths("email")
+	groupsPaths := auth.CompileJMESPaths("groups")
+
+	token := makeTestToken(t, map[string]interface{}{
+		"email": "alice@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	})
+
+	_, err := auth.ExtractImpersonationIdentity(token, usernamePaths, groupsPaths)
+	require.Error(t, err)
+}
+
+func TestExtractImpersonationIdentity_MissingUsernameClaim(t *testing.T) {
+	t.Parallel()
+
+	// Default me-username-path claims (preferred_username, upn, username, name) are absent;
+	// only "email" is present, so resolution must fail unless the operator configured
+	// --me-username-path=email to match their IdP's claims (as many OIDC providers use).
+	usernamePaths := auth.CompileJMESPaths("preferred_username,upn,username,name")
+	groupsPaths := auth.CompileJMESPaths("groups")
+
+	token := makeTestToken(t, map[string]interface{}{
+		"email": "alice@example.com",
+		"exp":   float64(time.Now().Add(time.Hour).Unix()),
+	})
+
+	_, err := auth.ExtractImpersonationIdentity(token, usernamePaths, groupsPaths)
+	require.Error(t, err)
+}
+
+func TestExtractImpersonationIdentity_MalformedToken(t *testing.T) {
+	t.Parallel()
+
+	usernamePaths := auth.CompileJMESPaths("email")
+	groupsPaths := auth.CompileJMESPaths("groups")
+
+	_, err := auth.ExtractImpersonationIdentity("not-a-jwt", usernamePaths, groupsPaths)
+	require.Error(t, err)
+}

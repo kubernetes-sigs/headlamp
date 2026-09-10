@@ -97,6 +97,7 @@ type Config struct {
 	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
+	OidcUseImpersonation         bool   `koanf:"oidc-use-impersonation"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -140,6 +141,10 @@ func (c *Config) Validate() error {
 	c.warnRedundantThemeDefaults()
 
 	if err := c.validateServiceAccountTokenFlags(); err != nil {
+		return err
+	}
+
+	if err := c.validateOidcImpersonationFlag(); err != nil {
 		return err
 	}
 
@@ -266,6 +271,17 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
 		return errors.New("--service-account-token-path requires " +
 			"--unsafe-use-service-account-token to be enabled")
+	}
+
+	return nil
+}
+
+// validateOidcImpersonationFlag ensures --oidc-use-impersonation is only used with --in-cluster,
+// since it relies on the pod's own in-cluster service account credential to authenticate to the
+// API server while impersonating the OIDC user.
+func (c *Config) validateOidcImpersonationFlag() error {
+	if c.OidcUseImpersonation && !c.InCluster {
+		return errors.New("--oidc-use-impersonation is only meant to be used with --in-cluster")
 	}
 
 	return nil
@@ -674,6 +690,13 @@ func addOIDCFlags(f *flag.FlagSet) {
 		"Comma separated JMESPath expressions used to read groups from the JWT payload")
 	f.String("me-user-info-url", DefaultMeUserInfoURL,
 		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
+	f.Bool("oidc-use-impersonation", false,
+		"When running --in-cluster, authenticate to the Kubernetes API server using Headlamp's own "+
+			"in-cluster service account token and impersonate the OIDC user (Impersonate-User/Impersonate-Group "+
+			"headers) instead of forwarding the raw OIDC token as the Bearer credential. Use this when the API "+
+			"server does not trust Headlamp's OIDC issuer directly. Requires the service account to have RBAC "+
+			"'impersonate' permission on users/groups/serviceaccounts. Username/groups are resolved using the "+
+			"same --me-username-path/--me-groups-path JMESPath expressions used by the /me endpoint.")
 }
 
 func addProxyAuthFlags(f *flag.FlagSet) {
