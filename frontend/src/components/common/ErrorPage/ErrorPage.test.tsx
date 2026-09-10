@@ -41,6 +41,7 @@ describe('ErrorComponent', () => {
       'src',
       expect.stringContaining('headlamp-broken.svg')
     );
+    expect(screen.getByRole('link', { name: 'home' })).toHaveClass('MuiLink-underlineAlways');
   });
 
   it('shows product-specific error content', () => {

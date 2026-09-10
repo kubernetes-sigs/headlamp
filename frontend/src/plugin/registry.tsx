@@ -1070,11 +1070,19 @@ export function registerAddClusterProvider(item: ClusterProviderInfo) {
   store.dispatch(addAddClusterProvider(item));
 }
 
+/** Options that control app theme registration. */
+export interface AppThemeRegistrationOptions {
+  /** Select the registered theme when the user has no saved theme preference. */
+  default?: boolean;
+}
+
 /**
  * Add a new theme that will be available in the settings.
  * Theme name should be unique
  *
  * @param theme - App Theme definition
+ * @param options - Options that control whether the theme is selected during registration.
+ * @returns Nothing.
  *
  * @example
  *
@@ -1084,11 +1092,14 @@ export function registerAddClusterProvider(item: ClusterProviderInfo) {
  *   base: "light",
  *   primary: "#ff0000",
  *   secondary: "#333",
- * })
+ * }, { default: true })
  *
  */
-export function registerAppTheme(theme: AppTheme) {
+export function registerAppTheme(theme: AppTheme, options: AppThemeRegistrationOptions = {}): void {
   store.dispatch(themeSlice.actions.addCustomAppTheme(theme));
+  if (options.default) {
+    store.dispatch(themeSlice.actions.setPluginDefaultTheme(theme.name));
+  }
 }
 
 /**

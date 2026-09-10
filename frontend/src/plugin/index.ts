@@ -59,6 +59,7 @@ import {
   PluginCommandCapability,
   preparePluginCommandCapabilities,
 } from './commandCapabilities';
+import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -121,6 +122,29 @@ window.pluginLib.MuiCore = window.pluginLib.MuiMaterial;
 // @todo: should window.plugins be private?
 // @todo: Should all the plugin objects be in a single window.Headlamp object?
 window.plugins = {};
+
+const PLUGIN_STARTUP_TIMEOUT_MS = 30000;
+
+function remainingStartupTime(deadline: number): number {
+  return Math.max(0, deadline - Date.now());
+}
+
+export async function beforePluginStartupDeadline<T>(
+  promise: Promise<T>,
+  deadline: number
+): Promise<T> {
+  const remaining = remainingStartupTime(deadline);
+  if (remaining === 0) {
+    throw new Error('Plugin startup timed out');
+  }
+
+  let timeout: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => reject(new Error('Plugin startup timed out')), remaining);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
+}
 
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
@@ -388,39 +412,45 @@ function handlePluginRunError(error: unknown, packageName: string, packageVersio
 
 /**
  * Retry with exponential backoff starting at 50ms, doubling each time and capped at 1000ms.
- * Retries continue until the total accumulated wait reaches 30 seconds.
+ * Retries and response consumption continue only until the absolute deadline.
  *
  * @param url The URL to fetch.
- * @param maxTotalWaitMs Maximum total wait time across retries (default 30000ms).
+ * @param headers Headers to send with the request.
+ * @param consume Reads and transforms the response before the deadline.
+ * @param deadline Absolute timestamp after which no more attempts are made.
  * @param baseDelayMs Initial delay before first retry (default 50ms).
  * @param maxDelayMs Maximum delay per retry (default 1000ms).
- * @returns A promise that resolves to the response of the fetch request.
+ * @returns A promise that resolves to the consumed response.
  */
-async function fetchWithRetry(
+async function fetchWithRetry<T>(
   url: string,
   headers: HeadersInit,
-  maxTotalWaitMs = 30000,
+  consume: (response: Response) => Promise<T>,
+  deadline: number,
   baseDelayMs = 50,
   maxDelayMs = 1000
-): Promise<Response> {
+): Promise<T> {
   let attempt = 0;
-  let totalSlept = 0;
   let lastErr: unknown;
-
-  while (totalSlept < maxTotalWaitMs) {
+  while (Date.now() < deadline) {
     try {
-      const resp = await fetch(url, { headers: new Headers(headers) });
-      if (!resp.ok) throw new Error(`HTTP error: ${resp.status}`);
-      return resp;
+      return await fetchPluginResource(
+        url,
+        headers,
+        async response => {
+          if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+          return consume(response);
+        },
+        deadline - Date.now()
+      );
     } catch (err) {
       lastErr = err;
-      const remaining = maxTotalWaitMs - totalSlept;
+      const remaining = deadline - Date.now();
       if (remaining <= 0) break;
 
       const wait = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs, remaining);
       attempt++;
       await new Promise(res => setTimeout(res, wait));
-      totalSlept += wait;
     }
   }
 
@@ -446,6 +476,7 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  const deadline = Date.now() + PLUGIN_STARTUP_TIMEOUT_MS;
   const permissionSecretsPromise = permissionSecretsFromApp();
 
   const headers = addBackstageAuthHeaders();
@@ -458,59 +489,69 @@ export async function fetchAndExecutePlugins(
     name: string;
   }
 
-  const pluginMetadataList = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
-    resp.json()
-  )) as PluginMetadata[];
+  const pluginMetadataList = await fetchWithRetry<PluginMetadata[]>(
+    `${getAppUrl()}plugins`,
+    headers,
+    response => response.json(),
+    deadline
+  );
 
   // Extract paths for fetching plugin files
   const pluginPaths = pluginMetadataList.map(metadata => metadata.path);
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
-      fetch(`${getAppUrl()}${path}/main.js`, { headers: new Headers(headers) }).then(resp =>
-        resp.text()
+      fetchPluginResource(
+        `${getAppUrl()}${path}/main.js`,
+        headers,
+        response => response.text(),
+        remainingStartupTime(deadline)
       )
     )
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
     pluginPaths.map((path, index) =>
-      fetch(`${getAppUrl()}${path}/package.json`, { headers: new Headers(headers) }).then(resp => {
-        if (!resp.ok) {
-          if (resp.status !== 404) {
-            return Promise.reject(resp);
+      fetchPluginResource(
+        `${getAppUrl()}${path}/package.json`,
+        headers,
+        async response => {
+          if (!response.ok) {
+            if (response.status !== 404) {
+              return Promise.reject(response);
+            } else {
+              console.warn(
+                'Missing package.json. ' +
+                  `Please upgrade the plugin ${path}` +
+                  ' by running "headlamp-plugin extract" again.' +
+                  ' Please use headlamp-plugin >= 0.8.0'
+              );
+              return {
+                name: path.split('/').slice(-1)[0],
+                version: '0.0.0',
+                author: 'unknown',
+                description: '',
+                type: pluginMetadataList[index].type,
+                source: pluginMetadataList[index].source,
+                folderName: pluginMetadataList[index].name,
+              };
+            }
           }
-          {
-            console.warn(
-              'Missing package.json. ' +
-                `Please upgrade the plugin ${path}` +
-                ' by running "headlamp-plugin extract" again.' +
-                ' Please use headlamp-plugin >= 0.8.0'
-            );
-            return {
-              name: path.split('/').slice(-1)[0],
-              version: '0.0.0',
-              author: 'unknown',
-              description: '',
-              type: pluginMetadataList[index].type,
-              source: pluginMetadataList[index].source,
-              folderName: pluginMetadataList[index].name,
-            };
-          }
-        }
-        return resp.json().then(json => ({
-          ...json,
-          type: pluginMetadataList[index].type,
-          source: pluginMetadataList[index].source,
-          folderName: pluginMetadataList[index].name,
-        }));
-      })
+          return response.json().then(json => ({
+            ...json,
+            type: pluginMetadataList[index].type,
+            source: pluginMetadataList[index].source,
+            folderName: pluginMetadataList[index].name,
+          }));
+        },
+        remainingStartupTime(deadline)
+      )
     )
   );
 
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
-  const permissionSecrets = await permissionSecretsPromise;
+  const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
 
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
@@ -585,16 +626,22 @@ export async function fetchAndExecutePlugins(
   const secureStorageBridge = window?.desktopApi?.secureStorage;
   const secureStorageNamespaces = packageInfosToExecute.map(getPluginSecureStorageNamespace);
   const secureStorageCapabilities: Record<string, string> = secureStorageBridge
-    ? await secureStorageBridge.register(
-        secureStorageNamespaces.filter((namespace): namespace is string => Boolean(namespace))
+    ? await beforePluginStartupDeadline(
+        secureStorageBridge.register(
+          secureStorageNamespaces.filter((namespace): namespace is string => Boolean(namespace))
+        ),
+        deadline
       )
     : {};
   const commandCapabilitiesBridge = window?.desktopApi?.commandCapabilities;
-  const commandCapabilities: PluginCommandCapability[] = await preparePluginCommandCapabilities(
-    commandCapabilitiesBridge,
-    packageInfosToExecute,
-    pluginPathsToExecute,
-    sourcesToExecute
+  const commandCapabilities: PluginCommandCapability[] = await beforePluginStartupDeadline(
+    preparePluginCommandCapabilities(
+      commandCapabilitiesBridge,
+      packageInfosToExecute,
+      pluginPathsToExecute,
+      sourcesToExecute
+    ),
+    deadline
   );
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
@@ -705,20 +752,27 @@ export async function fetchAndExecutePlugins(
   infoForRunningPlugins.forEach(runPluginInner);
 
   // Initialize plugin i18n after plugins are loaded
-  await initializePluginsI18n(packageInfos, pluginPaths);
+  await initializePluginsI18n(packageInfos, pluginPaths, deadline);
 
-  await afterPluginsRun(pluginsLoaded);
+  await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded), deadline);
 }
 
 /**
  * Initialize i18n for all plugins that have i18n configuration
  */
-async function initializePluginsI18n(packageInfos: PluginInfo[], pluginPaths: string[]) {
+async function initializePluginsI18n(
+  packageInfos: PluginInfo[],
+  pluginPaths: string[],
+  deadline: number
+) {
   for (let i = 0; i < packageInfos.length; i++) {
     const packageInfo = packageInfos[i];
     const pluginPath = pluginPaths[i];
 
-    await initializePluginI18n(packageInfo.name, packageInfo, pluginPath);
+    await beforePluginStartupDeadline(
+      initializePluginI18n(packageInfo.name, packageInfo, pluginPath),
+      deadline
+    );
   }
 
   // Set up language change synchronization

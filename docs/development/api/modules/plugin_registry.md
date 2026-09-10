@@ -16,6 +16,7 @@
 ## Interfaces
 
 - [AppLogoProps](../interfaces/plugin_registry.AppLogoProps.md)
+- [AppThemeRegistrationOptions](../interfaces/plugin_registry.AppThemeRegistrationOptions.md)
 - [ClusterChooserProps](../interfaces/plugin_registry.ClusterChooserProps.md)
 - [CreateResourceEvent](../interfaces/plugin_registry.CreateResourceEvent.md)
 - [DeleteResourceEvent](../interfaces/plugin_registry.DeleteResourceEvent.md)
@@ -316,6 +317,44 @@ More complete logo example in plugins/examples/change-logo:
 #### Defined in
 
 [plugin/registry.tsx:550](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L550)
+
+___
+
+### registerAppTheme
+
+▸ **registerAppTheme**(`theme`, `options?`): `void`
+
+Add a new theme that will be available in the settings.
+Theme names should be unique.
+
+**`example`**
+
+```ts
+registerAppTheme(
+  {
+    name: 'My Custom Theme',
+    base: 'light',
+    primary: '#ff0000',
+    secondary: '#333333',
+  },
+  { default: true }
+);
+```
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `theme` | `AppTheme` | `undefined` | App theme definition. |
+| `options` | [`AppThemeRegistrationOptions`](../interfaces/plugin_registry.AppThemeRegistrationOptions.md) | `{}` | Options that control whether the theme is selected during registration. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1098](https://github.com/kubernetes-sigs/headlamp/blob/9a1cd9722/frontend/src/plugin/registry.tsx#L1098)
 
 ___
 

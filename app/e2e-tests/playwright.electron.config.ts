@@ -32,6 +32,7 @@ export default defineConfig({
     'clusterRename.spec.ts',
     'namespaces.spec.ts',
     'clusterAutoConnect.spec.ts',
+    'externalBackendToken.spec.ts',
     'pluginSecureStorage.spec.ts',
     'listenerCleanup.spec.ts',
     'runCommand.spec.ts',

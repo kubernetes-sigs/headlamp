@@ -33,6 +33,7 @@ import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import type {
+  AppThemeRegistrationOptions,
   CallbackActionOptions,
   HeadlampEvent,
   PluginRunCommand,
@@ -159,6 +160,7 @@ export {
 export type {
   AppLogoProps,
   AppTheme,
+  AppThemeRegistrationOptions,
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,

@@ -16,7 +16,6 @@
 
 import './runtimeProductIdentity';
 import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
-import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import {
   app,
@@ -43,6 +42,7 @@ import {
   resolveBuildManifestPath,
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
+import { resolveBackendToken, waitForExternalBackend } from './backendToken';
 import { createCertificateSetup } from './certificates';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
@@ -131,7 +131,12 @@ if (isDev) {
 } else {
   frontendPath = path.join(process.resourcesPath, 'frontend', 'index.html');
 }
-const backendToken = randomBytes(32).toString('hex');
+const useExternalServer = isDev && process.env.EXTERNAL_SERVER === 'true';
+const backendToken = resolveBackendToken(
+  isDev,
+  useExternalServer,
+  process.env.HEADLAMP_BACKEND_TOKEN
+);
 
 const startUrl = (
   process.env.ELECTRON_START_URL ||
@@ -210,7 +215,6 @@ const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
-const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
 const appBuildManifestPath = isDev
   ? resolveBuildManifestPath()
@@ -1424,6 +1428,10 @@ function startElectron() {
   console.log('Check for updates: ', shouldCheckForUpdates);
 
   async function startServerIfNeeded() {
+    if (useExternalServer) {
+      await waitForExternalBackend(actualPort, backendToken);
+      return;
+    }
     if (!useExternalServer) {
       try {
         // Try to start the server (it will find an available port)
@@ -1882,13 +1890,38 @@ function startElectron() {
     }
   }
 
+  /**
+   * Starts the backend and application window in the required order.
+   *
+   * @returns A promise that resolves after the backend and window are ready.
+   */
+  let startupPromise: Promise<void> | null = null;
+
+  function startBackendAndWindow(): Promise<void> {
+    if (!startupPromise) {
+      startupPromise = (async () => {
+        if (useExternalServer) {
+          await startServerIfNeeded();
+          await createWindow();
+          return;
+        }
+
+        await Promise.all([startServerIfNeeded(), createWindow()]);
+      })().finally(() => {
+        startupPromise = null;
+      });
+    }
+
+    return startupPromise;
+  }
+
   app.on('ready', async () => {
-    await Promise.all([startServerIfNeeded(), createWindow()]);
+    await startBackendAndWindow();
     hasTray = createHeadlampTray(buildTrayOptions());
   });
   app.on('activate', async function () {
-    if (mainWindow === null) {
-      await Promise.all([startServerIfNeeded(), createWindow()]);
+    if (!mainWindow) {
+      await startBackendAndWindow();
     }
   });
 
