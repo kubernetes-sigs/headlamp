@@ -50,6 +50,7 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 	tests := []struct {
 		name                         string
 		unsafeUseServiceAccountToken bool
+		oidcUseImpersonation         bool
 		clusterBearerTokenFile       string
 		serviceAccountTokenPath      string
 		expectedTokenFile            string
@@ -77,6 +78,17 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 			unsafeUseServiceAccountToken: true,
 			expectedTokenFile:            defaultTokenPath,
 		},
+		{
+			name:                   "oidc impersonation enabled uses cluster bearer token file fallback",
+			oidcUseImpersonation:   true,
+			clusterBearerTokenFile: path.Join("/", "cluster", "token"),
+			expectedTokenFile:      path.Join("/", "cluster", "token"),
+		},
+		{
+			name:                 "oidc impersonation enabled uses default path fallback",
+			oidcUseImpersonation: true,
+			expectedTokenFile:    defaultTokenPath,
+		},
 	}
 
 	for _, tt := range tests {
@@ -92,6 +104,7 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 				"",
 				tt.unsafeUseServiceAccountToken,
 				tt.serviceAccountTokenPath,
+				tt.oidcUseImpersonation,
 			)
 
 			assert.Equal(t, tt.expectedTokenFile, context.AuthInfo.TokenFile)
