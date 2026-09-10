@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/internal/testutil"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -1157,20 +1158,6 @@ func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
 	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
 }
 
-func makeTestToken(t *testing.T, claims map[string]interface{}) string {
-	// helper to build unsigned JWT-like string for tests
-	header := map[string]string{"alg": "none", "typ": "JWT"}
-	headerJSON, err := json.Marshal(header)
-	require.NoError(t, err)
-	claimsJSON, err := json.Marshal(claims)
-	require.NoError(t, err)
-
-	return fmt.Sprintf("%s.%s.signature",
-		base64.RawURLEncoding.EncodeToString(headerJSON),
-		base64.RawURLEncoding.EncodeToString(claimsJSON),
-	)
-}
-
 func TestHandleMe_Success(t *testing.T) {
 	t.Parallel()
 
@@ -1182,7 +1169,7 @@ func TestHandleMe_Success(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1233,7 +1220,7 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1309,7 +1296,7 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1375,7 +1362,7 @@ func TestExtractImpersonationIdentity_Success(t *testing.T) {
 	usernamePaths := auth.CompileJMESPaths("email")
 	groupsPaths := auth.CompileJMESPaths("groups")
 
-	token := makeTestToken(t, map[string]interface{}{
+	token := testutil.MakeUnsignedJWT(t, map[string]interface{}{
 		"email":  "alice@example.com",
 		"groups": []string{"dev", "ops"},
 		"exp":    float64(time.Now().Add(time.Hour).Unix()),
@@ -1393,7 +1380,7 @@ func TestExtractImpersonationIdentity_ExpiredToken(t *testing.T) {
 	usernamePaths := auth.CompileJMESPaths("email")
 	groupsPaths := auth.CompileJMESPaths("groups")
 
-	token := makeTestToken(t, map[string]interface{}{
+	token := testutil.MakeUnsignedJWT(t, map[string]interface{}{
 		"email": "alice@example.com",
 		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
 	})
@@ -1411,7 +1398,7 @@ func TestExtractImpersonationIdentity_MissingUsernameClaim(t *testing.T) {
 	usernamePaths := auth.CompileJMESPaths("preferred_username,upn,username,name")
 	groupsPaths := auth.CompileJMESPaths("groups")
 
-	token := makeTestToken(t, map[string]interface{}{
+	token := testutil.MakeUnsignedJWT(t, map[string]interface{}{
 		"email": "alice@example.com",
 		"exp":   float64(time.Now().Add(time.Hour).Unix()),
 	})

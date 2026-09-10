@@ -43,6 +43,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/internal/testutil"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -4585,27 +4586,6 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
 
-// makeUnsignedTestToken builds a JWT-shaped (but unsigned) token for testing claim
-// extraction. Headlamp trusts the token's signature was already verified during the
-// initial OIDC login/callback; the impersonation path only re-decodes claims from a
-// token that was already accepted, so an unsigned test fixture is sufficient here.
-func makeUnsignedTestToken(t *testing.T, claims map[string]interface{}) string {
-	t.Helper()
-
-	header := map[string]string{"alg": "none", "typ": "JWT"}
-
-	headerJSON, err := json.Marshal(header)
-	require.NoError(t, err)
-
-	claimsJSON, err := json.Marshal(claims)
-	require.NoError(t, err)
-
-	return fmt.Sprintf("%s.%s.signature",
-		base64.RawURLEncoding.EncodeToString(headerJSON),
-		base64.RawURLEncoding.EncodeToString(claimsJSON),
-	)
-}
-
 //nolint:funlen
 func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 	const cluster = "main"
@@ -4657,7 +4637,7 @@ func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 		},
 	}
 
-	token := makeUnsignedTestToken(t, map[string]interface{}{
+	token := testutil.MakeUnsignedJWT(t, map[string]interface{}{
 		"email":  "alice@example.com",
 		"groups": []string{"dev", "ops"},
 		"exp":    float64(time.Now().Add(time.Hour).Unix()),

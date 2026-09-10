@@ -421,6 +421,11 @@ func TestParseErrors(t *testing.T) {
 			errorContains: "--oidc-use-impersonation is only meant to be used with --in-cluster",
 		},
 		{
+			name:          "oidc_use_impersonation_without_oidc_configured",
+			args:          []string{"go run ./cmd", "--in-cluster", "--oidc-use-impersonation"},
+			errorContains: "--oidc-use-impersonation requires OIDC to be configured",
+		},
+		{
 			name: "oidc_use_impersonation_with_unsafe_service_account_token",
 			args: []string{
 				"go run ./cmd",
@@ -529,6 +534,8 @@ var parseFlagTests = []parseFlagTest{
 			"go run ./cmd",
 			"--in-cluster",
 			"--oidc-use-impersonation",
+			"--oidc-client-id=my-id",
+			"--oidc-idp-issuer-url=https://example.com/issuer",
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, true, conf.OidcUseImpersonation)

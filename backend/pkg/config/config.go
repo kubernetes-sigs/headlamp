@@ -295,6 +295,16 @@ func (c *Config) validateOidcImpersonationFlag() error {
 			"would have no effect")
 	}
 
+	// Mirrors the condition newInClusterContextFromConfig uses to decide whether OIDC is
+	// configured at all. Without it, no cookie can ever exist, so every proxied request
+	// would hit the "no valid OIDC token to resolve an identity" error forever -- which
+	// looks like a broken installation rather than the missing-OIDC-config mistake it is.
+	if c.OidcUseImpersonation && (c.OidcClientID == "" || c.OidcIdpIssuerURL == "" || c.OidcScopes == "") {
+		return errors.New("--oidc-use-impersonation requires OIDC to be configured " +
+			"(--oidc-client-id, --oidc-idp-issuer-url and --oidc-scopes); without OIDC configured " +
+			"there is never a token to impersonate, and every proxied API call would fail")
+	}
+
 	return nil
 }
 
