@@ -26,6 +26,7 @@ import { isDockerDesktop } from './isDockerDesktop';
 import { isElectron } from './isElectron';
 import { getRecentClusters, setRecentCluster } from './recentClusters';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from './tablesRowsPerPage';
+import { reloadPage } from './window';
 
 const exportFunctions = {
   getBaseUrl,
@@ -45,6 +46,7 @@ const exportFunctions = {
   storeClusterSettings,
   loadClusterSettings,
   getHeadlampAPIHeaders,
+  reloadPage,
 };
 
 export default exportFunctions;
