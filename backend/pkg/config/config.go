@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -67,6 +68,7 @@ type Config struct {
 	NodeShellImage         string `koanf:"node-shell-image"`
 	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
+	TrustedProxyCIDRs      string `koanf:"trusted-proxy-cidrs"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
@@ -186,6 +188,27 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateTrustedProxyCIDRs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateTrustedProxyCIDRs() error {
+	if c.TrustedProxyCIDRs == "" {
+		return nil
+	}
+
+	for _, cidr := range strings.Split(c.TrustedProxyCIDRs, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			return errors.New("trusted-proxy-cidrs cannot contain empty entries")
+		}
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			return fmt.Errorf("invalid trusted-proxy-cidrs entry %q: %w", cidr, err)
+		}
+	}
 	return nil
 }
 
@@ -629,6 +652,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
+	f.String("trusted-proxy-cidrs", "", "Comma-separated CIDRs of trusted proxies for client IP detection")
 	f.Bool("enable-helm", false, "Enable Helm operations")
 	f.Bool("enable-cluster-inventory", false,
 		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
