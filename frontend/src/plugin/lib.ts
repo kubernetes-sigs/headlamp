@@ -67,10 +67,63 @@ export abstract class Plugin {
   abstract initialize(register: Registry): boolean | void;
 }
 
+export type DesktopApiSendChannel =
+  | 'setMenu'
+  | 'locale'
+  | 'appConfig'
+  | 'pluginsLoaded'
+  | 'run-command'
+  | 'plugin-manager'
+  | 'request-backend-token'
+  | 'request-plugin-permission-secrets'
+  | 'open-plugin-folder'
+  | 'request-backend-port'
+  | 'request-tray-icon'
+  | 'set-tray-icon'
+  | 'cluster-changed';
+
+export type DesktopApiReceiveChannel =
+  | 'currentMenu'
+  | 'setMenu'
+  | 'locale'
+  | 'appConfig'
+  | 'command-stdout'
+  | 'command-stderr'
+  | 'command-exit'
+  | 'plugin-manager'
+  | 'backend-token'
+  | 'plugin-permission-secrets'
+  | 'open-about-dialog'
+  | 'backend-port'
+  | 'tray-icon';
+
 /** APIs exposed to Headlamp's renderer process by the desktop preload bridge. */
 export interface DesktopApi {
   /** Operating system platform hosting the desktop app. */
   platform: NodeJS.Platform;
+  send: (channel: DesktopApiSendChannel, data?: unknown) => void;
+  receive: (
+    channel: DesktopApiReceiveChannel,
+    func: (...args: any[]) => void
+  ) => void | (() => void);
+  removeListener: (channel: DesktopApiReceiveChannel, func: (...args: any[]) => void) => void;
+  mcp: {
+    executeTool: (
+      toolName: string,
+      args: Record<string, unknown>,
+      toolCallId?: string
+    ) => Promise<unknown>;
+    getStatus: () => Promise<unknown>;
+    resetClient: () => Promise<unknown>;
+    getConfig: () => Promise<unknown>;
+    updateConfig: (config: unknown) => Promise<unknown>;
+    getToolsConfig: () => Promise<unknown>;
+    updateToolsConfig: (config: unknown) => Promise<unknown>;
+    setToolEnabled: (serverName: string, toolName: string, enabled: boolean) => Promise<unknown>;
+    getToolStats: (serverName: string, toolName: string) => Promise<unknown>;
+    clusterChange: (cluster: string | null) => Promise<unknown>;
+  };
+  notifyClusterChange: (cluster: string | null) => void;
   /** Additional APIs exposed by the desktop preload bridge. */
   [key: string]: any;
 }
