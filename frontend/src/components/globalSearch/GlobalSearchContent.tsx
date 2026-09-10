@@ -548,7 +548,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
                 </Tooltip>
                 {loading.length > 0 && (
                   <Delayed display="flex" mr={1}>
-                    <CircularProgress size="16px" />
+                    <CircularProgress size="16px" aria-label={t('Loading')} />
                   </Delayed>
                 )}
               </>
