@@ -295,6 +295,29 @@ Settings.
 
 ![screenshot of the theme dropdown](./images/settings-theme-dropdown.png)
 
+To select a registered theme on first use, pass `{ default: true }` as the
+second argument:
+
+```ts
+registerAppTheme(
+  {
+    name: 'My Product Theme',
+    base: 'light',
+    primary: '#ff0000',
+    secondary: '#333333',
+  },
+  { default: true }
+);
+```
+
+Headlamp selects this theme only when the user has no saved theme preference.
+An explicit selection in General Settings or an administrator-forced theme
+always takes precedence. A plugin default takes precedence over backend light
+and dark defaults regardless of whether plugins or backend configuration finish
+loading first. See
+[AppThemeRegistrationOptions](../../api/interfaces/plugin_registry.AppThemeRegistrationOptions.md)
+for the registration options.
+
 The terminal/log surfaces (pod logs, exec, node shell) follow the active
 theme automatically. To override their colors, set the optional `terminal`
 field on `AppTheme` — `background`, `foreground`, `cursor`, and a 16-color

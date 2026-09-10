@@ -120,6 +120,7 @@
     "ReplicaSets/CreateReplicaSetForm/Filled": ["label"],
     "ReplicaSets/CreateReplicaSetForm/Pod Template Extras": ["label"],
     "ReplicaSets/CreateReplicaSetForm/Empty": ["label"],
+    "Service/CreateServiceForm/Default": ["label"],
     "home/ClusterTable/Connecting": ["aria-progressbar-name"],
     "GlobalSearch/GlobalSearchContent/Bare Namespace Query": [
       "aria-progressbar-name",
