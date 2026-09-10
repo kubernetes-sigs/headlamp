@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from '@mui/material/styles';
 import { Meta, StoryFn } from '@storybook/react';
+import { createMuiTheme } from '../../../lib/themes';
 import type { PluginInfo } from '../../../plugin/pluginsSlice';
 import { TestContext } from '../../../test';
 import { PluginSettingsPure, PluginSettingsPureProps } from './PluginSettings';
+
+const darkTheme = createMuiTheme({ name: 'Dark', base: 'dark' });
 
 export default {
   title: 'Settings/PluginSettings',
@@ -34,6 +38,16 @@ export default {
 const Template: StoryFn<PluginSettingsPureProps> = args => (
   <TestContext>
     <PluginSettingsPure {...args} />
+  </TestContext>
+);
+
+const DarkTemplate: StoryFn<PluginSettingsPureProps> = args => (
+  <TestContext>
+    <ThemeProvider theme={darkTheme}>
+      <div style={{ background: '#1f1f1f', padding: '1rem' }}>
+        <PluginSettingsPure {...args} />
+      </div>
+    </ThemeProvider>
   </TestContext>
 );
 
@@ -308,6 +322,15 @@ MultipleLocations.args = {
   plugins: createPluginsWithMultipleLocations(),
   onSave: (plugins: any) => {
     console.log('Multiple Locations', plugins);
+  },
+};
+
+/** Story showing plugins installed in multiple locations in dark mode */
+export const MultipleLocationsDark = DarkTemplate.bind({});
+MultipleLocationsDark.args = {
+  plugins: createPluginsWithMultipleLocations(),
+  onSave: (plugins: any) => {
+    console.log('Multiple Locations Dark', plugins);
   },
 };
 
