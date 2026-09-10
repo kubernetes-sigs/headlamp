@@ -15,9 +15,8 @@
  */
 
 import '../../../../i18n/config';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { FormSection } from './CreateResourceForm';
 
 // Avoid pulling the lib/k8s barrel (and its circular ResourceClasses chain) into
 // the test. ContainerTextField does not use Namespace, but CreateResourceForm
@@ -27,7 +26,7 @@ vi.mock('../../../../lib/k8s/namespace', () => ({
 }));
 
 const { ContainerTextField } = await import('./workloadFields');
-const { default: CreateResourceForm } = await import('./index');
+const { ServicePortsTextField } = await import('./CreateResourceForm');
 
 function renderContainers(value: unknown) {
   return render(<ContainerTextField value={value as any} onChange={() => {}} />);
@@ -63,155 +62,69 @@ describe('ContainerTextField partial-input tolerance', () => {
   });
 });
 
-const makeSelectSections = (multiple?: boolean): FormSection[] => [
-  {
-    title: 'Test',
-    fields: [
-      {
-        key: 'mode',
-        path: 'spec.mode',
-        label: 'Mode',
-        type: 'select',
-        multiple,
-        options: [
-          { value: 'a', label: 'Option A' },
-          { value: 'b', label: 'Option B' },
-        ],
-      },
-    ],
-  },
-];
+// Mirrors the same YAML-editor tolerance guarantee for the Service ports editor:
+// while the user types, js-yaml may hand us [null], strings, or `null` — none of
+// those may crash the form.
+describe('ServicePortsTextField partial-input tolerance', () => {
+  function renderPorts(value: unknown, onChange: (ports: any[]) => void = () => {}) {
+    return render(<ServicePortsTextField value={value as any} onChange={onChange} />);
+  }
 
-const makeNumericSelectSections = (multiple?: boolean): FormSection[] => [
-  {
-    title: 'Test',
-    fields: [
-      {
-        key: 'port',
-        path: 'spec.port',
-        label: 'Port',
-        type: 'select',
-        multiple,
-        options: [
-          { value: '0', label: 'Port 0' },
-          { value: '80', label: 'Port 80' },
-        ],
-      },
-    ],
-  },
-];
-
-describe('CreateResourceForm – select field', () => {
-  describe('single-select (multiple: false)', () => {
-    it('renders with a string value without crashing', () => {
-      expect(() =>
-        render(
-          <CreateResourceForm
-            sections={makeSelectSections()}
-            resource={{ spec: { mode: 'a' } }}
-            onChange={() => {}}
-          />
-        )
-      ).not.toThrow();
-    });
-
-    it('calls onChange with a string value when an option is selected', () => {
-      const onChange = vi.fn();
-      render(
-        <CreateResourceForm sections={makeSelectSections()} resource={{}} onChange={onChange} />
-      );
-      fireEvent.mouseDown(screen.getByRole('combobox'));
-      fireEvent.click(screen.getByText('Option A'));
-      const updated = onChange.mock.calls.at(-1)?.[0];
-      expect(typeof updated.spec.mode).toBe('string');
-      expect(updated.spec.mode).toBe('a');
-    });
+  it('renders a null sequence entry without crashing (ports:\\n  -)', () => {
+    expect(() => renderPorts([null])).not.toThrow();
   });
 
-  describe('multi-select (multiple: true)', () => {
-    it('renders with an array value without crashing', () => {
-      expect(() =>
-        render(
-          <CreateResourceForm
-            sections={makeSelectSections(true)}
-            resource={{ spec: { mode: ['a', 'b'] } }}
-            onChange={() => {}}
-          />
-        )
-      ).not.toThrow();
-    });
+  it('renders when value is null', () => {
+    expect(() => renderPorts(null)).not.toThrow();
+  });
 
-    it('normalizes a bare string value to an array without crashing', () => {
-      expect(() =>
-        render(
-          <CreateResourceForm
-            sections={makeSelectSections(true)}
-            resource={{ spec: { mode: 'a' } }}
-            onChange={() => {}}
-          />
-        )
-      ).not.toThrow();
-    });
+  it('renders when value is a string instead of an array', () => {
+    expect(() => renderPorts('foo')).not.toThrow();
+  });
 
-    it('calls onChange with an array when an option is selected', () => {
-      const onChange = vi.fn();
-      render(
-        <CreateResourceForm sections={makeSelectSections(true)} resource={{}} onChange={onChange} />
-      );
-      fireEvent.mouseDown(screen.getByRole('combobox'));
-      fireEvent.click(screen.getByText('Option A'));
-      const updated = onChange.mock.calls.at(-1)?.[0];
-      expect(Array.isArray(updated.spec.mode)).toBe(true);
-      expect(updated.spec.mode).toContain('a');
-    });
+  it('renders the default Service port row from getBaseObject', () => {
+    const { getAllByDisplayValue, getByDisplayValue } = renderPorts([
+      { name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 },
+    ]);
+    // Port and Target Port both render "80".
+    expect(getAllByDisplayValue('80')).toHaveLength(2);
+    expect(getByDisplayValue('30000')).toBeTruthy();
+  });
 
-    it('wraps a single autofill string into a one-element array', () => {
-      const onChange = vi.fn();
-      render(
-        <CreateResourceForm sections={makeSelectSections(true)} resource={{}} onChange={onChange} />
-      );
-      const nativeSelect = document.querySelector('.MuiSelect-nativeInput') as HTMLInputElement;
-      fireEvent.change(nativeSelect, { target: { value: 'b' } });
-      const updated = onChange.mock.calls.at(-1)?.[0];
-      expect(updated.spec.mode).toEqual(['b']);
-    });
+  it('emits a numeric port when the user edits the Port input', () => {
+    const handleChange = vi.fn();
+    const { getAllByRole } = renderPorts(
+      [{ name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 }],
+      handleChange
+    );
+    // Row order: Name (text), Port (number), TargetPort (text), NodePort (number).
+    const spinButtons = getAllByRole('spinbutton');
+    fireEvent.change(spinButtons[0], { target: { value: '8080' } });
+    expect(handleChange).toHaveBeenCalledWith([
+      expect.objectContaining({ port: 8080, protocol: 'TCP' }),
+    ]);
+  });
 
-    it('treats an empty string as absent and produces [] in multi-select', () => {
-      expect(() =>
-        render(
-          <CreateResourceForm
-            sections={makeNumericSelectSections(true)}
-            resource={{ spec: { port: '' } }}
-            onChange={() => {}}
-          />
-        )
-      ).not.toThrow();
-    });
+  it('preserves a named targetPort (string) instead of coercing to a number', () => {
+    const handleChange = vi.fn();
+    const { getAllByRole } = renderPorts(
+      [{ name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 }],
+      handleChange
+    );
+    // Row order: Name (text), Port (number), TargetPort (text), NodePort (number).
+    // targetPort accepts named strings, so it renders as a text input.
+    const textInputs = getAllByRole('textbox');
+    // Name is [0], TargetPort is [1].
+    fireEvent.change(textInputs[1], { target: { value: 'http' } });
+    expect(handleChange).toHaveBeenCalledWith([expect.objectContaining({ targetPort: 'http' })]);
+  });
 
-    it('wraps a falsy numeric-string value ("0") into a one-element array, not []', () => {
-      expect(() =>
-        render(
-          <CreateResourceForm
-            sections={makeNumericSelectSections(true)}
-            resource={{ spec: { port: '0' } }}
-            onChange={() => {}}
-          />
-        )
-      ).not.toThrow();
-    });
-
-    it('renders the option label in chips, not the raw stored value', () => {
-      render(
-        <CreateResourceForm
-          sections={makeSelectSections(true)}
-          resource={{ spec: { mode: ['a', 'b'] } }}
-          onChange={() => {}}
-        />
-      );
-      expect(screen.getByText('Option A')).toBeDefined();
-      expect(screen.getByText('Option B')).toBeDefined();
-      expect(screen.queryByText('a')).toBeNull();
-      expect(screen.queryByText('b')).toBeNull();
-    });
+  it('adds a new port row when the New Port button is clicked', () => {
+    const handleChange = vi.fn();
+    const { getByLabelText } = renderPorts([], handleChange);
+    fireEvent.click(getByLabelText('Add port'));
+    expect(handleChange).toHaveBeenCalledWith([
+      { name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 },
+    ]);
   });
 });

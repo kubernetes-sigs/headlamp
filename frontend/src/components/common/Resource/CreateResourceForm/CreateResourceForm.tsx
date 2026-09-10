@@ -30,7 +30,9 @@ import * as yaml from 'js-yaml';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { RecursivePartial } from '../../../../lib/k8s/api/v1/factories';
 import Namespace from '../../../../lib/k8s/namespace';
+import type { KubeServicePort } from '../../../../lib/k8s/service';
 import { useId } from '../../../../lib/util';
 import { ContainerTextField } from './workloadFields';
 
@@ -51,7 +53,7 @@ export interface FormField {
   /** Display label for the field. */
   label: string;
   /** Input type – defaults to 'text'. */
-  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace';
+  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace' | 'ports';
   /** Whether the field is required. */
   required?: boolean;
   /** For 'number' fields: minimum allowed value. */
@@ -146,6 +148,15 @@ function isFieldValid(field: FormField, value: any): boolean {
             c?.image &&
             typeof c.image === 'string' &&
             c.image.trim().length > 0
+        )
+      );
+    case 'ports':
+      return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (p: any) =>
+            p && typeof p === 'object' && Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535
         )
       );
     case 'boolean':
@@ -244,6 +255,15 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
               value={value ?? []}
               onChange={containers => handleFieldChange(field.path, containers)}
               showCommand={field.showCommand}
+            />
+          </FieldWrapper>
+        );
+      case 'ports':
+        return (
+          <FieldWrapper field={field}>
+            <ServicePortsTextField
+              value={value}
+              onChange={ports => handleFieldChange(field.path, ports)}
             />
           </FieldWrapper>
         );
@@ -568,6 +588,120 @@ export function NamespaceTextField(props: NamespaceTextFieldProps) {
         />
       )}
     />
+  );
+}
+
+/** Draft representation of a `spec.ports[i]` entry. Partial to tolerate
+ *  incomplete YAML shapes coming from the editor tab. */
+export type ServicePortDraft = RecursivePartial<KubeServicePort>;
+
+export interface ServicePortsTextFieldProps {
+  /** Current ports array. Non-array/undefined values are treated as empty. */
+  value: ServicePortDraft[] | undefined;
+  /** Called with the updated ports array. */
+  onChange: (ports: ServicePortDraft[]) => void;
+}
+
+/** Editor for a Service's `spec.ports` array. Renders one row per port with
+ *  name / port / targetPort / nodePort / protocol inputs plus add/remove
+ *  controls. `targetPort` accepts either an integer or a string (named
+ *  target port) to match the Kubernetes schema. */
+export function ServicePortsTextField(props: ServicePortsTextFieldProps) {
+  const { value, onChange } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+  const ports: ServicePortDraft[] = Array.isArray(value) ? value : [];
+
+  function updatePort(index: number, field: keyof ServicePortDraft, rawValue: string) {
+    const nextPorts = ports.map(port =>
+      port && typeof port === 'object' && !Array.isArray(port) ? { ...port } : {}
+    );
+    const nextPort = nextPorts[index];
+
+    if (rawValue === '') {
+      delete nextPort[field];
+    } else if (field === 'name' || field === 'protocol') {
+      nextPort[field] = rawValue;
+    } else if (field === 'targetPort' && !/^\d+$/.test(rawValue)) {
+      // Named target ports are valid in the K8s schema.
+      nextPort[field] = rawValue;
+    } else {
+      const numberValue = Number(rawValue);
+      if (!Number.isInteger(numberValue) || numberValue < 0) return;
+      nextPort[field] = numberValue as never;
+    }
+
+    onChange(nextPorts);
+  }
+
+  function addPort() {
+    onChange([...ports, { name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 }]);
+  }
+
+  function removePort(index: number) {
+    onChange(ports.filter((_port, portIndex) => portIndex !== index));
+  }
+
+  return (
+    <Box>
+      {ports.map((port, index) => (
+        <Box
+          key={index}
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr 1fr', md: '1.2fr 1fr 1fr 1fr 1fr auto' },
+            gap: 1,
+            alignItems: 'center',
+            mb: 2,
+          }}
+        >
+          <FormTextField
+            label={t('translation|Name')}
+            value={port?.name ?? ''}
+            onChange={event => updatePort(index, 'name', event.target.value)}
+          />
+          <FormTextField
+            label={t('translation|Port')}
+            type="number"
+            value={port?.port ?? ''}
+            onChange={event => updatePort(index, 'port', event.target.value)}
+            inputProps={{ min: 1, max: 65535 }}
+          />
+          <FormTextField
+            label={t('translation|Target Port')}
+            value={port?.targetPort ?? ''}
+            onChange={event => updatePort(index, 'targetPort', event.target.value)}
+          />
+          <FormTextField
+            label={t('translation|Node Port')}
+            type="number"
+            value={port?.nodePort ?? ''}
+            onChange={event => updatePort(index, 'nodePort', event.target.value)}
+            inputProps={{ min: 1, max: 65535 }}
+          />
+          <FormTextField
+            label={t('translation|Protocol')}
+            select
+            value={port?.protocol ?? 'TCP'}
+            onChange={event => updatePort(index, 'protocol', event.target.value)}
+          >
+            {['TCP', 'UDP', 'SCTP'].map(protocol => (
+              <MenuItem key={protocol} value={protocol}>
+                {protocol}
+              </MenuItem>
+            ))}
+          </FormTextField>
+          <IconButton aria-label={t('translation|Remove port')} onClick={() => removePort(index)}>
+            <Icon icon="mdi:close-circle" width={24} height={24} />
+          </IconButton>
+        </Box>
+      ))}
+      <Button size="small" onClick={addPort} aria-label={t('translation|Add port')}>
+        <Icon icon="mdi:plus-circle" width={24} height={24} />
+        <Typography variant="body2" sx={{ ml: 0.5 }}>
+          {t('translation|New Port')}
+        </Typography>
+      </Button>
+    </Box>
   );
 }
 
