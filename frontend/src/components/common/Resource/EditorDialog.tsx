@@ -502,32 +502,41 @@ export default function EditorDialog(props: EditorDialogProps) {
     clusterName: string,
     options?: ApplyOptions
   ) => {
-    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName, options))).then(
-      (values: any) => {
-        values.forEach((value: any, index: number) => {
-          if (value.status === 'rejected') {
-            let msg;
-            const kind = newItems[index].kind;
-            const name = newItems[index].metadata.name;
-            const apiVersion = newItems[index].apiVersion;
-            if (newItems.length === 1) {
-              msg = t('translation|Failed to create {{ kind }} {{ name }}.', { kind, name });
-            } else {
-              msg = t('translation|Failed to create {{ kind }} {{ name }} in {{ apiVersion }}.', {
+    const results = await Promise.allSettled(
+      newItems.map(newItem => apply(newItem, clusterName, options))
+    );
+
+    const failures = results
+      .map((value, index) => ({ value, index }))
+      .filter(({ value }) => value.status === 'rejected') as {
+      value: PromiseRejectedResult;
+      index: number;
+    }[];
+
+    if (failures.length > 0) {
+      const details: string[] = [];
+      const genericMsgs: string[] = [];
+
+      failures.forEach(({ value, index }) => {
+        const kind = newItems[index].kind;
+        const name = newItems[index].metadata.name;
+        const apiVersion = newItems[index].apiVersion;
+        const msg =
+          newItems.length === 1
+            ? t('translation|Failed to create {{ kind }} {{ name }}.', { kind, name })
+            : t('translation|Failed to create {{ kind }} {{ name }} in {{ apiVersion }}.', {
                 kind,
                 name,
                 apiVersion,
               });
-            }
-            const errorDetail = value.reason?.message || msg;
-            setError(errorDetail);
-            setOpen?.(true);
-            // throw msg;
-            throw new Error(msg);
-          }
-        });
-      }
-    );
+        genericMsgs.push(msg);
+        details.push(value.reason?.message || msg);
+      });
+
+      setError(details.join('\n'));
+      setOpen?.(true);
+      throw new Error(genericMsgs.join('\n'));
+    }
 
     if (!options?.dryRun) {
       onClose();
