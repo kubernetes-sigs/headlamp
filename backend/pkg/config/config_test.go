@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -1060,12 +1059,15 @@ func TestValidateTracing(t *testing.T) {
 
 func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
 	tmpDir := t.TempDir()
+	expectedDir := filepath.Join(tmpDir, "Headlamp", "kubeconfigs")
 
 	switch runtime.GOOS {
 	case "windows":
 		t.Setenv("APPDATA", tmpDir)
+		expectedDir = filepath.Join(tmpDir, "Headlamp", "Config", "kubeconfigs")
 	case "darwin":
 		t.Setenv("HOME", tmpDir)
+		expectedDir = filepath.Join(tmpDir, "Library", "Application Support", "Headlamp", "kubeconfigs")
 	default:
 		t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	}
@@ -1077,7 +1079,7 @@ func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
 	info, err := os.Stat(dir)
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
-	assert.True(t, strings.HasPrefix(dir, tmpDir))
+	assert.Equal(t, expectedDir, dir)
 }
 
 func TestMakeKubeConfigsDir(t *testing.T) {
@@ -1128,12 +1130,15 @@ func TestMakeKubeConfigsDir(t *testing.T) {
 
 func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	tmpDir := t.TempDir()
+	expectedDir := filepath.Join(tmpDir, "Headlamp", "kubeconfigs")
 
 	switch runtime.GOOS {
 	case "windows":
 		t.Setenv("APPDATA", tmpDir)
+		expectedDir = filepath.Join(tmpDir, "Headlamp", "Config", "kubeconfigs")
 	case "darwin":
 		t.Setenv("HOME", tmpDir)
+		expectedDir = filepath.Join(tmpDir, "Library", "Application Support", "Headlamp", "kubeconfigs")
 	default:
 		t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	}
@@ -1142,7 +1147,7 @@ func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, path)
 	assert.Equal(t, "config", filepath.Base(path))
-	assert.True(t, strings.HasPrefix(path, tmpDir))
+	assert.Equal(t, filepath.Join(expectedDir, "config"), path)
 
 	info, err := os.Stat(filepath.Dir(path))
 	require.NoError(t, err)
