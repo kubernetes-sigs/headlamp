@@ -690,7 +690,15 @@ export function ConditionsTable(props: ConditionsTableProps) {
       {
         label: t('Last Update'),
         getter: condition =>
-          condition.lastUpdateTime ? <DateLabel date={condition.lastUpdateTime as string} /> : '-',
+          (condition as KubeCondition & { lastUpdateTime?: string }).lastUpdateTime ? (
+            <DateLabel
+              date={
+                (condition as KubeCondition & { lastUpdateTime?: string }).lastUpdateTime as string
+              }
+            />
+          ) : (
+            '-'
+          ),
         hide: !showLastUpdate,
       },
       {
