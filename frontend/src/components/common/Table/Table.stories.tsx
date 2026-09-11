@@ -471,3 +471,20 @@ WithFilterMultiSelect.args = {
     },
   ],
 };
+
+// Row actions column should hide (and drop its grid track) when all data columns are hidden.
+export const RowActionsAllColumnsHidden = Template.bind({});
+RowActionsAllColumnsHidden.args = {
+  ...fixtureData,
+  enableRowActions: true,
+  renderRowActions: () => <Typography>action</Typography>,
+  initialState: {
+    columnVisibility: {
+      '0': false,
+      '1': false,
+      '2': false,
+      '3': false,
+      '4': false,
+    },
+  },
+};
