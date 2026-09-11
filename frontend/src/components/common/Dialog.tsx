@@ -144,13 +144,27 @@ export function Dialog(props: DialogProps) {
   const titleId = titleProps?.id || generatedId;
   const dialogAriaProps = title ? { 'aria-labelledby': titleId } : {};
 
+  // Forward aria-label to PaperProps when there is no title, since MUI v5 Dialog
+  // root has role="presentation" and the Paper child has role="dialog".
+  // Merge theme defaults (variant/elevation from themes.ts) so passing an
+  // explicit PaperProps here does not silently drop them.
+  const { 'aria-label': ariaLabel, PaperProps: existingPaperProps, ...restOther } = other;
+  const themePaperProps = theme.components?.MuiDialog?.defaultProps?.PaperProps ?? {};
+  const paperProps =
+    !title && ariaLabel
+      ? { PaperProps: { ...themePaperProps, ...existingPaperProps, 'aria-label': ariaLabel } }
+      : existingPaperProps
+      ? { PaperProps: { ...themePaperProps, ...existingPaperProps } }
+      : {};
+
   return (
     <MuiDialog
       maxWidth="lg"
       scroll="paper"
       fullWidth
       {...dialogAriaProps}
-      {...other}
+      {...restOther}
+      {...paperProps}
       fullScreen={fullScreen}
     >
       {(!!title || withFullScreen) && (
