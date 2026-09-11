@@ -18,10 +18,12 @@ import fs from 'fs';
 import { setupServer } from 'msw/node';
 import path from 'path';
 import { baseMocks as frontendMocks } from '../.storybook/baseMocks';
+import { API_BASE } from './test/index';
 
-const crdV1Url = 'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions';
-const crdV1beta1Url =
-  'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions';
+const crdV1Url = `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`;
+const crdV1beta1Url = `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`;
+const crdV1Path = '/apis/apiextensions.k8s.io/v1/customresourcedefinitions';
+const crdV1beta1Path = '/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions';
 
 describe('frontend Storybook mocks', () => {
   const server = setupServer(...frontendMocks);
@@ -52,9 +54,9 @@ it.each([
 ])('keeps the %s CRD mock contract synchronized', (_name, sourcePath) => {
   const source = fs.readFileSync(sourcePath, 'utf8');
 
-  expect(source).toContain(crdV1Url);
+  expect(source).toContain(crdV1Path);
   expect(source).toContain("kind: 'CustomResourceDefinitionList'");
   expect(source).toContain("apiVersion: 'apiextensions.k8s.io/v1'");
-  expect(source).toContain(crdV1beta1Url);
+  expect(source).toContain(crdV1beta1Path);
   expect(source).toContain('new HttpResponse(null, { status: 404 })');
 });

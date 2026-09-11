@@ -243,7 +243,7 @@ describe('SettingsCluster states and namespaces', () => {
 
   it('adds, deduplicates, and removes allowed namespaces', async () => {
     renderSettings({ allowedNamespaces: ['zeta'] });
-    const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    const input = screen.getByRole('textbox', { name: 'Additional namespaces (override)' });
 
     await userEvent.type(input, 'alpha');
     await userEvent.keyboard('{Enter}');
