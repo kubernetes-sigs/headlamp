@@ -145,6 +145,8 @@
     ],
     "GraphView/Performance Test 20000 Pods": ["color-contrast"],
     "GraphView/Performance Test 100000 Pods": ["color-contrast"],
+    "ResourceMap/SelectionBreadcrumbs/Deep Nested": ["color-contrast"],
+    "ResourceMap/SelectionBreadcrumbs/With Kube Object": ["color-contrast"],
     "StatefulSet/CreateStatefulSetForm/Default": ["label"],
     "StatefulSet/CreateStatefulSetForm/Filled": ["label"],
     "StatefulSet/CreateStatefulSetForm/On Delete Strategy": ["label"],
