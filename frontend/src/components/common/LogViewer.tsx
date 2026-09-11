@@ -89,6 +89,8 @@ export function LogViewer(props: LogViewerProps) {
     // Required for FireFox
     document.body.appendChild(element);
     element.click();
+    document.body.removeChild(element);
+    URL.revokeObjectURL(element.href);
   }
 
   React.useEffect(() => {
