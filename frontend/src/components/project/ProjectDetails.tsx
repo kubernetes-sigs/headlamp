@@ -519,6 +519,12 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
   }, [project, items, isLoading]);
 
   useEffect(() => {
+    // Guards against a slower, earlier loadTabs call resolving after a newer
+    // one and overwriting allTabs with tabs computed for the previous
+    // project (e.g. when the user switches projects quickly). Same pattern
+    // as the loadSections effect above.
+    let isCurrent = true;
+
     async function loadTabs() {
       const registeredTabsList = Object.values(registeredTabs);
       // Get a list of enabled Tabs
@@ -541,6 +547,10 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
         )
       ).filter(Boolean) as ProjectDetailsTab[];
 
+      if (!isCurrent) {
+        return;
+      }
+
       const enabledTabsById = Object.fromEntries(enabledTabs.map(tab => [tab.id, tab]));
 
       // Merge default tabs with custom tabs
@@ -553,6 +563,10 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
     }
 
     loadTabs();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [registeredTabs, project]);
 
   // Set initial selected tab to the first available tab
