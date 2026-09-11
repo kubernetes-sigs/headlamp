@@ -35,10 +35,12 @@ const {
 } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
+    _cluster: string;
     static kind = '';
     static apiGroupName = '';
-    constructor(data: any) {
+    constructor(data: any, cluster: string = '') {
       this.jsonData = data;
+      this._cluster = cluster;
     }
     get kind() {
       return this.jsonData?.kind;
@@ -59,7 +61,7 @@ const {
       return this.jsonData?.status;
     }
     get cluster() {
-      return '';
+      return this._cluster;
     }
     getName() {
       return this.jsonData?.metadata?.name ?? '';
@@ -953,5 +955,33 @@ describe('LogsButton', () => {
     // 5. Verify the hook state reflects the unchecked INFO severity
     // (default was ['error', 'warn', 'info'], so unchecking INFO leaves ['error', 'warn'])
     expect(result.current[0]).toEqual(['error', 'warn']);
+  });
+
+  it('retains workload cluster context when fetching and retrieving logs for related pods', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodData] }),
+    });
+
+    let podInstance: any;
+    Pod.prototype.getLogs = vi.fn(function (this: any) {
+      podInstance = this;
+      return () => {};
+    }) as any;
+
+    const workloadData = { ...deploymentData, cluster: 'cluster-B' };
+    const workload = new Deployment(workloadData as any, 'cluster-B');
+
+    render(
+      <TestContext>
+        <LogsButton item={workload} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(podInstance).toBeDefined());
+    expect(podInstance.cluster).toBe('cluster-B');
   });
 });
