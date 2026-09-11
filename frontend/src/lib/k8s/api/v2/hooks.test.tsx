@@ -15,7 +15,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
 import { ApiError } from './ApiError';
@@ -434,6 +434,52 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.enabled).toBe(true);
       expect(lastCall.url()).toContain('namespaces/my-ns');
     });
+  });
+
+  it('keeps the requested cluster on objects rebuilt from a watch update', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'watched-cluster',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    expect((result.current.data as any).cluster).toBe('watched-cluster');
+
+    const calls = mockUseWebSockets.mock.calls;
+    const { onMessage } = calls[calls.length - 1][0].connections[0];
+
+    act(() =>
+      onMessage({
+        type: 'MODIFIED',
+        object: {
+          apiVersion: 'v1',
+          kind: 'Pod',
+          metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '2' },
+        },
+      })
+    );
+
+    await waitFor(() =>
+      expect((result.current.data as any).jsonData.metadata.resourceVersion).toBe('2')
+    );
+    // The rebuilt object must still belong to the cluster this hook watches, not
+    // whichever cluster the constructor would otherwise fall back to.
+    expect((result.current.data as any).cluster).toBe('watched-cluster');
   });
 
   it('re-subscribes to the new resource when navigating between resources of the same kind', async () => {
