@@ -24,6 +24,8 @@ type Profile struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Key       string `json:"key"`
+	// DisplayName is the human-readable name from ClusterProfileSpec.DisplayName, when set.
+	DisplayName string `json:"displayName,omitempty"`
 }
 
 // Version contains version details reported by Cluster Inventory.
