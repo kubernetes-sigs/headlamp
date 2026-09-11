@@ -80,7 +80,7 @@ export default function VpaDetails(props: { name?: string; namespace?: string; c
                     },
                     {
                       label: t('translation|Controlled Resources'),
-                      getter: item => item?.controlledResources.join(', '),
+                      getter: item => item?.controlledResources?.join(', ') ?? 'cpu, memory',
                     },
                     {
                       label: t('translation|Controlled Values'),
