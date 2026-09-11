@@ -14,12 +14,49 @@
  * limitations under the License.
  */
 
+import { createTheme, getContrastRatio } from '@mui/material/styles';
 import { act, render } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, useHistory } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as isElectronModule from '../../helpers/isElectron';
-import { isValidRedirectPath, RouteZoomSync } from './AppContainer';
+import { createMuiTheme } from '../../lib/themes';
+import { getSuccessSnackbarBackground, isValidRedirectPath, RouteZoomSync } from './AppContainer';
+
+describe('getSuccessSnackbarBackground', () => {
+  it('uses the active theme success background for each color mode', () => {
+    const lightTheme = createTheme({
+      palette: { mode: 'light', success: { main: '#123456' } },
+    });
+    const darkTheme = createTheme({
+      palette: { mode: 'dark', success: { main: '#abcdef', light: '#654321' } },
+    });
+
+    expect(getSuccessSnackbarBackground(lightTheme)).toBe('#123456');
+    expect(getSuccessSnackbarBackground(darkTheme)).toBe('#654321');
+  });
+
+  // WCAG 2.1 SC 1.4.3 (Contrast Minimum, Level AA) requires 4.5:1 for normal
+  // text. Notistack renders the success snackbar's text in white, so the
+  // background picked from Headlamp's real themes must clear that bar.
+  it.each([
+    ['light', 'light'],
+    ['dark', 'dark'],
+  ] as const)(
+    'meets WCAG AA contrast against white text for the built-in %s theme',
+    (name, base) => {
+      const muiTheme = createMuiTheme({ name, base });
+
+      expect(muiTheme.palette.mode).toBe(base);
+
+      const background = getSuccessSnackbarBackground(muiTheme);
+      expect(
+        getContrastRatio('#fff', background),
+        `white text vs success snackbar background (${background})`
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  );
+});
 
 describe('isValidRedirectPath', () => {
   it('should allow safe internal paths', () => {
