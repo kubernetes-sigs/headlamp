@@ -19,6 +19,7 @@ import { MRT_TableInstance } from 'material-react-table';
 import { useCallback } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import DeleteMultipleButton from './DeleteMultipleButton';
+import EditMetadataMultipleButton, { isPatchableResource } from './EditMetadataMultipleButton';
 import { isRestartableResource } from './RestartButton';
 import RestartMultipleButton from './RestartMultipleButton';
 import ScaleMultipleButton, { isScalableResource } from './ScaleMultipleButton';
@@ -35,6 +36,7 @@ export default function ResourceTableMultiActions<RowItem extends Record<string,
   const items = table.getSelectedRowModel().rows.map(t => t.original as unknown as KubeObject);
   const restartableItems = items.filter(isRestartableResource);
   const scalableItems = items.filter(isScalableResource);
+  const patchableItems = items.filter(isPatchableResource);
 
   const afterConfirm = useCallback(() => {
     table.resetRowSelection();
@@ -50,6 +52,11 @@ export default function ResourceTableMultiActions<RowItem extends Record<string,
       {restartableItems.length > 0 && (
         <Grid item>
           <RestartMultipleButton items={restartableItems} afterConfirm={afterConfirm} />
+        </Grid>
+      )}
+      {patchableItems.length > 0 && (
+        <Grid item>
+          <EditMetadataMultipleButton items={patchableItems} afterConfirm={afterConfirm} />
         </Grid>
       )}
       <Grid item>
