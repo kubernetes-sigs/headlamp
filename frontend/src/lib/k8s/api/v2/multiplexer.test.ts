@@ -95,6 +95,11 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
     WebSocketManager.pendingUnsubscribes.clear();
+    if (WebSocketManager.reconnectTimer !== null) {
+      clearTimeout(WebSocketManager.reconnectTimer);
+    }
+    WebSocketManager.reconnectTimer = null;
+    WebSocketManager.reconnectAttempts = 0;
   });
 
   describe('WebSocketManager', () => {
@@ -651,6 +656,78 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.connecting).toBe(false);
       expect(WebSocketManager.completedPaths.size).toBe(0);
       expect(WebSocketManager.isReconnecting).toBe(true); // Should be true since we have active subscriptions
+
+      // Stop the scheduled reconnect from firing during this test.
+      if (WebSocketManager.reconnectTimer !== null) {
+        clearTimeout(WebSocketManager.reconnectTimer);
+        WebSocketManager.reconnectTimer = null;
+      }
+    });
+
+    it('schedules an automatic reconnect after close while subscriptions exist', async () => {
+      vi.useFakeTimers();
+
+      WebSocketManager.activeSubscriptions.set('k', {
+        clusterId: clusterName,
+        path: '/p',
+        query: '',
+      });
+      const connectSpy = vi
+        .spyOn(WebSocketManager, 'connect')
+        .mockResolvedValue({ send: vi.fn() } as unknown as WebSocket);
+
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      // First attempt fires after ~1s of backoff.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+
+    it('backs off between reconnect attempts', async () => {
+      vi.useFakeTimers();
+
+      WebSocketManager.activeSubscriptions.set('k', {
+        clusterId: clusterName,
+        path: '/p',
+        query: '',
+      });
+      const connectSpy = vi.spyOn(WebSocketManager, 'connect').mockRejectedValue(new Error('down'));
+
+      WebSocketManager.handleWebSocketClose();
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(connectSpy).not.toHaveBeenCalled();
+
+      // First attempt after ~1s.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      // Second attempt only after the doubled delay (~2s).
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(connectSpy).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('does not schedule reconnect when no subscriptions remain', () => {
+      vi.useFakeTimers();
+
+      const connectSpy = vi
+        .spyOn(WebSocketManager, 'connect')
+        .mockResolvedValue({ send: vi.fn() } as unknown as WebSocket);
+
+      WebSocketManager.handleWebSocketClose();
+
+      expect(WebSocketManager.isReconnecting).toBe(false);
+      vi.advanceTimersByTime(60_000);
+      expect(connectSpy).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
     });
 
     it('should handle error in message callback', async () => {
