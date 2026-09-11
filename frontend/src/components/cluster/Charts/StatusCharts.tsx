@@ -19,8 +19,10 @@ import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHistory } from 'react-router-dom';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
+import { createRouteURL } from '../../../lib/router/createRouteURL';
 import Link from '../../common/Link';
 import TileChart from '../../common/TileChart';
 import { hasAKSManagedNodes, useIsUpgradeDetected } from '../../node/upgradeDetection';
@@ -28,15 +30,17 @@ import { isNodeCordoned, isNodeDrained } from '../../node/utils';
 
 export function PodsStatusCircleChart(props: { items: Pod[] | null }) {
   const theme = useTheme();
+  const history = useHistory();
   const { items } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
   const podsReady = (items || []).filter((pod: Pod) => {
-    if (pod.status!.phase === 'Succeeded') {
+    if (pod.status?.phase === 'Succeeded') {
       return true;
     }
-
-    const readyCondition = pod.status?.conditions?.find(condition => condition.type === 'Ready');
+    const readyCondition = pod.status?.conditions?.find(
+      (condition: { type: string; status: string }) => condition.type === 'Ready'
+    );
     return readyCondition?.status === 'True';
   });
 
@@ -66,12 +70,17 @@ export function PodsStatusCircleChart(props: { items: Pod[] | null }) {
     return [
       {
         name: 'ready',
+        label: t('translation|Ready'),
         value: podsReady.length,
+        fill: theme.palette.success.main,
+        onClick: () => history.push(createRouteURL('pods') + '?podsfilter=Ready'),
       },
       {
         name: 'notReady',
+        label: t('translation|Not Ready'),
         value: items.length - podsReady.length,
         fill: theme.palette.error.main,
+        onClick: () => history.push(createRouteURL('pods') + '?podsfilter=NotReady'),
       },
     ];
   }
@@ -81,7 +90,8 @@ export function PodsStatusCircleChart(props: { items: Pod[] | null }) {
       data={getData()}
       total={items !== null ? items.length : -1}
       label={getLabel()}
-      title={t('glossary|Pods')}
+      title={<Link routeName="pods">{t('glossary|Pods')}</Link>}
+      loadingTitle={t('glossary|Pods')}
       legend={getLegend()}
     />
   );
@@ -126,6 +136,7 @@ export function NodesStatusCircleChart(props: {
   podsLoaded?: boolean;
 }) {
   const theme = useTheme();
+  const history = useHistory();
   const { items, pods, podsLoaded } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
@@ -218,22 +229,30 @@ export function NodesStatusCircleChart(props: {
     return [
       {
         name: 'ready',
+        label: t('translation|Ready'),
         value: schedulable,
+        fill: theme.palette.success.main,
+        onClick: () => history.push(createRouteURL('nodes') + '?nodesfilter=Ready'),
       },
       {
         name: 'cordoned',
+        label: t('translation|Cordoned'),
         value: cordoned,
         fill: theme.palette.warning.main,
+        onClick: () => history.push(createRouteURL('nodes') + '?nodesfilter=Cordoned'),
       },
       {
         name: 'drained',
+        label: t('translation|Drained'),
         value: drained,
         fill: theme.palette.warning.dark,
       },
       {
         name: 'notReady',
+        label: t('translation|Not Ready'),
         value: notReady,
         fill: theme.palette.error.main,
+        onClick: () => history.push(createRouteURL('nodes') + '?nodesfilter=NotReady'),
       },
     ];
   }
@@ -243,7 +262,8 @@ export function NodesStatusCircleChart(props: {
       data={getData()}
       total={items !== null ? items.length : -1}
       label={getLabel()}
-      title={t('glossary|Nodes')}
+      title={<Link routeName="nodes">{t('glossary|Nodes')}</Link>}
+      loadingTitle={t('glossary|Nodes')}
       legend={getLegend()}
       extraContent={isAKSCluster ? <NodesUpgradeLink /> : null}
     />

@@ -120,7 +120,7 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    * Function to filter the rows
    * Works in addition to the default table filtering and searching
    */
-  filterFunction?: (item: RowItem) => boolean;
+  filterFunction?: (item: RowItem, search?: string) => boolean | undefined;
   /**
    * Whether to show a loading spinner
    */
@@ -271,7 +271,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const tableData = useMemo(() => {
     if (!filterFunction) return tableProps.data ?? [];
-    return (tableProps.data ?? []).filter(it => filterFunction(it));
+    return (tableProps.data ?? []).filter(it => filterFunction(it) !== false);
   }, [tableProps.data, filterFunction]);
 
   const paginationSelectProps = import.meta.env.UNDER_TEST

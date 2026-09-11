@@ -166,7 +166,7 @@ export interface ResourceTableProps<RowItem> {
   /** Rows data */
   data: Array<RowItem> | null;
   /** Filter out rows from the table */
-  filterFunction?: (item: RowItem) => boolean;
+  filterFunction?: (item: RowItem, search?: string) => boolean | undefined;
   /** Display an error message. Table will be hidden even if data is present */
   errorMessage?: string | null;
   /** Display an errors */
@@ -750,9 +750,15 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         renderRowActionMenuItems={renderRowActionMenuItems}
         filterFns={{
           kubeObjectSearch: (row, id, filterValue) => {
-            const customFilterResult = filterFunc(row.original, filterValue);
+            if (filterFunction) {
+              const customFilterResult = (filterFunction as any)(row.original, filterValue);
+              if (typeof customFilterResult === 'boolean') {
+                return customFilterResult;
+              }
+            }
+            const defaultFilterResult = defaultFilterFunc(row.original, filterValue);
             const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
-            return customFilterResult || fuzzyColumnsResult;
+            return defaultFilterResult || fuzzyColumnsResult;
           },
         }}
         globalFilterFn="kubeObjectSearch"
