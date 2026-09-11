@@ -780,6 +780,105 @@ func TestOIDCTLSValidation(t *testing.T) {
 	}
 }
 
+// writeTestAssertionFile writes a client assertion file with the given contents
+// and returns its path.
+func writeTestAssertionFile(t *testing.T, contents string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "assertion.jwt")
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+
+	return path
+}
+
+type oidcClientAssertionFileTest struct {
+	name          string
+	args          []string
+	expectedPath  string
+	expectError   bool
+	errorContains string
+}
+
+// oidcClientAssertionFileTests builds the parse cases, given a readable
+// assertion file and a path that does not exist.
+func oidcClientAssertionFileTests(assertionFile, absentAssertionFile string) []oidcClientAssertionFileTest {
+	return []oidcClientAssertionFileTest{
+		{
+			name: "valid_assertion_file",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-client-assertion-file=" + assertionFile,
+			},
+			expectedPath: assertionFile,
+			expectError:  false,
+		},
+		{
+			name: "assertion_file_with_client_secret",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-client-assertion-file=" + assertionFile,
+				"--oidc-client-secret=aSecret",
+			},
+			expectError:   true,
+			errorContains: "mutually exclusive with oidc-client-secret",
+		},
+		{
+			name: "unreadable_file_is_accepted_at_config_parse_time",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-client-assertion-file=" + absentAssertionFile,
+			},
+			expectedPath: absentAssertionFile,
+			expectError:  false,
+		},
+		{
+			name: "assertion_file_without_incluster",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-client-assertion-file=" + assertionFile,
+			},
+			expectError:   true,
+			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
+		},
+	}
+}
+
+func TestOIDCClientAssertionFile(t *testing.T) {
+	assertionFile := writeTestAssertionFile(t, "header.payload.signature\n")
+	absentAssertionFile := filepath.Join(t.TempDir(), "absent.jwt")
+
+	for _, tt := range oidcClientAssertionFileTests(assertionFile, absentAssertionFile) {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+				assert.Equal(t, tt.expectedPath, conf.OidcClientAssertionFile)
+			}
+		})
+	}
+}
+
+func TestOIDCClientAssertionFileEnvironmentVariables(t *testing.T) {
+	assertionFile := writeTestAssertionFile(t, "header.payload.signature\n")
+
+	t.Setenv("HEADLAMP_CONFIG_IN_CLUSTER", "true")
+	t.Setenv("HEADLAMP_CONFIG_OIDC_CLIENT_ASSERTION_FILE", assertionFile)
+
+	conf, err := config.Parse([]string{"go run ./cmd"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, assertionFile, conf.OidcClientAssertionFile)
+}
+
 func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	tests := []struct {
 		name   string
