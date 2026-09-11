@@ -19,6 +19,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { Meta, StoryFn } from '@storybook/react';
+import { SnackbarProvider } from 'notistack';
 import { useCallback, useEffect, useState } from 'react';
 import { action } from 'storybook/actions';
 import { getTestDate } from '../../helpers/testHelpers';
@@ -27,6 +28,13 @@ import { LogViewer, LogViewerProps } from './LogViewer';
 export default {
   title: 'LogViewer',
   component: LogViewer,
+  decorators: [
+    Story => (
+      <SnackbarProvider>
+        <Story />
+      </SnackbarProvider>
+    ),
+  ],
   argTypes: {
     onClose: { action: 'closed' },
   },
@@ -53,7 +61,20 @@ BasicLogs.parameters = {
     },
   },
 };
-
+export const WithCopyButton = Template.bind({});
+WithCopyButton.args = {
+  logs: ['first log entry\n', 'second log entry\n', 'third log entry\n', 'end of log stream'],
+  title: 'With Copy Button',
+  downloadName: 'with-copy-button-logs',
+  open: true,
+};
+WithCopyButton.parameters = {
+  docs: {
+    description: {
+      story: 'LogViewer showing the copy-to-clipboard action button alongside Download.',
+    },
+  },
+};
 export const ColoredLogs = Template.bind({});
 ColoredLogs.args = {
   logs: [

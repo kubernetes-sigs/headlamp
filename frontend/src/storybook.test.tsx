@@ -132,6 +132,16 @@ function replaceUseId(node: any) {
         'xterm-dom-renderer-owner'
       );
     }
+
+    if (node.tagName === 'STYLE' && typeof node.textContent === 'string') {
+      const normalizedTextContent = node.textContent
+        .replace(/xterm-dom-renderer-owner-\d+/g, 'xterm-dom-renderer-owner')
+        .replace(/blink_(underline|bar|block)_\d+/g, 'blink_$1');
+
+      if (normalizedTextContent !== node.textContent) {
+        node.textContent = normalizedTextContent;
+      }
+    }
   }
 
   // Recursively update child nodes
