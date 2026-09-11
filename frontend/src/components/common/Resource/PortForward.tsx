@@ -367,7 +367,7 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, portForward.id, true)
+    stopOrDeletePortForward(cluster, portForward.id, /* stopOnly */ true)
       .then(() => {
         setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
@@ -387,7 +387,7 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, id, false)
+    stopOrDeletePortForward(cluster, id, /* stopOnly */ false)
       .then(() => {
         const parsedPortForwards = getPortForwardsFromStorage();
         const index = parsedPortForwards.findIndex((pf: PortForwardState) => pf.id === id);
