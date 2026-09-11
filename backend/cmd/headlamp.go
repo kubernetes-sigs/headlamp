@@ -361,7 +361,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 		pluginHandler = serveWithNoCacheHeader(pluginHandler)
 	}
 
-	r.PathPrefix("/plugins/").Handler(pluginHandler)
+	r.PathPrefix("/plugins/").Handler(auth.NewBackendTokenMiddleware(config.UseInCluster)(pluginHandler))
 
 	// Serve user-installed plugins
 	if config.UserPluginDir != "" {
@@ -371,7 +371,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 			userPluginsHandler = serveWithNoCacheHeader(userPluginsHandler)
 		}
 
-		r.PathPrefix("/user-plugins/").Handler(userPluginsHandler)
+		r.PathPrefix("/user-plugins/").Handler(auth.NewBackendTokenMiddleware(config.UseInCluster)(userPluginsHandler))
 	}
 
 	// Serve shipped/static plugins
@@ -382,7 +382,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 			staticPluginsHandler = serveWithNoCacheHeader(staticPluginsHandler)
 		}
 
-		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
+		r.PathPrefix("/static-plugins/").Handler(auth.NewBackendTokenMiddleware(config.UseInCluster)(staticPluginsHandler))
 	}
 }
 
@@ -456,53 +456,54 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 // addPluginListRoute registers a GET endpoint handler at "/plugins" that serves the list of available plugins.
 // It handles Telemetry, metrics collection, and plugin list caching.
 func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
-	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+	r.Handle("/plugins", auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 
-		var span trace.Span
+			var span trace.Span
 
-		// Start tracing for listPlugins.
-		if config.Telemetry != nil {
-			_, span = telemetry.CreateSpan(ctx, r, "plugins", "listPlugins")
-
-			defer span.End()
-		}
-
-		// Increment metric for plugin loads
-		if config.Telemetry != nil && config.Metrics != nil {
-			config.Metrics.PluginLoadCount.Add(ctx, 1)
-		}
-
-		logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
-
-		w.Header().Set("Content-Type", "application/json")
-
-		pluginsList, err := config.Cache.Get(context.Background(), plugins.PluginListKey)
-		if err != nil && errors.Is(err, cache.ErrNotFound) {
-			pluginsList = []plugins.PluginMetadata{}
-
+			// Start tracing for listPlugins.
 			if config.Telemetry != nil {
-				span.SetAttributes(attribute.Int("plugins.count", 0))
-			}
-		} else if config.Telemetry != nil && pluginsList != nil {
-			if list, ok := pluginsList.([]plugins.PluginMetadata); ok {
-				span.SetAttributes(attribute.Int("plugins.count", len(list)))
-			}
-		}
+				_, span = telemetry.CreateSpan(ctx, r, "plugins", "listPlugins")
 
-		if err := json.NewEncoder(w).Encode(pluginsList); err != nil {
-			logger.Log(logger.LevelError, nil, err, "encoding plugins base paths list")
-		} else {
-			// Notify that the client has requested the plugins list. So we can start sending
-			// refresh requests.
-			if err := config.Cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
-				config.TelemetryHandler.RecordError(span, err, "Failed to set plugin-can-send-refresh key")
-				logger.Log(logger.LevelError, nil, err, "setting plugin-can-send-refresh key failed")
-			} else if config.Telemetry != nil {
-				span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
+				defer span.End()
 			}
-		}
-	}).Methods("GET")
+
+			// Increment metric for plugin loads
+			if config.Telemetry != nil && config.Metrics != nil {
+				config.Metrics.PluginLoadCount.Add(ctx, 1)
+			}
+
+			logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
+
+			w.Header().Set("Content-Type", "application/json")
+
+			pluginsList, err := config.Cache.Get(context.Background(), plugins.PluginListKey)
+			if err != nil && errors.Is(err, cache.ErrNotFound) {
+				pluginsList = []plugins.PluginMetadata{}
+
+				if config.Telemetry != nil {
+					span.SetAttributes(attribute.Int("plugins.count", 0))
+				}
+			} else if config.Telemetry != nil && pluginsList != nil {
+				if list, ok := pluginsList.([]plugins.PluginMetadata); ok {
+					span.SetAttributes(attribute.Int("plugins.count", len(list)))
+				}
+			}
+
+			if err := json.NewEncoder(w).Encode(pluginsList); err != nil {
+				logger.Log(logger.LevelError, nil, err, "encoding plugins base paths list")
+			} else {
+				// Notify that the client has requested the plugins list. So we can start sending
+				// refresh requests.
+				if err := config.Cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
+					config.TelemetryHandler.RecordError(span, err, "Failed to set plugin-can-send-refresh key")
+					logger.Log(logger.LevelError, nil, err, "setting plugin-can-send-refresh key failed")
+				} else if config.Telemetry != nil {
+					span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
+				}
+			}
+		}))).Methods("GET")
 }
 
 func readServiceAccountNamespace() (string, error) {
