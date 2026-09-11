@@ -21,7 +21,7 @@ func RequestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	clusterName, namespace, name, requestURI := parseInfoFromRequest(r)
+	clusterName, namespace, name, requestURI, portSelector := parseInfoFromRequest(r)
 
 	// Must run before anything writes to w: changing the header map after
 	// WriteHeader or Write has no effect.
@@ -59,7 +59,7 @@ func RequestHandler(
 	}
 
 	// Get the service
-	ps, status, err := getServiceFromCluster(r.Context(), cs, namespace, name)
+	ps, status, err := getServiceFromCluster(r.Context(), cs, namespace, name, portSelector)
 	if err != nil {
 		w.WriteHeader(status)
 		return
@@ -75,13 +75,14 @@ func shouldUseUnsafeServiceAccountToken(ctx *kubeconfig.Context, unsafeUseServic
 	return unsafeUseServiceAccountToken && ctx.UsesInClusterServiceAccountToken()
 }
 
-func parseInfoFromRequest(r *http.Request) (string, string, string, string) {
+func parseInfoFromRequest(r *http.Request) (string, string, string, string, string) {
 	clusterName := mux.Vars(r)["clusterName"]
 	namespace := mux.Vars(r)["namespace"]
 	name := mux.Vars(r)["name"]
 	requestURI := r.URL.Query().Get("request")
+	portSelector := r.URL.Query().Get("port")
 
-	return clusterName, namespace, name, requestURI
+	return clusterName, namespace, name, requestURI, portSelector
 }
 
 func getAuthToken(r *http.Request, clusterName string) (string, error) {
@@ -106,9 +107,9 @@ func getAuthToken(r *http.Request, clusterName string) (string, error) {
 }
 
 func getServiceFromCluster(
-	ctx context.Context, cs kubernetes.Interface, namespace string, name string,
+	ctx context.Context, cs kubernetes.Interface, namespace string, name string, portSelector string,
 ) (*proxyService, int, error) {
-	ps, err := GetService(ctx, cs, namespace, name)
+	ps, err := GetServiceWithPort(ctx, cs, namespace, name, portSelector)
 	if err != nil {
 		if errors.IsUnauthorized(err) {
 			return nil, http.StatusUnauthorized, err

@@ -87,6 +87,70 @@ func TestGetServiceNonExistent(t *testing.T) {
 	}
 }
 
+func TestGetServiceWithPortByName(t *testing.T) {
+	cs := fake.NewClientset()
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metrics-service",
+			Namespace: "default",
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{Name: "metrics", Port: 9090},
+				{Name: "http", Port: 80},
+			},
+		},
+	}
+
+	_, err := cs.CoreV1().Services("default").Create(context.Background(), service, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test service: %v", err)
+	}
+
+	ps, err := serviceproxy.GetServiceWithPort(context.Background(), cs, "default", "metrics-service", "metrics")
+	if err != nil {
+		t.Fatalf("GetServiceWithPort() error = %v", err)
+	}
+
+	if ps.URIPrefix != "http://metrics-service.default:9090" {
+		t.Errorf("GetServiceWithPort() URIPrefix = %s, want http://metrics-service.default:9090", ps.URIPrefix)
+	}
+}
+
+func TestGetServiceWithPortByNumber(t *testing.T) {
+	cs := fake.NewClientset()
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web-service",
+			Namespace: "default",
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{Name: "web", Port: 8080},
+			},
+		},
+	}
+
+	_, err := cs.CoreV1().Services("default").Create(context.Background(), service, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test service: %v", err)
+	}
+
+	// Default GetService still fails without http/https named ports.
+	if _, err := serviceproxy.GetService(context.Background(), cs, "default", "web-service"); err == nil {
+		t.Fatal("GetService() expected error for service without http/https ports")
+	}
+
+	ps, err := serviceproxy.GetServiceWithPort(context.Background(), cs, "default", "web-service", "8080")
+	if err != nil {
+		t.Fatalf("GetServiceWithPort() error = %v", err)
+	}
+
+	if ps.URIPrefix != "http://web-service.default:8080" {
+		t.Errorf("GetServiceWithPort() URIPrefix = %s, want http://web-service.default:8080", ps.URIPrefix)
+	}
+}
+
 func TestGetPort(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -136,6 +200,60 @@ func TestGetPort(t *testing.T) {
 
 			if !tt.wantErr && port.Port != tt.wantPort {
 				t.Errorf("GetPort() port = %d, wantPort %d", port.Port, tt.wantPort)
+			}
+		})
+	}
+}
+
+func TestResolvePort(t *testing.T) {
+	ports := []corev1.ServicePort{
+		{Name: "https", Port: 443},
+		{Name: "http", Port: 80},
+		{Name: "metrics", Port: 9090},
+	}
+
+	tests := []struct {
+		name         string
+		portSelector string
+		wantPort     int32
+		wantErr      bool
+	}{
+		{
+			name:         "empty selector keeps http/https default",
+			portSelector: "",
+			wantPort:     443,
+		},
+		{
+			name:         "select by name",
+			portSelector: "metrics",
+			wantPort:     9090,
+		},
+		{
+			name:         "select by number",
+			portSelector: "80",
+			wantPort:     80,
+		},
+		{
+			name:         "unknown name",
+			portSelector: "web",
+			wantErr:      true,
+		},
+		{
+			name:         "unknown number",
+			portSelector: "1234",
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			port, err := serviceproxy.ResolvePort(ports, tt.portSelector)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolvePort() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr && port.Port != tt.wantPort {
+				t.Fatalf("ResolvePort() port = %d, wantPort %d", port.Port, tt.wantPort)
 			}
 		})
 	}
