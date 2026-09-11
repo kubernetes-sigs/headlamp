@@ -29,8 +29,8 @@ import ErrorBoundary from '../common/ErrorBoundary';
 export interface AppLogoProps {
   /** The size of the logo. 'small' for in mobile view, and 'large' for tablet and desktop sizes. By default the 'large' is used. */
   logoType?: 'small' | 'large';
-  /** User selected theme. By default it checks which is is active. */
-  themeName?: string;
+  /** User selected theme. By default it checks which theme is active. */
+  themeName?: 'dark' | 'light';
   /** A class to use on your SVG. */
   className?: string;
   /** SxProps to use on your SVG. */
