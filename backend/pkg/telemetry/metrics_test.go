@@ -364,11 +364,35 @@ func verifyPanicMetrics(t *testing.T, ctx context.Context, reader *sdkmetric.Man
 }
 
 func verifyRequestCountMetric(t *testing.T, data metricdata.ResourceMetrics) {
-	// Implementation specific to checking request count metric
+	for _, scopeMetric := range data.ScopeMetrics {
+		for _, m := range scopeMetric.Metrics {
+			if m.Name == metricRequestCount {
+				sum := sumDataPoints(m.Data)
+				assert.Equal(t, int64(2), sum,
+					"expected 2 request count increments (one normal + one panic)")
+
+				return
+			}
+		}
+	}
+
+	t.Error("request count metric not found")
 }
 
 func verifyActiveRequestsMetric(t *testing.T, data metricdata.ResourceMetrics) {
-	// Implementation specific to checking active requests metric
+	for _, scopeMetric := range data.ScopeMetrics {
+		for _, m := range scopeMetric.Metrics {
+			if m.Name == metricActiveRequests {
+				lastVal := sumDataPoints(m.Data)
+				assert.Equal(t, int64(0), lastVal,
+					"expected active requests gauge to return to zero after panic recovery")
+
+				return
+			}
+		}
+	}
+
+	t.Error("active requests metric not found")
 }
 
 func sumDataPoints(data metricdata.Aggregation) int64 {
