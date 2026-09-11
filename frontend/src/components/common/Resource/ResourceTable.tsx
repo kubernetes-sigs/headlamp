@@ -721,8 +721,9 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const filterFunc = filterFunction ?? defaultFilterFunc;
 
   // Faceted values build a unique-value map per column across the full dataset.
-  // On large clusters this is the dominant cause of OOM crashes, so we disable
-  // it once the dataset exceeds a threshold where the cost outweighs the UX benefit.
+  // On large clusters this is the dominant cause of OOM crashes, so we disable it once the
+  // dataset exceeds a threshold. Table then fills the select filters from a bounded walk of
+  // the dropdown columns alone, which keeps those filters usable without the full map.
   const enableFacetedValues = (data?.length ?? 0) <= 500;
 
   return (

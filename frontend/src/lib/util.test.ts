@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import { renderHook } from '@testing-library/react';
+import React from 'react';
+import { Provider } from 'react-redux';
+import store from '../redux/stores/store';
 import {
   combineClusterListErrors,
   compareUnits,
@@ -23,6 +27,7 @@ import {
   isValidTimezone,
   normalizeUnit,
   timeAgo,
+  useFilterFunc,
 } from './util';
 
 const SECOND = 1000;
@@ -445,5 +450,57 @@ describe('compareUnits', () => {
     expect(compareUnits('abc', '1')).toBe(false);
     expect(compareUnits('1', 'abc')).toBe(false);
     expect(compareUnits('', '')).toBe(false);
+  });
+});
+
+describe('useFilterFunc', () => {
+  // The file is plain TypeScript, so the provider is built without JSX.
+  const withStore = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(Provider as React.ComponentType<any>, { store }, children);
+
+  it('keeps the same function across renders', () => {
+    const { result, rerender } = renderHook(() => useFilterFunc(), { wrapper: withStore });
+    const first = result.current;
+
+    rerender();
+
+    // Tables memoize their rows on this function, a new identity would discard them.
+    expect(result.current).toBe(first);
+  });
+
+  it('keeps the same function when the criteria arrive as a new array each render', () => {
+    // Every caller passes an inline literal, so identity alone would never hold.
+    const { result, rerender } = renderHook(() => useFilterFunc(['.jsonData.kind']), {
+      wrapper: withStore,
+    });
+    const first = result.current;
+
+    rerender();
+
+    expect(result.current).toBe(first);
+  });
+
+  it('tells apart criteria a plain separator join would conflate', () => {
+    const { result, rerender } = renderHook(({ criteria }) => useFilterFunc(criteria), {
+      initialProps: { criteria: ['a', 'b'] },
+      wrapper: withStore,
+    });
+    const first = result.current;
+
+    rerender({ criteria: ['a\u0000b'] });
+
+    expect(result.current).not.toBe(first);
+  });
+
+  it('returns a new function when the match criteria change', () => {
+    const { result, rerender } = renderHook(({ criteria }) => useFilterFunc(criteria), {
+      initialProps: { criteria: ['a'] },
+      wrapper: withStore,
+    });
+    const first = result.current;
+
+    rerender({ criteria: ['b'] });
+
+    expect(result.current).not.toBe(first);
   });
 });

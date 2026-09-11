@@ -34,7 +34,12 @@ const { tableMocks } = vi.hoisted(() => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+  useTranslation: () => ({
+    // Keys stand in for their translation, with the interpolation i18next would do.
+    t: (key: string, values?: Record<string, unknown>) =>
+      key.replace(/{{(\w+)}}/g, (_match, name) => String(values?.[name])),
+    i18n: { language: 'en' },
+  }),
 }));
 
 vi.mock('../../../lib/useShortcut', () => ({ useShortcut: vi.fn() }));
@@ -54,9 +59,6 @@ vi.mock('../../resourceMap/useQueryParamsState', () => ({
 }));
 vi.mock('./ColumnVisibilityButton', () => ({
   ColumnVisibilityButton: () => <button data-testid="column-visibility" />,
-}));
-vi.mock('./useScrollPreservation', () => ({
-  useScrollPreservationOnDataChange: () => ({ ref: { current: null }, onScroll: vi.fn() }),
 }));
 
 vi.mock('material-react-table', () => ({
@@ -165,18 +167,18 @@ function toolbarTable(selectedRows: object[] = []) {
   };
 }
 
-describe('Table toolbar and selection props', () => {
-  beforeEach(() => {
-    tableMocks.cellContext = 'plain';
-    tableMocks.columnVisibility = {};
-    tableMocks.forceNoRows = false;
-    tableMocks.options = null;
-    tableMocks.setColumnVisibility.mockClear();
-    tableMocks.setRowSelection.mockClear();
-    tableMocks.setTablesRowsPerPage.mockClear();
-    tableMocks.setURLState.mockClear();
-  });
+beforeEach(() => {
+  tableMocks.cellContext = 'plain';
+  tableMocks.columnVisibility = {};
+  tableMocks.forceNoRows = false;
+  tableMocks.options = null;
+  tableMocks.setColumnVisibility.mockClear();
+  tableMocks.setRowSelection.mockClear();
+  tableMocks.setTablesRowsPerPage.mockClear();
+  tableMocks.setURLState.mockClear();
+});
 
+describe('Table toolbar and selection props', () => {
   it.each([
     ['by default', {}],
     ['when enabled', { enableTopToolbar: true }],
@@ -243,17 +245,6 @@ describe('Table toolbar and selection props', () => {
 });
 
 describe('Table states and options', () => {
-  beforeEach(() => {
-    tableMocks.cellContext = 'plain';
-    tableMocks.columnVisibility = {};
-    tableMocks.forceNoRows = false;
-    tableMocks.options = null;
-    tableMocks.setColumnVisibility.mockClear();
-    tableMocks.setRowSelection.mockClear();
-    tableMocks.setTablesRowsPerPage.mockClear();
-    tableMocks.setURLState.mockClear();
-  });
-
   it('renders error, loading, and empty states', () => {
     const errorResult = renderTable({ errorMessage: 'Unable to load rows' });
     expect(screen.getByText('Unable to load rows')).toBeVisible();
@@ -443,5 +434,430 @@ describe('Table states and options', () => {
     renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
 
     expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Table select filter faceted values', () => {
+  const statusRows = [
+    { name: 'a', selected: false, status: 'Running' },
+    { name: 'b', selected: false, status: 'Completed' },
+    { name: 'c', selected: false, status: 'Running' },
+    { name: 'd', selected: false, status: '' },
+  ];
+
+  const statusColumn = (filterVariant: string) =>
+    ({
+      id: 'status',
+      header: 'Status',
+      filterVariant,
+      accessorFn: (row: any) => row.status,
+    } as any);
+
+  /**
+   * Builds the minimal slice of a TanStack column that the custom
+   * getFacetedUniqueValues implementation touches: the column definition and
+   * a faceted row model whose rows resolve unique values through the column
+   * accessor, like TanStack's own rows do.
+   */
+  function makeFacetedColumn(columnDef: any, rows: Record<string, any>[]) {
+    const rowModel = {
+      flatRows: rows.map(original => ({
+        getUniqueValues: () => [columnDef.accessorFn(original)],
+      })),
+    };
+    return { columnDef, getFacetedRowModel: () => rowModel, getIsFiltered: () => false };
+  }
+
+  /** Minimal TanStack table slice; the filter UI is visible unless stated otherwise. */
+  function makeFacetedTable(
+    column: any,
+    { showColumnFilters = true, columnFilterDisplayMode = 'subheader' } = {}
+  ) {
+    return {
+      getColumn: () => column,
+      getState: () => ({ showColumnFilters }),
+      options: { columnFilterDisplayMode },
+    };
+  }
+
+  function facetedUniqueValues(
+    columnId: string,
+    rows: Record<string, any>[],
+    tableState?: { showColumnFilters: boolean }
+  ) {
+    const columnDef = tableMocks.options.columns.find((column: any) => column.id === columnId);
+    const table = makeFacetedTable(makeFacetedColumn(columnDef, rows), tableState);
+    return tableMocks.options.getFacetedUniqueValues(table, columnId)();
+  }
+
+  it.each(['select', 'multi-select', 'autocomplete'])(
+    'counts unique values for %s filter columns',
+    filterVariant => {
+      renderTable({ columns: [statusColumn(filterVariant)], data: statusRows as any });
+
+      expect(Object.fromEntries(facetedUniqueValues('status', statusRows))).toEqual({
+        Running: 2,
+        Completed: 1,
+        '': 1,
+      });
+    }
+  );
+
+  it.each([
+    ['serves every option of a column at the cap', 1000],
+    ['serves the cap worth of options for a column above it', 1001],
+  ])('%s', (_description: string, distinctValues: number) => {
+    const rows = Array.from({ length: distinctValues }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    expect(facetedUniqueValues('status', rows).size).toBe(1000);
+  });
+
+  it('keeps the most common values when it has to shorten the list', () => {
+    // The common value comes last, so keeping it proves the list is cut by frequency and
+    // not simply by insertion order.
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ status: `rare-${index}` })),
+      ...Array.from({ length: 5 }, () => ({ status: 'common' })),
+    ];
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const values = facetedUniqueValues('status', rows);
+
+    expect(values.size).toBe(1000);
+    expect(values.get('common')).toBe(5);
+    expect(values.has('rare-999')).toBe(false);
+  });
+
+  /**
+   * Mimics what MRT does on every render: the row model stays, while TanStack builds a new
+   * column object around a freshly spread column definition. Returns a function that renders
+   * the column once more and reads its faceted values.
+   */
+  function renderableColumn(rows: Record<string, any>[]) {
+    let columnDef: any;
+    const rowModel = {
+      flatRows: rows.map(original => ({ getUniqueValues: () => [columnDef.accessorFn(original)] })),
+    };
+    return (overrides: object = {}) => {
+      columnDef = { ...tableMocks.options.columns[0], ...overrides };
+      const column = {
+        id: 'status',
+        columnDef,
+        getFacetedRowModel: () => rowModel,
+        getIsFiltered: () => false,
+      };
+      return tableMocks.options.getFacetedUniqueValues(makeFacetedTable(column), 'status')();
+    };
+  }
+
+  /**
+   * Builds the column MRT hands to muiFilterTextFieldProps: the faceted slice above plus the
+   * getFacetedUniqueValues closure TanStack installs on the column.
+   */
+  function makeFilterColumn(
+    rows: Record<string, any>[],
+    columnDef = tableMocks.options.columns[0]
+  ) {
+    const column: any = { id: 'status', ...makeFacetedColumn(columnDef, rows) };
+    const table = makeFacetedTable(column);
+    column.getFacetedUniqueValues = tableMocks.options.getFacetedUniqueValues(table, 'status');
+    return { column, table };
+  }
+
+  /** Calls the filter text field props for a column, like MRT does while rendering it. */
+  function filterTextFieldProps(rows: Record<string, any>[]) {
+    const { column, table } = makeFilterColumn(rows);
+    return tableMocks.options.muiFilterTextFieldProps({ column, table });
+  }
+
+  it('notes under the input that a shortened list is shown', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    expect(filterTextFieldProps(rows).helperText).toBe('Showing the 1000 most common values');
+  });
+
+  it('drops the notice when the column definition gains caller filter options', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    const props = () => tableMocks.options.muiFilterTextFieldProps({ column, table });
+
+    expect(props().helperText).toBe('Showing the 1000 most common values');
+
+    // Same column instance, definition swapped in place: the verdict must not survive.
+    column.columnDef = { ...column.columnDef, filterSelectOptions: ['Custom'] };
+    expect(props().helperText).toBeUndefined();
+
+    column.columnDef = {
+      ...column.columnDef,
+      filterSelectOptions: undefined,
+      filterVariant: 'text',
+    };
+    expect(props().helperText).toBeUndefined();
+  });
+
+  it('adds no notice when the caller replaces getFacetedUniqueValues', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({
+      columns: [statusColumn('multi-select')],
+      data: rows as any,
+      getFacetedUniqueValues: (() => () => new Map()) as any,
+    });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFacetedUniqueValues = () => new Map();
+
+    expect(
+      tableMocks.options.muiFilterTextFieldProps({ column, table }).helperText
+    ).toBeUndefined();
+  });
+
+  it('adds no notice while a column stays below the cap', () => {
+    renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
+
+    expect(filterTextFieldProps(statusRows).helperText).toBeUndefined();
+  });
+
+  it.each([
+    ['object', { placeholder: 'caller' }],
+    ['function', () => ({ placeholder: 'caller' })],
+  ])('keeps caller filter text field props in %s form', (_description, muiFilterTextFieldProps) => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({
+      columns: [statusColumn('multi-select')],
+      data: rows as any,
+      muiFilterTextFieldProps: muiFilterTextFieldProps as any,
+    });
+
+    const props = filterTextFieldProps(rows);
+
+    expect(props.placeholder).toBe('caller');
+    expect(props.helperText).toBe('Showing the 1000 most common values');
+  });
+
+  it('skips the computation when the caller provides filter options', () => {
+    const accessorFn = vi.fn((row: any) => row.status);
+    renderTable({
+      columns: [{ ...statusColumn('multi-select'), filterSelectOptions: ['Running'] }],
+      data: statusRows as any,
+    });
+
+    const columnDef = { ...tableMocks.options.columns[0], accessorFn };
+    const table = makeFacetedTable(makeFacetedColumn(columnDef, statusRows));
+
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().size).toBe(0);
+    expect(accessorFn).not.toHaveBeenCalled();
+  });
+
+  it('walks a row model once, even though MRT rebuilds its columns every render', () => {
+    const rows = Array.from({ length: 50 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const accessorFn = vi.fn((row: any) => row.status);
+    const readAgain = renderableColumn(rows);
+
+    readAgain({ accessorFn });
+    const callsAfterFirstRender = accessorFn.mock.calls.length;
+    readAgain({ accessorFn });
+
+    expect(callsAfterFirstRender).toBe(rows.length);
+    expect(accessorFn.mock.calls.length).toBe(callsAfterFirstRender);
+  });
+
+  it('serves the cached values regardless of column identity churn', () => {
+    // TanStack freezes row.getUniqueValues per row and column for the row model's lifetime,
+    // so recomputing on a column-definition change could not observe anything new anyway.
+    const rows = [{ status: 'Running' }, { status: 'Done' }];
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+    const readAgain = renderableColumn(rows);
+
+    const first = readAgain({ accessorFn: (row: any) => row.status });
+    const second = readAgain({ accessorFn: (row: any) => `${row.status}!` });
+
+    expect([...first.keys()]).toEqual(['Running', 'Done']);
+    expect(second).toBe(first);
+  });
+
+  it('leaves the menu and the helper text to a caller that provides them', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+
+    renderTable({
+      columns: [statusColumn('multi-select')],
+      data: rows as any,
+      muiFilterTextFieldProps: { children: 'mine' } as any,
+    });
+    expect(filterTextFieldProps(rows).children).toBe('mine');
+
+    renderTable({
+      columns: [statusColumn('autocomplete')],
+      data: rows as any,
+      muiFilterTextFieldProps: { helperText: 'mine' } as any,
+    });
+    expect(filterTextFieldProps(rows).helperText).toBe('mine');
+  });
+
+  it('counts only the values MRT would offer against the cap', () => {
+    // MAX_FILTER_OPTIONS worth of real values plus rows the accessor leaves empty.
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ status: `s${index}` })),
+      { status: null },
+      { status: undefined },
+    ];
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    expect(facetedUniqueValues('status', rows).size).toBe(1000);
+    expect(filterTextFieldProps(rows).children).toBeUndefined();
+  });
+
+  it.each([
+    ['keeps', 'the filter mode label', { enableColumnFilterModes: true }, {}, undefined],
+    // MRT reads the table-level flag, a column can only opt out of it.
+    [
+      'adds',
+      'the note when only the column asks for modes',
+      {},
+      { enableColumnFilterModes: true },
+      'Showing the 1000 most common values',
+    ],
+    [
+      'adds',
+      'the note when the column opts out of modes',
+      { enableColumnFilterModes: true },
+      { enableColumnFilterModes: false },
+      'Showing the 1000 most common values',
+    ],
+    // MRT renders no mode button, and no label, without options to switch between.
+    [
+      'adds',
+      'the note when no filter mode is left to pick',
+      { enableColumnFilterModes: true, columnFilterModeOptions: [] },
+      {},
+      'Showing the 1000 most common values',
+    ],
+  ])(
+    '%s %s on a truncated autocomplete column',
+    (_verb, _case, tableSettings: object, columnSettings: object, expected) => {
+      const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+      renderTable({
+        columns: [{ ...statusColumn('autocomplete'), ...columnSettings }],
+        data: rows as any,
+        ...tableSettings,
+      });
+
+      expect(filterTextFieldProps(rows).helperText).toBe(expected);
+    }
+  );
+
+  it('serves no values for a column MRT cannot sort', () => {
+    const rows = [{ status: 1 }, { status: 2 }];
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    // MRT sorts the options with localeCompare, so non-strings would throw on render.
+    expect(facetedUniqueValues('status', rows).size).toBe(0);
+    expect(filterTextFieldProps(rows).helperText).toBeUndefined();
+  });
+
+  it.each([
+    ['faceting is on', { enableFacetedValues: true }],
+    ['the caller brings its own', { getFacetedUniqueValues: (() => () => new Map()) as any }],
+  ])('leaves getFacetedUniqueValues alone when %s', (_description, props) => {
+    renderTable({
+      columns: [statusColumn('multi-select')],
+      data: statusRows as any,
+      ...props,
+    });
+
+    // MRT applies caller options over its own wiring, so ours must not be set at all here.
+    expect(tableMocks.options.getFacetedUniqueValues).toBe((props as any).getFacetedUniqueValues);
+  });
+
+  it('returns an empty map for columns without a dropdown filter', () => {
+    renderTable({
+      columns: [{ id: 'name', header: 'Name', accessorFn: (row: any) => row.name }],
+      data: statusRows as any,
+    });
+
+    expect(facetedUniqueValues('name', statusRows).size).toBe(0);
+  });
+
+  it('recomputes only when the faceted rows change', () => {
+    renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    let column = makeFacetedColumn(columnDef, statusRows);
+    const getValues = tableMocks.options.getFacetedUniqueValues(
+      {
+        getColumn: () => column,
+        getState: () => ({ showColumnFilters: true }),
+        options: {},
+      },
+      'status'
+    );
+
+    const first = getValues();
+    expect(getValues()).toBe(first);
+
+    column = makeFacetedColumn(columnDef, [{ status: 'Failed' }]);
+    expect(Object.fromEntries(getValues())).toEqual({ Failed: 1 });
+  });
+
+  it('does not walk the rows while the filter UI is hidden and no filter is active', () => {
+    renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
+
+    const values = facetedUniqueValues('status', statusRows, { showColumnFilters: false });
+
+    expect(values.size).toBe(0);
+  });
+
+  it.each(['popover', 'custom'])(
+    'computes the options in %s mode, where the filter UI is not tied to showColumnFilters',
+    columnFilterDisplayMode => {
+      renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
+
+      const columnDef = tableMocks.options.columns[0];
+      const table = makeFacetedTable(makeFacetedColumn(columnDef, statusRows), {
+        showColumnFilters: false,
+        columnFilterDisplayMode,
+      });
+
+      expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().size).toBe(3);
+    }
+  );
+
+  it('computes the options for an active filter even while the filter UI is hidden', () => {
+    renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const column = { ...makeFacetedColumn(columnDef, statusRows), getIsFiltered: () => true };
+    const table = makeFacetedTable(column, { showColumnFilters: false });
+
+    const values = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+
+    expect(Object.fromEntries(values)).toEqual({ Running: 2, Completed: 1, '': 1 });
+  });
+
+  it('keeps a caller-provided getFacetedUniqueValues implementation', () => {
+    const custom = vi.fn();
+    renderTable({ getFacetedUniqueValues: custom as any });
+
+    expect(tableMocks.options.getFacetedUniqueValues).toBe(custom);
+  });
+
+  it('passes caller filter options through to the columns untouched', () => {
+    renderTable({
+      columns: [{ ...statusColumn('multi-select'), filterSelectOptions: ['Custom'] }],
+      data: statusRows as any,
+    });
+
+    expect(tableMocks.options.columns[0].filterSelectOptions).toEqual(['Custom']);
+  });
+
+  it('leaves filterSelectOptions to MRT instead of injecting them into columns', () => {
+    renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
+
+    expect(tableMocks.options.columns[0].filterSelectOptions).toBeUndefined();
   });
 });
