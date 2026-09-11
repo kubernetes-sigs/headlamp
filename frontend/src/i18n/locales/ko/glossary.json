@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "파드 중단 예산",
   "Workload": "워크로드",
   "Pod Groups": "파드 그룹",
+  "Composite Pod Groups": "",
   "Port Forwarding": "포트 포워딩",
   "PriorityClass": "우선순위 클래스",
   "Replica Sets": "레플리카 셋",

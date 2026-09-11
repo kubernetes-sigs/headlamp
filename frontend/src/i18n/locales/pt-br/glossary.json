@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Pod Disruption Budget",
   "Workload": "Carga de trabalho",
   "Pod Groups": "Grupos de Pods",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Port Forwarding",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Replica Sets",

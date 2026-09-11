@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Budżet zakłóceń zasobników",
   "Workload": "",
   "Pod Groups": "",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Przekierowanie portów",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Zestawy replik",
