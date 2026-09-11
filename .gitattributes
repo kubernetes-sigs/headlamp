@@ -7,3 +7,7 @@
 *.mjs  text eol=lf
 *.cjs  text eol=lf
 *.json text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.css  text eol=lf
+*.md   text eol=lf
