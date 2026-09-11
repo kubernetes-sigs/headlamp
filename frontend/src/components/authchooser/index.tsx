@@ -231,7 +231,14 @@ function AuthChooser({ children }: AuthChooserProps) {
         history.replace(from);
       }}
       handleBackButtonPress={() => {
-        numClusters > 1 ? history.goBack() : history.push('/');
+        // Both of these led straight back here: going back re-entered the cluster
+        // whose auth had just failed, and '/' bounced a lone cluster back in, so
+        // the only way out was to exhaust the history. Leave for the chooser
+        // instead, and tell it not to send a lone cluster back.
+        history.push({
+          pathname: createRouteURL('chooser'),
+          state: { fromAuthChooser: true },
+        });
       }}
       handleTokenAuth={() => {
         const tokenRoute = getRoute('token');
