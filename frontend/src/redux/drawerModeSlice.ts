@@ -30,7 +30,15 @@ export interface DrawerModeState {
   };
 }
 
-const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
+const getLocalDrawerStatus = (key: string) => {
+  try {
+    return localStorage.getItem(key) !== 'false';
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.stack ?? error.message : String(error);
+    console.warn(`Failed to get ${key} from localStorage, defaulting to true:`, errorMsg);
+    return true;
+  }
+};
 
 const localStorageName = 'detailDrawerEnabled';
 
@@ -45,7 +53,12 @@ export const drawerModeSlice = createSlice({
   reducers: {
     setDetailDrawerEnabled: (state, action: PayloadAction<boolean>) => {
       state.isDetailDrawerEnabled = action.payload;
-      localStorage.setItem(localStorageName, `${action.payload}`);
+      try {
+        localStorage.setItem(localStorageName, `${action.payload}`);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.stack ?? error.message : String(error);
+        console.error(`Failed to set ${localStorageName} in localStorage:`, errorMsg);
+      }
     },
     setSelectedResource: (state, action: PayloadAction<DrawerModeState['selectedResource']>) => {
       state.selectedResource = action.payload;
