@@ -18,6 +18,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export interface DrawerModeState {
   isDetailDrawerEnabled: boolean;
+  detailDrawerWidth?: number;
   selectedResource?: {
     kind: string;
     metadata: { name: string; namespace?: string };
@@ -31,11 +32,17 @@ export interface DrawerModeState {
 }
 
 const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
+const getLocalDrawerWidth = (key: string) => {
+  const w = localStorage.getItem(key);
+  return w ? parseInt(w, 10) : undefined;
+};
 
 const localStorageName = 'detailDrawerEnabled';
+const localStorageWidthName = 'detailDrawerWidth';
 
 const initialState: DrawerModeState = {
   isDetailDrawerEnabled: getLocalDrawerStatus(localStorageName),
+  detailDrawerWidth: getLocalDrawerWidth(localStorageWidthName),
   selectedResource: undefined,
 };
 
@@ -50,8 +57,13 @@ export const drawerModeSlice = createSlice({
     setSelectedResource: (state, action: PayloadAction<DrawerModeState['selectedResource']>) => {
       state.selectedResource = action.payload;
     },
+    setDetailDrawerWidth: (state, action: PayloadAction<number>) => {
+      state.detailDrawerWidth = action.payload;
+      localStorage.setItem(localStorageWidthName, action.payload.toString());
+    },
   },
 });
 
-export const { setDetailDrawerEnabled, setSelectedResource } = drawerModeSlice.actions;
+export const { setDetailDrawerEnabled, setSelectedResource, setDetailDrawerWidth } =
+  drawerModeSlice.actions;
 export default drawerModeSlice.reducer;
