@@ -115,6 +115,13 @@ These are the default plugin directory locations for the Headlamp desktop app:
 
 When deploying Headlamp with plugins, it is easier to use a container image with the plugins already installed. Then, use an init container to mount the plugins into the Headlamp container.
 
+:::tip
+On Kubernetes 1.33+ (feature gate on 1.33–1.34; default from 1.35; GA in 1.36),
+prefer mounting plugin images with
+[Image Volumes](../../installation/in-cluster/plugins-image-volume.md) instead of
+copying files in an init container.
+:::
+
 Some plugins already have a published container image. For Headlamp's official plugins, see this [list](https://github.com/orgs/headlamp-k8s/packages?tab=packages&q=headlamp-plugin).
 
 You can thus deploy Headlamp with an init container, such as the [Flux UI plugin image](ghcr.io/headlamp-k8s/headlamp-plugin-flux:v0.3.0):
