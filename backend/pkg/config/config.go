@@ -85,6 +85,12 @@ type Config struct {
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
+	OidcStsEnabled               bool   `koanf:"oidc-sts-enabled"`
+	OidcStsIssuerURL             string `koanf:"oidc-sts-issuer-url"`
+	OidcStsClientID              string `koanf:"oidc-sts-client-id"`
+	OidcStsClientSecret          string `koanf:"oidc-sts-client-secret"`
+	OidcStsSubjectTokenType      string `koanf:"oidc-sts-subject-token-type"`
+	OidcStsAudienceMap           string `koanf:"oidc-sts-audience-map"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
 	MeGroupsPath                 string `koanf:"me-groups-path"`
@@ -165,6 +171,22 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
+	if err := c.validateTracing(); err != nil {
+		return err
+	}
+
+	if err := c.validateClusterInventory(); err != nil {
+		return err
+	}
+
+	if err := c.validateOidcSts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateTracing() error {
 	if c.TracingEnabled != nil && *c.TracingEnabled {
 		if c.ServiceName == "" {
 			return errors.New("service-name is required when tracing is enabled")
@@ -182,11 +204,54 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if err := c.validateClusterInventory(); err != nil {
-		return err
+	return nil
+}
+
+func (c *Config) validateOidcSts() error {
+	if !c.OidcStsEnabled {
+		return nil
+	}
+
+	if strings.TrimSpace(c.OidcStsIssuerURL) == "" && strings.TrimSpace(c.OidcIdpIssuerURL) == "" {
+		return errors.New("oidc-sts-enabled requires oidc-sts-issuer-url or oidc-idp-issuer-url")
+	}
+
+	audienceMap := ParseAudienceMap(c.OidcStsAudienceMap)
+	if len(audienceMap) == 0 {
+		return errors.New(
+			"oidc-sts-enabled requires at least one valid audience mapping " +
+				"configured via oidc-sts-audience-map (e.g. cluster1=aud1)",
+		)
 	}
 
 	return nil
+}
+
+// ParseAudienceMap parses a comma-separated key-value list (e.g. "c1=a1,c2=a2") into a map.
+func ParseAudienceMap(s string) map[string]string {
+	m := make(map[string]string)
+	if s == "" {
+		return m
+	}
+
+	pairs := strings.Split(s, ",")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(kv[0])
+		val := strings.TrimSpace(kv[1])
+
+		if key == "" || val == "" {
+			continue
+		}
+
+		m[key] = val
+	}
+
+	return m
 }
 
 // validateAppName ensures the application name is safe for use in Kubernetes User-Agent headers.
@@ -666,6 +731,16 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("oidc-sts-enabled", false, "Enable RFC 8693 OAuth 2.0 Token Exchange (STS)")
+	f.String("oidc-sts-issuer-url", "",
+		"Override Identity provider issuer URL for OIDC STS (falls back to oidc-idp-issuer-url)")
+	f.String("oidc-sts-client-id", "", "ClientID for OIDC STS (falls back to oidc-client-id)")
+	f.String("oidc-sts-client-secret", "",
+		"Client secret for OIDC STS (falls back to oidc-client-secret only when oidc-sts-client-id is unset)")
+	f.String("oidc-sts-subject-token-type", "",
+		"Subject token type for STS token exchange (falls back to urn:ietf:params:oauth:token-type:jwt)")
+	f.String("oidc-sts-audience-map", "",
+		"Comma-separated key-value pairs of cluster ID to target token audience (e.g. cluster1=aud1,cluster2=aud2)")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
