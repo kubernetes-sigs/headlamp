@@ -77,19 +77,19 @@ export function LinkStringFormat({ url, item, urlPath }: LinkStringFormatProps) 
     }
 
     /*
-     * Since we cannot access the prefix from the ingress object, we have to access it from the rules array
+     * The pathType is not part of the rendered path, so look it up from the rules.
+     * Scope the lookup to the rules for this row's host: different hosts may expose
+     * the same path with different path types, and a host-agnostic search would
+     * report whichever rule happened to come last.
+     *
+     * getRules() is used rather than spec.rules because it normalizes rules that
+     * carry no http block (which is valid for a networking.k8s.io/v1 Ingress).
      */
-    const rules: any[] | undefined = item.spec.rules;
-    let currentPathType;
-    if (rules) {
-      for (let i = 0; i < rules.length; i++) {
-        for (let j = 0; j < rules[i].http.paths.length; j++) {
-          if (rules[i].http.paths[j].path === urlPath) {
-            currentPathType = rules[i].http.paths[j].pathType;
-          }
-        }
-      }
-    }
+    const currentPathType = item
+      .getRules()
+      .filter(rule => (rule.host || '*') === url)
+      .flatMap(rule => rule.http?.paths ?? [])
+      .find(path => path.path === urlPath)?.pathType;
 
     function isValidURL(url: string): boolean {
       try {
@@ -119,7 +119,7 @@ export function LinkStringFormat({ url, item, urlPath }: LinkStringFormatProps) 
           >
             {urlPath}
           </MuiLink>
-          {`(${currentPathType})`}
+          {currentPathType && `(${currentPathType})`}
         </Box>
       );
     }
