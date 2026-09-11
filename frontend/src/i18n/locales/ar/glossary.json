@@ -104,6 +104,7 @@
   "To": "إلى",
   "Reference Grants": "منح المراجع",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "المقاييس التلقائية للـ Pods أفقيًا",
   "Ingress Classes": "فئات Ingress",

@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { GatewayL4RouteRule } from '../../lib/k8s/gateway';
 import EmptyContent from '../common/EmptyContent';
+import LabelListItem from '../common/LabelListItem';
 import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
@@ -80,6 +81,20 @@ export default function L4RouteDetails(props: L4RouteDetailsProps) {
       cluster={cluster}
       withEvents
       noDefaultActions
+      extraInfo={(item: GatewayL4Route | null) => {
+        // TLSRoute is the only L4 route with hostnames; TCPRoute and UDPRoute
+        // leave the field unset, so the row is hidden for them.
+        const hostnames = item?.jsonData.spec?.hostnames as string[] | undefined;
+        if (!hostnames?.length) {
+          return null;
+        }
+        return [
+          {
+            name: t('glossary|Hostnames'),
+            value: <LabelListItem labels={hostnames} />,
+          },
+        ];
+      }}
       extraSections={(item: GatewayL4Route) =>
         item && [
           {
