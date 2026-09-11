@@ -15,3 +15,7 @@ node_modules
 plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
 .DS_Store
+
+# OIDC repro harness local state (tools/oidc-repro)
+tools/oidc-repro/notes/
+tools/oidc-repro/.kubeconfig
