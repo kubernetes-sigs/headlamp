@@ -1,4 +1,9 @@
 {
+  "Enable": "Ativar",
+  "Cancel": "Cancelar",
+  "Plugin Development Mode": "Modo de desenvolvimento de plugins",
+  "Enable Plugin Development Mode?": "Ativar o modo de desenvolvimento de plugins?",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "Desenvolvimento de plugins executa código local e pode solicitar acesso a comandos. Só ative este modo se confiar em todos os plugins no diretório de desenvolvimento de plugins.",
   "Failed to fetch plugin info": "Falha ao obter informação do plugin",
   "An error occurred while fetching plugin info from {{  URL }}.": "Ocorreu um erro ao obter informação do plugin a partir de {{  URL }}.",
   "Yes": "Sim",
@@ -54,6 +59,6 @@
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Não foi possível encontrar uma porta disponível no intervalo {{startPort}}-{{endPort}}. Por favor liberte uma porta e tente novamente.",
   "Invalid URL": "URL inválido",
   "Application opened with an invalid URL: {{ url }}": "Aplicação aberta com um URL inválido: {{ url }}",
-  "OAuth callback failed": "",
-  "The OAuth callback could not be completed. Please try again.": ""
+  "OAuth callback failed": "OAuth callback falhou",
+  "The OAuth callback could not be completed. Please try again.": "O callback OAuth não pôde ser concluído. Por favor tente novamente."
 }
