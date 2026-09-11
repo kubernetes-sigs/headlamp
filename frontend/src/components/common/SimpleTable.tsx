@@ -56,7 +56,7 @@ export interface SimpleTableDatumColumn extends SimpleTableColumn {
 }
 
 export interface SimpleTableGetterColumn extends SimpleTableColumn {
-  getter: (...args: any[]) => void;
+  getter: (...args: any[]) => React.ReactNode;
 }
 
 export interface SimpleTableProps {
@@ -259,8 +259,8 @@ export default function SimpleTable(props: SimpleTableProps) {
       if (!getterFunc && !!datum) {
         getterFunc = (item: any) => item[datum];
       }
-      const value1 = getterFunc(item1);
-      const value2 = getterFunc(item2);
+      const value1 = getterFunc(item1) as any;
+      const value2 = getterFunc(item2) as any;
 
       let compareValue = 0;
       if (value1 < value2) {
