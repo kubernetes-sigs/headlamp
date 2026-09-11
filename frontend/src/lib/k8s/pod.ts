@@ -201,6 +201,8 @@ class Pod extends KubeObject<KubePod> {
 
     let logs: string[] = [];
     let hasJsonLogs = false;
+    let pending = '';
+    let decoder = new TextDecoder();
     let url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${showTimestamps}&follow=${follow}`;
 
     // Negative tailLines parameter fetches all logs. If it's non negative it fetches
@@ -248,16 +250,39 @@ class Pod extends KubeObject<KubePod> {
       }
     }
 
+    function splitLines(text: string): string[] {
+      return text.match(/[^\n]*\n|[^\n]+/g) ?? [];
+    }
+
+    function pushLine(line: string) {
+      const jsonMatch = line.trim().match(/(\{.*\})/);
+      if (jsonMatch) hasJsonLogs = true;
+      logs.push(hasJsonLogs && prettifyLogs ? prettifyLogLine(line) : line);
+    }
+
+    function flushPending() {
+      pending += decoder.decode();
+
+      if (pending === '') return;
+
+      pushLine(pending);
+      pending = '';
+      onLogs({ logs, hasJsonLogs });
+    }
+
     function onResults(item: string) {
       if (!item) return;
 
-      const decodedLog = Base64.decode(item);
-      if (!decodedLog || decodedLog.trim() === '') return;
-      const trimmedLog = decodedLog.trim();
-      const jsonMatch = trimmedLog.match(/(\{.*\})/);
-      if (jsonMatch) hasJsonLogs = true;
-      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
-      logs.push(processedLog);
+      // Decode as a stream: the backend base64-encodes each message on its own, so a
+      // multibyte character can be split across two of them.
+      const decodedLog = decoder.decode(Base64.toUint8Array(item), { stream: true });
+      if (!decodedLog) return;
+
+      const lines = splitLines(pending + decodedLog);
+      const lastLine = lines[lines.length - 1];
+      pending = lastLine !== undefined && !lastLine.endsWith('\n') ? (lines.pop() as string) : '';
+
+      lines.forEach(pushLine);
       onLogs({ logs, hasJsonLogs });
     }
 
@@ -267,6 +292,8 @@ class Pod extends KubeObject<KubePod> {
       connectCb: () => {
         logs = [];
         hasJsonLogs = false;
+        pending = '';
+        decoder = new TextDecoder();
       },
       /**
        * This callback is called when the connection is closed. It then check
@@ -274,6 +301,8 @@ class Pod extends KubeObject<KubePod> {
        * due to an error, it stops further reconnection attempts.
        */
       failCb: () => {
+        flushPending();
+
         // If it's a reconnection attempt, stop further reconnection attempts
         if (follow && isReconnecting) {
           isReconnecting = false;

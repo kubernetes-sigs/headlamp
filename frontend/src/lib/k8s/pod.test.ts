@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { post } from './api/v1/clusterRequests';
+import { stream } from './api/v1/streamingApi';
 import Pod from './pod';
 
 // cyclic imports fix
@@ -35,6 +37,13 @@ vi.mock('./api/v1/clusterRequests', async importOriginal => {
       capturedPatchBodies.push(body);
     }),
   };
+});
+
+vi.mock('./api/v1/streamingApi', async () => {
+  const actual = await vi.importActual<typeof import('./api/v1/streamingApi')>(
+    './api/v1/streamingApi'
+  );
+  return { ...actual, stream: vi.fn() };
 });
 
 describe('Pod class', () => {
@@ -216,6 +225,103 @@ describe('Pod class', () => {
     it('classifies a Succeeded pod as healthy', () => {
       const pod = makePod({ phase: 'Succeeded' });
       expect(pod.getHealth()).toBe('healthy');
+    });
+  });
+  describe('getLogs', () => {
+    const chunk =
+      '{"level":"info","message":"test0"}\n' +
+      '{"level":"warn","message":"test1"}\n' +
+      '{"level":"error","message":"test2"}\n';
+
+    function startLogStream(logsOptions: object = {}) {
+      let onResults: (item: string) => void = () => {};
+      let onFail: () => void = () => {};
+      const cancelStream = vi.fn();
+
+      vi.mocked(stream).mockImplementation(((
+        _url: string,
+        cb: (item: string) => void,
+        args: { failCb?: () => void }
+      ) => {
+        onResults = cb;
+        onFail = args.failCb ?? (() => {});
+        return { cancel: cancelStream, getSocket: () => null };
+      }) as any);
+
+      const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)));
+      const updates: string[][] = [];
+      const cancel = pod.getLogs('container-1', ({ logs }) => updates.push([...logs]), {
+        follow: true,
+        ...logsOptions,
+      });
+
+      return {
+        send: (text: string) => onResults(Base64.encode(text)),
+        endStream: () => onFail(),
+        cancel,
+        cancelStream,
+        last: () => updates[updates.length - 1],
+        updateCount: () => updates.length,
+      };
+    }
+
+    it('gives each line of a chunk its own entry', () => {
+      const logStream = startLogStream();
+      logStream.send(chunk);
+
+      expect(logStream.last()).toEqual([
+        '{"level":"info","message":"test0"}\n',
+        '{"level":"warn","message":"test1"}\n',
+        '{"level":"error","message":"test2"}\n',
+      ]);
+    });
+
+    it('rejoins the lines to the original text', () => {
+      const logStream = startLogStream();
+      logStream.send(chunk);
+
+      expect(logStream.last().join('')).toBe(chunk);
+    });
+
+    it('waits for the rest of a line split across two chunks', () => {
+      const logStream = startLogStream();
+
+      logStream.send('{"level":"error","mess');
+      expect(logStream.last()).toEqual([]);
+
+      logStream.send('age":"split"}\n');
+      expect(logStream.last()).toEqual(['{"level":"error","message":"split"}\n']);
+    });
+
+    it('emits a trailing line without a newline once the stream ends', () => {
+      const logStream = startLogStream();
+
+      logStream.send('{"level":"error","message":"last"}');
+      expect(logStream.last()).toEqual([]);
+
+      logStream.endStream();
+      expect(logStream.last()).toEqual(['{"level":"error","message":"last"}']);
+    });
+
+    it('does not report logs while being cancelled', () => {
+      const logStream = startLogStream();
+
+      logStream.send('{"level":"error","message":"last"}');
+      const updatesBeforeCancel = logStream.updateCount();
+
+      logStream.cancel();
+      expect(logStream.updateCount()).toBe(updatesBeforeCancel);
+      expect(logStream.cancelStream).toHaveBeenCalled();
+    });
+
+    it('prettifies every line of a chunk, not only the first', () => {
+      const logStream = startLogStream({ prettifyLogs: true });
+      logStream.send(chunk);
+
+      const output = logStream.last().join('');
+      expect(output).toContain('test0');
+      expect(output).toContain('test1');
+      expect(output).toContain('test2');
     });
   });
 });
