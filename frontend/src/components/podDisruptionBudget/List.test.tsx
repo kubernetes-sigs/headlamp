@@ -94,4 +94,21 @@ describe('PDBList', () => {
     expect(getColumn('minAvailable').getValue(empty)).toContain('N/A');
     expect(getColumn('allowedDisruptions').getValue(empty)).toContain('N/A');
   });
+
+  it('shows an explicit 0 instead of falling back to N/A', () => {
+    render(
+      <TestContext>
+        <PDBList />
+      </TestContext>
+    );
+
+    const zeroed = {
+      spec: { minAvailable: 0, maxUnavailable: 0 },
+      status: { disruptionsAllowed: 0 },
+    } as any;
+
+    expect(getColumn('minAvailable').getValue(zeroed)).toBe(0);
+    expect(getColumn('maxUnavailable').getValue(zeroed)).toBe(0);
+    expect(getColumn('allowedDisruptions').getValue(zeroed)).toBe(0);
+  });
 });
