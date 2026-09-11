@@ -41,6 +41,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
   const externalWindowRef = React.useRef<Window | null>(null);
   const storageListenerRef = React.useRef<(() => void) | null>(null);
   const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
+  const popupCheckIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanupPopup = React.useCallback(
     (closeWindow = false) => {
@@ -58,6 +59,11 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
           console.error('Error occurred while removing beforeunload event listener', e);
         }
         beforeUnloadListenerRef.current = null;
+      }
+
+      if (popupCheckIntervalRef.current) {
+        clearInterval(popupCheckIntervalRef.current);
+        popupCheckIntervalRef.current = null;
       }
 
       if (closeWindow && popupWindow) {
@@ -107,19 +113,31 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
     window.addEventListener('storage', storageListener);
 
     if (externalWindowRef.current) {
-      try {
-        const beforeUnloadListener = () => {
-          cleanupPopup();
-          externalWindowRef.current = null;
-          if (!!props.onClose) {
-            props.onClose();
-          }
-        };
+      const beforeUnloadListener = () => {
+        cleanupPopup();
+        externalWindowRef.current = null;
+        if (!!props.onClose) {
+          props.onClose();
+        }
+      };
 
+      try {
         externalWindowRef.current.addEventListener('beforeunload', beforeUnloadListener, false);
         beforeUnloadListenerRef.current = beforeUnloadListener;
       } catch (e) {
-        console.error('Error occurred while adding beforeunload event listener');
+        console.error('Error occurred while adding beforeunload event listener', e);
+
+        // Fallback for cross-origin popups where addEventListener fails
+        popupCheckIntervalRef.current = setInterval(() => {
+          if (!externalWindowRef.current) {
+            if (popupCheckIntervalRef.current) clearInterval(popupCheckIntervalRef.current);
+          }
+          // Check if the user manually closed the popup window
+          else if (externalWindowRef.current.closed) {
+            if (popupCheckIntervalRef.current) clearInterval(popupCheckIntervalRef.current);
+            beforeUnloadListener();
+          }
+        }, 500);
       }
     }
   };
