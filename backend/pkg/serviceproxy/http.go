@@ -5,26 +5,61 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
+
+// ValidateURL validates that the URI is safe to use for HTTP requests.
+// It ensures the URL has a valid scheme (http or https only) and is properly formatted.
+func ValidateURL(uri string) error {
+	if uri == "" {
+		return fmt.Errorf("invalid URL: empty")
+	}
+
+	parsedURL, err := url.Parse(uri)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Only allow http and https schemes to prevent SSRF attacks
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("invalid URL scheme: %s (only http/https allowed)", parsedURL.Scheme)
+	}
+
+	// Reject userinfo in authority to avoid accidental credential leakage.
+	if parsedURL.User != nil {
+		return fmt.Errorf("URL must not include userinfo")
+	}
+
+	// Ensure the URL has a non-empty hostname.
+	if parsedURL.Hostname() == "" {
+		return fmt.Errorf("URL must have a host")
+	}
+
+	return nil
+}
 
 // HTTPGetStream sends an HTTP GET request to the specified URI and forwards the
 // upstream status code, Content-Type, and response body into w. The body is
 // never fully buffered, so an upstream that returns an arbitrarily large
 // response cannot exhaust server memory.
 func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error {
+	if err := ValidateURL(uri); err != nil {
+		return fmt.Errorf("URL validation failed: %w", err)
+	}
+
 	cli := &http.Client{Timeout: 10 * time.Second}
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec // G107: ValidateURL
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	resp, err := cli.Do(req) //nolint:gosec
+	resp, err := cli.Do(req) //nolint:gosec // G107: ValidateURL
 	if err != nil {
 		return fmt.Errorf("failed HTTP GET: %w", err)
 	}
