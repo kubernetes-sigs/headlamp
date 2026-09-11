@@ -16,8 +16,14 @@ These are the required dependencies to get started. Other dependencies are pulle
 
 - [Node.js](https://nodejs.org/en/download/) >= 22.0.0 (LTS recommended). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
 - [npm](https://www.npmjs.com/) (>= 11.0.0)
-- [Go](https://go.dev/doc/install) (>= 1.25.9)
+- [Go](https://go.dev/doc/install) (>= 1.26.5)
 - [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md)).
+
+To validate the local toolchain and detect version drift in contributor-facing metadata, run:
+
+```bash
+npm run env:check
+```
 
 You can install the required frontend, app, and backend dependencies by running:
 
