@@ -61,7 +61,8 @@ export function useQueryParamsState<T extends string | undefined>(
 
       // Apply new search params
       const newSearch = '?' + newParams;
-      if (params.replace) {
+      // Re-setting the same value must not stack up identical history entries
+      if (params.replace || newSearch === history.location.search) {
         history.replace(newSearch);
       } else {
         history.push(newSearch);
