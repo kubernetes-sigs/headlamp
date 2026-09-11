@@ -24,7 +24,7 @@ type Cluster struct {
 	Name     string                 `json:"name"`
 	Server   string                 `json:"server,omitempty"`
 	AuthType string                 `json:"auth_type"`
-	Metadata map[string]interface{} `json:"meta_data"`
+	Metadata map[string]interface{} `json:"meta_data,omitempty"`
 	Error    string                 `json:"error,omitempty"`
 }
 

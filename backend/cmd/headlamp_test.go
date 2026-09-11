@@ -439,6 +439,113 @@ func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
 }
 
+func newHeadlampConfigWithCluster(t *testing.T, serverURL string) *HeadlampConfig {
+	t.Helper()
+
+	store := kubeconfig.NewContextStore()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:        "test-cluster",
+		KubeContext: &api.Context{Cluster: "test-cluster"},
+		Cluster:     &api.Cluster{Server: serverURL},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.InCluster,
+	}))
+
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: store,
+			},
+		},
+	}
+}
+
+func TestGetConfigStripsServerAndMetadata(t *testing.T) {
+	c := newHeadlampConfigWithCluster(t, "https://internal-k8s-api.example.com")
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	recorder := httptest.NewRecorder()
+
+	c.getConfig(recorder, req)
+
+	body := recorder.Body.Bytes()
+
+	var raw map[string]interface{}
+
+	require.NoError(t, json.Unmarshal(body, &raw))
+
+	clusters, ok := raw["clusters"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, clusters, 1)
+
+	cluster, ok := clusters[0].(map[string]interface{})
+	require.True(t, ok)
+
+	assert.Equal(t, "test-cluster", cluster["name"])
+	assert.Contains(t, cluster, "auth_type", "auth_type must be present for the login flow")
+	assert.NotContains(t, cluster, "server", "server must be absent from /config responses")
+	assert.NotContains(t, cluster, "error", "error must be absent from /config responses")
+	assert.NotContains(t, cluster, "meta_data", "meta_data must be absent when it contains only sensitive keys")
+}
+
+func TestGetConfigStripsServerAndMetadataEvenWithBearerToken(t *testing.T) {
+	c := newHeadlampConfigWithCluster(t, "https://internal-k8s-api.example.com")
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	req.Header.Set("Authorization", "Bearer some-token")
+	recorder := httptest.NewRecorder()
+
+	c.getConfig(recorder, req)
+
+	body := recorder.Body.Bytes()
+
+	var raw map[string]interface{}
+
+	require.NoError(t, json.Unmarshal(body, &raw))
+
+	clusters, ok := raw["clusters"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, clusters, 1)
+
+	cluster, ok := clusters[0].(map[string]interface{})
+	require.True(t, ok)
+
+	assert.Equal(t, "test-cluster", cluster["name"])
+	assert.Contains(t, cluster, "auth_type", "auth_type must be present for the login flow")
+	assert.NotContains(t, cluster, "server", "server must be absent from /config even with a Bearer token")
+	assert.NotContains(t, cluster, "error", "error must be absent from /config even with a Bearer token")
+	assert.NotContains(t, cluster, "meta_data", "meta_data must be absent when it contains only sensitive keys")
+}
+
+func TestStripSensitiveClusterFields(t *testing.T) {
+	input := []Cluster{
+		{
+			Name:     "my-cluster",
+			Server:   "https://172.20.0.1:443",
+			AuthType: "oidc",
+			Error:    "some internal error detail",
+			Metadata: map[string]interface{}{
+				"source":       "incluster",
+				"namespace":    "default",
+				"extensions":   nil,
+				"origin":       map[string]interface{}{"kubeconfig": "/home/user/.kube/config"},
+				"originalName": "my-cluster",
+				"clusterID":    "abc-123",
+			},
+		},
+	}
+
+	result := stripSensitiveClusterFields(input)
+
+	require.Len(t, result, 1)
+	assert.Equal(t, "my-cluster", result[0].Name)
+	assert.Equal(t, "oidc", result[0].AuthType)
+	assert.Empty(t, result[0].Server)
+	assert.Empty(t, result[0].Error)
+	assert.Nil(t, result[0].Metadata)
+}
+
 //nolint:gocognit,funlen
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
