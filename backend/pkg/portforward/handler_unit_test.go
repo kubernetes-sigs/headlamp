@@ -233,8 +233,8 @@ func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			payload := map[string]interface{}{
-				"id":           tt.id,
-				"stopOrDelete": true,
+				"id":       tt.id,
+				"justStop": true,
 			}
 
 			jsonPayload, err := json.Marshal(payload)
