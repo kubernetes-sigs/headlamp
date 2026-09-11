@@ -212,9 +212,10 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
       safeValue.map((c, i) => {
         if (i !== index) return c;
         if (field === 'containerPort') {
-          const portNum = parseInt(newVal, 10);
+          const trimmed = newVal.trim();
+          const portNum = Number(trimmed);
           const rest = _.omit(c, ['containerPort', 'ports']);
-          if (!isNaN(portNum) && portNum > 0) {
+          if (trimmed !== '' && Number.isInteger(portNum) && portNum > 0 && portNum <= 65535) {
             return { ...rest, ports: [{ containerPort: portNum }] };
           }
           return rest;
