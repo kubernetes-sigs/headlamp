@@ -183,6 +183,11 @@ func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.Gr
 var (
 	watcherRegistry sync.Map
 	contextCancel   sync.Map
+
+	// OnCacheInvalidation is an optional callback invoked each time a watcher
+	// event triggers cache key deletion. It is set by the server at startup
+	// to record telemetry without coupling this package to the telemetry layer.
+	OnCacheInvalidation func()
 )
 
 // CheckForChanges lets 1 go routine to run for a contextKey which prevents
@@ -384,12 +389,14 @@ func invalidateCacheKeysForResourceEvent(
 
 	DeleteKeys(listKey, k8scache)
 
-	if name == "" {
-		return
+	if name != "" {
+		namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
+		if err := k8scache.Delete(context.Background(), namedKey); err != nil {
+			logger.Log(logger.LevelError, nil, err, "error while deleting key")
+		}
 	}
 
-	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	if OnCacheInvalidation != nil {
+		OnCacheInvalidation()
 	}
 }
