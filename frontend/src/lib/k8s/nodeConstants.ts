@@ -26,4 +26,5 @@ export const NODE_POOL_LABEL_KEYS = [
   'eks.amazonaws.com/nodegroup',
   'kops.k8s.io/instancegroup',
   'cluster.x-k8s.io/deployment-name',
+  'karpenter.sh/nodepool',
 ] as const;

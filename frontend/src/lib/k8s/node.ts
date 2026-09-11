@@ -146,7 +146,7 @@ class Node extends KubeObject<KubeNode> {
 
   /**
    * Returns the node pool name from well-known cloud provider labels.
-   * Supports GKE, AKS, EKS, kOps, and Cluster API.
+   * Supports GKE, AKS, EKS, kOps, Cluster API, and Karpenter.
    */
   getNodePool(): string {
     const labels = this.metadata.labels ?? {};
