@@ -1,6 +1,9 @@
 package spa
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 
 func TestURLToRelRejectsUnsafePaths(t *testing.T) {
 	tests := []struct {
@@ -27,7 +30,13 @@ func TestURLToRelAcceptsSafeRelativePath(t *testing.T) {
 		t.Fatalf("expected safe path to be accepted")
 	}
 
-	if rel != "headlamp/assets/main.js" {
+	// On Windows, filepath.FromSlash converts / to \
+	expected := "headlamp/assets/main.js"
+	if runtime.GOOS == "windows" {
+		expected = "headlamp\\assets\\main.js"
+	}
+
+	if rel != expected {
 		t.Fatalf("unexpected relative path: got %q", rel)
 	}
 }
