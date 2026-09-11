@@ -353,13 +353,10 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
           if (!item) return [];
           const roles = item.getRoles();
           const nodePool = item.getNodePool();
-          // The keys of interest are reported by the API in kebab-case.
-          const reportedKeys = ['cpu', 'memory', 'pods', 'ephemeral-storage'];
-          const pickResources = (res: { [key: string]: string } = {}) =>
-            Object.fromEntries(reportedKeys.filter(key => res[key]).map(key => [key, res[key]]));
+          const pickResources = (res: { [key: string]: string } = {}) => res;
+
           const capacity = pickResources(item.status?.capacity);
           const allocatable = pickResources(item.status?.allocatable);
-
           return [
             {
               name: t('translation|Roles'),
