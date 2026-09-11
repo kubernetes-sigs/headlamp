@@ -98,6 +98,39 @@ const resourceIngress: any = {
   ],
 };
 
+const multiPortIngress: any = {
+  cluster: 'cluster-1',
+  spec: { tls: [{ hosts: ['example.com'], secretName: 'tls-secret' }] },
+  getAddresses: () => '',
+  getRules: () => [
+    {
+      http: {
+        paths: [
+          { backend: { service: { name: 'service1', port: { number: 8080 } } } },
+          { backend: { service: { name: 'service2', port: { number: 80 } } } },
+        ],
+      },
+    },
+  ],
+};
+
+const mixedPortIngress: any = {
+  cluster: 'cluster-1',
+  spec: { tls: [{ hosts: ['example.com'], secretName: 'tls-secret' }] },
+  getAddresses: () => '',
+  getRules: () => [
+    {
+      http: {
+        paths: [
+          { backend: { service: { name: 'service1', port: { number: 80 } } } },
+          { backend: { service: { name: 'service2', port: { name: 'someport' } } } },
+          { backend: { resource: { kind: 'Service', name: 'service1' } } },
+        ],
+      },
+    },
+  ],
+};
+
 describe('IngressDetails', () => {
   beforeEach(() => {
     mockDetailsGrid.mockReset();
@@ -135,6 +168,35 @@ describe('IngressDetails', () => {
     const classNameField = extraInfo.find((f: any) => String(f.name).includes('Class Name'));
     expect(classNameField).toBeDefined();
     expect((classNameField?.value as any)?.props?.children).toBe('nginx');
+  });
+
+  it('orders ports by number rather than by digit', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-ingress' }}>
+        <IngressDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const extraInfo = props.extraInfo(multiPortIngress);
+
+    const portsField = extraInfo.find((f: any) => String(f.name).includes('Ports'));
+    // A plain string sort puts 443 first, because '4' precedes '8'.
+    expect(portsField?.value).toBe('80, 443, 8080');
+  });
+
+  it('keeps named ports and resource backends alongside numbered ports', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-ingress' }}>
+        <IngressDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const extraInfo = props.extraInfo(mixedPortIngress);
+
+    const portsField = extraInfo.find((f: any) => String(f.name).includes('Ports'));
+    expect(portsField?.value).toBe('80, 443, Service:service1, someport');
   });
 
   it('includes TLS configuration in extraInfo when TLS is configured', () => {
