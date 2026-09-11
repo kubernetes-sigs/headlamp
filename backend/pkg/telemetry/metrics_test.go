@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	tel "github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
@@ -224,19 +225,23 @@ func TestResponseWriterHijack_SucceedsWithUnderlyingHijacker(t *testing.T) {
 	metrics, err := tel.NewMetrics()
 	require.NoError(t, err)
 
-	called := false
+	type hijackOutcome struct {
+		isHijacker bool
+		hijackErr  error
+	}
+
+	outcome := make(chan hijackOutcome, 1)
 
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hj, ok := w.(http.Hijacker)
-		require.True(t, ok, "wrapped writer should implement http.Hijacker")
+		if !ok {
+			outcome <- hijackOutcome{}
 
-		conn, rw, err := hj.Hijack()
-		require.NoError(t, err, "expected Hijack to succeed when underlying supports it")
+			return
+		}
 
-		called = true
-
-		// rw is intentionally unused; we just ensure Hijack succeeded.
-		_ = rw
+		conn, _, hijackErr := hj.Hijack()
+		outcome <- hijackOutcome{isHijacker: true, hijackErr: hijackErr}
 
 		if conn != nil {
 			_ = conn.Close()
@@ -257,7 +262,13 @@ func TestResponseWriterHijack_SucceedsWithUnderlyingHijacker(t *testing.T) {
 
 	_ = doErr // ignore errors due to hijacking
 
-	assert.True(t, called, "handler should have executed and called Hijack")
+	select {
+	case result := <-outcome:
+		assert.True(t, result.isHijacker, "wrapped writer should implement http.Hijacker")
+		assert.NoError(t, result.hijackErr, "expected Hijack to succeed when underlying supports it")
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler did not execute")
+	}
 }
 
 func TestResponseWriterHijack_ReturnsErrorWhenUnderlyingNotHijacker(t *testing.T) {
