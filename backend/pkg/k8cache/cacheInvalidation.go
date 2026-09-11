@@ -116,11 +116,16 @@ func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bo
 }
 
 // returnGVRList returns list+watch GroupVersionResources filtered to an allowlisted set of
-// API resource names (e.g. pods, deployments) used for cache invalidation watchers.
+// API group+resource pairs (e.g. core pods, apps deployments) used for cache invalidation
+// watchers.
 func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
 	skipKinds := map[string]bool{
-		"Lease": true,
 		"Event": true,
+		// Lease objects are updated at high frequency (node heartbeats and
+		// leader-election renewals). Watching them would trigger cache
+		// invalidation and logging on every renewal, and Lease requests are
+		// not cached anyway, so they are excluded from the watcher.
+		"Lease": true,
 	}
 
 	var gvrList []schema.GroupVersionResource
@@ -151,27 +156,77 @@ func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVer
 	return filtered
 }
 
+// gatewayNetworkingGroup is the API group of the Kubernetes Gateway API.
+const gatewayNetworkingGroup = "gateway.networking.k8s.io"
+
 // filterImportantResources filters the provided list of GroupVersionResources to
 // include only those that are deemed important for caching and watching.
+//
+// The allowlist is keyed by group+resource so that a custom resource in an
+// unrelated API group that happens to share a resource name (e.g. a CRD
+// example.com/gateways) is not watched.
 func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
-	allowed := map[string]struct{}{
-		"pods":         {},
-		"services":     {},
-		"deployments":  {},
-		"replicasets":  {},
-		"statefulsets": {},
-		"daemonsets":   {},
-		"nodes":        {},
-		"configmaps":   {},
-		"secrets":      {},
-		"jobs":         {},
-		"cronjobs":     {},
+	allowed := map[schema.GroupResource]struct{}{
+		// Core workload resources
+		{Resource: "pods"}:                                                {},
+		{Resource: "services"}:                                            {},
+		{Resource: "nodes"}:                                               {},
+		{Resource: "configmaps"}:                                          {},
+		{Resource: "secrets"}:                                             {},
+		{Resource: "endpoints"}:                                           {},
+		{Resource: "serviceaccounts"}:                                     {},
+		{Resource: "resourcequotas"}:                                      {},
+		{Resource: "limitranges"}:                                         {},
+		{Resource: "namespaces"}:                                          {},
+		{Group: "apps", Resource: "deployments"}:                          {},
+		{Group: "apps", Resource: "replicasets"}:                          {},
+		{Group: "apps", Resource: "statefulsets"}:                         {},
+		{Group: "apps", Resource: "daemonsets"}:                           {},
+		{Group: "batch", Resource: "jobs"}:                                {},
+		{Group: "batch", Resource: "cronjobs"}:                            {},
+		{Group: "jobset.x-k8s.io", Resource: "jobsets"}:                   {},
+		{Group: "leaderworkerset.x-k8s.io", Resource: "leaderworkersets"}: {},
+		// Networking
+		{Group: "networking.k8s.io", Resource: "ingresses"}:                         {},
+		{Group: "networking.k8s.io", Resource: "ingressclasses"}:                    {},
+		{Group: "networking.k8s.io", Resource: "networkpolicies"}:                   {},
+		{Group: "discovery.k8s.io", Resource: "endpointslices"}:                     {},
+		{Group: gatewayNetworkingGroup, Resource: "gateways"}:                       {},
+		{Group: gatewayNetworkingGroup, Resource: "gatewayclasses"}:                 {},
+		{Group: gatewayNetworkingGroup, Resource: "httproutes"}:                     {},
+		{Group: gatewayNetworkingGroup, Resource: "grpcroutes"}:                     {},
+		{Group: gatewayNetworkingGroup, Resource: "tcproutes"}:                      {},
+		{Group: gatewayNetworkingGroup, Resource: "udproutes"}:                      {},
+		{Group: gatewayNetworkingGroup, Resource: "referencegrants"}:                {},
+		{Group: gatewayNetworkingGroup, Resource: "backendtlspolicies"}:             {},
+		{Group: "gateway.networking.x-k8s.io", Resource: "xbackendtrafficpolicies"}: {},
+		// Storage
+		{Resource: "persistentvolumeclaims"}:                           {},
+		{Resource: "persistentvolumes"}:                                {},
+		{Group: "storage.k8s.io", Resource: "storageclasses"}:          {},
+		{Group: "storage.k8s.io", Resource: "volumeattributesclasses"}: {},
+		// RBAC
+		{Group: "rbac.authorization.k8s.io", Resource: "roles"}:               {},
+		{Group: "rbac.authorization.k8s.io", Resource: "rolebindings"}:        {},
+		{Group: "rbac.authorization.k8s.io", Resource: "clusterroles"}:        {},
+		{Group: "rbac.authorization.k8s.io", Resource: "clusterrolebindings"}: {},
+		// Policy and quotas
+		{Group: "autoscaling", Resource: "horizontalpodautoscalers"}:      {},
+		{Group: "autoscaling.k8s.io", Resource: "verticalpodautoscalers"}: {},
+		{Group: "policy", Resource: "poddisruptionbudgets"}:               {},
+		{Group: "scheduling.k8s.io", Resource: "priorityclasses"}:         {},
+		{Group: "node.k8s.io", Resource: "runtimeclasses"}:                {},
+		// Admission webhooks
+		{Group: "admissionregistration.k8s.io", Resource: "mutatingwebhookconfigurations"}:   {},
+		{Group: "admissionregistration.k8s.io", Resource: "validatingwebhookconfigurations"}: {},
+		// Cluster
+		{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}: {},
 	}
 
 	filtered := make([]schema.GroupVersionResource, 0, len(allowed))
 
 	for _, gvr := range gvrList {
-		if _, ok := allowed[gvr.Resource]; ok {
+		if _, ok := allowed[gvr.GroupResource()]; ok {
 			filtered = append(filtered, gvr)
 		}
 	}
