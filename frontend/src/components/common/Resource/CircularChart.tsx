@@ -73,6 +73,11 @@ export function CircularChart(props: CircularChartProps) {
   function getResourceUsage() {
     if (!items) return [-1, -1];
 
+    // Metrics haven't arrived yet (no data and no error). Report this as a
+    // loading state (-1) instead of computing a usage of 0, so the tile shows
+    // '…' rather than a misleading 0% until the real values load.
+    if (!noMetrics && itemsMetrics === null) return [-1, -1];
+
     const nodeMetrics = filterMetrics(items, itemsMetrics);
     const usedValue = _.sumBy(nodeMetrics, resourceUsedGetter);
     const availableValue = _.sumBy(items as List<Node | Pod>, resourceAvailableGetter);

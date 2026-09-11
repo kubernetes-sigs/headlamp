@@ -196,6 +196,18 @@ MemoryChartPod.args = {
   resource: 'memory',
 };
 
+// Metrics not loaded yet (items present, metrics null, no error): should show a
+// loading state rather than a misleading 0%.
+export const MemoryChartLoading = Template1.bind({});
+MemoryChartLoading.args = {
+  chart_props: {
+    items: [mockNode],
+    itemsMetrics: null,
+    noMetrics: false,
+  },
+  resource: 'memory',
+};
+
 // CPU Chart Stories
 export const CpuChartWithMetrics = Template1.bind({});
 CpuChartWithMetrics.args = {
@@ -222,6 +234,18 @@ CpuChartPod.args = {
   chart_props: {
     items: [mockPod],
     itemsMetrics: [mockPodMetrics],
+    noMetrics: false,
+  },
+  resource: 'cpu',
+};
+
+// Metrics not loaded yet (items present, metrics null, no error): should show a
+// loading state rather than a misleading 0%.
+export const CpuChartLoading = Template1.bind({});
+CpuChartLoading.args = {
+  chart_props: {
+    items: [mockNode],
+    itemsMetrics: null,
     noMetrics: false,
   },
   resource: 'cpu',
