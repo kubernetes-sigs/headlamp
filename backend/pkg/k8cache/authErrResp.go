@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 // Details provides information about a specific resource kind.
@@ -74,6 +76,21 @@ func isDirectOrProxiedAPIResourceEndpoint(urlPath, group, resource string) bool 
 // this will returns directly without asking to K8's Server.
 func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey string) error {
 	last, kubeVerb := GetKindAndVerb(r)
+	group, namespace := GetGroupAndNamespace(r)
+
+	scope := "at the cluster scope"
+	if namespace != "" {
+		scope = fmt.Sprintf("in the namespace %q", namespace)
+	}
+
+	message := fmt.Sprintf("%s is forbidden: User \"system:serviceaccount:default:%s\" cannot ", last, contextKey) +
+		fmt.Sprintf("%s resource %q in API group %q %s", kubeVerb, last, group, scope)
+	if last == "" || kubeVerb == unknownVerb {
+		last = requestPathSubject(r)
+		kubeVerb = "access"
+		message = fmt.Sprintf("%s is forbidden: User \"system:serviceaccount:default:%s\" cannot ", last, contextKey) +
+			fmt.Sprintf("%s path %q %s", kubeVerb, last, scope)
+	}
 
 	// AuthErrorResponse will be the actual message which will be
 	// further transformed into JSON body for sending to the client.
@@ -81,9 +98,8 @@ func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey 
 		Kind:       "Status",
 		APIVersion: "v1",
 		MetaData:   Metadata{}, // In this case the Metadata will always be empty.
-		Message: fmt.Sprintf("%s is forbidden: User \"system:serviceaccount:default:%s\" cannot ", last, contextKey) +
-			fmt.Sprintf("%s resource \"%s\" in API group \"\" at the cluster scope", kubeVerb, last),
-		Reason: "Forbidden", // For this scenerio the reason should be forbidden.
+		Message:    message,
+		Reason:     "Forbidden", // For this scenario the reason should be forbidden.
 		Details: Details{
 			Kind: last,
 		},
@@ -101,6 +117,18 @@ func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey 
 	}
 
 	return nil
+}
+
+func requestPathSubject(r *http.Request) string {
+	if apiPath := strings.Trim(mux.Vars(r)["api"], "/"); apiPath != "" {
+		return apiPath
+	}
+
+	if path := strings.Trim(r.URL.Path, "/"); path != "" {
+		return path
+	}
+
+	return "request path"
 }
 
 // WriteResponseToClient returns UnAuthorized error response when the user Unauthorized
