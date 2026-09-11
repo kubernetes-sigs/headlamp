@@ -1188,17 +1188,31 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		tokenType := "id_token"
-		if config.OidcUseAccessToken {
-			tokenType = "access_token"
-		}
-
-		rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
+		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 		if !ok {
-			logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
-			http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
+			logger.Log(logger.LevelError, nil, err, "no id_token field in oauth2 token")
+			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
 
 			return
+		}
+
+		// The credential forwarded to the cluster. Some providers (e.g. Azure
+		// Entra ID) authorize against Kubernetes with the access_token rather
+		// than the id_token, which is what -oidc-use-access-token selects.
+		//
+		// It is deliberately NOT the token verified below: per OIDC Core the
+		// access token is opaque to the client, and providers such as Google
+		// issue one that is not a JWT at all, so verifying it can only fail.
+		rawUserToken := rawIDToken
+
+		if config.OidcUseAccessToken {
+			rawUserToken = oauth2Token.AccessToken
+			if rawUserToken == "" {
+				logger.Log(logger.LevelError, nil, err, "no access_token field in oauth2 token")
+				http.Error(w, "No access_token field in oauth2 token.", http.StatusInternalServerError)
+
+				return
+			}
 		}
 
 		if err := config.Cache.Set(context.Background(),
@@ -1209,7 +1223,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawIDToken)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
