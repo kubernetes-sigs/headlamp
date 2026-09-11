@@ -725,15 +725,19 @@ export function SingleActivityRenderer({
                     </ClickAwayListener>
                   </Popper>
                   <IconButton
-                    onClick={() => {
-                      Activity.update(id, { minimized: true });
-                    }}
+                    onClick={() => Activity.update(id, { minimized: true })}
                     size="small"
                     title={t('Minimize')}
+                    aria-label={t('Minimize')}
                   >
                     <Icon icon="mdi:minimize" />
                   </IconButton>
-                  <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
+                  <IconButton
+                    onClick={() => Activity.close(id)}
+                    size="small"
+                    title={t('Close')}
+                    aria-label={t('Close')}
+                  >
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </>
