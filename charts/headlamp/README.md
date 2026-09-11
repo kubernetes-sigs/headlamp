@@ -247,6 +247,11 @@ read-only into the Headlamp container. If an access provider `execConfig.command
 is configured, the command must be under one of the absolute
 `plugins[].mountPath` values.
 
+When a matching `ClusterProfile` publishes connection metadata without
+credentials, set `credentialSource: oidc` on the provider to use Headlamp's
+configured OIDC login for Kubernetes API requests. Do not configure
+`credentialSource` and `execConfig` on the same provider.
+
 ### Deployment Configuration
 
 | Key | Type | Default | Description |

@@ -28,6 +28,7 @@ import (
 	"hash"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -65,6 +66,7 @@ const (
 	storeRootPrefix               = "store/"
 
 	clusterExecConfigExtensionKey = "client.authentication.k8s.io/exec"
+	credentialSourceOIDC          = "oidc"
 )
 
 // Structured-log field names that recur across many log sites.
@@ -98,6 +100,9 @@ type Options struct {
 	HubNamespace string
 	// DiscoverFromStore enables discovery from non-internal contexts already in Store.
 	DiscoverFromStore bool
+	// OIDCConfig is inherited by discovered contexts whose provider selects the
+	// OIDC credential source.
+	OIDCConfig *kubeconfig.OidcConfig
 }
 
 // Runner watches ClusterProfile resources and syncs them into Headlamp's context store.
@@ -111,6 +116,8 @@ type Runner struct {
 	hubConfig             *rest.Config
 	hubNamespace          string
 	discoverFromStore     bool
+	oidcConfig            *kubeconfig.OidcConfig
+	credentialProviders   []credentialProvider
 
 	clientForConfig func(*rest.Config) (ciaclient.Interface, error)
 	now             func() time.Time
@@ -160,9 +167,9 @@ func NewRunner(opts Options) (*Runner, error) {
 		return nil, errors.New("cluster inventory provider file is required")
 	}
 
-	accessConfig, err := access.NewFromFile(opts.ProviderFile)
+	accessConfig, credentialProviders, err := loadProviderConfiguration(opts.ProviderFile, opts.OIDCConfig != nil)
 	if err != nil {
-		return nil, fmt.Errorf("load cluster inventory provider file: %w", err)
+		return nil, err
 	}
 
 	labelSelector, err := normalizeLabelSelector(opts.LabelSelector)
@@ -195,6 +202,8 @@ func NewRunner(opts Options) (*Runner, error) {
 		hubConfig:             opts.HubConfig,
 		hubNamespace:          opts.HubNamespace,
 		discoverFromStore:     opts.DiscoverFromStore,
+		oidcConfig:            copyOIDCConfig(opts.OIDCConfig),
+		credentialProviders:   credentialProviders,
 		clientForConfig: func(config *rest.Config) (ciaclient.Interface, error) {
 			return ciaclient.NewForConfig(config)
 		},
@@ -204,6 +213,28 @@ func NewRunner(opts Options) (*Runner, error) {
 		profileKeysByRoot: map[string]map[string]string{},
 		noCRD:             map[string]time.Time{},
 	}, nil
+}
+
+func loadProviderConfiguration(path string, oidcConfigured bool) (*access.Config, []credentialProvider, error) {
+	accessConfig, err := access.NewFromFile(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load cluster inventory provider file: %w", err)
+	}
+
+	credentialProviders, err := loadCredentialProviders(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load cluster inventory credential sources: %w", err)
+	}
+
+	if !oidcConfigured {
+		for _, provider := range credentialProviders {
+			if provider.source == credentialSourceOIDC {
+				return nil, nil, errors.New("cluster inventory OIDC credential source requires Headlamp OIDC configuration")
+			}
+		}
+	}
+
+	return accessConfig, credentialProviders, nil
 }
 
 // Run blocks until ctx is cancelled and reconciles long-lived root informers.
@@ -598,7 +629,7 @@ func (r *Runner) contextFromClusterProfile(
 		return nil, false
 	}
 
-	restConfig, err := copyAccessConfig(r.accessConfig).BuildConfigFromCP(accessOnlyClusterProfile(cp))
+	restConfig, usesOIDC, err := r.restConfigFromClusterProfile(cp)
 	if err != nil {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
 			"cluster-inventory: failed to build rest config")
@@ -608,7 +639,12 @@ func (r *Runner) contextFromClusterProfile(
 
 	contextName := contextNameFromProfileKey(profileKey)
 
-	headlampContext, err := restConfigToContext(restConfig, contextName, profileKey)
+	var oidcConfig *kubeconfig.OidcConfig
+	if usesOIDC {
+		oidcConfig = r.oidcConfig
+	}
+
+	headlampContext, err := restConfigToContext(restConfig, contextName, profileKey, oidcConfig)
 	if err != nil {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
 			"cluster-inventory: failed to convert rest config")
@@ -626,6 +662,104 @@ func (r *Runner) contextFromClusterProfile(
 	headlampContext.ClusterInventory = clusterInventoryMetadataFromProfile(profileKey, cp)
 
 	return headlampContext, true
+}
+
+// restConfigFromClusterProfile resolves the first configured provider advertised
+// by the ClusterProfile using that provider's declared credential source.
+func (r *Runner) restConfigFromClusterProfile(cp *apisv1alpha1.ClusterProfile) (*rest.Config, bool, error) {
+	accessProviders := make(map[string]apisv1alpha1.AccessProvider, len(cp.Status.AccessProviders))
+	for _, provider := range cp.Status.AccessProviders {
+		accessProviders[provider.Name] = provider
+	}
+
+	for _, configuredProvider := range r.credentialProviders {
+		provider, ok := accessProviders[configuredProvider.name]
+		if !ok {
+			continue
+		}
+
+		if configuredProvider.source != credentialSourceOIDC {
+			restConfig, err := copyAccessConfig(r.accessConfig).BuildConfigFromCP(accessOnlyClusterProfile(cp))
+
+			return restConfig, false, err
+		}
+
+		server, parseErr := url.Parse(provider.Cluster.Server)
+		if parseErr != nil || server.Host == "" || server.Scheme != "https" {
+			return nil, false, fmt.Errorf(
+				"OIDC provider %q has an invalid server URL: HTTPS is required",
+				configuredProvider.name,
+			)
+		}
+
+		result := &rest.Config{
+			Host: provider.Cluster.Server,
+			TLSClientConfig: rest.TLSClientConfig{
+				CAData:     append([]byte(nil), provider.Cluster.CertificateAuthorityData...),
+				Insecure:   provider.Cluster.InsecureSkipTLSVerify,
+				ServerName: provider.Cluster.TLSServerName,
+			},
+		}
+		if provider.Cluster.ProxyURL != "" {
+			proxyURL, proxyErr := url.Parse(provider.Cluster.ProxyURL)
+			if proxyErr != nil || proxyURL.Host == "" {
+				return nil, false, fmt.Errorf("OIDC provider %q has an invalid proxy URL", configuredProvider.name)
+			}
+
+			result.Proxy = http.ProxyURL(proxyURL)
+		}
+
+		return result, true, nil
+	}
+
+	restConfig, err := copyAccessConfig(r.accessConfig).BuildConfigFromCP(accessOnlyClusterProfile(cp))
+
+	return restConfig, false, err
+}
+
+type credentialProvider struct {
+	name   string
+	source string
+}
+
+type providerCredentialConfig struct {
+	Name             string          `json:"name"`
+	ExecConfig       *api.ExecConfig `json:"execConfig"`
+	CredentialSource string          `json:"credentialSource,omitempty"`
+}
+
+type providerFileConfig struct {
+	Providers []providerCredentialConfig `json:"providers"`
+}
+
+func loadCredentialProviders(path string) ([]credentialProvider, error) {
+	// #nosec G304 -- path is the operator-configured provider file already read by the Cluster Inventory SDK.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var config providerFileConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+
+	providers := make([]credentialProvider, 0, len(config.Providers))
+
+	for _, provider := range config.Providers {
+		if provider.CredentialSource == credentialSourceOIDC {
+			if provider.ExecConfig != nil {
+				return nil, fmt.Errorf("provider %q cannot configure both credentialSource and execConfig", provider.Name)
+			}
+		} else if provider.CredentialSource != "" {
+			return nil, fmt.Errorf("provider %q has unsupported credentialSource %q", provider.Name,
+				provider.CredentialSource)
+		}
+
+		providers = append(providers, credentialProvider{name: provider.Name, source: provider.CredentialSource})
+	}
+
+	return providers, nil
 }
 
 // clusterInventoryMetadataFromProfile copies non-sensitive ClusterProfile status metadata.
@@ -1345,7 +1479,12 @@ func proxyURLFromRestConfig(restConfig *rest.Config) (string, error) {
 }
 
 // restConfigToContext builds a Headlamp kubeconfig.Context from a generated rest.Config.
-func restConfigToContext(restConfig *rest.Config, contextName, profileKey string) (*kubeconfig.Context, error) {
+func restConfigToContext(
+	restConfig *rest.Config,
+	contextName string,
+	profileKey string,
+	oidcConfig *kubeconfig.OidcConfig,
+) (*kubeconfig.Context, error) {
 	if restConfig == nil {
 		return nil, errors.New("restConfig is nil")
 	}
@@ -1400,5 +1539,28 @@ func restConfigToContext(restConfig *rest.Config, contextName, profileKey string
 		Source:         kubeconfig.ClusterInventory,
 		KubeConfigPath: "",
 		ClusterID:      clusterInventoryIDPrefix + profileKey,
+		OidcConf:       copyOIDCConfig(oidcConfig),
 	}, nil
+}
+
+func copyOIDCConfig(source *kubeconfig.OidcConfig) *kubeconfig.OidcConfig {
+	if source == nil {
+		return nil
+	}
+
+	copied := &kubeconfig.OidcConfig{
+		ClientID: source.ClientID, ClientSecret: source.ClientSecret,
+		IdpIssuerURL: source.IdpIssuerURL, Scopes: append([]string(nil), source.Scopes...),
+	}
+	if source.SkipTLSVerify != nil {
+		value := *source.SkipTLSVerify
+		copied.SkipTLSVerify = &value
+	}
+
+	if source.CACert != nil {
+		value := *source.CACert
+		copied.CACert = &value
+	}
+
+	return copied
 }
