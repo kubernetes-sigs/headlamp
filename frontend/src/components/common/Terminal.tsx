@@ -321,8 +321,12 @@ export default function Terminal(props: TerminalProps) {
         reconnectOnEnter: false,
       };
 
-      fitAddonRef.current = new FitAddon();
-      xtermRef.current.xterm.loadAddon(fitAddonRef.current);
+      // Capture the addon in an effect-local variable so the async continuation
+      // can still reference it even after fitAddonRef.current is cleared by cleanup.
+      let cancelled = false;
+      const fitAddon = new FitAddon();
+      fitAddonRef.current = fitAddon;
+      xtermRef.current.xterm.loadAddon(fitAddon);
 
       (async function () {
         if (isAttach) {
@@ -346,16 +350,25 @@ export default function Terminal(props: TerminalProps) {
             { command: [command], failCb: () => shellConnectFailed(xtermRef.current!) }
           );
         }
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
+        // Guard against cleanup having already run while we were awaiting.
+        if (!cancelled) {
+          setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddon);
+        }
       })();
 
       const handler = () => {
-        fitAddonRef.current!.fit();
+        // Use optional chaining: the ref is cleared in cleanup before the event
+        // listener is removed, so a late-firing resize cannot dereference null.
+        fitAddonRef.current?.fit();
       };
 
       window.addEventListener('resize', handler);
 
       return function cleanup() {
+        cancelled = true;
+        fitAddonRef.current = null;
+        // xterm.dispose() already disposes all addons loaded via loadAddon()
+        // through its internal AddonManager, so no explicit fitAddon.dispose() needed.
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
@@ -618,7 +631,9 @@ export default function Terminal(props: TerminalProps) {
       onClose={onClose}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          if (fitAddonRef.current && typeof fitAddonRef.current.fit === 'function') {
+            fitAddonRef.current.fit();
+          }
         }, 1);
       }}
       withFullScreen
