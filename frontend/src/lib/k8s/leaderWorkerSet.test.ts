@@ -14,13 +14,21 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { request } from './api/v1/clusterRequests';
+import { ApiError } from './api/v2/ApiError';
 import LeaderWorkerSet from './leaderWorkerSet';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
+
+vi.mock('./api/v1/clusterRequests', () => ({
+  request: vi.fn(),
+}));
+
+const mockedRequest = vi.mocked(request);
 
 const makeLeaderWorkerSet = (spec: any, status: any) =>
   new LeaderWorkerSet({
@@ -32,6 +40,62 @@ const makeLeaderWorkerSet = (spec: any, status: any) =>
   } as any);
 
 describe('LeaderWorkerSet class', () => {
+  describe('isEnabled', () => {
+    beforeEach(() => {
+      mockedRequest.mockReset();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('returns true when the leaderworkersets resource is listed', async () => {
+      mockedRequest.mockResolvedValue({
+        resources: [{ name: 'leaderworkersets' }, { name: 'leaderworkersets/status' }],
+      });
+
+      await expect(LeaderWorkerSet.isEnabled('test-cluster')).resolves.toBe(true);
+      expect(mockedRequest).toHaveBeenCalledWith(
+        `/apis/${LeaderWorkerSet.apiVersion}`,
+        { cluster: 'test-cluster', autoLogoutOnAuthError: false },
+        false
+      );
+    });
+
+    it('returns false when the leaderworkersets resource is missing', async () => {
+      mockedRequest.mockResolvedValue({ resources: [] });
+      await expect(LeaderWorkerSet.isEnabled('test-cluster')).resolves.toBe(false);
+    });
+
+    it('returns false without logging when the API group is missing (404)', async () => {
+      mockedRequest.mockRejectedValue(
+        new ApiError('the server could not find the requested resource', { status: 404 })
+      );
+
+      await expect(LeaderWorkerSet.isEnabled('test-cluster')).resolves.toBe(false);
+      expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it('returns false and logs non-404 discovery failures', async () => {
+      mockedRequest.mockRejectedValue(new ApiError('forbidden', { status: 403 }));
+
+      await expect(LeaderWorkerSet.isEnabled('test-cluster')).resolves.toBe(false);
+      expect(console.error).toHaveBeenCalled();
+    });
+
+    it('probes without a cluster override when none is passed', async () => {
+      mockedRequest.mockResolvedValue({ resources: [{ name: 'leaderworkersets' }] });
+
+      await expect(LeaderWorkerSet.isEnabled()).resolves.toBe(true);
+      expect(mockedRequest).toHaveBeenCalledWith(
+        `/apis/${LeaderWorkerSet.apiVersion}`,
+        { autoLogoutOnAuthError: false },
+        false
+      );
+    });
+  });
+
   describe('getDesiredReplicas', () => {
     it('returns the requested number of groups', () => {
       expect(makeLeaderWorkerSet({ replicas: 3 }, {}).getDesiredReplicas()).toBe(3);
