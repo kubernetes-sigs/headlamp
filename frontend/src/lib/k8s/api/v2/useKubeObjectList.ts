@@ -185,6 +185,22 @@ function allowedNamespaceListQuery<K extends KubeObject>(
  * @param queryParams - query parameters
  * @returns query options for getting a single list of kube resources
  */
+/**
+ * Whether any of the requests a list fanned out over answered.
+ *
+ * A list keeps a result for every cluster that responded, so an empty set of them means
+ * each request failed. An empty item list means something else: the requests that did
+ * answer found nothing, and a count of zero is then the answer rather than the lack of one.
+ *
+ * @param query - The list query to inspect.
+ * @returns Whether at least one request returned data.
+ */
+export function hasListResults(
+  query: Pick<QueryListResponse<any, any, any>, 'clusterResults'>
+): boolean {
+  return Object.keys(query.clusterResults ?? {}).length > 0;
+}
+
 export function kubeObjectListQuery<K extends KubeObject>(
   kubeObjectClass: KubeObjectClass,
   endpoint: KubeObjectEndpoint,
