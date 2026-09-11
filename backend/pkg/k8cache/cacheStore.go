@@ -62,6 +62,14 @@ func IsKubernetesAPIPath(path string) bool {
 	return kubernetesAPIPathIndex(parts) != -1
 }
 
+// HasQueryParameters returns true when the request URL carries a query string.
+// Cache keys are built from the request path and context only, so a request
+// whose query narrows or pages the response must not share a cache entry with
+// one that does not.
+func HasQueryParameters(u *url.URL) bool {
+	return u.RawQuery != ""
+}
+
 // CachedResponseData stores information such as StatusCode, Headers, and Body.
 // It helps cache responses efficiently and serve them from the cache.
 type CachedResponseData struct {
