@@ -40,9 +40,16 @@ export const activitySlice = createSlice({
         state.history.push(action.payload.id);
       }
 
-      // Close other temporary tabs
+      // Close other temporary tabs. Pinned ones are minimized to the ActivityBar instead
+      // of being removed, so pinning a resource and opening another doesn't lose it.
       Object.values(state.activities).forEach(activity => {
-        if (activity.temporary) {
+        if (activity.id === action.payload.id) {
+          return;
+        }
+        if (activity.temporary && activity.pinned) {
+          activity.minimized = true;
+          state.history = state.history.filter(it => it !== activity.id);
+        } else if (activity.temporary) {
           delete state.activities[activity.id];
           state.history = state.history.filter(it => it !== activity.id);
         }

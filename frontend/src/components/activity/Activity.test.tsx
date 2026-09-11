@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import store from '../../redux/stores/store';
 import { Activity } from './Activity';
 import { activitySlice, ActivityState } from './activitySlice';
 
@@ -72,6 +73,28 @@ describe('activitySlice', () => {
       };
       const nextState = reducer(stateWithTempActivity, launchActivity(newActivity));
       expect(nextState.activities['2']).toBeUndefined();
+      expect(nextState.history).not.toContain('2');
+      expect(nextState.activities['1']).toBeDefined();
+    });
+
+    it('should minimize (not remove) a pinned temporary activity when another is launched', () => {
+      const pinnedActivity: Activity = {
+        id: '2',
+        content: 'Pinned Content',
+        location: 'full',
+        title: 'Pinned Activity',
+        temporary: true,
+        pinned: true,
+      };
+      const stateWithPinnedActivity: ActivityState = {
+        history: ['2'],
+        activities: {
+          '2': pinnedActivity,
+        },
+      };
+      const nextState = reducer(stateWithPinnedActivity, launchActivity(newActivity));
+      expect(nextState.activities['2']).toBeDefined();
+      expect(nextState.activities['2'].minimized).toBe(true);
       expect(nextState.history).not.toContain('2');
       expect(nextState.activities['1']).toBeDefined();
     });
@@ -145,6 +168,46 @@ describe('activitySlice', () => {
       const updatedActivity = { id: '1', minimized: true };
       const nextState = reducer(stateWithActivity, update(updatedActivity));
       expect(nextState.history).toEqual([]);
+    });
+  });
+
+  describe('Activity.closeOrMinimize', () => {
+    beforeEach(() => {
+      store.dispatch(activitySlice.actions.reset());
+    });
+
+    it('should minimize a pinned activity even when called detached from Activity', () => {
+      store.dispatch(
+        launchActivity({
+          id: '1',
+          content: 'Pinned Content',
+          location: 'full',
+          temporary: true,
+          pinned: true,
+        })
+      );
+
+      // Simulate a consumer that destructures the method off the object, losing `this`.
+      const { closeOrMinimize } = Activity;
+      closeOrMinimize('1');
+
+      expect(store.getState().activity.activities['1'].minimized).toBe(true);
+    });
+
+    it('should close an unpinned activity even when called detached from Activity', () => {
+      store.dispatch(
+        launchActivity({
+          id: '1',
+          content: 'Content',
+          location: 'full',
+          temporary: true,
+        })
+      );
+
+      const { closeOrMinimize } = Activity;
+      closeOrMinimize('1');
+
+      expect(store.getState().activity.activities['1']).toBeUndefined();
     });
   });
 });
