@@ -52,8 +52,16 @@ export const activitySlice = createSlice({
         // New activity, add it to the state
         state.activities[action.payload.id] = action.payload;
       } else {
-        // Existing activity, un-minimize it
+        // Existing activity, un-minimize it.
         state.activities[action.payload.id].minimized = false;
+        // Details drawers: honor the caller's current location so
+        // reopening the same resource (e.g. from Global Search after the
+        // user changed the drawer-position setting) picks up the new
+        // preference. Other activity kinds keep whatever placement the
+        // user snapped to via the activity menu.
+        if (action.payload.kind === 'details') {
+          state.activities[action.payload.id].location = action.payload.location;
+        }
       }
 
       // Keep explicit medium windows floating; all other activities retain the existing behavior.

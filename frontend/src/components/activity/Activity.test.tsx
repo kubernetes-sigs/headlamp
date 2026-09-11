@@ -56,6 +56,36 @@ describe('activitySlice', () => {
       expect(nextState.history).toEqual(['1']);
     });
 
+    it("adopts the caller's location when relaunching an existing details activity", () => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
+      const stateWithActivity: ActivityState = {
+        history: ['1'],
+        activities: {
+          '1': { ...newActivity, kind: 'details', location: 'split-right' },
+        },
+      };
+      const relaunch = {
+        ...newActivity,
+        kind: 'details' as const,
+        location: 'split-left' as const,
+      };
+      const nextState = reducer(stateWithActivity, launchActivity(relaunch));
+      expect(nextState.activities['1'].location).toBe('split-left');
+    });
+
+    it('keeps the existing location when relaunching a non-details activity (e.g. a user-snapped plugin activity)', () => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1920 });
+      const stateWithActivity: ActivityState = {
+        history: ['1'],
+        activities: {
+          '1': { ...newActivity, location: 'split-left' },
+        },
+      };
+      const relaunch = { ...newActivity, location: 'split-right' as const };
+      const nextState = reducer(stateWithActivity, launchActivity(relaunch));
+      expect(nextState.activities['1'].location).toBe('split-left');
+    });
+
     it('should close temporary activities', () => {
       const temporaryActivity: Activity = {
         id: '2',
