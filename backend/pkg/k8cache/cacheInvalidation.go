@@ -44,16 +44,24 @@ import (
 // in cache, this delete keys having namespace non-empty and
 // also empty namespace.
 func DeleteKeys(key string, k8scache cache.Cache[string]) {
-	_ = k8scache.Delete(context.Background(), key)
-
 	keyPart := strings.Split(key, "+")
 	if len(keyPart) < 4 {
-		return // malformed key; nothing to namespace-strip
+		// Fallback to exactly delete malformed key
+		_ = k8scache.Delete(context.Background(), key)
+		return
 	}
 
+	exactKey := strings.Join(keyPart[:4], "+")
+	_ = k8scache.DeleteAll(context.Background(), func(k string) bool {
+		return k == exactKey || strings.HasPrefix(k, exactKey+"+")
+	})
+
+	// Also delete namespace-stripped version
 	keyPart[2] = ""
-	key = strings.Join(keyPart, "+")
-	_ = k8scache.Delete(context.Background(), key)
+	namespaceStrippedExactKey := strings.Join(keyPart[:4], "+")
+	_ = k8scache.DeleteAll(context.Background(), func(k string) bool {
+		return k == namespaceStrippedExactKey || strings.HasPrefix(k, namespaceStrippedExactKey+"+")
+	})
 }
 
 // handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
@@ -377,7 +385,7 @@ func invalidateCacheKeysForResourceEvent(
 	namespace, name, contextKey string,
 	k8scache cache.Cache[string],
 ) {
-	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey, "")
 
 	logger.Log(logger.LevelInfo, nil, nil,
 		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
@@ -388,8 +396,12 @@ func invalidateCacheKeysForResourceEvent(
 		return
 	}
 
-	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
+	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey, "")
+	namedKeyPrefix := strings.Join(strings.Split(namedKey, "+")[:4], "+")
+
+	if err := k8scache.DeleteAll(context.Background(), func(k string) bool {
+		return k == namedKeyPrefix || strings.HasPrefix(k, namedKeyPrefix+"+")
+	}); err != nil {
 		logger.Log(logger.LevelError, nil, err, "error while deleting key")
 	}
 }
