@@ -97,6 +97,12 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    */
   emptyMessage?: ReactNode;
   /**
+   * Optional quick-action controls rendered below {@link emptyMessage} when
+   * the table has no data. Not shown for the "no filter results" case, which
+   * is a user-driven state rather than an empty resource list.
+   */
+  emptyActions?: ReactNode;
+  /**
    * Error message to show instead of the table
    */
   errorMessage?: ReactNode;
@@ -204,6 +210,7 @@ function useContainerWidth(ref: React.RefObject<HTMLElement | null>) {
  */
 export default function Table<RowItem extends Record<string, any>>({
   emptyMessage,
+  emptyActions,
   reflectInURL,
   initialPage = 1,
   rowsPerPage,
@@ -629,7 +636,7 @@ export default function Table<RowItem extends Record<string, any>>({
   } else if (!tableProps.data?.length) {
     content = (
       <Paper variant="outlined">
-        <Empty>{emptyMsg}</Empty>
+        <Empty actions={emptyActions}>{emptyMsg}</Empty>
       </Paper>
     );
   } else {

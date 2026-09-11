@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Button from '@mui/material/Button';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import EmptyContent from './EmptyContent';
@@ -51,4 +52,15 @@ WithMultipleChildren.args = {
 export const Empty = Template.bind({});
 Empty.args = {
   children: '',
+};
+
+export const WithActions = Template.bind({});
+WithActions.args = {
+  children: 'No pods found in this namespace.',
+  actions: (
+    <>
+      <Button variant="outlined">Create Pod</Button>
+      <Button variant="outlined">Refresh</Button>
+    </>
+  ),
 };
