@@ -217,6 +217,34 @@ describe('KubeObjectNodeComponent', () => {
     expect(label.parentElement).toHaveClass('label-container');
   });
 
+  it('clamps the label to two lines at rest, with a reveal hook for hover/focus', () => {
+    mocks.node = {
+      id: 'deployment',
+      kubeObject: makeKubeObject({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        name: 'frontend-deployment-with-a-long-name',
+      }),
+      status: 'success',
+    };
+
+    render(<KubeObjectNodeComponent {...nodeProps('deployment')} />);
+
+    const label = screen.getByText('frontend-deployment-with-a-long-name');
+    // The clamp keeps the label within the node's fixed-size card at rest. The
+    // `node-title` class is targeted by Container's `:hover`/`:focus-within`
+    // styles to remove the clamp and reveal the full label (see
+    // KubeObjectNode.tsx `& .node-title` rules) -- jsdom does not evaluate
+    // those pseudo-class rules, so this only asserts the resting clamp and
+    // the hook the reveal relies on.
+    expect(label).toHaveClass('node-title');
+    expect(label).toHaveStyle({
+      display: '-webkit-box',
+      WebkitLineClamp: '2',
+      overflow: 'hidden',
+    });
+  });
+
   it('uses the highest-weight child object and shows a collapsed warning and count', () => {
     mocks.node = {
       id: 'group',
