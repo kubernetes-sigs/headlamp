@@ -34,23 +34,19 @@
       <ul
         class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
       >
-        <div
-          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
-          role="button"
-          tabindex="0"
+        <li
+          class="MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding css-2scn94-MuiListItem-root"
         >
-          <div
-            class="MuiBox-root css-0"
+          <label
+            class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
           >
             <span
               class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xlumq2-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
             >
               <input
-                aria-labelledby="column-index-0"
                 checked=""
                 class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                 data-indeterminate="false"
-                tabindex="-1"
                 type="checkbox"
               />
               <svg
@@ -65,38 +61,26 @@
                 />
               </svg>
             </span>
-          </div>
-          <div
-            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
-            id="column-index-0-label"
-          >
             <span
-              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
             >
               Name
             </span>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </div>
-        <div
-          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
-          role="button"
-          tabindex="0"
+          </label>
+        </li>
+        <li
+          class="MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding css-2scn94-MuiListItem-root"
         >
-          <div
-            class="MuiBox-root css-0"
+          <label
+            class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
           >
             <span
               class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xlumq2-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
             >
               <input
-                aria-labelledby="column-index-1"
                 checked=""
                 class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                 data-indeterminate="false"
-                tabindex="-1"
                 type="checkbox"
               />
               <svg
@@ -111,38 +95,26 @@
                 />
               </svg>
             </span>
-          </div>
-          <div
-            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
-            id="column-index-1-label"
-          >
             <span
-              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
             >
               Namespace
             </span>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </div>
-        <div
-          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
-          role="button"
-          tabindex="0"
+          </label>
+        </li>
+        <li
+          class="MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding css-2scn94-MuiListItem-root"
         >
-          <div
-            class="MuiBox-root css-0"
+          <label
+            class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
           >
             <span
               class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xlumq2-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
             >
               <input
-                aria-labelledby="column-index-2"
                 checked=""
                 class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                 data-indeterminate="false"
-                tabindex="-1"
                 type="checkbox"
               />
               <svg
@@ -157,38 +129,26 @@
                 />
               </svg>
             </span>
-          </div>
-          <div
-            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
-            id="column-index-2-label"
-          >
             <span
-              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
             >
               Age
             </span>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </div>
-        <div
-          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
-          role="button"
-          tabindex="0"
+          </label>
+        </li>
+        <li
+          class="MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding css-2scn94-MuiListItem-root"
         >
-          <div
-            class="MuiBox-root css-0"
+          <label
+            class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
           >
             <span
               class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xlumq2-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
             >
               <input
-                aria-labelledby="column-index-3"
                 checked=""
                 class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                 data-indeterminate="false"
-                tabindex="-1"
                 type="checkbox"
               />
               <svg
@@ -203,38 +163,26 @@
                 />
               </svg>
             </span>
-          </div>
-          <div
-            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
-            id="column-index-3-label"
-          >
             <span
-              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
             >
               Status
             </span>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </div>
-        <div
-          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
-          role="button"
-          tabindex="0"
+          </label>
+        </li>
+        <li
+          class="MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding css-2scn94-MuiListItem-root"
         >
-          <div
-            class="MuiBox-root css-0"
+          <label
+            class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
           >
             <span
               class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xlumq2-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
             >
               <input
-                aria-labelledby="column-index-4"
                 checked=""
                 class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                 data-indeterminate="false"
-                tabindex="-1"
                 type="checkbox"
               />
               <svg
@@ -249,21 +197,13 @@
                 />
               </svg>
             </span>
-          </div>
-          <div
-            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
-            id="column-index-4-label"
-          >
             <span
-              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
             >
               Labels
             </span>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </div>
+          </label>
+        </li>
       </ul>
     </div>
     <div
