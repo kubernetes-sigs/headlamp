@@ -48,6 +48,20 @@ export function setStore(newStore: AppStore) {
 export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   if (!routeName) return '';
 
+  // Handle deprecated route aliases to prevent breaking plugins
+  let resolvedRouteName = routeName;
+  if (routeName === 'clusterRoles') {
+    console.warn(
+      '[Deprecation] Route name "clusterRoles" is deprecated. Please use "roles" instead.'
+    );
+    resolvedRouteName = 'roles';
+  } else if (routeName === 'clusterRoleBindings') {
+    console.warn(
+      '[Deprecation] Route name "clusterRoleBindings" is deprecated. Please use "roleBindings" instead.'
+    );
+    resolvedRouteName = 'roleBindings';
+  }
+
   const store = getStore();
   const storeRoutes = !store ? {} : store.getState().routes.routes;
 
@@ -55,22 +69,25 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   const matchingStoredRouteByName =
     storeRoutes &&
     Object.entries(storeRoutes).find(
-      ([, route]) => route.name?.toLowerCase() === routeName.toLowerCase()
+      ([, route]) => route.name?.toLowerCase() === resolvedRouteName.toLowerCase()
     )?.[1];
 
   // Then try to find by path
   const matchingStoredRouteByPath =
     storeRoutes &&
-    Object.entries(storeRoutes).find(([key]) => key.toLowerCase() === routeName.toLowerCase())?.[1];
+    Object.entries(storeRoutes).find(
+      ([key]) => key.toLowerCase() === resolvedRouteName.toLowerCase()
+    )?.[1];
 
   if (matchingStoredRouteByPath && !matchingStoredRouteByName) {
     console.warn(
-      `[Deprecation] Route "${routeName}" was found by path instead of name. ` +
+      `[Deprecation] Route "${resolvedRouteName}" was found by path instead of name. ` +
         'Please use route names instead of paths when calling createRouteURL.'
     );
   }
 
-  const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
+  const route =
+    matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(resolvedRouteName);
 
   if (!route) {
     return '';
