@@ -85,6 +85,6 @@ func TestReturnGVRList(t *testing.T) {
 		{Group: "apps", Version: "v1", Resource: "deployments"},
 	}
 
-	result := returnGVRList(apiResourceLists)
+	result := returnGVRList(apiResourceLists, nil)
 	assert.ElementsMatch(t, expected, result)
 }
