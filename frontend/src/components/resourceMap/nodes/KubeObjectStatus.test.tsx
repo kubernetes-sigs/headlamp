@@ -92,6 +92,20 @@ describe('getStatus for a CompositePodGroup', () => {
     ).toBe('warning');
   });
 
+  it('warns about an invalid layout, which is reported as Invalid with a True status', () => {
+    expect(
+      getStatus(
+        compositePodGroup([
+          {
+            type: COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION,
+            status: 'True',
+            reason: 'Invalid',
+          },
+        ])
+      )
+    ).toBe('warning');
+  });
+
   it('does not warn while the terminal condition is absent', () => {
     // Not every controller sets it, so a missing condition must not mark a healthy
     // group forever.

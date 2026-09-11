@@ -58,7 +58,7 @@ import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
 import { RuntimeClass } from '../../../../lib/k8s/runtime';
-import { useSchedulingApisEnabled } from '../../../../lib/k8s/schedulingApis';
+import { useSchedulingApiClusters } from '../../../../lib/k8s/schedulingApis';
 import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
@@ -93,12 +93,12 @@ const BUILTIN_CRD_KINDS = [
 /**
  * Create a GraphSource from KubeObject class definition
  */
-const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
+const makeKubeSource = (cl: KubeObjectClass, clusters?: string[]): GraphSource => ({
   id: makeKubeSourceId(cl),
   label: cl.apiName,
   icon: <KubeIcon kind={cl.kind as any} />,
   useData() {
-    const [items] = cl.useList({ namespace: useNamespaces() });
+    const [items] = cl.useList({ namespace: useNamespaces(), ...(clusters ? { clusters } : {}) });
 
     return useMemo(() => (items ? { nodes: items?.map(makeKubeObjectNode) } : null), [items]);
   },
@@ -167,7 +167,7 @@ export function useGetAllSources(): GraphSource[] {
     queryKey: ['api-discovery', ...selectedClusters],
   });
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
-  const schedulingEnabled = useSchedulingApisEnabled();
+  const schedulingClusters = useSchedulingApiClusters();
   const gatewayEnabled =
     (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
     !!availableGatewayL4RouteKinds?.length;
@@ -295,7 +295,7 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Lease),
         ],
       },
-      ...(schedulingEnabled
+      ...(schedulingClusters.length > 0
         ? [
             {
               id: 'scheduling',
@@ -310,9 +310,9 @@ export function useGetAllSources(): GraphSource[] {
               ),
               isEnabledByDefault: false,
               sources: [
-                makeKubeSource(SchedulingWorkload),
-                makeKubeSource(CompositePodGroup),
-                makeKubeSource(PodGroup),
+                makeKubeSource(SchedulingWorkload, schedulingClusters),
+                makeKubeSource(CompositePodGroup, schedulingClusters),
+                makeKubeSource(PodGroup, schedulingClusters),
               ],
             },
           ]
@@ -385,7 +385,7 @@ export function useGetAllSources(): GraphSource[] {
     gatewayEnabled,
     tcpRouteEnabled,
     udpRouteEnabled,
-    schedulingEnabled,
+    schedulingClusters,
     t,
   ]);
 }

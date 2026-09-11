@@ -18,26 +18,39 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelectedClusters } from '.';
 import PodGroup from './podGroup';
 
+const NO_CLUSTERS: string[] = [];
+
 /**
- * Whether any selected cluster serves the workload aware scheduling APIs.
+ * The selected clusters that serve the workload aware scheduling APIs.
  *
  * The APIs are alpha and only served when the GenericWorkload feature gate is enabled,
- * so views built on them stay hidden on clusters that do not have it.
- * @returns true once a selected cluster is known to serve the APIs.
+ * so views built on them stay hidden on clusters that do not have it. The clusters are
+ * kept rather than reduced to a flag, because a list resolves its endpoint against the
+ * first cluster it is given, so a list has to be asked only for the clusters that serve
+ * the resource.
+ * @returns The clusters known to serve the APIs, empty while none is.
  */
-export function useSchedulingApisEnabled(): boolean {
+export function useSchedulingApiClusters(): string[] {
   const selectedClusters = useSelectedClusters();
 
-  const { data: isEnabled = false } = useQuery({
+  const { data: enabledClusters = NO_CLUSTERS } = useQuery({
     queryKey: ['schedulingWorkloadsEnabled', ...selectedClusters],
     queryFn: async () => {
       const enabledPerCluster = await Promise.all(
         selectedClusters.map(cluster => PodGroup.isEnabled(cluster))
       );
-      return enabledPerCluster.some(Boolean);
+      return selectedClusters.filter((_, index) => enabledPerCluster[index]);
     },
     enabled: selectedClusters.length > 0,
   });
 
-  return isEnabled;
+  return enabledClusters;
+}
+
+/**
+ * Whether any selected cluster serves the workload aware scheduling APIs.
+ * @returns true once a selected cluster is known to serve the APIs.
+ */
+export function useSchedulingApisEnabled(): boolean {
+  return useSchedulingApiClusters().length > 0;
 }

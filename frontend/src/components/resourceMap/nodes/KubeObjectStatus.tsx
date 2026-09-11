@@ -73,10 +73,13 @@ function isCompositePodGroup(w: KubeObject): w is CompositePodGroup {
 /**
  * Returns a generic status for the given CompositePodGroup
  * The condition is terminal and is not set by every controller, so only an explicit
- * False is a warning; a missing condition says nothing about the subtree below
+ * False is a warning; a missing condition says nothing about the subtree below. An
+ * invalid layout is reported as Invalid with a True status, so it is read as a warning
+ * rather than as a group that scheduled
  */
 function getCompositePodGroupStatus(group: CompositePodGroup): KubeObjectStatus {
-  return group.schedulingCondition?.status === 'False' ? 'warning' : 'success';
+  const condition = group.schedulingCondition;
+  return condition?.status === 'False' || condition?.reason === 'Invalid' ? 'warning' : 'success';
 }
 
 /**
