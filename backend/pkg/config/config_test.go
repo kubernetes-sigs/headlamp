@@ -146,6 +146,13 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
+func TestParseOidcAutoLogin(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd", "--oidc-auto-login=true"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.True(t, conf.OidcAutoLogin)
+}
+
 func TestParseAppName(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -245,6 +252,16 @@ var ParseWithEnvTests = []struct {
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "superSecretBotsStayAwayPlease", conf.OidcClientSecret)
+		},
+	},
+	{
+		name: "oidc_auto_login_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_OIDC_AUTO_LOGIN": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcAutoLogin)
 		},
 	},
 	{
