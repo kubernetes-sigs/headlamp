@@ -90,6 +90,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
+		CacheResyncPeriod:      conf.CacheResyncPeriod,
 		Port:                   conf.Port,
 		DevMode:                conf.DevMode,
 		StaticDir:              conf.StaticDir,
@@ -325,7 +326,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
+	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext, c.CacheResyncPeriod)
 
 	next.ServeHTTP(rcw, r)
 

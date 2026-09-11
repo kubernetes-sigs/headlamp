@@ -17,8 +17,9 @@ func ExportedRunWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	resyncPeriod time.Duration,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	runWatcher(ctx, k8scache, contextKey, kContext, resyncPeriod)
 }
 
 // ResetRegistries clears both registries for test isolation.
