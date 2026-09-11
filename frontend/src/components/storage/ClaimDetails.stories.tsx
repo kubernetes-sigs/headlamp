@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './ClaimDetails';
-import { BASE_PVC } from './storyHelper';
+import { BASE_PVC, BASE_SC, BASE_SC_EXPLICIT_EXPANDABLE } from './storyHelper';
 
 export default {
   title: 'PersistentVolumeClaim/DetailsView',
@@ -39,6 +39,30 @@ const Template: StoryFn = () => {
   return <Details />;
 };
 
+const storageClassUrl = `${API_BASE}/apis/storage.k8s.io/v1/storageclasses/${
+  BASE_PVC.spec!.storageClassName
+}`;
+
+const handlers = (storageClass: object) => [
+  http.get(`${API_BASE}/api/v1/persistentvolumeclaims/my-pvc`, () => HttpResponse.json(BASE_PVC)),
+  http.get(storageClassUrl, () => HttpResponse.json(storageClass)),
+  http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () =>
+    HttpResponse.json({
+      kind: 'StorageClassList',
+      items: [storageClass],
+      metadata: {},
+    })
+  ),
+  http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get(`${API_BASE}/api/v1/persistentvolumeclaims`, () => HttpResponse.error()),
+];
+
 export const Base = Template.bind({});
 Base.args = {
   json: BASE_PVC,
@@ -46,19 +70,19 @@ Base.args = {
 Base.parameters = {
   msw: {
     handlers: {
-      story: [
-        http.get(`${API_BASE}/api/v1/persistentvolumeclaims/my-pvc`, () =>
-          HttpResponse.json(BASE_PVC)
-        ),
-        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
-          HttpResponse.json({
-            kind: 'EventList',
-            items: [],
-            metadata: {},
-          })
-        ),
-        http.get(`${API_BASE}/api/v1/persistentvolumeclaims`, () => HttpResponse.error()),
-      ],
+      story: handlers(BASE_SC),
+    },
+  },
+};
+
+export const Expandable = Template.bind({});
+Expandable.args = {
+  json: BASE_PVC,
+};
+Expandable.parameters = {
+  msw: {
+    handlers: {
+      story: handlers(BASE_SC_EXPLICIT_EXPANDABLE),
     },
   },
 };
