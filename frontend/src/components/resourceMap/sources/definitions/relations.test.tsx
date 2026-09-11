@@ -20,12 +20,16 @@ import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import RoleBinding from '../../../../lib/k8s/roleBinding';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
+import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
+import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { TestContext } from '../../../../test';
 import { GraphNode, Relation } from '../../graph/graphModel';
@@ -467,5 +471,92 @@ describe('useGetAllRelations', () => {
       nonGroupingSide: 'source',
     });
     expect(relation.edgeAttributes?.(node(pvc(['ReadWriteOnce'])), node(matchingPod))).toEqual({});
+  });
+
+  it('handles webhook configurations gracefully without webhooks or with url clientConfig', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const vwcRelation = relationById(result.current, 'vwc-service');
+    const mwcRelation = relationById(result.current, 'mwc-service');
+
+    const targetService = service({ uid: 'svc-1', name: 'webhook-svc', namespace: 'default' }, {});
+    const differentNamespaceService = service(
+      { uid: 'svc-2', name: 'webhook-svc', namespace: 'other-namespace' },
+      {}
+    );
+
+    const vwcEmpty = new ValidatingWebhookConfiguration(
+      { metadata: { uid: 'vwc-1', name: 'vwc-empty' } } as any,
+      'cluster-a'
+    );
+    const vwcWithUrl = new ValidatingWebhookConfiguration(
+      {
+        metadata: { uid: 'vwc-2', name: 'vwc-url' },
+        webhooks: [{ name: 'hook.example.com', clientConfig: { url: 'https://example.com' } }],
+      } as any,
+      'cluster-a'
+    );
+    const vwcWithMatchingService = new ValidatingWebhookConfiguration(
+      {
+        metadata: { uid: 'vwc-3', name: 'vwc-match' },
+        webhooks: [
+          {
+            name: 'hook.example.com',
+            clientConfig: { service: { name: 'webhook-svc', namespace: 'default' } },
+          },
+        ],
+      } as any,
+      'cluster-a'
+    );
+
+    const mwcEmpty = new MutatingWebhookConfiguration(
+      { metadata: { uid: 'mwc-1', name: 'mwc-empty' } } as any,
+      'cluster-a'
+    );
+    const mwcWithMatchingService = new MutatingWebhookConfiguration(
+      {
+        metadata: { uid: 'mwc-2', name: 'mwc-match' },
+        webhooks: [
+          {
+            name: 'hook.example.com',
+            clientConfig: { service: { name: 'webhook-svc', namespace: 'default' } },
+          },
+        ],
+      } as any,
+      'cluster-a'
+    );
+
+    expect(vwcRelation.predicate(node(vwcEmpty), node(targetService))).toBeFalsy();
+    expect(vwcRelation.predicate(node(vwcWithUrl), node(targetService))).toBeFalsy();
+    expect(vwcRelation.predicate(node(vwcWithMatchingService), node(targetService))).toBeTruthy();
+    expect(
+      vwcRelation.predicate(node(vwcWithMatchingService), node(differentNamespaceService))
+    ).toBeFalsy();
+
+    expect(mwcRelation.predicate(node(mwcEmpty), node(targetService))).toBeFalsy();
+    expect(mwcRelation.predicate(node(mwcWithMatchingService), node(targetService))).toBeTruthy();
+    expect(
+      mwcRelation.predicate(node(mwcWithMatchingService), node(differentNamespaceService))
+    ).toBeFalsy();
+  });
+
+  it('handles role bindings with undefined subjects gracefully', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const saRelation = relationById(result.current, 'rolebinding-sa');
+
+    const sa = new ServiceAccount(
+      { metadata: { uid: 'sa-1', name: 'app-sa', namespace: 'default' } } as any,
+      'cluster-a'
+    );
+    const rbWithoutSubjects = new RoleBinding(
+      {
+        metadata: { uid: 'rb-1', name: 'rb-empty', namespace: 'default' },
+        roleRef: { kind: 'Role', name: 'app-role', apiGroup: 'rbac.authorization.k8s.io' },
+      } as any,
+      'cluster-a'
+    );
+
+    expect(saRelation.predicate(node(rbWithoutSubjects), node(sa))).toBe(false);
   });
 });

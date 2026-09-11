@@ -229,7 +229,12 @@ const vwcToService = makeRelation(
   ValidatingWebhookConfiguration,
   Service,
   (vwc, service) =>
-    vwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
+    vwc.webhooks?.find(
+      webhook =>
+        service.metadata.name === webhook.clientConfig?.service?.name &&
+        (!webhook.clientConfig?.service?.namespace ||
+          webhook.clientConfig?.service?.namespace === service.metadata.namespace)
+    )
 );
 
 const mwcToService = makeRelation(
@@ -237,7 +242,12 @@ const mwcToService = makeRelation(
   MutatingWebhookConfiguration,
   Service,
   (mwc, service) =>
-    mwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
+    mwc.webhooks?.find(
+      webhook =>
+        service.metadata.name === webhook.clientConfig?.service?.name &&
+        (!webhook.clientConfig?.service?.namespace ||
+          webhook.clientConfig?.service?.namespace === service.metadata.namespace)
+    )
 );
 
 const serviceToPods = makeRelation('service-pod', Service, Pod, (service, pod) =>
@@ -284,7 +294,7 @@ const roleBindingToServiceAccount = makeRelation(
   RoleBinding,
   ServiceAccount,
   (binding, sa) =>
-    binding.subjects.find(
+    binding.subjects?.find(
       subject => subject.kind === 'ServiceAccount' && sa.metadata.name === subject.name
     )
 );
