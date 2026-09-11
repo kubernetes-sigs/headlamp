@@ -21,7 +21,8 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
-import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { useApiGroupAvailable } from '../../lib/k8s/api/v2/useApiGroupAvailable';
 import CRD from '../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PodGroup from '../../lib/k8s/podGroup';
@@ -66,6 +67,30 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const allClustersConf = useClustersConf();
   const { t } = useTranslation();
   const theme = useTheme();
+  const cluster = useCluster();
+  // useCluster() may return an arbitrary selected cluster when multiple clusters
+  // are selected, so skip the availability check in that case to avoid hiding
+  // the Gateway API section just because the (arbitrarily) picked cluster
+  // doesn't have it, even though other selected clusters might.
+  const gatewayApiCluster = selectedClusters.length > 1 ? null : cluster;
+  const isGatewayAPIV1Available = useApiGroupAvailable(
+    'gateway.networking.k8s.io',
+    'v1',
+    gatewayApiCluster
+  );
+  // Headlamp's Gateway API resources (Gateway, GatewayClass, HTTPRoute) fall back to
+  // v1beta1 when v1 isn't served, so check both versions before hiding the section.
+  const isGatewayAPIV1Beta1Available = useApiGroupAvailable(
+    'gateway.networking.k8s.io',
+    'v1beta1',
+    gatewayApiCluster
+  );
+  const isGatewayAPIAvailable =
+    isGatewayAPIV1Available === true || isGatewayAPIV1Beta1Available === true
+      ? true
+      : isGatewayAPIV1Available === false && isGatewayAPIV1Beta1Available === false
+      ? false
+      : undefined;
 
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
   const gatewayKinds = useMemo(
@@ -349,6 +374,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         name: 'gatewayapi',
         label: t('glossary|Gateway (beta)'),
         icon: 'mdi:lan-connect',
+        hide: isGatewayAPIAvailable === false,
         subList: [
           {
             name: 'gateways',
@@ -617,6 +643,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     crdsSidebarEntries,
     gatewayKinds,
     schedulingWorkloadsEnabled,
+    isGatewayAPIAvailable,
     t,
   ]);
 
