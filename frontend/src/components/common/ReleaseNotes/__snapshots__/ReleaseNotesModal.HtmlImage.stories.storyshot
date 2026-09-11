@@ -66,6 +66,7 @@
         </h2>
         <div
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
+          tabindex="0"
         >
           <div
             class="MuiBox-root css-wicc6q"
