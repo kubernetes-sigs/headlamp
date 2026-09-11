@@ -105,7 +105,12 @@ export default function DryRunPreviewDialog(props: DryRunPreviewDialogProps) {
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} aria-label="close-button" color="secondary" variant="contained">
+        <Button
+          onClick={onClose}
+          aria-label={t('translation|Close')}
+          color="secondary"
+          variant="contained"
+        >
           {t('translation|Close')}
         </Button>
       </DialogActions>

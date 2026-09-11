@@ -123,14 +123,18 @@ export default function CreateNamespaceButton() {
         }}
       />
 
-      <Dialog aria-label="Dialog" open={namespaceDialogOpen} onClose={handleClose}>
+      <Dialog
+        aria-label={t('translation|Create Namespace')}
+        open={namespaceDialogOpen}
+        onClose={handleClose}
+      >
         <DialogTitle>{t('translation|Create Namespace')}</DialogTitle>
         <DialogContent>
           <Box component="form" style={{ width: '20vw', maxWidth: '20vw' }}>
             <TextField
               margin="dense"
               id="name"
-              aria-label="Name"
+              aria-label={t('translation|Name')}
               label={t('translation|Name')}
               type="text"
               error={!isValidNamespaceName && namespaceName.length > 0}
