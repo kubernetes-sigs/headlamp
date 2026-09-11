@@ -15,6 +15,7 @@
  */
 
 import Fade from '@mui/material/Fade';
+import { SxProps, Theme } from '@mui/material/styles';
 import Tooltip, { TooltipProps } from '@mui/material/Tooltip';
 import { ReactElement, ReactNode } from 'react';
 
@@ -28,39 +29,49 @@ export interface TooltipLightProps extends Omit<TooltipProps, 'children'> {
   children: ReactNode;
 }
 
+// TooltipLight is a custom wrapper around MUI's Tooltip component.
+// It gives tooltips a light background, custom font size, and allows multi-line text using \n.
 export default function TooltipLight(props: TooltipLightProps) {
-  const { children, interactive = true, ...rest } = props;
+  const { children, interactive = true, slotProps, componentsProps, ...rest } = props;
   const disableInteractive = !interactive;
 
-  if (typeof children === 'string') {
-    return (
-      <Tooltip
-        disableInteractive={disableInteractive}
-        TransitionComponent={Fade}
-        TransitionProps={{ timeout: 0 }}
-        sx={theme => ({
-          backgroundColor: theme.palette.background.default,
-          color: theme.palette.resourceToolTip.color,
-          boxShadow: theme.shadows[1],
-          fontSize: '1rem',
-          whiteSpace: 'pre-line',
-        })}
-        {...rest}
-      >
-        <span>{children}</span>
-      </Tooltip>
-    );
-  }
+  // Define our default light styling for the tooltip popover box.
+  // Note: whiteSpace: 'pre-line' makes sure \n inside text creates new lines!
+  const defaultSx = (theme: Theme) => ({
+    backgroundColor: theme.palette.background.default,
+    color: theme.palette.resourceToolTip.color,
+    boxShadow: theme.shadows[1],
+    fontSize: '1rem',
+    whiteSpace: 'pre-line',
+  });
+
+  // Check if whoever called <TooltipLight /> passed their own slotProps.tooltip.sx styles.
+  const callerTooltipProps = slotProps?.tooltip ?? componentsProps?.tooltip ?? {};
+  const callerSx = callerTooltipProps.sx;
+
+  // We use slotProps.tooltip.sx to apply styles directly to the tooltip box in MUI v5.
+  // We merge our default light styles with any extra styles passed in by the caller.
+  const mergedSlotProps: TooltipProps['slotProps'] = {
+    ...slotProps,
+    tooltip: {
+      ...callerTooltipProps,
+      sx: [defaultSx, ...(Array.isArray(callerSx) ? callerSx : [callerSx])] as SxProps<Theme>,
+    } as any,
+  };
+
+  // If children is a plain string text, wrap it inside a <span> tag.
+  // Otherwise, use the ReactElement child directly.
+  const childrenNode =
+    typeof children === 'string' ? <span>{children}</span> : (children as ReactElement);
 
   return (
     <Tooltip
-      {...rest}
+      disableInteractive={disableInteractive}
       TransitionComponent={Fade}
       TransitionProps={{ timeout: 0 }}
-      // children prop in the mui Tooltip is defined as ReactElement which is not totally correct
-      // string should be a valid child and is used a lot in this project
-      // but it's not included in the ReactElement type
-      children={props.children as unknown as ReactElement}
+      slotProps={mergedSlotProps}
+      {...rest}
+      children={childrenNode}
     />
   );
 }
