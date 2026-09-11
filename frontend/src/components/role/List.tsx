@@ -54,6 +54,7 @@ export default function RoleList({ namespaces }: { namespaces?: string[] }) {
   return (
     <ResourceListView
       title={t('Roles')}
+      headerProps={{ noNamespaceFilter: false }}
       errors={allErrors}
       columns={[
         'type',
