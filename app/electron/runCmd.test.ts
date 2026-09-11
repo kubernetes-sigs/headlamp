@@ -597,6 +597,25 @@ describe('validateCommandData', () => {
     ).toBe(false);
   });
 
+  it('rejects spawn options when a command capability is provided', () => {
+    const commandData = {
+      id: 'test-id',
+      command: 'examplectl',
+      args: [],
+      permissionSecrets: {},
+      capability: 'a'.repeat(64),
+    };
+
+    expect(validateCommandData({ ...commandData, options: { cwd: '/tmp' } })[0]).toBe(false);
+    expect(
+      validateCommandData({
+        ...commandData,
+        options: Object.create(null) as Record<string, never>,
+      })[0]
+    ).toBe(false);
+    expect(validateCommandData({ ...commandData, options: {} })[0]).toBe(true);
+  });
+
   it('returns false if permissionSecrets is not an object', () => {
     expect(
       validateCommandData({
@@ -1800,19 +1819,17 @@ describe('addRunCmdConsent', () => {
     }
   });
 
-  it('pre-populates the Azure AKS script command', async () => {
+  it('does not pre-populate the obsolete AKS Desktop script command', async () => {
     const { loadSettings, saveSettings } = await import('./settings');
     vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
     vi.mocked(saveSettings).mockClear();
 
-    addRunCmdConsent({ name: 'azure-aks' });
+    addRunCmdConsent({ name: 'aks-desktop' });
 
     expect(saveSettings).toHaveBeenCalledWith(
       '/fake/settings.json',
       expect.objectContaining({
-        confirmedCommands: {
-          'scriptjs azure-aks/azure-api.js': true,
-        },
+        confirmedCommands: {},
       })
     );
   });
@@ -1941,9 +1958,14 @@ describe('setupRunCmdHandlers', () => {
       on: vi.fn((channel: string, handler: (...args: any[]) => void) => {
         ipcHandlers.set(channel, handler);
       }),
-      handle: vi.fn(),
+      handle: vi.fn((channel: string, handler: (...args: any[]) => void) => {
+        ipcHandlers.set(channel, handler);
+      }),
+      off: vi.fn(),
       removeAllListeners: vi.fn(),
-      removeHandler: vi.fn(),
+      removeHandler: vi.fn((channel: string) => {
+        ipcHandlers.delete(channel);
+      }),
     } as any;
 
     setupRunCmdHandlers(mainWindow, ipcMain, [], 'https://headlamp.test/');
@@ -1960,6 +1982,9 @@ describe('setupRunCmdHandlers', () => {
 
     expect(send).toHaveBeenCalledTimes(2);
     expect(ipcHandlers.has('run-command')).toBe(true);
+    const permissionSecrets = send.mock.calls[0][1];
+    expect(permissionSecrets.startClusterProxy).toMatch(/^[0-9a-f]{32}$/);
+    expect(permissionSecrets).not.toHaveProperty('runCmd-scriptjs-azure-aks/azure-api.js');
     expect(ipcMain.handle).toHaveBeenCalledWith(
       'register-plugin-command-capabilities',
       expect.any(Function)

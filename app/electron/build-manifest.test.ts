@@ -851,6 +851,17 @@ describe('build manifest selection', () => {
     );
   });
 
+  it('does not authorize the obsolete Azure AKS package identity', () => {
+    const manifest = loadBuildManifest(DEFAULT_MANIFEST_FILE);
+    const identities = (['development', 'production'] as const).flatMap(environment =>
+      productPluginCommandPolicies(manifest, environment).map(
+        policy => `${policy.source}:${policy.bundleName}:${policy.packageName}`
+      )
+    );
+
+    expect(identities).not.toContain('development:azure-aks:azure-aks');
+  });
+
   it('requires schema command arguments to contain a non-whitespace character', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
