@@ -27,7 +27,15 @@ const WithEnv = (Story: React.ComponentType) => {
   const prev = (window as any).desktopApi;
   (window as any).desktopApi = {
     send: () => {},
-    receive: () => {},
+    receive: (channel: string, callback: (value: unknown) => void) => {
+      if (channel === 'backend-token') {
+        callback('storybook-token');
+      } else if (channel === 'plugin-permission-secrets') {
+        callback({});
+      }
+
+      return () => {};
+    },
   };
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
