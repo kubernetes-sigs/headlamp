@@ -203,7 +203,7 @@ export default function SettingsCluster() {
 
   // If we don't have yet a cluster name from the URL, we are still loading.
   if (!clusterFromUrl) {
-    return <Loader title="Loading" />;
+    return <Loader title={t('Loading')} />;
   }
 
   if (clusters.length === 0) {
