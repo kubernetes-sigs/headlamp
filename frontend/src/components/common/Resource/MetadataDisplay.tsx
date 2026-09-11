@@ -190,13 +190,21 @@ interface MetadataDictGridProps {
     [index: number]: string;
   };
   showKeys?: boolean;
+  truncateLimit?: number;
+  disableEntryTooltip?: boolean;
   gridProps?: {
     [index: string]: any;
   };
 }
 
 export function MetadataDictGrid(props: MetadataDictGridProps) {
-  const { dict, showKeys = true, gridProps } = props;
+  const {
+    dict,
+    showKeys = true,
+    truncateLimit = 50,
+    gridProps,
+    disableEntryTooltip = false,
+  } = props;
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
@@ -242,15 +250,15 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
     // Shorten the label manually because relying on the ellipsing methods
     // was not working (it would correctly ellipse the text, but the width of it
     // would still extend the area/section where the text is contained).
-    if (fullText.length > 50) {
-      shortText = fullText.substr(0, 50) + '…';
+    if (truncateLimit > 0 && fullText.length > truncateLimit) {
+      shortText = fullText.substring(0, truncateLimit) + '…';
     }
 
     let labelComponent = <MetadataEntry>{shortText}</MetadataEntry>;
 
     // If the full label is not being shown, use a tooltip to show the full text
     // to the user (so they select it, etc.).
-    if (fullText.length !== shortText.length) {
+    if (!disableEntryTooltip && fullText.length !== shortText.length) {
       labelComponent = <LightTooltip title={fullText} children={labelComponent} interactive />;
     }
     return labelComponent;
