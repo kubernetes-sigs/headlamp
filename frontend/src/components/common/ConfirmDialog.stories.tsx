@@ -51,3 +51,20 @@ ConfirmDialogCancelHidden.args = {
   hideCancelButton: true,
   confirmLabel: 'Confirm',
 };
+
+export const ConfirmDialogDisabledConfirm = Template.bind({});
+ConfirmDialogDisabledConfirm.args = {
+  open: true,
+  title: 'A fine title',
+  description: 'A really good description.',
+  confirmButtonDisabled: true,
+};
+
+export const ConfirmDialogCustomLabels = Template.bind({});
+ConfirmDialogCustomLabels.args = {
+  open: true,
+  title: 'Delete this resource?',
+  description: 'This action cannot be undone.',
+  confirmLabel: 'Delete',
+  cancelLabel: 'Keep',
+};
