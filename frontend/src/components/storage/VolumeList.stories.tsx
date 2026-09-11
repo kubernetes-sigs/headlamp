@@ -17,8 +17,8 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
-import ListView from './ClassList';
 import { BASE_PV } from './storyHelper';
+import ListView from './VolumeList';
 
 export default {
   title: 'PersistentVolume/ListView',
@@ -44,10 +44,42 @@ Items.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () =>
+        http.get(`${API_BASE}/api/v1/persistentvolumes`, () =>
           HttpResponse.json({
             kind: 'PersistentVolumeList',
             items: [BASE_PV],
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+
+// `capacity` is optional in the Kubernetes API, so the Capacity column has to
+// tolerate a PersistentVolume that omits it.
+const PV_WITHOUT_CAPACITY = {
+  ...BASE_PV,
+  metadata: {
+    ...BASE_PV.metadata,
+    name: 'pv-without-capacity',
+    uid: 'abc-5678',
+  },
+  spec: {
+    ...BASE_PV.spec,
+    capacity: undefined,
+  },
+} as unknown as typeof BASE_PV;
+
+export const WithoutCapacity = Template.bind({});
+WithoutCapacity.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/persistentvolumes`, () =>
+          HttpResponse.json({
+            kind: 'PersistentVolumeList',
+            items: [PV_WITHOUT_CAPACITY],
             metadata: {},
           })
         ),
