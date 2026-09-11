@@ -1244,6 +1244,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Set auth cookie
 		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
+		if config.OidcUseTokenBroadcast {
+			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+				Writer:          w,
+				Request:         r,
+				KubeConfigStore: config.KubeConfigStore,
+				SourceCluster:   oauthConfig.Cluster,
+				Token:           rawUserToken,
+				BaseURL:         config.BaseURL,
+				SessionTTL:      config.SessionTTL,
+			})
+		}
+
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
