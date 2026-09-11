@@ -127,6 +127,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ForceTheme:                            conf.ForceTheme,
 		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
 		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
+		OidcUseImpersonation:                  conf.OidcUseImpersonation,
 	}
 }
 
