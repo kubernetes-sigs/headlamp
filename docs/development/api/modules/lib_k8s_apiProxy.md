@@ -7,9 +7,9 @@
 - [ApiError](../interfaces/lib_k8s_apiProxy.ApiError.md)
 - [ApiInfo](../interfaces/lib_k8s_apiProxy.ApiInfo.md)
 - [ClusterRequest](../interfaces/lib_k8s_apiProxy.ClusterRequest.md)
-- [ClusterRequestParams](../interfaces/lib_k8s_apiProxy.ClusterRequestParams.md)
+- [ClusterRequestOptions](../interfaces/lib_k8s_apiProxy.ClusterRequestOptions.md)
 - [QueryParameters](../interfaces/lib_k8s_apiProxy.QueryParameters.md)
-- [RequestParams](../interfaces/lib_k8s_apiProxy.RequestParams.md)
+- [RequestOptions](../interfaces/lib_k8s_apiProxy.RequestOptions.md)
 - [StreamArgs](../interfaces/lib_k8s_apiProxy.StreamArgs.md)
 - [StreamResultsParams](../interfaces/lib_k8s_apiProxy.StreamResultsParams.md)
 
@@ -171,7 +171,7 @@ be used as a request to the respective Kubernetes server.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `path` | `string` | The path to the API endpoint. |
-| `params` | [`ClusterRequestParams`](../interfaces/lib_k8s_apiProxy.ClusterRequestParams.md) | Optional parameters for the request. |
+| `params` | [`ClusterRequestOptions`](../interfaces/lib_k8s_apiProxy.ClusterRequestOptions.md) | Optional parameters for the request. |
 | `queryParams?` | [`QueryParameters`](../interfaces/lib_k8s_apiProxy.QueryParameters.md) | Optional query parameters for the k8s request. |
 
 #### Returns
@@ -393,7 +393,7 @@ ___
 | `url` | `string` | `undefined` |
 | `json` | `any` | `undefined` |
 | `autoLogoutOnAuthError` | `boolean` | `true` |
-| `options` | [`ClusterRequestParams`](../interfaces/lib_k8s_apiProxy.ClusterRequestParams.md) | `{}` |
+| `options` | [`ClusterRequestOptions`](../interfaces/lib_k8s_apiProxy.ClusterRequestOptions.md) | `{}` |
 
 #### Returns
 
@@ -416,7 +416,7 @@ ___
 | `url` | `string` | `undefined` |
 | `json` | `object` \| `JSON` \| [`KubeObjectInterface`](../interfaces/lib_k8s_cluster.KubeObjectInterface.md) | `undefined` |
 | `autoLogoutOnAuthError` | `boolean` | `true` |
-| `options` | [`ClusterRequestParams`](../interfaces/lib_k8s_apiProxy.ClusterRequestParams.md) | `{}` |
+| `options` | [`ClusterRequestOptions`](../interfaces/lib_k8s_apiProxy.ClusterRequestOptions.md) | `{}` |
 
 #### Returns
 
@@ -439,7 +439,7 @@ ___
 | `url` | `string` | `undefined` |
 | `json` | `Partial`<[`KubeObjectInterface`](../interfaces/lib_k8s_cluster.KubeObjectInterface.md)\> | `undefined` |
 | `autoLogoutOnAuthError` | `boolean` | `true` |
-| `requestOptions` | [`ClusterRequestParams`](../interfaces/lib_k8s_apiProxy.ClusterRequestParams.md) | `{}` |
+| `requestOptions` | [`ClusterRequestOptions`](../interfaces/lib_k8s_apiProxy.ClusterRequestOptions.md) | `{}` |
 
 #### Returns
 
@@ -460,7 +460,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `url` | `string` |
-| `requestOptions` | [`ClusterRequestParams`](../interfaces/lib_k8s_apiProxy.ClusterRequestParams.md) |
+| `requestOptions` | [`ClusterRequestOptions`](../interfaces/lib_k8s_apiProxy.ClusterRequestOptions.md) |
 
 #### Returns
 
@@ -511,7 +511,7 @@ treated as a request to the Kubernetes server of the currently defined (in the U
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `path` | `string` | `undefined` | The path to the API endpoint. |
-| `params` | [`RequestParams`](../interfaces/lib_k8s_apiProxy.RequestParams.md) | `{}` | Optional parameters for the request. |
+| `params` | [`RequestOptions`](../interfaces/lib_k8s_apiProxy.RequestOptions.md) | `{}` | Optional parameters for the request. |
 | `autoLogoutOnAuthError` | `boolean` | `true` | Whether to automatically log out the user if there is an authentication error. |
 | `useCluster` | `boolean` | `true` | Whether to use the current cluster for the request. |
 | `queryParams?` | [`QueryParameters`](../interfaces/lib_k8s_apiProxy.QueryParameters.md) | `undefined` | Optional query parameters for the request. |
