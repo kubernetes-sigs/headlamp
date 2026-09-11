@@ -413,6 +413,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'roleBindings',
             label: t('glossary|Role Bindings'),
           },
+          {
+            name: 'rbacVisualizer',
+            label: t('RBAC Visualizer'),
+          },
         ],
       },
       {
