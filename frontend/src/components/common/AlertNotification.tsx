@@ -26,12 +26,21 @@ import { useTranslation } from 'react-i18next';
 import { matchPath, useLocation } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { testClusterHealth } from '../../lib/k8s/api/v1/clusterApi';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import Link from './Link';
 
 // in ms
 const NETWORK_STATUS_CHECK_TIME = 5000;
+
+// Upper bound for the failure backoff, so a recovery is never more than
+// (MAX_BACKOFF_FACTOR + 1) * NETWORK_STATUS_CHECK_TIME away.
+const MAX_BACKOFF_FACTOR = 6;
+
+// Statuses that mean "not authenticated (yet)" rather than "cluster unreachable".
+// The auth routes take care of these, see AuthRoute.
+const AUTH_ERROR_STATUSES = [401, 403];
 
 // Safety cap in case a reason is unexpectedly long.
 const MAX_ERROR_DETAIL_LENGTH = 200;
@@ -56,68 +65,35 @@ export interface PureAlertNotificationProps {
   checkerFunction(): Promise<any>;
 }
 
-const ROUTES_WITHOUT_ALERT = ['login', 'token', 'settingsCluster'];
+const ROUTES_WITHOUT_HEALTH_CHECK = ['login', 'token', 'oidcAuth', 'settingsCluster'];
 
 export function PureAlertNotification({ checkerFunction }: PureAlertNotificationProps) {
-  const [networkStatusCheckTimeFactor, setNetworkStatusCheckTimeFactor] = React.useState(0);
   const [error, setError] = React.useState<null | string | boolean>(null);
   const [dismissed, setDismissed] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(0);
 
   const { t } = useTranslation();
   const { pathname } = useLocation();
 
-  function registerSetInterval(): NodeJS.Timeout {
-    return setInterval(() => {
-      if (!window.navigator.onLine) {
-        setError(t('translation|Offline') as string);
-        return;
-      }
+  const cluster = getCluster();
 
-      if (!getCluster()) {
-        setError(null);
-        return;
-      }
-
-      checkerFunction()
-        .then(() => {
-          setError(false);
-          // Reset the backoff so polling returns to the normal cadence once the
-          // cluster recovers; otherwise the interval stays elevated for the rest
-          // of the session and the banner lingers after connectivity is restored.
-          setNetworkStatusCheckTimeFactor(0);
-        })
-        .catch(err => {
-          const message = err instanceof Error ? err.message : String(err);
-          setError(message);
-          setNetworkStatusCheckTimeFactor(
-            (networkStatusCheckTimeFactor: number) => networkStatusCheckTimeFactor + 1
-          );
-        });
-    }, (networkStatusCheckTimeFactor + 1) * NETWORK_STATUS_CHECK_TIME);
-  }
-
+  const checkerRef = React.useRef(checkerFunction);
   React.useEffect(() => {
-    if (!getCluster()) {
-      setError(null);
-    }
-  }, [pathname]);
+    checkerRef.current = checkerFunction;
+  }, [checkerFunction]);
 
-  // Show the bar again whenever the error changes, even if it was dismissed before.
-  React.useEffect(() => {
-    setDismissed(false);
-  }, [error]);
+  const retry = React.useCallback(() => setRetryCount(count => count + 1), []);
 
-  React.useEffect(
-    () => {
-      const id = registerSetInterval();
-      return () => clearInterval(id);
-    },
-    // eslint-disable-next-line
-    [networkStatusCheckTimeFactor]
-  );
+  // A health check cannot be aborted, so a route change or a "Try Again" restarts the
+  // effect below while a request may still be open. Every check is chained onto this
+  // promise, which keeps at most one /healthz request in flight and queues the next one
+  // behind it instead of piling overlapping requests up.
+  const inFlightRef = React.useRef<Promise<void>>(Promise.resolve());
 
+  // The auth routes cannot answer a health check yet: polling them only piles up
+  // transient failures whose backoff then delays the recovery.
   const showOnRoute = React.useMemo(() => {
-    for (const routeName of ROUTES_WITHOUT_ALERT) {
+    for (const routeName of ROUTES_WITHOUT_HEALTH_CHECK) {
       const maybeRoute = getRoute(routeName);
       if (maybeRoute) {
         const routePath = getRoutePath(maybeRoute);
@@ -130,6 +106,96 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
     }
     return true;
   }, [pathname]);
+
+  React.useEffect(() => {
+    if (!cluster || !showOnRoute) {
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: NodeJS.Timeout | undefined;
+    let backoffFactor = 0;
+
+    function scheduleNextCheck() {
+      if (cancelled) {
+        return;
+      }
+      const factor = Math.min(backoffFactor, MAX_BACKOFF_FACTOR);
+      timeoutId = setTimeout(runCheck, (factor + 1) * NETWORK_STATUS_CHECK_TIME);
+    }
+
+    async function runCheck() {
+      if (cancelled) {
+        return;
+      }
+
+      if (!window.navigator.onLine) {
+        setError(t('translation|Offline') as string);
+        scheduleNextCheck();
+        return;
+      }
+
+      // Queued rather than started right away; a check whose effect was torn down while
+      // it waited for its turn resolves to nothing instead of sending a request.
+      const check = inFlightRef.current.then(() => (cancelled ? undefined : checkerRef.current()));
+      inFlightRef.current = check.then(
+        () => undefined,
+        () => undefined
+      );
+
+      try {
+        await check;
+        if (cancelled) {
+          return;
+        }
+        setError(false);
+        backoffFactor = 0;
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        const status = (err as ApiError)?.status;
+        if (status !== undefined && AUTH_ERROR_STATUSES.includes(status)) {
+          setError(null);
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+          backoffFactor += 1;
+        }
+      }
+
+      scheduleNextCheck();
+    }
+
+    // Check right away so the banner reflects the current state instead of the
+    // one from before the last route change, login or connectivity event.
+    runCheck();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [cluster, pathname, showOnRoute, retryCount, t]);
+
+  React.useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        retry();
+      }
+    }
+
+    window.addEventListener('online', retry);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [retry]);
+
+  // Show the bar again whenever the error changes, even if it was dismissed before.
+  React.useEffect(() => {
+    setDismissed(false);
+  }, [error]);
 
   if (!error || !showOnRoute || dismissed) {
     return null;
@@ -174,7 +240,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
                 background: theme.palette.error.dark,
               },
             })}
-            onClick={() => setNetworkStatusCheckTimeFactor(0)}
+            onClick={retry}
             size="small"
           >
             {t('translation|Try Again')}
