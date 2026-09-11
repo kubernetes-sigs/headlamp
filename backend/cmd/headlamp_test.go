@@ -4584,3 +4584,378 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
+
+func TestValidateKubeConfigPath(t *testing.T) { //nolint:funlen // test scaffolding.
+	t.Parallel()
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	// A temp dir that acts as a custom kubeconfig directory. The file has to
+	// exist: an entry that cannot be stat'ed is not allow-listed, since its
+	// type is unknown.
+	customDir := t.TempDir()
+	customKubeConfig := filepath.Join(customDir, "config")
+	require.NoError(t, os.WriteFile(customKubeConfig, []byte("kubeconfig"), 0o600))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  customKubeConfig,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "empty path is rejected",
+			path:    "",
+			wantErr: true,
+		},
+		{
+			name:    "path traversal to /etc/passwd is rejected",
+			path:    "../../etc/passwd",
+			wantErr: true,
+		},
+		{
+			name:    "absolute path outside allowed dirs is rejected",
+			path:    filepath.Join(t.TempDir(), "evil-kubeconfig"),
+			wantErr: true,
+		},
+		{
+			name:    "path within ~/.kube is allowed",
+			path:    filepath.Join(homeDir, ".kube", "config"),
+			wantErr: false,
+		},
+		{
+			name:    "path within custom kubeconfig dir is allowed",
+			path:    customKubeConfig,
+			wantErr: false,
+		},
+		{
+			name:    "tilde path within ~/.kube is allowed",
+			path:    "~/.kube/config",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := c.validateKubeConfigPath(tt.path)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				// The returned path must be usable directly by client-go: an
+				// absolute path with any leading ~ already expanded.
+				assert.True(t, filepath.IsAbs(got), "returned path should be absolute")
+				assert.False(t, strings.HasPrefix(got, "~"), "returned path should have ~ expanded")
+			}
+		})
+	}
+}
+
+func TestValidateKubeConfigPathRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks needs elevated privileges on Windows")
+	}
+
+	// customDir is allowed, the symlink inside it points outside.
+	customDir := t.TempDir()
+	customKubeConfig := filepath.Join(customDir, "config")
+	require.NoError(t, os.WriteFile(customKubeConfig, []byte("kubeconfig"), 0o600))
+
+	outsideFile := filepath.Join(t.TempDir(), "outside-kubeconfig")
+	require.NoError(t, os.WriteFile(outsideFile, []byte("outside"), 0o600))
+
+	escapingLink := filepath.Join(customDir, "escaping-link")
+	require.NoError(t, os.Symlink(outsideFile, escapingLink))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  customKubeConfig,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	_, err := c.validateKubeConfigPath(escapingLink)
+	assert.Error(t, err, "a symlink pointing outside the allowed dirs must be rejected")
+}
+
+// Dynamic clusters are persisted under --kubeconfig-dir when it is set, so a
+// request to delete one names a path in that directory and has to be allowed.
+func TestValidateKubeConfigPathAllowsConfiguredKubeConfigDir(t *testing.T) {
+	t.Parallel()
+
+	kubeConfigDir := t.TempDir()
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigDir:   kubeConfigDir,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	got, err := c.validateKubeConfigPath(filepath.Join(kubeConfigDir, "config"))
+	require.NoError(t, err, "the configured kubeconfig persistence dir must be allowed")
+	assert.True(t, filepath.IsAbs(got))
+}
+
+// A --kubeconfig entry that cannot be stat'ed says nothing about whether it is
+// a file or a directory, so its parent must not be allow-listed: an entry meant
+// as a directory, such as /etc/kubeconfigs, would otherwise open up /etc.
+func TestValidateKubeConfigPathIgnoresUnstatableEntries(t *testing.T) {
+	t.Parallel()
+
+	parent := t.TempDir()
+
+	sibling := filepath.Join(parent, "victim")
+	require.NoError(t, os.WriteFile(sibling, []byte("victim"), 0o600))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  filepath.Join(parent, "missing-kubeconfigs"),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	_, err := c.validateKubeConfigPath(sibling)
+	assert.Error(t, err, "a missing entry must not allow-list its parent directory")
+}
+
+// A configured kubeconfig that is a symlink is checked against the path it
+// resolves to, so the target's directory is what has to be allowed. Otherwise
+// Headlamp rejects the very file it was pointed at.
+func TestValidateKubeConfigPathAllowsSymlinkedConfiguredKubeConfig(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks needs elevated privileges on Windows")
+	}
+
+	targetDir := t.TempDir()
+	targetConfig := filepath.Join(targetDir, "config")
+	require.NoError(t, os.WriteFile(targetConfig, []byte("kubeconfig"), 0o600))
+
+	link := filepath.Join(t.TempDir(), "config-link")
+	require.NoError(t, os.Symlink(targetConfig, link))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  link,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	got, err := c.validateKubeConfigPath(link)
+	require.NoError(t, err, "the configured kubeconfig must stay usable when it is a symlink")
+	assert.True(t, filepath.IsAbs(got))
+}
+
+// A refused delete must change nothing: the validation runs before the cluster
+// is taken out of the store, and its failure stops the request instead of
+// letting the success response be written after the error body.
+func TestDeleteClusterRefusedRequestHasNoEffect(t *testing.T) { //nolint:funlen // test scaffolding.
+	const validToken = "valid-token-for-test"
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", validToken)
+
+	kubeConfigPath, err := filepath.Abs("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	outsideFile := filepath.Join(t.TempDir(), "victim")
+	require.NoError(t, os.WriteFile(outsideFile, []byte("not a kubeconfig"), 0o600))
+
+	refusals := []struct {
+		name       string
+		query      string
+		wantStatus int
+	}{
+		{
+			name:       "configPath outside the allowed dirs",
+			query:      "removeKubeConfig=true&configPath=" + url.QueryEscape(outsideFile),
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "missing configPath",
+			query:      "removeKubeConfig=true",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range refusals {
+		t.Run(tc.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+			_, err := store.GetContext(minikubeName)
+			require.NoError(t, err, "the cluster should be in the store before the request")
+
+			handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:          false,
+						KubeConfigPath:        kubeConfigPath,
+						EnableDynamicClusters: true,
+						PluginDir:             t.TempDir(),
+						UserPluginDir:         t.TempDir(),
+						KubeConfigStore:       store,
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			})
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+				"/cluster/"+minikubeName+"?"+tc.query, nil)
+			req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", validToken)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tc.wantStatus, rr.Code)
+
+			_, err = store.GetContext(minikubeName)
+			assert.NoError(t, err, "a refused delete must leave the cluster in the store")
+
+			assert.NotContains(t, rr.Body.String(), "isDynamicClusterEnabled",
+				"the config response must not be written after the error")
+		})
+	}
+}
+
+// TestDeleteClusterValidatesConfigPath exercises the route rather than the
+// validator, so dropping the check from handleRemoveKubeConfig, or using the
+// unvalidated configPath for the file operation, fails here.
+func TestDeleteClusterValidatesConfigPath(t *testing.T) { //nolint:funlen // test scaffolding.
+	const validToken = "valid-token-for-test"
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", validToken)
+
+	kubeConfigBytes, err := os.ReadFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	// Point the home directory at a temp dir so ~/.kube is one of the allowed
+	// dirs without touching the real one. os.UserHomeDir() reads HOME on unix
+	// and USERPROFILE on Windows.
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
+	homeKubeDir := filepath.Join(tempHome, ".kube")
+	require.NoError(t, os.Mkdir(homeKubeDir, 0o750))
+
+	homeConfig := filepath.Join(homeKubeDir, "config")
+	require.NoError(t, os.WriteFile(homeConfig, kubeConfigBytes, 0o600)) //nolint:gosec
+
+	// The kubeconfig Headlamp is allowed to manage, plus a file outside every
+	// allowed directory, which is what an attacker would aim at.
+	allowedDir := t.TempDir()
+	allowedConfig := filepath.Join(allowedDir, "config")
+	require.NoError(t, os.WriteFile(allowedConfig, kubeConfigBytes, 0o600)) //nolint:gosec
+
+	const outsideContents = "not a kubeconfig"
+
+	outsideFile := filepath.Join(t.TempDir(), "victim")
+	require.NoError(t, os.WriteFile(outsideFile, []byte(outsideContents), 0o600))
+
+	workDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	relOutsideFile, err := filepath.Rel(workDir, outsideFile)
+	require.NoError(t, err)
+
+	newHandler := func(t *testing.T) http.Handler {
+		t.Helper()
+
+		return createHeadlampHandler(context.Background(), &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:          false,
+					KubeConfigPath:        allowedConfig,
+					EnableDynamicClusters: true,
+					PluginDir:             t.TempDir(),
+					UserPluginDir:         t.TempDir(),
+					KubeConfigStore:       kubeconfig.NewContextStore(),
+				},
+				Cache:            cache.New[interface{}](),
+				TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+				TelemetryHandler: &telemetry.RequestHandler{},
+			},
+		})
+	}
+
+	deleteCluster := func(t *testing.T, handler http.Handler, configPath string) *httptest.ResponseRecorder {
+		t.Helper()
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+			"/cluster/"+minikubeName+"?removeKubeConfig=true&configPath="+url.QueryEscape(configPath), nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", validToken)
+
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		return rr
+	}
+
+	outsidePaths := []struct {
+		name       string
+		configPath string
+	}{
+		{name: "absolute path outside allowed dirs", configPath: outsideFile},
+		{name: "relative path traversal", configPath: relOutsideFile},
+	}
+
+	for _, tc := range outsidePaths {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := deleteCluster(t, newHandler(t), tc.configPath)
+
+			assert.Equal(t, http.StatusForbidden, rr.Code)
+
+			contents, err := os.ReadFile(outsideFile) //nolint:gosec
+			require.NoError(t, err)
+			assert.Equal(t, outsideContents, string(contents), "the target file must be untouched")
+		})
+	}
+
+	allowedPaths := []struct {
+		name       string
+		configPath string
+		file       string
+	}{
+		{name: "allowed configPath removes the context", configPath: allowedConfig, file: allowedConfig},
+		// A ~ path only works if the handler operates on the expanded path the
+		// validator returned, since client-go does not expand ~ itself.
+		{name: "tilde configPath removes the context", configPath: "~/.kube/config", file: homeConfig},
+	}
+
+	for _, tc := range allowedPaths {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := deleteCluster(t, newHandler(t), tc.configPath)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+
+			config, err := clientcmd.LoadFromFile(tc.file)
+			require.NoError(t, err)
+			assert.NotContains(t, config.Contexts, minikubeName)
+		})
+	}
+}
