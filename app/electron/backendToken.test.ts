@@ -14,8 +14,56 @@
  * limitations under the License.
  */
 
+import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveBackendToken, waitForExternalBackend } from './backendToken';
+import {
+  INTERNAL_BACKEND_READY_MESSAGE,
+  observeInternalBackendReady,
+  resolveBackendToken,
+  waitForExternalBackend,
+} from './backendToken';
+
+describe('observeInternalBackendReady', () => {
+  it('reports a post-bind marker split across output chunks once', () => {
+    const output = new PassThrough();
+    const onReady = vi.fn();
+
+    observeInternalBackendReady(output, onReady);
+    output.write('startup output\nHEADLAMP_BACK');
+    output.write('END_READY\n');
+    output.write('HEADLAMP_BACKEND_READY\n');
+
+    expect(onReady).toHaveBeenCalledOnce();
+    expect(output.listenerCount('data')).toBe(0);
+  });
+
+  it('stops observing before readiness when requested', () => {
+    const output = new PassThrough();
+    const onReady = vi.fn();
+    const stopObserving = observeInternalBackendReady(output, onReady);
+
+    stopObserving();
+    output.write('HEADLAMP_BACKEND_READY\n');
+
+    expect(onReady).not.toHaveBeenCalled();
+    expect(output.listenerCount('data')).toBe(0);
+  });
+
+  it.each([
+    ['prefixed', `prefix${INTERNAL_BACKEND_READY_MESSAGE}\n`],
+    ['suffixed', `${INTERNAL_BACKEND_READY_MESSAGE}suffix\n`],
+    ['embedded', `prefix${INTERNAL_BACKEND_READY_MESSAGE}suffix\n`],
+    ['incomplete', INTERNAL_BACKEND_READY_MESSAGE],
+  ])('ignores a %s marker', (_name, data) => {
+    const output = new PassThrough();
+    const onReady = vi.fn();
+
+    observeInternalBackendReady(output, onReady);
+    output.write(data);
+
+    expect(onReady).not.toHaveBeenCalled();
+  });
+});
 
 describe('resolveBackendToken', () => {
   it('uses a configured token for an external development server', () => {

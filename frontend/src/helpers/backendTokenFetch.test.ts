@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { createBackendTokenFetch } from './backendTokenFetch';
+import {
+  createBackendTokenFetch,
+  DesktopBackendApi,
+  initializeDesktopBackend,
+} from './backendTokenFetch';
+import { getHeadlampAPIHeaders, setBackendToken } from './getHeadlampAPIHeaders';
 
 describe('createBackendTokenFetch', () => {
   const response = new Response();
@@ -87,5 +92,56 @@ describe('createBackendTokenFetch', () => {
     await backendFetch('http://localhost:4466/config');
 
     expect(fetchImplementation).toHaveBeenCalledWith('http://localhost:4466/config', undefined);
+  });
+
+  it('does not expose a token before the selected backend port is available', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(response);
+    const backendFetch = createBackendTokenFetch(
+      fetchImplementation,
+      () => ({ 'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token' }),
+      () => undefined
+    );
+
+    await backendFetch('http://localhost:4466/config');
+
+    expect(fetchImplementation).toHaveBeenCalledWith('http://localhost:4466/config', undefined);
+  });
+});
+
+describe('initializeDesktopBackend', () => {
+  it('waits for both the selected port and token before allowing backend requests', () => {
+    const callbacks: Record<string, (value: string | number) => void> = {};
+    const unsubscribers = [vi.fn(), vi.fn()];
+    const api = {
+      send: vi.fn(),
+      receive: vi.fn((channel: string, callback: (value: string | number) => void) => {
+        callbacks[channel] = callback;
+        return unsubscribers[Object.keys(callbacks).length - 1];
+      }),
+    };
+    const onReady = vi.fn();
+    window.headlampBackendPort = 4466;
+    setBackendToken('stale-token');
+
+    const cleanup = initializeDesktopBackend(api as unknown as DesktopBackendApi, onReady);
+    callbacks['backend-token']('desktop-token');
+
+    expect(onReady).not.toHaveBeenCalled();
+    expect(window.headlampBackendPort).toBeUndefined();
+    expect(getHeadlampAPIHeaders()).toEqual({});
+
+    callbacks['backend-port'](4467);
+
+    expect(window.headlampBackendPort).toBe(4467);
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token',
+    });
+    expect(onReady).toHaveBeenCalledOnce();
+    expect(api.send.mock.calls).toEqual([['request-backend-token'], ['request-backend-port']]);
+
+    cleanup();
+    expect(unsubscribers[0]).toHaveBeenCalledOnce();
+    expect(unsubscribers[1]).toHaveBeenCalledOnce();
+    setBackendToken(null);
   });
 });

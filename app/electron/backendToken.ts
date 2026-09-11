@@ -16,6 +16,39 @@
 
 import { randomBytes } from 'node:crypto';
 
+/** Marker emitted by the spawned backend after it owns its listening socket. */
+export const INTERNAL_BACKEND_READY_MESSAGE = 'HEADLAMP_BACKEND_READY';
+
+/**
+ * Observes a spawned backend's output for its trusted post-bind readiness marker.
+ *
+ * @param output - Captured stdout stream belonging to the spawned backend child.
+ * @param onReady - Called once after the marker is observed.
+ * @returns A function that stops observing the child output.
+ */
+export function observeInternalBackendReady(
+  output: NodeJS.ReadableStream,
+  onReady: () => void
+): () => void {
+  let bufferedOutput = '';
+  const handleOutput = (data: Buffer | string) => {
+    bufferedOutput += data.toString();
+    const lines = bufferedOutput.split('\n');
+    bufferedOutput = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line.replace(/\r$/, '') === INTERNAL_BACKEND_READY_MESSAGE) {
+        stopObserving();
+        onReady();
+        return;
+      }
+    }
+  };
+  const stopObserving = () => output.removeListener('data', handleOutput);
+  output.on('data', handleOutput);
+
+  return stopObserving;
+}
+
 /**
  * Resolves the token shared with Headlamp's backend.
  *

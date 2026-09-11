@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
  */
 
 import { expect, test } from '@playwright/test';
+import { execFileSync, spawn } from 'child_process';
 import fs from 'fs';
-import { createServer } from 'http';
 import type { ServerResponse } from 'http';
+import { createServer } from 'http';
 import type { AddressInfo } from 'net';
 import os from 'os';
 import path from 'path';
@@ -28,6 +29,7 @@ const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'elec
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
 const userDataDir = path.join(os.tmpdir(), `headlamp-e2e-external-token-${process.pid}`);
+const internalBackendReadyMessage = 'HEADLAMP_BACKEND_READY';
 
 test('waits for the authenticated external backend before opening a window', async () => {
   const receivedTokens: Array<string | undefined> = [];
@@ -99,5 +101,76 @@ test('waits for the authenticated external backend before opening a window', asy
       backend.close(error => (error ? reject(error) : resolve()))
     );
     fs.rmSync(userDataDir, { force: true, recursive: true });
+  }
+});
+
+test('does not send the internal backend token to an unrelated port owner', async () => {
+  const receivedTokens: Array<string | undefined> = [];
+  const unrelatedServer = createServer((request, response) => {
+    receivedTokens.push(request.headers['x-headlamp_backend-token']);
+    response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+  });
+  await new Promise<void>(resolve => unrelatedServer.listen(0, '127.0.0.1', resolve));
+  const occupiedPort = (unrelatedServer.address() as AddressInfo).port;
+  const internalUserDataDir = path.join(os.tmpdir(), `headlamp-e2e-internal-token-${process.pid}`);
+  let electronProcess: ReturnType<typeof spawn> | undefined;
+
+  try {
+    electronProcess = spawn(
+      electronPath,
+      ['.', `--port=${occupiedPort}`, `--user-data-dir=${internalUserDataDir}`],
+      {
+        cwd: appPath,
+        detached: process.platform !== 'win32',
+        env: {
+          ...process.env,
+          ELECTRON_DEV: 'true',
+          ELECTRON_START_URL: 'data:text/html,<title>Internal backend readiness test</title>',
+          EXTERNAL_SERVER: 'false',
+          HEADLAMP_CHECK_FOR_UPDATES: 'false',
+          HEADLAMP_MCP_ENABLE: 'false',
+        },
+        shell: process.platform === 'win32',
+        windowsHide: true,
+      }
+    );
+    await new Promise<void>((resolve, reject) => {
+      let output = '';
+      const timeout = setTimeout(
+        () => reject(new Error(`Timed out waiting for backend readiness:\n${output.slice(-2000)}`)),
+        20_000
+      );
+      const handleOutput = (data: Buffer) => {
+        output += data.toString();
+        if (output.includes(internalBackendReadyMessage)) {
+          clearTimeout(timeout);
+          resolve();
+        }
+      };
+      electronProcess!.stdout.on('data', handleOutput);
+      electronProcess!.stderr.on('data', handleOutput);
+      electronProcess!.once('error', error => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      electronProcess!.once('exit', exitCode => {
+        clearTimeout(timeout);
+        reject(new Error(`Electron exited before backend readiness with code ${exitCode}`));
+      });
+    });
+
+    expect(receivedTokens).toEqual([]);
+  } finally {
+    if (electronProcess?.pid && electronProcess.exitCode === null) {
+      if (process.platform === 'win32') {
+        execFileSync('taskkill', ['/pid', String(electronProcess.pid), '/T', '/F']);
+      } else {
+        process.kill(-electronProcess.pid, 'SIGTERM');
+      }
+    }
+    await new Promise<void>((resolve, reject) =>
+      unrelatedServer.close(error => (error ? reject(error) : resolve()))
+    );
+    fs.rmSync(internalUserDataDir, { force: true, recursive: true });
   }
 });
