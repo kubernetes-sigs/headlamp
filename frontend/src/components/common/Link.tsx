@@ -19,8 +19,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
+import { ResourceClasses } from '../../lib/k8s';
 import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
-import type { KubeObject } from '../../lib/k8s/KubeObject';
+import type { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
 import type { RouteURLProps } from '../../lib/router/createRouteURL';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
@@ -64,7 +65,10 @@ function KubeObjectLink(props: {
 
   const client = useQueryClient();
   const { namespace, name } = kubeObject.metadata;
-  const { endpoint } = useEndpoints(kubeObject._class().apiEndpoint.apiInfo, kubeObject.cluster);
+  const { endpoint } = useEndpoints(
+    (kubeObject.constructor as KubeObjectClass).apiEndpoint.apiInfo,
+    kubeObject.cluster
+  );
 
   return (
     <MuiLink
@@ -146,27 +150,43 @@ function PureLink(
   );
 }
 
+function getApiGroup(apiVersion: string) {
+  if (!apiVersion) return '';
+  if (!apiVersion.includes('/')) return '';
+  return apiVersion.split('/')[0];
+}
+
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 
-  const kind = 'kubeObject' in props ? props.kubeObject?._class().kind : props?.routeName;
+  const kind = 'kubeObject' in props ? props.kubeObject?.kind : props?.routeName;
   const cluster =
     'kubeObject' in props && props.kubeObject?.cluster
       ? props.kubeObject?.cluster
       : props.activeCluster ?? getCluster() ?? '';
 
-  // When a class overrides detailsRoute (e.g. a plugin's custom resource class),
-  // the drawer's kindComponentMap won't have the right component for it,
-  // so we skip the drawer and let normal link navigation handle it.
-  const hasCustomDetailsRoute =
-    'kubeObject' in props &&
-    props.kubeObject &&
-    props.kubeObject._class().detailsRoute !== props.kubeObject._class().kind;
+  let matchesStandard = true;
+
+  if ('kubeObject' in props && props.kubeObject) {
+    const obj = props.kubeObject;
+    const standardClass = (ResourceClasses as Record<string, KubeObjectClass | undefined>)[
+      obj.kind
+    ];
+
+    if (!standardClass) {
+      matchesStandard = false;
+    } else {
+      // Allow drawer only when the instance belongs to the built-in API group for this kind.
+      const instanceGroup = getApiGroup(obj.jsonData?.apiVersion || '');
+      const standardGroup = standardClass.apiGroupName || '';
+      matchesStandard = instanceGroup === standardGroup;
+    }
+  }
 
   const openDrawer =
-    drawerEnabled && !hasCustomDetailsRoute && canRenderDetails(kind)
+    drawerEnabled && canRenderDetails(kind) && matchesStandard
       ? () => {
           // Object information can be provided throught kubeObject or route parameters
           const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
@@ -176,8 +196,6 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
           const selectedResource =
             kind === 'customresource'
               ? {
-                  // Custom resource links don't follow the same convention
-                  // so we need to create a different object
                   kind,
                   metadata: {
                     name: props.params?.crName,
