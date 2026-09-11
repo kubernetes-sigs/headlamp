@@ -255,7 +255,7 @@ Now that you've created your first plugin, explore these advanced topics:
 ### Plugin's Changes Not Reflecting
 - Ensure you saved your changes
 - Check if the development server is running (`npm run start`) without errors
-- Remove the installed plugin from Headlamp's plugins folder (see [plugin locations](./architecture.md#plugin-locations)) and re-run `npm run start`
+- Remove the installed plugin from Headlamp's plugins folder (see [plugin locations](./building.md#manual-installation)) and re-run `npm run start`
 - Restart Headlamp if necessary
 
 ### Build Errors
