@@ -18,9 +18,19 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
 import type { ReactElement, ReactNode } from 'react';
+import type { ActionButtonProps } from '../components/common/ActionButton/ActionButton';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
+/**
+ * @deprecated Use NewHeaderActionType instead, which requires returning an ActionButton component.
+ */
 export type HeaderActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
+
+export type NewHeaderActionType = (props: { item: any }) => ActionButtonProps | null;
+
+/**
+ * @deprecated Use NewHeaderActionType instead.
+ */
 export type DetailsViewFunc = HeaderActionType;
 
 export type AppBarActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
@@ -28,7 +38,7 @@ export type RowActionType = ((item: any) => JSX.Element | null | ReactNode) | nu
 
 export type HeaderAction = {
   id: string;
-  action?: HeaderActionType;
+  action?: HeaderActionType | NewHeaderActionType;
 };
 
 export type RowAction = {
@@ -129,7 +139,10 @@ export const actionButtonsSlice = createSlice({
   name: 'actionButtons',
   initialState,
   reducers: {
-    setDetailsViewHeaderAction(state, action: PayloadAction<HeaderActionType | HeaderAction>) {
+    setDetailsViewHeaderAction(
+      state,
+      action: PayloadAction<HeaderActionType | NewHeaderActionType | HeaderAction>
+    ) {
       let headerAction = action.payload as HeaderAction;
 
       if (headerAction.id === undefined) {
