@@ -155,6 +155,12 @@ const (
 //nolint:gochecknoglobals // allow test override
 var maxProxyResponseSize int64 = 100 * 1024 * 1024
 
+// maxRequestBodySize bounds a JSON request body accepted by Headlamp's own API
+// endpoints, so an oversized body is rejected instead of being read fully into
+// memory. It does not apply to the cluster proxy, which forwards arbitrary
+// Kubernetes payloads.
+const maxRequestBodySize int64 = 1 * 1024 * 1024
+
 // externalProxyTimeout is the maximum time to wait for a proxy response.
 //
 //nolint:gochecknoglobals // allow test override
@@ -1918,6 +1924,38 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
+// limitRequestBody caps r.Body so that decoding a request larger than
+// maxRequestBodySize fails instead of buffering the whole body into memory.
+func limitRequestBody(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+}
+
+// bodyDecodeStatus returns the HTTP status for a request-body decode error:
+// 413 when the body exceeded maxRequestBodySize, 400 for any other decode
+// failure such as malformed JSON.
+func bodyDecodeStatus(err error) int {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		return http.StatusRequestEntityTooLarge
+	}
+
+	return http.StatusBadRequest
+}
+
+// writeDecodeError responds to a request-body decode failure: an oversized body
+// gets 413 with the underlying "request body too large" message, any other
+// decode error gets 400 with badRequestMsg.
+func writeDecodeError(w http.ResponseWriter, err error, badRequestMsg string) {
+	status := bodyDecodeStatus(err)
+
+	msg := badRequestMsg
+	if status == http.StatusRequestEntityTooLarge {
+		msg = err.Error()
+	}
+
+	http.Error(w, msg, status)
+}
+
 func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -2318,11 +2356,13 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //
 		return
 	}
 
+	limitRequestBody(w, r)
+
 	clusterReq, err := decodeClusterRequest(r)
 	if err != nil {
 		c.TelemetryHandler.RecordError(span, err, "failed to decode cluster request")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "decode error"))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), bodyDecodeStatus(err))
 
 		return
 	}
@@ -2733,9 +2773,11 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
 	// Parse request and validate
+	limitRequestBody(w, r)
+
 	var reqBody RenameClusterRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		c.handleError(w, ctx, span, err, "failed to decode request body", http.StatusBadRequest)
+		c.handleError(w, ctx, span, err, "failed to decode request body", bodyDecodeStatus(err))
 		return
 	}
 
@@ -2937,13 +2979,15 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 	defer span.End()
 
+	limitRequestBody(w, r)
+
 	var drainPayload struct {
 		Cluster  string `json:"cluster"`
 		NodeName string `json:"nodeName"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&drainPayload); err != nil {
-		c.handleError(w, ctx, span, err, "decoding payload", http.StatusBadRequest)
+		c.handleError(w, ctx, span, err, "decoding payload", bodyDecodeStatus(err))
 
 		return
 	}
@@ -3182,12 +3226,14 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) {
 	cluster := mux.Vars(r)["clusterName"]
 
+	limitRequestBody(w, r)
+
 	var req struct {
 		Token string `json:"token"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeDecodeError(w, err, "Invalid JSON")
 		return
 	}
 
