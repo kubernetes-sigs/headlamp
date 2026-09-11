@@ -36,7 +36,10 @@ export function makeUrl(urlParts: any[] | string, query: Record<string, any> = {
           .map(it => (typeof it === 'string' ? it : String(it)))
           .filter(Boolean)
           .join('/');
-  const queryString = new URLSearchParams(query).toString();
+  const cleanQuery = Object.fromEntries(
+    Object.entries(query).filter(([, v]) => v !== undefined && v !== null)
+  );
+  const queryString = new URLSearchParams(cleanQuery).toString();
   const fullUrl = queryString ? `${url}?${queryString}` : url;
 
   // replace multiple slashes with a single one
