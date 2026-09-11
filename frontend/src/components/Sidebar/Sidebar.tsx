@@ -35,6 +35,7 @@ import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
+import ThemeToggleButton from './ThemeToggleButton';
 import { useSidebarItems } from './useSidebarItems';
 import VersionButton from './VersionButton';
 
@@ -110,7 +111,14 @@ function SidebarToggleButton() {
   }
 
   return (
-    <Box textAlign={isOpen ? 'right' : 'center'}>
+    <Box
+      display="flex"
+      flexDirection={isOpen ? 'row' : 'column'}
+      alignItems="center"
+      justifyContent={isOpen ? 'flex-end' : 'center'}
+      gap={0.5}
+    >
+      <ThemeToggleButton />
       <ActionButton
         iconButtonProps={{
           size: 'small',

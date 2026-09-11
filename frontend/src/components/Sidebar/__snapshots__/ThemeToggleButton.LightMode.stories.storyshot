@@ -1,0 +1,19 @@
+<body>
+  <div>
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1if9c89-MuiPaper-root"
+    >
+      <button
+        aria-label="Switch to dark mode"
+        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
+        data-mui-internal-clone-element="true"
+        tabindex="0"
+        type="button"
+      >
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </button>
+    </div>
+  </div>
+</body>
