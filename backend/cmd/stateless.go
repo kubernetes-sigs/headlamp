@@ -18,12 +18,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,7 +70,7 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) error {
 	// check context is present
 	_, err := c.KubeConfigStore.GetContext(key)
-	if err != nil && err.Error() == "key not found" {
+	if errors.Is(err, cache.ErrNotFound) {
 		// To ensure stateless clusters are not visible to other users, they are marked as internal clusters.
 		// They are stored in the proxy cache and accessed through the /config endpoint.
 		context.Internal = true
