@@ -173,3 +173,112 @@ describe('KubeList.applyUpdate', () => {
     consoleErrorSpy.mockRestore();
   });
 });
+
+// A watch ERROR delivers a `Status`, whose metadata carries neither a uid nor a
+// resourceVersion. The list's resourceVersion is what the next watch is started from
+// (`useKubeObjectList` builds the watch URL out of it), so blanking it sends
+// `resourceVersion=undefined` to the API server and the list stops updating.
+describe('KubeList.applyUpdate on events that carry no resource', () => {
+  const itemClass = MockKubeObject as unknown as KubeObjectClass;
+  const listAtVersion7: KubeList<any> = {
+    kind: 'MockKubeList',
+    apiVersion: 'v1',
+    items: [
+      { apiVersion: 'v1', kind: 'MockKubeObject', metadata: { uid: '1', resourceVersion: '7' } },
+    ],
+    metadata: { resourceVersion: '7' },
+  };
+
+  // What the API server actually sends for a watch that fell behind.
+  const expiredStatus = {
+    kind: 'Status',
+    apiVersion: 'v1',
+    metadata: {},
+    status: 'Failure',
+    message: 'too old resource version: 100 (200)',
+    reason: 'Expired',
+    code: 410,
+  } as any;
+
+  it('keeps the resource version when a watch reports an error', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = KubeList.applyUpdate(
+      listAtVersion7,
+      { type: 'ERROR', object: expiredStatus },
+      itemClass,
+      cluster
+    );
+
+    expect(result.metadata.resourceVersion).toBe('7');
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('returns the same list on an error, so nothing downstream re-renders', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = KubeList.applyUpdate(
+      listAtVersion7,
+      { type: 'ERROR', object: expiredStatus },
+      itemClass,
+      cluster
+    );
+
+    expect(result).toBe(listAtVersion7);
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('keeps the resource version on an unrecognised event type', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = KubeList.applyUpdate(
+      listAtVersion7,
+      { type: 'BOOKMARK' as any, object: expiredStatus },
+      itemClass,
+      cluster
+    );
+
+    expect(result.metadata.resourceVersion).toBe('7');
+    consoleErrorSpy.mockRestore();
+  });
+
+  // The multiplexer builds its own ERROR event and stamps resourceVersion '0' on it, which
+  // the staleness guard above already rejects. Pin that too, so the two transports keep
+  // agreeing about what an error does to the list.
+  it('keeps the resource version for a multiplexer-shaped error event', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = KubeList.applyUpdate(
+      listAtVersion7,
+      {
+        type: 'ERROR',
+        object: {
+          kind: 'Status',
+          status: 'Failure',
+          message: 'websocket closed',
+          metadata: { uid: 'key:ERROR:websocket closed', resourceVersion: '0' },
+        } as any,
+      },
+      itemClass,
+      cluster
+    );
+
+    expect(result.metadata.resourceVersion).toBe('7');
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('keeps the resource version when an applied event carries none', () => {
+    const result = KubeList.applyUpdate(
+      listAtVersion7,
+      {
+        type: 'ADDED',
+        object: { apiVersion: 'v1', kind: 'MockKubeObject', metadata: { uid: '2' } } as any,
+      },
+      itemClass,
+      cluster
+    );
+
+    expect(result.metadata.resourceVersion).toBe('7');
+    expect(result.items).toHaveLength(2);
+  });
+});
