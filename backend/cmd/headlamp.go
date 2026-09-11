@@ -2968,6 +2968,16 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
 
+	// The drain endpoint sits outside /clusters/ so the OIDC token cookie
+	// is never sent by the browser. Use the in-cluster service account token
+	// as a fallback for backend-initiated operations when no user token is
+	// available.
+	if token == "" && c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster {
+		if saToken, err := os.ReadFile(c.ServiceAccountTokenPath); err == nil {
+			token = string(saToken)
+		}
+	}
+
 	clientset, err := ctxtProxy.ClientSetWithToken(token)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "getting client", http.StatusInternalServerError)
