@@ -485,11 +485,11 @@
           <div
             class="MuiBox-root css-70qvj9"
           >
-            <h4
+            <h3
               class="MuiTypography-root MuiTypography-h4 MuiTypography-noWrap css-15onnfg-MuiTypography-root"
             >
               Node Shell Settings
-            </h4>
+            </h3>
             <div
               class="MuiBox-root css-ldp2l3"
             />
@@ -648,11 +648,11 @@
           <div
             class="MuiBox-root css-70qvj9"
           >
-            <h4
+            <h3
               class="MuiTypography-root MuiTypography-h4 MuiTypography-noWrap css-15onnfg-MuiTypography-root"
             >
               Pod Debug Settings
-            </h4>
+            </h3>
             <div
               class="MuiBox-root css-ldp2l3"
             />
