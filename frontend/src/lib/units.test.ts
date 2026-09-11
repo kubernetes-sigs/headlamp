@@ -35,6 +35,12 @@ describe('parseRam', () => {
     expect(parseRam('1G')).toBe(1000000000);
   });
 
+  it('should parse lowercase decimal kilo (k) the same as uppercase K', () => {
+    expect(parseRam('1k')).toBe(1000);
+    expect(parseRam('500k')).toBe(500000);
+    expect(parseRam('1024k')).toBe(1024000);
+  });
+
   it('should parse milli-bytes suffix (m)', () => {
     expect(parseRam('1000m')).toBe(1);
     expect(parseRam('11973899059200m')).toBe(11973899059.2);
@@ -92,11 +98,15 @@ describe('parseRam', () => {
 
   it('should always return non-negative values', () => {
     fc.assert(
-      fc.property(fc.nat(), fc.constantFrom('', 'K', 'M', 'G', 'Ki', 'Mi', 'Gi'), (num, unit) => {
-        const input = `${num}${unit}`;
-        const result = parseRam(input);
-        expect(result).toBeGreaterThanOrEqual(0);
-      })
+      fc.property(
+        fc.nat(),
+        fc.constantFrom('', 'K', 'k', 'M', 'G', 'Ki', 'Mi', 'Gi'),
+        (num, unit) => {
+          const input = `${num}${unit}`;
+          const result = parseRam(input);
+          expect(result).toBeGreaterThanOrEqual(0);
+        }
+      )
     );
   });
 });
