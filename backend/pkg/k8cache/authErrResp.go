@@ -48,11 +48,21 @@ func IsAuthBypassURL(urlPath string) bool {
 // under /apis/authorization.k8s.io/{version} (either directly, or proxied via
 // /clusters/{name}/...). The version segment is intentionally not enumerated so
 // future authorization API versions keep the same cache-bypass behavior.
+//
+// This is the single answer to "is this a self-subject review", so that the cache bypass and
+// the store path cannot disagree about which requests it covers.
 func IsSelfSubjectReviewAPIPath(urlPath string) bool {
-	urlPath = strings.TrimRight(urlPath, "/")
+	apiPath, ok := apiRelativePath(urlPath)
+	if !ok {
+		return false
+	}
 
-	return isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectaccessreviews") ||
-		isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectrulesreviews")
+	request, ok := parseAPIResourceRequest(apiPath)
+	if !ok || request.group != "authorization.k8s.io" {
+		return false
+	}
+
+	return request.resource == "selfsubjectaccessreviews" || request.resource == "selfsubjectrulesreviews"
 }
 
 func isDirectOrProxiedEndpoint(urlPath, endpoint string) bool {
@@ -60,14 +70,6 @@ func isDirectOrProxiedEndpoint(urlPath, endpoint string) bool {
 
 	return len(parts) == 2 && parts[1] == endpoint ||
 		len(parts) == 4 && parts[1] == "clusters" && parts[3] == endpoint
-}
-
-func isDirectOrProxiedAPIResourceEndpoint(urlPath, group, resource string) bool {
-	parts := strings.Split(urlPath, "/")
-
-	return len(parts) == 5 && parts[1] == "apis" && parts[2] == group && parts[3] != "" && parts[4] == resource ||
-		len(parts) == 7 && parts[1] == "clusters" && parts[3] == "apis" && parts[4] == group &&
-			parts[5] != "" && parts[6] == resource
 }
 
 // ReturnAuthErrorResponse return the AuthErrorResponse if the user is not Authorized

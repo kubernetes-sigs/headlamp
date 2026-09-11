@@ -460,12 +460,18 @@ func parseAPIResourceRequest(apiPath string) (apiResourceRequest, bool) {
 	return request, true
 }
 
-func getKubeVerb(r *http.Request, request apiResourceRequest) string {
+// IsWatchRequest reports whether r asks the API server to stream changes rather than
+// return a complete response.
+func IsWatchRequest(r *http.Request) bool {
 	isWatch, _ := strconv.ParseBool(r.URL.Query().Get("watch"))
 
+	return isWatch
+}
+
+func getKubeVerb(r *http.Request, request apiResourceRequest) string {
 	switch r.Method {
 	case "GET":
-		if isWatch {
+		if IsWatchRequest(r) {
 			return "watch"
 		}
 

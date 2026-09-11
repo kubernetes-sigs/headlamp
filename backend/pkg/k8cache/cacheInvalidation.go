@@ -21,9 +21,7 @@ package k8cache
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
@@ -40,67 +38,128 @@ import (
 	watchCache "k8s.io/client-go/tools/cache"
 )
 
-// DeleteKeys deletes keys from the cache if data is present
-// in cache, this delete keys having namespace non-empty and
-// also empty namespace.
-func DeleteKeys(key string, k8scache cache.Cache[string]) {
-	_ = k8scache.Delete(context.Background(), key)
-
-	keyPart := strings.Split(key, "+")
-	if len(keyPart) < 4 {
-		return // malformed key; nothing to namespace-strip
+// deleteByPrefixes removes every cache entry whose key starts with any of prefixes. An
+// object has one entry per requested variant, so invalidation cannot address them by exact
+// key. The cache is swept once regardless of how many prefixes are supplied, and duplicate
+// prefixes are dropped so no entry is tested twice.
+func deleteByPrefixes(k8scache cache.Cache[string], prefixes ...string) {
+	if len(prefixes) == 0 {
+		return
 	}
 
-	keyPart[2] = ""
-	key = strings.Join(keyPart, "+")
-	_ = k8scache.Delete(context.Background(), key)
+	// An empty prefix matches every key, which would purge the whole cache.
+	if slices.Contains(prefixes, "") {
+		logger.Log(logger.LevelError, nil, nil, "refusing to invalidate cache with an empty key prefix")
+
+		return
+	}
+
+	prefixes = slices.Compact(slices.Sorted(slices.Values(prefixes)))
+
+	keys, err := k8scache.GetAll(context.Background(), func(key string) bool {
+		return slices.ContainsFunc(prefixes, func(prefix string) bool {
+			return strings.HasPrefix(key, prefix)
+		})
+	})
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "failed to list cache keys for invalidation")
+
+		return
+	}
+
+	for key := range keys {
+		if err := k8scache.Delete(context.Background(), key); err != nil {
+			logger.Log(logger.LevelWarn, nil, err, "failed to delete cache key: "+redactCacheKey(key))
+		}
+	}
 }
 
-// handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
-// the data is present in the cache, if present PURGE the keys from the cache and make a fresh new
-// request to k8s server and store into the cache, the cache has now latest changes.
-func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.ResponseWriter, r *http.Request,
-	next http.Handler, contextKey string,
-) error {
-	// Skip cache invalidation if this is a GET request or the path is not allowed for auth error handling.
-	if r.Method == http.MethodGet || !IsAuthBypassURL(r.URL.Path) {
-		return nil
+// DeleteKeys deletes every cached variant of the object that key identifies, along with the
+// list responses that object appears in, for both its own namespace and the all-namespace
+// list variant.
+func DeleteKeys(key string, k8scache cache.Cache[string]) {
+	deleteKeys(key, k8scache, false)
+}
+
+// deleteCollectionKeys does what DeleteKeys does and, when key addresses a collection rather
+// than a single object, also evicts every object in that collection.
+func deleteCollectionKeys(key string, k8scache cache.Cache[string]) {
+	deleteKeys(key, k8scache, true)
+}
+
+func deleteKeys(key string, k8scache cache.Cache[string], removesCollection bool) {
+	keyPart := strings.SplitN(key, "+", 6)
+	if len(keyPart) < 6 {
+		return // malformed key; not the group+resource+namespace+context+name+variant format
 	}
 
-	key, err := GenerateKey(r.URL, contextKey)
-	if err != nil {
-		logger.Log(logger.LevelWarn, nil, err, "could not generate cache key; skipping invalidation")
+	group, resource, namespace, contextKey, name := keyPart[0], keyPart[1], keyPart[2], keyPart[3], keyPart[4]
 
-		next.ServeHTTP(w, r)
+	prefixes := []string{joinEscapedCacheKeyPrefix(group, resource, "", contextKey, "")}
 
-		return ErrHandled
+	if removesCollection && name == "" {
+		prefixes = append(prefixes, joinEscapedCacheKeyResourcePrefix(group, resource, namespace, contextKey))
+
+		deleteByPrefixes(k8scache, prefixes...)
+
+		return
+	}
+
+	prefixes = append(prefixes, joinEscapedCacheKeyPrefix(group, resource, namespace, contextKey, ""))
+
+	if name != "" {
+		prefixes = append(prefixes, joinEscapedCacheKeyPrefix(group, resource, namespace, contextKey, name))
+	}
+
+	deleteByPrefixes(k8scache, prefixes...)
+}
+
+// invalidateForMethod evicts what a request of this method invalidates. Only a delete can
+// remove a collection's members, so only it widens eviction to the objects in it.
+func invalidateForMethod(k8scache cache.Cache[string], key, method string) {
+	if method == http.MethodDelete {
+		deleteCollectionKeys(key, k8scache)
+
+		return
 	}
 
 	DeleteKeys(key, k8scache)
-
-	freshURL := *r.URL
-
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
-	if err != nil {
-		return err
-	}
-
-	freshReq.Header = r.Header.Clone()
-	next.ServeHTTP(w, r)
-
-	rr := httptest.NewRecorder()
-	freshRcw := NewResponseCapture(rr)
-	next.ServeHTTP(freshRcw, freshReq)
-
-	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
-		return err
-	}
-
-	return ErrHandled
 }
 
-// ErrHandled indicates the request was fully handled by cache invalidation; middleware must return.
-var ErrHandled = errors.New("handled by cache invalidation")
+// InvalidatesCache reports whether r modifies cluster state the response cache holds, and so
+// must be routed through HandleNonGETCacheInvalidation. This is independent of whether r's
+// own response is cacheable: a subresource write invalidates its parent object.
+func InvalidatesCache(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return IsAuthBypassURL(r.URL.Path)
+	default:
+		return false
+	}
+}
+
+// HandleNonGETCacheInvalidation purges every cached response a modifying request
+// (POST/PUT/PATCH/DELETE) invalidates, then forwards the request upstream. It reports
+// whether it handled the request; requests InvalidatesCache rejects are left to the caller.
+//
+// Eviction brackets the forwarded request, so an entry cached by a read racing the write
+// does not outlive it. The entries are not refilled here; the next GET repopulates the
+// variant it needs.
+func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.ResponseWriter, r *http.Request,
+	next http.Handler, key string,
+) bool {
+	if !InvalidatesCache(r) {
+		return false
+	}
+
+	invalidateForMethod(k8scache, key, r.Method)
+
+	next.ServeHTTP(w, r)
+
+	invalidateForMethod(k8scache, key, r.Method)
+
+	return true
+}
 
 // SkipWebSocket skip all the websocket requests coming from the client/ frontend to ensure
 // real time data updation in the frontend.
@@ -319,6 +378,10 @@ func RunInformerToWatch(gvrList []schema.GroupVersionResource,
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) { // resources which are updated
 				// or changed, like pods configurations was changed.
+				if resourceVersionUnchanged(oldObj, newObj) {
+					return
+				}
+
 				handleKeyGenerationAndDeletion(newObj, gvr, contextKey, k8scache, hasSynced)
 			},
 			DeleteFunc: func(obj interface{}) { // resources which are removed from the informers,
@@ -330,6 +393,16 @@ func RunInformerToWatch(gvrList []schema.GroupVersionResource,
 			return
 		}
 	}
+}
+
+// resourceVersionUnchanged reports whether an update event carries no new object state, as
+// the events an informer relist replays do.
+func resourceVersionUnchanged(oldObj, newObj interface{}) bool {
+	oldUnstructured, oldOK := oldObj.(*unstructured.Unstructured)
+	newUnstructured, newOK := newObj.(*unstructured.Unstructured)
+
+	return oldOK && newOK &&
+		oldUnstructured.GetResourceVersion() == newUnstructured.GetResourceVersion()
 }
 
 // handleKeyGenerationAndDeletion generates a cache key from the GVR and deletes
@@ -368,28 +441,27 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 	)
 }
 
-// invalidateCacheKeysForResourceEvent evicts cached list responses (including the
-// all-namespace list variant via DeleteKeys) and a cached named GET response.
-// GenerateKey stores list paths with gvr.Resource as the kind segment, but named
-// GET paths use the object name as the kind segment.
+// invalidateCacheKeysForResourceEvent evicts the cached list responses the changed object
+// appears in (including the all-namespace list variant) and every cached response
+// addressing the object itself.
 func invalidateCacheKeysForResourceEvent(
 	gvr schema.GroupVersionResource,
 	namespace, name, contextKey string,
 	k8scache cache.Cache[string],
 ) {
-	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+	listPrefix := cacheKeyPrefix(gvr.Group, gvr.Resource, namespace, contextKey, "")
 
 	logger.Log(logger.LevelInfo, nil, nil,
-		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
+		"cache keys under "+redactCacheKeyPrefix(listPrefix)+" will be deleted from the cache")
 
-	DeleteKeys(listKey, k8scache)
-
-	if name == "" {
-		return
+	prefixes := []string{
+		listPrefix,
+		cacheKeyPrefix(gvr.Group, gvr.Resource, "", contextKey, ""),
 	}
 
-	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	if name != "" {
+		prefixes = append(prefixes, cacheKeyPrefix(gvr.Group, gvr.Resource, namespace, contextKey, name))
 	}
+
+	deleteByPrefixes(k8scache, prefixes...)
 }
