@@ -63,7 +63,7 @@ func listCharts(filter string, settings *cli.EnvSettings) ([]chartInfo, error) {
 			return nil, err
 		}
 
-		index.AddRepo(name, indexFile, true)
+		index.AddRepo(name, indexFile, false)
 
 		for _, chart := range index.All() {
 			if filter != "" {
