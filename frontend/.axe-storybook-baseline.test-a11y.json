@@ -103,21 +103,9 @@
     "Deployments/CreateDeploymentForm/Filled": ["label"],
     "Deployments/CreateDeploymentForm/Pod Template Extras": ["label"],
     "Deployments/CreateDeploymentForm/Empty": ["label"],
-    "GlobalSearch/GlobalSearchContent/With Empty Input": [
-      "aria-input-field-name",
-      "aria-progressbar-name",
-      "aria-tooltip-name"
-    ],
-    "GlobalSearch/GlobalSearchContent/Loading Resources": [
-      "aria-progressbar-name",
-      "aria-tooltip-name",
-      "scrollable-region-focusable"
-    ],
-    "GlobalSearch/GlobalSearchContent/Found Some Results": [
-      "aria-progressbar-name",
-      "aria-tooltip-name",
-      "scrollable-region-focusable"
-    ],
+    "GlobalSearch/GlobalSearchContent/With Empty Input": ["aria-progressbar-name"],
+    "GlobalSearch/GlobalSearchContent/Loading Resources": ["aria-progressbar-name"],
+    "GlobalSearch/GlobalSearchContent/Found Some Results": ["aria-progressbar-name"],
     "Jobs/CreateJobForm/Default": ["label"],
     "Jobs/CreateJobForm/Filled": ["label"],
     "Jobs/CreateJobForm/Pod Template Extras": ["label"],
@@ -133,16 +121,8 @@
     "ReplicaSets/CreateReplicaSetForm/Empty": ["label"],
     "Service/CreateServiceForm/Default": ["label"],
     "home/ClusterTable/Connecting": ["aria-progressbar-name"],
-    "GlobalSearch/GlobalSearchContent/Bare Namespace Query": [
-      "aria-progressbar-name",
-      "aria-tooltip-name",
-      "scrollable-region-focusable"
-    ],
-    "GlobalSearch/GlobalSearchContent/Combined Namespace Query": [
-      "aria-progressbar-name",
-      "aria-tooltip-name",
-      "scrollable-region-focusable"
-    ],
+    "GlobalSearch/GlobalSearchContent/Bare Namespace Query": ["aria-progressbar-name"],
+    "GlobalSearch/GlobalSearchContent/Combined Namespace Query": ["aria-progressbar-name"],
     "GraphView/Performance Test 20000 Pods": ["color-contrast"],
     "GraphView/Performance Test 100000 Pods": ["color-contrast"],
     "StatefulSet/CreateStatefulSetForm/Default": ["label"],
