@@ -19,7 +19,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
-import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
+import { useEndpoints } from '../../lib/k8s/api/v2/hooks';
+import { getKubeObjectClassCacheKey, kubeObjectQueryKey } from '../../lib/k8s/api/v2/queryKeys';
 import type { KubeObject } from '../../lib/k8s/KubeObject';
 import type { RouteURLProps } from '../../lib/router/createRouteURL';
 import { createRouteURL } from '../../lib/router/createRouteURL';
@@ -74,6 +75,7 @@ function KubeObjectLink(props: {
           endpoint,
           namespace,
           name,
+          kubeObjectClassCacheKey: getKubeObjectClassCacheKey(kubeObject._class()),
         });
         // prepopulate the query cache with existing object
         client.setQueryData(key, kubeObject);
