@@ -1005,6 +1005,69 @@
         "required": ["ip", "hostnames"],
         "additionalProperties": false
       }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics configuration. Enables the /metrics endpoint and optional ServiceMonitor creation",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the Prometheus /metrics endpoint on the Headlamp backend",
+          "default": false
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor resource configuration for Prometheus Operator auto-discovery",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a ServiceMonitor resource. Requires metrics.enabled and Prometheus Operator CRDs",
+              "default": false
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Namespace for the ServiceMonitor. Defaults to the release namespace"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Additional labels for the ServiceMonitor (e.g. for Prometheus selector matching)"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the ServiceMonitor"
+            },
+            "interval": {
+              "type": "string",
+              "description": "Prometheus scrape interval",
+              "default": "30s"
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "description": "Prometheus scrape timeout",
+              "default": "10s"
+            },
+            "honorLabels": {
+              "type": "boolean",
+              "description": "Whether to honor labels from the scraped data over labels attached by Prometheus",
+              "default": false
+            },
+            "metricRelabelings": {
+              "type": "array",
+              "description": "MetricRelabelConfigs to apply to samples before ingestion",
+              "items": {
+                "type": "object"
+              }
+            },
+            "relabelings": {
+              "type": "array",
+              "description": "RelabelConfigs to apply to samples before scraping",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
