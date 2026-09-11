@@ -726,7 +726,7 @@ interface NodeReadyLabelProps {
 
 export function NodeReadyLabel(props: NodeReadyLabelProps) {
   const { node } = props;
-  const isReady = !!node.status.conditions?.find(
+  const isReady = !!node.status?.conditions?.find(
     condition => condition.type === 'Ready' && condition.status === 'True'
   );
   const { t } = useTranslation();

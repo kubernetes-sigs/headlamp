@@ -124,11 +124,11 @@ class Node extends KubeObject<KubeNode> {
   }
 
   getExternalIP(): string {
-    return this.status.addresses?.find(address => address.type === 'ExternalIP')?.address || '';
+    return this.status?.addresses?.find(address => address.type === 'ExternalIP')?.address || '';
   }
 
   getInternalIP(): string {
-    return this.status.addresses?.find(address => address.type === 'InternalIP')?.address || '';
+    return this.status?.addresses?.find(address => address.type === 'InternalIP')?.address || '';
   }
 
   /**
