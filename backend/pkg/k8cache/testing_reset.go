@@ -25,6 +25,10 @@ func ResetForTesting() {
 
 	mu.Unlock()
 
+	ssarMu.Lock()
+	ssarCache = make(map[string]*ssarCacheEntry)
+	ssarMu.Unlock()
+
 	clearWatcherRegistriesForTesting()
 }
 
