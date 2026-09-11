@@ -68,6 +68,7 @@ Default.args = {
   clusterSettings: {
     nodeShellTerminal: {
       isEnabled: true,
+      chrootHostRoot: true,
       namespace: 'kube-system',
       linuxImage: 'busybox:1.28',
     },

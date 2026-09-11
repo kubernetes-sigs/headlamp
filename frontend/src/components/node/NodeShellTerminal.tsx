@@ -94,6 +94,10 @@ const shellPod = (
   } as unknown as KubePod;
 };
 
+export function getNodeShellCommand(chrootHostRoot?: boolean): string[] {
+  return chrootHostRoot ? ['chroot', '/host'] : ['sh'];
+}
+
 function uniqueString() {
   const alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
   let res = '';
@@ -130,7 +134,13 @@ async function shell(
   const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
   const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
-  const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
+  const kubePod = shellPod(
+    podName,
+    namespace,
+    item.getName(),
+    linuxImage,
+    getNodeShellCommand(config?.chrootHostRoot)
+  );
   try {
     await apply(kubePod, cluster);
   } catch (e) {

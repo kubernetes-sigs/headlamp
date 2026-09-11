@@ -33,6 +33,7 @@ export interface ClusterSettings {
     linuxImage?: string;
     namespace?: string;
     isEnabled?: boolean;
+    chrootHostRoot?: boolean;
   };
   podDebugTerminal?: {
     debugImage?: string;
