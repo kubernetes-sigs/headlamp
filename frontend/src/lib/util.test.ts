@@ -20,6 +20,8 @@ import {
   flattenClusterListItems,
   formatDuration,
   getPercentStr,
+  getReadyReplicas,
+  getTotalReplicas,
   isValidTimezone,
   normalizeUnit,
   timeAgo,
@@ -445,5 +447,119 @@ describe('compareUnits', () => {
     expect(compareUnits('abc', '1')).toBe(false);
     expect(compareUnits('1', 'abc')).toBe(false);
     expect(compareUnits('', '')).toBe(false);
+  });
+});
+
+describe('getReadyReplicas', () => {
+  it('returns status.ready for Jobs', () => {
+    const job = { kind: 'Job', status: { ready: 2, active: 3, succeeded: 1 } } as any;
+    expect(getReadyReplicas(job)).toBe(2);
+  });
+
+  it('falls back to status.active when ready is missing (older K8s)', () => {
+    const job = { kind: 'Job', status: { active: 3 } } as any;
+    expect(getReadyReplicas(job)).toBe(3);
+  });
+
+  it('does not fall back to active when ready is 0', () => {
+    const job = { kind: 'Job', status: { ready: 0, active: 2 } } as any;
+    expect(getReadyReplicas(job)).toBe(0);
+  });
+
+  it('returns 0 for CronJobs', () => {
+    const cronJob = { kind: 'CronJob', status: { active: [{ name: 'x' }] } } as any;
+    expect(getReadyReplicas(cronJob)).toBe(0);
+  });
+
+  it('sums readyJobs * parallelism for each replicated job in JobSets', () => {
+    const jobSet = {
+      kind: 'JobSet',
+      spec: {
+        replicatedJobs: [
+          { name: 'a', replicas: 2, template: { spec: { parallelism: 3 } } },
+          { name: 'b', replicas: 1, template: { spec: { parallelism: 2 } } },
+        ],
+      },
+      status: {
+        replicatedJobsStatus: [
+          { name: 'a', ready: 1 },
+          { name: 'b', ready: 1 },
+        ],
+      },
+    } as any;
+    // a: 1 ready * 3 = 3, b: 1 ready * 2 = 2 → total = 5
+    expect(getReadyReplicas(jobSet)).toBe(5);
+  });
+
+  it('returns 0 for JobSets with no replicatedJobsStatus', () => {
+    const jobSet = { kind: 'JobSet', spec: { replicatedJobs: [] }, status: {} } as any;
+    expect(getReadyReplicas(jobSet)).toBe(0);
+  });
+
+  it('returns status.readyReplicas for Deployments', () => {
+    const deployment = { kind: 'Deployment', status: { readyReplicas: 3 } } as any;
+    expect(getReadyReplicas(deployment)).toBe(3);
+  });
+
+  it('falls back to status.numberReady for DaemonSets', () => {
+    const ds = { kind: 'DaemonSet', status: { numberReady: 5 } } as any;
+    expect(getReadyReplicas(ds)).toBe(5);
+  });
+});
+
+describe('getTotalReplicas', () => {
+  it('returns spec.parallelism for Jobs', () => {
+    const job = { kind: 'Job', spec: { parallelism: 3 } } as any;
+    expect(getTotalReplicas(job)).toBe(3);
+  });
+
+  it('defaults parallelism to 1 for Jobs without it', () => {
+    const job = { kind: 'Job', spec: {} } as any;
+    expect(getTotalReplicas(job)).toBe(1);
+  });
+
+  it('returns 0 for CronJobs', () => {
+    const cronJob = { kind: 'CronJob', spec: { suspend: false } } as any;
+    expect(getTotalReplicas(cronJob)).toBe(0);
+  });
+
+  it('sums replicas * parallelism for each replicated job in JobSets', () => {
+    const jobSet = {
+      kind: 'JobSet',
+      spec: {
+        replicatedJobs: [
+          { replicas: 2, template: { spec: { parallelism: 3 } } },
+          { replicas: 1, template: { spec: { parallelism: 2 } } },
+        ],
+      },
+    } as any;
+    // 2*3 + 1*2 = 8
+    expect(getTotalReplicas(jobSet)).toBe(8);
+  });
+
+  it('defaults parallelism to 1 for JobSet child jobs without it', () => {
+    const jobSet = {
+      kind: 'JobSet',
+      spec: {
+        replicatedJobs: [{ replicas: 3 }],
+      },
+    } as any;
+    // 3*1 = 3
+    expect(getTotalReplicas(jobSet)).toBe(3);
+  });
+
+  it('returns 0 for JobSets with no replicatedJobs', () => {
+    const jobSet = { kind: 'JobSet', spec: {} } as any;
+    expect(getTotalReplicas(jobSet)).toBe(0);
+  });
+
+  it('returns spec.replicas for Deployments', () => {
+    const deployment = { kind: 'Deployment', spec: { replicas: 4 } } as any;
+    expect(getTotalReplicas(deployment)).toBe(4);
+  });
+
+  it('falls back to status.desiredNumberScheduled for DaemonSets', () => {
+    const ds = { kind: 'DaemonSet', spec: {}, status: { desiredNumberScheduled: 7 } } as any;
+    expect(getTotalReplicas(ds)).toBe(7);
   });
 });
