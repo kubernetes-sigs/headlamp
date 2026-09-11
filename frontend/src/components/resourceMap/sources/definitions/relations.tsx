@@ -49,6 +49,7 @@ import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import TLSRoute from '../../../../lib/k8s/tlsRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
@@ -389,8 +390,8 @@ const httpRouteToService = makeRelation(
     )
 );
 
-type L4Route = TCPRoute | UDPRoute;
-type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
+type L4Route = TCPRoute | TLSRoute | UDPRoute;
+type L4RouteClass = typeof TCPRoute | typeof TLSRoute | typeof UDPRoute;
 
 const makeL4RouteToGatewayRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
   id,
@@ -446,6 +447,8 @@ const makeL4RouteToServiceRelation = (id: string, RouteClass: L4RouteClass): Rel
 
 const tcpRouteToGateway = makeL4RouteToGatewayRelation('tcproute-gateway', TCPRoute);
 const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRoute);
+const tlsRouteToGateway = makeL4RouteToGatewayRelation('tlsroute-gateway', TLSRoute);
+const tlsRouteToService = makeL4RouteToServiceRelation('tlsroute-service', TLSRoute);
 const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
 const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
 
@@ -497,6 +500,8 @@ const staticRelations = [
   httpRouteToService,
   tcpRouteToGateway,
   tcpRouteToService,
+  tlsRouteToGateway,
+  tlsRouteToService,
   udpRouteToGateway,
   udpRouteToService,
   backendTLSPolicyToService,

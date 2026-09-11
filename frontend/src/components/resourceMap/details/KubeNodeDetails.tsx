@@ -34,6 +34,7 @@ import GRPCRouteDetails from '../../gateway/GRPCRouteDetails';
 import HTTPRouteDetails from '../../gateway/HTTPRouteDetails';
 import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
 import TCPRouteDetails from '../../gateway/TCPRouteDetails';
+import TLSRouteDetails from '../../gateway/TLSRouteDetails';
 import UDPRouteDetails from '../../gateway/UDPRouteDetails';
 import HpaDetails from '../../horizontalPodAutoscaler/Details';
 import IngressClassDetails from '../../ingress/ClassDetails';
@@ -119,6 +120,7 @@ const kindComponentMap: Record<
   HTTPRoute: HTTPRouteDetails,
   GRPCRoute: GRPCRouteDetails,
   TCPRoute: TCPRouteDetails,
+  TLSRoute: TLSRouteDetails,
   UDPRoute: UDPRouteDetails,
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,

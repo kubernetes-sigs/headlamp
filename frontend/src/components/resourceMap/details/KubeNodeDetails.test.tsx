@@ -49,6 +49,7 @@ vi.mock('../../gateway/ReferenceGrantDetails', () => ({
   default: makeDetails('ReferenceGrant'),
 }));
 vi.mock('../../gateway/TCPRouteDetails', () => ({ default: makeDetails('TCPRoute') }));
+vi.mock('../../gateway/TLSRouteDetails', () => ({ default: makeDetails('TLSRoute') }));
 vi.mock('../../gateway/UDPRouteDetails', () => ({ default: makeDetails('UDPRoute') }));
 vi.mock('../../horizontalPodAutoscaler/Details', () => ({
   default: makeDetails('HorizontalPodAutoscaler'),
@@ -140,6 +141,7 @@ const dispatchCases = [
   ['HTTPRoute', 'HTTPRoute'],
   ['GRPCRoute', 'GRPCRoute'],
   ['TCPRoute', 'TCPRoute'],
+  ['TLSRoute', 'TLSRoute'],
   ['UDPRoute', 'UDPRoute'],
   ['ReferenceGrant', 'ReferenceGrant'],
   ['BackendTLSPolicy', 'BackendTLSPolicy'],
