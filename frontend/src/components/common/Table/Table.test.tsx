@@ -430,18 +430,25 @@ describe('Table states and options', () => {
   });
 
   it('hides and restores the actions column with data-column visibility', () => {
-    tableMocks.columnVisibility = { '0': false };
+    const columns: TableProps<TestRow>['columns'] = [
+      { id: 'selected', accessorKey: 'selected', header: 'Selection' },
+    ];
+
     const hiddenResult = renderTable({
-      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      columns,
+      enableRowActions: true,
+      state: { columnVisibility: { selected: false } },
     });
 
-    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+    expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).toBe(false);
     hiddenResult.unmount();
 
-    tableMocks.setColumnVisibility.mockClear();
-    tableMocks.columnVisibility = { '0': true, actions: false };
-    renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
+    renderTable({
+      columns,
+      enableRowActions: true,
+      state: { columnVisibility: { selected: true } },
+    });
 
-    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+    expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).toBe(true);
   });
 });
