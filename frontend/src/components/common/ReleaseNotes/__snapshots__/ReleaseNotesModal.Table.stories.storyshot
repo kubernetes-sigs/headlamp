@@ -68,13 +68,11 @@
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
         >
           <div
-            class="MuiBox-root css-wicc6q"
+            class="MuiBox-root css-10e9614"
           >
             <h2>
               Changes
             </h2>
-            
-
             <table>
               <thead>
                 <tr>
