@@ -293,6 +293,7 @@
   "Dismiss": "Bırak",
   "Lost connection to the cluster.": "Küme bağlantısı kesildi.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "Hayır",
   "Yes": "Evet",
   "Create {{ name }}": "{{ name }} Oluştur",
