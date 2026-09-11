@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headlamp-pomerium-e2e
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex
+  namespace: headlamp-pomerium-e2e
+data:
+  config.yaml: |
+    issuer: https://dex.headlamp-pomerium-e2e.svc.cluster.local:5556/dex
+    storage:
+      type: memory
+    web:
+      https: 0.0.0.0:5556
+      tlsCert: /etc/dex/tls/tls.crt
+      tlsKey: /etc/dex/tls/tls.key
+    oauth2:
+      skipApprovalScreen: true
+    staticClients:
+      - id: pomerium
+        name: Pomerium
+        secret: pomerium-e2e-secret
+        redirectURIs:
+          - https://authenticate.localhost.pomerium.io:8443/oauth2/callback
+    enablePasswordDB: true
+    staticPasswords:
+      - email: headlamp-e2e@example.com
+        hash: $2y$10$r7HzjBw5FYu9cDE6WwW2/eNL4Y2fenjew.9Jik91uzovWbzTMENtO
+        username: headlamp-e2e
+        userID: 7c4fd8d6-9f25-4a4b-8935-e7b39de6c9ca
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dex
+  namespace: headlamp-pomerium-e2e
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dex
+  template:
+    metadata:
+      labels:
+        app: dex
+    spec:
+      containers:
+        - name: dex
+          image: ghcr.io/dexidp/dex:v2.45.1
+          command:
+            - /usr/local/bin/dex
+          args:
+            - serve
+            - /etc/dex/config.yaml
+          ports:
+            - name: http
+              containerPort: 5556
+          readinessProbe:
+            httpGet:
+              path: /dex/.well-known/openid-configuration
+              port: http
+              scheme: HTTPS
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex
+              readOnly: true
+            - name: tls
+              mountPath: /etc/dex/tls
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: dex
+        - name: tls
+          secret:
+            secretName: dex-e2e-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: headlamp-pomerium-e2e
+spec:
+  selector:
+    app: dex
+  ports:
+    - name: http
+      port: 5556
+      targetPort: http
