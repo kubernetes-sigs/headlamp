@@ -704,7 +704,10 @@ func TestGetNewToken_Success(t *testing.T) {
 	// Seed cache with old token -> old refresh mapping
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
 
-	newTok, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background())
+	newTok, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL,
+		oauth2.AuthStyleAutoDetect, context.Background(),
+	)
 	if err != nil {
 		t.Fatalf("GetNewToken unexpected error: %v", err)
 	}
@@ -763,7 +766,10 @@ func TestGetNewToken_PreHTTPFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Fails before HTTP; no server needed.
-			_, err := auth.GetNewToken("cid", "secret", tc.cache, "id_token", "OLD", "http://127.0.0.1", context.Background())
+			_, err := auth.GetNewToken(
+				"cid", "secret", tc.cache, "id_token", "OLD", "http://127.0.0.1",
+				oauth2.AuthStyleAutoDetect, context.Background(),
+			)
 			if err == nil || !strings.Contains(err.Error(), tc.expect) {
 				t.Fatalf("want error containing %q, got %v", tc.expect, err)
 			}
@@ -786,7 +792,10 @@ func TestGetNewToken_EndpointFailures(t *testing.T) {
 			srv := newTokenServerJSON(t, tc.status, tc.body)
 			fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
 
-			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background()); err == nil {
+			if _, err := auth.GetNewToken(
+				"cid", "secret", fc, "id_token", "OLD", srv.URL,
+				oauth2.AuthStyleAutoDetect, context.Background(),
+			); err == nil {
 				t.Fatal("expected error, got nil")
 			}
 		})
@@ -810,7 +819,10 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 				errOnSetWithTTL: tc.setTTLErr,
 			}
 
-			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background()); err == nil {
+			if _, err := auth.GetNewToken(
+				"cid", "secret", fc, "id_token", "OLD", srv.URL,
+				oauth2.AuthStyleAutoDetect, context.Background(),
+			); err == nil {
 				t.Fatal("expected error containing 'caching refreshed token', got nil")
 			}
 		})
@@ -1367,4 +1379,65 @@ func TestHandleMe_MissingCookie(t *testing.T) {
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
+}
+
+func TestGetNewToken_AuthStyle(t *testing.T) {
+	tests := []struct {
+		name            string
+		style           oauth2.AuthStyle
+		wantBasicHeader bool
+		wantFormSecret  bool
+	}{
+		{
+			name:            "params_sends_credentials_in_body",
+			style:           oauth2.AuthStyleInParams,
+			wantBasicHeader: false,
+			wantFormSecret:  true,
+		},
+		{
+			name:            "header_sends_basic_auth",
+			style:           oauth2.AuthStyleInHeader,
+			wantBasicHeader: true,
+			wantFormSecret:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				gotBasicHeader bool
+				gotFormSecret  string
+				gotFormID      string
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.NoError(t, r.ParseForm())
+
+				authHeader := r.Header.Get("Authorization")
+				gotBasicHeader = strings.HasPrefix(authHeader, "Basic ")
+				gotFormID = r.Form.Get("client_id")
+				gotFormSecret = r.Form.Get("client_secret")
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+			}))
+			t.Cleanup(srv.Close)
+
+			fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+			_, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, tt.style, context.Background())
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantBasicHeader, gotBasicHeader,
+				"Basic Authorization header presence mismatch")
+
+			if tt.wantFormSecret {
+				assert.Equal(t, "cid", gotFormID, "expected client_id in form body")
+				assert.Equal(t, "secret", gotFormSecret, "expected client_secret in form body")
+			} else {
+				assert.Empty(t, gotFormSecret, "did not expect client_secret in form body")
+			}
+		})
+	}
 }

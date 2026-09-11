@@ -85,6 +85,7 @@ type Config struct {
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
+	OidcAuthStyle                string `koanf:"oidc-auth-style"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
 	MeGroupsPath                 string `koanf:"me-groups-path"`
@@ -124,6 +125,23 @@ func (c *Config) warnRedundantThemeDefaults() {
 	}
 }
 
+func (c *Config) validateOidcAuthStyle() error {
+	switch strings.ToLower(strings.TrimSpace(c.OidcAuthStyle)) {
+	case "", "auto", "params", "header":
+		return nil
+	default:
+		return errors.New("oidc-auth-style must be one of: auto, params, header")
+	}
+}
+
+func (c *Config) validateOidcTLS() error {
+	if c.OidcSkipTLSVerify {
+		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
+	}
+
+	return c.validateOIDCCAFile()
+}
+
 func (c *Config) Validate() error {
 	if err := c.validateAppName(); err != nil {
 		return err
@@ -143,12 +161,11 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	// OIDC TLS verification warning.
-	if c.OidcSkipTLSVerify {
-		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
+	if err := c.validateOidcAuthStyle(); err != nil {
+		return err
 	}
 
-	if err := c.validateOIDCCAFile(); err != nil {
+	if err := c.validateOidcTLS(); err != nil {
 		return err
 	}
 
@@ -666,6 +683,9 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.String("oidc-auth-style", "auto", "Token-endpoint client auth style for OIDC: "+
+		"auto (x/oauth2 auto-detect, default), params (client_secret_post), or header (client_secret_basic). "+
+		"Use params for IdPs that don't url-decode HTTP Basic credentials")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
