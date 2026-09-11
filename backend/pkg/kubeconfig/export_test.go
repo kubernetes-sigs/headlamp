@@ -32,3 +32,15 @@ func (rt *UserAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 
 	return urt.RoundTrip(req)
 }
+
+// ExecCredentialRetryRoundTripper is exported for testing.
+type ExecCredentialRetryRoundTripper struct {
+	Base roundTripperInterface
+}
+
+// RoundTrip implements the http.RoundTripper interface.
+func (rt *ExecCredentialRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	retryRT := &execCredentialRetryRoundTripper{base: rt.Base}
+
+	return retryRT.RoundTrip(req)
+}
