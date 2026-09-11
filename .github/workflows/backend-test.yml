@@ -22,12 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # needed for commenting on PRs for coverage changes
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        with:
-          fetch-depth: 0
-    
+
       - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
         with:
           go-version: '1.26.*'
@@ -67,11 +64,8 @@ jobs:
           go tool cover -html=coverage.out -o backend_coverage.html
           testcoverage_full=$(go tool cover -func=coverage.out)
           testcoverage=$(go tool cover -func=coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
-          testcoverage_full_base64=$(echo "$testcoverage_full" | base64 -w 0)
           echo "Code coverage: $testcoverage"
           echo "$testcoverage_full"
-          echo "coverage=$testcoverage" >> $GITHUB_ENV
-          echo "testcoverage_full_base64=$testcoverage_full_base64" >> $GITHUB_ENV
           echo "cleaning up..."
           rm ~/.config/Headlamp/kubeconfigs/config
         shell: bash
@@ -87,107 +81,3 @@ jobs:
           name: backend-coverage-report
           path: ./backend/backend_coverage.html
 
-      - name: Get base branch code coverage
-        if: ${{ github.event_name }} == 'pull_request'
-        run: |
-          if [[ -z "${{ github.base_ref }}" ]]; then
-            echo "Base branch is empty. Skipping code coverage comparison."
-            exit 0
-          fi
-
-          cd backend
-          base_branch="${{ github.base_ref }}"
-          testcoverage="${{ env.coverage }}"
-          git fetch origin "$base_branch"
-          git checkout "origin/$base_branch"
-          go test ./... -coverprofile=base_coverage.out -covermode=atomic -coverpkg=./... || true
-          if [[ -f base_coverage.out ]]; then
-            base_coverage=$(go tool cover -func=base_coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
-            echo "Base branch code coverage: $base_coverage"
-          else
-            echo "Tests failed or base_coverage.out not found. Skipping code coverage calculation."
-          fi
-        shell: bash
-
-      - name: Compare code coverage
-        if: ${{ github.event_name }} == 'pull_request'
-        run: |
-          set -x
-          if [[ -z "${{ github.base_ref }}" ]]; then
-            echo "Base branch is empty. Skipping code coverage comparison."
-            exit 0
-          fi
-
-          testcoverage="${{ env.coverage }}"
-          base_coverage="${{ env.base_coverage }}"
-          if [[ -z $testcoverage || -z $base_coverage ]]; then
-            echo "testcoverage or base_coverage is not set. Cannot calculate coverage difference."
-            exit 0
-          fi
-          
-          echo "testcoverage=$testcoverage"
-          echo "base_coverage=$base_coverage"
-          echo "$testcoverage - $base_coverage"
-
-          coverage_diff=$(echo "$testcoverage - $base_coverage" | bc)
-          echo "Coverage change: $coverage_diff"
-          echo "coverage_diff=$coverage_diff" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Comment on PR
-        if: ${{ github.event_name }} == 'pull_request'
-        run: |
-          set -x
-          if [[ -z "${{ github.base_ref }}" ]]; then
-            echo "Base branch is empty. Skipping code coverage comparison."
-            exit 0
-          fi
-
-          testcoverage="${{ env.coverage }}"
-          base_coverage="${{ env.base_coverage }}"
-          if [[ -z $testcoverage || -z $base_coverage ]]; then
-            echo "testcoverage or base_coverage is not set. Will not post comment."
-            exit 0
-          fi
-
-          testcoverage_full_base64="${{ env.testcoverage_full_base64 }}"
-          testcoverage_full=$(echo "$testcoverage_full_base64" | base64 --decode)
-
-          coverage_diff="${{ env.coverage_diff }}"
-          artifact_url=${{ steps.upload-artifact.outputs.artifact-url }}
-
-          if (( $(echo "$coverage_diff < 0" | bc -l) )); then
-            emoji="😞" # Decreased coverage
-          else
-            emoji="😃" # Increased or unchanged coverage
-          fi
-
-          comment="Backend Code coverage changed from $base_coverage% to $testcoverage%. Change: $coverage_diff% $emoji."
-          echo "$comment"
-
-          # Add the full coverage report as a collapsible section
-          comment="${comment}
-
-          <details>
-            <summary>Coverage report</summary>
-
-          \`\`\`
-          $testcoverage_full
-          \`\`\`
-
-          </details>
-
-          [Html coverage report download]($artifact_url)
-          "
-
-          echo "$comment"
-
-          if [[ "${{github.event.pull_request.head.repo.full_name}}" == "${{github.repository}}" ]]; then
-            # Forks (like dependabot ones) do not have permission to comment on the PR,
-            #   so do not fail the action if this fails.
-            gh pr comment ${{github.event.number}} --body "${comment}" || true
-          else
-            echo "Pull request raised from a fork. Skipping comment."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
