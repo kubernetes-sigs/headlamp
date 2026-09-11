@@ -32,6 +32,13 @@ vi.mock('../../../lib/k8s', () => ({
   useSelectedClusters: vi.fn(() => ['test-cluster']),
 }));
 
+const { mockHistoryPush } = vi.hoisted(() => ({ mockHistoryPush: vi.fn() }));
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<any>('react-router-dom');
+  return { ...actual, useHistory: () => ({ push: mockHistoryPush }) };
+});
+
 // Capture the props passed to Table using a hoisted holder object
 const { lastTablePropsHolder } = vi.hoisted(() => ({
   lastTablePropsHolder: { current: null as any },
@@ -225,5 +232,120 @@ describe('ResourceTable Column Visibility', () => {
     );
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
+  });
+});
+
+describe('ResourceTable row activation', () => {
+  const columns = [{ id: 'name', label: 'Name', getValue: (item: any) => item.metadata.name }];
+
+  const makeRow = (link: string | undefined) => ({
+    ...mockData[0],
+    getDetailsLink: () => link,
+  });
+
+  const keyEvent = (mods: Partial<React.KeyboardEvent> = {}) =>
+    ({ ctrlKey: false, metaKey: false, shiftKey: false, ...mods } as React.KeyboardEvent);
+
+  let windowOpen: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    lastTablePropsHolder.current = null;
+    mockHistoryPush.mockClear();
+    windowOpen = vi.fn(() => null);
+    vi.stubGlobal('open', windowOpen);
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation(query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const renderTable = (props: any) =>
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <ResourceTable {...props} />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+  it('routes in-app for a relative details link', () => {
+    renderTable({ id: 'activation', columns, data: mockData });
+
+    lastTablePropsHolder.current.onRowOpen(makeRow('/c/test/pods/ns/mypod1'), keyEvent());
+
+    expect(mockHistoryPush).toHaveBeenCalledWith('/c/test/pods/ns/mypod1');
+    expect(windowOpen).not.toHaveBeenCalled();
+  });
+
+  it('opens a new tab when a modifier key is held', () => {
+    renderTable({ id: 'activation', columns, data: mockData });
+
+    lastTablePropsHolder.current.onRowOpen(
+      makeRow('/c/test/pods/ns/mypod1'),
+      keyEvent({ metaKey: true })
+    );
+
+    expect(windowOpen).toHaveBeenCalledWith(
+      '/c/test/pods/ns/mypod1',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    expect(mockHistoryPush).not.toHaveBeenCalled();
+  });
+
+  it('opens a new tab for an absolute link rather than pushing a broken route', () => {
+    renderTable({ id: 'activation', columns, data: mockData });
+
+    lastTablePropsHolder.current.onRowOpen(makeRow('https://example.com/thing'), keyEvent());
+
+    expect(windowOpen).toHaveBeenCalledWith(
+      'https://example.com/thing',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    expect(mockHistoryPush).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the row has no details link', () => {
+    renderTable({ id: 'activation', columns, data: mockData });
+
+    lastTablePropsHolder.current.onRowOpen(makeRow(undefined), keyEvent());
+
+    expect(mockHistoryPush).not.toHaveBeenCalled();
+    expect(windowOpen).not.toHaveBeenCalled();
+  });
+
+  it('prefers a caller supplied onRowOpen over the default routing', () => {
+    const onRowOpen = vi.fn();
+    renderTable({ id: 'activation', columns, data: mockData, onRowOpen });
+
+    const row = makeRow('/c/test/pods/ns/mypod1');
+    lastTablePropsHolder.current.onRowOpen(row, keyEvent());
+
+    expect(onRowOpen).toHaveBeenCalledWith(row, expect.anything());
+    expect(mockHistoryPush).not.toHaveBeenCalled();
+  });
+
+  it('disables keyboard activation entirely with disableRowOpen', () => {
+    renderTable({ id: 'activation', columns, data: mockData, disableRowOpen: true });
+
+    expect(lastTablePropsHolder.current.onRowOpen).toBeUndefined();
   });
 });

@@ -391,8 +391,9 @@
                 class="css-1obf64m"
               >
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -463,8 +464,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -537,8 +539,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -611,8 +614,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -683,8 +687,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -757,8 +762,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -820,8 +826,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -883,8 +890,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -946,8 +954,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -1018,8 +1027,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
@@ -1090,8 +1100,9 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
