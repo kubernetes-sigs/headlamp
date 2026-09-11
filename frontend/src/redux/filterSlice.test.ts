@@ -117,4 +117,35 @@ describe('filterSlice', () => {
       expect(filterResource(item, filter, 'nginx')).toBe(true);
     });
   });
+
+  describe('filterResource ignoreNamespaceFilter', () => {
+    const makeItem = (namespace: string) =>
+      ({
+        kind: 'Pod',
+        apiVersion: 'v1',
+        metadata: { uid: 'abc', name: 'my-pod', namespace },
+      } as any);
+
+    it('hides an item from another namespace when the namespace filter applies', () => {
+      const filter: FilterState = { ...initialState, namespaces: new Set(['namespace-a']) };
+      const item = makeItem('namespace-b');
+
+      expect(filterResource(item, filter)).toBe(false);
+    });
+
+    it('keeps an item from another namespace when ignoreNamespaceFilter is set', () => {
+      const filter: FilterState = { ...initialState, namespaces: new Set(['namespace-a']) };
+      const item = makeItem('namespace-b');
+
+      expect(filterResource(item, filter, undefined, undefined, true)).toBe(true);
+    });
+
+    it('still applies textual search when ignoreNamespaceFilter is set', () => {
+      const filter: FilterState = { ...initialState, namespaces: new Set(['namespace-a']) };
+      const item = makeItem('namespace-b');
+
+      expect(filterResource(item, filter, 'no-such-match', undefined, true)).toBe(false);
+      expect(filterResource(item, filter, 'my-pod', undefined, true)).toBe(true);
+    });
+  });
 });
