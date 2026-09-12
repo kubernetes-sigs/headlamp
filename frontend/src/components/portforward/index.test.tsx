@@ -36,14 +36,16 @@ vi.mock('react-i18next', async importOriginal => {
 const {
   mockListPortForward,
   mockStartPortForward,
-  mockStopOrDeletePortForward,
+  mockStopPortForward,
+  mockDeletePortForward,
   mockGetCluster,
   mockTable,
   mockEnqueueSnackbar,
 } = vi.hoisted(() => ({
   mockListPortForward: vi.fn(),
   mockStartPortForward: vi.fn(),
-  mockStopOrDeletePortForward: vi.fn(),
+  mockStopPortForward: vi.fn(),
+  mockDeletePortForward: vi.fn(),
   mockGetCluster: vi.fn((): string | null => 'test-cluster'),
   mockTable: vi.fn(),
   mockEnqueueSnackbar: vi.fn(),
@@ -52,7 +54,8 @@ const {
 vi.mock('../../lib/k8s/api/v1/portForward', () => ({
   listPortForward: (...args: any[]) => mockListPortForward(...args),
   startPortForward: (...args: any[]) => mockStartPortForward(...args),
-  stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
+  stopPortForward: (...args: any[]) => mockStopPortForward(...args),
+  deletePortForward: (...args: any[]) => mockDeletePortForward(...args),
 }));
 
 vi.mock('../../lib/util', async importOriginal => {

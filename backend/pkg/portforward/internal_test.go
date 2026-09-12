@@ -165,8 +165,8 @@ func TestGetPortForwardByID(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestStopOrDeletePortForward tests stopOrDeletePortForward function.
-func TestStopOrDeletePortForward(t *testing.T) {
+// TestStopAndDeletePortForward tests the stopPortForward and deletePortForward functions.
+func TestStopAndDeletePortForward(t *testing.T) {
 	cache := cache.New[interface{}]()
 	ch := make(chan struct{}, 1)
 
@@ -175,7 +175,7 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	err := cache.Set(context.Background(), portforwardKeyGenerator(p), p)
 	require.NoError(t, err)
 
-	err = stopOrDeletePortForward(cache, "cluster", "id", true)
+	err = stopPortForward(cache, "cluster", "id")
 	assert.NoError(t, err)
 
 	chanValue := <-ch
@@ -186,7 +186,7 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	assert.NotEqual(t, portForward{}, pFromCache)
 	assert.Equal(t, STOPPED, pFromCache.Status)
 
-	err = stopOrDeletePortForward(cache, "cluster", "id", false)
+	err = deletePortForward(cache, "cluster", "id")
 	require.NoError(t, err)
 
 	_, err = cache.Get(context.Background(), portforwardKeyGenerator(p))
@@ -422,14 +422,19 @@ func TestShouldFallbackToSPDY(t *testing.T) {
 	}
 }
 
-// TestStopOrDeletePortForwardRequest.Validate() function.
-func TestStopOrDeletePortForwardRequestValidate(t *testing.T) {
-	req := stopOrDeletePortForwardRequest{}
+// TestPortForwardActionRequestValidate tests portForwardActionRequest.Validate().
+func TestPortForwardActionRequestValidate(t *testing.T) {
+	req := portForwardActionRequest{}
 
 	err := req.Validate()
 	assert.EqualError(t, err, "invalid request, id is required")
 
 	req.ID = "id"
+
+	err = req.Validate()
+	assert.EqualError(t, err, `invalid request, action must be "stop" or "delete"`)
+
+	req.Action = portForwardActionStop
 
 	err = req.Validate()
 	assert.NoError(t, err)
@@ -698,9 +703,9 @@ func TestGetPortForwardByIDHandler_ReturnsRouteClusterName(t *testing.T) {
 	assert.Equal(t, "cluster", response.Cluster)
 }
 
-// TestStopOrDeletePortForwardHandler_UserIDKeyIsolation verifies that
-// StopOrDeletePortForward uses the provided context key as the cache key.
-func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
+// TestHandlePortForwardAction_UserIDKeyIsolation verifies that
+// HandlePortForwardAction uses the provided context key as the cache key.
+func TestHandlePortForwardAction_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
 	// Seed a portforward under the base cluster key with a closeChan.
@@ -709,14 +714,14 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	portforwardstore(c, pf)
 
 	// Try to stop with a user-specific context key — should fail because the key is different.
-	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "stopOrDelete": true})
+	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "action": "stop"})
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/portforward", bytes.NewReader(payload))
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 
-	StopOrDeletePortForward(c, "clusteruser999", w, r)
+	HandlePortForwardAction(c, "clusteruser999", w, r)
 
 	res := w.Result()
 
