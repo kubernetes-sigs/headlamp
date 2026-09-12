@@ -36,6 +36,11 @@ const packageJson = JSON.parse(
   devDependencies: Record<string, string>;
   optionalDependencies: Record<string, string>;
 };
+const packageLock = JSON.parse(
+  fs.readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
+) as {
+  packages: Record<string, { optionalDependencies?: Record<string, string>; resolved?: string }>;
+};
 const require = createRequire(import.meta.url);
 const { expandMsiArtifactName } = require('../windows/msi/artifact-name.js') as {
   expandMsiArtifactName: (pattern: string, options: Record<string, string>) => string;
@@ -83,14 +88,18 @@ describe('desktop package configuration', () => {
   it('derives the Linux executable name from package metadata', () => {
     expect(packageJson.build.linux.executableName).toBeUndefined();
   });
+
+  it('does not pin dependencies to private Azure registries', () => {
+    const privatePackages = Object.entries(packageLock.packages)
+      .filter(([, dependency]) => dependency.resolved?.includes('pkgs.visualstudio.com'))
+      .map(([name]) => name);
+
+    expect(privatePackages).toEqual([]);
+  });
 });
 
 describe.runIf(process.platform === 'darwin')('app package', () => {
   it('includes DMG license support for macOS packaging', () => {
-    const packageLock = JSON.parse(
-      fs.readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
-    );
-
     expect(packageJson.optionalDependencies).toHaveProperty('dmg-license', expect.any(String));
     expect(packageLock.packages[''].optionalDependencies).toEqual(packageJson.optionalDependencies);
   });

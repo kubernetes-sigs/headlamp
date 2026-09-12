@@ -75,6 +75,30 @@ describe('MCPClient', () => {
     );
   });
 
+  it('accepts MCP IPC only from the trusted document in the active main frame', () => {
+    const trustedStartUrl = 'http://127.0.0.1:3000/';
+    const client = new MCPClient(cfgPath, settingsPath, undefined, trustedStartUrl);
+    const mainFrame = { url: `${trustedStartUrl}#settings` };
+    const webContents = { mainFrame };
+    client.setMainWindow({ webContents } as any);
+
+    expect(() =>
+      (client as any).assertTrustedIpcEvent({ sender: webContents, senderFrame: mainFrame })
+    ).not.toThrow();
+    expect(() =>
+      (client as any).assertTrustedIpcEvent({ sender: webContents, senderFrame: {} })
+    ).toThrow('MCP IPC request rejected');
+    expect(() =>
+      (client as any).assertTrustedIpcEvent({ sender: {}, senderFrame: mainFrame })
+    ).toThrow('MCP IPC request rejected');
+    expect(() =>
+      (client as any).assertTrustedIpcEvent({
+        sender: webContents,
+        senderFrame: { ...mainFrame, url: 'http://127.0.0.1:3000.attacker.example/' },
+      })
+    ).toThrow('MCP IPC request rejected');
+  });
+
   it('initialize is idempotent and logs exactly once', async () => {
     await client.initialize();
     await client.initialize(); // second call should be a no-op

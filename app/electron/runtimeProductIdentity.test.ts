@@ -30,10 +30,21 @@ vi.mock('electron', () => ({ app: runtimeApp }));
 
 import {
   applyRuntimeProductIdentity,
+  pluginConfigDirName,
   resolveRuntimeBuildManifestPath,
 } from './runtimeProductIdentity';
 
 const defaultUserDataPath = path.join('Users', 'test', 'AppData', 'Headlamp');
+
+describe('pluginConfigDirName', () => {
+  it('shares the Headlamp plugin profile with development tooling', () => {
+    expect(pluginConfigDirName('AKS Desktop', true)).toBe('Headlamp');
+  });
+
+  it('uses the branded plugin profile in packaged applications', () => {
+    expect(pluginConfigDirName('AKS Desktop', false)).toBe('AKS Desktop');
+  });
+});
 
 describe('applyRuntimeProductIdentity', () => {
   beforeEach(() => {

@@ -78,8 +78,8 @@ export class NamespacesPage {
     await page.waitForLoadState('load');
     await page.fill('textarea[aria-label="yaml Code"]', yaml);
 
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeVisible();
-    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
 
     await page.waitForSelector(`text=Applied ${name}`);
 

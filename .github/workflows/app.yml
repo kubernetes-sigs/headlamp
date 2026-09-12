@@ -68,6 +68,8 @@ jobs:
       run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts
     - name: Test desktop OAuth callbacks
       run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
+    - name: Test external backend token
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/externalBackendToken.spec.ts
     - name: Verify Linux build
       run: npm run app:verify-build-linux
     - name: Start Minikube

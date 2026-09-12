@@ -23,6 +23,7 @@ import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../../helpers/isElectron';
 import Plugins from '../../plugin/Plugins';
+import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { uiSlice } from '../../redux/uiSlice';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
@@ -166,6 +167,8 @@ const Router = ({ children }: React.PropsWithChildren<{}>) =>
 
 export default function AppContainer() {
   const [backendTokenReady, setBackendTokenReady] = React.useState(!window.desktopApi);
+  const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
+  const isThemeConfigReady = useTypedSelector(state => state.theme.backendConfigReady);
 
   useEffect(() => {
     if (!window.desktopApi) {
@@ -217,7 +220,7 @@ export default function AppContainer() {
           <QueryParamRedirect />
         </PreviousRouteProvider>
       </Router>
-      <ReleaseNotes />
+      {arePluginsLoaded && isThemeConfigReady && <ReleaseNotes />}
     </SnackbarProvider>
   );
 }

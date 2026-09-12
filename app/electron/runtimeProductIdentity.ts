@@ -57,6 +57,17 @@ export function resolveRuntimeBuildManifestPath(
 }
 
 /**
+ * Selects the plugin profile shared with the backend and plugin development tooling.
+ *
+ * @param appName Electron application name used for packaged plugin storage.
+ * @param isDevelopment Whether Electron is running in development mode.
+ * @returns The Headlamp development profile or the packaged application name.
+ */
+export function pluginConfigDirName(appName: string, isDevelopment: boolean): string {
+  return isDevelopment ? 'Headlamp' : appName;
+}
+
+/**
  * Applies the product manifest's display name before storage paths are resolved.
  *
  * @param runtimeApp Electron application whose runtime identity should be updated.
