@@ -313,6 +313,7 @@ const notNamespacedClasses = [
 ];
 
 const namespacedClasses = [
+  'CompositePodGroup',
   'ConfigMap',
   'ControllerRevision',
   'CronJob',
