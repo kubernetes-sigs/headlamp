@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "Impossibile recuperare le informazioni dell'estensione",
   "An error occurred while fetching plugin info from {{  URL }}.": "Si è verificato un errore durante il recupero delle informazioni dell'estensione da {{  URL }}.",
   "Yes": "Sì",
@@ -53,5 +58,7 @@
   "Could not start the server even after terminating existing processes.": "",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "URL Non Valido",
-  "Application opened with an invalid URL: {{ url }}": "Applicazione avviata con un URL non valido: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "Applicazione avviata con un URL non valido: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

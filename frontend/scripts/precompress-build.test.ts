@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-
 import { runPrecompressBuild } from './precompress-build';
 
 const tempDirs: string[] = [];
@@ -37,6 +37,37 @@ function makeTempDir(): string {
 }
 
 describe('precompress-build', () => {
+  it('runs from an installed package with tsx', () => {
+    const packageRoot = path.join(makeTempDir(), 'node_modules', 'headlamp');
+    const scriptDirectory = path.join(packageRoot, 'frontend', 'scripts');
+    const buildDirectory = path.join(packageRoot, 'frontend', 'build');
+    const installedScript = path.join(scriptDirectory, 'precompress-build.ts');
+    const tsxCli = path.resolve(__dirname, '../node_modules/tsx/dist/cli.mjs');
+
+    fs.mkdirSync(scriptDirectory, { recursive: true });
+    fs.mkdirSync(buildDirectory, { recursive: true });
+    fs.copyFileSync(
+      path.resolve(__dirname, '../package.json'),
+      path.join(packageRoot, 'frontend/package.json')
+    );
+    fs.copyFileSync(path.join(__dirname, 'precompress-build.ts'), installedScript);
+    fs.writeFileSync(path.join(buildDirectory, 'main.js'), 'x'.repeat(2048));
+
+    const nodeResult = spawnSync(
+      process.execPath,
+      ['--experimental-strip-types', installedScript, buildDirectory],
+      { encoding: 'utf8' }
+    );
+    expect(nodeResult.status).not.toBe(0);
+    expect(nodeResult.stderr).toContain('ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING');
+
+    const tsxResult = spawnSync(process.execPath, [tsxCli, installedScript, buildDirectory], {
+      encoding: 'utf8',
+    });
+    expect(tsxResult.status, tsxResult.stderr).toBe(0);
+    expect(fs.existsSync(path.join(buildDirectory, 'main.js.br'))).toBe(true);
+  });
+
   it('removes orphan .br sidecars', async () => {
     const buildDir = makeTempDir();
     const orphan = path.join(buildDir, 'assets', 'stale.js.br');

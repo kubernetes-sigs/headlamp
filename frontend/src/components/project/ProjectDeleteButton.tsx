@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Namespace from '../../lib/k8s/namespace';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import ActionButton, { ButtonStyle } from '../common/ActionButton';
 import AuthVisible from '../common/Resource/AuthVisible';
 import { ProjectDeleteDialog } from './ProjectDeleteDialog';
+import { projectIncludesNamespace, projectListRequests } from './projectGrouping';
 
 interface ProjectDeleteButtonProps {
   project: ProjectDefinition;
@@ -30,10 +31,16 @@ interface ProjectDeleteButtonProps {
 export function ProjectDeleteButton({ project, buttonStyle }: ProjectDeleteButtonProps) {
   const { t } = useTranslation();
   const [openDialog, setOpenDialog] = useState(false);
-  const [namespaces] = Namespace.useList({ clusters: project.clusters });
+  const requests = useMemo(() => projectListRequests(project), [project]);
+  const [namespaces] = Namespace.useList({
+    clusters: project.clusters,
+    requests,
+  });
 
   const projectNamespaces =
-    namespaces?.filter(ns => project.namespaces.includes(ns.metadata.name)) ?? [];
+    namespaces?.filter(ns =>
+      projectIncludesNamespace(project, { name: ns.metadata.name, cluster: ns.cluster })
+    ) ?? [];
 
   // Don't show the button if there are no namespaces for this project
   if (projectNamespaces.length === 0) {

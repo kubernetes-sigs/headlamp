@@ -592,7 +592,11 @@ func flagset(appName string) *flag.FlagSet {
 
 func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Bool("version", false, "Print version information and exit")
-	f.String("app-name", appName, "Application name used in version output and Kubernetes User-Agent headers")
+	f.String(
+		"app-name",
+		appName,
+		"Application name used in version output, the browser title, and Kubernetes User-Agent headers",
+	)
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.String("in-cluster-context-name", "",
 		"Name to use for the in-cluster Kubernetes context. "+

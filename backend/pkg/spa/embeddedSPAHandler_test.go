@@ -23,7 +23,7 @@ func getTestHTML() string {
 	return `<!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Headlamp</title>
+		<title data-headlamp-product-name></title>
     <script>
         // handles both webpack and rspack build systems
         __baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
@@ -45,6 +45,10 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 		testHeadlampBaseURLWithBaseURL(t, testHTML)
 	})
 
+	t.Run("check_product_name_is_escaped_in_title", func(t *testing.T) {
+		testProductNameInTitle(t, testHTML)
+	})
+
 	t.Run("check_empty_path_returns_index.html", func(t *testing.T) {
 		testEmptyPathReturnsIndex(t, testHTML)
 	})
@@ -56,6 +60,22 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 	t.Run("file_not_found_uses_index_content_type", func(t *testing.T) {
 		testFileNotFoundUsesIndexContentType(t, testHTML)
 	})
+}
+
+func testProductNameInTitle(t *testing.T, testHTML string) {
+	handler := spa.NewEmbeddedHandlerWithProductName(createTestFS(map[string]*fstest.MapFile{
+		"static/index.html": {Data: []byte(testHTML)},
+	}), "index.html", "/headlamp", "Branded & Headlamp")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/not-found", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "<title>Branded &amp; Headlamp</title>")
+	assert.NotContains(t, rr.Body.String(), "data-headlamp-product-name")
 }
 
 func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {

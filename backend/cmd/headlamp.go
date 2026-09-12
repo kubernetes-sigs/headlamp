@@ -277,8 +277,8 @@ func makeBaseURLReplacements(data []byte, baseURL string) []byte {
 	return data
 }
 
-// make sure the base-url is updated in the index.html file.
-func baseURLReplace(staticDir string, baseURL string) {
+// rewriteIndexHTML updates server-owned values in the index.html file.
+func rewriteIndexHTML(staticDir string, baseURL string, productName string) {
 	indexBaseURL := path.Join(staticDir, "index.baseUrl.html")
 	index := path.Join(staticDir, "index.html")
 
@@ -291,6 +291,7 @@ func baseURLReplace(staticDir string, baseURL string) {
 	// replace baseURL starting from the original copy, incase we run this multiple times
 	data := mustReadFile(indexBaseURL)
 	output := makeBaseURLReplacements(data, baseURL)
+	output = spa.ReplaceProductName(output, productName)
 	mustWriteFile(index, output)
 }
 
@@ -722,7 +723,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}
 
 	if config.StaticDir != "" {
-		baseURLReplace(config.StaticDir, config.BaseURL)
+		rewriteIndexHTML(config.StaticDir, config.BaseURL, config.AppName)
 	}
 
 	// For when using a base-url, like "/headlamp" with a reverse proxy.
@@ -1250,7 +1251,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
-		r.PathPrefix("/").Handler(spa.NewEmbeddedHandler(spa.StaticFilesEmbed, "index.html", config.BaseURL))
+		r.PathPrefix("/").Handler(spa.NewEmbeddedHandlerWithProductName(
+			spa.StaticFilesEmbed,
+			"index.html",
+			config.BaseURL,
+			config.AppName,
+		))
 	} else if config.StaticDir != "" {
 		staticPath := config.StaticDir
 

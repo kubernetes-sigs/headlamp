@@ -39,6 +39,8 @@ export * from '../../statefulset/CreateStatefulSetForm';
 export { default as CreateStatefulSetForm } from '../../statefulset/CreateStatefulSetForm';
 export * from '../../job/CreateJobForm';
 export { default as CreateJobForm } from '../../job/CreateJobForm';
+export * from '../../service/CreateServiceForm';
+export { default as CreateServiceForm } from '../../service/CreateServiceForm';
 export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';

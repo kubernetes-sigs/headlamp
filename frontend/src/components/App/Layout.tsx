@@ -56,6 +56,7 @@ import VersionDialog from './VersionDialog';
 export interface LayoutProps {}
 
 const CLUSTER_FETCH_INTERVAL = 10 * 1000; // ms
+const CONFIG_FETCH_TIMEOUT_MS = 30 * 1000;
 
 function ClusterNotFoundPopup({ cluster }: { cluster?: string }) {
   const problemCluster = cluster || getCluster();
@@ -140,7 +141,7 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
   const clusters = store.getState().config.clusters;
   const statelessClusters = store.getState().config.statelessClusters;
 
-  return request('/config', {}, false, false).then(config => {
+  return request('/config', { timeout: CONFIG_FETCH_TIMEOUT_MS }, false, false).then(config => {
     const clustersToConfig: ConfigState['clusters'] = {};
     config?.clusters.forEach((cluster: Cluster) => {
       if (cluster.meta_data?.extensions?.headlamp_info?.customName) {
@@ -173,16 +174,13 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       }
     }
 
-    // Apply backend theme configuration if provided
-    if (config?.defaultLightTheme || config?.defaultDarkTheme || config?.forceTheme) {
-      dispatch(
-        applyBackendThemeConfig({
-          defaultLightTheme: config.defaultLightTheme,
-          defaultDarkTheme: config.defaultDarkTheme,
-          forceTheme: config.forceTheme,
-        })
-      );
-    }
+    dispatch(
+      applyBackendThemeConfig({
+        defaultLightTheme: config?.defaultLightTheme,
+        defaultDarkTheme: config?.defaultDarkTheme,
+        forceTheme: config?.forceTheme,
+      })
+    );
 
     /**
      * Fetches the stateless cluster config from the indexDB and then sends the backend to parse it
@@ -200,6 +198,7 @@ const disableBackendLoader = true;
 
 export default function Layout({}: LayoutProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
+  const isThemeConfigReady = useTypedSelector(state => state.theme.backendConfigReady);
   const dispatch = useDispatch();
   const clusters = useTypedSelector(state => state.config.clusters);
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
@@ -218,6 +217,7 @@ export default function Layout({}: LayoutProps) {
   } = useQuery({
     queryKey: ['cluster-fetch'],
     queryFn: () => fetchConfig(dispatch),
+    retry: false,
     refetchInterval: disableBackendLoader
       ? CLUSTER_FETCH_INTERVAL
       : query => (query.state.status === 'error' ? false : CLUSTER_FETCH_INTERVAL),
@@ -228,6 +228,12 @@ export default function Layout({}: LayoutProps) {
   useEffect(() => {
     document.body.removeAttribute('style');
   }, []);
+
+  useEffect(() => {
+    if (error && !isThemeConfigReady) {
+      dispatch(applyBackendThemeConfig({}));
+    }
+  }, [dispatch, error, isThemeConfigReady]);
 
   const cluster = useCluster();
   useEffect(() => {
@@ -255,6 +261,10 @@ export default function Layout({}: LayoutProps) {
   const MAXIMUM_NUM_ALERTS = 2;
 
   const panels = useUIPanelsGroupedBySide();
+
+  if (!arePluginsLoaded || !isThemeConfigReady) {
+    return <Loader title={t('Loading')} color="inherit" style={{ color: 'GrayText' }} />;
+  }
 
   if (!disableBackendLoader) {
     if (error && !config) {
@@ -359,18 +369,8 @@ export default function Layout({}: LayoutProps) {
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
-                  {arePluginsLoaded &&
-                    (clustersToResolve.length > 0 ? (
-                      <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
-                        <RouteSwitcher
-                          requiresToken={() => {
-                            const clusterName = getCluster() || '';
-                            const cluster = clusters ? clusters[clusterName] : undefined;
-                            return cluster?.useToken === undefined || cluster?.useToken;
-                          }}
-                        />
-                      </AllowedNamespacesSelectorGate>
-                    ) : (
+                  {clustersToResolve.length > 0 ? (
+                    <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
                       <RouteSwitcher
                         requiresToken={() => {
                           const clusterName = getCluster() || '';
@@ -378,7 +378,16 @@ export default function Layout({}: LayoutProps) {
                           return cluster?.useToken === undefined || cluster?.useToken;
                         }}
                       />
-                    ))}
+                    </AllowedNamespacesSelectorGate>
+                  ) : (
+                    <RouteSwitcher
+                      requiresToken={() => {
+                        const clusterName = getCluster() || '';
+                        const cluster = clusters ? clusters[clusterName] : undefined;
+                        return cluster?.useToken === undefined || cluster?.useToken;
+                      }}
+                    />
+                  )}
                 </Container>
               </Box>
             </Main>

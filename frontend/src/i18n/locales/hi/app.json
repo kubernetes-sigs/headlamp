@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "प्लगिन जानकारी प्राप्त करने में विफल",
   "An error occurred while fetching plugin info from {{  URL }}.": "{{  URL }} से प्लगिन जानकारी प्राप्त करते समय एक त्रुटि हुई।",
   "Yes": "हां",
@@ -53,5 +58,7 @@
   "Could not start the server even after terminating existing processes.": "",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "अमान्य URL",
-  "Application opened with an invalid URL: {{ url }}": "अनुप्रयोग एक अमान्य URL के साथ खोला गया: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "अनुप्रयोग एक अमान्य URL के साथ खोला गया: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

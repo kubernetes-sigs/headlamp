@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "Kan de informatie over de invoegtoepassing niet ophalen",
   "An error occurred while fetching plugin info from {{  URL }}.": "Er is een fout opgetreden bij het ophalen van informatie over de invoegtoepassing van {{  URL }}.",
   "Yes": "Ja",
@@ -53,5 +58,7 @@
   "Could not start the server even after terminating existing processes.": "Kan de server niet starten, zelfs niet nadat bestaande processen zijn beëindigd.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Kan geen beschikbare poort vinden in het bereik {{startPort}}-{{endPort}}. Maak een poort vrij en probeer het opnieuw.",
   "Invalid URL": "Ongeldige URL",
-  "Application opened with an invalid URL: {{ url }}": "Toepassing geopend met een ongeldige URL: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "Toepassing geopend met een ongeldige URL: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

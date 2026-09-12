@@ -57,8 +57,8 @@
     "i18n:extract": "cd tools/i18n && npm run extract --",
     "i18n:copy": "cd tools/i18n && npm run copy --",
     "app:install": "cd app && npm install",
-    "app:build": "npm run frontend:build && cd app && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run build",
-    "app:build:dir": "npm run frontend:build && cd app && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run build -- --dir",
+    "app:build": "npm run frontend:build && cd app && tsx ./scripts/setup-plugins.ts && npm run build",
+    "app:build:dir": "npm run frontend:build && cd app && tsx ./scripts/setup-plugins.ts && npm run build -- --dir",
     "app:package": "npm run app:build && cd app && npm run package -- --win --linux --mac",
     "app:package:win": "npm run app:build && cd app && npm run package -- --win",
     "app:package:win:msi": "npm run app:build && cd app && npm run package-msi",
@@ -72,7 +72,7 @@
     "app:format": "cd app && npm run format",
     "app:lint": "cd app && npm run lint",
     "app:lint:fix": "cd app && npm run lint-fix",
-    "app:start": "cd app && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run start",
+    "app:start": "cd app && tsx ./scripts/setup-plugins.ts && npm run start",
     "app:start:client": "cd app && npm run dev-only-app",
     "app:start:client:debug": "cd app && npm run dev-only-app:debug",
     "start:with-app": "concurrently \"npm run backend:start\" \"npm run frontend:start\" \"npm run app:start:client\" --names \"backend,frontend,app\" --prefix-colors \"blue,green,yellow\"",
@@ -85,11 +85,12 @@
     "app:verify-build-windows": "cd app && npm run verify-build-windows",
     "tools:install": "cd tools && cd i18n && npm install && cd .. && cd releaser && npm install",
     "plugins:test": "cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js && ./test-plugins-examples.sh && cd ../pluginctl/src && npm install && node ./plugin-management.e2e.js && cd .. && npx jest src/multi-plugin-management.test.js && npx jest src/plugin-management.test.js && npm run test",
-    "image:build": "sh -c 'docker buildx build --pull --platform=local -t ghcr.io/headlamp-k8s/headlamp:$(git describe --tags --always --dirty) -f Dockerfile .'",
+    "image:build": "sh -c 'docker buildx build --pull --platform=local --build-arg HEADLAMP_SOURCE_COMMIT=$(git rev-parse HEAD) -t ghcr.io/headlamp-k8s/headlamp:$(git describe --tags --always --dirty) -f Dockerfile .'",
     "image:verify-image-digests": "node tools/verify-image-digests.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "tsx": "4.23.1"
   },
   "keywords": [
     "kubernetes",

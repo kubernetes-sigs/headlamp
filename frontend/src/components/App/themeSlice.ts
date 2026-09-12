@@ -31,12 +31,16 @@ export interface ThemeState {
   name: string;
   /** List of all custom App Themes */
   appThemes: AppTheme[];
+  pluginDefault?: string;
+  backendConfigReady: boolean;
+  forceTheme?: string;
 }
 
 export const initialState: ThemeState = {
   logo: null,
   name: getThemeName(),
   appThemes: defaultAppThemes,
+  backendConfigReady: false,
 };
 
 const themeSlice = createSlice({
@@ -59,6 +63,21 @@ const themeSlice = createSlice({
     addCustomAppTheme(state, action: PayloadAction<AppTheme>) {
       state.appThemes = state.appThemes.filter(it => it.name !== action.payload.name);
       state.appThemes.push(action.payload);
+    },
+    setPluginDefaultTheme(state, action: PayloadAction<string>) {
+      if (state.pluginDefault) {
+        return;
+      }
+
+      state.pluginDefault = action.payload;
+      if (
+        state.backendConfigReady &&
+        !state.forceTheme &&
+        !localStorage.getItem('headlampThemePreference')
+      ) {
+        state.name = action.payload;
+        setAppTheme(action.payload);
+      }
     },
     /** Checks if the selected theme name doesn't exist anymore and sets a fallback */
     ensureValidThemeName(state) {
@@ -85,17 +104,21 @@ const themeSlice = createSlice({
       }>
     ) {
       const backendConfig = action.payload;
-      const newThemeName = getThemeName(backendConfig);
+      state.backendConfigReady = true;
+      state.forceTheme = backendConfig.forceTheme;
+      const hasHigherPriorityTheme =
+        backendConfig.forceTheme || localStorage.getItem('headlampThemePreference');
+      const newThemeName = hasHigherPriorityTheme
+        ? getThemeName(backendConfig)
+        : state.pluginDefault || getThemeName(backendConfig);
+
+      if (state.pluginDefault && newThemeName === state.pluginDefault) {
+        setAppTheme(newThemeName);
+      }
 
       // Only update if theme has changed
       if (newThemeName !== state.name) {
         state.name = newThemeName;
-        // Do not persist to localStorage when a forced theme is active — getThemeName()
-        // already returns forceTheme before reading localStorage, so the stored preference
-        // is never consulted while force is active and will be restored when it is lifted.
-        if (!backendConfig.forceTheme) {
-          setAppTheme(newThemeName);
-        }
       }
     },
   },
@@ -142,6 +165,7 @@ export const {
   setTheme,
   applyBackendThemeConfig,
   ensureValidThemeName,
+  setPluginDefaultTheme,
 } = themeSlice.actions;
 export { themeSlice };
 export default themeSlice.reducer;

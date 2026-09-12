@@ -32,6 +32,8 @@ const wrappedListeners = new WeakMap<
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
+  isDevelopment: Boolean(process.env.ELECTRON_DEV),
+  getDevelopmentPluginsEnabled: () => ipcRenderer.invoke('get-development-plugins'),
   send: (channel: string, data: unknown) => {
     // allowed channels
     const validChannels = [
@@ -47,6 +49,8 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-backend-port',
       'request-tray-icon',
       'set-tray-icon',
+      'request-development-plugins',
+      'set-development-plugins',
       'cluster-changed',
       'route-changed',
     ];
@@ -69,6 +73,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'open-about-dialog',
       'backend-port',
       'tray-icon',
+      'development-plugins',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
@@ -113,6 +118,51 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.invoke('mcp-get-tool-stats', { serverName, toolName }),
     clusterChange: (cluster: string | null) =>
       ipcRenderer.invoke('mcp-cluster-change', { cluster }),
+  },
+
+  /** Secure storage operations exposed to the trusted renderer. */
+  secureStorage: {
+    /**
+     * Registers plugin namespaces for the current page load.
+     *
+     * @param namespaces - Plugin package names requesting storage.
+     * @returns Opaque capabilities keyed by plugin namespace.
+     */
+    register: (namespaces: string[]): Promise<Record<string, string>> =>
+      ipcRenderer.invoke('secure-storage-register', namespaces),
+    /**
+     * Saves an encrypted value for a plugin capability.
+     *
+     * @param capability - The plugin's opaque capability.
+     * @param key - The plugin-local storage key.
+     * @param value - The plaintext value to encrypt.
+     * @returns The operation result.
+     */
+    save: (capability: string, key: string, value: string) =>
+      ipcRenderer.invoke('secure-storage-save', capability, key, value),
+    /**
+     * Loads a decrypted value for a plugin capability.
+     *
+     * @param capability - The plugin's opaque capability.
+     * @param key - The plugin-local storage key.
+     * @returns The operation result and loaded value.
+     */
+    load: (capability: string, key: string) =>
+      ipcRenderer.invoke('secure-storage-load', capability, key),
+    /**
+     * Deletes a value for a plugin capability.
+     *
+     * @param capability - The plugin's opaque capability.
+     * @param key - The plugin-local storage key.
+     * @returns The operation result.
+     */
+    delete: (capability: string, key: string) =>
+      ipcRenderer.invoke('secure-storage-delete', capability, key),
+  },
+
+  commandCapabilities: {
+    register: (registrations: unknown[]) =>
+      ipcRenderer.invoke('register-plugin-command-capabilities', registrations),
   },
 
   // Notify cluster change (for MCP server restart)

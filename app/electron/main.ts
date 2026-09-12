@@ -15,7 +15,6 @@
  */
 
 import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
-import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import {
   app,
@@ -36,8 +35,15 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import {
+  loadBuildManifest,
+  productPluginCommandPolicies,
+  resolveBuildManifestPath,
+} from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
+import { resolveBackendToken, waitForExternalBackend } from './backendToken';
 import { createCertificateSetup } from './certificates';
+import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
 import {
@@ -47,6 +53,7 @@ import {
 } from './legal-documents';
 import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
+import { AppMenu, menusToTemplate } from './menu';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
@@ -59,6 +66,8 @@ import {
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
+import { readProtocolScheme } from './protocol';
+import { createProtocolHandler } from './protocolHandler';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -66,8 +75,11 @@ import {
   runScript,
   setupRunCmdHandlers,
 } from './runCmd';
-import { loadSettings, SETTINGS_PATH } from './settings';
+import { pluginConfigDirName } from './runtimeProductIdentity';
+import { isTrustedDocumentUrl, setupSecureStorageHandlers } from './secureStorage';
+import { areDevelopmentPluginsEnabled, loadSettings, SETTINGS_PATH } from './settings';
 import { getShellEnv } from './shellEnv';
+import { shouldCheckForAppUpdates } from './shouldCheckForAppUpdates';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -84,11 +96,13 @@ import {
   saveZoomFactor,
 } from './zoom';
 
+const isDev = !!process.env.ELECTRON_DEV;
+
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
 }
 
-setAppConfigDirName(app.getName());
+setAppConfigDirName(pluginConfigDirName(app.getName(), isDev));
 
 // On Linux, force the GTK 3 backend. Electron 36+ defaults to GTK 4, which
 // conflicts with GTK 2/3 symbols pulled into the process by IM modules and
@@ -112,7 +126,6 @@ dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 const settings = loadSettings(SETTINGS_PATH);
 const ensureCertificates = createCertificateSetup(settings);
 
-const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
 
 if (isDev) {
@@ -120,7 +133,12 @@ if (isDev) {
 } else {
   frontendPath = path.join(process.resourcesPath, 'frontend', 'index.html');
 }
-const backendToken = randomBytes(32).toString('hex');
+const useExternalServer = isDev && process.env.EXTERNAL_SERVER === 'true';
+const backendToken = resolveBackendToken(
+  isDev,
+  useExternalServer,
+  process.env.HEADLAMP_BACKEND_TOKEN
+);
 
 const startUrl = (
   process.env.ELECTRON_START_URL ||
@@ -199,17 +217,38 @@ const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
-const useExternalServer = process.env.EXTERNAL_SERVER || false;
-const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
-const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
+const appBuildManifestPath = isDev
+  ? resolveBuildManifestPath()
+  : path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
+const protocolScheme = readProtocolScheme(appBuildManifestPath);
+const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
+const productPluginCommandPolicy = productPluginCommandPolicies(
+  loadBuildManifest(appBuildManifestPath),
+  isDev ? 'development' : 'production'
+);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+
+function isFromMainWindowFrame(event: IpcMainEvent, window = mainWindow): boolean {
+  return (
+    !!window &&
+    event.sender === window.webContents &&
+    event.senderFrame === window.webContents.mainFrame &&
+    isTrustedDocumentUrl(event.senderFrame.url, startUrl)
+  );
+}
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
+
+const protocolHandler = createProtocolHandler({
+  protocolScheme,
+  startUrl,
+  getMainWindow: () => mainWindow,
+});
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -260,7 +299,7 @@ class PluginManagerEventListeners {
     };
   } = {};
 
-  constructor() {
+  constructor(private readonly window: BrowserWindow) {
     this.cache = {};
   }
 
@@ -293,6 +332,9 @@ class PluginManagerEventListeners {
    */
   setupEventHandlers() {
     ipcMain.on('plugin-manager', async (event, data) => {
+      if (!isFromMainWindowFrame(event, this.window)) {
+        return;
+      }
       let eventData: Action;
 
       try {
@@ -493,7 +535,10 @@ class PluginManagerEventListeners {
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
 
-    removeRunCmdConsent(pluginName);
+    const installedPlugin = PluginManager.list(destinationFolder)?.find(
+      plugin => plugin.pluginName === pluginName
+    );
+    removeRunCmdConsent(pluginName, installedPlugin?.folderName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
@@ -729,7 +774,12 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   actualPort = await findAvailablePort(defaultPort);
 
-  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
+  let serverArgs: string[] = [
+    '--listen-addr=localhost',
+    `--port=${actualPort}`,
+    '--app-name',
+    app.getName(),
+  ];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
@@ -1143,7 +1193,12 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   let menu: Electron.Menu;
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
-      menusToTemplate(appWindow, appMenu) || [];
+      menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        openExternal: url => shell.openExternal(url),
+        openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
+        adjustZoom,
+        setZoom,
+      }) || [];
     menu = Menu.buildFromTemplate(menuTemplate);
   } catch (e) {
     console.error(`Failed to build menus from template ${appMenu}:`, e);
@@ -1192,55 +1247,6 @@ function updateMenuLabels(menus: AppMenu[]) {
       menu.label = defaultMenusObj[menu.id].label;
     }
   });
-}
-
-export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
-  url?: string;
-  /** The submenus of this menu */
-  submenu?: AppMenu[];
-  /** A string identifying this menu */
-  id: string;
-  /** Whether to render this menu only after plugins are loaded (to give it time for the plugins
-   * to override the menu) */
-  afterPlugins?: boolean;
-}
-
-function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: AppMenu[]) {
-  const menusToDisplay: MenuItemConstructorOptions[] = [];
-  menusFromPlugins.forEach(appMenu => {
-    const { url, afterPlugins = false, ...otherProps } = appMenu;
-    const menu: MenuItemConstructorOptions = otherProps;
-
-    if (!loadFullMenu && !!afterPlugins) {
-      return;
-    }
-
-    // Handle the "About" menu item from the Help menu specially
-    if (appMenu.id === 'original-about-help') {
-      menu.click = () => {
-        mainWindow?.webContents.send('open-about-dialog');
-      };
-    } else if (!!url) {
-      menu.click = async () => {
-        // Open external links in the external browser.
-        if (!!mainWindow && !url.startsWith('http')) {
-          mainWindow.webContents.loadURL(url);
-        } else {
-          await shell.openExternal(url);
-        }
-      };
-    }
-
-    // If the menu has a submenu, then recursively convert it.
-    if (Array.isArray(otherProps.submenu)) {
-      menu.submenu = menusToTemplate(mainWindow, otherProps.submenu);
-    }
-
-    menusToDisplay.push(menu);
-  });
-
-  return menusToDisplay;
 }
 
 async function getRunningHeadlampPIDs() {
@@ -1395,13 +1401,22 @@ ipcMain.on('route-changed', () => {
 function startElectron() {
   console.info('App starting...');
 
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    return;
+  }
+
   // Increase max listeners to prevent false positive warnings
   // The app legitimately needs multiple IPC listeners (currently 11)
   // Default is 10, setting to 20 provides headroom for future additions
   ipcMain.setMaxListeners(20);
 
-  ipcMain.on('request-backend-token', () => {
-    mainWindow?.webContents.send('backend-token', backendToken);
+  ipcMain.on('request-backend-token', event => {
+    if (!isFromMainWindowFrame(event)) {
+      return;
+    }
+    event.sender.send('backend-token', backendToken);
   });
 
   let appVersion: string;
@@ -1415,6 +1430,10 @@ function startElectron() {
   console.log('Check for updates: ', shouldCheckForUpdates);
 
   async function startServerIfNeeded() {
+    if (useExternalServer) {
+      await waitForExternalBackend(actualPort, backendToken);
+      return;
+    }
     if (!useExternalServer) {
       try {
         // Try to start the server (it will find an available port)
@@ -1569,16 +1588,26 @@ function startElectron() {
     // creation and the 'closed' handler; closing during the read would
     // otherwise leave a destroyed window that later loadURL/menu calls throw on.
     cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
-
     mainWindow = new BrowserWindow({
       width,
       height,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
         preload: `${__dirname}/preload.js`,
       },
     });
+    protocolHandler.attachToWebContents(mainWindow.webContents);
+    setupRunCmdHandlers(
+      mainWindow,
+      ipcMain,
+      productPluginCommandPolicy,
+      startUrl,
+      undefined,
+      isDev,
+      areDevelopmentPluginsEnabled
+    );
 
     applyZoom();
 
@@ -1677,21 +1706,6 @@ function startElectron() {
       }
     });
 
-    // Force Single Instance Application
-    const gotTheLock = app.requestSingleInstanceLock();
-    if (gotTheLock) {
-      app.on('second-instance', () => {
-        // Someone tried to run a second instance, we should focus our window.
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
-        }
-      });
-    } else {
-      app.quit();
-      return;
-    }
-
     /*
     if a library is trying to open a url other than app url in electron take it
     to the default browser
@@ -1705,38 +1719,19 @@ function startElectron() {
       shell.openExternal(url);
     });
 
-    app.on('open-url', (event, url) => {
-      mainWindow?.focus();
-      let urlObj;
-      try {
-        urlObj = new URL(url);
-      } catch (e) {
-        dialog.showErrorBox(
-          i18n.t('Invalid URL'),
-          i18n.t('Application opened with an invalid URL: {{ url }}', { url })
-        );
-        return;
-      }
-
-      const urlParam = urlObj.hostname;
-      let baseUrl = startUrl;
-      // this check helps us to avoid adding multiple / to the startUrl when appending the incoming url to it
-      if (baseUrl.endsWith('/')) {
-        baseUrl = baseUrl.slice(0, startUrl.length - 1);
-      }
-      // load the index.html from build and route to the hostname received in the protocol handler url
-      mainWindow?.loadURL(baseUrl + '#' + urlParam + urlObj.search);
-    });
-
     i18n.on('languageChanged', () => {
       updateMenuLabels(currentMenu);
       setMenu(mainWindow, currentMenu);
     });
 
-    ipcMain.on('appConfig', () => {
-      mainWindow?.webContents.send('appConfig', {
+    ipcMain.on('appConfig', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('appConfig', {
         checkForUpdates: shouldCheckForUpdates,
         appVersion,
+        protocolScheme,
       });
     });
 
@@ -1747,14 +1742,17 @@ function startElectron() {
       readLegalDocument(legalDocumentsResourcePath, legalDocuments, id)
     );
 
-    ipcMain.on('pluginsLoaded', () => {
+    ipcMain.on('pluginsLoaded', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
       loadFullMenu = true;
       console.info('Plugins are loaded. Loading full menu.');
       setMenu(mainWindow, currentMenu);
     });
 
     ipcMain.on('setMenu', (event: IpcMainEvent, menus: any) => {
-      if (!mainWindow) {
+      if (!mainWindow || !isFromMainWindowFrame(event, mainWindow)) {
         return;
       }
 
@@ -1777,29 +1775,40 @@ function startElectron() {
     });
 
     ipcMain.on('locale', (event: IpcMainEvent, newLocale: string) => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
       if (!!newLocale && i18n.language !== newLocale) {
         i18n.changeLanguage(newLocale);
       }
     });
 
-    ipcMain.on('request-backend-port', () => {
-      mainWindow?.webContents.send('backend-port', actualPort);
+    ipcMain.on('request-backend-port', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('backend-port', actualPort);
     });
 
-    ipcMain.on('request-tray-icon', () => {
-      mainWindow?.webContents.send('tray-icon', isTrayIconEnabled());
+    ipcMain.on('request-tray-icon', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('tray-icon', isTrayIconEnabled());
     });
 
     ipcMain.on('set-tray-icon', (event: IpcMainEvent, enabled: boolean) => {
-      if (typeof enabled !== 'boolean') {
+      if (!isFromMainWindowFrame(event, mainWindow) || typeof enabled !== 'boolean') {
         return;
       }
       applyTrayIconSetting(enabled);
     });
 
-    setupRunCmdHandlers(mainWindow, ipcMain);
+    setupDevelopmentPluginsHandlers(mainWindow, ipcMain, startUrl);
 
-    new PluginManagerEventListeners().setupEventHandlers();
+    setupSecureStorageHandlers(mainWindow, startUrl);
+
+    new PluginManagerEventListeners(mainWindow).setupEventHandlers();
 
     // Handle opening plugin folder in file explorer
     ipcMain.on(
@@ -1808,6 +1817,9 @@ function startElectron() {
         event: IpcMainEvent,
         pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
       ) => {
+        if (!isFromMainWindowFrame(event, mainWindow)) {
+          return;
+        }
         let folderPath: string | null = null;
 
         if (pluginInfo.type === 'user') {
@@ -1842,7 +1854,7 @@ function startElectron() {
     if (ENABLE_MCP) {
       const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
       const settingsPath = path.join(app.getPath('userData'), 'mcp-tools-settings.json');
-      mcpClient = new MCPClient(configPath, settingsPath, ensureCertificates);
+      mcpClient = new MCPClient(configPath, settingsPath, ensureCertificates, startUrl);
       await mcpClient.initialize();
       mcpClient.setMainWindow(mainWindow);
     }
@@ -1882,13 +1894,38 @@ function startElectron() {
     }
   }
 
+  /**
+   * Starts the backend and application window in the required order.
+   *
+   * @returns A promise that resolves after the backend and window are ready.
+   */
+  let startupPromise: Promise<void> | null = null;
+
+  function startBackendAndWindow(): Promise<void> {
+    if (!startupPromise) {
+      startupPromise = (async () => {
+        if (useExternalServer) {
+          await startServerIfNeeded();
+          await createWindow();
+          return;
+        }
+
+        await Promise.all([startServerIfNeeded(), createWindow()]);
+      })().finally(() => {
+        startupPromise = null;
+      });
+    }
+
+    return startupPromise;
+  }
+
   app.on('ready', async () => {
-    await Promise.all([startServerIfNeeded(), createWindow()]);
+    await startBackendAndWindow();
     hasTray = createHeadlampTray(buildTrayOptions());
   });
   app.on('activate', async function () {
-    if (mainWindow === null) {
-      await Promise.all([startServerIfNeeded(), createWindow()]);
+    if (!mainWindow) {
+      await startBackendAndWindow();
     }
   });
 

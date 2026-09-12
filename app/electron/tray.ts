@@ -112,9 +112,11 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
     return true;
   }
 
+  const trayIconFilename =
+    process.platform === 'darwin' ? 'tray-iconTemplate.png' : 'tray-icon.png';
   const iconPath = options.isDev
-    ? path.join(__dirname, '..', 'assets', 'tray-icon.png')
-    : path.join(process.resourcesPath, 'assets', 'tray-icon.png');
+    ? path.join(__dirname, '..', 'assets', trayIconFilename)
+    : path.join(process.resourcesPath, 'assets', trayIconFilename);
 
   const trayIcon = nativeImage.createFromPath(iconPath);
   if (trayIcon.isEmpty()) {
