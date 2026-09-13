@@ -1593,12 +1593,29 @@ func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.H
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
 
-	var err error
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		close(serverDone)
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
+
+		return
+	}
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	if _, err = fmt.Fprintln(os.Stdout, internalBackendReadyMessage); err != nil {
+		close(serverDone)
+		logger.Log(logger.LevelError, nil, err, "Failed to report server readiness")
+
+		return
+	}
 
 	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
+		err = server.ServeTLS(listener, config.TLSCertPath, config.TLSKeyPath)
 	} else {
-		err = server.ListenAndServe()
+		err = server.Serve(listener)
 	}
 
 	close(serverDone)
@@ -1683,13 +1700,25 @@ func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serve
 	}()
 }
 
-// Handle common server startup errors.
+// serverAddressInUseExitCode is the stable process status Electron uses to retry on another port.
+const serverAddressInUseExitCode = 98
+
+// internalBackendReadyMessage tells the Electron parent that this child owns its listening port.
+const internalBackendReadyMessage = "HEADLAMP_BACKEND_READY"
+
+// serverStartExitCode maps a server startup error to a stable application exit code.
+func serverStartExitCode(err error) (int, bool) {
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return serverAddressInUseExitCode, true
+	}
+
+	return 0, false
+}
+
+// HandleServerStartError exits with a stable status for recoverable server startup errors.
 func HandleServerStartError(err *error) {
-	// Check if the reason server failed because the address is already in use
-	// this might be because backend process is already running
-	if errors.Is(*err, syscall.EADDRINUSE) {
-		// Exit with 98 (address in use) exit code
-		os.Exit(int(syscall.EADDRINUSE))
+	if exitCode, shouldExit := serverStartExitCode(*err); shouldExit {
+		os.Exit(exitCode)
 	}
 }
 

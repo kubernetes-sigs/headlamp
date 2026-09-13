@@ -59,6 +59,7 @@ jobs:
     - name: App linux
       run: |
         make app-linux
+        make backend
     - name: Install desktop e2e dependencies
       run: |
         cd app/e2e-tests

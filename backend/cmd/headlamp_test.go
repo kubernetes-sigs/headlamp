@@ -38,6 +38,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -90,6 +91,34 @@ func writeTestTokenFile(t *testing.T) string {
 	require.NoError(t, os.WriteFile(tokenFile, []byte(testServiceAccountToken), 0o600))
 
 	return tokenFile
+}
+
+func TestServerStartExitCode(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantCode   int
+		shouldExit bool
+	}{
+		{
+			name:       "address in use uses stable application exit code",
+			err:        fmt.Errorf("listen failed: %w", syscall.EADDRINUSE),
+			wantCode:   98,
+			shouldExit: true,
+		},
+		{
+			name: "unrelated error does not exit",
+			err:  errors.New("listen failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotCode, gotShouldExit := serverStartExitCode(tt.err)
+			assert.Equal(t, tt.wantCode, gotCode)
+			assert.Equal(t, tt.shouldExit, gotShouldExit)
+		})
+	}
 }
 
 func TestValidateServiceAccountNamespace(t *testing.T) {

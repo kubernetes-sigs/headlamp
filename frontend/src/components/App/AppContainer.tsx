@@ -18,9 +18,8 @@ import GlobalStyles from '@mui/material/GlobalStyles';
 import { SnackbarProvider } from 'notistack';
 import React, { useEffect } from 'react';
 import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
-import { installBackendTokenFetch } from '../../helpers/backendTokenFetch';
+import { DesktopBackendApi, initializeDesktopBackend } from '../../helpers/backendTokenFetch';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
-import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../../helpers/isElectron';
 import Plugins from '../../plugin/Plugins';
 import { useTypedSelector } from '../../redux/hooks';
@@ -166,7 +165,8 @@ const Router = ({ children }: React.PropsWithChildren<{}>) =>
   );
 
 export default function AppContainer() {
-  const [backendTokenReady, setBackendTokenReady] = React.useState(!window.desktopApi);
+  // Desktop rendering waits until both authenticated backend connection details arrive.
+  const [desktopBackendReady, setDesktopBackendReady] = React.useState(!window.desktopApi);
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const isThemeConfigReady = useTypedSelector(state => state.theme.backendConfigReady);
 
@@ -175,17 +175,12 @@ export default function AppContainer() {
       return;
     }
 
-    installBackendTokenFetch();
-    const unsubscribe = window.desktopApi.receive('backend-token', (token: string) => {
-      setBackendToken(token);
-      setBackendTokenReady(true);
-    });
-    window.desktopApi.send('request-backend-token');
-
-    return () => unsubscribe?.();
+    return initializeDesktopBackend(window.desktopApi as unknown as DesktopBackendApi, () =>
+      setDesktopBackendReady(true)
+    );
   }, []);
 
-  if (!backendTokenReady) {
+  if (!desktopBackendReady) {
     return null;
   }
 

@@ -17,6 +17,8 @@
 import { expect, test } from '@playwright/test';
 import { build } from 'esbuild';
 import fs from 'fs';
+import { createServer, Server } from 'http';
+import type { AddressInfo } from 'net';
 import os from 'os';
 import path from 'path';
 import { _electron, ElectronApplication, Page } from 'playwright';
@@ -31,6 +33,7 @@ const runCommandPath = path.resolve(
 
 let electronApp: ElectronApplication;
 let electronPage: Page;
+let backend: Server;
 let userDataDirectory: string;
 
 /**
@@ -58,14 +61,28 @@ test.describe('desktop listener cleanup', () => {
       write: false,
     });
     userDataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-listener-e2e-'));
+    backend = createServer((request, response) => {
+      if (request.url === '/config') {
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+        return;
+      }
+
+      response.writeHead(404).end();
+    });
+    await new Promise<void>(resolve => backend.listen(0, resolve));
+    const port = (backend.address() as AddressInfo).port;
     electronApp = await _electron.launch({
       cwd: appPath,
       executablePath: electronPath,
-      args: ['.', `--user-data-dir=${userDataDirectory}`],
+      args: ['.', `--port=${port}`, `--user-data-dir=${userDataDirectory}`],
       env: {
         ...process.env,
         NODE_ENV: 'development',
         ELECTRON_DEV: 'true',
+        ELECTRON_START_URL: 'data:text/html,<html></html>',
+        EXTERNAL_SERVER: 'true',
+        HEADLAMP_CHECK_FOR_UPDATES: 'false',
+        HEADLAMP_MCP_ENABLE: 'false',
       },
     });
     electronPage = await electronApp.firstWindow();
@@ -79,6 +96,9 @@ test.describe('desktop listener cleanup', () => {
       );
     });
     await electronPage.reload({ waitUntil: 'load' });
+    await electronPage.evaluate(() => {
+      (window as any).desktopApi.send('request-plugin-permission-secrets');
+    });
     await expect
       .poll(() =>
         electronPage.evaluate(() => Boolean((window as any).listenerCleanupPermissionSecrets))
@@ -129,6 +149,11 @@ test.describe('desktop listener cleanup', () => {
 
   test.afterAll(async () => {
     await electronApp?.close();
+    if (backend) {
+      await new Promise<void>((resolve, reject) =>
+        backend.close(error => (error ? reject(error) : resolve()))
+      );
+    }
     fs.rmSync(userDataDirectory, { force: true, recursive: true });
   });
 
