@@ -24,22 +24,30 @@ import store from '../../redux/stores/store';
 import AppContainer from './AppContainer';
 
 const WithEnv = (Story: React.ComponentType) => {
-  const prev = (window as any).desktopApi;
+  const prevDesktopApiRef = React.useRef((window as any).desktopApi);
   (window as any).desktopApi = {
     send: () => {},
-    receive: () => {},
+    receive: (channel: string, callback: (value: unknown) => void) => {
+      if (channel === 'backend-token') {
+        callback('storybook-token');
+      } else if (channel === 'plugin-permission-secrets') {
+        callback({});
+      }
+
+      return () => {};
+    },
   };
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => {
     return () => {
-      if (prev === undefined) {
+      if (prevDesktopApiRef.current === undefined) {
         delete (window as any).desktopApi;
       } else {
-        (window as any).desktopApi = prev;
+        (window as any).desktopApi = prevDesktopApiRef.current;
       }
     };
-  }, [prev]);
+  }, []);
 
   return (
     <Provider store={store}>
