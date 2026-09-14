@@ -35,10 +35,11 @@ export function useRecent(
 
   const bump = useCallback((id: string) => {
     setRecent(recent => {
+      const isNewEntry = !(id in recent);
       const entries = Object.entries(recent);
       const newRecent: Record<string, number> = { ...recent };
 
-      if (entries.length + 1 > maxItems) {
+      if (isNewEntry && entries.length + 1 > maxItems) {
         // Find oldest entry
         let oldestEntry = entries[0];
         entries.forEach(entry => {
