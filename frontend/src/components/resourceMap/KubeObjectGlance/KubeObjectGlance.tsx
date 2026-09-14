@@ -46,8 +46,7 @@ export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) =>
     Event.objectEvents(resource).then(fetchedEvents =>
       setEvents(fetchedEvents.map((event: KubeEvent) => new Event(event)))
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resource]);
 
   const sections = [];
 

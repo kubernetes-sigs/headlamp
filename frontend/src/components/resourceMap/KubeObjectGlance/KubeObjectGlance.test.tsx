@@ -128,7 +128,7 @@ describe('KubeObjectGlance', () => {
     expect(screen.getAllByText('set-glance')).toHaveLength(1);
   });
 
-  it('loads events once, converts them, and displays only the first five', async () => {
+  it('loads events for the current resource, converts them, and displays only the first five', async () => {
     const resource = { matches: [] } as any;
     mocks.objectEvents.mockResolvedValue(
       Array.from({ length: 7 }, (_, index) => ({
@@ -146,8 +146,14 @@ describe('KubeObjectGlance', () => {
     expect(screen.queryByText('time-6:mini')).not.toBeInTheDocument();
     expect(mocks.objectEvents).toHaveBeenCalledWith(resource);
 
-    rerender(<KubeObjectGlance resource={{ matches: ['Pod'] } as any} />);
+    rerender(<KubeObjectGlance resource={resource} />);
     expect(mocks.objectEvents).toHaveBeenCalledTimes(1);
+
+    const nextResource = { matches: ['Pod'] } as any;
+    rerender(<KubeObjectGlance resource={nextResource} />);
+
+    await waitFor(() => expect(mocks.objectEvents).toHaveBeenCalledTimes(2));
+    expect(mocks.objectEvents).toHaveBeenLastCalledWith(nextResource);
   });
 
   it('renders no sections when the resource is unsupported and has no events', async () => {
