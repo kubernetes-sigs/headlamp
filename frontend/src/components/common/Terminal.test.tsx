@@ -89,6 +89,14 @@ describe('Terminal', () => {
   });
 
   describe('resize frames', () => {
+    // The global config doesn't fake intervals; the keepalive needs them.
+    beforeEach(() => {
+      vi.useRealTimers();
+      vi.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      });
+    });
+
     function decodeFrame(frame: Uint8Array) {
       return { channel: frame[0], text: new TextDecoder().decode(frame.slice(1)) };
     }
@@ -127,6 +135,27 @@ describe('Terminal', () => {
       const { channel, text } = decodeFrame(send.mock.calls[0][0]);
       expect(channel).toBe(Channel.Resize);
       expect(JSON.parse(text)).toEqual({ Width: expect.any(Number), Height: expect.any(Number) });
+    });
+
+    it('keeps an idle socket alive by re-sending the size every 30s', async () => {
+      const send = vi.fn();
+      await renderConnectedTerminal(send);
+
+      act(() => {
+        vi.advanceTimersByTime(29 * 1000);
+      });
+      expect(send).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(decodeFrame(send.mock.calls[0][0]).channel).toBe(Channel.Resize);
+
+      act(() => {
+        vi.advanceTimersByTime(30 * 1000);
+      });
+      expect(send).toHaveBeenCalledTimes(2);
     });
   });
 
