@@ -22,7 +22,10 @@ vi.mock('../cluster', () => ({
   getCluster: vi.fn(),
   getSelectedClusters: vi.fn(),
 }));
-vi.mock('../../helpers/clusterSettings', () => ({ loadClusterSettings: vi.fn() }));
+vi.mock('../../helpers/clusterSettings', () => ({
+  loadClusterSettings: vi.fn(),
+  hasAllowedNamespacesRestriction: vi.fn(() => false),
+}));
 vi.mock('../router/createRouteURL', () => ({ createRouteURL: vi.fn() }));
 vi.mock('../util', () => ({ timeAgo: vi.fn() }));
 vi.mock('./api/v1/clusterRequests', () => ({ post: vi.fn() }));
@@ -42,6 +45,22 @@ vi.mock('./api/v2/useKubeObjectList', () => ({
 vi.mock('./patchUtils', () => ({
   computePatchOperations: vi.fn(),
   computeRawPatchCount: vi.fn(),
+}));
+vi.mock('./useDiscoveredNamespaces', () => ({
+  getNamespaceListConfig: vi.fn(() => ({ namespaces: [] })),
+  useDiscoveredNamespaces: vi.fn(() => ({
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+  })),
+  useDiscoveredNamespacesMap: vi.fn(() => ({
+    map: {},
+    isLoading: false,
+    isLoadingByCluster: {},
+    isErrorByCluster: {},
+  })),
+  usesDiscoveredNamespaceRouting: vi.fn(() => false),
 }));
 
 import { useSelectedClusters } from './api/v1/hooks';
