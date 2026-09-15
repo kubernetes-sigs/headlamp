@@ -42,6 +42,12 @@ import { getXtermTheme } from './xtermTheme';
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
 
+/**
+ * How often an open terminal socket sends a keepalive frame. Matches the
+ * multiplexer's heartbeat interval in the backend.
+ */
+const KEEPALIVE_INTERVAL = 30 * 1000;
+
 enum Channel {
   StdIn = 0,
   StdOut,
@@ -359,7 +365,19 @@ export default function Terminal(props: TerminalProps) {
 
       window.addEventListener('resize', handler);
 
+      // Proxies and load balancers in front of Headlamp may close a WebSocket
+      // that stays quiet for too long, which kills an idle shell. Browsers
+      // can't send ping frames, so periodically re-send the current terminal
+      // size instead. The API server treats an unchanged size as a no-op.
+      const keepAlive = setInterval(() => {
+        const xterm = xtermRef.current?.xterm;
+        if (xterm) {
+          sendResize(xterm.cols, xterm.rows);
+        }
+      }, KEEPALIVE_INTERVAL);
+
       return function cleanup() {
+        clearInterval(keepAlive);
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
