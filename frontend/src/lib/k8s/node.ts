@@ -17,13 +17,14 @@
 import React from 'react';
 import { useErrorState } from '../util';
 import { useConnectApi } from '.';
-import { metrics } from './api/v1/metricsApi';
 import type { ApiError } from './api/v2/ApiError';
 import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi';
 import type { KubeCondition, KubeMetrics } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import { NODE_POOL_LABEL_KEYS } from './nodeConstants';
+import { NodeMetrics } from './NodeMetrics';
+import { METRIC_REFETCH_INTERVAL_MS } from './PodMetrics';
 
 export interface KubeNode extends KubeObjectInterface {
   status: {
@@ -80,21 +81,14 @@ class Node extends KubeObject<KubeNode> {
 
   static useMetrics(cluster?: string): [KubeMetrics[] | null, ApiError | null] {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [nodeMetrics, setNodeMetrics] = React.useState<KubeMetrics[] | null>(null);
+    const { items, error } = NodeMetrics.useList({
+      cluster,
+      refetchInterval: METRIC_REFETCH_INTERVAL_MS,
+    });
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [error, setError] = useErrorState(setNodeMetrics);
-
-    function setMetrics(metrics: KubeMetrics[]) {
-      setNodeMetrics(metrics);
-
-      if (metrics !== null) {
-        setError(null);
-      }
-    }
-
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(
-      metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster)
+    const nodeMetrics = React.useMemo(
+      () => items?.map(item => ({ ...item.jsonData, cluster: item.cluster })) ?? null,
+      [items]
     );
 
     return [nodeMetrics, error];

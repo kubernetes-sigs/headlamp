@@ -31,7 +31,8 @@ export default function NodeList() {
   const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
-  const noMetrics = metricsError?.status === 404;
+  const noMetrics = (node: Node) =>
+    metricsError?.status === 404 && metricsError.cluster === node.cluster;
 
   const hasNodePools = useMemo(() => {
     if (!items || items.length === 0) return false;
@@ -63,7 +64,7 @@ export default function NodeList() {
                 node={node}
                 nodeMetrics={nodeMetrics}
                 resourceType="cpu"
-                noMetrics={noMetrics}
+                noMetrics={noMetrics(node)}
               />
             ),
           },
@@ -80,7 +81,7 @@ export default function NodeList() {
                 node={node}
                 nodeMetrics={nodeMetrics}
                 resourceType="memory"
-                noMetrics={noMetrics}
+                noMetrics={noMetrics(node)}
               />
             ),
           },
