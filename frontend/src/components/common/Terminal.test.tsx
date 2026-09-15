@@ -24,6 +24,7 @@ const encoder = new TextEncoder();
 
 const Channel = {
   StdOut: 1,
+  Resize: 4,
 } as const;
 
 function buildMessage(channel: number, text: string): ArrayBuffer {
@@ -85,6 +86,48 @@ describe('Terminal', () => {
     });
 
     expect(true).toBe(true);
+  });
+
+  describe('resize frames', () => {
+    function decodeFrame(frame: Uint8Array) {
+      return { channel: frame[0], text: new TextDecoder().decode(frame.slice(1)) };
+    }
+
+    async function renderConnectedTerminal(send: (d: Uint8Array) => void) {
+      let emit: (data: ArrayBuffer) => void = () => {};
+      const pod = createMockPod(async (_container: string, onData) => {
+        emit = onData;
+        return {
+          cancel: () => {},
+          getSocket: () => ({ readyState: 1, send } as unknown as WebSocket),
+        };
+      });
+
+      const result = render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      return { ...result, emit: (data: ArrayBuffer) => emit(data) };
+    }
+
+    it('sends the terminal size once the exec socket is connected', async () => {
+      const send = vi.fn();
+      const { emit } = await renderConnectedTerminal(send);
+
+      act(() => emit(buildMessage(Channel.StdOut, '$ ')));
+
+      expect(send).toHaveBeenCalled();
+      const { channel, text } = decodeFrame(send.mock.calls[0][0]);
+      expect(channel).toBe(Channel.Resize);
+      expect(JSON.parse(text)).toEqual({ Width: expect.any(Number), Height: expect.any(Number) });
+    });
   });
 
   describe('initialContainer', () => {
