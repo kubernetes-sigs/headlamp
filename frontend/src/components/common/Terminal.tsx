@@ -121,7 +121,7 @@ export default function Terminal(props: TerminalProps) {
     });
 
     xterm.onResize(size => {
-      send(4, `{"Width":${size.cols},"Height":${size.rows}}`);
+      sendResize(size.cols, size.rows);
     });
 
     // Allow copy/paste in terminal
@@ -179,6 +179,10 @@ export default function Terminal(props: TerminalProps) {
     socket.send(buffer);
   }
 
+  function sendResize(cols: number, rows: number) {
+    send(Channel.Resize, `{"Width":${cols},"Height":${rows}}`);
+  }
+
   function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
     if (!execOrAttachRef.current) return;
     const xterm = xtermc.xterm;
@@ -199,7 +203,7 @@ export default function Terminal(props: TerminalProps) {
     if (!xtermc.connected) {
       xterm.clear();
       (async function () {
-        send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
+        sendResize(xterm.cols, xterm.rows);
       })();
       // On server error, don't set it as connected
       if (channel !== Channel.ServerError) {
