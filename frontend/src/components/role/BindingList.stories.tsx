@@ -64,6 +64,49 @@ RoleBindings.parameters = {
   },
 };
 
+export const ClusterRoleReference = Template.bind({});
+ClusterRoleReference.decorators = [
+  Story => (
+    <TestContext urlPrefix="/c" routerMap={{ cluster: 'minikube' }}>
+      <Story />
+    </TestContext>
+  ),
+];
+ClusterRoleReference.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${BASE_URL}/clusters/minikube/apis/rbac.authorization.k8s.io/v1/rolebindings`,
+          () =>
+            HttpResponse.json({
+              kind: 'RoleBindingList',
+              items: [
+                {
+                  ...ROLE_BINDING_DUMMY_DATA[0],
+                  metadata: {
+                    ...ROLE_BINDING_DUMMY_DATA[0].metadata,
+                    name: 'view-binding',
+                  },
+                  roleRef: {
+                    apiGroup: 'rbac.authorization.k8s.io',
+                    kind: 'ClusterRole',
+                    name: 'view',
+                  },
+                },
+              ],
+              metadata: {},
+            })
+        ),
+        http.get(
+          `${BASE_URL}/clusters/minikube/apis/rbac.authorization.k8s.io/v1/clusterrolebindings`,
+          () => HttpResponse.json({ kind: 'ClusterRoleBindingList', items: [], metadata: {} })
+        ),
+      ],
+    },
+  },
+};
+
 export const Empty = Template.bind({});
 Empty.parameters = {
   msw: {
