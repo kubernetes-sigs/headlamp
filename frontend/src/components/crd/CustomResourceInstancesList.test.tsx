@@ -87,7 +87,7 @@ function makeMockCrd(name: string, queryResult: QueryResult) {
     cluster: 'test-cluster',
     metadata: { name, namespace: 'default' },
     jsonData: { status: { acceptedNames: { categories: [] } } },
-    makeCRClass: () => ({ useList }),
+    makeCRClassOrNull: () => ({ useList }),
   };
 }
 
@@ -185,5 +185,30 @@ describe('CrInstanceList', () => {
 
     expect(screen.queryByText('Failed to load custom resource instances')).not.toBeInTheDocument();
     expect(screen.getByTestId('rlv-row-count')).toHaveTextContent('2');
+  });
+
+  it('skips CRDs whose makeCRClassOrNull returns null without crashing (#4824)', () => {
+    const incompleteCrd = {
+      cluster: 'test-cluster',
+      metadata: { name: 'incomplete.example.com', namespace: 'default' },
+      jsonData: { status: { acceptedNames: { categories: [] } } },
+      makeCRClassOrNull: () => null,
+    } as unknown as ReturnType<typeof makeMockCrd>;
+    const okCrd = makeMockCrd('ok.example.com', {
+      items: [
+        {
+          kind: 'OkResource',
+          metadata: { name: 'ok-instance-1', namespace: 'default' },
+          cluster: 'test-cluster',
+        },
+      ],
+    });
+
+    setOuterCrdsList([incompleteCrd, okCrd]);
+
+    renderList();
+
+    expect(screen.getByTestId('rlv-row-count')).toHaveTextContent('1');
+    expect(screen.queryByText('Failed to load custom resource instances')).not.toBeInTheDocument();
   });
 });

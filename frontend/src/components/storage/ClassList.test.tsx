@@ -92,4 +92,22 @@ describe('ClassList (StorageClass)', () => {
     expect(defaultCol.render({ isDefault: true } as any)).toBe('Yes');
     expect(defaultCol.render({ isDefault: false } as any)).toBeNull();
   });
+
+  it('renders the volume expansion column content only when the field value is explicitly specified', () => {
+    render(
+      <TestContext>
+        <ClassList />
+      </TestContext>
+    );
+
+    const allowVolumeExpansionCol = getColumn('allowVolumeExpansion');
+    expect(allowVolumeExpansionCol.getValue({ allowVolumeExpansion: true } as any)).toBe('true');
+    expect(allowVolumeExpansionCol.render({ allowVolumeExpansion: true } as any)).toBe('Yes');
+    expect(allowVolumeExpansionCol.getValue({ allowVolumeExpansion: false } as any)).toBe('false');
+    expect(allowVolumeExpansionCol.render({ allowVolumeExpansion: false } as any)).toBe('No');
+    expect(allowVolumeExpansionCol.getValue({ allowVolumeExpansion: undefined } as any)).toBe(
+      'false'
+    );
+    expect(allowVolumeExpansionCol.render({ allowVolumeExpansion: undefined } as any)).toBeNull();
+  });
 });

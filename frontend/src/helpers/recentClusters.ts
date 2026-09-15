@@ -28,18 +28,47 @@ export function setRecentCluster(cluster: string | Cluster) {
   const clusterName = typeof cluster === 'string' ? cluster : cluster.name;
   const currentClusters = recentClusters.filter(name => name !== clusterName);
   const newClusters = [clusterName, ...currentClusters].slice(0, 3);
-  localStorage.setItem(recentClustersStorageKey, JSON.stringify(newClusters));
+  try {
+    localStorage.setItem(recentClustersStorageKey, JSON.stringify(newClusters));
+  } catch (error) {
+    console.error(`Failed to set ${recentClustersStorageKey} in localStorage:`, error);
+  }
 }
 /**
  * @returns the list of recent clusters from localStorage.
  */
-export function getRecentClusters() {
-  const currentClustersStr = localStorage.getItem(recentClustersStorageKey) || '[]';
-  const recentClusters = JSON.parse(currentClustersStr) as string[];
+export function getRecentClusters(): string[] {
+  let currentClustersStr: string | null = null;
 
-  if (!Array.isArray(recentClusters)) {
+  try {
+    currentClustersStr = localStorage.getItem(recentClustersStorageKey);
+  } catch (error) {
+    console.warn(
+      `Failed to read ${recentClustersStorageKey} from localStorage, returning empty list:`,
+      error
+    );
     return [];
   }
 
-  return recentClusters;
+  if (currentClustersStr === null) {
+    return [];
+  }
+
+  let recentClusters: unknown;
+
+  try {
+    recentClusters = JSON.parse(currentClustersStr);
+  } catch (error) {
+    console.warn(
+      `Failed to parse ${recentClustersStorageKey} from localStorage, returning empty list:`,
+      error
+    );
+    return [];
+  }
+
+  if (!Array.isArray(recentClusters) || !recentClusters.every(item => typeof item === 'string')) {
+    return [];
+  }
+
+  return recentClusters as string[];
 }

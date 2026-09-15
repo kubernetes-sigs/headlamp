@@ -477,6 +477,37 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.NoError(t, err)
 }
 
+func TestGeneratePluginPathsPreservesInventorySource(t *testing.T) {
+	rootDir := t.TempDir()
+	userPluginDir := filepath.Join(rootDir, "user-plugins")
+	developmentPluginDir := filepath.Join(rootDir, "plugins")
+
+	for _, pluginDir := range []string{userPluginDir, developmentPluginDir} {
+		pluginPath := filepath.Join(pluginDir, "shared-plugin")
+		require.NoError(t, os.MkdirAll(pluginPath, 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(pluginPath, "main.js"), nil, 0o600))
+	}
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(userPluginDir, "shared-plugin", "package.json"),
+		[]byte(`{"name":"shared-plugin"}`),
+		0o600,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(developmentPluginDir, "shared-plugin", "package.json"),
+		[]byte(`{"name":"shared-plugin","isManagedByHeadlampPlugin":true}`),
+		0o600,
+	))
+
+	pluginList, err := plugins.GeneratePluginPaths("", userPluginDir, developmentPluginDir)
+	require.NoError(t, err)
+	require.Len(t, pluginList, 2)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[0].Type)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[0].Source)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[1].Type)
+	require.Equal(t, plugins.PluginTypeDevelopment, pluginList[1].Source)
+}
+
 func TestHandlePluginReload(t *testing.T) {
 	// create cache
 	ch := cache.New[interface{}]()
@@ -580,6 +611,30 @@ func TestDelete(t *testing.T) {
 	err = os.Mkdir(sharedPluginDev, 0o750)
 	require.NoError(t, err)
 
+	// Catalog-installed plugin that still lives only under development
+	// plugins/ (GeneratePluginPaths reports these as type=user).
+	migratedCatalogPlugin := filepath.Join(devPluginDir, "headlamp_kubescape")
+	err = os.Mkdir(migratedCatalogPlugin, 0o750)
+	require.NoError(t, err)
+
+	packageJSON := []byte(`{"name":"kubescape","isManagedByHeadlampPlugin":true}`)
+	err = os.WriteFile(filepath.Join(migratedCatalogPlugin, "package.json"), packageJSON, 0o600)
+	require.NoError(t, err)
+
+	// Non-catalog development plugin: type=user must not delete this.
+	plainDevPlugin := filepath.Join(devPluginDir, "plain-dev-plugin")
+	err = os.Mkdir(plainDevPlugin, 0o750)
+	require.NoError(t, err)
+
+	// Catalog plugin sitting outside the development directory: the type=user
+	// fallback must not follow a traversal path to it.
+	outsidePlugin := filepath.Join(tempDir, "outside-plugin")
+	err = os.Mkdir(outsidePlugin, 0o750)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(outsidePlugin, "package.json"), packageJSON, 0o600)
+	require.NoError(t, err)
+
 	// Test cases
 	tests := []struct {
 		name          string
@@ -589,6 +644,10 @@ func TestDelete(t *testing.T) {
 		pluginType    string
 		expectErr     bool
 		errContains   string
+		// deletedFrom is "user" or "development" when expectErr is false.
+		deletedFrom string
+		// mustExist is a path that has to survive a failed delete.
+		mustExist string
 	}{
 		{
 			name:          "Delete user plugin (no type specified)",
@@ -597,6 +656,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "user-plugin-1",
 			pluginType:    "",
 			expectErr:     false,
+			deletedFrom:   "user",
 		},
 		{
 			name:          "Delete dev plugin (no type specified)",
@@ -605,6 +665,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "dev-plugin-1",
 			pluginType:    "",
 			expectErr:     false,
+			deletedFrom:   "development",
 		},
 		{
 			name:          "Delete user plugin with type=user",
@@ -613,6 +674,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "shared-plugin",
 			pluginType:    "user",
 			expectErr:     false,
+			deletedFrom:   "user",
 		},
 		{
 			name:          "Delete dev plugin with type=development",
@@ -621,6 +683,40 @@ func TestDelete(t *testing.T) {
 			pluginName:    "shared-plugin",
 			pluginType:    "development",
 			expectErr:     false,
+			deletedFrom:   "development",
+		},
+		{
+			// Catalog plugins may still live under plugins/ while listed as
+			// type=user (pre-user-plugins migration). Delete must find them.
+			name:          "Delete migrated catalog plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "headlamp_kubescape",
+			pluginType:    "user",
+			expectErr:     false,
+			deletedFrom:   "development",
+		},
+		{
+			name:          "Do not delete plain development plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "plain-dev-plugin",
+			pluginType:    "user",
+			expectErr:     true,
+			errContains:   "not found in user-plugins or development directory",
+			mustExist:     plainDevPlugin,
+		},
+		{
+			// The catalog check must reject names escaping plugins/ instead of
+			// reading a package.json outside it.
+			name:          "Do not follow traversal path in catalog check",
+			userPluginDir: "",
+			devPluginDir:  devPluginDir,
+			pluginName:    "../outside-plugin",
+			pluginType:    "user",
+			expectErr:     true,
+			errContains:   "not found in user-plugins or development directory",
+			mustExist:     outsidePlugin,
 		},
 		{
 			name:          "Invalid plugin type",
@@ -638,7 +734,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "non-existent",
 			pluginType:    "user",
 			expectErr:     true,
-			errContains:   "not found in user-plugins directory",
+			errContains:   "not found in user-plugins or development directory",
 		},
 		{
 			name:          "Non-existent plugin with type=development",
@@ -677,18 +773,28 @@ func TestDelete(t *testing.T) {
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
-			} else {
-				assert.NoError(t, err, "Delete should not return an error")
-				// check if the plugin was deleted from the correct directory
-				if tt.pluginType == "user" || (tt.pluginType == "" && tt.pluginName == "user-plugin-1") {
-					userPath := filepath.Join(tt.userPluginDir, tt.pluginName)
-					_, userErr := os.Stat(userPath)
-					assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
-				} else if tt.pluginType == "development" || (tt.pluginType == "" && tt.pluginName == "dev-plugin-1") {
-					devPath := filepath.Join(tt.devPluginDir, tt.pluginName)
-					_, devErr := os.Stat(devPath)
-					assert.True(t, os.IsNotExist(devErr), "Dev plugin should be deleted")
+
+				if tt.mustExist != "" {
+					_, statErr := os.Stat(tt.mustExist)
+					assert.NoError(t, statErr, "%s should not be deleted", tt.mustExist)
 				}
+
+				return
+			}
+
+			assert.NoError(t, err, "Delete should not return an error")
+
+			switch tt.deletedFrom {
+			case "user":
+				userPath := filepath.Join(tt.userPluginDir, tt.pluginName)
+				_, userErr := os.Stat(userPath)
+				assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
+			case "development":
+				devPath := filepath.Join(tt.devPluginDir, tt.pluginName)
+				_, devErr := os.Stat(devPath)
+				assert.True(t, os.IsNotExist(devErr), "Plugin should be deleted from development dir")
+			default:
+				t.Fatalf("deletedFrom must be set for success cases, got %q", tt.deletedFrom)
 			}
 		})
 	}

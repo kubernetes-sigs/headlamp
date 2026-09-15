@@ -1,10 +1,13 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { isValidVersion } from './version.js';
 
 export function getRepoRoot(): string {
   try {
-    const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
+    const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      encoding: 'utf-8',
+    }).trim();
     return gitRoot;
   } catch (error) {
     console.error('Error: Not in a git repository');
@@ -26,13 +29,26 @@ export function getCurrentVersion(): string {
 }
 
 export function commitVersionChange(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   const repoRoot = getRepoRoot();
   const packageJsonPath = path.join(repoRoot, 'app', 'package.json');
   const packageLockJsonPath = path.join(repoRoot, 'app', 'package-lock.json');
+  const chartYamlPath = path.join(repoRoot, 'charts', 'headlamp', 'Chart.yaml');
+  const expectedTemplatesPath = path.join(repoRoot, 'charts', 'headlamp', 'tests', 'expected_templates');
 
   try {
-    execSync(`git add "${packageJsonPath}" "${packageLockJsonPath}"`);
-    execSync(`git commit --signoff -m "app: Bump version to ${version}"`);
+    execFileSync(
+      'git',
+      ['add', packageJsonPath, packageLockJsonPath, chartYamlPath, expectedTemplatesPath],
+      { stdio: 'inherit' }
+    );
+    execFileSync('git', ['commit', '--signoff', '-m', `releaser: bump version to ${version}`], {
+      stdio: 'inherit',
+    });
   } catch (error) {
     console.error('Error: Failed to commit version change');
     console.error(error);
@@ -41,8 +57,15 @@ export function commitVersionChange(version: string): void {
 }
 
 export function createReleaseTag(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   try {
-    execSync(`git tag -a v${version} -m "Release ${version}"`);
+    execFileSync('git', ['tag', '-a', `v${version}`, '-m', `Release ${version}`], {
+      stdio: 'inherit',
+    });
   } catch (error) {
     console.error(`Error: Failed to create tag v${version}`);
     console.error(error);
@@ -51,8 +74,13 @@ export function createReleaseTag(version: string): void {
 }
 
 export function pushTag(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   try {
-    execSync(`git push origin v${version}`);
+    execFileSync('git', ['push', 'origin', `v${version}`], { stdio: 'inherit' });
   } catch (error) {
     console.error(`Error: Failed to push tag v${version} to origin`);
     console.error(error);
@@ -62,7 +90,7 @@ export function pushTag(version: string): void {
 
 export function branchExists(branchName: string): boolean {
   try {
-    execSync(`git rev-parse --verify ${branchName}`, { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--verify', branchName], { stdio: 'ignore' });
     return true;
   } catch (error) {
     return false;
@@ -71,7 +99,7 @@ export function branchExists(branchName: string): boolean {
 
 export function createAndCheckoutBranch(branchName: string): void {
   try {
-    execSync(`git checkout -b ${branchName}`);
+    execFileSync('git', ['checkout', '-b', branchName], { stdio: 'inherit' });
   } catch (error) {
     console.error(`Error: Failed to create and checkout branch ${branchName}`);
     console.error(error);
@@ -81,7 +109,9 @@ export function createAndCheckoutBranch(branchName: string): void {
 
 export function getCurrentBranch(): string {
   try {
-    return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      encoding: 'utf-8',
+    }).trim();
   } catch (error) {
     console.error('Error: Failed to get current branch');
     console.error(error);

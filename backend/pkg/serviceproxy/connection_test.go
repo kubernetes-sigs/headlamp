@@ -66,7 +66,7 @@ var getTests = []struct {
 	{
 		name:       "invalid request URI",
 		uri:        "http://example.com",
-		requestURI: " invalid-request-uri",
+		requestURI: "%zz",
 		wantBody:   nil,
 		wantErr:    true,
 	},
@@ -117,15 +117,15 @@ func TestGet(t *testing.T) {
 				conn.URI = ts.URL
 			}
 
-			var buf bytes.Buffer
+			w := httptest.NewRecorder()
 
-			err := conn.Get(context.Background(), tt.requestURI, &buf)
+			err := conn.Get(context.Background(), tt.requestURI, w)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if !tt.wantErr && !bytes.Equal(buf.Bytes(), tt.wantBody) {
-				t.Errorf("Get() body = %s, want %s", buf.Bytes(), tt.wantBody)
+			if !tt.wantErr && !bytes.Equal(w.Body.Bytes(), tt.wantBody) {
+				t.Errorf("Get() body = %s, want %s", w.Body.Bytes(), tt.wantBody)
 			}
 		})
 	}
@@ -134,14 +134,39 @@ func TestGet(t *testing.T) {
 func TestGetNonOKStatusCode(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
+
+		if _, err := w.Write([]byte("upstream error")); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer ts.Close()
 
 	conn := &Connection{URI: ts.URL}
+	w := httptest.NewRecorder()
 
-	var buf bytes.Buffer
+	err := conn.Get(context.Background(), "/test", w)
+	if err != nil {
+		t.Errorf("Get() error = %v, want nil", err)
+	}
 
-	err := conn.Get(context.Background(), "/test", &buf)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Get() status = %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestGetUsesContext(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer ts.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	conn := &Connection{URI: ts.URL}
+	w := httptest.NewRecorder()
+
+	err := conn.Get(ctx, "/test", w)
 	if err == nil {
 		t.Errorf("Get() error = nil, want error")
 	}

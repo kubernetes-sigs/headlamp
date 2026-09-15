@@ -27,7 +27,6 @@ import Settings from '../../components/App/Settings';
 import SettingsCluster from '../../components/App/Settings/SettingsCluster';
 import SettingsClusters from '../../components/App/Settings/SettingsClusters';
 import AuthChooser from '../../components/authchooser';
-import KubeConfigLoader from '../../components/cluster/KubeConfigLoader';
 import Overview from '../../components/cluster/Overview';
 import { PageGrid } from '../../components/common/Resource/Resource';
 import ConfigDetails from '../../components/configmap/Details';
@@ -37,8 +36,6 @@ import { CrInstanceList } from '../../components/crd/CustomResourceInstancesList
 import CustomResourceList from '../../components/crd/CustomResourceList';
 import CustomResourceDefinitionDetails from '../../components/crd/Details';
 import CustomResourceDefinitionList from '../../components/crd/List';
-import CronJobDetails from '../../components/cronjob/Details';
-import CronJobList from '../../components/cronjob/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
 import EndpointDetails from '../../components/endpoints/Details';
@@ -59,6 +56,10 @@ import HTTPRouteDetails from '../../components/gateway/HTTPRouteDetails';
 import HTTPRouteList from '../../components/gateway/HTTPRouteList';
 import ReferenceGrantDetails from '../../components/gateway/ReferenceGrantDetails';
 import ReferenceGrantList from '../../components/gateway/ReferenceGrantList';
+import TCPRouteDetails from '../../components/gateway/TCPRouteDetails';
+import TCPRouteList from '../../components/gateway/TCPRouteList';
+import UDPRouteDetails from '../../components/gateway/UDPRouteDetails';
+import UDPRouteList from '../../components/gateway/UDPRouteList';
 import HpaDetails from '../../components/horizontalPodAutoscaler/Details';
 import HpaList from '../../components/horizontalPodAutoscaler/List';
 import IngressClassDetails from '../../components/ingress/ClassDetails';
@@ -68,6 +69,7 @@ import IngressList from '../../components/ingress/List';
 import JobDetails from '../../components/job/Details';
 import JobsList from '../../components/job/List';
 import JobSetList from '../../components/jobset/List';
+import LeaderWorkerSetList from '../../components/leaderworkerset/List';
 import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
 import { LimitRangeDetails } from '../../components/limitRange/Details';
@@ -83,6 +85,8 @@ import PodDetails from '../../components/pod/Details';
 import PodList from '../../components/pod/List';
 import PDBDetails from '../../components/podDisruptionBudget/Details';
 import PDBList from '../../components/podDisruptionBudget/List';
+import PodGroupDetails from '../../components/podGroup/Details';
+import PodGroupList from '../../components/podGroup/List';
 import PortForwardingList from '../../components/portforward';
 import PriorityClassDetails from '../../components/priorityClass/Details';
 import PriorityClassList from '../../components/priorityClass/List';
@@ -95,6 +99,8 @@ import RoleDetails from '../../components/role/Details';
 import RoleList from '../../components/role/List';
 import { RuntimeClassDetails } from '../../components/runtimeClass/Details';
 import { RuntimeClassList } from '../../components/runtimeClass/List';
+import SchedulingWorkloadDetails from '../../components/schedulingWorkload/Details';
+import SchedulingWorkloadList from '../../components/schedulingWorkload/List';
 import SecretDetails from '../../components/secret/Details';
 import SecretList from '../../components/secret/List';
 import ServiceDetails from '../../components/service/Details';
@@ -125,6 +131,7 @@ import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
 import JobSet from '../k8s/jobSet';
+import LeaderWorkerSet from '../k8s/leaderWorkerSet';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
 import type { RouteURLProps } from './createRouteURL';
@@ -138,9 +145,13 @@ export type { Route, RouteURLProps };
 
 export { getDefaultRoutes, getRouteUseClusterURL, getRoutePath, getRoute, createRouteURL };
 
+// Keep infrequently visited route modules out of the initial renderer heap.
 const LazyGraphView = React.lazy(() =>
   import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
+const CronJobDetails = React.lazy(() => import('../../components/cronjob/Details'));
+const CronJobList = React.lazy(() => import('../../components/cronjob/List'));
+const KubeConfigLoader = React.lazy(() => import('../../components/cluster/KubeConfigLoader'));
 
 function SettingsClusterRedirect() {
   const cluster = useCluster();
@@ -460,6 +471,34 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'grpcroutes',
     component: () => <GRPCRouteDetails />,
   },
+  tcproutes: {
+    path: '/tcproutes',
+    exact: true,
+    name: 'TCPRoutes',
+    sidebar: 'tcproutes',
+    component: () => <TCPRouteList />,
+  },
+  tcproute: {
+    path: '/tcproutes/:namespace/:name',
+    exact: true,
+    name: 'TCPRoutes',
+    sidebar: 'tcproutes',
+    component: () => <TCPRouteDetails />,
+  },
+  udproutes: {
+    path: '/udproutes',
+    exact: true,
+    name: 'UDPRoutes',
+    sidebar: 'udproutes',
+    component: () => <UDPRouteList />,
+  },
+  udproute: {
+    path: '/udproutes/:namespace/:name',
+    exact: true,
+    name: 'UDPRoutes',
+    sidebar: 'udproutes',
+    component: () => <UDPRouteDetails />,
+  },
   gatewayclasses: {
     path: '/gatewayclasses',
     exact: true,
@@ -548,6 +587,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'JobSets',
     component: () => <WorkloadDetails workloadKind={JobSet} />,
+  },
+  LeaderWorkerSets: {
+    path: '/leaderworkersets',
+    exact: true,
+    sidebar: 'LeaderWorkerSets',
+    name: 'LeaderWorkerSets',
+    component: () => <LeaderWorkerSetList />,
+  },
+  LeaderWorkerSet: {
+    path: '/leaderworkersets/:namespace/:name',
+    exact: true,
+    sidebar: 'LeaderWorkerSets',
+    component: () => <WorkloadDetails workloadKind={LeaderWorkerSet} />,
   },
   Deployments: {
     path: '/deployments',
@@ -694,6 +746,36 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Pod Disruption Budget',
     sidebar: 'podDisruptionBudgets',
     component: () => <PDBDetails />,
+  },
+  podgroups: {
+    path: '/podgroups',
+    exact: true,
+    name: 'Pod Groups',
+    sidebar: 'podGroups',
+    component: () => <PodGroupList />,
+  },
+  PodGroup: {
+    path: '/podgroups/:namespace/:name',
+    exact: true,
+    name: 'Pod Group',
+    sidebar: 'podGroups',
+    component: () => <PodGroupDetails />,
+  },
+  // The 'workloads' route name is taken by the Workloads overview page, so the
+  // scheduling.k8s.io Workload uses 'schedulingWorkloads' as its list route.
+  schedulingWorkloads: {
+    path: '/scheduling/workloads',
+    exact: true,
+    name: 'Workloads (scheduling)',
+    sidebar: 'schedulingWorkloads',
+    component: () => <SchedulingWorkloadList />,
+  },
+  Workload: {
+    path: '/scheduling/workloads/:namespace/:name',
+    exact: true,
+    name: 'Workload',
+    sidebar: 'schedulingWorkloads',
+    component: () => <SchedulingWorkloadDetails />,
   },
   priorityclasses: {
     path: '/priorityclasses',

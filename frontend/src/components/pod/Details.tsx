@@ -57,6 +57,7 @@ import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { PodDiagnosticsSection } from '../diagnostics/Diagnostics';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
@@ -101,7 +102,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
-    [...ALL_SEVERITIES]
+    ALL_SEVERITIES
   );
   const selectedSeveritiesRef = React.useRef(selectedSeverities);
 
@@ -587,7 +588,7 @@ export default function PodDetails(props: PodDetailsProps) {
   const [podItem, setPodItem] = React.useState<Pod | null>(null);
 
   const launchLogs = React.useCallback(
-    (item: Pod) => {
+    (item: Pod, container?: string) => {
       Activity.launch({
         id: 'logs-' + item.metadata.uid,
         title: t('Logs: {{ itemName }}', { itemName: item.metadata.name }),
@@ -600,7 +601,7 @@ export default function PodDetails(props: PodDetailsProps) {
             open
             item={item}
             onClose={() => {}}
-            initialContainer={autoLaunchContainer}
+            initialContainer={container ?? autoLaunchContainer}
           />
         ),
       });
@@ -775,6 +776,24 @@ export default function PodDetails(props: PodDetailsProps) {
           hide: !item.spec.priorityClassName,
         },
         {
+          name: t('Pod Group'),
+          value: item.spec.schedulingGroup?.podGroupName ? (
+            <Link
+              routeName="PodGroup"
+              params={{
+                namespace: item.metadata.namespace,
+                name: item.spec.schedulingGroup.podGroupName,
+              }}
+              activeCluster={item.cluster}
+            >
+              {item.spec.schedulingGroup.podGroupName}
+            </Link>
+          ) : (
+            ''
+          ),
+          hide: !item.spec.schedulingGroup?.podGroupName,
+        },
+        {
           name: t('Runtime Class'),
           value: item.spec.runtimeClassName,
           hide: !item.spec.runtimeClassName,
@@ -890,8 +909,18 @@ export default function PodDetails(props: PodDetailsProps) {
         ]
       }
       extraInfo={item => prepareExtraInfo(item)}
-      extraSections={item =>
+      extraSections={(item, context) =>
         item && [
+          {
+            id: 'headlamp.pod-diagnostics',
+            section: (
+              <PodDiagnosticsSection
+                pod={item}
+                events={context.events}
+                onViewLogs={container => launchLogs(item, container)}
+              />
+            ),
+          },
           {
             id: 'headlamp.pod-tolerations',
             section: <TolerationsSection tolerations={item?.spec?.tolerations || []} />,

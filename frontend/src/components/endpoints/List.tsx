@@ -40,9 +40,10 @@ export default function EndpointList() {
         {
           id: 'addresses',
           label: t('translation|Addresses'),
-          getValue: endpoint => endpoint.getAddresses().join(', '),
+          getValue: endpoint => endpoint.getAddresses().join('\n'),
           render: endpoint => <LabelListItem labels={endpoint.getAddresses()} />,
           gridTemplate: 1.5,
+          copyable: true,
         },
         'labels',
         'age',

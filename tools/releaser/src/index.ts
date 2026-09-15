@@ -10,6 +10,7 @@ import { tagRelease } from './commands/tag.js';
 import { publishRelease } from './commands/publish.js';
 import { buildArtifacts } from './commands/build.js';
 import { getAppRuns } from './commands/get-app-runs.js';
+import { securityCheck } from './commands/security-check.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -29,6 +30,10 @@ program.command('check')
   .description('Check if a release exists and verify all artifacts are present')
   .argument('<release-version>', 'Version to check (e.g., 0.30.0)')
   .action(checkRelease);
+
+program.command('security-check')
+  .description('Scan the backend for known vulnerabilities (govulncheck) and Dockerfiles for security issues (hadolint)')
+  .action(securityCheck);
 
 program.command('start')
   .description('Update package.json with new version and commit changes')

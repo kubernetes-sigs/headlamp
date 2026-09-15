@@ -15,8 +15,8 @@
  */
 
 /// <reference types="node" />
-import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class HeadlampPage {
   private testURL: string;
@@ -26,9 +26,7 @@ export class HeadlampPage {
   }
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+    await runA11yScan(this.page, expect);
   }
 
   async authenticate(token?: string) {
@@ -109,11 +107,13 @@ export class HeadlampPage {
 
   async logout() {
     // Click on the account button to open the user menu
-    await this.page.click('button[aria-label="Account of current user"]');
+    await this.page.click('button[aria-controls="primary-user-menu"]');
 
     // Wait for the logout option to be visible and click on it
-    await this.page.waitForSelector('.MuiMenuItem-root:has-text("Log out")');
-    await this.page.click('.MuiMenuItem-root:has-text("Log out")');
+    // Use .first() instead of a text match to avoid locale-dependent failures on non-English runs
+    const logoutMenuItem = this.page.locator('#primary-user-menu').getByRole('menuitem').first();
+    await logoutMenuItem.waitFor({ state: 'visible' });
+    await logoutMenuItem.click();
     await this.page.waitForLoadState('load');
 
     // Expects the URL to contain c/test/token
@@ -137,6 +137,10 @@ export class HeadlampPage {
         throw new Error(`Table does not contain header: ${header}`);
       }
     }
+  }
+
+  async tableContains(text: string | RegExp, options?: { timeout?: number }) {
+    await expect(this.page.locator('table')).toContainText(text, options);
   }
 
   async clickOnPlugin(pluginName: string) {

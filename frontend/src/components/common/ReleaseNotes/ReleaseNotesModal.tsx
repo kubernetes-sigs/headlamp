@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DialogTitle } from '../Dialog';
+import { htmlImagesToMarkdown } from './htmlImagesToMarkdown';
 
 export interface ReleaseNotesModalProps {
   releaseNotes: string;
@@ -35,6 +36,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
   const { releaseNotes, appVersion } = props;
   const [showReleaseNotes, setShowReleaseNotes] = React.useState(Boolean(releaseNotes));
   const { t } = useTranslation();
+  const notesMarkdown = React.useMemo(() => htmlImagesToMarkdown(releaseNotes), [releaseNotes]);
 
   return (
     <Dialog open={showReleaseNotes} maxWidth="xl">
@@ -100,7 +102,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
               ),
             }}
           >
-            {releaseNotes}
+            {notesMarkdown}
           </ReactMarkdown>
         </Box>
       </DialogContent>

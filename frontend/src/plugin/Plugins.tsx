@@ -82,12 +82,21 @@ export default function Plugins() {
         }
       }
     )
-      .finally(() => {
-        dispatch(pluginsLoaded());
-        // Warn the app (if we're in app mode).
-        window.desktopApi?.send('pluginsLoaded');
+      .catch((err: unknown) => {
+        console.error('Failed to load plugins:', err);
+        enqueueSnackbar(t('translation|Failed to load plugins. Please try reloading the app.'), {
+          variant: 'error',
+        });
       })
-      .catch(console.error);
+      .finally(() => {
+        try {
+          dispatch(pluginsLoaded());
+          // Warn the app (if we're in app mode).
+          window.desktopApi?.send('pluginsLoaded');
+        } catch (err) {
+          console.error('Plugin load cleanup failed:', err);
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;

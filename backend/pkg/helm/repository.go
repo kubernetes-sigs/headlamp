@@ -171,6 +171,14 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 		URL:  request.URL,
 	}
 
+	// repo.File.Update replaces the entry wholesale, so carry over the
+	// server-side fields (credentials, TLS file paths) that the HTTP API
+	// deliberately does not accept from clients. Fields supplied in the
+	// request still win because applyRequestFields runs afterwards.
+	if existing := repoFile.Get(request.Name); existing != nil {
+		copyExistingRepoFields(newRepo, existing)
+	}
+
 	applyRequestFields(newRepo, request)
 
 	r, err := repo.NewChartRepository(newRepo, getter.All(settings))

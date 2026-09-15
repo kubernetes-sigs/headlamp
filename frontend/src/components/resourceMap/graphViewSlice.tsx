@@ -20,7 +20,7 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ReactNode } from 'react';
-import { GraphNode, GraphSource } from './graph/graphModel';
+import { GraphNode, GraphSource, Relation } from './graph/graphModel';
 
 export interface IconDefinition {
   /**
@@ -56,12 +56,14 @@ export interface GraphViewSliceState {
   graphSources: GraphSource[];
   kindIcons: Record<string, IconDefinition>;
   glances: Record<string, Glance>;
+  relations: Relation[];
 }
 
 const initialState: GraphViewSliceState = {
   graphSources: [],
   kindIcons: {},
   glances: {},
+  relations: [],
 };
 
 export const graphViewSlice = createSlice({
@@ -86,8 +88,14 @@ export const graphViewSlice = createSlice({
     setGlance(state, action: PayloadAction<Glance>) {
       state.glances[action.payload.id] = action.payload;
     },
+    addRelation(state, action: PayloadAction<Relation>) {
+      const exists = state.relations.some(relation => relation.id === action.payload.id);
+      if (!exists) {
+        state.relations.push(action.payload);
+      }
+    },
   },
 });
 
-export const { addGraphSource, addKindIcon, setGlance } = graphViewSlice.actions;
+export const { addGraphSource, addKindIcon, setGlance, addRelation } = graphViewSlice.actions;
 export default graphViewSlice.reducer;

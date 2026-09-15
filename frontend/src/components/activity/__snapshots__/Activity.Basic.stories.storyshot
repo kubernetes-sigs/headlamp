@@ -11,6 +11,7 @@
         class="MuiBox-root css-11hh78l"
       />
       <div
+        aria-label="Left Activity"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -21,11 +22,14 @@
             class="MuiBox-root css-ha4r1w"
           >
             <div
-              class="MuiBox-root css-19rsff"
+              class="MuiBox-root css-1ww6zew"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-slk4bd-MuiTypography-root"
-            />
+              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              title="Left Activity"
+            >
+              Left Activity
+            </p>
             <div
               class="MuiBox-root css-1po99kh"
             />
@@ -70,6 +74,7 @@
         </div>
       </div>
       <div
+        aria-label="Right Activity"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -80,11 +85,14 @@
             class="MuiBox-root css-ha4r1w"
           >
             <div
-              class="MuiBox-root css-19rsff"
+              class="MuiBox-root css-1ww6zew"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-slk4bd-MuiTypography-root"
-            />
+              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              title="Right Activity"
+            >
+              Right Activity
+            </p>
             <div
               class="MuiBox-root css-1po99kh"
             />
@@ -138,26 +146,27 @@
         </div>
       </div>
       <div
-        class="MuiBox-root css-3ykv34"
+        class="MuiBox-root css-124lm9m"
       >
         <div
-          class="MuiBox-root css-16dgwon"
+          class="MuiBox-root css-1mw5uhz"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1m1hqao-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
             <div
-              class="MuiBox-root css-zlkkwz"
-            />
-            <div
-              class="MuiBox-root css-18bzmof"
+              class="MuiBox-root css-1aihc2e"
             >
               <div
-                class="MuiBox-root css-1h2ruwl"
+                class="MuiBox-root css-14itjq4"
+              />
+              <div
+                class="MuiBox-root css-r1zxuf"
+                title="Right Activity"
               >
-                Something
+                Right Activity
               </div>
             </div>
             <span
@@ -176,23 +185,24 @@
           </button>
         </div>
         <div
-          class="MuiBox-root css-15k1pc3"
+          class="MuiBox-root css-1oygo4f"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1m1hqao-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
             <div
-              class="MuiBox-root css-zlkkwz"
-            />
-            <div
-              class="MuiBox-root css-18bzmof"
+              class="MuiBox-root css-1aihc2e"
             >
               <div
-                class="MuiBox-root css-1h2ruwl"
+                class="MuiBox-root css-14itjq4"
+              />
+              <div
+                class="MuiBox-root css-r1zxuf"
+                title="Left Activity"
               >
-                Something
+                Left Activity
               </div>
             </div>
             <span

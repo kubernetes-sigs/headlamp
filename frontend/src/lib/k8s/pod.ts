@@ -64,6 +64,13 @@ export interface KubePodSpec {
   terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
+  /**
+   * The scheduling group this Pod belongs to. Set only when the GenericWorkload
+   * feature gate is enabled on the cluster.
+   */
+  schedulingGroup?: {
+    podGroupName: string;
+  };
 }
 
 export interface KubePod extends KubeObjectInterface {
@@ -155,12 +162,17 @@ class Pod extends KubeObject<KubePod> {
 
   evict() {
     const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction`;
-    return post(url, {
-      metadata: {
-        name: this.getName(),
-        namespace: this.getNamespace(),
+    return post(
+      url,
+      {
+        metadata: {
+          name: this.getName(),
+          namespace: this.getNamespace(),
+        },
       },
-    });
+      true,
+      { cluster: this._clusterName }
+    );
   }
 
   getLogs(...args: Parameters<oldGetLogs | newGetLogs>): () => void {
@@ -321,12 +333,16 @@ class Pod extends KubeObject<KubePod> {
    * @param containerName - The name of the ephemeral container to add
    * @param image - The container image to use
    * @param command - Optional command to run in the container (defaults to ['sh'])
+   * @param targetContainerName - Optional name of the container to target.
+   *   When set, the ephemeral container shares the target's namespaces (PID, IPC, etc.).
+   *   If undefined, no targeting is applied.
    * @returns Promise that resolves when the ephemeral container is added
    */
   async addEphemeralContainer(
     containerName: string,
     image: string,
-    command: string[] = ['sh']
+    command: string[] = ['sh'],
+    targetContainerName?: string
   ): Promise<void> {
     const ephemeralContainer: KubeContainer = {
       name: containerName,
@@ -336,6 +352,7 @@ class Pod extends KubeObject<KubePod> {
       stdinOnce: true,
       command,
       imagePullPolicy: 'IfNotPresent',
+      ...(targetContainerName ? { targetContainerName } : {}),
     };
 
     // Get current ephemeral containers
@@ -388,14 +405,6 @@ class Pod extends KubeObject<KubePod> {
 
   // Implementation based on: https://github.com/kubernetes/kubernetes/blob/67216cfdd980cdd0234866d66a9ffe2ba3d8fcc4/pkg/printers/internalversion/printers.go#L891
   getDetailedStatus(): PodDetailedStatus {
-    // We cache this data to avoid going through all this logic when nothing has changed
-    if (
-      !!this.detailedStatusCache.details &&
-      this.detailedStatusCache.resourceVersion === this.jsonData.metadata.resourceVersion
-    ) {
-      return this.detailedStatusCache.details;
-    }
-
     // We cache this data to avoid going through all this logic when nothing has changed
     if (
       !!this.detailedStatusCache.details &&
@@ -507,7 +516,7 @@ class Pod extends KubeObject<KubePod> {
           reason = container.state.terminated.reason;
           message = container.state.terminated.message || '';
         } else if (container.state.terminated?.reason === '') {
-          if (container.state.terminated.signal !== 0) {
+          if (container.state.terminated.signal) {
             reason = `Signal:${container.state.terminated.signal}`;
           } else {
             reason = `ExitCode:${container.state.terminated.exitCode}`;

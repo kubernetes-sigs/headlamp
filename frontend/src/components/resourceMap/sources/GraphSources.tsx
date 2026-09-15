@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
+import { resolveCRDApiGroup } from '../../../lib/k8s/crdSpec';
 import {
   deduplicateGraphEdges,
   deduplicateGraphElements,
@@ -104,9 +105,9 @@ export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
  * Create an object from any Kube object
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
-  const crd = (obj.constructor as any)?.customResourceDefinition;
-  if (crd && typeof crd.getMainAPIGroup === 'function') {
-    const [group, , plural] = crd.getMainAPIGroup();
+  const apiGroup = resolveCRDApiGroup((obj.constructor as any)?.customResourceDefinition);
+  if (apiGroup) {
+    const [group, , plural] = apiGroup;
     return {
       id: obj.metadata.uid,
       kubeObject: obj,
@@ -130,6 +131,16 @@ export const makeKubeToKubeEdge = (from: KubeObject, to: KubeObject): GraphEdge 
 });
 
 /**
+ * How long a single source is given to resolve before it's treated as
+ * empty. Without this, a source whose watch/list never settles (e.g. an
+ * API group that hangs or a CRD that never syncs) leaves its entry in
+ * sourceData as `null` forever, which keeps the whole Map view's
+ * aggregate isLoading stuck at true (see GraphSourceManager.isLoading),
+ * even though every other source finished loading.
+ */
+export const SOURCE_LOADING_TIMEOUT_MS = 15000;
+
+/**
  * Since we can't use hooks in a loop, we need to create a component for each source
  * that will load the data and pass it to the parent component.
  */
@@ -147,6 +158,24 @@ const SourceLoader = memo(
 
     useEffect(() => {
       onData(id, data);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, data]);
+
+    // Give this source a bounded amount of time to resolve. If it's still
+    // null when the timeout fires, treat it as loaded-but-empty so that a
+    // single hung source can't block the rest of the Map view from
+    // rendering forever. If real data arrives later, the effect above
+    // will still update it normally.
+    useEffect(() => {
+      if (data !== null) {
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        onData(id, { nodes: [], edges: [] });
+      }, SOURCE_LOADING_TIMEOUT_MS);
+
+      return () => clearTimeout(timeout);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, data]);
 
@@ -243,7 +272,12 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
 
   const onData = useCallback(
     (id: string, data: MaybeNodesAndEdges) => {
-      setSourceData(map => new Map(map).set(id, data));
+      setSourceData(map => {
+        // Skip update if the data reference hasn't changed, avoiding a new Map
+        // allocation that would trigger downstream useMemo recomputations.
+        if (map.get(id) === data) return map;
+        return new Map(map).set(id, data);
+      });
     },
     [setSourceData]
   );
@@ -302,16 +336,49 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       nodes = sourceGraph.nodes;
       edges = sourceGraph.edges;
 
+      // Build a UID → node index once, shared by all relations that provide
+      // buildEdgesWithIndex. This avoids the O(fromNodes × allNodes) nested-loop
+      // predicate scan for owner-reference relations, reducing them to
+      // O(fromNodes × avgOwnerRefs) with O(1) Map lookups.
+      let nodesByUid: Map<string, GraphNode> | null = null;
+      const getNodesByUid = () => {
+        if (!nodesByUid) {
+          nodesByUid = new Map();
+          for (const node of nodes) {
+            const uid = node.kubeObject?.metadata?.uid;
+            if (uid) {
+              nodesByUid.set(uid, node);
+            }
+          }
+        }
+        return nodesByUid;
+      };
+
       // Create edges based on Relations
       enabledRelations.forEach(relation => {
         const fromNodes = nodesPerSource.get(relation.fromSource) ?? [];
+
+        // Use index-based edge builder when available (O(n) vs O(n²))
+        if (relation.buildEdgesWithIndex) {
+          const indexEdges = relation.buildEdgesWithIndex(fromNodes, getNodesByUid());
+          for (const edge of indexEdges) {
+            edges.push(edge);
+          }
+          return;
+        }
+
         const toNodes = relation.toSource ? nodesPerSource.get(relation.toSource) ?? [] : nodes;
 
         fromNodes.forEach(from => {
           toNodes.forEach(to => {
             if (relation.predicate(from, to)) {
               edges.push({
-                id: from.id + '-' + to.id,
+                label: relation.label,
+                ...relation.edgeAttributes?.(from, to),
+                // Structural fields are authoritative and must win over a relation's
+                // edgeAttributes: otherwise a Partial<GraphEdge> that (accidentally or
+                // not) sets id/source/target could corrupt deduplication or topology.
+                id: from.id + '-' + to.id + '-' + relation.id,
                 source: from.id,
                 target: to.id,
               });

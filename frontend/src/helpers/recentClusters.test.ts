@@ -27,6 +27,7 @@ function read(): unknown {
 describe('recentClusters', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   describe('setRecentCluster', () => {
@@ -75,6 +76,19 @@ describe('recentClusters', () => {
 
       expect(read()).toEqual(['alpha']);
     });
+
+    it('catches and logs errors when localStorage.setItem throws', () => {
+      const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new Error('Quota exceeded');
+      });
+
+      setRecentCluster('alpha');
+      expect(spyError).toHaveBeenCalledWith(
+        `Failed to set ${STORAGE_KEY} in localStorage:`,
+        expect.any(Error)
+      );
+    });
   });
 
   describe('getRecentClusters', () => {
@@ -94,19 +108,42 @@ describe('recentClusters', () => {
       expect(getRecentClusters()).toEqual([]);
     });
 
+    it('returns an empty array when the stored array contains non-string elements', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(['alpha', { name: 'beta' }]));
+
+      expect(getRecentClusters()).toEqual([]);
+    });
+
     it('returns an empty array when the stored value is a JSON null', () => {
       localStorage.setItem(STORAGE_KEY, 'null');
 
       expect(getRecentClusters()).toEqual([]);
     });
 
-    // Documents current behaviour: a corrupted payload surfaces as a parse
-    // error rather than silently falling back to []. A future change could
-    // add defensive recovery; this test should be updated alongside it.
-    it('throws when the stored payload is not valid JSON', () => {
+    // Documents current behaviour: a corrupted payload is caught
+    // and returns an empty array, instead of throwing an error.
+    it('returns an empty array and logs a warning when the stored payload is not valid JSON', () => {
+      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       localStorage.setItem(STORAGE_KEY, '{not json');
 
-      expect(() => getRecentClusters()).toThrow(SyntaxError);
+      expect(getRecentClusters()).toEqual([]);
+      expect(spyWarn).toHaveBeenCalledWith(
+        `Failed to parse ${STORAGE_KEY} from localStorage, returning empty list:`,
+        expect.any(SyntaxError)
+      );
+    });
+
+    it('returns an empty array and logs a warning when localStorage.getItem throws', () => {
+      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+        throw new Error('Storage disabled');
+      });
+
+      expect(getRecentClusters()).toEqual([]);
+      expect(spyWarn).toHaveBeenCalledWith(
+        `Failed to read ${STORAGE_KEY} from localStorage, returning empty list:`,
+        expect.any(Error)
+      );
     });
   });
 });

@@ -28,6 +28,8 @@ import { useNamespaces } from '../../../redux/filterSlice';
  * @param clusters - An array of cluster names from which to fetch the resources.
  * @param maxItems - Maximum amount of items per resource.
  * @param refetchIntervalMs - How often to refresh resources. In milliseconds.
+ * @param namespaces - Namespaces to request from every cluster.
+ * @param requests - Exact cluster and namespace combinations to request instead.
  * @returns An array of Kubernetes objects from the specified resources and clusters.
  */
 export const useKubeLists = (
@@ -35,7 +37,8 @@ export const useKubeLists = (
   clusters: string[],
   maxItems: number,
   refetchIntervalMs?: number,
-  namespaces?: string[]
+  namespaces?: string[],
+  requests?: Array<{ cluster: string; namespaces?: string[] }>
 ) => {
   const defaultNamespaces = useNamespaces();
   const classes = useMemo(
@@ -60,6 +63,7 @@ export const useKubeLists = (
       clusters,
       refetchInterval: refetchIntervalMs,
       namespace: namespaces ?? defaultNamespaces,
+      requests,
     })
   );
 

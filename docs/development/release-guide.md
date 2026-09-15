@@ -21,10 +21,25 @@ Create a new branch called "rc-X.Y.Z" where X.Y.Z is the new release version.
 
 ### 2. Bump the app “version”
 
-On the main branch, bump the “version” field in app/package.json, run "npm i" inside app/ and commit with:
+If using the automated **Headlamp Releaser** tool (recommended), run the `start` command to automate version bumping, dependency installations, Helm template regeneration, and committing:
 
 ```shell
-git commit app/package* -m "app: Bump version to X.Y.Z"
+# Navigate to the releaser directory, install deps, build/link it, and start the release
+cd tools/releaser
+npm install
+npm run build && npm link
+releaser start X.Y.Z
+```
+
+This will automatically commit the changes with the message:
+`releaser: bump version to X.Y.Z`
+
+If performing the version bump manually instead:
+On the release branch, bump the “version” field in `app/package.json`, run `npm install` inside `app/` (and update Helm Chart version/templates if applicable), then stage and commit the changes with:
+
+```shell
+git add app/package.json app/package-lock.json charts/headlamp/Chart.yaml charts/headlamp/tests/expected_templates
+git commit --signoff -m "releaser: bump version to X.Y.Z"
 ```
 
 Bug fix: make a branch off the tag, and cherry pick everything in. Or make a branch off main and remove merge commits compared to previous tag (On the branch to remove merge commits, do: "`git rebase main`").

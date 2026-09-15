@@ -117,9 +117,8 @@ export function PureAuthToken({
 }: PureAuthTokenProps) {
   const { t } = useTranslation();
   const cluster = getCluster();
-  const focusedRef = React.useCallback((node: HTMLDivElement) => {
+  const inputRef = React.useCallback((node: HTMLInputElement | null) => {
     if (node !== null) {
-      // node.setAttribute('tabindex', '-1');
       node.focus();
     }
   }, []);
@@ -146,7 +145,7 @@ export function PureAuthToken({
             value={token}
             onChange={onChangeToken}
             fullWidth
-            ref={focusedRef}
+            inputRef={inputRef}
           />
         </DialogContent>
         <DialogActions>

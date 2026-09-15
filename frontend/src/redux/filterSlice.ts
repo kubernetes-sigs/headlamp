@@ -60,9 +60,9 @@ export function filterResource(
   if (search) {
     const filterString = search.toLowerCase();
     const usedMatchCriteria = [
-      item.metadata.uid.toLowerCase(),
+      item.metadata.uid?.toLowerCase() ?? '',
       item.metadata.namespace ? item.metadata.namespace.toLowerCase() : '',
-      item.metadata.name.toLowerCase(),
+      item.metadata.name?.toLowerCase() ?? '',
       ...Object.keys(item.metadata.labels || {}).map(item => item.toLowerCase()),
       ...Object.values(item.metadata.labels || {}).map(item => item.toLowerCase()),
     ];

@@ -16,7 +16,44 @@
 
 /// <reference types="@testing-library/jest-dom" />
 import '@testing-library/jest-dom/vitest';
+import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
+
+// xterm initializes canvas APIs during module setup, so install the canvas mock
+// here once for the entire Vitest environment instead of per test file.
+
+// nock v14 uses @mswjs/interceptors, which calls `new Request(url, init)` internally when
+// intercepting a fetch. In jsdom v24+, globalThis.Request wraps undici's native Request,
+// whose WebIDL validator requires init.signal to be an instance of undici's own AbortSignal.
+// jsdom installs its own AbortController (via vitest's populateGlobal), so signals created
+// with `new AbortController()` in test code are jsdom AbortSignals that fail that check.
+// This Proxy wraps Request construction: if the call fails with an AbortSignal type error,
+// it retries without the signal so nock can normalise the request. All other behaviour is
+// unchanged. setupFiles run before test-file imports, so this patch is in place before nock
+// patches globalThis.fetch.
+if (typeof Request !== 'undefined') {
+  const OriginalRequest = globalThis.Request;
+  globalThis.Request = new Proxy(OriginalRequest, {
+    construct(target, args, newTarget) {
+      const [input, init] = args as [RequestInfo | URL, RequestInit | undefined];
+      if (init?.signal) {
+        try {
+          return Reflect.construct(target, args, newTarget);
+        } catch (e: unknown) {
+          if (e instanceof TypeError && (e as TypeError).message.includes('AbortSignal')) {
+            return Reflect.construct(
+              target,
+              [input, { ...init, signal: undefined }, ...args.slice(2)],
+              newTarget
+            );
+          }
+          throw e;
+        }
+      }
+      return Reflect.construct(target, args, newTarget);
+    },
+  });
+}
 
 globalThis.indexedDB = indexeddb;
 

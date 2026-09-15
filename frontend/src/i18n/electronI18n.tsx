@@ -18,12 +18,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { isElectron } from '../helpers/isElectron';
 
-declare global {
-  interface Window {
-    desktopApi: any;
-  }
-}
-
 // If we're running under electron, we need to communicate any language changes.
 const ipcRenderer = isElectron() ? window.desktopApi : null;
 
@@ -42,6 +36,5 @@ export function useElectronI18n() {
     return () => {
       i18n.off('languageChanged', tellAppAboutLanguage);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [i18n]);
 }

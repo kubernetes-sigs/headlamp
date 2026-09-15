@@ -17,10 +17,8 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
 import { styled, useTheme } from '@mui/system';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -30,6 +28,7 @@ import semver from 'semver';
 import { getVersion, useCluster } from '../../lib/k8s';
 import { StringDict } from '../../lib/k8s/cluster';
 import { useTypedSelector } from '../../redux/hooks';
+import { Dialog } from '../common/Dialog';
 import { NameValueTable } from '../common/SimpleTable';
 
 const versionSnackbarHideTimeout = 5000; // ms
@@ -146,8 +145,7 @@ export default function VersionButton() {
           <Box>{clusterVersion.gitVersion}</Box>
         </Box>
       </Button>
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>{t('Kubernetes Version')}</DialogTitle>
+      <Dialog open={open} onClose={handleClose} title={t('Kubernetes Version')}>
         <DialogContent>
           <NameValueTable rows={getVersionRows()} />
         </DialogContent>

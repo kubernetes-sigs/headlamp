@@ -32,9 +32,6 @@ function testPluginctl() {
   // remove some temporary files.
   cleanup();
 
-  // Install dependencies
-  run("npm", ["install"]);
-
   // Use "link" to test the repo version of the pluginctl tool.
   run("npm", ["link"]);
   curDir = process.cwd();
@@ -51,7 +48,7 @@ function testPluginctl() {
   checkFileExists(pluginsDir + "/" + PACKAGE_NAME + "/main.js");
 
   // test list command
-  run("node", ["bin/pluginctl.js", "list"]);
+  run("node", ["bin/pluginctl.js", "list", "--folderName", pluginsDir]);
 
   // test uninstall command
   run("node", [
@@ -105,6 +102,7 @@ function run(cmd, args) {
       stdio: "inherit",
       cwd: curDir,
       encoding: "utf8",
+      shell: process.platform === 'win32',
     });
   } catch (e) {
     exit(

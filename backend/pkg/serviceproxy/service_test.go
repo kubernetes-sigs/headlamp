@@ -28,7 +28,7 @@ func TestGetServiceInternal(t *testing.T) {
 		},
 	}
 
-	_, err := cs.CoreV1().Services("default").Create(context.TODO(), service, metav1.CreateOptions{})
+	_, err := cs.CoreV1().Services("default").Create(context.Background(), service, metav1.CreateOptions{})
 	if err != nil {
 		t.Errorf("Failed to create test service: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestGetServiceExternal(t *testing.T) {
 		},
 	}
 
-	_, err := cs.CoreV1().Services("default").Create(context.TODO(), service, metav1.CreateOptions{})
+	_, err := cs.CoreV1().Services("default").Create(context.Background(), service, metav1.CreateOptions{})
 	if err != nil {
 		t.Errorf("Failed to create test service: %v", err)
 	}

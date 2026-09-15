@@ -49,7 +49,7 @@ export function CustomResourceDetails({
   namespace: ns,
   cluster,
 }: CustomResourceDetailsProps) {
-  const { t } = useTranslation('glossary');
+  const { t } = useTranslation(['glossary', 'translation']);
   const [crd, error] = CustomResourceDefinition.useGet(crdName, undefined, { cluster });
 
   const namespace = ns === '-' ? undefined : ns;
@@ -81,7 +81,7 @@ export function CustomResourceDetails({
 type AdditionalPrinterColumns = KubeCRD['spec']['versions'][0]['additionalPrinterColumns'];
 
 function getExtraColumns(crd: CustomResourceDefinition, apiVersion: string) {
-  const version = (crd.jsonData as KubeCRD).spec.versions.find(
+  const version = (crd.jsonData as KubeCRD).spec?.versions?.find(
     version => version.name === apiVersion
   );
   return version?.additionalPrinterColumns;
@@ -132,11 +132,39 @@ export interface CustomResourceDetailsRendererProps {
 }
 
 function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps) {
-  const { crd, crName, namespace, cluster } = props;
+  const { crd } = props;
+  // Outer renderer only emits the incomplete-spec message from the
+  // `translation` namespace; the inner `CustomResourceDetailsItem`
+  // loads both namespaces because it also reads `glossary|Definition`.
+  const { t } = useTranslation('translation');
 
-  const { t } = useTranslation('glossary');
+  // Memoized on the CRD instance: the get hook returns a fresh CRD object on
+  // every update, so a spec that arrives later comes in as a new `crd`
+  // reference and the memo recomputes rather than going stale. Memoizing also
+  // keeps the constructed class identity stable across renders.
+  const CRClass = React.useMemo(() => crd.makeCRClassOrNull(), [crd]);
 
-  const CRClass = React.useMemo(() => crd.makeCRClass(), [crd]);
+  if (!CRClass) {
+    // The outer `CustomResourceDetails` already resolved `crd` from the API,
+    // so reaching here means the CRD object is loaded but its spec is missing
+    // required fields. This is a persistent state, not in-flight loading;
+    // show a non-loading empty message so users aren't stuck on an indefinite
+    // spinner (#4824).
+    return <Empty>{t('translation|This CustomResourceDefinition has an incomplete spec.')}</Empty>;
+  }
+
+  return <CustomResourceDetailsItem {...props} CRClass={CRClass} />;
+}
+
+function CustomResourceDetailsItem(
+  props: CustomResourceDetailsRendererProps & {
+    CRClass: NonNullable<ReturnType<CustomResourceDefinition['makeCRClassOrNull']>>;
+  }
+) {
+  const { crd, crName, namespace, cluster, CRClass } = props;
+
+  const { t } = useTranslation(['glossary', 'translation']);
+
   const [item, error] = CRClass.useGet(crName, namespace, { cluster });
 
   const apiVersion = item?.jsonData.apiVersion?.split('/').pop() || '';

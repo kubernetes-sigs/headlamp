@@ -50,6 +50,7 @@ const makeStore = () => {
           timezone: 'UTC',
           sidebarSortAlphabetically: false,
           useEvict: true,
+          expandLargeGraph: false,
         },
       },
       projects: {

@@ -18,6 +18,9 @@ import { Icon } from '@iconify/react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import TextField, { TextFieldProps } from '@mui/material/TextField';
@@ -27,7 +30,9 @@ import * as yaml from 'js-yaml';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { RecursivePartial } from '../../../../lib/k8s/api/v1/factories';
 import Namespace from '../../../../lib/k8s/namespace';
+import type { KubeServicePort } from '../../../../lib/k8s/service';
 import { useId } from '../../../../lib/util';
 import { ContainerTextField } from './workloadFields';
 
@@ -48,7 +53,7 @@ export interface FormField {
   /** Display label for the field. */
   label: string;
   /** Input type – defaults to 'text'. */
-  type?: 'text' | 'number' | 'labels' | 'select' | 'containers' | 'namespace';
+  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace' | 'ports';
   /** Whether the field is required. */
   required?: boolean;
   /** For 'number' fields: minimum allowed value. */
@@ -59,6 +64,9 @@ export interface FormField {
   helperText?: string;
   /** Options for 'select' type fields. */
   options?: SelectOption[];
+  /** For 'containers' fields: show a `Command` column editing
+   *  `container.command` (string[]). Off by default. */
+  showCommand?: boolean;
   /** Extra top margin (theme spacing units) to visually separate from the field above. */
   spacingTop?: number;
   /** Optional custom renderer. When provided, this replaces the built-in input
@@ -71,6 +79,11 @@ export interface FormField {
     onChange: (value: any) => void;
     resource: Record<string, any>;
   }) => React.ReactNode;
+  multiple?: boolean;
+  /** Store an empty string at `path` instead of unsetting it. For fields
+   *  where '' is semantically meaningful, e.g. `spec.storageClassName: ""`
+   *  disables default StorageClass selection on a PVC. */
+  allowEmptyString?: boolean;
 }
 
 /** A labelled group of fields. */
@@ -85,22 +98,107 @@ export interface FormSection {
 export interface CreateResourceFormProps {
   /** Sections containing the form field descriptors. */
   sections: FormSection[];
-  /** The resource as a plain JS object. */
-  resource: Record<string, any>;
+  /** The resource as a plain JS object (defaults to {} if undefined). */
+  resource?: Record<string, any>;
   /** Called with the updated resource object when any field changes. */
   onChange: (resource: Record<string, any>) => void;
+  /** Called when the validity of required fields changes. */
+  onValidChange?: (valid: boolean) => void;
 }
 
 /** Data-driven resource creation form. Renders labelled sections of typed
- *  fields (text, labels, containers, namespace, select) from a declarative
- *  descriptor and keeps a plain JS resource object in sync via `onChange`. */
-export default function CreateResourceForm(props: CreateResourceFormProps) {
-  const { sections, resource, onChange } = props;
-  const { t } = useTranslation(['translation']);
+ *  fields (text, number, boolean, labels, containers, namespace, select)
+ *  from a declarative descriptor and keeps a plain JS resource object in
+ *  sync via `onChange`. */
+/** Standard metadata section (name, namespace, labels) for resource forms.
+ *  Import and prepend to your `sections` array. */
+export function metadataSection(t: (key: string) => string): FormSection {
+  return {
+    title: t('translation|Metadata'),
+    fields: [
+      { key: 'name', path: 'metadata.name', label: t('translation|Name'), required: true },
+      {
+        key: 'namespace',
+        path: 'metadata.namespace',
+        label: t('glossary|Namespace'),
+        type: 'namespace' as const,
+      },
+      {
+        key: 'labels',
+        path: 'metadata.labels',
+        label: t('translation|Labels'),
+        type: 'labels' as const,
+      },
+    ],
+  };
+}
 
-  function handleFieldChange(path: string, value: any) {
+/** Check whether a required field's current value is valid for its type. */
+function isFieldValid(field: FormField, value: any): boolean {
+  switch (field.type) {
+    case 'containers':
+      return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (c: any) =>
+            c?.name &&
+            typeof c.name === 'string' &&
+            c.name.trim().length > 0 &&
+            c?.image &&
+            typeof c.image === 'string' &&
+            c.image.trim().length > 0
+        )
+      );
+    case 'ports':
+      return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (p: any) =>
+            p && typeof p === 'object' && Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535
+        )
+      );
+    case 'boolean':
+      return true;
+    case 'select':
+      if (field.multiple) {
+        return (
+          (Array.isArray(value) && value.length > 0) || (typeof value === 'string' && value !== '')
+        );
+      }
+      return typeof value === 'string' && value !== '';
+    default:
+      // Array-typed values (e.g. set via the YAML editor) must be non-empty.
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      return value !== undefined && value !== null && value !== '';
+  }
+}
+
+export default function CreateResourceForm(props: CreateResourceFormProps) {
+  const { sections, resource = {}, onChange, onValidChange } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+
+  // Compute validity from current resource.
+  const isValid = React.useMemo(() => {
+    return sections
+      .flatMap(s => s.fields)
+      .filter(f => f.required)
+      .every(f => isFieldValid(f, _.get(resource, f.path)));
+  }, [sections, resource]);
+
+  // Report validity to parent whenever it changes.
+  React.useEffect(() => {
+    if (onValidChange) {
+      onValidChange(isValid);
+    }
+  }, [isValid, onValidChange]);
+
+  function handleFieldChange(path: string, value: any, allowEmptyString?: boolean) {
     const updated = _.cloneDeep(resource);
-    if (value === undefined) {
+    if (value === undefined || (value === '' && !allowEmptyString)) {
       _.unset(updated, path);
     } else {
       _.set(updated, path, value);
@@ -130,52 +228,54 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
 
     if (field.render) {
       return (
-        <Box>
-          <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+        <FieldWrapper field={field}>
           {field.render({
             value,
-            onChange: v => handleFieldChange(field.path, v),
+            onChange: v => handleFieldChange(field.path, v, field.allowEmptyString),
             resource,
           })}
-        </Box>
+        </FieldWrapper>
       );
     }
 
     switch (field.type) {
       case 'labels':
         return (
-          <LabelTextField
-            label={field.label}
-            required={field.required}
-            helperText={field.helperText}
-            value={value ?? {}}
-            onChange={labels => handleFieldChange(field.path, labels)}
-          />
+          <FieldWrapper field={field}>
+            <LabelTextField
+              value={value ?? {}}
+              onChange={labels => handleFieldChange(field.path, labels)}
+            />
+          </FieldWrapper>
         );
       case 'containers':
         return (
-          <ContainerTextField
-            label={field.label}
-            required={field.required}
-            helperText={field.helperText}
-            value={value ?? []}
-            onChange={containers => handleFieldChange(field.path, containers)}
-          />
+          <FieldWrapper field={field}>
+            <ContainerTextField
+              value={value ?? []}
+              onChange={containers => handleFieldChange(field.path, containers)}
+              showCommand={field.showCommand}
+            />
+          </FieldWrapper>
+        );
+      case 'ports':
+        return (
+          <FieldWrapper field={field}>
+            <ServicePortsTextField
+              value={value}
+              onChange={ports => handleFieldChange(field.path, ports)}
+            />
+          </FieldWrapper>
         );
       case 'namespace':
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <NamespaceTextField
               value={value ?? ''}
               onChange={ns => handleFieldChange(field.path, ns)}
               required={field.required}
             />
-          </Box>
+          </FieldWrapper>
         );
       case 'number':
         if (field.inline) {
@@ -204,12 +304,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
           );
         }
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleNumberChange(field, e.target.value)}
@@ -221,22 +316,62 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 ...(field.min !== undefined ? { min: field.min } : {}),
               }}
             />
-          </Box>
+          </FieldWrapper>
         );
-      case 'select':
+      case 'select': {
+        const multiple = field.multiple ?? false;
+        const selectValue = multiple
+          ? Array.isArray(value)
+            ? value
+            : typeof value === 'string' && value !== ''
+            ? [value]
+            : []
+          : Array.isArray(value)
+          ? typeof value[0] === 'string'
+            ? value[0]
+            : ''
+          : value ?? '';
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
-              value={value ?? ''}
-              onChange={e => handleFieldChange(field.path, e.target.value)}
+              value={selectValue}
+              onChange={e => {
+                const v = e.target.value;
+                if (multiple) {
+                  const arr = Array.isArray(v)
+                    ? v
+                    : String(v)
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(Boolean);
+
+                  handleFieldChange(field.path, arr.length > 0 ? arr : undefined);
+                } else {
+                  handleFieldChange(field.path, v);
+                }
+              }}
               required={field.required}
               select
               inputProps={{ 'aria-label': field.label }}
+              SelectProps={
+                multiple
+                  ? {
+                      multiple: true,
+                      renderValue: (selected: unknown) => {
+                        const labelsByValue = new Map(
+                          (field.options ?? []).map(o => [o.value, o.label])
+                        );
+                        return (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {(selected as string[]).map(val => (
+                              <Chip key={val} label={labelsByValue.get(val) ?? val} size="small" />
+                            ))}
+                          </Box>
+                        );
+                      },
+                    }
+                  : { multiple: false }
+              }
             >
               {(field.options ?? []).map(opt => (
                 <MenuItem key={opt.value} value={opt.value}>
@@ -244,23 +379,37 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 </MenuItem>
               ))}
             </FormTextField>
-          </Box>
+          </FieldWrapper>
+        );
+      }
+      case 'boolean':
+        return (
+          <FieldWrapper field={{ ...field, helperText: undefined }} hideLabel>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!value}
+                    onChange={e => handleFieldChange(field.path, e.target.checked)}
+                    inputProps={{ 'aria-label': field.label }}
+                  />
+                }
+                label={field.label}
+              />
+              {field.helperText && <FieldLabel helperText={field.helperText} />}
+            </Box>
+          </FieldWrapper>
         );
       default:
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
-              onChange={e => handleFieldChange(field.path, e.target.value)}
+              onChange={e => handleFieldChange(field.path, e.target.value, field.allowEmptyString)}
               required={field.required}
               inputProps={{ 'aria-label': field.label }}
             />
-          </Box>
+          </FieldWrapper>
         );
     }
   }
@@ -374,6 +523,27 @@ export function FieldLabel(props: FieldLabelProps) {
   );
 }
 
+/** Wraps a field input with an optional label + helperText tooltip above it.
+ *  Use `hideLabel` when the input already contains its own label (e.g. checkbox). */
+export function FieldWrapper(props: {
+  field: FormField;
+  hideLabel?: boolean;
+  children: React.ReactNode;
+}) {
+  const { field, hideLabel, children } = props;
+  return (
+    <Box>
+      {!hideLabel && (
+        <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+      )}
+      {children}
+      {hideLabel && field.helperText && (
+        <FieldLabel helperText={field.helperText} sx={{ mt: 0.5 }} />
+      )}
+    </Box>
+  );
+}
+
 export interface NamespaceTextFieldProps {
   value: string;
   onChange: (namespace: string) => void;
@@ -418,6 +588,153 @@ export function NamespaceTextField(props: NamespaceTextFieldProps) {
         />
       )}
     />
+  );
+}
+
+/** Draft representation of a `spec.ports[i]` entry. Partial to tolerate
+ *  incomplete YAML shapes coming from the editor tab. */
+export type ServicePortDraft = RecursivePartial<KubeServicePort>;
+
+export interface ServicePortsTextFieldProps {
+  /** Current ports array. Non-array/undefined values are treated as empty. */
+  value: ServicePortDraft[] | undefined;
+  /** Called with the updated ports array. */
+  onChange: (ports: ServicePortDraft[]) => void;
+  /** Whether the Node Port column is shown and persisted. Defaults to true.
+   *  Set false for Service types that reject `nodePort` (ClusterIP, ExternalName). */
+  showNodePort?: boolean;
+}
+
+/** Editor for a Service's `spec.ports` array. Renders one row per port with
+ *  name / port / targetPort / nodePort / protocol inputs plus add/remove
+ *  controls. `targetPort` accepts either an integer or a string (named
+ *  target port) to match the Kubernetes schema. */
+export function ServicePortsTextField(props: ServicePortsTextFieldProps) {
+  const { value, onChange, showNodePort = true } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+  const ports: ServicePortDraft[] = Array.isArray(value) ? value : [];
+
+  // Kubernetes rejects nodePort on Service types that don't allocate one, so
+  // strip stale nodePort values whenever the parent switches to such a type.
+  React.useEffect(() => {
+    if (showNodePort) return;
+    const hasNodePort = ports.some(
+      p => p && typeof p === 'object' && !Array.isArray(p) && 'nodePort' in p
+    );
+    if (!hasNodePort) return;
+    onChange(
+      ports.map(p => {
+        if (p && typeof p === 'object' && !Array.isArray(p) && 'nodePort' in p) {
+          const next = { ...p };
+          delete (next as Record<string, unknown>).nodePort;
+          return next;
+        }
+        return p;
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNodePort, value]);
+
+  function updatePort(index: number, field: keyof ServicePortDraft, rawValue: string) {
+    const nextPorts = ports.map(port =>
+      port && typeof port === 'object' && !Array.isArray(port) ? { ...port } : {}
+    );
+    const nextPort = nextPorts[index];
+
+    if (rawValue === '') {
+      delete nextPort[field];
+    } else if (field === 'name' || field === 'protocol') {
+      nextPort[field] = rawValue;
+    } else if (field === 'targetPort' && !/^\d+$/.test(rawValue)) {
+      // Named target ports are valid in the K8s schema.
+      nextPort[field] = rawValue;
+    } else {
+      const numberValue = Number(rawValue);
+      if (!Number.isInteger(numberValue) || numberValue < 0) return;
+      nextPort[field] = numberValue as never;
+    }
+
+    onChange(nextPorts);
+  }
+
+  function addPort() {
+    const nextPort: ServicePortDraft = { name: '', port: 80, protocol: 'TCP', targetPort: 80 };
+    if (showNodePort) {
+      nextPort.nodePort = 30000;
+    }
+    onChange([...ports, nextPort]);
+  }
+
+  function removePort(index: number) {
+    onChange(ports.filter((_port, portIndex) => portIndex !== index));
+  }
+
+  return (
+    <Box>
+      {ports.map((port, index) => (
+        <Box
+          key={index}
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr 1fr',
+              md: showNodePort ? '1.2fr 1fr 1fr 1fr 1fr auto' : '1.2fr 1fr 1fr 1fr auto',
+            },
+            gap: 1,
+            alignItems: 'center',
+            mb: 2,
+          }}
+        >
+          <FormTextField
+            label={t('translation|Name')}
+            value={port?.name ?? ''}
+            onChange={event => updatePort(index, 'name', event.target.value)}
+          />
+          <FormTextField
+            label={t('translation|Port')}
+            type="number"
+            value={port?.port ?? ''}
+            onChange={event => updatePort(index, 'port', event.target.value)}
+            inputProps={{ min: 1, max: 65535 }}
+          />
+          <FormTextField
+            label={t('translation|Target Port')}
+            value={port?.targetPort ?? ''}
+            onChange={event => updatePort(index, 'targetPort', event.target.value)}
+          />
+          {showNodePort && (
+            <FormTextField
+              label={t('translation|Node Port')}
+              type="number"
+              value={port?.nodePort ?? ''}
+              onChange={event => updatePort(index, 'nodePort', event.target.value)}
+              inputProps={{ min: 1, max: 65535 }}
+            />
+          )}
+          <FormTextField
+            label={t('translation|Protocol')}
+            select
+            value={port?.protocol ?? 'TCP'}
+            onChange={event => updatePort(index, 'protocol', event.target.value)}
+          >
+            {['TCP', 'UDP', 'SCTP'].map(protocol => (
+              <MenuItem key={protocol} value={protocol}>
+                {protocol}
+              </MenuItem>
+            ))}
+          </FormTextField>
+          <IconButton aria-label={t('translation|Remove port')} onClick={() => removePort(index)}>
+            <Icon icon="mdi:close-circle" width={24} height={24} />
+          </IconButton>
+        </Box>
+      ))}
+      <Button size="small" onClick={addPort} aria-label={t('translation|Add port')}>
+        <Icon icon="mdi:plus-circle" width={24} height={24} />
+        <Typography variant="body2" sx={{ ml: 0.5 }}>
+          {t('translation|New Port')}
+        </Typography>
+      </Button>
+    </Box>
   );
 }
 

@@ -21,9 +21,9 @@ import { KubeObject } from './KubeObject';
 /**
  * HTTPRouteRule defines semantics for matching an HTTP request based on conditions (matches), processing it (filters), and forwarding the request to an API object (backendRefs).
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.HTTPRouteRule} Gateway API reference for HTTPRouteRule
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#httprouterule} Gateway API reference for HTTPRouteRule
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/httproute/#rules} Gateway API definition for HTTPRouteRule
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/httproute/#rules} Gateway API definition for HTTPRouteRule
  */
 export interface HTTPRouteRule {
   name?: string;
@@ -35,9 +35,9 @@ export interface HTTPRouteRule {
 /**
  * HTTPRoute is a Gateway API type for specifying routing behavior of HTTP requests from a Gateway listener to an API object, i.e. Service.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.HTTPRoute} Gateway API reference for HTTPRoute
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#httproute} Gateway API reference for HTTPRoute
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/httproute/} Gateway API definition for HTTPRoute
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/httproute/} Gateway API definition for HTTPRoute
  */
 export interface KubeHTTPRoute extends KubeObjectInterface {
   spec: {

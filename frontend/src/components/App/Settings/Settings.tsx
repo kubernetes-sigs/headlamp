@@ -15,6 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
+import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
@@ -24,13 +25,13 @@ import { isElectron } from '../../../helpers/isElectron';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
-import { theme } from '../../TestHelpers/theme';
 import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
@@ -40,21 +41,30 @@ import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
   const { t } = useTranslation(['translation']);
+  const theme = useTheme();
   const settingsObj = useSettings();
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
   const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
+  const expandLargeGraph = settingsObj.expandLargeGraph;
   const storedUseEvict = settingsObj.useEvict;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
+  const [expandGraph, setExpandGraph] = useState<boolean>(expandLargeGraph);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
   const [trayIcon, setTrayIcon] = useState<boolean>(true);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
   const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SETTINGS_VIEW);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ theme: themeName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     dispatch(
@@ -84,6 +94,14 @@ export default function Settings() {
   }, [useEvict]);
 
   useEffect(() => {
+    dispatch(
+      setAppSettings({
+        expandLargeGraph: expandGraph,
+      })
+    );
+  }, [expandGraph, dispatch]);
+
+  useEffect(() => {
     if (!isElectron()) {
       return;
     }
@@ -107,6 +125,7 @@ export default function Settings() {
   const trayIconLabelID = 'tray-icon-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
+  const expandGraphID = 'expand-graph-label';
 
   return (
     <SectionBox
@@ -204,6 +223,20 @@ export default function Settings() {
                 },
               ]
             : []),
+          {
+            name: t('translation|Keep Large Graph Groups Expanded'),
+            value: (
+              <Switch
+                color="primary"
+                checked={expandGraph}
+                onChange={e => setExpandGraph(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': expandGraphID,
+                }}
+              />
+            ),
+            nameID: expandGraphID,
+          },
         ]}
       />
       <Box
@@ -224,7 +257,7 @@ export default function Settings() {
         >
           <Typography
             variant="body1"
-            sx={theme => ({
+            sx={{
               textAlign: 'left',
               color: theme.palette.text.secondary,
               fontSize: '1rem',
@@ -232,7 +265,7 @@ export default function Settings() {
                 fontSize: '1.5rem',
                 color: theme.palette.text.primary,
               },
-            })}
+            }}
           >
             {t('translation|Theme')}
           </Typography>
@@ -247,12 +280,12 @@ export default function Settings() {
           {forceTheme && (
             <Typography
               variant="body2"
-              sx={theme => ({
+              sx={{
                 textAlign: 'center',
                 color: theme.palette.text.secondary,
                 fontStyle: 'italic',
                 mb: 2,
-              })}
+              }}
             >
               {t('translation|Theme has been forced by your administrator')}
             </Typography>

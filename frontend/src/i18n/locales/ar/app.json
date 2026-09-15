@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "فشل جلب معلومات الإضافة",
   "An error occurred while fetching plugin info from {{  URL }}.": "حدث خطأ أثناء جلب معلومات الإضافة من {{ URL }}.",
   "Yes": "نعم",
@@ -41,11 +46,6 @@
   "Help": "مساعدة",
   "Documentation": "التوثيق",
   "Open an Issue": "فتح مشكلة",
-  "Another process is running": "هناك عملية أخرى قيد التشغيل",
-  "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "يبدو أن هناك عملية أخرى قيد التشغيل بالفعل. هل تريد المتابعة بإنهاء العملية تلقائيًا أم الخروج؟",
-  "Continue": "متابعة",
-  "Failed to quit the other running process": "فشل إنهاء العملية الأخرى",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "تعذر إنهاء العملية الأخرى، المعرفات: {{ process_list }}. يرجى إيقاف العملية ثم إعادة تشغيل التطبيق.",
   "No available ports": "لا توجد منافذ متاحة",
   "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "تعذر العثور على منفذ متاح. توجد عمليات تعمل على المنافذ {{startPort}}-{{endPort}}. هل تريد إنهاء هذه العمليات وإعادة المحاولة؟",
   "Terminate and Retry": "إنهاء وإعادة المحاولة",
@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "تعذر تشغيل الخادم حتى بعد إنهاء العمليات الحالية.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "تعذر العثور على منفذ متاح في النطاق {{startPort}}-{{endPort}}. يرجى تحرير منفذ والمحاولة مرة أخرى.",
   "Invalid URL": "رابط غير صالح",
-  "Application opened with an invalid URL: {{ url }}": "تم فتح التطبيق برابط غير صالح: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "تم فتح التطبيق برابط غير صالح: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

@@ -16,6 +16,7 @@
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
@@ -116,7 +117,7 @@ export function streamResult<T extends KubeObjectInterface>(
  * @param errCb - The callback function to execute when an error occurs.
  * @param queryParams - The query parameters to include in the API request.
  *
- * @returns A function to cancel the stream.
+ * @returns A promise that resolves to a function which can be called to cancel the stream.
  */
 export function streamResults<T extends KubeObjectInterface>(
   url: string,
@@ -128,7 +129,10 @@ export function streamResults<T extends KubeObjectInterface>(
   return streamResultsForCluster(url, { cb, errCb, cluster }, queryParams);
 }
 
-// @todo: this interface needs documenting.
+/**
+ * Configuration options for establishing a stream to a cluster.
+ * Groups the cluster name along with the callbacks used to process incoming data and errors.
+ */
 
 export interface StreamResultsParams {
   cb: StreamResultsCb;
@@ -136,7 +140,14 @@ export interface StreamResultsParams {
   cluster?: string;
 }
 
-// @todo: needs documenting
+/**
+ * Establishes a stream to the Kubernetes API for a specific cluster.
+ *
+ * @param url - The Kubernetes API endpoint to stream from.
+ * @param params - The callback functions and cluster information.
+ * @param queryParams - Optional query parameters to append to the request.
+ * @returns A promise that resolves to a function which can be called to cancel the stream.
+ */
 
 export function streamResultsForCluster(
   url: string,
@@ -254,7 +265,7 @@ export function streamResultsForCluster(
         // Reverse sort, so we have the most recent resources at the beginning of the array.
         return 0 - (aTime - bTime);
       });
-      values.splice(0, values.length - maxResources);
+      values.splice(maxResources);
     }
 
     if (isDebugVerbose('k8s/apiProxy@push cb(values)')) {
@@ -390,11 +401,15 @@ export async function connectStream<T>(
   });
 }
 
-// @todo: needs documenting.
-
+/**
+ * Configuration options for establishing a stream.
+ */
 interface StreamParams {
+  /** The name of the cluster to connect to. */
   cluster?: string;
+  /** Whether the stream is expected to receive JSON data. */
   isJson?: boolean;
+  /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
 }
 
@@ -427,6 +442,10 @@ export async function connectStreamWithParams<T>(
   const userID = getUserIdFromLocalStorage();
 
   const protocols = ['base64.binary.k8s.io', ...additionalProtocols];
+  const backendTokenProtocol = getHeadlampWebSocketProtocol();
+  if (backendTokenProtocol !== null) {
+    protocols.push(backendTokenProtocol);
+  }
 
   let fullPath = path;
   let url = '';

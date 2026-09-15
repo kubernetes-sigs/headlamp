@@ -662,9 +662,8 @@ func TestStoreK8sResponseInCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rw := httptest.NewRecorder()
 			rcw := k8cache.NewResponseCapture(rw)
-			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlObj.Path, nil)
 			newCache := NewMockCache()
-			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, r, tc.key)
+			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, tc.key)
 			assert.NoError(t, err)
 		})
 	}
@@ -865,11 +864,7 @@ func TestStoreK8sResponseInCache_SkipSelfSubjectRulesReview(t *testing.T) {
 	rw := httptest.NewRecorder()
 	rcw := k8cache.NewResponseCapture(rw)
 
-	r := httptest.NewRequestWithContext(
-		context.Background(), http.MethodGet, targetURL.Path, nil,
-	)
-
-	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, r, "skip-key")
+	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, "skip-key")
 	assert.NoError(t, err)
 
 	// Key must NOT have been written to the cache.
@@ -897,11 +892,7 @@ func TestStoreK8sResponseInCache_GzipBody(t *testing.T) {
 	rcw.WriteHeader(http.StatusOK)
 	_, _ = rcw.Write(buf.Bytes())
 
-	r := httptest.NewRequestWithContext(
-		context.Background(), http.MethodGet, targetURL.Path, nil,
-	)
-
-	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, r, "gzip-key")
+	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, "gzip-key")
 	assert.NoError(t, err)
 
 	// The stored value must exist and must NOT contain the Content-Encoding header.
@@ -926,11 +917,7 @@ func TestStoreK8sResponseInCache_FailureBodyNotCached(t *testing.T) {
 	rcw.WriteHeader(http.StatusForbidden)
 	_, _ = rcw.Write([]byte(failureBody))
 
-	r := httptest.NewRequestWithContext(
-		context.Background(), http.MethodGet, targetURL.Path, nil,
-	)
-
-	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, r, "failure-key")
+	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, "failure-key")
 	assert.NoError(t, err)
 
 	// Key must NOT have been written to the cache.
@@ -980,11 +967,7 @@ func TestStoreK8sResponseInCache_5xxResponseShouldNotBeCached(t *testing.T) {
 	rcw.WriteHeader(http.StatusBadGateway)
 	_, _ = rcw.Write([]byte(`<html><body>Bad Gateway</body></html>`))
 
-	r := httptest.NewRequestWithContext(
-		context.Background(), http.MethodGet, targetURL.Path, nil,
-	)
-
-	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, r, "infra-error-key")
+	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, "infra-error-key")
 	assert.NoError(t, err)
 
 	// Key must NOT be in cache — infrastructure errors should not be cached

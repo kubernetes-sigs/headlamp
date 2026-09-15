@@ -50,13 +50,14 @@ func main() {
 		return
 	}
 
-	conf, err := config.Parse(os.Args)
+	conf, err := config.ParseWithAppNameDefault(os.Args, kubeconfig.AppName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
 		os.Exit(1)
 	}
 
 	logger.Init(conf.LogLevel)
+	kubeconfig.AppName = conf.AppName
 
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
@@ -81,9 +82,11 @@ func main() {
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
+		AppName:                conf.AppName,
 		UseInCluster:           conf.InCluster,
 		InClusterContextName:   conf.InClusterContextName,
 		KubeConfigPath:         conf.KubeConfigPath,
+		KubeConfigDir:          conf.KubeConfigDir,
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
@@ -109,6 +112,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
+		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,
 		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
 		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
 		TLSCertPath:                           conf.TLSCertPath,
@@ -175,7 +179,7 @@ func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
 				return
 			}
 
-			k8cache.SyncWatchers(active)
+			k8cache.SyncWatchers(k8sResponseCache, active)
 		})
 	})
 }
@@ -259,7 +263,7 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 		return nil, nil, "", nil, err
 	}
 
-	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 		return nil, nil, "", nil, err
@@ -325,7 +329,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 
 	next.ServeHTTP(rcw, r)
 
-	if err := k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key); err != nil {
+	if err := k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, key); err != nil {
 		// Response was already written to client via rcw; just log the cache storage error
 		logger.Log(logger.LevelError, nil, err, "failed to store response in cache")
 	}
@@ -347,7 +351,7 @@ func handleCacheAuthorization(
 		clearRequestAuthorization(r)
 	}
 
-	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
+	isAllowed, authErr := k8cache.IsAllowed(contextKey, kContext, r)
 	if authErr != nil {
 		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
 

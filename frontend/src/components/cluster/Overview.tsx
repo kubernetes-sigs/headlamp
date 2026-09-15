@@ -51,13 +51,14 @@ export default function Overview() {
   const { t } = useTranslation(['translation']);
   // The overview only needs periodic snapshots for aggregate charts. Avoid long-lived
   // watches here because large clusters can stream enough events to exhaust the tab.
-  const [pods] = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const podsQuery = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const [pods] = podsQuery;
   const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
-  const noMetrics = metricsError?.status === 404;
   const noPermissions = metricsError?.status === 403;
+  const noMetrics = metricsError !== null && !noPermissions;
 
   // Process the default charts through any registered processors
   const defaultCharts: OverviewChart[] = [
@@ -79,7 +80,9 @@ export default function Overview() {
     },
     {
       id: 'nodes',
-      component: () => <NodesStatusCircleChart items={nodes} />,
+      component: () => (
+        <NodesStatusCircleChart items={nodes} pods={pods} podsLoaded={podsQuery.isSuccess} />
+      ),
     },
   ];
   const charts = chartProcessors.reduce(

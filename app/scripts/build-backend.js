@@ -13,6 +13,7 @@ const { execSync } = require('child_process');
  * Known mappings:
  * - x64 -> amd64
  * - armv7l -> arm
+ * - ia32 -> 386
  * - arm64 -> (passthrough; already valid for GOARCH)
  *
  * Unknown values are passed through unchanged so existing/custom workflows do not
@@ -25,10 +26,13 @@ function mapElectronArchToGoArch(electronArch) {
   const archMap = {
     x64: 'amd64',
     armv7l: 'arm',
+    ia32: '386',
   };
 
   return archMap[electronArch] || electronArch;
 }
+
+exports.mapElectronArchToGoArch = mapElectronArchToGoArch;
 
 exports.default = async context => {
   const arch = mapElectronArchToGoArch(context.arch);

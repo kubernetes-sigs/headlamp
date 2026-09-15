@@ -97,6 +97,9 @@ export default {
         ],
       },
     },
+    storyshots: {
+      waitForDynamicImports: true,
+    },
   },
   decorators: [
     Story => {

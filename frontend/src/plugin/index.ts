@@ -39,6 +39,7 @@ import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
 import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import * as ResourceMap from '../components/resourceMap';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -52,12 +53,24 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import * as stateless from '../stateless/index';
+import {
+  createPluginRunCommand,
+  findCommandCapability,
+  PluginCommandCapability,
+  preparePluginCommandCapabilities,
+} from './commandCapabilities';
+import {
+  filterDisabledDevelopmentPlugins,
+  getDormantDevelopmentPluginSettings,
+} from './developmentPlugins';
+import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
 import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
 window.pluginLib = {
   ApiProxy,
@@ -74,6 +87,7 @@ window.pluginLib = {
     __esModule: true,
   },
   CommonComponents,
+  ResourceMap,
   MuiMaterial: {
     ...MuiMaterial,
     styles: MuiMaterialStyles,
@@ -112,6 +126,29 @@ window.pluginLib.MuiCore = window.pluginLib.MuiMaterial;
 // @todo: should window.plugins be private?
 // @todo: Should all the plugin objects be in a single window.Headlamp object?
 window.plugins = {};
+
+const PLUGIN_STARTUP_TIMEOUT_MS = 30000;
+
+function remainingStartupTime(deadline: number): number {
+  return Math.max(0, deadline - Date.now());
+}
+
+export async function beforePluginStartupDeadline<T>(
+  promise: Promise<T>,
+  deadline: number
+): Promise<T> {
+  const remaining = remainingStartupTime(deadline);
+  if (remaining === 0) {
+    throw new Error('Plugin startup timed out');
+  }
+
+  let timeout: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => reject(new Error('Plugin startup timed out')), remaining);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
+}
 
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
@@ -282,8 +319,9 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
 /**
  * Updates settings packages based on what the backend provides.
  *
- * - For new plugins (not in settings), includes them with isEnabled=true
- * - For existing plugins (in settings), preserves their isEnabled preference
+ * - Newly discovered shipped plugins use an explicit false enabledByDefault value
+ * - Development and user-installed plugins remain enabled when first discovered
+ * - Existing settings always win, including entries automatically persisted by earlier releases
  * - Returns only plugins that exist in the backend list (automatically removing any that are gone)
  * - Treats plugins with the same name but different types as separate entries
  * - Each plugin is identified by name + type combination
@@ -303,6 +341,7 @@ export function updateSettingsPackages(
 
   const pluginsChanged =
     backendPlugins.length !== settingsPlugins.length ||
+    settingsPlugins.some(plugin => plugin.isDevelopmentModeBlocked) ||
     backendPlugins.map(p => getPluginKey(p) + p.version).join('') !==
       settingsPlugins.map(p => getPluginKey(p) + p.version).join('');
 
@@ -315,18 +354,21 @@ export function updateSettingsPackages(
     const index = settingsPlugins.findIndex(x => x.name === plugin.name && x.type === plugin.type);
 
     if (index === -1) {
-      // It's a new one settings doesn't know about, enable it by default
       return {
         ...plugin,
-        isEnabled: true,
+        isEnabled:
+          (plugin.type ?? 'shipped') !== 'shipped' || plugin.headlamp?.enabledByDefault !== false,
       };
     }
 
+    const settingsPlugin = { ...settingsPlugins[index] };
+    delete settingsPlugin.isDevelopmentModeBlocked;
+
     // Merge settings with backend info, preserving user's isEnabled preference
     return {
-      ...settingsPlugins[index],
+      ...settingsPlugin,
       ...plugin,
-      isEnabled: settingsPlugins[index].isEnabled,
+      isEnabled: settingsPlugin.isEnabled,
     };
   });
 }
@@ -378,39 +420,45 @@ function handlePluginRunError(error: unknown, packageName: string, packageVersio
 
 /**
  * Retry with exponential backoff starting at 50ms, doubling each time and capped at 1000ms.
- * Retries continue until the total accumulated wait reaches 30 seconds.
+ * Retries and response consumption continue only until the absolute deadline.
  *
  * @param url The URL to fetch.
- * @param maxTotalWaitMs Maximum total wait time across retries (default 30000ms).
+ * @param headers Headers to send with the request.
+ * @param consume Reads and transforms the response before the deadline.
+ * @param deadline Absolute timestamp after which no more attempts are made.
  * @param baseDelayMs Initial delay before first retry (default 50ms).
  * @param maxDelayMs Maximum delay per retry (default 1000ms).
- * @returns A promise that resolves to the response of the fetch request.
+ * @returns A promise that resolves to the consumed response.
  */
-async function fetchWithRetry(
+async function fetchWithRetry<T>(
   url: string,
   headers: HeadersInit,
-  maxTotalWaitMs = 30000,
+  consume: (response: Response) => Promise<T>,
+  deadline: number,
   baseDelayMs = 50,
   maxDelayMs = 1000
-): Promise<Response> {
+): Promise<T> {
   let attempt = 0;
-  let totalSlept = 0;
   let lastErr: unknown;
-
-  while (totalSlept < maxTotalWaitMs) {
+  while (Date.now() < deadline) {
     try {
-      const resp = await fetch(url, { headers: new Headers(headers) });
-      if (!resp.ok) throw new Error(`HTTP error: ${resp.status}`);
-      return resp;
+      return await fetchPluginResource(
+        url,
+        headers,
+        async response => {
+          if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+          return consume(response);
+        },
+        deadline - Date.now()
+      );
     } catch (err) {
       lastErr = err;
-      const remaining = maxTotalWaitMs - totalSlept;
+      const remaining = deadline - Date.now();
       if (remaining <= 0) break;
 
       const wait = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs, remaining);
       attempt++;
       await new Promise(res => setTimeout(res, wait));
-      totalSlept += wait;
     }
   }
 
@@ -436,6 +484,7 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  const deadline = Date.now() + PLUGIN_STARTUP_TIMEOUT_MS;
   const permissionSecretsPromise = permissionSecretsFromApp();
 
   const headers = addBackstageAuthHeaders();
@@ -444,60 +493,79 @@ export async function fetchAndExecutePlugins(
   interface PluginMetadata {
     path: string;
     type: 'development' | 'user' | 'shipped';
+    source: 'development' | 'user' | 'shipped';
     name: string;
   }
 
-  const pluginMetadataList = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
-    resp.json()
-  )) as PluginMetadata[];
+  const discoveredPluginMetadata = await fetchWithRetry<PluginMetadata[]>(
+    `${getAppUrl()}plugins`,
+    headers,
+    response => response.json(),
+    deadline
+  );
+  const pluginMetadataList = await filterDisabledDevelopmentPlugins(discoveredPluginMetadata);
+  const dormantDevelopmentPluginSettings = getDormantDevelopmentPluginSettings(
+    discoveredPluginMetadata,
+    pluginMetadataList,
+    settingsPackages
+  );
 
   // Extract paths for fetching plugin files
   const pluginPaths = pluginMetadataList.map(metadata => metadata.path);
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
-      fetch(`${getAppUrl()}${path}/main.js`, { headers: new Headers(headers) }).then(resp =>
-        resp.text()
+      fetchPluginResource(
+        `${getAppUrl()}${path}/main.js`,
+        headers,
+        response => response.text(),
+        remainingStartupTime(deadline)
       )
     )
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
     pluginPaths.map((path, index) =>
-      fetch(`${getAppUrl()}${path}/package.json`, { headers: new Headers(headers) }).then(resp => {
-        if (!resp.ok) {
-          if (resp.status !== 404) {
-            return Promise.reject(resp);
+      fetchPluginResource(
+        `${getAppUrl()}${path}/package.json`,
+        headers,
+        async response => {
+          if (!response.ok) {
+            if (response.status !== 404) {
+              return Promise.reject(response);
+            } else {
+              console.warn(
+                'Missing package.json. ' +
+                  `Please upgrade the plugin ${path}` +
+                  ' by running "headlamp-plugin extract" again.' +
+                  ' Please use headlamp-plugin >= 0.8.0'
+              );
+              return {
+                name: path.split('/').slice(-1)[0],
+                version: '0.0.0',
+                author: 'unknown',
+                description: '',
+                type: pluginMetadataList[index].type,
+                source: pluginMetadataList[index].source,
+                folderName: pluginMetadataList[index].name,
+              };
+            }
           }
-          {
-            console.warn(
-              'Missing package.json. ' +
-                `Please upgrade the plugin ${path}` +
-                ' by running "headlamp-plugin extract" again.' +
-                ' Please use headlamp-plugin >= 0.8.0'
-            );
-            return {
-              name: path.split('/').slice(-1)[0],
-              version: '0.0.0',
-              author: 'unknown',
-              description: '',
-              type: pluginMetadataList[index].type,
-              folderName: pluginMetadataList[index].name,
-            };
-          }
-        }
-        return resp.json().then(json => ({
-          ...json,
-          type: pluginMetadataList[index].type,
-          folderName: pluginMetadataList[index].name,
-        }));
-      })
+          return response.json().then(json => ({
+            ...json,
+            type: pluginMetadataList[index].type,
+            source: pluginMetadataList[index].source,
+            folderName: pluginMetadataList[index].name,
+          }));
+        },
+        remainingStartupTime(deadline)
+      )
     )
   );
 
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
-  const permissionSecrets = await permissionSecretsPromise;
+  const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
 
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
@@ -506,7 +574,7 @@ export async function fetchAndExecutePlugins(
   updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages);
 
   // Notify settings of changes
-  onSettingsChange(updatedSettingsPackages);
+  onSettingsChange([...updatedSettingsPackages, ...dormantDevelopmentPluginSettings]);
 
   // Can set this to a semver version range like '>=0.8.0-alpha.3'.
   // '' means all versions.
@@ -535,7 +603,7 @@ export async function fetchAndExecutePlugins(
   }
 
   // Update settings with compatibility info
-  onSettingsChange(updatedSettingsPackages);
+  onSettingsChange([...updatedSettingsPackages, ...dormantDevelopmentPluginSettings]);
 
   // Filter to only execute plugins that should be loaded
   // A plugin is executed if:
@@ -569,6 +637,26 @@ export async function fetchAndExecutePlugins(
   const sourcesToExecute = indicesToExecute.map(index => sources[index]);
   const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
   const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
+  const secureStorageBridge = window?.desktopApi?.secureStorage;
+  const secureStorageNamespaces = packageInfosToExecute.map(getPluginSecureStorageNamespace);
+  const secureStorageCapabilities: Record<string, string> = secureStorageBridge
+    ? await beforePluginStartupDeadline(
+        secureStorageBridge.register(
+          secureStorageNamespaces.filter((namespace): namespace is string => Boolean(namespace))
+        ),
+        deadline
+      )
+    : {};
+  const commandCapabilitiesBridge = window?.desktopApi?.commandCapabilities;
+  const commandCapabilities: PluginCommandCapability[] = await beforePluginStartupDeadline(
+    preparePluginCommandCapabilities(
+      commandCapabilitiesBridge,
+      packageInfosToExecute,
+      pluginPathsToExecute,
+      sourcesToExecute
+    ),
+    deadline
+  );
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -602,6 +690,10 @@ export async function fetchAndExecutePlugins(
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          if (isPackage['az-auth']) {
+            secretsToReturn['runCmd-scriptjs-az-auth/azure-api.js'] =
+              +secrets['runCmd-scriptjs-az-auth/azure-api.js'];
+          }
           if (isPackage['@headlamp-k8s/minikube']) {
             secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
             if (isDevelopmentMode) {
@@ -619,57 +711,41 @@ export async function fetchAndExecutePlugins(
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
           }
 
+          if (isPackage['azure-aks']) {
+            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
+              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
+          }
+
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
-          // allowedPermissions is the return value of getAllowedPermissions
-          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
-          if (isPackage['@headlamp-k8s/minikube']) {
-            // We construct a pluginRunCommand that has private
-            //  - permission secrets
-            //  - stored desktopApiSend and desktopApiReceive functions that can't be modified
-            function pluginRunCommand(
-              command: 'minikube' | 'az' | 'scriptjs',
-              args: string[],
-              options: {}
-            ): ReturnType<typeof internalRunCommand> {
-              return internalRunCommand(
-                command,
-                args,
-                options,
-                allowedPermissions,
-                pluginDesktopApiSend,
-                pluginDesktopApiReceive
-              );
-            }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
+          const argumentNames: string[] = [];
+          const argumentValues: unknown[] = [];
+          const commandCapability = findCommandCapability(
+            commandCapabilities,
+            packageInfosToExecute[index]
+          );
+          const productRunCommand = createPluginRunCommand(
+            commandCapability,
+            internalRunCommand,
+            allowedPermissions,
+            pluginDesktopApiSend,
+            pluginDesktopApiReceive
+          );
+          if (productRunCommand) {
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(productRunCommand, pluginPath);
+          }
+          const storageNamespace = secureStorageNamespaces[index];
+          const storageCapability = storageNamespace
+            ? secureStorageCapabilities[storageNamespace]
+            : undefined;
+          if (storageCapability && secureStorageBridge) {
+            argumentNames.push('pluginSecureStorage');
+            argumentValues.push(createPluginSecureStorage(storageCapability, secureStorageBridge));
           }
 
-          if (isPackage['@headlamp-k8s/ai-assistant']) {
-            function pluginRunCommand(
-              command: 'gh' | 'az',
-              args: string[],
-              options: {}
-            ): ReturnType<typeof internalRunCommand> {
-              return internalRunCommand(
-                command,
-                args,
-                options,
-                allowedPermissions,
-                pluginDesktopApiSend,
-                pluginDesktopApiReceive
-              );
-            }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
-          }
-
-          return [[], []];
+          return [argumentNames, argumentValues];
         },
         PrivateFunction,
         internalRunPlugin,
@@ -690,20 +766,27 @@ export async function fetchAndExecutePlugins(
   infoForRunningPlugins.forEach(runPluginInner);
 
   // Initialize plugin i18n after plugins are loaded
-  await initializePluginsI18n(packageInfos, pluginPaths);
+  await initializePluginsI18n(packageInfos, pluginPaths, deadline);
 
-  await afterPluginsRun(pluginsLoaded);
+  await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded), deadline);
 }
 
 /**
  * Initialize i18n for all plugins that have i18n configuration
  */
-async function initializePluginsI18n(packageInfos: PluginInfo[], pluginPaths: string[]) {
+async function initializePluginsI18n(
+  packageInfos: PluginInfo[],
+  pluginPaths: string[],
+  deadline: number
+) {
   for (let i = 0; i < packageInfos.length; i++) {
     const packageInfo = packageInfos[i];
     const pluginPath = pluginPaths[i];
 
-    await initializePluginI18n(packageInfo.name, packageInfo, pluginPath);
+    await beforePluginStartupDeadline(
+      initializePluginI18n(packageInfo.name, packageInfo, pluginPath),
+      deadline
+    );
   }
 
   // Set up language change synchronization

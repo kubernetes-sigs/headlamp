@@ -19,7 +19,7 @@ import { styled } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
 import { memo } from 'react';
 import { LightTooltip } from '../../common/Tooltip';
-import { useGraphView, useNode } from '../GraphView';
+import { useGraphView, useNode } from '../graphViewContext';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
 
 const Container = styled('div')(({ theme }) => ({

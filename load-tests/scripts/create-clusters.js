@@ -61,6 +61,6 @@ yargs
     async (argv) => {
       // assertContextKwok();
       await createClusters(argv.numClusters, argv.sleepInterval, argv.delete);
-    }
+    },
   )
   .help().argv;

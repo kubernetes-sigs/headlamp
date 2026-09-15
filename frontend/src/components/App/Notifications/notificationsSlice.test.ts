@@ -28,9 +28,86 @@ describe('loadNotifications', () => {
   it('should return an empty array when localStorage.getItem returns null', () => {
     const orig = Storage.prototype.getItem;
     Storage.prototype.getItem = vi.fn(() => null);
-    const result = loadNotifications();
-    expect(result).toEqual([]);
-    Storage.prototype.getItem = orig;
+    try {
+      const result = loadNotifications();
+      expect(result).toEqual([]);
+    } finally {
+      Storage.prototype.getItem = orig;
+    }
+  });
+
+  it('should return an empty array (not throw) when stored JSON is corrupt', () => {
+    const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    localStorage.setItem('notifications', '{corrupt json');
+    try {
+      expect(loadNotifications()).toEqual([]);
+      expect(spyWarn).toHaveBeenCalledWith(
+        'Failed to parse notifications from localStorage, returning empty array:',
+        expect.any(SyntaxError)
+      );
+    } finally {
+      localStorage.removeItem('notifications');
+      spyWarn.mockRestore();
+    }
+  });
+
+  it('should return an empty array when stored JSON is not an array', () => {
+    localStorage.setItem('notifications', '{"not":"an array"}');
+    try {
+      expect(loadNotifications()).toEqual([]);
+    } finally {
+      localStorage.removeItem('notifications');
+    }
+  });
+
+  it('should return an empty array when stored JSON array contains null entries', () => {
+    localStorage.setItem('notifications', '[null]');
+    try {
+      expect(loadNotifications()).toEqual([]);
+    } finally {
+      localStorage.removeItem('notifications');
+    }
+  });
+
+  it('should return an empty array when stored JSON array contains nested arrays', () => {
+    localStorage.setItem('notifications', '[[]]');
+    try {
+      expect(loadNotifications()).toEqual([]);
+    } finally {
+      localStorage.removeItem('notifications');
+    }
+  });
+
+  it('should skip entries whose message is not a string', () => {
+    localStorage.setItem(
+      'notifications',
+      JSON.stringify([{ id: 'x', message: { length: 300 } }, { id: 'y' }])
+    );
+    try {
+      const result = loadNotifications();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(expect.objectContaining({ id: 'y' }));
+    } finally {
+      localStorage.removeItem('notifications');
+    }
+  });
+
+  it('should return an empty array and log a warning when localStorage.getItem throws', () => {
+    const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const spyGetItem = vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('Storage disabled');
+    });
+
+    try {
+      expect(loadNotifications()).toEqual([]);
+      expect(spyWarn).toHaveBeenCalledWith(
+        'Failed to read notifications from localStorage, returning empty array:',
+        expect.any(Error)
+      );
+    } finally {
+      spyGetItem.mockRestore();
+      spyWarn.mockRestore();
+    }
   });
 });
 

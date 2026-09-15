@@ -1,0 +1,18 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1pr5e03"
+    >
+      <h6
+        class="MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-r34k9t-MuiTypography-root"
+      >
+        No clusters found
+      </h6>
+      <p
+        class="MuiTypography-root MuiTypography-body2 MuiTypography-paragraph css-16b0dx8-MuiTypography-root"
+      >
+        Add a cluster to get started.
+      </p>
+    </div>
+  </div>
+</body>

@@ -18,7 +18,11 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import ListView from './ClassList';
-import { BASE_SC } from './storyHelper';
+import {
+  BASE_SC,
+  BASE_SC_EXPLICIT_EXPANDABLE,
+  BASE_SC_EXPLICIT_NON_EXPANDABLE,
+} from './storyHelper';
 
 export default {
   title: 'StorageClass/ListView',
@@ -47,7 +51,7 @@ Items.parameters = {
         http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () =>
           HttpResponse.json({
             kind: 'StorageClassList',
-            items: [BASE_SC],
+            items: [BASE_SC_EXPLICIT_EXPANDABLE, BASE_SC_EXPLICIT_NON_EXPANDABLE, BASE_SC],
             metadata: {},
           })
         ),

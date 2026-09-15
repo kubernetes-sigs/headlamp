@@ -34,9 +34,10 @@ import { useEffect, useState } from 'react';
  * @param {string} [props.defaultValue=''] - The default value of the input.
  * @param {number} [props.delay=1000] - The delay in milliseconds before the onSave callback is invoked after the user stops typing.
  * @param {string} [props.helperText=''] - Optional helper text to display below the input.
+ * @param {string} [props.ariaLabel=''] - Optional accessibility label for the input.
  * @returns {JSX.Element} The AutoSaveInput component.
  */
-function AutoSaveInput({ onSave, defaultValue = '', delay = 1000, helperText = '' }) {
+function AutoSaveInput({ onSave, defaultValue = '', delay = 1000, helperText = '', ariaLabel = '' }) {
   const [value, setValue] = useState(defaultValue);
   const [timer, setTimer] = useState(null);
 
@@ -69,6 +70,7 @@ function AutoSaveInput({ onSave, defaultValue = '', delay = 1000, helperText = '
         shrink: true,
         style: { display: 'none' },
       }}
+      inputProps={ariaLabel ? { 'aria-label': ariaLabel } : {}}
       helperText={helperText}
       value={value}
       onChange={handleChange}
@@ -121,6 +123,7 @@ export default function Settings() {
           onSave={handleSave}
           delay={1000}
           helperText={'Enter the URL of your logo.'}
+          ariaLabel="Logo URL"
         />
       ),
     },

@@ -191,6 +191,18 @@ describe('configSlice', () => {
       expect(storedSettings.tableRowsPerPageOptions).toEqual(defaultTableRowsPerPageOptions);
       expect(storedSettings.timezone).toEqual(initialState.settings.timezone);
     });
+
+    it('should handle setAppSettings with expandLargeGraph and update localStorage', () => {
+      const settings: Partial<ConfigState['settings']> = {
+        expandLargeGraph: true,
+      };
+      const nextState = configReducer(initialState, setAppSettings(settings));
+
+      expect(nextState.settings.expandLargeGraph).toBe(true);
+
+      const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+      expect(storedSettings.expandLargeGraph).toBe(true);
+    });
   });
 
   it('should not modify the original state', () => {
