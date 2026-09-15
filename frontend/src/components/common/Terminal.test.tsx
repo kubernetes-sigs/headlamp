@@ -157,6 +157,18 @@ describe('Terminal', () => {
       });
       expect(send).toHaveBeenCalledTimes(2);
     });
+
+    it('stops the keepalive when the terminal is unmounted', async () => {
+      const send = vi.fn();
+      const { unmount } = await renderConnectedTerminal(send);
+
+      unmount();
+      act(() => {
+        vi.advanceTimersByTime(60 * 1000);
+      });
+
+      expect(send).not.toHaveBeenCalled();
+    });
   });
 
   describe('initialContainer', () => {
