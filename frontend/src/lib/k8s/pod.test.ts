@@ -218,6 +218,111 @@ describe('Pod class', () => {
       expect(pod.getHealth()).toBe('healthy');
     });
   });
+
+  describe('getDetailedStatus restarts', () => {
+    it('preserves init container restarts after the pod has initialized', () => {
+      const pod = new Pod({
+        ...mockPodData,
+        spec: {
+          initContainers: [{ name: 'init-setup', restartPolicy: 'OnFailure' }],
+          containers: [{ name: 'app' }],
+        },
+        status: {
+          phase: 'Running',
+          initContainerStatuses: [
+            {
+              name: 'init-setup',
+              restartCount: 3,
+              state: { terminated: { exitCode: 0, reason: 'Completed' } },
+            },
+          ],
+          containerStatuses: [
+            {
+              name: 'app',
+              restartCount: 1,
+              ready: true,
+              state: { running: { startedAt: '2020-01-01T00:00:00Z' } },
+            },
+          ],
+          conditions: [
+            { type: 'Initialized', status: 'True' },
+            { type: 'Ready', status: 'True' },
+          ],
+        },
+      } as any);
+
+      const status = pod.getDetailedStatus();
+      expect(status.restarts).toBe(4);
+      expect(status.reason).toBe('Running');
+    });
+
+    it('accumulates restarts across multiple init containers', () => {
+      const pod = new Pod({
+        ...mockPodData,
+        spec: {
+          initContainers: [{ name: 'init-1' }, { name: 'init-2' }],
+          containers: [{ name: 'app' }],
+        },
+        status: {
+          phase: 'Running',
+          initContainerStatuses: [
+            {
+              name: 'init-1',
+              restartCount: 2,
+              state: { terminated: { exitCode: 0 } },
+            },
+            {
+              name: 'init-2',
+              restartCount: 4,
+              state: { terminated: { exitCode: 0 } },
+            },
+          ],
+          containerStatuses: [
+            {
+              name: 'app',
+              restartCount: 0,
+              ready: true,
+              state: { running: { startedAt: '2020-01-01T00:00:00Z' } },
+            },
+          ],
+          conditions: [{ type: 'Initialized', status: 'True' }],
+        },
+      } as any);
+
+      const status = pod.getDetailedStatus();
+      expect(status.restarts).toBe(6);
+    });
+
+    it('includes restarts from ephemeral containers', () => {
+      const pod = new Pod({
+        ...mockPodData,
+        spec: {
+          containers: [{ name: 'app' }],
+        },
+        status: {
+          phase: 'Running',
+          containerStatuses: [
+            {
+              name: 'app',
+              restartCount: 1,
+              ready: true,
+              state: { running: { startedAt: '2020-01-01T00:00:00Z' } },
+            },
+          ],
+          ephemeralContainerStatuses: [
+            {
+              name: 'debugger',
+              restartCount: 2,
+              state: { running: { startedAt: '2020-01-01T00:05:00Z' } },
+            },
+          ],
+        },
+      } as any);
+
+      const status = pod.getDetailedStatus();
+      expect(status.restarts).toBe(3);
+    });
+  });
 });
 
 describe('Pod.addEphemeralContainer targetContainerName', () => {
