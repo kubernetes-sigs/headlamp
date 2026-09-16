@@ -173,6 +173,21 @@ describe('PluginSecureStorage', () => {
   let directory: string;
   let storagePath: string;
   let storage: PluginSecureStorage;
+  const namespace = 'shipped--aks-desktop';
+  const key = 'aks-desktop:github-auth';
+  const scoped = `${namespace}:${key}`;
+  const ciphertext = Buffer.from('encrypted:token').toString('base64');
+
+  /**
+   * Seeds the upgrade store without invoking the API being tested.
+   * @param entries - Additional or overriding encrypted entries.
+   * @returns The persisted bytes for failure-preservation assertions.
+   */
+  function seedLegacy(entries: Record<string, string> = {}): string {
+    const original = JSON.stringify({ [key]: ciphertext, ...entries });
+    fs.writeFileSync(storagePath, original);
+    return original;
+  }
 
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-secure-storage-'));
@@ -180,8 +195,12 @@ describe('PluginSecureStorage', () => {
     storage = new PluginSecureStorage(storagePath);
     backend.value = 'secret_service';
     encryptionAvailable.value = true;
-    vi.mocked(safeStorage.encryptString).mockClear();
-    vi.mocked(safeStorage.decryptString).mockClear();
+    vi.mocked(safeStorage.encryptString)
+      .mockReset()
+      .mockImplementation(value => Buffer.from(`encrypted:${value}`));
+    vi.mocked(safeStorage.decryptString)
+      .mockReset()
+      .mockImplementation(value => value.toString().replace(/^encrypted:/, ''));
   });
 
   afterEach(() => {
@@ -200,6 +219,162 @@ describe('PluginSecureStorage', () => {
       success: true,
       value: 'second',
     });
+  });
+
+  it('moves legacy AKS GitHub ciphertext only into the shipped plugin namespace', () => {
+    const original = seedLegacy();
+
+    for (const other of ['user--aks-desktop', 'development--aks-desktop', 'shipped--other']) {
+      expect(storage.load(other, key)).toEqual({ success: true, value: null });
+    }
+    expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+    expect(storage.load(namespace, 'other-key')).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(storage.load(namespace, key)).toEqual({
+      success: true,
+      value: 'token',
+    });
+    expect(readSecureStorageFile(storagePath)).toEqual({ [scoped]: ciphertext });
+    expect(safeStorage.encryptString).not.toHaveBeenCalled();
+    expect(storage.load(namespace, key).value).toBe('token');
+  });
+
+  it('keeps the scoped GitHub token when retiring a stale legacy copy', () => {
+    const currentToken = Buffer.from('encrypted:current-token').toString('base64');
+    seedLegacy({ [scoped]: currentToken });
+    expect(storage.load(namespace, key).value).toBe('current-token');
+    expect(readSecureStorageFile(storagePath)).toEqual({ [scoped]: currentToken });
+  });
+
+  it('preserves the legacy token when decryption or migration persistence fails', () => {
+    const original = seedLegacy();
+    vi.mocked(safeStorage.decryptString).mockImplementationOnce(() => {
+      throw new Error('locked keychain');
+    });
+    expect(storage.load('shipped--aks-desktop', key).success).toBe(false);
+    expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('read-only storage');
+    });
+    try {
+      expect(storage.load('shipped--aks-desktop', key).success).toBe(false);
+      expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+    } finally {
+      rename.mockRestore();
+    }
+    expect(storage.load('shipped--aks-desktop', key).value).toBe('token');
+  });
+
+  describe.each(['load', 'save'] as const)('%s migration quotas', operation => {
+    it.each([
+      { quota: 'entry', count: 255, keepLegacy: false, allowed: true },
+      { quota: 'entry', count: 256, keepLegacy: false, allowed: false },
+      { quota: 'namespace', count: 254, keepLegacy: true, allowed: true },
+      { quota: 'namespace', count: 255, keepLegacy: true, allowed: false },
+      { quota: 'namespace', count: 255, keepLegacy: false, allowed: true },
+    ])('checks the resulting store: %j', ({ quota, count, keepLegacy, allowed }) => {
+      const entryQuota = quota === 'entry';
+      const original = seedLegacy({
+        ...Object.fromEntries(
+          Array.from({ length: count }, (_, index) => [
+            entryQuota ? `${namespace}:key-${index}` : `plugin-${index}:token`,
+            ciphertext,
+          ])
+        ),
+        ...(keepLegacy ? { 'aks-desktop:other-key': ciphertext } : {}),
+      });
+      const expectedValue = operation === 'load' ? 'token' : 'fresh-token';
+      const migrate = () =>
+        operation === 'load'
+          ? storage.load(namespace, key)
+          : storage.save(namespace, key, expectedValue);
+      if (!entryQuota && count === 255) {
+        expect(storage.save('user--aks-desktop', key, 'user-token').success).toBe(false);
+        expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+      }
+      if (!allowed) {
+        expect(migrate()).toEqual({ success: false, error: `Storage ${quota} limit reached` });
+        expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+        expect(
+          storage.delete(entryQuota ? namespace : 'plugin-0', entryQuota ? 'key-0' : 'token')
+            .success
+        ).toBe(true);
+      }
+      expect(migrate().success).toBe(true);
+      expect(storage.load(namespace, key)).toEqual({ success: true, value: expectedValue });
+      const persisted = readSecureStorageFile(storagePath);
+      expect(persisted[key]).toBeUndefined();
+      const keys = Object.keys(persisted);
+      expect(
+        entryQuota
+          ? keys.filter(entry => entry.startsWith(`${namespace}:`)).length
+          : new Set(keys.map(entry => entry.split(':')[0])).size
+      ).toBe(256);
+    });
+  });
+
+  it.each(['encryption', 'persistence'])(
+    'preserves the legacy token when saving its replacement fails during %s',
+    failure => {
+      const original = seedLegacy(
+        Object.fromEntries(
+          Array.from({ length: 255 }, (_, index) => [`plugin-${index}:token`, ciphertext])
+        )
+      );
+      const failedOperation =
+        failure === 'encryption'
+          ? vi.mocked(safeStorage.encryptString)
+          : vi.spyOn(fs, 'renameSync');
+      failedOperation.mockImplementationOnce(() => {
+        throw new Error('operation failed');
+      });
+      try {
+        expect(storage.save(namespace, key, 'fresh-token')).toEqual({
+          success: false,
+          error: 'Unable to save secure storage value',
+        });
+        expect(failedOperation).toHaveBeenCalled();
+        expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+      } finally {
+        if (failure === 'persistence') failedOperation.mockRestore();
+        else
+          vi.mocked(safeStorage.encryptString)
+            .mockReset()
+            .mockImplementation(value => Buffer.from(`encrypted:${value}`));
+      }
+    }
+  );
+
+  it('can retire a legacy copy when the scoped namespace is already at its entry limit', () => {
+    seedLegacy({
+      ...Object.fromEntries(
+        Array.from({ length: 255 }, (_, index) => [`${namespace}:key-${index}`, ciphertext])
+      ),
+      [scoped]: ciphertext,
+      [key]: Buffer.from('encrypted:stale').toString('base64'),
+    });
+    expect(storage.load(namespace, key)).toEqual({ success: true, value: 'token' });
+    expect(Object.keys(readSecureStorageFile(storagePath))).toHaveLength(256);
+    expect(readSecureStorageFile(storagePath)[key]).toBeUndefined();
+  });
+
+  it('retires legacy GitHub tokens on save and delete without reviving signed-out users', () => {
+    seedLegacy();
+    expect(storage.save('user--aks-desktop', key, 'user-token').success).toBe(true);
+    expect(readSecureStorageFile(storagePath)[key]).toBe(ciphertext);
+    expect(storage.save('shipped--aks-desktop', key, 'new-token').success).toBe(true);
+    expect(readSecureStorageFile(storagePath)[key]).toBeUndefined();
+    seedLegacy(readSecureStorageFile(storagePath));
+    expect(storage.delete('shipped--aks-desktop', key).success).toBe(true);
+    expect(storage.load('shipped--aks-desktop', key)).toEqual({ success: true, value: null });
+    expect(storage.load('user--aks-desktop', key).value).toBe('user-token');
+    seedLegacy();
+    expect(storage.delete('user--aks-desktop', key).success).toBe(true);
+    expect(readSecureStorageFile(storagePath)[key]).toBe(ciphertext);
+    expect(storage.delete('shipped--aks-desktop', key).success).toBe(true);
+    expect(storage.load('shipped--aks-desktop', key).value).toBeNull();
   });
 
   it('deletes only the calling plugin value', () => {
@@ -395,6 +570,47 @@ describe('PluginSecureStorage', () => {
 });
 
 describe('setupSecureStorageHandlers', () => {
+  it('requires the shipped capability and trusted frame before migrating the legacy token', t => {
+    const trustedStartUrl = 'file:///trusted/headlamp/index.html';
+    const mainFrame = { url: trustedStartUrl };
+    const webContents = { mainFrame, on: vi.fn() };
+    const event = { sender: webContents, senderFrame: mainFrame };
+    userDataPath.value = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-legacy-token-ipc-'));
+    const storagePath = path.join(userDataPath.value, 'secure-storage.json');
+    t.onTestFinished(() => fs.rmSync(userDataPath.value, { recursive: true, force: true }));
+    const key = 'aks-desktop:github-auth';
+    const original = JSON.stringify({
+      [key]: Buffer.from('encrypted:refresh-token').toString('base64'),
+    });
+    fs.writeFileSync(storagePath, original);
+    handlers.clear();
+    setupSecureStorageHandlers({ webContents } as never, trustedStartUrl);
+    const register = handlers.get(SECURE_STORAGE_REGISTER)!;
+    const load = handlers.get(SECURE_STORAGE_LOAD)!;
+    const capabilities = register(event, ['user--aks-desktop', 'shipped--aks-desktop']) as Record<
+      string,
+      string
+    >;
+    const shipped = capabilities['shipped--aks-desktop'];
+    expect(load(event, 'shipped--aks-desktop', key)).toMatchObject({ success: false });
+    expect(load(event, capabilities['user--aks-desktop'], key)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(load({ sender: {}, senderFrame: mainFrame }, shipped, key)).toMatchObject({
+      success: false,
+    });
+    expect(
+      load({ sender: webContents, senderFrame: { url: trustedStartUrl } }, shipped, key)
+    ).toMatchObject({ success: false });
+    mainFrame.url = 'https://untrusted.example/';
+    expect(load(event, shipped, key)).toMatchObject({ success: false });
+    expect(fs.readFileSync(storagePath, 'utf8')).toBe(original);
+    mainFrame.url = trustedStartUrl;
+    expect(load(event, shipped, key)).toEqual({ success: true, value: 'refresh-token' });
+    expect(readSecureStorageFile(storagePath)[key]).toBeUndefined();
+  });
+
   it('revokes capabilities while a new main-frame document is loading', () => {
     const listeners = new Map<string, (...args: unknown[]) => void>();
     const trustedStartUrl = 'file:///trusted/headlamp/index.html';
