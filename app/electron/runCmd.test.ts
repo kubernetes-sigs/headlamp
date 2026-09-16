@@ -1446,6 +1446,125 @@ describe('handleRunCommand', () => {
     fs.rmSync(externalRoot, { recursive: true, force: true });
   });
 
+  it.each([
+    {
+      source: 'shipped',
+      denied: false,
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: false,
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    { source: 'shipped', denied: true, authorized: true, approved: true, prompt: false, exit: -3 },
+    {
+      source: 'shipped',
+      denied: 'legacy',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: -3,
+    },
+    { source: 'shipped', denied: 'v1', authorized: true, approved: true, prompt: false, exit: -3 },
+    {
+      source: 'shipped',
+      denied: 'display',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: -3,
+    },
+    {
+      source: 'shipped',
+      denied: false,
+      authorized: false,
+      approved: true,
+      prompt: false,
+      exit: -2,
+    },
+    { source: 'shipped', denied: false, authorized: true, approved: false, prompt: true, exit: -3 },
+    {
+      source: 'development',
+      denied: false,
+      authorized: true,
+      approved: false,
+      prompt: true,
+      exit: -3,
+    },
+    { source: 'user', denied: false, authorized: true, approved: true, prompt: true, exit: -3 },
+  ] as const)(
+    'limits command-list approval ($source, denied=$denied, authorized=$authorized, approved=$approved)',
+    async ({ source, denied, authorized, approved, prompt, exit }) => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      if (prompt) showMessageBoxSyncMock.mockReturnValueOnce(1);
+      const { loadSettings, saveSettings } = await import('./settings');
+      if (authorized) {
+        const denialKey =
+          denied === 'legacy'
+            ? 'examplectl project'
+            : denied === 'v1'
+            ? `run-command-consent:v1:${JSON.stringify([
+                '@example/plugin@example-plugin',
+                'examplectl',
+                ['project'],
+              ])}`
+            : denied === 'display'
+            ? '@example/plugin@example-plugin: examplectl project'
+            : productConsentKey(source, 'examplectl', ['project']);
+        vi.mocked(loadSettings).mockReturnValueOnce({
+          confirmedCommands: denied ? { [denialKey]: false } : {},
+        });
+      }
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'preapproved-id',
+          command: 'examplectl',
+          args: [authorized ? 'project' : 'admin', approved ? 'list' : 'delete'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              bundleName: 'example-plugin',
+              packageName: '@example/plugin',
+              source,
+              approvedCommands: [{ tool: 'examplectl', args: ['project', 'list'] }],
+              grants: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).toHaveBeenCalledTimes(prompt ? 1 : 0);
+      if (exit === undefined) {
+        expect(spawnMock).toHaveBeenCalledOnce();
+        expect(saveSettings).not.toHaveBeenCalled();
+        childEmitter.emit('close', 0);
+      } else {
+        expect(spawnMock).not.toHaveBeenCalled();
+        expect(sentMessages).toEqual([['command-exit', 'preapproved-id', exit]]);
+      }
+    }
+  );
+
   it('stores product consent with an unambiguous argument-vector key', async () => {
     const capability = 'a'.repeat(64);
     fakeEvent.sender.id = 7;
