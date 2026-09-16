@@ -1489,6 +1489,359 @@ describe('handleRunCommand', () => {
     fs.rmSync(externalRoot, { recursive: true, force: true });
   });
 
+  it.each([
+    {
+      source: 'shipped',
+      denied: false,
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: false,
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    { source: 'shipped', denied: true, authorized: true, approved: true, prompt: false, exit: -3 },
+    {
+      source: 'shipped',
+      denied: 'legacy',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'shipped',
+      denied: 'v1',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'shipped',
+      denied: 'display',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: 'legacy',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: 'v1',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: 'display',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'shipped',
+      denied: false,
+      authorized: false,
+      approved: true,
+      prompt: false,
+      exit: -2,
+    },
+    { source: 'shipped', denied: false, authorized: true, approved: false, prompt: true, exit: -3 },
+    {
+      source: 'development',
+      denied: false,
+      authorized: true,
+      approved: false,
+      prompt: true,
+      exit: -3,
+    },
+    { source: 'user', denied: false, authorized: true, approved: true, prompt: true, exit: -3 },
+  ] as const)(
+    'limits command-list approval ($source, denied=$denied, authorized=$authorized, approved=$approved)',
+    async ({ source, denied, authorized, approved, prompt, exit }) => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      if (prompt) showMessageBoxSyncMock.mockReturnValueOnce(1);
+      const { loadSettings, saveSettings } = await import('./settings');
+      if (authorized) {
+        const denialKey =
+          denied === 'legacy'
+            ? 'examplectl project'
+            : denied === 'v1'
+            ? `run-command-consent:v1:${JSON.stringify([
+                '@example/plugin@example-plugin',
+                'examplectl',
+                ['project'],
+              ])}`
+            : denied === 'display'
+            ? '@example/plugin@example-plugin: examplectl project'
+            : productConsentKey(source, 'examplectl', ['project']);
+        vi.mocked(loadSettings).mockReturnValueOnce({
+          confirmedCommands: denied ? { [denialKey]: false } : {},
+        });
+      }
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'preapproved-id',
+          command: 'examplectl',
+          args: [authorized ? 'project' : 'admin', approved ? 'list' : 'delete'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              bundleName: 'example-plugin',
+              packageName: '@example/plugin',
+              source,
+              approvedCommands: [{ tool: 'examplectl', args: ['project', 'list'] }],
+              grants: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).toHaveBeenCalledTimes(prompt ? 1 : 0);
+      if (exit === undefined) {
+        expect(spawnMock).toHaveBeenCalledOnce();
+        expect(saveSettings).not.toHaveBeenCalled();
+        childEmitter.emit('close', 0);
+      } else {
+        expect(spawnMock).not.toHaveBeenCalled();
+        expect(sentMessages).toEqual([['command-exit', 'preapproved-id', exit]]);
+      }
+    }
+  );
+
+  it.each(['legacy', 'v1', 'display'] as const)(
+    'honors an applicable %s denial over a product approval',
+    async denied => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      const pluginLabel = '@headlamp-k8s/ai-assistant@headlamp_ai-assistant';
+      const denialKey =
+        denied === 'legacy'
+          ? 'gh auth'
+          : denied === 'v1'
+          ? `run-command-consent:v1:${JSON.stringify([pluginLabel, 'gh', ['auth']])}`
+          : `${pluginLabel}: gh auth`;
+      const { loadSettings, saveSettings } = await import('./settings');
+      vi.mocked(loadSettings).mockReturnValueOnce({
+        confirmedCommands: { [denialKey]: false },
+      });
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'applicable-denial-id',
+          command: 'gh',
+          args: ['auth', 'status'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              bundleName: 'headlamp_ai-assistant',
+              packageName: '@headlamp-k8s/ai-assistant',
+              source: 'development',
+              approvedCommands: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              grants: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(saveSettings).not.toHaveBeenCalled();
+      expect(sentMessages).toEqual([['command-exit', 'applicable-denial-id', -3]]);
+    }
+  );
+
+  it('honors a matching v2 denial after the product broadens its reviewed prefix', async () => {
+    const capability = 'a'.repeat(64);
+    fakeEvent.sender.id = 7;
+    showMessageBoxSyncMock.mockClear();
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({
+      confirmedCommands: {
+        [productConsentKey('shipped', 'examplectl', ['project', 'list'])]: false,
+      },
+    });
+    vi.mocked(saveSettings).mockClear();
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'updated-policy-denial-id',
+        command: 'examplectl',
+        args: ['project', 'list'],
+        options: {},
+        permissionSecrets: {},
+        capability,
+      },
+      { id: 1 } as any,
+      {},
+      new Map([
+        [
+          capability,
+          {
+            bundleName: 'example-plugin',
+            packageName: '@example/plugin',
+            source: 'shipped',
+            approvedCommands: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+            grants: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+            webContentsId: 7,
+          },
+        ],
+      ])
+    );
+
+    expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(saveSettings).not.toHaveBeenCalled();
+    expect(sentMessages).toEqual([['command-exit', 'updated-policy-denial-id', -3]]);
+  });
+
+  it.each(['legacy', 'v1', 'display'] as const)(
+    'prefers a newer v2 denial over an older %s approval',
+    async approved => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      const identity = {
+        source: 'development',
+        packageName: '@headlamp-k8s/ai-assistant',
+        bundleName: 'headlamp_ai-assistant',
+      } as const;
+      const pluginLabel = `${identity.packageName}@${identity.bundleName}`;
+      const legacyApprovalKey =
+        approved === 'legacy'
+          ? 'gh auth'
+          : approved === 'v1'
+          ? `run-command-consent:v1:${JSON.stringify([pluginLabel, 'gh', ['auth']])}`
+          : `${pluginLabel}: gh auth`;
+      const previousV2Key = `run-command-consent:v2:${JSON.stringify([
+        identity,
+        'gh',
+        ['auth', 'status'],
+      ])}`;
+      const { loadSettings, saveSettings } = await import('./settings');
+      vi.mocked(loadSettings).mockReturnValueOnce({
+        confirmedCommands: {
+          [legacyApprovalKey]: true,
+          [previousV2Key]: false,
+        },
+      });
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'newer-v2-denial-id',
+          command: 'gh',
+          args: ['auth', 'status'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              ...identity,
+              approvedCommands: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              grants: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(saveSettings).not.toHaveBeenCalled();
+      expect(sentMessages).toEqual([['command-exit', 'newer-v2-denial-id', -3]]);
+    }
+  );
+
+  it('runs an authorized no-argument product approval without prompting', async () => {
+    const capability = 'a'.repeat(64);
+    fakeEvent.sender.id = 7;
+    showMessageBoxSyncMock.mockClear();
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'no-argument-approval-id',
+        command: 'examplectl',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+        capability,
+      },
+      { id: 1 } as any,
+      {},
+      new Map([
+        [
+          capability,
+          {
+            bundleName: 'example-plugin',
+            packageName: '@example/plugin',
+            source: 'shipped',
+            approvedCommands: [{ tool: 'examplectl', args: [] }],
+            grants: [{ tool: 'examplectl', args: [] }],
+            webContentsId: 7,
+          },
+        ],
+      ])
+    );
+
+    expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(saveSettings).not.toHaveBeenCalled();
+    childEmitter.emit('close', 0);
+  });
+
   it('stores product consent with an unambiguous argument-vector key', async () => {
     const capability = 'a'.repeat(64);
     fakeEvent.sender.id = 7;

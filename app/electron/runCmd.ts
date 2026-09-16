@@ -77,6 +77,8 @@ export interface ProductPluginCommandPolicy {
   packageName: string;
   /** Inventory containing the authorized plugin. */
   source: 'development' | 'user' | 'shipped';
+  /** Commands approved by the product in addition to, not instead of, authorization grants. */
+  approvedCommands?: RunCommandGrant[];
   /** App-owned installation provenance required for managed plugin inventories. */
   artifactHub?: {
     repository: string;
@@ -184,6 +186,68 @@ type PluginConsentIdentity = Pick<
   RegisteredPluginCommandCapability,
   'source' | 'packageName' | 'bundleName'
 >;
+
+const PRODUCT_CONSENT_KEY_PREFIX = 'run-command-consent:v2:';
+
+function hasMatchingProductDenial(
+  confirmedCommands: unknown,
+  pluginIdentity: PluginConsentIdentity | undefined,
+  command: string,
+  args: string[]
+): boolean {
+  if (
+    !pluginIdentity ||
+    typeof confirmedCommands !== 'object' ||
+    confirmedCommands === null ||
+    Array.isArray(confirmedCommands)
+  ) {
+    return false;
+  }
+
+  for (const [key, decision] of Object.entries(confirmedCommands)) {
+    if (decision !== false || !key.startsWith(PRODUCT_CONSENT_KEY_PREFIX)) {
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(key.slice(PRODUCT_CONSENT_KEY_PREFIX.length));
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) {
+        throw error;
+      }
+      continue;
+    }
+    if (!Array.isArray(parsed) || parsed.length !== 3) {
+      continue;
+    }
+
+    const [identity, savedCommand, savedArgs] = parsed;
+    if (
+      typeof identity !== 'object' ||
+      identity === null ||
+      Array.isArray(identity) ||
+      (identity as Partial<PluginConsentIdentity>).source !== pluginIdentity.source ||
+      (identity as Partial<PluginConsentIdentity>).packageName !== pluginIdentity.packageName ||
+      (identity as Partial<PluginConsentIdentity>).bundleName !== pluginIdentity.bundleName ||
+      savedCommand !== command ||
+      !Array.isArray(savedArgs) ||
+      savedArgs.some(argument => typeof argument !== 'string')
+    ) {
+      continue;
+    }
+
+    const coversRequest =
+      savedArgs.length === 0
+        ? args.length === 0
+        : savedArgs.length <= args.length &&
+          savedArgs.every((argument, index) => argument === args[index]);
+    if (coversRequest) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Filters product command policies to plugins currently installed in their declared inventories.
@@ -362,7 +426,8 @@ function checkCommandConsent(
   args: string[],
   mainWindow: BrowserWindow,
   pluginIdentity?: PluginConsentIdentity,
-  consentArgs: string[] = args.slice(0, 1)
+  consentArgs: string[] = args.slice(0, 1),
+  preapproved = false
 ): boolean {
   const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
@@ -384,7 +449,7 @@ function checkCommandConsent(
     displayCommand += ' ' + consentArgs.join(' ');
   }
   const consentKey = pluginIdentity
-    ? `run-command-consent:v2:${JSON.stringify([consentIdentity, command, consentArgs])}`
+    ? `${PRODUCT_CONSENT_KEY_PREFIX}${JSON.stringify([consentIdentity, command, consentArgs])}`
     : displayCommand;
   const previousPluginConsentKey = pluginLabel
     ? `run-command-consent:v1:${JSON.stringify([pluginLabel, command, consentArgs])}`
@@ -399,8 +464,9 @@ function checkCommandConsent(
   const mayUseSourceLessLegacyConsent =
     !pluginIdentity || legacyPluginCommands?.has(legacyConsentKey) === true;
 
+  const currentProductDecision: boolean | undefined = confirmedCommands?.[consentKey];
   const savedCommand: boolean | undefined = confirmedCommands
-    ? confirmedCommands[consentKey] ??
+    ? currentProductDecision ??
       (mayUseScopedLegacyConsent && previousPluginConsentKey
         ? confirmedCommands[previousPluginConsentKey]
         : undefined) ??
@@ -408,10 +474,15 @@ function checkCommandConsent(
       (mayUseSourceLessLegacyConsent ? confirmedCommands[legacyConsentKey] : undefined)
     : undefined;
 
-  if (savedCommand === false) {
+  const deniedPreviousProductApproval =
+    currentProductDecision === undefined &&
+    preapproved &&
+    hasMatchingProductDenial(confirmedCommands, pluginIdentity, command, args);
+  if (savedCommand === false || deniedPreviousProductApproval) {
     console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
     return false;
   } else if (savedCommand === undefined) {
+    if (preapproved) return true;
     const commandChoice = confirmCommandDialog(displayCommand, mainWindow);
     if (settings?.confirmedCommands === undefined) {
       settings.confirmedCommands = {};
@@ -666,13 +737,12 @@ export function removeRunCmdConsent(pluginName: string, bundleName?: string): vo
     delete settings.confirmedCommands[command];
   }
   if (bundleName) {
-    const prefix = 'run-command-consent:v2:';
     for (const consentKey of Object.keys(settings.confirmedCommands)) {
-      if (!consentKey.startsWith(prefix)) {
+      if (!consentKey.startsWith(PRODUCT_CONSENT_KEY_PREFIX)) {
         continue;
       }
       try {
-        const [identity] = JSON.parse(consentKey.slice(prefix.length));
+        const [identity] = JSON.parse(consentKey.slice(PRODUCT_CONSENT_KEY_PREFIX.length));
         if (identity?.packageName === pluginName && identity?.bundleName === bundleName) {
           delete settings.confirmedCommands[consentKey];
         }
@@ -946,7 +1016,14 @@ export async function handleRunCommand(
       commandData.args,
       mainWindow,
       registeredCapability ? registeredCapability : undefined,
-      capabilityGrant?.args
+      capabilityGrant?.args,
+      (registeredCapability?.source === 'shipped' ||
+        registeredCapability?.source === 'development') &&
+        isRunCommandAllowed(
+          registeredCapability.approvedCommands ?? [],
+          commandData.command,
+          commandData.args
+        )
     )
   ) {
     sendRejectedExit(-3);
