@@ -1,4 +1,5 @@
 {
+  "$schema": "./app-build-manifest.schema.json",
   "proxy-urls": ["https://artifacthub.io/*"],
   "plugins": [
     {
@@ -15,6 +16,257 @@
       "name": "prometheus",
       "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.9.1/prometheus-0.9.1.tar.gz",
       "sha256": "06afabe42da69e8e0c5c2632acc3fee020566825d2ae71ff8e4f3dd7f78fc4ae"
+    }
+  ],
+  "$comment": "Docs for runCommands: ../docs/development/plugins/command-capabilities.md",
+  "commandSets": {
+    "minikube": [
+      { "tool": "minikube", "args": ["start"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["stop"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["delete"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["status"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["service"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["logs"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["addons"], "allowTrailingArgs": true },
+      { "tool": "minikube", "args": ["ssh"], "allowTrailingArgs": true }
+    ],
+    "minikube-local-script": [
+      {
+        "tool": "scriptjs",
+        "args": ["minikube/manage-minikube.js"],
+        "allowTrailingArgs": true
+      }
+    ],
+    "minikube-script": [
+      {
+        "tool": "scriptjs",
+        "args": ["headlamp_minikube/manage-minikube.js"],
+        "allowTrailingArgs": true
+      }
+    ],
+    "minikube-prerelease-script": [
+      {
+        "tool": "scriptjs",
+        "args": ["headlamp_minikubeprerelease/manage-minikube.js"],
+        "allowTrailingArgs": true
+      }
+    ],
+    "ai-assistant": [
+      { "tool": "gh", "args": ["auth"], "allowTrailingArgs": true },
+      { "tool": "az", "args": ["account"], "allowTrailingArgs": true },
+      { "tool": "az", "args": ["cognitiveservices"], "allowTrailingArgs": true }
+    ]
+  },
+  "runCommands": [
+    {
+      "environment": "development",
+      "pluginLocation": "development",
+      "plugins": [{ "bundleName": "minikube", "packageName": "@headlamp-k8s/minikube" }],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-local-script"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "user",
+      "plugins": [{ "bundleName": "headlamp_minikube", "packageName": "@headlamp-k8s/minikube" }],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-script"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "development",
+      "plugins": [{ "bundleName": "headlamp_minikube", "packageName": "@headlamp-k8s/minikube" }],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-script"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "user",
+      "plugins": [
+        {
+          "bundleName": "headlamp_minikubeprerelease",
+          "packageName": "@headlamp-k8s/minikubeprerelease"
+        }
+      ],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-prerelease-script"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "development",
+      "plugins": [
+        {
+          "bundleName": "headlamp_minikubeprerelease",
+          "packageName": "@headlamp-k8s/minikubeprerelease"
+        }
+      ],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-prerelease-script"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "user",
+      "plugins": [
+        {
+          "bundleName": "headlamp_minikube",
+          "packageName": "@headlamp-k8s/minikube",
+          "artifactHubPackage": "headlamp-plugins/headlamp_minikube",
+          "artifactHubPackageId": "fbc182b5-eb90-42b7-ace8-62a7576abafd",
+          "artifactHubRepositoryId": "767e1f40-ee09-401b-b8d4-930740da5a8a"
+        }
+      ],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-script"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "development",
+      "plugins": [
+        {
+          "bundleName": "headlamp_minikube",
+          "packageName": "@headlamp-k8s/minikube"
+        }
+      ],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-script"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "user",
+      "plugins": [
+        {
+          "bundleName": "headlamp_minikubeprerelease",
+          "packageName": "@headlamp-k8s/minikubeprerelease",
+          "artifactHubPackage": "illumetestplugins/headlamp_minikubeprerelease",
+          "artifactHubPackageId": "eb575dd3-39f2-4dc8-ba15-0abf64a9cca4",
+          "artifactHubRepositoryId": "61e223f8-49fe-47c5-9bf8-802e8f759cab"
+        }
+      ],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-prerelease-script"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "development",
+      "plugins": [
+        {
+          "bundleName": "headlamp_minikubeprerelease",
+          "packageName": "@headlamp-k8s/minikubeprerelease"
+        }
+      ],
+      "pluginExecutables": [{ "tool": "minikube" }],
+      "commandSets": ["minikube", "minikube-prerelease-script"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "development",
+      "plugins": [
+        { "bundleName": "ai-assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        {
+          "bundleName": "ai-assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        }
+      ],
+      "commandSets": ["ai-assistant"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "user",
+      "plugins": [
+        { "bundleName": "headlamp_ai-assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        { "bundleName": "headlamp_ai_assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        {
+          "bundleName": "headlamp_ai-assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        },
+        {
+          "bundleName": "headlamp_ai_assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        }
+      ],
+      "commandSets": ["ai-assistant"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "user",
+      "plugins": [
+        {
+          "bundleName": "headlamp_ai-assistant",
+          "packageName": "@headlamp-k8s/ai-assistant",
+          "artifactHubPackage": "headlamp-plugins/headlamp_ai_assistant",
+          "artifactHubPackageId": "ecfd5ae3-1925-471e-8e89-aaa0f48632d2",
+          "artifactHubRepositoryId": "767e1f40-ee09-401b-b8d4-930740da5a8a"
+        },
+        {
+          "bundleName": "headlamp_ai_assistant",
+          "packageName": "@headlamp-k8s/ai-assistant",
+          "artifactHubPackage": "headlamp-plugins/headlamp_ai_assistant",
+          "artifactHubPackageId": "ecfd5ae3-1925-471e-8e89-aaa0f48632d2",
+          "artifactHubRepositoryId": "767e1f40-ee09-401b-b8d4-930740da5a8a"
+        }
+      ],
+      "commandSets": ["ai-assistant"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "development",
+      "plugins": [
+        {
+          "bundleName": "headlamp_ai-assistant",
+          "packageName": "@headlamp-k8s/ai-assistant"
+        },
+        {
+          "bundleName": "headlamp_ai_assistant",
+          "packageName": "@headlamp-k8s/ai-assistant"
+        }
+      ],
+      "commandSets": ["ai-assistant"]
+    },
+    {
+      "environment": "production",
+      "pluginLocation": "shipped",
+      "plugins": [
+        { "bundleName": "headlamp_ai-assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        { "bundleName": "headlamp_ai_assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        {
+          "bundleName": "headlamp_ai-assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        },
+        {
+          "bundleName": "headlamp_ai_assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        }
+      ],
+      "commandSets": ["ai-assistant"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "development",
+      "plugins": [
+        { "bundleName": "headlamp_ai-assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        { "bundleName": "headlamp_ai_assistant", "packageName": "@headlamp-k8s/ai-assistant" },
+        {
+          "bundleName": "headlamp_ai-assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        },
+        {
+          "bundleName": "headlamp_ai_assistantprerelease",
+          "packageName": "@headlamp-k8s/ai-assistantprerelease"
+        }
+      ],
+      "commandSets": ["ai-assistant"]
+    },
+    {
+      "environment": "development",
+      "pluginLocation": "development",
+      "plugins": [{ "bundleName": "azure-aks", "packageName": "azure-aks" }],
+      "commands": [
+        {
+          "tool": "scriptjs",
+          "args": ["azure-aks/azure-api.js"],
+          "allowTrailingArgs": true
+        }
+      ]
     }
   ],
   "legalDocuments": [

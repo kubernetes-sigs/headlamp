@@ -54,6 +54,7 @@ describe('clusterRequest transports', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     setBackendToken(null);
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -132,5 +133,27 @@ describe('clusterRequest transports', () => {
       status: 408,
       message: expect.stringContaining('Request timed-out'),
     });
+  });
+
+  it('keeps the timeout active while consuming the response body', async () => {
+    vi.useFakeTimers();
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    (fetch as Mock).mockImplementation((_url, init: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        headers: new Headers(),
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(abortError));
+          }),
+      } as Response)
+    );
+
+    const result = clusterRequest('/config', { timeout: 100 });
+    const expectation = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expectation;
   });
 });

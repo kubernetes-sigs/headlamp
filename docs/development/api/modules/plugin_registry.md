@@ -16,6 +16,7 @@
 ## Interfaces
 
 - [AppLogoProps](../interfaces/plugin_registry.AppLogoProps.md)
+- [AppThemeRegistrationOptions](../interfaces/plugin_registry.AppThemeRegistrationOptions.md)
 - [ClusterChooserProps](../interfaces/plugin_registry.ClusterChooserProps.md)
 - [CreateResourceEvent](../interfaces/plugin_registry.CreateResourceEvent.md)
 - [DeleteResourceEvent](../interfaces/plugin_registry.DeleteResourceEvent.md)
@@ -134,6 +135,18 @@ ___
 #### Defined in
 
 [redux/headlampEventSlice.ts:278](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L278)
+
+___
+
+### PluginRunCommand
+
+Ƭ **PluginRunCommand**: (`command`: `string`, `args`: `string`[], `options`: `Record`<`string`, `never`>) => `ReturnType`<typeof `runCommand`\>
+
+Command-running function made available to a plugin authorized by the product manifest.
+
+#### Defined in
+
+[components/App/runCommand.ts](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/runCommand.ts)
 
 ___
 
@@ -304,6 +317,44 @@ More complete logo example in plugins/examples/change-logo:
 #### Defined in
 
 [plugin/registry.tsx:550](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L550)
+
+___
+
+### registerAppTheme
+
+▸ **registerAppTheme**(`theme`, `options?`): `void`
+
+Add a new theme that will be available in the settings.
+Theme names should be unique.
+
+**`example`**
+
+```ts
+registerAppTheme(
+  {
+    name: 'My Custom Theme',
+    base: 'light',
+    primary: '#ff0000',
+    secondary: '#333333',
+  },
+  { default: true }
+);
+```
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `theme` | `AppTheme` | `undefined` | App theme definition. |
+| `options` | [`AppThemeRegistrationOptions`](../interfaces/plugin_registry.AppThemeRegistrationOptions.md) | `{}` | Options that control whether the theme is selected during registration. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1098](https://github.com/kubernetes-sigs/headlamp/blob/9a1cd9722/frontend/src/plugin/registry.tsx#L1098)
 
 ___
 
@@ -1011,7 +1062,10 @@ This function uses the desktopApi.send and desktopApi.receive methods to communi
 **`example`**
 
 ```ts
-  const minikube = runCommand('minikube', ['status']);
+  import type { PluginRunCommand } from '@kinvolk/headlamp-plugin/lib';
+  declare const pluginRunCommand: PluginRunCommand;
+  const minikube = pluginRunCommand('minikube', ['status'], {});
+
   minikube.stdout.on('data', (data) => {
     console.log('stdout:', data);
   });
@@ -1027,7 +1081,7 @@ This function uses the desktopApi.send and desktopApi.receive methods to communi
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `command` | ``"minikube"`` \| ``"az"`` | The command to run. |
+| `command` | `string` | The command to run. |
 | `args` | `string`[] | An array of arguments to pass to the command. |
 | `options` | `Object` | - |
 

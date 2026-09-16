@@ -614,6 +614,11 @@ async function start() {
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const pluginName = packageJson.name || path.basename(process.cwd());
 
+  console.warn(
+    'Headlamp Desktop: enable Plugin Development Mode in Settings > Plugins ' +
+      'to load this plugin in a packaged app.'
+  );
+
   const config = (await viteConfigPromise).default;
   const vite = await vitePromise;
 

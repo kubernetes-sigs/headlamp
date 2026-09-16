@@ -88,12 +88,19 @@ npm run start
 ```
 
 This command:
+
 - Makes the plugin available to Headlamp
 - Watches file changes to automatically rebuild the plugin
 
+When using a packaged Headlamp Desktop app, open **Settings > Plugins** and
+enable **Plugin Development Mode**. Packaged apps do not load plugins from the
+local development directory by default. Only enable this setting when you trust
+every plugin in that directory.
+
 ### Step 5: See Your Plugin in Action
 
-1. **Desktop App**: Open Headlamp desktop app - it automatically detects plugins in development mode; or
+1. **Desktop App**: Open Headlamp Desktop after enabling **Plugin
+   Development Mode** in **Settings > Plugins**; or
 2. **Run Headlamp in development mode**: Start the Headlamp development server (see [development guide](../index.md)).
 
 You should see "Hello" text in the top navigation bar!
@@ -141,7 +148,7 @@ import {
   registerAppBarAction,
   registerRoute,
   registerSidebarEntry,
-  registerDetailsViewSection
+  registerDetailsViewSection,
 } from '@kinvolk/headlamp-plugin/lib';
 ```
 
@@ -192,6 +199,7 @@ function PodList() {
 #### 1. Development Mode
 
 Always use `npm run start` during development for:
+
 - Automatic rebuilding
 - Hot reloading
 - Real-time error checking
@@ -247,23 +255,27 @@ Now that you've created your first plugin, explore these advanced topics:
 ## Troubleshooting
 
 ### Plugin Not Loading
+
 - Ensure Headlamp is running and accessible
 - Check the browser console for JavaScript errors
 - Verify your plugin's `package.json` has correct metadata
 - Make sure you're running `npm run start` in the plugin directory
 
 ### Plugin's Changes Not Reflecting
+
 - Ensure you saved your changes
 - Check if the development server is running (`npm run start`) without errors
 - Remove the installed plugin from Headlamp's plugins folder (see [plugin locations](./architecture.md#plugin-locations)) and re-run `npm run start`
 - Restart Headlamp if necessary
 
 ### Build Errors
+
 - Run `npm run lint` to check for code issues
 - Ensure all imports are correct
 - Check TypeScript errors with `npm run tsc`
 
 ### Hot Reloading Issues
+
 - Restart the development server (`npm run start`)
 - Make sure you do not have several Headlamp tabs in case you are running
   in development mode

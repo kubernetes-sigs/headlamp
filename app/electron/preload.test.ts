@@ -36,7 +36,14 @@ vi.mock('electron', () => ({
   },
 }));
 
+const originalElectronDev = process.env.ELECTRON_DEV;
+process.env.ELECTRON_DEV = 'true';
 await import('./preload');
+if (originalElectronDev === undefined) {
+  delete process.env.ELECTRON_DEV;
+} else {
+  process.env.ELECTRON_DEV = originalElectronDev;
+}
 
 const desktopApi = electronMocks.exposeInMainWorld.mock.calls[0][1];
 
@@ -50,6 +57,10 @@ describe('desktop preload API', () => {
 
   it('exposes the host platform', () => {
     expect(desktopApi.platform).toBe(process.platform);
+  });
+
+  it('exposes Electron development mode to a built renderer', () => {
+    expect(desktopApi.isDevelopment).toBe(true);
   });
 
   it('sends messages only on allowed channels', () => {

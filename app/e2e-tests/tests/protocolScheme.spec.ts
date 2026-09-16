@@ -16,6 +16,8 @@
 
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
+import { createServer, Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -26,10 +28,22 @@ const appPath = path.resolve(__dirname, '../../');
 
 let electronApp: ElectronApplication;
 let electronPage: Page;
+let backend: Server;
 let temporaryAppPath: string;
 
 test.describe('desktop protocol scheme', () => {
   test.beforeAll(async () => {
+    backend = createServer((request, response) => {
+      if (request.url === '/config') {
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+        return;
+      }
+
+      response.writeHead(404).end();
+    });
+    await new Promise<void>(resolve => backend.listen(0, resolve));
+    const port = (backend.address() as AddressInfo).port;
+
     temporaryAppPath = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-protocol-e2e-'));
     fs.writeFileSync(
       path.join(temporaryAppPath, 'package.json'),
@@ -62,11 +76,12 @@ test.describe('desktop protocol scheme', () => {
     electronApp = await _electron.launch({
       cwd: temporaryAppPath,
       executablePath: electronPath,
-      args: ['.', 'test-headlamp://cluster?name=startup'],
+      args: ['.', 'test-headlamp://cluster?name=startup', `--port=${port}`],
       env: {
         ...electronEnv,
         NODE_ENV: 'development',
         ELECTRON_DEV: 'true',
+        HEADLAMP_BUILD_MANIFEST: 'app-build-manifest.json',
         ELECTRON_START_URL: pathToFileURL(path.join(appPath, '../frontend/build/index.html')).href,
         EXTERNAL_SERVER: 'true',
       },
@@ -77,6 +92,9 @@ test.describe('desktop protocol scheme', () => {
 
   test.afterAll(async () => {
     await electronApp?.close();
+    await new Promise<void>((resolve, reject) =>
+      backend?.close(error => (error ? reject(error) : resolve()))
+    );
     if (temporaryAppPath) {
       fs.rmSync(temporaryAppPath, { force: true, recursive: true });
     }

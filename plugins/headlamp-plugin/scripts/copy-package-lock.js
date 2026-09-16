@@ -94,13 +94,14 @@ function copyPackageLock() {
   // Use a replacer function so the replacement string is inserted literally as $${name}
   packageLockContent = packageLockContent.replace(new RegExp(packageName, 'g'), () => '$${name}');
 
-  // replace in template/package-lock.json  "@kinvolk/headlamp-plugin": "file:../kinvolk-headlamp-plugin-<version>.tgz"
-  // with the version field of from ./package.json with a ^ in front
+  // Replace the packed dependency with the version placeholder used by generated plugins.
   const mainPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const pluginVersion = mainPackageJson.version;
   const tgzPattern = new RegExp(`"@kinvolk/headlamp-plugin": "file:\\.\\./${tgzFile.replace(/\./g, '\\.')}"`, 'g');
-  const replacementString = `"@kinvolk/headlamp-plugin": "^${pluginVersion}"`;
-  packageLockContent = packageLockContent.replace(tgzPattern, replacementString);
+  packageLockContent = packageLockContent.replace(
+    tgzPattern,
+    () => '"@kinvolk/headlamp-plugin": "^$${headlamp-plugin-version}"'
+  );
 
   // Also replace the resolved fields for @kinvolk/headlamp-plugin in 
   // template/package-lock.json to match the version from main package.json
