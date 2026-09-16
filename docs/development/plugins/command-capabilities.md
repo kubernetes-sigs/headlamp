@@ -201,6 +201,28 @@ after product authorization succeeds and is scoped to the plugin identity,
 canonical tool, and reviewed argument prefix. Commands are executed directly
 with `shell: false`.
 
+For verified `shipped` or operator-controlled `development` plugins, a product
+policy may declare a separate `approvedCommands` list using `tool`, `args`, and
+optional `allowTrailingArgs`, for example:
+
+```json
+"approvedCommands": [
+  { "tool": "examplectl", "args": ["project", "list"], "allowTrailingArgs": true }
+]
+```
+
+A request must match both an authorization grant and an approval entry to skip
+the first-use prompt. Authorized requests outside the approval list still ask
+for consent; an approval never grants permission to execute a command. Omitted
+or empty lists retain normal consent behavior. Empty `args` approves only the
+no-argument invocation and cannot use `allowTrailingArgs: true`.
+
+Existing saved denials, including legacy denials when no newer applicable
+decision exists, still block execution. Product defaults are not written as user
+consent. The `user` inventory cannot declare approval lists, and renderer requests
+or plugin metadata cannot supply them. Approval entries remain scoped to the
+policy's environment, exact plugin identity, and inventory.
+
 For a managed plugin installation, Electron writes an app-owned installation
 receipt outside plugin-controlled inventory. It records the canonical inventory
 path and bundle directory, the Artifact Hub repository and package names, their

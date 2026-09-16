@@ -77,6 +77,8 @@ export interface ProductPluginCommandPolicy {
   packageName: string;
   /** Inventory containing the authorized plugin. */
   source: 'development' | 'user' | 'shipped';
+  /** Commands approved by the product in addition to, not instead of, authorization grants. */
+  approvedCommands?: RunCommandGrant[];
   /** App-owned installation provenance required for managed plugin inventories. */
   artifactHub?: {
     repository: string;
@@ -347,7 +349,8 @@ function checkCommandConsent(
   args: string[],
   mainWindow: BrowserWindow,
   pluginIdentity?: PluginConsentIdentity,
-  consentArgs: string[] = args.slice(0, 1)
+  consentArgs: string[] = args.slice(0, 1),
+  preapproved = false
 ): boolean {
   const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
@@ -393,10 +396,17 @@ function checkCommandConsent(
       (mayUseSourceLessLegacyConsent ? confirmedCommands[legacyConsentKey] : undefined)
     : undefined;
 
-  if (savedCommand === false) {
+  const deniedDefaultApproval =
+    savedCommand === undefined &&
+    preapproved &&
+    [previousPluginConsentKey, displayCommand, legacyConsentKey].some(
+      key => key !== undefined && confirmedCommands?.[key] === false
+    );
+  if (savedCommand === false || deniedDefaultApproval) {
     console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
     return false;
   } else if (savedCommand === undefined) {
+    if (preapproved) return true;
     const commandChoice = confirmCommandDialog(displayCommand, mainWindow);
     if (settings?.confirmedCommands === undefined) {
       settings.confirmedCommands = {};
@@ -927,7 +937,14 @@ export async function handleRunCommand(
       commandData.args,
       mainWindow,
       registeredCapability ? registeredCapability : undefined,
-      capabilityGrant?.args
+      capabilityGrant?.args,
+      (registeredCapability?.source === 'shipped' ||
+        registeredCapability?.source === 'development') &&
+        isRunCommandAllowed(
+          registeredCapability.approvedCommands ?? [],
+          commandData.command,
+          commandData.args
+        )
     )
   ) {
     sendRejectedExit(-3);
