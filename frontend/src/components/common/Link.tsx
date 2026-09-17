@@ -75,8 +75,22 @@ function KubeObjectLink(props: {
           namespace,
           name,
         });
-        // prepopulate the query cache with existing object
-        client.setQueryData(key, kubeObject);
+
+        // Don't prepopulate the cache from a list-derived object for Secrets. The
+        // RBAC verbs for "list"/"watch" and "get" are independent: a LIST response
+        // already contains full (decodable) secret data for a user who only has
+        // list/watch access, even when a "get" on that specific Secret is denied.
+        // Seeding the details-page cache with that data would flash the real
+        // values before the authoritative "get" request confirms access.
+        if (kubeObject.kind !== 'Secret') {
+          // prepopulate the query cache with existing object
+          client.setQueryData(key, kubeObject);
+        } else {
+          // Also drop any value already cached under this key (e.g. from an
+          // earlier authorized view), so a stale Secret can't be served from
+          // cache while the authoritative "get" request is pending.
+          client.removeQueries({ queryKey: key });
+        }
         // and invalidate it (mark as stale)
         // so that the latest version will be downloaded in the background
         client.invalidateQueries({ queryKey: key });
