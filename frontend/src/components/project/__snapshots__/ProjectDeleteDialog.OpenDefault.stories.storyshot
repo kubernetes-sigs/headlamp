@@ -1,0 +1,146 @@
+<body>
+  <div
+    aria-hidden="true"
+  />
+  <div
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    role="presentation"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      role="presentation"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      tabindex="-1"
+    >
+      <div
+        aria-describedby="project-delete-dialog-description"
+        aria-labelledby="project-delete-dialog-title"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
+        role="dialog"
+      >
+        <h2
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          id="project-delete-dialog-title"
+          style="display: flex;"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <h1
+                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                id="project-delete-dialog-title"
+                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
+              >
+                Delete Project
+              </h1>
+            </div>
+          </div>
+        </h2>
+        <div
+          class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
+        >
+          <div
+            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
+            id="project-delete-dialog-description"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 MuiTypography-paragraph css-v2oxxh-MuiTypography-root"
+            >
+              Are you sure you want to delete project "test-project"?
+            </p>
+            <p
+              class="MuiTypography-root MuiTypography-body2 MuiTypography-paragraph css-i6y5kq-MuiTypography-root"
+            >
+              By default, this will only remove the project label from the following namespaces:
+            </p>
+            <ul>
+              <li>
+                <strong>
+                  ns1
+                </strong>
+              </li>
+              <li>
+                <strong>
+                  ns2
+                </strong>
+              </li>
+            </ul>
+            <label
+              class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium css-4r3cdq-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+              >
+                <input
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  name="deleteNamespaces"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Also delete the namespaces (this will remove all resources within them)
+              </p>
+            </label>
+          </div>
+        </div>
+        <div
+          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Cancel
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-v7am6w-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Delete Project
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>
