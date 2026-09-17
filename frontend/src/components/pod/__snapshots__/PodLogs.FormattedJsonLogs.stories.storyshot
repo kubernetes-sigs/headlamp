@@ -498,7 +498,6 @@
                       autocorrect="off"
                       class="xterm-helper-textarea"
                       spellcheck="false"
-                      style="left: 0px; top: 0px; width: 0px; height: 0px; line-height: 0px; z-index: -5;"
                       tabindex="0"
                     />
                     <span
@@ -551,215 +550,96 @@
                       style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
                     >
                       <span>
-                        2024-02-15T00:00:00.000Z {"level":"info","message":"Processing request #90 from 
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        main-container","requestId":"req-90","timestamp":"2024-02-15T00:00:00.000Z","det
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ails":{"user":"user-90","endpoint":"/api/v1/resource/90","status":"success"}}202
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        4-02-15T00:00:00.000Z {"level":"info","message":"Processing request #91 from mai
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        n-container","requestId":"req-91","timestamp":"2024-02-15T00:00:00.000Z","detail
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        s":{"user":"user-91","endpoint":"/api/v1/resource/91","status":"error"}}2024-02-
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        15T00:00:00.000Z {"level":"info","message":"Processing request #92 from main-con
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        tainer","requestId":"req-92","timestamp":"2024-02-15T00:00:00.000Z","details":{"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        user":"user-92","endpoint":"/api/v1/resource/92","status":"success"}}2024-02-15T
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        00:00:00.000Z {"level":"info","message":"Processing request #93 from main-contai
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ner","requestId":"req-93","timestamp":"2024-02-15T00:00:00.000Z","details":{"use
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        r":"user-93","endpoint":"/api/v1/resource/93","status":"error"}}2024-02-15T00:00
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        :00.000Z {"level":"info","message":"Processing request #94 from main-container",
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "requestId":"req-94","timestamp":"2024-02-15T00:00:00.000Z","details":{"user":"u
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ser-94","endpoint":"/api/v1/resource/94","status":"success"}}2024-02-15T00:00:00
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        .000Z {"level":"info","message":"Processing request #95 from main-container","re
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        questId":"req-95","timestamp":"2024-02-15T00:00:00.000Z","details":{"user":"user
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        -95","endpoint":"/api/v1/resource/95","status":"error"}}2024-02-15T00:00:00.000Z
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                         {"level":"info","message":"Processing request #96 from main-container","request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        Id":"req-96","timestamp":"2024-02-15T00:00:00.000Z","details":{"user":"user-96",
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "endpoint":"/api/v1/resource/96","status":"success"}}2024-02-15T00:00:00.000Z {"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        level":"info","message":"Processing request #97 from main-container","requestId"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        :"req-97","timestamp":"2024-02-15T00:00:00.000Z","details":{"user":"user-97","en
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        dpoint":"/api/v1/resource/97","status":"error"}}2024-02-15T00:00:00.000Z {"level
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ":"info","message":"Processing request #98 from main-container","requestId":"req
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        -98","timestamp":"2024-02-15T00:00:00.000Z","details":{"user":"user-98","endpoin
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        t":"/api/v1/resource/98","status":"success"}}2024-02-15T00:00:00.000Z {"level":"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        info","message":"Processing request #99 from main-container","requestId":"req-99
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ","timestamp":"2024-02-15T00:00:00.000Z","details":{"user":"user-99","endpoint":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "/api/v1/resource/99","status":"error"}}
-                      </span>
-                      <span>
                          
                       </span>
                     </div>
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
                   </div>
                   <div
                     aria-hidden="true"
