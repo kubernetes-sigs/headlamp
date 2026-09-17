@@ -43,6 +43,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -4583,4 +4584,200 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
+}
+
+func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
+	const cluster = "test-cluster"
+
+	// Mock STS/OIDC Issuer Server
+	var stsRequestCount int
+
+	stsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec
+
+			return
+		}
+
+		if r.URL.Path == "/token" {
+			stsRequestCount++
+
+			if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// Validate request parameters
+			err := r.ParseForm()
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if r.Form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:token-exchange" ||
+				r.Form.Get("subject_token") != "subject-token-123" ||
+				r.Form.Get("audience") != "sts-audience-value" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token": "exchanged-sts-token-456"}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(stsServer.Close)
+
+	// Mock Kubernetes API
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigStore: kubeConfigStore,
+			},
+			OidcStsEnabled:     true,
+			OidcStsIssuerURL:   stsServer.URL,
+			OidcStsAudienceMap: fmt.Sprintf("%s=sts-audience-value", cluster),
+			Cache:              cache.New[interface{}](),
+			TelemetryConfig:    GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:   &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	// Test 1: Successful STS Exchange and request proxying
+	{
+		auth.ResetSTSCache()
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.AddCookie(&http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.0", cluster),
+			Value:    "subject-token-123",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth)
+		assert.Equal(t, 1, stsRequestCount)
+	}
+
+	// Test 2: STS Exchange failure returns 401 Unauthorized
+	{
+		auth.ResetSTSCache()
+
+		receivedAuth = ""
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.AddCookie(&http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.0", cluster),
+			Value:    "invalid-token",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Empty(t, receivedAuth) // Kube API shouldn't have been called
+	}
+
+	// Test 3: STS Exchange with Authorization header (regression test for Authorization header bearer token)
+	{
+		auth.ResetSTSCache()
+
+		receivedAuth = ""
+		stsRequestCount = 0
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.Header.Set("Authorization", "Bearer subject-token-123")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth)
+		assert.Equal(t, 1, stsRequestCount)
+	}
+
+	// Test 4: Upstream discovery/STS server failure returns 502 (not 401)
+	{
+		receivedAuth = ""
+		cBad := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:    false,
+					KubeConfigStore: kubeConfigStore,
+				},
+				OidcStsEnabled:     true,
+				OidcStsIssuerURL:   "http://127.0.0.1:1", // unreachable
+				OidcStsAudienceMap: fmt.Sprintf("%s=sts-audience-value", cluster),
+				Cache:              cache.New[interface{}](),
+				TelemetryConfig:    GetDefaultTestTelemetryConfig(),
+				TelemetryHandler:   &telemetry.RequestHandler{},
+			},
+		}
+		routerBad := mux.NewRouter()
+		handleClusterAPI(cBad, routerBad)
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.Header.Set("Authorization", "Bearer subject-token-123")
+
+		rr := httptest.NewRecorder()
+		routerBad.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadGateway, rr.Code)
+		assert.Empty(t, receivedAuth)
+	}
 }
