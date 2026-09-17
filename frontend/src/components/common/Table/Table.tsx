@@ -296,18 +296,28 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
+  // Caller-provided and user-selected visibility are explicit preferences. Responsive
+  // hiding must work with the resulting set of columns and must not override a user
+  // explicitly showing a column.
+  const requestedColumnVisibility = useMemo(
+    () => ({
+      ...(tableProps.state?.columnVisibility ?? {}),
+      ...columnVisibility,
+    }),
+    [tableProps.state?.columnVisibility, columnVisibility]
+  );
+
   // Decide which columns to hide based on the available width. Columns are hidden by
   // ascending `responsivePriority` (least important first), then right-to-left among
-  // equal priority. The first column is never hidden. When everything fits, nothing
-  // is hidden and the table renders as usual.
+  // equal priority. The first column and columns explicitly shown by the user are
+  // never hidden. When everything fits, nothing is hidden and the table renders as usual.
   const responsiveHidden = useMemo(() => {
     const result: Record<string, boolean> = {};
     if (!containerWidth) {
       return result;
     }
 
-    const callerVisibility = tableProps.state?.columnVisibility;
-    const dataCols = tableColumns.filter(col => callerVisibility?.[col.id ?? ''] !== false);
+    const dataCols = tableColumns.filter(col => requestedColumnVisibility[col.id ?? ''] !== false);
 
     let reserved = 0;
     if (tableProps.enableRowSelection) {
@@ -326,7 +336,7 @@ export default function Table<RowItem extends Record<string, any>>({
     // Columns we're allowed to hide, ordered by what to drop first.
     dataCols
       .map((col, index) => ({ col, index }))
-      .filter(({ index }) => index !== 0)
+      .filter(({ col, index }) => index !== 0 && requestedColumnVisibility[col.id ?? ''] !== true)
       .sort((a, b) => {
         const priorityDiff = (a.col.responsivePriority ?? 0) - (b.col.responsivePriority ?? 0);
         return priorityDiff !== 0 ? priorityDiff : b.index - a.index;
@@ -343,18 +353,17 @@ export default function Table<RowItem extends Record<string, any>>({
   }, [
     containerWidth,
     tableColumns,
-    tableProps.state?.columnVisibility,
+    requestedColumnVisibility,
     tableProps.enableRowSelection,
     tableProps.enableRowActions,
   ]);
 
   const mergedColumnVisibility = useMemo(
     () => ({
-      ...(tableProps.state?.columnVisibility ?? {}),
-      ...columnVisibility,
       ...responsiveHidden,
+      ...requestedColumnVisibility,
     }),
-    [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
+    [responsiveHidden, requestedColumnVisibility]
   );
 
   const table = useMaterialReactTable({

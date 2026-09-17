@@ -136,6 +136,10 @@ const theme = createMuiTheme({ base: 'light', name: 'light' });
 interface TestRow {
   /** Optional name used by additional data columns. */
   name?: string;
+  /** Optional values used by responsive-column tests. */
+  ip?: string;
+  node?: string;
+  status?: string;
   /** Value rendered by the custom selection column. */
   selected: boolean;
 }
@@ -425,6 +429,40 @@ describe('Table states and options', () => {
     });
 
     expect(tableMocks.options.state.columnVisibility).toEqual({});
+
+    clientWidth.mockRestore();
+  });
+
+  it('respects a user-selected column after other columns are hidden', () => {
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(250);
+
+    renderTable({
+      columns: [
+        { accessorKey: 'selected', header: 'Selection' },
+        { accessorKey: 'status', header: 'Status' },
+        { accessorKey: 'node', header: 'Node' },
+        { accessorKey: 'ip', header: 'IP' },
+      ],
+    });
+
+    expect(tableMocks.options.state.columnVisibility).toMatchObject({
+      '2': false,
+      '3': false,
+    });
+
+    act(() => {
+      tableMocks.options.onColumnVisibilityChange({
+        '1': false,
+        '2': true,
+        '3': false,
+      });
+    });
+
+    expect(tableMocks.options.state.columnVisibility).toEqual({
+      '1': false,
+      '2': true,
+      '3': false,
+    });
 
     clientWidth.mockRestore();
   });
