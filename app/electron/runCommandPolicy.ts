@@ -64,10 +64,11 @@ export interface RunCommandGrant {
  * Parses command grants from untrusted product manifest data.
  *
  * @param value - Candidate `commands` grant array from a top-level `runCommands` policy entry.
+ * @param allowEmptyArgs - Allows exact no-argument entries for approval lists, never unrestricted prefixes.
  * @returns A validated, normalized copy of the grants.
  * @throws When any grant is malformed, duplicated, or too broad.
  */
-export function parseRunCommandGrants(value: unknown): RunCommandGrant[] {
+export function parseRunCommandGrants(value: unknown, allowEmptyArgs = false): RunCommandGrant[] {
   if (!Array.isArray(value) || value.length > MAX_GRANTS) {
     throw new Error(`runCommands must be an array with at most ${MAX_GRANTS} grants`);
   }
@@ -92,7 +93,7 @@ export function parseRunCommandGrants(value: unknown): RunCommandGrant[] {
     }
     if (
       !Array.isArray(record.args) ||
-      record.args.length === 0 ||
+      (record.args.length === 0 && (!allowEmptyArgs || record.allowTrailingArgs === true)) ||
       record.args.length > MAX_ARGUMENTS ||
       record.args.some(
         argument =>
