@@ -119,7 +119,16 @@ test('waits for the authenticated external backend before opening a window', asy
     await new Promise<void>((resolve, reject) =>
       backend.close(error => (error ? reject(error) : resolve()))
     );
-    fs.rmSync(userDataDir, { force: true, recursive: true });
+    try {
+      fs.rmSync(userDataDir, {
+        force: true,
+        recursive: true,
+        maxRetries: 30,
+        retryDelay: 100,
+      });
+    } catch {
+      // Ignore cleanup error if directory is still locked on Windows.
+    }
   }
 });
 
@@ -238,6 +247,15 @@ http.createServer((request, response) => {
     await new Promise<void>((resolve, reject) =>
       unrelatedServer.close(error => (error ? reject(error) : resolve()))
     );
-    fs.rmSync(internalUserDataDir, { force: true, recursive: true });
+    try {
+      fs.rmSync(internalUserDataDir, {
+        force: true,
+        recursive: true,
+        maxRetries: 30,
+        retryDelay: 100,
+      });
+    } catch {
+      // Ignore cleanup error if directory is still locked on Windows.
+    }
   }
 });
