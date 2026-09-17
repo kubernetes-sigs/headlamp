@@ -15,9 +15,13 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
+import { createMemoryHistory } from 'history';
+import { Provider } from 'react-redux';
+import { Route, Router } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
+import { ConfigStore } from '../../../plugin/configStore';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
 import store from '../../../redux/stores/store';
@@ -54,5 +58,52 @@ describe('PluginSettingsDetails events', () => {
         { type: HeadlampEventType.PLUGIN_DETAILS_VIEW, data: { plugin } },
       ]);
     });
+  });
+});
+
+describe('PluginSettingsDetails navigation between plugins', () => {
+  it('does not show the previous plugin data after navigating to another plugin', async () => {
+    const pluginA: PluginInfo = {
+      name: 'plugin-a',
+      description: 'Plugin A',
+      isEnabled: true,
+      isCompatible: true,
+      isLoaded: true,
+      type: 'user',
+      homepage: '',
+      displaySettingsComponentWithSaveButton: true,
+      settingsComponent: ({ data }) => <div data-testid="settings-value">{data?.greeting}</div>,
+    };
+    const pluginB: PluginInfo = {
+      ...pluginA,
+      name: 'plugin-b',
+      description: 'Plugin B',
+      settingsComponent: ({ data }) => <div data-testid="settings-value">{data?.greeting}</div>,
+    };
+
+    store.dispatch(setPluginSettings([pluginA, pluginB]));
+    new ConfigStore('plugin-a').set({ greeting: 'hello-a' });
+    new ConfigStore('plugin-b').set({ greeting: 'hello-b' });
+
+    const history = createMemoryHistory({ initialEntries: [`/settings/plugins/${pluginA.name}`] });
+    const { findByTestId } = render(
+      <Provider store={store}>
+        <ThemeProvider theme={theme}>
+          <Router history={history}>
+            <Route path="/settings/plugins/:name/:type?">
+              <PluginSettingsDetails />
+            </Route>
+          </Router>
+        </ThemeProvider>
+      </Provider>
+    );
+
+    expect(await findByTestId('settings-value')).toHaveTextContent('hello-a');
+
+    act(() => {
+      history.push(`/settings/plugins/${pluginB.name}`);
+    });
+
+    expect(await findByTestId('settings-value')).toHaveTextContent('hello-b');
   });
 });
