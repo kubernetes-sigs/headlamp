@@ -25,6 +25,10 @@ type HeadlampConfig struct {
 	OidcIdpIssuerURL          string
 	OidcCallbackURL           string
 	OidcValidatorIdpIssuerURL string
+	OidcAuthURL               string
+	OidcTokenURL              string
+	OidcJWKSURL               string
+	OidcUserinfoURL           string
 	OidcUseAccessToken        bool
 	OidcSkipTLSVerify         bool
 	OidcCACert                string
