@@ -35,6 +35,8 @@ import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+import CopyButton from '../../common/Resource/CopyButton';
+import { downloadKubeconfigYaml, getClusterKubeconfigYaml } from './clusterKubeconfigExport';
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -163,6 +165,39 @@ export default function ClusterContextMenu({
           }}
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
+        </MenuItem>
+        <CopyButton
+          key="copy-kubeconfig"
+          buttonStyle="menu"
+          description={t('translation|Copy kubeconfig')}
+          text={() => getClusterKubeconfigYaml(cluster.name)}
+          onClick={handleMenuClose}
+          onCopied={() =>
+            enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
+              variant: 'success',
+            })
+          }
+          onError={() =>
+            enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+              variant: 'error',
+            })
+          }
+        />
+        <MenuItem
+          key="download-kubeconfig"
+          onClick={async () => {
+            handleMenuClose();
+            const kubeconfigYaml = await getClusterKubeconfigYaml(cluster.name);
+            if (kubeconfigYaml) {
+              downloadKubeconfigYaml(cluster.name, kubeconfigYaml);
+            } else {
+              enqueueSnackbar(t('translation|Failed to find kubeconfig for this cluster'), {
+                variant: 'error',
+              });
+            }
+          }}
+        >
+          <ListItemText>{t('translation|Download kubeconfig')}</ListItemText>
         </MenuItem>
         {(!menuItems || menuItems.length === 0) &&
           ((cluster.meta_data?.source === 'dynamic_cluster' &&
