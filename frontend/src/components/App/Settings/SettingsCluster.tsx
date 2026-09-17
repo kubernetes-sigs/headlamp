@@ -39,7 +39,9 @@ import Empty from '../../common/EmptyContent';
 import Link from '../../common/Link';
 import Loader from '../../common/Loader';
 import NameValueTable from '../../common/NameValueTable';
+import CopyButton from '../../common/Resource/CopyButton';
 import SectionBox from '../../common/SectionBox';
+import { downloadKubeconfigYaml, getClusterKubeconfigYaml } from '../Home/clusterKubeconfigExport';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
 import ColorPicker from './ColorPicker';
@@ -138,6 +140,20 @@ export default function SettingsCluster() {
   const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
   const placeholderNamespace = clusterInfo?.meta_data?.namespace || 'default';
   const defaultNamespace = clusterSettings.defaultNamespace || '';
+
+  async function handleDownloadKubeconfig() {
+    let kubeconfigYaml: string;
+    try {
+      kubeconfigYaml = await getClusterKubeconfigYaml(cluster);
+    } catch (err) {
+      console.error('Failed to fetch kubeconfig for download:', err);
+      enqueueSnackbar(t('translation|Failed to find kubeconfig for this cluster'), {
+        variant: 'error',
+      });
+      return;
+    }
+    downloadKubeconfigYaml(cluster, kubeconfigYaml);
+  }
 
   const [defaultNamespaceInput, setDefaultNamespaceInput] = React.useState(defaultNamespace);
   React.useEffect(() => {
@@ -567,6 +583,38 @@ export default function SettingsCluster() {
           ]}
         />
       </SectionBox>
+      {cluster && (
+        <SectionBox title={t('translation|Kubeconfig')}>
+          <NameValueTable
+            rows={[
+              {
+                name: t('translation|Export kubeconfig'),
+                value: (
+                  <Box display="flex" gap={1}>
+                    <CopyButton
+                      buttonStyle="wide"
+                      description={t('translation|Copy kubeconfig')}
+                      text={() => getClusterKubeconfigYaml(cluster)}
+                      onError={() =>
+                        enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+                          variant: 'error',
+                        })
+                      }
+                    />
+                    <Button
+                      variant="outlined"
+                      startIcon={<Icon icon="mdi:file-download-outline" />}
+                      onClick={handleDownloadKubeconfig}
+                    >
+                      {t('translation|Download kubeconfig')}
+                    </Button>
+                  </Box>
+                ),
+              },
+            ]}
+          />
+        </SectionBox>
+      )}
       <NodeShellSettings
         cluster={cluster}
         clusterSettings={clusterSettings}

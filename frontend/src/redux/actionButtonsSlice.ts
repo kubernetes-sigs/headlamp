@@ -60,6 +60,17 @@ export enum DefaultHeaderAction {
 export enum DefaultAppBarAction {
   CLUSTER = 'CLUSTER',
   NOTIFICATION = 'NOTIFICATION',
+  KUBECONFIG = 'KUBECONFIG',
+  /**
+   * The mobile-layout copy action. The mobile app bar splits the desktop
+   * KUBECONFIG action into separate copy and download menu items; plugins
+   * that filter or reorder KUBECONFIG should treat these the same way.
+   */
+  KUBECONFIG_COPY = 'KUBECONFIG_COPY',
+  /**
+   * The mobile-layout download action. See KUBECONFIG_COPY.
+   */
+  KUBECONFIG_DOWNLOAD = 'KUBECONFIG_DOWNLOAD',
   SETTINGS = 'SETTINGS',
   USER = 'USER',
   GLOBAL_SEARCH = 'GLOBAL_SEARCH',

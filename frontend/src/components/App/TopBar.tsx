@@ -29,6 +29,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useQueries } from '@tanstack/react-query';
 import { has } from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -49,10 +50,13 @@ import { uiSlice } from '../../redux/uiSlice';
 import { navigateToClusterSettings, SettingsButton } from '../App/Settings';
 import { ClusterTitle, useClusterTitleVisible } from '../cluster/Chooser';
 import ErrorBoundary from '../common/ErrorBoundary';
+import { useCopyToClipboard } from '../common/useCopyToClipboard';
 import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
 import { AppLogo } from './AppLogo';
+import { downloadKubeconfigYaml, getClusterKubeconfigYaml } from './Home/clusterKubeconfigExport';
+import KubeconfigButton from './KubeconfigButton';
 import { handleLogoutPathUpdate } from './TopBar.utils';
 
 export interface TopBarProps {}
@@ -207,6 +211,49 @@ function NullableMenuItem({ children }: { children: React.ReactNode }) {
   return show ? <MenuItem ref={ref}>{children}</MenuItem> : null;
 }
 
+/**
+ * Mobile-menu "Copy kubeconfig" entry. Rendered as a single MenuItem (like the
+ * sibling Download entry) instead of CopyButton with buttonStyle="menu", which
+ * would nest one MenuItem inside the MenuItem that NullableMenuItem adds and
+ * break menu semantics. Shares CopyButton's copy behavior via
+ * useCopyToClipboard.
+ */
+function KubeconfigCopyMenuItem({
+  clusterName,
+  onCopyDone,
+}: {
+  clusterName: string;
+  onCopyDone: () => void;
+}) {
+  const { t } = useTranslation(['translation']);
+  const { enqueueSnackbar } = useSnackbar();
+  const { copied, copy } = useCopyToClipboard(() => getClusterKubeconfigYaml(clusterName), {
+    onCopied: () => {
+      enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
+        variant: 'success',
+      });
+      onCopyDone();
+    },
+    onError: () => {
+      enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+        variant: 'error',
+      });
+      onCopyDone();
+    },
+  });
+
+  return (
+    <MenuItem onClick={copy}>
+      <ListItemIcon>
+        <Icon icon={copied ? 'mdi:check' : 'mdi:content-copy'} />
+      </ListItemIcon>
+      <ListItemText>
+        {copied ? t('translation|Copied!') : t('translation|Copy kubeconfig')}
+      </ListItemText>
+    </MenuItem>
+  );
+}
+
 export function AppBarActionsMenu({
   appBarActions,
 }: {
@@ -289,6 +336,7 @@ export const PureTopBar = memo(
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const history = useHistory();
+    const { enqueueSnackbar } = useSnackbar();
 
     const openSideBar = !!(isSidebarOpenUserSelected === undefined ? false : isSidebarOpen);
 
@@ -436,6 +484,38 @@ export const PureTopBar = memo(
         action: null,
       },
       {
+        id: DefaultAppBarAction.KUBECONFIG_COPY,
+        action:
+          isClusterContext && cluster ? (
+            <KubeconfigCopyMenuItem clusterName={cluster} onCopyDone={handleMenuClose} />
+          ) : null,
+      },
+      {
+        id: DefaultAppBarAction.KUBECONFIG_DOWNLOAD,
+        action:
+          isClusterContext && cluster ? (
+            <MenuItem
+              onClick={async () => {
+                handleMenuClose();
+                try {
+                  const kubeconfigYaml = await getClusterKubeconfigYaml(cluster);
+                  downloadKubeconfigYaml(cluster, kubeconfigYaml);
+                } catch (err) {
+                  console.error('Failed to fetch kubeconfig for download:', err);
+                  enqueueSnackbar(t('translation|Failed to find kubeconfig for this cluster'), {
+                    variant: 'error',
+                  });
+                }
+              }}
+            >
+              <ListItemIcon>
+                <Icon icon="mdi:file-download-outline" />
+              </ListItemIcon>
+              <ListItemText>{t('translation|Download kubeconfig')}</ListItemText>
+            </MenuItem>
+          ) : null,
+      },
+      {
         id: DefaultAppBarAction.SETTINGS,
         action: isClusterContext ? (
           <MenuItem
@@ -507,6 +587,10 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.NOTIFICATION,
         action: null,
+      },
+      {
+        id: DefaultAppBarAction.KUBECONFIG,
+        action: <KubeconfigButton onClickExtra={handleMenuClose} />,
       },
       {
         id: DefaultAppBarAction.SETTINGS,
