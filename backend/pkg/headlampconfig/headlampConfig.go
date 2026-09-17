@@ -28,6 +28,7 @@ type HeadlampConfig struct {
 	OidcUseAccessToken        bool
 	OidcSkipTLSVerify         bool
 	OidcCACert                string
+	OidcAuthStyle             string
 	OidcUsePKCE               bool
 	OidcScopes                []string
 	Cache                     cache.Cache[interface{}]
