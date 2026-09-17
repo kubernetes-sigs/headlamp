@@ -84,20 +84,31 @@ func createFileIfNotThere(fileName string) error {
 	return err
 }
 
-func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
-	var lockPath string
-
+func repositoryLockPath(repositoryConfig string) string {
 	repoFileExt := filepath.Ext(repositoryConfig)
 
 	if len(repoFileExt) > 0 && len(repoFileExt) < len(repositoryConfig) {
-		lockPath = strings.Replace(repositoryConfig, repoFileExt, ".lock", 1)
-	} else {
-		lockPath = repositoryConfig + ".lock"
+		return strings.Replace(repositoryConfig, repoFileExt, ".lock", 1)
 	}
 
-	fileLock := flock.New(lockPath)
+	return repositoryConfig + ".lock"
+}
+
+func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
+	fileLock := flock.New(repositoryLockPath(repositoryConfig))
 
 	locked, err := fileLock.TryLockContext(lockCtx, time.Second)
+
+	return locked, fileLock, err
+}
+
+// lockRepositoryFileForRead takes a shared lock, so it can run alongside other
+// reads but still waits out a concurrent add/update/remove, since repo.File's
+// WriteFile truncates the file before writing rather than replacing it atomically.
+func lockRepositoryFileForRead(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
+	fileLock := flock.New(repositoryLockPath(repositoryConfig))
+
+	locked, err := fileLock.TryRLockContext(lockCtx, time.Second)
 
 	return locked, fileLock, err
 }
@@ -272,6 +283,21 @@ func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
 		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
 		return nil, err
 	}
+
+	lockCtx, cancel := context.WithTimeout(context.Background(), timeoutForLock)
+	defer cancel()
+
+	locked, fileLock, err := lockRepositoryFileForRead(lockCtx, settings.RepositoryConfig)
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
+		logger.Log(logger.LevelError, nil, err, "locking repository config file")
+		return nil, err
+	}
+
+	defer func() {
+		if err := fileLock.Unlock(); err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {

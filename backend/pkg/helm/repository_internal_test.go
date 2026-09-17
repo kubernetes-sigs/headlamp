@@ -17,10 +17,12 @@ limitations under the License.
 package helm
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,4 +66,42 @@ func TestEnsureRepositoryFileLocked(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, errRepositoryLockNotAcquired))
 	})
+}
+
+func TestLockRepositoryFileForReadWaitsOnWriteLock(t *testing.T) {
+	repoConfig := filepath.Join(t.TempDir(), "repositories.yaml")
+
+	writeCtx, writeCancel := context.WithTimeout(context.Background(), time.Second)
+	defer writeCancel()
+
+	writeLocked, writeFileLock, err := lockRepositoryFile(writeCtx, repoConfig)
+	require.NoError(t, err)
+	require.True(t, writeLocked)
+
+	defer func() { assert.NoError(t, writeFileLock.Unlock()) }()
+
+	readCtx, readCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer readCancel()
+
+	readLocked, _, err := lockRepositoryFileForRead(readCtx, repoConfig)
+	assert.False(t, readLocked)
+	assert.Error(t, err)
+}
+
+func TestLockRepositoryFileForReadAllowsConcurrentReaders(t *testing.T) {
+	repoConfig := filepath.Join(t.TempDir(), "repositories.yaml")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	firstLocked, firstFileLock, err := lockRepositoryFileForRead(ctx, repoConfig)
+	require.NoError(t, err)
+	require.True(t, firstLocked)
+
+	defer func() { assert.NoError(t, firstFileLock.Unlock()) }()
+
+	secondLocked, secondFileLock, err := lockRepositoryFileForRead(ctx, repoConfig)
+	require.NoError(t, err)
+	assert.True(t, secondLocked)
+	assert.NoError(t, secondFileLock.Unlock())
 }
