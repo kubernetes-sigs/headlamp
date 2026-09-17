@@ -30,6 +30,7 @@ import { useHistory, useLocation } from 'react-router-dom';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import { getSavedNamespaces } from '../../lib/storage';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 
@@ -203,10 +204,16 @@ export function NamespacesAutocomplete() {
 
   React.useEffect(() => {
     const allowedNamespaces = getCombinedAllowedNamespaces(cluster || '');
+    setNamespaceNames(allowedNamespaces);
     if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
+      // Use getSavedNamespaces to read the saved selection for the *current* cluster
+      // rather than filter.namespaces, which may still hold the previous cluster's
+      // selection when this effect fires on cluster switch.
+      const saved = getSavedNamespaces(cluster || '');
+      const valid = saved.filter(ns => allowedNamespaces.includes(ns));
+      dispatch(setNamespaceFilter(valid));
     }
-  }, [cluster]);
+  }, [cluster, dispatch]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
@@ -265,7 +272,11 @@ const useDefaultNamespaceFallback = (
 function NamespacesFromClusterAutocomplete(
   props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
 ) {
-  const [namespacesList, error] = Namespace.useList();
+  const { items: namespacesList = null, error = null, isLoading = false } = Namespace.useList();
+  const dispatch = useDispatch();
+  const filter = props.filter;
+  const selectedNamespaces = filter.namespaces;
+
   const namespaceNames = useMemo(
     () =>
       uniq(namespacesList?.map(namespace => namespace.metadata.name) ?? [])
@@ -273,6 +284,16 @@ function NamespacesFromClusterAutocomplete(
         .sort((a, b) => a.localeCompare(b)),
     [namespacesList]
   );
+
+  useEffect(() => {
+    if (!isLoading && namespacesList !== null && !error && selectedNamespaces.size > 0) {
+      const currentNamespaces = [...selectedNamespaces];
+      const validNamespaces = currentNamespaces.filter(ns => namespaceNames.includes(ns));
+      if (validNamespaces.length !== currentNamespaces.length) {
+        dispatch(setNamespaceFilter(validNamespaces));
+      }
+    }
+  }, [isLoading, namespacesList, error, namespaceNames, selectedNamespaces, dispatch]);
 
   useDefaultNamespaceFallback(namespacesList, Boolean(error));
 
