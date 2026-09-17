@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "பாட் டிஸ்ரப்ஷன் பட்ஜெட்",
   "Workload": "பணிச்சுமை",
   "Pod Groups": "பாட் குழுக்கள்",
+  "Composite Pod Groups": "",
   "Port Forwarding": "போர்ட் ஃபார்வர்டிங்",
   "PriorityClass": "ப்ரயரிட்டி கிளாஸ்",
   "Replica Sets": "ரெப்ளிகா செட்ஸ்",

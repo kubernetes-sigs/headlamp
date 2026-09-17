@@ -22,6 +22,8 @@ import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../../../lib/k8s/gatewayL4RouteAvailability';
 import Pod from '../../../../lib/k8s/pod';
+import PodGroup from '../../../../lib/k8s/podGroup';
+import { useSchedulingApiClusters } from '../../../../lib/k8s/schedulingApis';
 import VPA from '../../../../lib/k8s/vpa';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { GraphSource } from '../../graph/graphModel';
@@ -42,6 +44,9 @@ vi.mock('../../../../redux/filterSlice', async importOriginal => ({
 }));
 vi.mock('../../../../lib/k8s/gatewayL4RouteAvailability', () => ({
   useGatewayL4RouteAvailability: vi.fn(),
+}));
+vi.mock('../../../../lib/k8s/schedulingApis', () => ({
+  useSchedulingApiClusters: vi.fn(),
 }));
 
 // Initialize the complete Kubernetes class registry before loading source definitions.
@@ -101,6 +106,7 @@ describe('useGetAllSources', () => {
       typeof useGatewayL4RouteAvailability
     >);
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    vi.mocked(useSchedulingApiClusters).mockReturnValue([]);
     vi.spyOn(VPA, 'isEnabled').mockResolvedValue(false);
   });
 
@@ -140,6 +146,37 @@ describe('useGetAllSources', () => {
     rerender();
 
     expect(result.current).toEqual({ nodes: [{ id: 'pod-1', kubeObject: pod }] });
+  });
+
+  it('adds the scheduling group only when the alpha APIs are served', () => {
+    const { result: withoutApis } = renderHook(() => useGetAllSources());
+
+    expect(findGroup(withoutApis.current, 'scheduling')).toBeUndefined();
+
+    vi.mocked(useSchedulingApiClusters).mockReturnValue(['cluster-a']);
+    const { result } = renderHook(() => useGetAllSources());
+    const scheduling = findGroup(result.current, 'scheduling');
+
+    expect(scheduling.isEnabledByDefault).toBe(false);
+    expect(scheduling.sources.map(source => source.id)).toEqual([
+      'scheduling.k8s.io/Workload',
+      'scheduling.k8s.io/CompositePodGroup',
+      'scheduling.k8s.io/PodGroup',
+    ]);
+  });
+
+  it('asks the scheduling sources only for the clusters that serve the APIs', () => {
+    // A list resolves its endpoint against the first cluster it is given, so a cluster
+    // that lacks the API must not be in the list at all.
+    vi.mocked(useSelectedClusters).mockReturnValue(['legacy', 'gang']);
+    vi.mocked(useSchedulingApiClusters).mockReturnValue(['gang']);
+    const useList = vi.spyOn(PodGroup, 'useList').mockReturnValue([null] as any);
+
+    const { result: sources } = renderHook(() => useGetAllSources());
+    const podGroupSource = findLeaf(sources.current, 'scheduling.k8s.io/PodGroup')!;
+    renderHook(() => podGroupSource.useData());
+
+    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'], clusters: ['gang'] });
   });
 
   it('keeps Gateway sources group-gated without adding undiscovered L4 kinds', () => {
