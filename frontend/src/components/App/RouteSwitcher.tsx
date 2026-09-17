@@ -56,11 +56,7 @@ export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
       <Switch>
         {filteredRoutes.map((route, index) =>
           route.name === 'OidcAuth' ? (
-            <Route
-              path={route.path}
-              component={() => <RouteComponent route={route} />}
-              key={index}
-            />
+            <Route path={route.path} render={() => <RouteComponent route={route} />} key={index} />
           ) : (
             <AuthRoute
               path={getRoutePath(route)}

@@ -150,7 +150,11 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       clustersToConfig[cluster.name] = cluster;
     });
 
-    const configToStore = { ...config, clusters: clustersToConfig };
+    const configToStore = {
+      ...config,
+      clusters: clustersToConfig,
+      oidcAutoLogin: config.oidcAutoLogin,
+    };
 
     if (clusters === null) {
       dispatch(setConfig(configToStore));
@@ -204,6 +208,7 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+  const location = useLocation();
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
@@ -244,7 +249,7 @@ export default function Layout({}: LayoutProps) {
   }, [cluster, dispatch]);
 
   const selectedClusters = useSelectedClusters();
-  const { pathname } = useLocation();
+  const { pathname } = location;
   const configuredClusters = pathname.startsWith('/project/') ? Object.keys(allClusters || {}) : [];
   const clustersToResolve = [
     ...new Set([...configuredClusters, cluster || '', ...selectedClusters].filter(Boolean)),

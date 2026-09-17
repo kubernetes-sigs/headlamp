@@ -31,6 +31,7 @@ import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import { setConfig } from '../../redux/configSlice';
+import { useTypedSelector } from '../../redux/hooks';
 import { ClusterDialog } from '../cluster/Chooser';
 import { DialogTitle } from '../common/Dialog';
 import Empty from '../common/EmptyContent';
@@ -47,7 +48,11 @@ function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
 }
 
 interface ReactRouterLocationStateIface {
-  from?: Location;
+  from?: {
+    pathname: string;
+    search?: string;
+    hash?: string;
+  };
 }
 
 export interface AuthChooserProps {
@@ -64,6 +69,7 @@ function AuthChooser({ children }: AuthChooserProps) {
   const { from = { pathname: createRouteURL('cluster') } } = (location.state ||
     {}) as ReactRouterLocationStateIface;
   const clusterName = getCluster() as string;
+  const oidcAutoLogin = useTypedSelector(state => state.config.oidcAutoLogin);
   const { t } = useTranslation();
   const clustersRef = React.useRef<typeof clusters>(null);
   const cancelledRef = React.useRef(false);
@@ -110,6 +116,59 @@ function AuthChooser({ children }: AuthChooserProps) {
       const cluster = clusters[clusterName];
       if (!cluster) {
         return;
+      }
+
+      if (clusterAuthType === 'oidc' && oidcAutoLogin) {
+        const urlParams = new URLSearchParams(location.search);
+        const isLoggingOut = urlParams.get('logout') === 'true';
+
+        if (!isLoggingOut && !oidcTokenRejected) {
+          setTestingAuth(true);
+
+          testAuth(clusterName)
+            .then(() => {
+              if (!cancelledRef.current) {
+                history.replace(from);
+              }
+            })
+            .catch(err => {
+              if (!cancelledRef.current) {
+                // Only redirect for explicit authentication/authorization failures (401 or 403).
+                // For other errors (e.g. 502 Bad Gateway, 504 Gateway Timeout, network errors),
+                // preserve the error state so the user sees the connection/server error UI.
+                const status = err?.status;
+                const isAuthFailure = status === 401 || status === 403;
+                if (!isAuthFailure) {
+                  setError(err instanceof Error ? err : new Error(err?.message || String(err)));
+                  return;
+                }
+
+                const returnUrl = from.pathname + (from.search || '') + (from.hash || '');
+                if (
+                  returnUrl &&
+                  !returnUrl.startsWith('/auth') &&
+                  !returnUrl.includes('oidc-callback')
+                ) {
+                  try {
+                    sessionStorage.setItem('oidc_return_url', returnUrl);
+                  } catch (e) {
+                    console.error('Failed to save OIDC return URL', e);
+                  }
+                }
+                const oauthUrl = `${getAppUrl()}oidc?dt=${Date.now()}&cluster=${encodeURIComponent(
+                  clusterName
+                )}`;
+                window.location.href = oauthUrl;
+              }
+            })
+            .finally(() => {
+              if (!cancelledRef.current) {
+                setTestingAuth(false);
+              }
+            });
+
+          return;
+        }
       }
 
       // If we haven't yet figured whether we need to use a token for the current
@@ -189,7 +248,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       }
     },
     // eslint-disable-next-line
-    [clusters, error]
+    [clusters, error, oidcAutoLogin, location.search]
   );
 
   // Ensure we have a way to know in the testAuth result whether this component is no longer
