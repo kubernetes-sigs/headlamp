@@ -26,6 +26,28 @@ import { NodeReadyLabel } from './Details';
 import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
 import { formatTaint, isNodeCordoned, NodeTaintsLabel } from './utils';
 
+export function filterNode(node: Node, search?: string) {
+  if (search) {
+    const lowerSearch = search.trim().toLowerCase();
+    const isReady = !!node.status?.conditions?.find(
+      condition => condition.type === 'Ready' && condition.status === 'True'
+    );
+    const isCordoned = isNodeCordoned(node);
+
+    if (lowerSearch === 'ready' || lowerSearch === 'schedulable') {
+      return isReady && !isCordoned;
+    }
+    if (lowerSearch === 'cordoned') {
+      return isCordoned;
+    }
+    if (lowerSearch === 'notready' || lowerSearch === 'not ready' || lowerSearch === 'not-ready') {
+      return !isReady;
+    }
+    return undefined;
+  }
+  return true;
+}
+
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const { items } = Node.useList();
@@ -43,6 +65,8 @@ export default function NodeList() {
       <ResourceListView
         title={t('Nodes')}
         resourceClass={Node}
+        filterFunction={filterNode}
+        reflectInURL="nodes"
         headerProps={{
           noNamespaceFilter: true,
         }}
