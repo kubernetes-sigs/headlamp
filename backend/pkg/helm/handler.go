@@ -128,8 +128,8 @@ type stat struct {
 }
 
 // getReleaseStatus returns the status of the release.
-func (h *Handler) getReleaseStatus(actionName, releaseName string) (*stat, error) {
-	key := "helm_" + actionName + "_" + releaseName
+func (h *Handler) getReleaseStatus(namespace, actionName, releaseName string) (*stat, error) {
+	key := "helm_" + namespace + "_" + actionName + "_" + releaseName
 
 	value, err := h.Cache.Get(context.Background(), key)
 	if err != nil {
@@ -161,11 +161,11 @@ func (h *Handler) getReleaseStatus(actionName, releaseName string) (*stat, error
 }
 
 // setReleaseStatus sets the status of the release
-// Key of the object is action_name + "_" + release_name
+// Key of the object is namespace + "_" + action_name + "_" + release_name
 // action_name is the name of the action, e.g. install, upgrade, delete
 // status is one of the following: processing, success, failed.
-func (h *Handler) setReleaseStatus(actionName, releaseName, status string, err error) error {
-	key := "helm_" + actionName + "_" + releaseName
+func (h *Handler) setReleaseStatus(namespace, actionName, releaseName, status string, err error) error {
+	key := "helm_" + namespace + "_" + actionName + "_" + releaseName
 
 	stat := stat{
 		Status: status,
@@ -187,8 +187,8 @@ func (h *Handler) setReleaseStatus(actionName, releaseName, status string, err e
 	return nil
 }
 
-func (h *Handler) setReleaseStatusSilent(actionName, releaseName, status string, err error) {
-	cacheErr := h.setReleaseStatus(actionName, releaseName, status, err)
+func (h *Handler) setReleaseStatusSilent(namespace, actionName, releaseName, status string, err error) {
+	cacheErr := h.setReleaseStatus(namespace, actionName, releaseName, status, err)
 	if cacheErr != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName, "status": status},
 			cacheErr, "unable to set status")

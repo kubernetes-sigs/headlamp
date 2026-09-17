@@ -25,7 +25,7 @@ func TestGetActionStatus_NilErr(t *testing.T) {
 		Status: "failed",
 		Err:    nil,
 	}
-	err := h.Cache.Set(context.Background(), "helm_install_test-release", statusVal)
+	err := h.Cache.Set(context.Background(), "helm__install_test-release", statusVal)
 	require.NoError(t, err)
 
 	url := "/clusters/minikube/helm/releases/status?action=install&name=test-release"
@@ -59,14 +59,14 @@ func TestGetChart_InvalidType(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := action.ChartPathOptions{}
-	loadedChart, err := h.getChart("install", chartDir, "test-release", opts, false, h.EnvSettings)
+	loadedChart, err := h.getChart("default", "install", chartDir, "test-release", opts, false, h.EnvSettings)
 
 	assert.Nil(t, loadedChart)
 	require.Error(t, err)
 	assert.Equal(t, "chart type \"library\" is not installable", err.Error())
 
 	// Verify that the failed status was logged to the cache
-	statusVal, err := h.Cache.Get(context.Background(), "helm_install_test-release")
+	statusVal, err := h.Cache.Get(context.Background(), "helm_default_install_test-release")
 	require.NoError(t, err)
 
 	statusMap := statusVal.(stat)
