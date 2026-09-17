@@ -567,12 +567,13 @@ func IsAllowed(
 // ServeFromCacheOrForwardToK8s attempts to serve a Kubernetes resource from cache.
 // If no cached value is found (or `isAllowed` is false), it forwards the request
 // to the next handler and stores the response in the cache for future requests.
+// It returns true when the response was served from cache.
 func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, next http.Handler, key string,
 	w http.ResponseWriter, r *http.Request, rcw *ResponseCapture,
-) {
+) bool {
 	served, _ := LoadFromCache(k8scache, isAllowed, key, w, r)
 	if served {
-		return
+		return true
 	}
 
 	next.ServeHTTP(rcw, r)
@@ -580,6 +581,7 @@ func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, 
 	err := StoreK8sResponseInCache(k8scache, r.URL, rcw, key)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "error while storing in the cache")
-		return
 	}
+
+	return false
 }

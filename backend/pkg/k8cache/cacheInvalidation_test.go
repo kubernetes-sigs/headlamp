@@ -882,3 +882,80 @@ func TestSyncWatchers(t *testing.T) {
 	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
 	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }
+
+func setupInvalidationHookInformer(
+	t *testing.T,
+	mockCache *MockCache,
+) (*dynamicfake.FakeDynamicClient, []schema.GroupVersionResource) {
+	t.Helper()
+
+	gvrList := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "pods"},
+	}
+
+	scheme := runtime.NewScheme()
+	scheme.AddKnownTypeWithName(
+		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PodList"},
+		&unstructured.UnstructuredList{},
+	)
+
+	fakeClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
+		scheme,
+		map[schema.GroupVersionResource]string{
+			{Group: "", Version: "v1", Resource: "pods"}: "PodList",
+		},
+	)
+
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(fakeClient, 0, "", nil)
+	k8cache.RunInformerToWatch(gvrList, factory, "test-hook-ctx", mockCache)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	factory.Start(ctx.Done())
+	factory.WaitForCacheSync(ctx.Done())
+
+	// Wait briefly for the initial sync to complete.
+	time.Sleep(200 * time.Millisecond)
+
+	return fakeClient, gvrList
+}
+
+func TestOnCacheInvalidationHook(t *testing.T) {
+	var (
+		callCount int32
+		mu        sync.Mutex
+	)
+
+	originalHook := k8cache.OnCacheInvalidation
+	k8cache.OnCacheInvalidation = func() {
+		mu.Lock()
+		callCount++
+		mu.Unlock()
+	}
+
+	t.Cleanup(func() { k8cache.OnCacheInvalidation = originalHook })
+
+	mockCache := &MockCache{store: map[string]string{"+pods+default+test-hook-ctx": "pod-data"}}
+	fakeClient, gvrList := setupInvalidationHookInformer(t, mockCache)
+
+	newPod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata":   map[string]interface{}{"name": "hook-test-pod", "namespace": "default"},
+		},
+	}
+
+	_, err := fakeClient.Resource(gvrList[0]).Namespace("default").Create(
+		context.Background(), newPod, metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return callCount >= 1
+	}, 2*time.Second, 50*time.Millisecond, "OnCacheInvalidation hook should have been called at least once")
+}
