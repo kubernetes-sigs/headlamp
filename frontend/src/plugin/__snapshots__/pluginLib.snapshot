@@ -54,6 +54,7 @@
     "CreateButton": [Function],
     "CreateDaemonSetForm": [Function],
     "CreateDeploymentForm": [Function],
+    "CreateEndpointsForm": [Function],
     "CreateJobForm": [Function],
     "CreatePodForm": [Function],
     "CreateReplicaSetForm": [Function],
@@ -75,6 +76,7 @@
     "EditButton": [Function],
     "EditorDialog": [Function],
     "EmptyContent": [Function],
+    "EndpointSubsetsField": [Function],
     "EnvVarGrid": [Function],
     "ErrorPage": [Function],
     "FieldLabel": [Function],
@@ -134,6 +136,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "Endpoints": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Job": {
         "class": [Function],
         "form": [Function],
@@ -173,6 +179,7 @@
       "CreateButton": [Function],
       "CreateDaemonSetForm": [Function],
       "CreateDeploymentForm": [Function],
+      "CreateEndpointsForm": [Function],
       "CreateJobForm": [Function],
       "CreatePodForm": [Function],
       "CreateReplicaSetForm": [Function],
@@ -189,6 +196,7 @@
       "DryRunPreviewDialog": [Function],
       "EditButton": [Function],
       "EditorDialog": [Function],
+      "EndpointSubsetsField": [Function],
       "EnvVarGrid": [Function],
       "FieldLabel": [Function],
       "FieldWrapper": [Function],
@@ -227,6 +235,10 @@
           "form": [Function],
         },
         "Deployment": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "Endpoints": {
           "class": [Function],
           "form": [Function],
         },
