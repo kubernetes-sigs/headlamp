@@ -15,7 +15,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { getCluster } from '../../../lib/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
@@ -97,15 +97,20 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const visible = data?.status?.allowed ?? false;
 
+  const onAuthResultRef = useRef(onAuthResult);
+
+  useEffect(() => {
+    onAuthResultRef.current = onAuthResult;
+  }, [onAuthResult]);
+
   useEffect(() => {
     if (data) {
-      onAuthResult?.({
+      onAuthResultRef.current?.({
         allowed: visible,
         reason: data.status?.reason ?? '',
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [data, visible]);
 
   if (!isAuthVerbValid) {
     return null;
