@@ -88,6 +88,15 @@ export interface Activity {
   temporary?: boolean;
   /** Cluster of the launched activity */
   cluster?: string;
+  /**
+   * Optional close interceptor. When set, user-initiated close actions
+   * (the title-bar X, the taskbar close buttons and Close All) call this
+   * instead of closing the activity directly, so the content can e.g. ask
+   * for confirmation about unsaved changes. The handler is then responsible
+   * for eventually calling Activity.close(id) itself. Programmatic
+   * Activity.close() calls are unaffected.
+   */
+  onCloseRequest?: () => void;
 }
 
 export const Activity = {
@@ -98,6 +107,18 @@ export const Activity = {
   /** Closes activity */
   close(id: string) {
     store.dispatch(activitySlice.actions.close(id));
+  },
+  /**
+   * Closes the activity unless it has an onCloseRequest handler, in which
+   * case the handler is called and decides whether/when to close.
+   */
+  requestClose(id: string) {
+    const activity = store.getState().activity.activities[id];
+    if (activity?.onCloseRequest) {
+      activity.onCloseRequest();
+    } else {
+      Activity.close(id);
+    }
   },
   /** Update existing activity with a partial changes */
   update(id: string, diff: Partial<Activity>) {
@@ -733,7 +754,11 @@ export function SingleActivityRenderer({
                   >
                     <Icon icon="mdi:minimize" />
                   </IconButton>
-                  <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
+                  <IconButton
+                    onClick={() => Activity.requestClose(id)}
+                    size="small"
+                    title={t('Close')}
+                  >
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </>
@@ -1149,7 +1174,9 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
             variant="contained"
             startIcon={<Icon icon="mdi:close-box-multiple-outline" />}
             onClick={() => {
-              Activity.reset();
+              // Not Activity.reset(): each activity's close guard must get a
+              // chance to intercept, e.g. to confirm discarding unsaved edits.
+              activities.forEach(it => Activity.requestClose(it.id));
               setIsOverview(false);
             }}
             sx={{
@@ -1233,7 +1260,7 @@ export const ActivityBar = React.memo(function ({
             }}
             onMouseDown={e => {
               if (e.button === 1) {
-                Activity.close(it.id);
+                Activity.requestClose(it.id);
               }
             }}
           >
@@ -1299,7 +1326,7 @@ export const ActivityBar = React.memo(function ({
             onClick={e => {
               e.preventDefault();
               e.stopPropagation();
-              Activity.close(it.id);
+              Activity.requestClose(it.id);
             }}
             sx={{ width: '42px', height: '100%', borderRadius: 1, flexShrink: 0 }}
             aria-label={t('Close')}
