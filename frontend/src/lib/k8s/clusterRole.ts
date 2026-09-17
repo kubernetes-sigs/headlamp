@@ -23,6 +23,10 @@ class ClusterRole extends KubeObject<KubeRole> {
   static apiVersion = 'rbac.authorization.k8s.io/v1';
   static isNamespaced = false;
 
+  static get listRoute() {
+    return 'roles';
+  }
+
   get rules() {
     return this.jsonData!.rules;
   }
