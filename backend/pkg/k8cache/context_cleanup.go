@@ -22,15 +22,15 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
-// cacheKeyBelongsToContext reports whether a k8cache entry key belongs to the
-// given Headlamp context. Keys use the format group+resource+namespace+context.
+// cacheKeyBelongsToContext reports whether a k8cache entry key belongs to the given
+// Headlamp context. Keys use the format group+resource+namespace+context+name+variant.
 func cacheKeyBelongsToContext(key, contextKey string) bool {
 	if contextKey == "" {
 		return false
 	}
 
-	parts := strings.SplitN(key, "+", 4)
-	if len(parts) < 4 {
+	parts := strings.SplitN(key, "+", 6)
+	if len(parts) < 6 {
 		return false
 	}
 
@@ -100,8 +100,8 @@ func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} 
 	}
 
 	for key := range allKeys {
-		parts := strings.SplitN(key, "+", 4)
-		if len(parts) == 4 && parts[3] != "" {
+		parts := strings.SplitN(key, "+", 6)
+		if len(parts) == 6 && parts[3] != "" {
 			keys[unescapeCacheKeySegment(parts[3])] = struct{}{}
 		}
 	}
