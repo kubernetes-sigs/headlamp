@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import merge from 'lodash/merge';
 import React from 'react';
 import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
@@ -379,7 +378,7 @@ export function combineClusterListErrors(
     return Object.fromEntries(Object.entries(clusterErrors).filter(([, error]) => error !== null));
   });
 
-  const errors = merge({}, ...filteredArgs);
+  const errors = Object.assign({}, ...filteredArgs);
   const hasErrors = Object.values(errors).some(error => error !== null);
 
   return hasErrors ? errors : null;
