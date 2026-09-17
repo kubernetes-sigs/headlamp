@@ -598,7 +598,7 @@ type RefreshAndSetTokenParams struct {
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
 // and records telemetry based on the provided parameters.
-func RefreshAndSetToken(params RefreshAndSetTokenParams) {
+func RefreshAndSetToken(params RefreshAndSetTokenParams) error {
 	// The token type to use
 	tokenType := "id_token"
 	if params.OIDCUseAccessToken {
@@ -624,29 +624,37 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to refresh token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
-	} else if newToken != nil {
-		var newTokenString string
 
-		var ok bool
-
-		if params.OIDCUseAccessToken {
-			newTokenString, ok = newToken.Extra("access_token").(string)
-		} else {
-			newTokenString, ok = newToken.Extra("id_token").(string)
-		}
-
-		if !ok || newTokenString == "" {
-			logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
-				errors.New("refreshed token missing expected field"), "failed to extract token string")
-			params.TelemetryHandler.RecordError(params.Span,
-				errors.New("refreshed token missing expected field"), "Token extraction failed")
-
-			return
-		}
-
-		// Set refreshed token in cookie
-		SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
-
-		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+		return err
 	}
+
+	if newToken == nil {
+		return errors.New("token refresh returned no token")
+	}
+
+	var newTokenString string
+
+	var ok bool
+
+	if params.OIDCUseAccessToken {
+		newTokenString, ok = newToken.Extra("access_token").(string)
+	} else {
+		newTokenString, ok = newToken.Extra("id_token").(string)
+	}
+
+	if !ok || newTokenString == "" {
+		extractErr := errors.New("refreshed token missing expected field")
+		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+			extractErr, "failed to extract token string")
+		params.TelemetryHandler.RecordError(params.Span,
+			extractErr, "Token extraction failed")
+
+		return extractErr
+	}
+
+	SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
+
+	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+
+	return nil
 }
