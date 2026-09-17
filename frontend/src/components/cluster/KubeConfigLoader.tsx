@@ -39,69 +39,15 @@ import { mergeStatelessConfigState } from '../../stateless';
 import { DialogTitle } from '../common/Dialog';
 import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
+import CopyButton from '../common/Resource/CopyButton';
 import { ClusterDialog } from './Chooser';
+import {
+  buildExportKubeconfigYaml,
+  configWithSelectedClusters,
+  type Kubeconfig,
+} from './kubeconfigExport';
 
-interface Cluster {
-  name: string;
-  cluster: {
-    server: string;
-    [key: string]: any;
-  };
-}
-
-interface User {
-  name: string;
-  user: {
-    token: string;
-    [key: string]: any;
-  };
-}
-
-interface kubeconfig {
-  clusters: Cluster[];
-  users: User[];
-  contexts: { name: string; context: { cluster: string; user: string } }[];
-  currentContext: string;
-}
-
-function configWithSelectedClusters(config: kubeconfig, selectedClusters: string[]): kubeconfig {
-  const newConfig: kubeconfig = {
-    clusters: [],
-    users: [],
-    contexts: [],
-    currentContext: '',
-  };
-
-  // We use a map to avoid duplicates since many contexts can point to the same cluster/user.
-  const clusters: { [key: string]: Cluster } = {};
-  const users: { [key: string]: User } = {};
-
-  selectedClusters.forEach(clusterName => {
-    const context = config.contexts.find(c => c.name === clusterName);
-    if (!context) {
-      return;
-    }
-
-    const cluster = config.clusters.find(c => c.name === context.context.cluster);
-    if (!cluster) {
-      return;
-    }
-    clusters[cluster.name] = cluster;
-
-    // Optionally add the user.
-    const user = config.users?.find(c => c.name === context.context.user);
-    if (!!user) {
-      users[user.name] = user;
-    }
-
-    newConfig.contexts.push(context);
-  });
-
-  newConfig.clusters = Object.values(clusters);
-  newConfig.users = Object.values(users);
-
-  return newConfig;
-}
+interface kubeconfig extends Kubeconfig {}
 
 const WideButton = styled(Button)({
   width: '100%',
@@ -153,6 +99,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
     onCancel,
   } = props;
   const { t } = useTranslation(['translation']);
+  const [copyError, setCopyError] = useState(false);
 
   const { getRootProps, getInputProps, open } = useDropzone({
     onDrop: (acceptedFiles: File[]) => onDrop(acceptedFiles),
@@ -279,7 +226,21 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
             <Loader title={t('translation|Setting up clusters')} />
           </Box>
         );
-      case Step.Success:
+      case Step.Success: {
+        const kubeconfigYaml = buildExportKubeconfigYaml(fileContent, selectedClusters);
+
+        function handleDownload() {
+          const blob = new Blob([kubeconfigYaml], { type: 'text/yaml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'kubeconfig.yaml';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
         return (
           <Box
             sx={{
@@ -288,16 +249,38 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
               justifyContent: 'center',
               textAlign: 'center',
               alignItems: 'center',
+              gap: 2,
             }}
           >
             <Box style={{ padding: '32px' }}>
               <Typography>{t('translation|Clusters successfully set up!')}</Typography>
             </Box>
+            <CopyButton
+              buttonStyle="wide"
+              description={t('translation|Copy kubeconfig to clipboard')}
+              text={kubeconfigYaml}
+              buttonProps={{ sx: { width: '100%', maxWidth: '300px' } }}
+              onError={() => setCopyError(true)}
+              onCopied={() => setCopyError(false)}
+            />
+            {copyError && (
+              <Typography color="error">
+                {t('translation|Failed to copy kubeconfig to clipboard')}
+              </Typography>
+            )}
+            <WideButton
+              variant="outlined"
+              startIcon={<InlineIcon icon="mdi:file-download-outline" />}
+              onClick={handleDownload}
+            >
+              {t('translation|Download kubeconfig')}
+            </WideButton>
             <WideButton variant="contained" onClick={onFinish}>
               {t('translation|Finish')}
             </WideButton>
           </Box>
         );
+      }
     }
   }
 
