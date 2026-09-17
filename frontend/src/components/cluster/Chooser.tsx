@@ -31,6 +31,7 @@ import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import useForkRef from '@mui/material/utils/useForkRef';
 import { visuallyHidden } from '@mui/utils';
 import _ from 'lodash';
 import React, { isValidElement, PropsWithChildren } from 'react';
@@ -56,6 +57,7 @@ import Loader from '../common/Loader';
 import { LightTooltip } from '../common/Tooltip';
 import ClusterChooser from './ClusterChooser';
 import ClusterChooserPopup from './ClusterChooserPopup';
+import { useResizableDialogSize } from './useResizableDialogSize';
 
 export interface ClusterTitleProps {
   clusters?: {
@@ -292,6 +294,15 @@ interface ClusterDialogProps extends PropsWithChildren<Omit<DialogProps, 'open' 
   onClose?: (() => void) | null;
   useCover?: boolean;
   showInfoButton?: boolean;
+  /**
+   * When set, the dialog paper becomes user-resizable via the browser's
+   * native corner grip and its width/height are persisted in
+   * `localStorage[resizeStorageKey]`. Callers that don't want this
+   * behavior (auth flow, kubeconfig loader) should omit the prop so the
+   * dialog keeps its fixed default size. Passing distinct keys from
+   * different dialogs avoids cross-dialog size contamination.
+   */
+  resizeStorageKey?: string;
 }
 
 export function ClusterDialog(props: ClusterDialogProps) {
@@ -304,11 +315,23 @@ export function ClusterDialog(props: ClusterDialogProps) {
     useCover = false,
     showInfoButton = true,
     children = [],
+    PaperProps: callerPaperProps,
+    resizeStorageKey,
     ...otherProps
   } = props;
   // Only used if open is not provided
   const [show, setShow] = React.useState(true);
   const dispatch = useDispatch();
+
+  // Opt-in resize: only callers passing `resizeStorageKey` get the persistent
+  // resize handle. Small viewports go fullscreen where resizing doesn't apply.
+  const resizeEnabled = !!resizeStorageKey && !fullScreen;
+  const { paperRef, dialogSx } = useResizableDialogSize(resizeStorageKey ?? '', resizeEnabled);
+
+  // Compose the hook's ref with any caller-supplied ref so both receive the
+  // paper element. `useForkRef` handles both callback and object refs and
+  // avoids mutating the caller's ref object directly.
+  const composedPaperRef = useForkRef(paperRef, callerPaperProps?.ref ?? null);
 
   function handleClose() {
     if (onClose !== null) {
@@ -327,13 +350,11 @@ export function ClusterDialog(props: ClusterDialogProps) {
       fullScreen={fullScreen}
       open={open !== undefined ? open : show}
       onClose={handleClose}
-      sx={
-        useCover
-          ? {
-              background: theme.palette.common.black,
-            }
-          : {}
-      }
+      PaperProps={{ ...callerPaperProps, ref: composedPaperRef }}
+      sx={{
+        ...(useCover ? { background: theme.palette.common.black } : {}),
+        ...dialogSx,
+      }}
       {...otherProps}
     >
       <DialogTitle
@@ -454,6 +475,7 @@ function Chooser(props: ClusterDialogProps) {
         onClose={onClose || handleClose}
         aria-labelledby="chooser-dialog-title"
         aria-busy={clusterList.length === 0 && clusters === null}
+        resizeStorageKey="clusterChooserDialogSize"
         {...otherProps}
       >
         <DialogTitle id="chooser-dialog-title" focusTitle>
