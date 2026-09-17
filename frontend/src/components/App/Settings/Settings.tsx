@@ -32,6 +32,10 @@ import ActionButton from '../../common/ActionButton';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
+import {
+  PreferredThemeSelectors,
+  rememberThemeChoiceIfEnabled,
+} from '../../Sidebar/ThemeToggleButton';
 import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
@@ -314,6 +318,7 @@ export default function Settings() {
                     return;
                   }
                   if (e.key === 'Enter' || e.key === ' ') {
+                    rememberThemeChoiceIfEnabled(it);
                     dispatch(setTheme(it.name));
                   }
                 }}
@@ -331,13 +336,20 @@ export default function Settings() {
                     backgroundColor: forceTheme ? 'transparent' : 'divider',
                   },
                 }}
-                onClick={() => !forceTheme && dispatch(setTheme(it.name))}
+                onClick={() => {
+                  if (forceTheme) {
+                    return;
+                  }
+                  rememberThemeChoiceIfEnabled(it);
+                  dispatch(setTheme(it.name));
+                }}
               >
                 <ThemePreview theme={it} size={110} />
                 <Box sx={{ mt: 1 }}>{it.name}</Box>
               </Box>
             ))}
           </Box>
+          <PreferredThemeSelectors />
         </Box>
       </Box>
       <Box sx={{ mt: 4 }}>
