@@ -253,6 +253,7 @@
               </div>
             </div>
             <table
+              aria-label="Workload"
               class="MuiTable-root css-1cl9dip-MuiTable-root"
             >
               <thead
@@ -615,8 +616,10 @@
                 class="css-1obf64m"
               >
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
+                  tabindex="0"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
@@ -706,8 +709,10 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-1ospngb"
+                  class="css-13druua"
                   data-selected="false"
+                  role="row"
+                  tabindex="-1"
                 >
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
