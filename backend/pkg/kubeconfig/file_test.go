@@ -228,6 +228,7 @@ func TestRemoveContextFromFile(t *testing.T) {
 	// check if the minikube context exists
 	_, ok := apiConf.Contexts["minikube"]
 	assert.False(t, ok)
+	assert.Empty(t, apiConf.CurrentContext)
 
 	// delete temp kubeconfig file and lock file
 	err = os.Remove("./test_data/config_copy")
@@ -237,6 +238,33 @@ func TestRemoveContextFromFile(t *testing.T) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		require.NoError(t, err)
 	}
+}
+
+func TestRemoveContextFromFile_PreservesCurrentContext(t *testing.T) {
+	data, err := os.ReadFile("./test_data/kubeconfig1")
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	err = os.WriteFile("./test_data/config_copy_current", data, 0o600) //nolint:gosec
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove("./test_data/config_copy_current"))
+
+		if err := os.Remove("./test_data/config_copy_current.lock"); err != nil && !errors.Is(err, os.ErrNotExist) {
+			require.NoError(t, err)
+		}
+	})
+
+	err = kubeconfig.RemoveContextFromFile("docker-desktop", "./test_data/config_copy_current")
+	require.NoError(t, err)
+
+	apiConf, err := clientcmd.LoadFromFile("./test_data/config_copy_current")
+	require.NoError(t, err)
+
+	_, ok := apiConf.Contexts["docker-desktop"]
+	assert.False(t, ok)
+	assert.Equal(t, "minikube", apiConf.CurrentContext)
 }
 
 func TestRemoveContextFromFile_NonExistentContext(t *testing.T) {
