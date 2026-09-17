@@ -22,6 +22,7 @@
       tabindex="-1"
     >
       <div
+        aria-label="Upload File/URL"
         aria-labelledby=":mock-test-id:"
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
         role="dialog"
