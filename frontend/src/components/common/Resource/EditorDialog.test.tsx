@@ -880,6 +880,39 @@ describe('EditorDialog', () => {
     expect(screen.getByText('Failed to create Node node-1 in v1.')).toBeInTheDocument();
   });
 
+  it('reports every failure when applying multiple resources that all fail', async () => {
+    mockLoadAll.mockReturnValueOnce([
+      { apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } },
+      { apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-2' } },
+    ]);
+    mockApply.mockRejectedValueOnce({}).mockRejectedValueOnce({});
+    renderEditorDialog();
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'multiple resources' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    let thrown: Error | undefined;
+    await act(async () => {
+      try {
+        await capturedAction.current?.();
+      } catch (err) {
+        thrown = err as Error;
+      }
+    });
+
+    expect(thrown?.message).toContain('node-1');
+    expect(thrown?.message).toContain('node-2');
+
+    const errorParagraph = screen.getByText(
+      (_content, element) =>
+        element?.tagName.toLowerCase() === 'p' &&
+        !!element.textContent?.includes('node-1') &&
+        !!element.textContent?.includes('node-2')
+    );
+    expect(errorParagraph).toBeInTheDocument();
+  });
+
   it('disables form actions when validation fails and opens the upload dialog', () => {
     renderEditorDialog({ formContent: <div>Form content</div>, formInvalid: true });
     fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
