@@ -26,7 +26,7 @@ import Popover from '@mui/material/Popover';
 import { useTheme } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, type SyntheticEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router';
@@ -61,7 +61,7 @@ function NotificationsList(props: {
     return <Empty>{t(`translation|You don't have any notifications right now`)}</Empty>;
   }
 
-  function notificationSeenUnseenHandler(event: any, notification?: NotificationIface) {
+  function notificationSeenUnseenHandler(event: SyntheticEvent, notification?: NotificationIface) {
     event.stopPropagation();
     if (!notification) {
       return;
@@ -155,7 +155,7 @@ function NotificationsList(props: {
 }
 
 export default function Notifications() {
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const notifications = useTypedSelector(state => state.notifications.notifications);
   const dispatch = useDispatch();
   const clusters = useClustersConf();
@@ -230,7 +230,7 @@ export default function Notifications() {
       ];
     }, [notifications]);
 
-  const handleClick = (event: any) => {
+  const handleClick = (event: MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 

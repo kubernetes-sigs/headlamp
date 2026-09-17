@@ -203,7 +203,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   );
   const { t } = useTranslation();
 
-  function handleChangePage(_event: any, newPage: number) {
+  function handleChangePage(_event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) {
     setPage(newPage);
   }
 
