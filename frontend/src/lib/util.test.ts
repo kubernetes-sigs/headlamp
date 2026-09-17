@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+import type { KubeMetrics } from './k8s/cluster';
+import type Node from './k8s/node';
+import { parseCpu } from './units';
 import {
   combineClusterListErrors,
   compareUnits,
   flattenClusterListItems,
   formatDuration,
   getPercentStr,
+  getResourceMetrics,
   isValidTimezone,
   normalizeUnit,
   timeAgo,
@@ -31,6 +35,22 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const YEAR = 365 * DAY;
 const NEG_TWO_SECONDS_PLUS_ONE_NS = -1999999999 / 1e6;
+
+describe('getResourceMetrics', () => {
+  it('matches metrics by cluster', () => {
+    const node = {
+      cluster: 'cluster-b',
+      getName: () => 'node',
+      status: { capacity: { cpu: '4' } },
+    } as unknown as Node;
+    const metrics = [
+      { metadata: { name: 'node' }, usage: { cpu: '1' }, cluster: 'cluster-a' },
+      { metadata: { name: 'node' }, usage: { cpu: '2' }, cluster: 'cluster-b' },
+    ] as unknown as KubeMetrics[];
+
+    expect(getResourceMetrics(node, metrics, 'cpu')).toEqual([parseCpu('2'), parseCpu('4')]);
+  });
+});
 
 describe('flattenClusterListItems', () => {
   it('should return a flattened list of items', () => {

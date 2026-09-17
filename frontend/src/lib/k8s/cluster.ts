@@ -547,6 +547,7 @@ export interface KubeMetrics {
       memory: string;
     };
   };
+  cluster?: string;
 }
 
 export interface ContainerState {
