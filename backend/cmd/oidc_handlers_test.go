@@ -60,16 +60,21 @@ package main
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -527,4 +532,190 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 		assert.Empty(t, form.Get("code_verifier"),
 			"no code_verifier should be sent when PKCE is off")
 	})
+}
+
+// --- signed-IdP harness -----------------------------------------------------
+//
+// The mock server above serves an empty JWKS, which is enough for the error
+// paths but cannot drive a callback to completion: go-oidc needs a key to
+// verify the id_token against. The helpers below add a real RS256 signing key
+// so a test can assert what the handler does on SUCCESS, which is where the
+// id_token / access_token distinction actually shows up.
+
+// oidcSigner is an RS256 signing key plus the JWKS document describing it.
+type oidcSigner struct {
+	key *rsa.PrivateKey
+}
+
+func newOIDCSigner(t *testing.T) *oidcSigner {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	return &oidcSigner{key: key}
+}
+
+// jwks renders the public half as a JWKS document.
+func (s *oidcSigner) jwks() string {
+	n := base64.RawURLEncoding.EncodeToString(s.key.N.Bytes())
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(s.key.E)).Bytes())
+
+	return fmt.Sprintf(
+		`{"keys":[{"kty":"RSA","alg":"RS256","use":"sig","kid":"test-key","n":%q,"e":%q}]}`, n, e)
+}
+
+// idToken mints a signed id_token for the given issuer and audience.
+func (s *oidcSigner) idToken(t *testing.T, issuer, audience string) string {
+	t.Helper()
+
+	header := base64.RawURLEncoding.EncodeToString(
+		[]byte(`{"alg":"RS256","typ":"JWT","kid":"test-key"}`))
+
+	claims, err := json.Marshal(map[string]any{
+		"iss":   issuer,
+		"aud":   audience,
+		"sub":   "test-subject",
+		"email": "test-user@example.com",
+		"iat":   time.Now().Unix(),
+		"exp":   time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	payload := base64.RawURLEncoding.EncodeToString(claims)
+	signingInput := header + "." + payload
+	digest := sha256.Sum256([]byte(signingInput))
+
+	sig, err := rsa.SignPKCS1v15(rand.Reader, s.key, crypto.SHA256, digest[:])
+	require.NoError(t, err)
+
+	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sig)
+}
+
+// newSignedOIDCTestServer starts a mock IdP that serves a real JWKS and a
+// /token endpoint returning a signed id_token alongside the supplied
+// access_token, so the callback can run to completion.
+func newSignedOIDCTestServer(t *testing.T, signer *oidcSigner, accessToken string) *oidcTestServer {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		cfg := map[string]any{
+			"issuer":                                srv.URL,
+			"authorization_endpoint":                srv.URL + "/auth",
+			"token_endpoint":                        srv.URL + "/token",
+			"jwks_uri":                              srv.URL + "/jwks",
+			"id_token_signing_alg_values_supported": []string{"RS256"},
+		}
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			t.Errorf("encode discovery: %v", err)
+		}
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := io.WriteString(w, signer.jwks()); err != nil {
+			t.Errorf("write jwks: %v", err)
+		}
+	})
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		body, err := json.Marshal(map[string]any{
+			"access_token":  accessToken,
+			"token_type":    "Bearer",
+			"refresh_token": "test-refresh-token",
+			"expires_in":    3600,
+			"id_token":      signer.idToken(t, srv.URL, "test-client-id"),
+		})
+		if err != nil {
+			t.Errorf("encode token response: %v", err)
+
+			return
+		}
+
+		if _, err := w.Write(body); err != nil {
+			t.Errorf("write token response: %v", err)
+		}
+	})
+
+	return &oidcTestServer{server: srv}
+}
+
+// withUseAccessToken enables the -oidc-use-access-token code path.
+func withUseAccessToken() oidcTestOption {
+	return func(c *HeadlampConfig) { c.OidcUseAccessToken = true }
+}
+
+// authTokenCookie returns the value of the per-cluster auth cookie set by the
+// callback, which is the credential Headlamp will forward to the cluster.
+func authTokenCookie(t *testing.T, rr *httptest.ResponseRecorder, cluster string) string {
+	t.Helper()
+
+	for _, c := range rr.Result().Cookies() {
+		if strings.Contains(c.Name, cluster) {
+			return c.Value
+		}
+	}
+
+	t.Fatalf("no auth cookie for cluster %q in %v", cluster, rr.Result().Cookies())
+
+	return ""
+}
+
+// driveSuccessfulCallback runs /oidc then /oidc-callback and requires the
+// redirect that marks a completed login.
+func driveSuccessfulCallback(t *testing.T, handler http.Handler, cluster string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+	require.Equal(t, http.StatusSeeOther, rr.Code,
+		"callback should complete with a redirect; got %d body=%q", rr.Code, rr.Body.String())
+
+	return rr
+}
+
+// TestOIDCCallback_DefaultModeForwardsIDToken pins the default: the id_token
+// is both verified and forwarded to the cluster.
+func TestOIDCCallback_DefaultModeForwardsIDToken(t *testing.T) {
+	signer := newOIDCSigner(t)
+	oidcSrv := newSignedOIDCTestServer(t, signer, "opaque-access-token-not-a-jwt")
+	handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+	rr := driveSuccessfulCallback(t, handler, cluster)
+
+	token := authTokenCookie(t, rr, cluster)
+	assert.Equal(t, 3, len(strings.Split(token, ".")),
+		"default mode should forward the id_token, which is a JWT")
+}
+
+// TestOIDCCallback_AccessTokenModeAcceptsOpaqueToken covers the case that
+// motivated the fix: with -oidc-use-access-token the access_token is what
+// gets forwarded, and it may legitimately be opaque.
+//
+// Google is the common example — its access tokens are not JWTs, and GKE
+// authenticates them while rejecting Google id_tokens. Before the fix the
+// handler verified the selected token, so this flow died in the callback with
+// "oidc: malformed jwt: compact JWS format must have three parts" and login
+// could never complete.
+func TestOIDCCallback_AccessTokenModeAcceptsOpaqueToken(t *testing.T) {
+	const opaque = "opaque-access-token-not-a-jwt"
+
+	signer := newOIDCSigner(t)
+	oidcSrv := newSignedOIDCTestServer(t, signer, opaque)
+	handler, cluster := newOIDCTestHandler(t, oidcSrv, withUseAccessToken())
+
+	rr := driveSuccessfulCallback(t, handler, cluster)
+
+	assert.Equal(t, opaque, authTokenCookie(t, rr, cluster),
+		"access-token mode should forward the access_token verbatim, opaque or not")
 }
