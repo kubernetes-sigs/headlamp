@@ -313,6 +313,9 @@ spec:
             - "-cluster-inventory-no-crd-cache-ttl={{ . }}"
             {{- end }}
             {{- end }}
+            {{- with $oidc.clientAssertionFile }}
+            - "-oidc-client-assertion-file={{ . }}"
+            {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
             {{- if or (ne $oidc.clientID "") (ne $clientID "") }}
@@ -355,7 +358,9 @@ spec:
             {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            {{- if not $oidc.clientAssertionFile }}
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            {{- end }}
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
             {{- if $oidc.externalSecret.hasScopes }}
             - "-oidc-scopes=$(OIDC_SCOPES)"

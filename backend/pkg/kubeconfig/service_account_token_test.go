@@ -87,7 +87,7 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 					BearerTokenFile: tt.clusterBearerTokenFile,
 				},
 				DefaultInClusterContextName,
-				"", "", "", "",
+				"", "", "", "", "",
 				false,
 				"",
 				tt.unsafeUseServiceAccountToken,
