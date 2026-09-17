@@ -17,8 +17,24 @@ func ExportedRunWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	overrideToken ...any,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	var token *watcherToken
+
+	if len(overrideToken) > 0 && overrideToken[0] != nil {
+		token, _ = overrideToken[0].(*watcherToken)
+	} else if val, ok := watcherRegistry.Load(contextKey); ok {
+		token, _ = val.(*watcherToken)
+	}
+
+	runWatcher(ctx, k8scache, contextKey, kContext, token)
+}
+
+// GetTestToken retrieves the token stored for contextKey for test simulation.
+func GetTestToken(contextKey string) any {
+	val, _ := watcherRegistry.Load(contextKey)
+
+	return val
 }
 
 // ResetRegistries clears both registries for test isolation.
@@ -27,10 +43,12 @@ func ResetRegistries(keys ...string) {
 	if len(keys) == 0 {
 		watcherRegistry.Range(func(key, _ interface{}) bool {
 			watcherRegistry.Delete(key)
+
 			return true
 		})
 		contextCancel.Range(func(key, _ interface{}) bool {
 			contextCancel.Delete(key)
+
 			return true
 		})
 
@@ -45,13 +63,15 @@ func ResetRegistries(keys ...string) {
 
 // StoreTestRegistry populates both registries for test setup.
 func StoreTestRegistry(key string, cancel context.CancelFunc) {
-	watcherRegistry.Store(key, struct{}{})
-	contextCancel.Store(key, cancel)
+	token := &watcherToken{cancel: cancel}
+	watcherRegistry.Store(key, token)
+	contextCancel.Store(key, token)
 }
 
 // StoreTestContextCancel stores a cancel function in the registry for tests.
 func StoreTestContextCancel(contextKey string, cancel context.CancelFunc) {
-	contextCancel.Store(contextKey, cancel)
+	token := &watcherToken{cancel: cancel}
+	contextCancel.Store(contextKey, token)
 }
 
 // RegistryLoaded checks if a key exists in both registries.
