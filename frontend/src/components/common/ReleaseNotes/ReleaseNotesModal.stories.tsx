@@ -46,6 +46,14 @@ export const HtmlImage = {
   },
 };
 
+export const TableWithImages = {
+  args: {
+    releaseNotes:
+      '## Performance\n\n| <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png" width="800" height="0" alt=""> | <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png" width="200" height="0" alt=""> |\n|:--|--:|\n| Plugin i18n now fetches only the active locale\'s translation file, preventing unnecessary requests. | Thanks to:<br>@illume<br>#7358 |',
+    appVersion: '0.45.0',
+  },
+};
+
 export const Closed = {
   args: {
     releaseNotes: undefined,
