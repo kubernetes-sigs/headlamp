@@ -74,6 +74,46 @@ export const useResourceCategoriesList = (resources: KubeObject[]) => {
   }, [resources]);
 };
 
+// add above the ProjectResourcesTab component, or near useResourceCategoriesList
+
+export type WorkloadHealthText = 'Healthy' | 'Degraded' | 'Unhealthy' | 'Pending' | 'Failed';
+
+export function getWorkloadHealthText(resource: KubeObject): WorkloadHealthText {
+  const kind = resource.kind;
+
+  if (kind === 'Deployment' || kind === 'StatefulSet') {
+    const workload = resource as Deployment | StatefulSet;
+    const desired = workload.spec?.replicas || 0;
+    const ready = workload.status?.readyReplicas || 0;
+    if (desired === 0) return 'Healthy';
+    if (ready === 0) return 'Unhealthy';
+    if (ready < desired) return 'Degraded';
+    return 'Healthy';
+  }
+
+  if (kind === 'DaemonSet') {
+    const daemonSet = resource as DaemonSet;
+    const desired = daemonSet.status?.desiredNumberScheduled || 0;
+    const ready = daemonSet.status?.numberReady || 0;
+    if (desired === 0) return 'Healthy';
+    if (ready === 0) return 'Unhealthy';
+    if (ready < desired) return 'Degraded';
+    return 'Healthy';
+  }
+
+  if (kind === 'Pod') {
+    const pod = resource as Pod;
+    const phase = pod.status?.phase;
+    const conditions = pod.status?.conditions || [];
+    const ready = conditions.find((c: any) => c.type === 'Ready')?.status === 'True';
+
+    if (phase === 'Failed' || phase === 'CrashLoopBackOff') return 'Failed';
+    if (phase === 'Pending' || !ready) return 'Pending';
+  }
+
+  return 'Healthy';
+}
+
 interface ProjectResourcesTabProps {
   projectResources: KubeObject[];
   showClusterColumn?: boolean;
@@ -135,82 +175,12 @@ export function ProjectResourcesTab({
       {
         id: 'health',
         gridTemplate: 'min-content',
-        accessorFn: resource => {
-          const kind = resource.kind;
-          if (kind === 'Deployment') {
-            const deployment = resource as Deployment;
-            const spec = deployment.spec;
-            const status = deployment.status;
-            if (status?.readyReplicas === 0) return 'Unhealthy';
-            if ((status?.readyReplicas || 0) < (spec?.replicas || 0)) return 'Degraded';
-          } else if (kind === 'StatefulSet') {
-            const statefulSet = resource as StatefulSet;
-            const spec = statefulSet.spec;
-            const status = statefulSet.status;
-            if (status?.readyReplicas === 0) return 'Unhealthy';
-            if ((status?.readyReplicas || 0) < (spec?.replicas || 0)) return 'Degraded';
-          } else if (kind === 'DaemonSet') {
-            const daemonSet = resource as DaemonSet;
-            const status = daemonSet.status;
-            if (status?.numberReady === 0) return 'Unhealthy';
-            if ((status?.numberReady || 0) < (status?.desiredNumberScheduled || 0))
-              return 'Degraded';
-          } else if (kind === 'Pod') {
-            const pod = resource as Pod;
-            const phase = pod.status?.phase;
-            const conditions = pod.status?.conditions || [];
-            const ready = conditions.find((c: any) => c.type === 'Ready')?.status === 'True';
-
-            if (phase === 'Failed' || phase === 'CrashLoopBackOff') return 'Failed';
-            if (phase === 'Pending' || !ready) return 'Pending';
-          }
-          return 'Healthy';
-        },
+        accessorFn: resource => getWorkloadHealthText(resource),
         header: t('Health'),
         Cell: ({ row }) => {
           const resource = row.original;
-          const kind = resource.kind;
-          let healthText = 'Healthy';
           const status = getStatus(resource);
-
-          if (kind === 'Deployment') {
-            const deployment = resource as Deployment;
-            const spec = deployment.spec;
-            const status = deployment.status;
-            if (status?.readyReplicas === 0) {
-              healthText = 'Unhealthy';
-            } else if ((status?.readyReplicas || 0) < (spec?.replicas || 0)) {
-              healthText = 'Degraded';
-            }
-          } else if (kind === 'StatefulSet') {
-            const statefulSet = resource as StatefulSet;
-            const spec = statefulSet.spec;
-            const status = statefulSet.status;
-            if (status?.readyReplicas === 0) {
-              healthText = 'Unhealthy';
-            } else if ((status?.readyReplicas || 0) < (spec?.replicas || 0)) {
-              healthText = 'Degraded';
-            }
-          } else if (kind === 'DaemonSet') {
-            const daemonSet = resource as DaemonSet;
-            const status = daemonSet.status;
-            if (status?.numberReady === 0) {
-              healthText = 'Unhealthy';
-            } else if ((status?.numberReady || 0) < (status?.desiredNumberScheduled || 0)) {
-              healthText = 'Degraded';
-            }
-          } else if (kind === 'Pod') {
-            const pod = resource as Pod;
-            const phase = pod.status?.phase;
-            const conditions = pod.status?.conditions || [];
-            const ready = conditions.find((c: any) => c.type === 'Ready')?.status === 'True';
-
-            if (phase === 'Failed' || phase === 'CrashLoopBackOff') {
-              healthText = 'Failed';
-            } else if (phase === 'Pending' || !ready) {
-              healthText = 'Pending';
-            }
-          }
+          const healthText = getWorkloadHealthText(resource);
 
           return (
             <StatusLabel status={status} sx={{ alignItems: 'center' }}>
@@ -222,9 +192,7 @@ export function ProjectResourcesTab({
                     ? 'mdi:alert'
                     : 'mdi:check-circle'
                 }
-                style={{
-                  fontSize: 16,
-                }}
+                style={{ fontSize: 16 }}
               />
               {healthText}
             </StatusLabel>

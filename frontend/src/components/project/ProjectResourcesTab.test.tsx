@@ -19,6 +19,7 @@ import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import type React from 'react';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import {
+  getWorkloadHealthText,
   ProjectResourcesTab,
   resourcePaneStyles,
   useResourceCategoriesList,
@@ -306,5 +307,64 @@ describe('ProjectResourcesTab', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Show Logs' })[0]);
     fireEvent.click(screen.getAllByRole('button', { name: 'Terminal / Exec' })[0]);
     expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
+  });
+  it('does not label a scaled-to-zero Deployment as Unhealthy in the rendered table', () => {
+    const projectResources = [
+      resource('Deployment', 'deployment-zero-scaled', {
+        category: 'Workloads',
+        isScalable: true,
+        spec: { replicas: 0 },
+        status: { readyReplicas: 0 },
+      }),
+    ];
+
+    render(
+      <ProjectResourcesTab
+        projectResources={projectResources}
+        selectedCategoryName="Workloads"
+        setSelectedCategoryName={() => {}}
+      />
+    );
+
+    // no healthStatus override → getStatus mock returns 'success', matching the icon
+    // that KubeObjectStatus.tsx already produces for 0/0 in the real app
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+    expect(screen.queryByText('Unhealthy')).not.toBeInTheDocument();
+  });
+});
+
+describe('getWorkloadHealthText', () => {
+  it.each(['Deployment', 'StatefulSet'] as const)(
+    'reports a %s scaled to zero as Healthy, not Unhealthy',
+    kind => {
+      const zeroScaled = resource(kind, 'zero-scaled', {
+        spec: { replicas: 0 },
+        status: { readyReplicas: 0 },
+      });
+      expect(getWorkloadHealthText(zeroScaled)).toBe('Healthy');
+    }
+  );
+
+  it('reports a DaemonSet with zero desired replicas as Healthy, not Unhealthy', () => {
+    const zeroScaled = resource('DaemonSet', 'zero-scaled', {
+      status: { numberReady: 0, desiredNumberScheduled: 0 },
+    });
+    expect(getWorkloadHealthText(zeroScaled)).toBe('Healthy');
+  });
+
+  it('still reports Unhealthy when ready is zero but replicas are desired', () => {
+    const unhealthy = resource('Deployment', 'unhealthy', {
+      spec: { replicas: 3 },
+      status: { readyReplicas: 0 },
+    });
+    expect(getWorkloadHealthText(unhealthy)).toBe('Unhealthy');
+  });
+
+  it('still reports Degraded when ready is below a positive desired count', () => {
+    const degraded = resource('StatefulSet', 'degraded', {
+      spec: { replicas: 3 },
+      status: { readyReplicas: 1 },
+    });
+    expect(getWorkloadHealthText(degraded)).toBe('Degraded');
   });
 });
