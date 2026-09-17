@@ -89,7 +89,7 @@ export default function NodeList() {
             label: t('translation|Ready'),
             filterVariant: 'multi-select',
             getValue: node => {
-              const isReady = !!node.status.conditions?.find(
+              const isReady = !!node.status?.conditions?.find(
                 condition => condition.type === 'Ready' && condition.status === 'True'
               );
               return isReady ? t('translation|Yes') : t('translation|No');
@@ -113,12 +113,7 @@ export default function NodeList() {
             id: 'roles',
             label: t('Roles'),
             gridTemplate: 'minmax(150px, .5fr)',
-            getValue: node => {
-              return Object.keys(node.metadata.labels ?? {})
-                .filter((t: String) => t.startsWith('node-role.kubernetes.io/'))
-                .map(t => t.replace('node-role.kubernetes.io/', ''))
-                .join(', ');
-            },
+            getValue: (node: Node) => node.getRoles().join(', '),
           },
           ...(hasNodePools
             ? [
@@ -148,37 +143,38 @@ export default function NodeList() {
             id: 'version',
             label: t('translation|Version'),
             gridTemplate: 'minmax(150px, .5fr)',
-            getValue: node => node.status.nodeInfo?.kubeletVersion,
+            getValue: node => node.status?.nodeInfo?.kubeletVersion,
             filterVariant: 'multi-select',
           },
           {
             id: 'software',
             label: t('translation|Software'),
             gridTemplate: 'minmax(200px, 1.5fr)',
-            getValue: node => node.status.nodeInfo?.operatingSystem,
+            getValue: node => node.status?.nodeInfo?.operatingSystem,
             render: node => {
-              if (node.status.nodeInfo === undefined) {
+              if (!node.status?.nodeInfo) {
                 return <></>;
               }
+              const nodeInfo = node.status.nodeInfo;
               let osIcon = 'mdi:desktop-classic';
-              if (node.status.nodeInfo.operatingSystem === 'linux') {
+              if (nodeInfo.operatingSystem === 'linux') {
                 osIcon = 'mdi:linux';
-              } else if (node.status.nodeInfo.operatingSystem === 'windows') {
+              } else if (nodeInfo.operatingSystem === 'windows') {
                 osIcon = 'mdi:microsoft-windows';
               }
 
               return (
                 <>
                   <HoverInfoLabel
-                    label={node.status.nodeInfo.osImage}
+                    label={nodeInfo.osImage}
                     hoverInfo={t('OS image')}
                     labelProps={{ variant: 'body2' }}
                     iconPosition="start"
                     icon={osIcon}
                   />
-                  {node.status.nodeInfo.kernelVersion && (
+                  {nodeInfo.kernelVersion && (
                     <HoverInfoLabel
-                      label={node.status.nodeInfo.kernelVersion}
+                      label={nodeInfo.kernelVersion}
                       hoverInfo={t('Kernel version')}
                       labelProps={{ variant: 'body2' }}
                       iconPosition="start"
@@ -186,7 +182,7 @@ export default function NodeList() {
                     />
                   )}
                   <HoverInfoLabel
-                    label={node.status.nodeInfo.containerRuntimeVersion}
+                    label={nodeInfo.containerRuntimeVersion}
                     hoverInfo={t('Container Runtime')}
                     labelProps={{ variant: 'body2' }}
                     iconPosition="start"
