@@ -54,7 +54,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   if (item === null) {
     return <></>;
   }
-  const cluster = getCluster();
+  const cluster = item.cluster || getCluster() || null;
   function isLinux(item: Node | null): boolean {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
@@ -64,38 +64,51 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   if (!isNodeTerminalEnabled(cluster)) {
     return <></>;
   }
+
+  const podResource = new Pod({
+    kind: 'Pod',
+    apiVersion: 'v1',
+    metadata: {
+      name: 'dummy-pod',
+      namespace: namespace || '',
+    },
+  } as any);
+  podResource.cluster = cluster || '';
+
   return (
     <>
-      <AuthVisible authVerb="create" item={Pod} namespace={namespace}>
-        <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
-          <ActionButton
-            description={
-              isLinux(item)
-                ? t('Debug Node')
-                : t('Debug node is not supported in this OS: {{ nodeOS }}', {
-                    nodeOS: item?.status?.nodeInfo?.operatingSystem,
-                  })
-            }
-            icon="mdi:bug"
-            onClick={() => {
-              Activity.launch({
-                id: activityId,
-                location: 'full',
-                title: t('Shell: {{ itemName }}', { itemName: item.metadata.name }),
-                cluster: item.cluster,
-                content: (
-                  <NodeShellTerminal
-                    key="terminal"
-                    item={item}
-                    onClose={() => Activity.close(activityId)}
-                  />
-                ),
-              });
-            }}
-            iconButtonProps={{
-              disabled: !isLinux(item),
-            }}
-          />
+      <AuthVisible authVerb="create" item={podResource} namespace={namespace}>
+        <AuthVisible authVerb="delete" item={podResource} namespace={namespace}>
+          <AuthVisible item={podResource} namespace={namespace} authVerb="get" subresource="exec">
+            <ActionButton
+              description={
+                isLinux(item)
+                  ? t('Debug Node')
+                  : t('Debug node is not supported in this OS: {{ nodeOS }}', {
+                      nodeOS: item?.status?.nodeInfo?.operatingSystem,
+                    })
+              }
+              icon="mdi:bug"
+              onClick={() => {
+                Activity.launch({
+                  id: activityId,
+                  location: 'full',
+                  title: t('Shell: {{ itemName }}', { itemName: item.metadata.name }),
+                  cluster: item.cluster,
+                  content: (
+                    <NodeShellTerminal
+                      key="terminal"
+                      item={item}
+                      onClose={() => Activity.close(activityId)}
+                    />
+                  ),
+                });
+              }}
+              iconButtonProps={{
+                disabled: !isLinux(item),
+              }}
+            />
+          </AuthVisible>
         </AuthVisible>
       </AuthVisible>
     </>
