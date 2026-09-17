@@ -143,9 +143,14 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
   // Re-render xterm when selectedSeverities changes without restarting the stream
   useEffect(() => {
-    if (xtermRef.current && logs.logs.length > 0) {
+    // Only the entries up to lastLineShown have reached the terminal: a drain can still
+    // have frames queued for the rest. Rewriting the whole batch here would leave those
+    // frames appending their entries a second time, duplicating the tail.
+    const shown = logs.logs.slice(0, logs.lastLineShown + 1);
+
+    if (xtermRef.current && shown.length > 0) {
       xtermRef.current.clear();
-      const filtered = filterLogsBySeverity(logs.logs, selectedSeverities);
+      const filtered = filterLogsBySeverity(shown, selectedSeverities);
       xtermRef.current.write(filtered.join('').replaceAll('\n', '\r\n'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -360,6 +365,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
     }
 
     let cleanup: (() => void) | null = null;
+    let cancelDrain: (() => void) | null = null;
     let isSubscribed = true;
 
     // Handle paused logs state - avoid fetching new logs
@@ -375,47 +381,58 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
       const pod = pods[selectedPodIndex as number];
       if (pod) {
         let lastLogLength = 0;
+        let latestLogs: string[] = [];
+        let drainHandle: number | null = null;
+
+        // Write the entries that have not been displayed yet in bounded chunks, yielding
+        // to the browser between them. A single callback can carry more entries than one
+        // chunk holds, so keep scheduling frames until everything has been drained,
+        // otherwise the tail of a large batch would stay undisplayed once the stream ends.
+        const drain = () => {
+          drainHandle = null;
+
+          const terminalRef = xtermRef.current;
+          if (!isSubscribed || !terminalRef || lastLogLength >= latestLogs.length) return;
+
+          const CHUNK_SIZE = 1000; // Process 1000 lines at a time
+          const startIdx = lastLogLength;
+          const endIdx = Math.min(startIdx + CHUNK_SIZE, latestLogs.length);
+
+          // Apply severity filter to the new chunk using the ref to avoid effect restart
+          const chunk = latestLogs.slice(startIdx, endIdx);
+          const filteredChunk = filterLogsBySeverity(chunk, selectedSeveritiesRef.current);
+          terminalRef.write(filteredChunk.join('').replaceAll('\n', '\r\n'));
+          lastLogLength = endIdx;
+
+          setLogs({
+            logs: latestLogs, // Keep raw logs for downloads
+            lastLineShown: endIdx - 1,
+          });
+
+          // If there are more logs to process, schedule them for the next frame
+          if (lastLogLength < latestLogs.length) {
+            drainHandle = requestAnimationFrame(drain);
+          }
+        };
+
+        cancelDrain = () => {
+          if (drainHandle !== null) {
+            cancelAnimationFrame(drainHandle);
+            drainHandle = null;
+          }
+        };
+
         cleanup = pod.getLogs(
           selectedContainer,
           ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
             if (!isSubscribed) return;
 
-            setLogs(current => {
-              const terminalRef = xtermRef.current;
-              if (!terminalRef) return current;
+            latestLogs = newLogs;
 
-              // Only process new logs in chunks for better performance
-              if (newLogs.length > lastLogLength) {
-                const CHUNK_SIZE = 1000; // Process 1000 lines at a time
-                const startIdx = lastLogLength;
-                const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
-
-                // Apply severity filter to the new chunk using the ref to avoid effect restart
-                const chunk = newLogs.slice(startIdx, endIdx);
-                const filteredChunk = filterLogsBySeverity(chunk, selectedSeveritiesRef.current);
-                const filteredContent = filteredChunk.join('').replaceAll('\n', '\r\n');
-
-                terminalRef.write(filteredContent);
-                lastLogLength = endIdx;
-
-                // If there are more logs to process, schedule them for the next frame
-                if (endIdx < newLogs.length) {
-                  requestAnimationFrame(() => {
-                    setLogs(current => ({
-                      ...current,
-                      logs: newLogs, // Keep raw logs for downloads
-                      lastLineShown: endIdx - 1,
-                    }));
-                  });
-                  return current;
-                }
-              }
-
-              return {
-                logs: newLogs, // Keep raw logs
-                lastLineShown: newLogs.length - 1,
-              };
-            });
+            // A drain is already in flight; it picks the new entries up on its next frame.
+            if (drainHandle === null) {
+              drain();
+            }
           },
           {
             tailLines: lines,
@@ -434,6 +451,9 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
     return () => {
       isSubscribed = false;
+      if (cancelDrain) {
+        cancelDrain();
+      }
       if (cleanup) {
         cleanup();
       }
