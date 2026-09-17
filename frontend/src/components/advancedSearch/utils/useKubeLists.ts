@@ -74,7 +74,7 @@ export const useKubeLists = (
     if (isLoading) return;
 
     const newItems = data.flatMap(it => {
-      if (it.items && it.items.length < maxItems) {
+      if (it.items && it.items.length <= maxItems) {
         return it.items;
       } else {
         // The amount of items exceeds the limit
