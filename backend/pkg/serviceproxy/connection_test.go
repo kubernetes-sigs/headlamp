@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -98,6 +99,20 @@ var getTests = []struct {
 		wantBody:   []byte("Hello, World!"),
 		wantErr:    false,
 	},
+	{
+		name:       "prefixed URI preserves base path",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "/status",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:       "prefixed URI with traversal preserves prefix",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "/../status",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
 }
 
 func TestGet(t *testing.T) {
@@ -107,6 +122,9 @@ func TestGet(t *testing.T) {
 
 			if tt.wantBody != nil {
 				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.Contains(tt.uri, "/api/v1/proxy") && !strings.HasPrefix(r.URL.Path, "/api/v1/proxy") {
+						t.Errorf("Expected path prefix /api/v1/proxy, got %s", r.URL.Path)
+					}
 					_, err := w.Write(tt.wantBody)
 					if err != nil {
 						t.Fatal(err)
@@ -114,7 +132,11 @@ func TestGet(t *testing.T) {
 				}))
 				defer ts.Close()
 
-				conn.URI = ts.URL
+				if strings.Contains(tt.uri, "/api/v1/proxy") {
+					conn.URI = ts.URL + "/api/v1/proxy"
+				} else {
+					conn.URI = ts.URL
+				}
 			}
 
 			w := httptest.NewRecorder()
