@@ -26,6 +26,7 @@ import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { uiSlice } from '../../redux/uiSlice';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
+import Welcome from '../common/Welcome/Welcome';
 import { MonacoEditorLoaderInitializer } from '../monaco/MonacoEditorLoaderInitializer';
 import Layout from './Layout';
 import { PreviousRouteProvider } from './RouteSwitcher';
@@ -216,6 +217,7 @@ export default function AppContainer() {
           </MonacoEditorLoaderInitializer>
           <QueryParamRedirect />
         </PreviousRouteProvider>
+        {arePluginsLoaded && isThemeConfigReady && <Welcome />}
       </Router>
       {arePluginsLoaded && isThemeConfigReady && <ReleaseNotes />}
     </SnackbarProvider>
