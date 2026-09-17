@@ -28,6 +28,7 @@ import { localeDate } from '../../../lib/util';
 import { NameValueTable, NameValueTableRow } from '../../common/SimpleTable';
 import Link from '../Link';
 import { LightTooltip } from '../Tooltip';
+import CopyButton from './CopyButton';
 
 type ExtraRowsFunc<T extends KubeObject> = (resource: T) => NameValueTableRow[] | null;
 
@@ -156,13 +157,23 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
       },
       {
         name: t('Labels'),
-        value: resource.metadata.labels && <MetadataDictGrid dict={resource.metadata.labels} />,
+        value: resource.metadata.labels && (
+          <MetadataDictGrid
+            dict={resource.metadata.labels}
+            showCopyButton
+            copyButtonLabel={t('Copy labels to clipboard')}
+          />
+        ),
         hide: !resource.metadata.labels,
       },
       {
         name: t('Annotations'),
         value: resource.metadata.annotations && (
-          <MetadataDictGrid dict={resource.metadata.annotations} />
+          <MetadataDictGrid
+            dict={resource.metadata.annotations}
+            showCopyButton
+            copyButtonLabel={t('Copy annotations to clipboard')}
+          />
         ),
         hide: !resource.metadata.annotations,
       },
@@ -190,13 +201,15 @@ interface MetadataDictGridProps {
     [index: number]: string;
   };
   showKeys?: boolean;
+  showCopyButton?: boolean;
+  copyButtonLabel?: string;
   gridProps?: {
     [index: string]: any;
   };
 }
 
 export function MetadataDictGrid(props: MetadataDictGridProps) {
-  const { dict, showKeys = true, gridProps } = props;
+  const { dict, showKeys = true, showCopyButton = false, copyButtonLabel, gridProps } = props;
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
@@ -271,19 +284,29 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
           <React.Fragment key={key}>{makeLabel(key)}</React.Fragment>
         ))}
       </Box>
-      {keys.length > defaultNumShown && (
-        <Button
-          onClick={() => setExpanded(!expanded)}
-          size="small"
-          startIcon={<Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />}
-          sx={{ mt: 1, mb: 1 }}
-        >
-          {!expanded
-            ? t('translation|Show all labels (+{{count}} more)', {
-                count: keys.length - defaultNumShown,
-              })
-            : t('translation|Show fewer')}
-        </Button>
+      {(keys.length > defaultNumShown || (showCopyButton && keys.length > 0)) && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {keys.length > defaultNumShown && (
+            <Button
+              onClick={() => setExpanded(!expanded)}
+              size="small"
+              startIcon={<Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />}
+              sx={{ mt: 1, mb: 1 }}
+            >
+              {!expanded
+                ? t('translation|Show all labels (+{{count}} more)', {
+                    count: keys.length - defaultNumShown,
+                  })
+                : t('translation|Show fewer')}
+            </Button>
+          )}
+          {showCopyButton && keys.length > 0 && (
+            <CopyButton
+              text={keys.map(key => `${key}=${dict[key]}`).join(',')}
+              description={copyButtonLabel}
+            />
+          )}
+        </Box>
       )}
     </Box>
   );
