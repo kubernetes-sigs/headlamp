@@ -157,10 +157,17 @@ class Ingress extends KubeObject<KubeIngress> {
 
     this.spec!.rules?.forEach(({ http, host }) => {
       if (http) {
-        const paths = http.paths.map(({ backend, path }) => {
+        const paths = http.paths.map(pathEntry => {
+          const { backend, path } = pathEntry;
+          // pathType only exists on networking.k8s.io/v1 rules, so it stays undefined
+          // for the legacy shape. Carry it through either way: consumers rely on
+          // getRules() as the single normalized view of spec.rules.
+          const pathType = (pathEntry as { pathType?: string }).pathType;
+
           if (!!(backend as LegacyIngressBackend).serviceName) {
             return {
               path,
+              pathType,
               backend: {
                 service: {
                   name: (backend as LegacyIngressBackend).serviceName,
@@ -173,6 +180,7 @@ class Ingress extends KubeObject<KubeIngress> {
           } else {
             return {
               path,
+              pathType,
               backend: backend as IngressBackend,
             };
           }
