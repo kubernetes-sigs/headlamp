@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:all
+//nolint:funlen,gochecknoinits,gocritic,gosec,govet,lll,noctx,staticcheck,wsl_v5 // Preserve the adapted client-go implementation to ease upstream comparison.
 package exec
 
 import (
