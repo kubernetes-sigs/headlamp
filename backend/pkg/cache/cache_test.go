@@ -18,6 +18,7 @@ package cache_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,6 +108,42 @@ func TestCacheGetAll(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(values))
+}
+
+func TestCacheDeleteAll(t *testing.T) {
+	ch := cache.New[interface{}]()
+
+	require.NoError(t, ch.Set(context.Background(), "prefix+1", "value1"))
+	require.NoError(t, ch.Set(context.Background(), "prefix+2", "value2"))
+	require.NoError(t, ch.Set(context.Background(), "prefix+1+query", "value3"))
+	require.NoError(t, ch.Set(context.Background(), "other+prefix+1", "value4"))
+
+	err := ch.DeleteAll(context.Background(), func(key string) bool {
+		return key == "prefix+1" || strings.HasPrefix(key, "prefix+1+")
+	})
+	assert.NoError(t, err)
+
+	_, err = ch.Get(context.Background(), "prefix+1")
+	assert.Error(t, err)
+
+	_, err = ch.Get(context.Background(), "prefix+1+query")
+	assert.Error(t, err)
+
+	val, err := ch.Get(context.Background(), "prefix+2")
+	assert.NoError(t, err)
+	assert.Equal(t, "value2", val)
+
+	val, err = ch.Get(context.Background(), "other+prefix+1")
+	assert.NoError(t, err)
+	assert.Equal(t, "value4", val)
+
+	// test DeleteAll with nil matcher deletes everything
+	err = ch.DeleteAll(context.Background(), nil)
+	assert.NoError(t, err)
+	_, err = ch.Get(context.Background(), "prefix+2")
+	assert.Error(t, err)
+	_, err = ch.Get(context.Background(), "other+prefix+1")
+	assert.Error(t, err)
 }
 
 func TestCacheClose(t *testing.T) {
