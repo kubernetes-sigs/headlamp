@@ -123,9 +123,19 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
       const refs = obj.metadata.ownerReferences;
       if (!refs) continue;
       for (const owner of refs) {
-        const to = nodesByUid.get(owner.uid);
+        const toId = from.kubeObject?.cluster
+          ? `${from.kubeObject.cluster}_${owner.uid}`
+          : owner.uid;
+        const to = nodesByUid.get(toId);
         if (to) {
-          edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+          edges.push({
+            id: from.id + '-' + to.id,
+            source: from.id,
+            target: to.id,
+            data: {
+              isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
+            },
+          });
         }
       }
     }
@@ -168,7 +178,14 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
       const targets = refIndex.get(uid);
       if (!targets) continue;
       for (const to of targets) {
-        edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+        edges.push({
+          id: from.id + '-' + to.id,
+          source: from.id,
+          target: to.id,
+          data: {
+            isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
+          },
+        });
       }
     }
     return edges;
