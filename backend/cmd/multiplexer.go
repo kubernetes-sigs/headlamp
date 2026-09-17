@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -100,8 +101,16 @@ type Connection struct {
 	usesServiceAccountToken bool
 	// Authentication token.
 	Token *string
+	// acceptedTokenHashes tracks the refresh chain for this connection so
+	// concurrent refreshes that started from an older token can still advance it.
+	acceptedTokenHashes map[[sha256.Size]byte]struct{}
 	// closeOnce is used to ensure the connection is closed only once.
 	closeOnce sync.Once
+}
+
+type clientTokenScope struct {
+	token               string
+	acceptedTokenHashes map[[sha256.Size]byte]struct{}
 }
 
 // Message represents a WebSocket message structure.
@@ -126,6 +135,9 @@ type Message struct {
 type Multiplexer struct {
 	// connections is a map of connections indexed by the cluster ID and path.
 	connections map[string]*Connection
+	// clientTokens keeps refreshed credentials available to subscriptions
+	// opened later on the same browser WebSocket.
+	clientTokens map[*WSConnLock]map[string]*clientTokenScope
 	// mutex is a mutex to synchronize access to the connections.
 	mutex sync.RWMutex
 	// upgrader is the WebSocket upgrader.
@@ -212,6 +224,7 @@ func (conn *WSConnLock) Close() error {
 func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
 	return &Multiplexer{
 		connections:                  make(map[string]*Connection),
+		clientTokens:                 make(map[*WSConnLock]map[string]*clientTokenScope),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
@@ -222,6 +235,100 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 			},
 		},
 	}
+}
+
+// ReplaceToken keeps long-lived watch connections aligned with a token that
+// was refreshed through the HTTP authentication middleware. Existing upstream
+// sockets remain valid until they close; subsequent reconnects use the new
+// token instead of replaying the expired credential captured at WebSocket
+// establishment time.
+func (m *Multiplexer) ReplaceToken(oldToken, newToken string) {
+	if oldToken == "" || newToken == "" || oldToken == newToken {
+		return
+	}
+
+	oldTokenHash := sha256.Sum256([]byte(oldToken))
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	for _, clusterTokens := range m.clientTokens {
+		for _, scope := range clusterTokens {
+			if _, acceptsOldToken := scope.acceptedTokenHashes[oldTokenHash]; acceptsOldToken {
+				scope.token = newToken
+				scope.acceptedTokenHashes[sha256.Sum256([]byte(newToken))] = struct{}{}
+			}
+		}
+	}
+
+	for _, conn := range m.connections {
+		conn.mu.Lock()
+		if conn.usesServiceAccountToken {
+			conn.mu.Unlock()
+
+			continue
+		}
+
+		conn.rememberCurrentTokenLocked()
+
+		_, acceptsOldToken := conn.acceptedTokenHashes[oldTokenHash]
+		if acceptsOldToken {
+			refreshedToken := newToken
+			conn.Token = &refreshedToken
+			conn.rememberTokenLocked(newToken)
+		}
+		conn.mu.Unlock()
+	}
+}
+
+func (c *Connection) rememberCurrentTokenLocked() {
+	if c.Token != nil {
+		c.rememberTokenLocked(*c.Token)
+	}
+}
+
+func (c *Connection) rememberTokenLocked(token string) {
+	if token == "" {
+		return
+	}
+
+	if c.acceptedTokenHashes == nil {
+		c.acceptedTokenHashes = make(map[[sha256.Size]byte]struct{})
+	}
+
+	c.acceptedTokenHashes[sha256.Sum256([]byte(token))] = struct{}{}
+}
+
+func (m *Multiplexer) resolveClientToken(
+	clientConn *WSConnLock,
+	clusterID string,
+	requestToken *string,
+) *string {
+	if clientConn == nil || requestToken == nil || *requestToken == "" {
+		return requestToken
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	clusterTokens := m.clientTokens[clientConn]
+
+	scope := clusterTokens[clusterID]
+	if scope == nil {
+		return requestToken
+	}
+
+	if scope.token != *requestToken {
+		requestTokenHash := sha256.Sum256([]byte(*requestToken))
+		if _, belongsToRefreshChain := scope.acceptedTokenHashes[requestTokenHash]; !belongsToRefreshChain {
+			scope.token = *requestToken
+			scope.acceptedTokenHashes[requestTokenHash] = struct{}{}
+		}
+	}
+
+	resolvedToken := scope.token
+
+	return &resolvedToken
 }
 
 // readServiceAccountToken reads the service account token from path, caching the value
@@ -375,8 +482,8 @@ func (c *Connection) safeClose() {
 	})
 }
 
-// establishClusterConnection creates a new WebSocket connection to a Kubernetes cluster.
-func (m *Multiplexer) establishClusterConnection(
+// dialClusterConnection creates a WebSocket connection without publishing it.
+func (m *Multiplexer) dialClusterConnection(
 	clusterID,
 	userID,
 	path,
@@ -424,7 +531,25 @@ func (m *Multiplexer) establishClusterConnection(
 	connection.WSConn = conn
 	connection.updateStatus(StateConnected, nil)
 
+	return connection, nil
+}
+
+// establishClusterConnection creates and publishes a new WebSocket connection.
+func (m *Multiplexer) establishClusterConnection(
+	clusterID,
+	userID,
+	path,
+	query string,
+	clientConn *WSConnLock,
+	token *string,
+) (*Connection, error) {
+	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token)
+	if err != nil {
+		return nil, err
+	}
+
 	m.mutex.Lock()
+	m.applyClientTokenScopeLocked(connection, clientConn, clusterID)
 	connKey := m.createConnectionKey(clusterID, path, userID)
 	m.connections[connKey] = connection
 	m.mutex.Unlock()
@@ -432,6 +557,57 @@ func (m *Multiplexer) establishClusterConnection(
 	go m.monitorConnection(connection)
 
 	return connection, nil
+}
+
+func (m *Multiplexer) applyClientTokenScopeLocked(
+	connection *Connection,
+	clientConn *WSConnLock,
+	clusterID string,
+) {
+	if connection.usesServiceAccountToken {
+		return
+	}
+
+	connection.mu.Lock()
+	defer connection.mu.Unlock()
+
+	if connection.Token == nil {
+		return
+	}
+
+	clusterTokens := m.clientTokens[clientConn]
+	if clusterTokens == nil {
+		clusterTokens = make(map[string]*clientTokenScope)
+		m.clientTokens[clientConn] = clusterTokens
+	}
+
+	scope := clusterTokens[clusterID]
+	if scope == nil {
+		acceptedTokenHashes := make(map[[sha256.Size]byte]struct{}, len(connection.acceptedTokenHashes))
+		for tokenHash := range connection.acceptedTokenHashes {
+			acceptedTokenHashes[tokenHash] = struct{}{}
+		}
+
+		scope = &clientTokenScope{
+			token:               *connection.Token,
+			acceptedTokenHashes: acceptedTokenHashes,
+		}
+		scope.acceptedTokenHashes[sha256.Sum256([]byte(scope.token))] = struct{}{}
+		clusterTokens[clusterID] = scope
+
+		return
+	}
+
+	latestToken := scope.token
+
+	connection.Token = &latestToken
+	if connection.acceptedTokenHashes == nil {
+		connection.acceptedTokenHashes = make(map[[sha256.Size]byte]struct{}, len(scope.acceptedTokenHashes))
+	}
+
+	for tokenHash := range scope.acceptedTokenHashes {
+		connection.acceptedTokenHashes[tokenHash] = struct{}{}
+	}
 }
 
 // getClusterConfigWithFallback attempts to get the cluster config,
@@ -491,7 +667,7 @@ func (m *Multiplexer) createConnection(
 	clientConn *WSConnLock,
 	token *string,
 ) *Connection {
-	return &Connection{
+	connection := &Connection{
 		ClusterID: clusterID,
 		UserID:    userID,
 		Path:      path,
@@ -504,6 +680,9 @@ func (m *Multiplexer) createConnection(
 		},
 		Token: token,
 	}
+	connection.rememberCurrentTokenLocked()
+
+	return connection
 }
 
 // dialWebSocket establishes a WebSocket connection.
@@ -591,13 +770,23 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
-	newConn, err := m.establishClusterConnection(
+	conn.mu.RLock()
+
+	token := conn.Token
+	if token != nil {
+		value := *token
+		token = &value
+	}
+
+	conn.mu.RUnlock()
+
+	newConn, err := m.dialClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
 		conn.Query,
 		conn.Client,
-		conn.Token,
+		token,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
@@ -606,6 +795,27 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	}
 
 	m.mutex.Lock()
+	conn.mu.RLock()
+	newConn.mu.Lock()
+
+	if !newConn.usesServiceAccountToken {
+		if conn.Token == nil {
+			newConn.Token = nil
+		} else {
+			latestToken := *conn.Token
+			newConn.Token = &latestToken
+		}
+
+		newConn.acceptedTokenHashes = make(map[[sha256.Size]byte]struct{}, len(conn.acceptedTokenHashes))
+		for tokenHash := range conn.acceptedTokenHashes {
+			newConn.acceptedTokenHashes[tokenHash] = struct{}{}
+		}
+
+		newConn.rememberCurrentTokenLocked()
+	}
+
+	newConn.mu.Unlock()
+	conn.mu.RUnlock()
 	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = newConn
 	m.mutex.Unlock()
 
@@ -713,6 +923,8 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 	var connsToClose []*Connection
 
 	m.mutex.Lock()
+	delete(m.clientTokens, clientConn)
+
 	for key, conn := range m.connections {
 		conn.mu.RLock()
 		isClient := conn.Client == clientConn
@@ -767,31 +979,37 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
+	token = m.resolveClientToken(clientConn, msg.ClusterID, token)
+
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
 
 	m.mutex.RLock()
 	conn, exists := m.connections[connKey]
+
+	if exists {
+		err := m.refreshConnectionToken(conn, token)
+		m.mutex.RUnlock()
+
+		return conn, err
+	}
+
 	m.mutex.RUnlock()
 
-	if !exists {
-		var err error
+	var err error
 
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
-		if err != nil {
-			logger.Log(
-				logger.LevelError,
-				map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
-				err,
-				"establishing cluster connection",
-			)
+	conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+	if err != nil {
+		logger.Log(
+			logger.LevelError,
+			map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
+			err,
+			"establishing cluster connection",
+		)
 
-			return nil, err
-		}
-
-		go m.handleClusterMessages(conn, clientConn)
-	} else if err := m.refreshConnectionToken(conn, token); err != nil {
 		return nil, err
 	}
+
+	go m.handleClusterMessages(conn, clientConn)
 
 	return conn, nil
 }
@@ -808,9 +1026,18 @@ func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *str
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 
-	if conn.Token == nil || *conn.Token != *requestToken {
-		conn.Token = requestToken
+	if conn.Token != nil && *conn.Token == *requestToken {
+		return nil
 	}
+
+	requestTokenHash := sha256.Sum256([]byte(*requestToken))
+	if _, belongsToRefreshChain := conn.acceptedTokenHashes[requestTokenHash]; belongsToRefreshChain {
+		return nil
+	}
+
+	updatedToken := *requestToken
+	conn.Token = &updatedToken
+	conn.rememberTokenLocked(*requestToken)
 
 	return nil
 }
