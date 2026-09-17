@@ -46,4 +46,5 @@ export const BUILT_IN_RELATION_IDS = [
   'udproute-service',
   'backendtlspolicy-service',
   'backendtrafficpolicy-service',
+  'vapbinding-vap',
 ];
