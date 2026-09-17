@@ -230,3 +230,37 @@ func TestGetReleaseStatusUnmarshalError(t *testing.T) {
 	_, err = h.getReleaseStatus("install", "badrelease")
 	assert.Error(t, err)
 }
+
+// installRelease must mark the action as failed when VerifyUser rejects the
+// request; otherwise the status stays "processing" until the cache TTL
+// expires and the frontend polls forever.
+func TestInstallReleaseVerifyUserFailureSetsFailedStatus(t *testing.T) {
+	h, err := NewHandler(newTestCache())
+	require.NoError(t, err)
+
+	// An empty kubeconfig makes ToRESTConfig fail, so VerifyUser rejects the
+	// request deterministically without any network I/O. Pointing at a fixed
+	// local port instead would depend on nothing listening there.
+	emptyCC := clientcmd.NewDefaultClientConfig(clientcmdapi.Config{}, &clientcmd.ConfigOverrides{})
+	actionConfig, err := NewActionConfig(emptyCC, "default")
+	require.NoError(t, err)
+
+	req := InstallRequest{
+		CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+			Name:      "verify-user-failure",
+			Chart:     "test-chart",
+			Namespace: "default",
+		},
+	}
+
+	// InstallRelease sets "processing" before spawning the async install;
+	// reproduce that state here.
+	require.NoError(t, h.setReleaseStatus("install", req.Name, processing, nil))
+
+	h.installRelease(req, actionConfig)
+
+	stat, err := h.getReleaseStatus("install", req.Name)
+	require.NoError(t, err)
+	assert.Equal(t, failed, stat.Status)
+	assert.NotNil(t, stat.Err)
+}
