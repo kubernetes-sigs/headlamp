@@ -104,6 +104,7 @@
   "To": "",
   "Reference Grants": "",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "水平ポッドオートスケーラー",
   "Ingress Classes": "イングレスクラス",
