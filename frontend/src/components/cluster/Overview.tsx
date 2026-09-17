@@ -44,6 +44,7 @@ import {
   PodsStatusCircleChart,
 } from './Charts';
 import { ClusterGroupErrorMessage } from './ClusterGroupErrorMessage';
+import { loadEventWarningSwitch, storeEventWarningSwitch } from './eventWarningSwitch';
 
 const OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 
@@ -111,21 +112,13 @@ export default function Overview() {
 }
 
 function EventsSection() {
-  const EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY = 'EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY';
-  const EVENT_WARNING_SWITCH_DEFAULT = true;
   const { t } = useTranslation(['translation', 'glossary']);
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const eventsFilter = queryParams.get('eventsFilter');
   const filterFunc = useFilterFunc<Event>(['.jsonData.involvedObject.kind']);
-  const [isWarningEventSwitchChecked, setIsWarningEventSwitchChecked] = React.useState(
-    Boolean(
-      JSON.parse(
-        localStorage.getItem(EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY) ||
-          EVENT_WARNING_SWITCH_DEFAULT.toString()
-      )
-    )
-  );
+  const [isWarningEventSwitchChecked, setIsWarningEventSwitchChecked] =
+    React.useState(loadEventWarningSwitch);
   const namespace = useNamespaces();
   const { items: events, errors: eventsErrors } = Event.useList({
     limit: Event.maxLimit,
@@ -188,7 +181,7 @@ function EventsSection() {
             label={t('Only warnings ({{ numWarnings }})', { numWarnings })}
             control={<Switch color="primary" />}
             onChange={(event, checked) => {
-              localStorage.setItem(EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY, checked.toString());
+              storeEventWarningSwitch(checked);
               setIsWarningEventSwitchChecked(checked);
             }}
             key="warning-toggle"
