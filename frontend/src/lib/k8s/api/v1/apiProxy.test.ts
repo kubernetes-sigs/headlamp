@@ -1100,7 +1100,7 @@ describe('apiProxy', () => {
     });
   });
 
-  describe('startPortForward, stopOrDeletePortForward, listPortForward', () => {
+  describe('startPortForward, stopPortForward, deletePortForward, listPortForward', () => {
     const containerPort = 8080;
     const service = 'test-service';
     const serviceNamespace = 'default';
@@ -1171,11 +1171,53 @@ describe('apiProxy', () => {
       });
     });
 
-    describe('stopOrDeletePortForward', () => {
-      it('Successfully deletes a port forward', async () => {
-        const response = await apiProxy.stopOrDeletePortForward(clusterName, mockId);
+    /** Returns the parsed body of the last portforward DELETE request. */
+    function lastDeleteRequestBody() {
+      const calls = (global.fetch as MockedFunction<typeof fetch>).mock.calls;
+      const [, options] = calls[calls.length - 1];
+      return JSON.parse(options!.body as string);
+    }
+
+    describe('stopPortForward', () => {
+      it('Successfully stops a port forward', async () => {
+        const response = await apiProxy.stopPortForward(clusterName, mockId);
         const data = JSON.parse(response);
         expect(data).toEqual(mockStopResponse);
+      });
+
+      it("sends the 'stop' action", async () => {
+        await apiProxy.stopPortForward(clusterName, mockId);
+        expect(lastDeleteRequestBody()).toEqual({ id: mockId, action: 'stop' });
+      });
+    });
+
+    describe('deletePortForward', () => {
+      it('Successfully deletes a port forward', async () => {
+        const response = await apiProxy.deletePortForward(clusterName, mockId);
+        const data = JSON.parse(response);
+        expect(data).toEqual(mockStopResponse);
+      });
+
+      it("sends the 'delete' action", async () => {
+        await apiProxy.deletePortForward(clusterName, mockId);
+        expect(lastDeleteRequestBody()).toEqual({ id: mockId, action: 'delete' });
+      });
+    });
+
+    describe('stopOrDeletePortForward (deprecated)', () => {
+      it("maps true to the 'stop' action", async () => {
+        await apiProxy.stopOrDeletePortForward(clusterName, mockId, true);
+        expect(lastDeleteRequestBody()).toEqual({ id: mockId, action: 'stop' });
+      });
+
+      it("maps false to the 'delete' action", async () => {
+        await apiProxy.stopOrDeletePortForward(clusterName, mockId, false);
+        expect(lastDeleteRequestBody()).toEqual({ id: mockId, action: 'delete' });
+      });
+
+      it("defaults to the 'stop' action", async () => {
+        await apiProxy.stopOrDeletePortForward(clusterName, mockId);
+        expect(lastDeleteRequestBody()).toEqual({ id: mockId, action: 'stop' });
       });
     });
 

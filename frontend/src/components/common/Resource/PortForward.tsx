@@ -29,10 +29,11 @@ import { isDockerDesktop } from '../../../helpers/isDockerDesktop';
 import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import {
+  deletePortForward,
   listPortForward,
   PortForward as PortForwardState,
   startPortForward,
-  stopOrDeletePortForward,
+  stopPortForward,
 } from '../../../lib/k8s/api/v1/portForward';
 import { KubeContainer } from '../../../lib/k8s/cluster';
 import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
@@ -367,7 +368,7 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, portForward.id, true)
+    stopPortForward(cluster, portForward.id)
       .then(() => {
         setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
@@ -387,7 +388,7 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, id, false)
+    deletePortForward(cluster, id)
       .then(() => {
         const parsedPortForwards = getPortForwardsFromStorage();
         const index = parsedPortForwards.findIndex((pf: PortForwardState) => pf.id === id);
