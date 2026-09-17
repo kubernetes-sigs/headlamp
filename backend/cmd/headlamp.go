@@ -832,6 +832,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}),
 	)).Methods("GET")
 
+	// Export a standalone kubeconfig for a single cluster, regardless of how it was added.
+	r.Handle("/clusters/{clusterName}/kubeconfig", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.getClusterKubeconfig),
+	)).Methods("GET")
+
 	config.handleClusterRequests(r)
 
 	externalProxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2194,6 +2199,61 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 	}
 
 	return clusters
+}
+
+// getClusterKubeconfig returns a standalone, single-context kubeconfig YAML for the
+// named cluster, built from whatever this Headlamp instance already holds for it in
+// memory (works the same regardless of whether the cluster came from a kubeconfig
+// file, a dynamically-added/stateless cluster, or in-cluster config).
+//
+// Stateless (browser-imported) contexts are stored under a per-user cache key and
+// marked Internal, so we resolve the key with getContextKeyForRequest — the same
+// resolution the proxy uses — instead of the raw cluster name. The KUBECONFIG and
+// X-HEADLAMP-USER-ID headers sent by the frontend select (and re-register, with a
+// refreshed TTL) exactly the context the requesting user holds, so a user can only
+// ever export their own contexts.
+func (c *HeadlampConfig) getClusterKubeconfig(w http.ResponseWriter, r *http.Request) {
+	clusterName := mux.Vars(r)["clusterName"]
+
+	contextKey, err := c.getContextKeyForRequest(r)
+	if err != nil {
+		http.Error(w, "cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	kubeContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err != nil || kubeContext == nil ||
+		kubeContext.KubeContext == nil || kubeContext.Cluster == nil || kubeContext.AuthInfo == nil {
+		http.Error(w, "cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	// Stateless contexts are keyed as "name\x00user" in the store; the exported
+	// kubeconfig must use the plain cluster name instead of that internal key.
+	exportName := kubeContext.Name
+	if kubeContext.Name != clusterName {
+		exportName = clusterName
+	}
+
+	cfg := api.NewConfig()
+	cfg.Clusters[kubeContext.KubeContext.Cluster] = kubeContext.Cluster
+	cfg.AuthInfos[kubeContext.KubeContext.AuthInfo] = kubeContext.AuthInfo
+	cfg.Contexts[exportName] = kubeContext.KubeContext
+	cfg.CurrentContext = exportName
+
+	kubeconfigBytes, err := clientcmd.Write(*cfg)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err,
+			"serializing kubeconfig")
+		http.Error(w, "failed to build kubeconfig", http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/yaml")
+	w.Write(kubeconfigBytes) //nolint:errcheck
 }
 
 // parseCustomNameClusters parses the custom name clusters from the kubeconfig.
