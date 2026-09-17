@@ -439,6 +439,54 @@ func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
 }
 
+func newTestHeadlampConfig() *HeadlampConfig {
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+}
+
+func TestIsRequestAuthenticatedNoCredentials(t *testing.T) {
+	c := newTestHeadlampConfig()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+
+	assert.False(t, c.isRequestAuthenticated(req))
+}
+
+func TestIsRequestAuthenticatedBearerToken(t *testing.T) {
+	c := newTestHeadlampConfig()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+	req.Header.Set("Authorization", "Bearer sometoken")
+
+	assert.True(t, c.isRequestAuthenticated(req))
+}
+
+func TestIsRequestAuthenticatedBackendToken(t *testing.T) {
+	c := newTestHeadlampConfig()
+
+	token := uuid.New().String()
+	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", token))
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", token)
+
+	assert.True(t, c.isRequestAuthenticated(req))
+}
+
+func TestIsRequestAuthenticatedClusterCookie(t *testing.T) {
+	c := newTestHeadlampConfig()
+	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{Name: "test-cluster"}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+	req.AddCookie(&http.Cookie{Name: "headlamp-auth-test-cluster.0", Value: "sometoken"})
+
+	assert.True(t, c.isRequestAuthenticated(req))
+}
+
 //nolint:gocognit,funlen
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
