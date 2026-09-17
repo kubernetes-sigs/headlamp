@@ -52,6 +52,8 @@
   "Failed to start": "فشل التشغيل",
   "Could not start the server even after terminating existing processes.": "تعذر تشغيل الخادم حتى بعد إنهاء العمليات الحالية.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "تعذر العثور على منفذ متاح في النطاق {{startPort}}-{{endPort}}. يرجى تحرير منفذ والمحاولة مرة أخرى.",
+  "Headlamp failed to start": "",
+  "The backend server could not be started:\n\n{{ error }}": "",
   "Invalid URL": "رابط غير صالح",
   "Application opened with an invalid URL: {{ url }}": "تم فتح التطبيق برابط غير صالح: {{ url }}",
   "OAuth callback failed": "",
