@@ -124,7 +124,7 @@
           pods)
         </div>
         <div
-          style="font-size: 12px; color: rgb(46, 125, 50); font-style: italic; max-width: 900px; padding: 8px; background-color: rgb(232, 245, 233); border-radius: 4px;"
+          style="font-size: 12px; color: rgb(46, 125, 50); font-style: italic; width: 100%; padding: 8px; background-color: rgb(232, 245, 233); border-radius: 4px; box-sizing: border-box;"
         >
           💡 
           <strong>

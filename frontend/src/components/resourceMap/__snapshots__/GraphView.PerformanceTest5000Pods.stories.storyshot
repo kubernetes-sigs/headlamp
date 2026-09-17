@@ -130,7 +130,7 @@
            resources)
         </div>
         <div
-          style="font-size: 12px; color: rgb(46, 125, 50); font-style: italic; padding: 8px; background-color: rgb(232, 245, 233); border-radius: 4px;"
+          style="font-size: 12px; color: rgb(46, 125, 50); font-style: italic; padding: 8px; background-color: rgb(232, 245, 233); border-radius: 4px; width: 100%; box-sizing: border-box;"
         >
           💡 
           Incremental Optimization
