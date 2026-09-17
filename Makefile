@@ -35,6 +35,19 @@ EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
 APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
+# Windows reads a binary's publisher details from a VERSIONINFO resource, and
+# only a plain x.y.z can fill its numeric fields, so fall back to zeros for
+# release candidates and for the "unknown" APP_VERSION above.
+APP_VERSION_NUM ?= $(shell node -p "((require('./app/package.json').version||'').match(/^[0-9]+[.][0-9]+[.][0-9]+/)||['0.0.0'])[0]" 2>/dev/null || echo "0.0.0")
+VERSIONINFO_VERSION := v1.4.1
+VERSIONINFO_FLAGS := -platform-specific \
+	-file-version "$(APP_VERSION)" -product-version "$(APP_VERSION)" \
+	-ver-major $(word 1,$(subst ., ,$(APP_VERSION_NUM))) \
+	-ver-minor $(word 2,$(subst ., ,$(APP_VERSION_NUM))) \
+	-ver-patch $(word 3,$(subst ., ,$(APP_VERSION_NUM))) -ver-build 0 \
+	-product-ver-major $(word 1,$(subst ., ,$(APP_VERSION_NUM))) \
+	-product-ver-minor $(word 2,$(subst ., ,$(APP_VERSION_NUM))) \
+	-product-ver-patch $(word 3,$(subst ., ,$(APP_VERSION_NUM))) -product-ver-build 0
 # Build flags with version and app name
 BUILD_VERSION_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
 # embed build flags
@@ -64,6 +77,20 @@ ifeq ($(UNIXSHELL), true)
 else
 	powershell -Command "$$env:GOBIN='$(CURDIR)/backend/tools'; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"
 endif
+
+# Go emits no VERSIONINFO of its own, which leaves headlamp-server.exe with no
+# product name, description or company for allowlisting rules to key on. Build
+# the resource for every architecture up front: the _windows_<arch> filename
+# suffixes keep the linker from touching it anywhere but Windows, so the
+# non-Windows and cross-compiled builds below stay unaffected.
+.PHONY: backend-versioninfo
+# The generator has to build for the host even while the surrounding build is
+# cross-compiling, so clear the target settings for this recipe alone. Make
+# exports these itself, which keeps the recipe free of shell-specific syntax.
+backend-versioninfo: export GOOS :=
+backend-versioninfo: export GOARCH :=
+backend-versioninfo:
+	cd backend/cmd && go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@$(VERSIONINFO_VERSION) $(VERSIONINFO_FLAGS) versioninfo.json
 
 backend-lint: tools/golangci-lint
 ifeq ($(UNIXSHELL), true)
@@ -120,11 +147,11 @@ app-i18n-check: app/node_modules/.package-lock.json
 	cd app && npm run i18n-check
 
 .PHONY: backend
-backend:
+backend: backend-versioninfo
 	cd backend && go build $(BUILD_VERSION_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
 
 .PHONY: backend-embed
-backend-embed:
+backend-embed: backend-versioninfo
 	REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN=false $(MAKE) frontend-build
 	$(MAKE) backend-embed-prepare
 	cd backend && go build $(EMBED_BUILD_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
@@ -182,17 +209,17 @@ backend-embed-windows:
 	$(MAKE) backend-embed-windows-386 VERSION=$(VERSION)
 	@echo "✓ Completed all Windows builds for version $(VERSION)"
 
-backend-embed-windows-arm64:
+backend-embed-windows-arm64: backend-versioninfo
 	@echo "Building for windows/arm64 with version $(VERSION)..."
 	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe ./cmd
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe"
 
-backend-embed-windows-amd64:
+backend-embed-windows-amd64: backend-versioninfo
 	@echo "Building for windows/amd64 with version $(VERSION)..."
 	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe ./cmd
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe"
 
-backend-embed-windows-386:
+backend-embed-windows-386: backend-versioninfo
 	@echo "Building for windows/386 with version $(VERSION)..."
 	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe ./cmd
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe"
