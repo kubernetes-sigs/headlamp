@@ -186,6 +186,22 @@ be shared with workloads or other cluster users.
 
 - Example plugin: [How To Use Plugin Secure Storage](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/secure-storage)
 
+### Cluster Pre-Open Hooks
+
+Prepare a cluster before Headlamp renders its views with
+[registerClusterProviderPreOpen](../../api/modules/plugin_registry#registerclusterproviderpreopen).
+Pre-open hooks can start a proxy or tunnel, refresh credentials, warm a cache, or
+perform another asynchronous prerequisite. While hooks run, Headlamp displays a
+connecting dialog. Rejecting a hook shows its error with a retry action.
+
+Hooks run sequentially whenever a single cluster is opened. Combined
+multi-cluster views currently skip pre-open hooks. Hooks that apply only to some
+clusters should inspect the supplied context and resolve immediately for other
+clusters. Long-running work should use the supplied `AbortSignal`, and hooks can
+report status text through `reportProgress`.
+
+- API reference: [registerClusterProviderPreOpen](../../api/modules/plugin_registry#registerclusterproviderpreopen)
+
 ### Route
 
 Show a component in the main area at a given URL with

@@ -90,7 +90,7 @@ test.describe('desktop listener cleanup', () => {
     await electronPage.addInitScript(() => {
       (window as any).desktopApi.receive(
         'plugin-permission-secrets',
-        (secrets: Record<string, number>) => {
+        (secrets: Record<string, unknown>) => {
           (window as any).listenerCleanupPermissionSecrets = secrets;
         }
       );
@@ -109,6 +109,8 @@ test.describe('desktop listener cleanup', () => {
       (window as any).runE2ECommand = async () => {
         const desktopApi = (window as any).desktopApi;
         const permissionSecrets = (window as any).listenerCleanupPermissionSecrets;
+        const { startClusterProxy: _startClusterProxy, ...commandPermissionSecrets } =
+          permissionSecrets;
         const removedChannels: string[] = [];
         const receive = (
           channel: string,
@@ -124,7 +126,7 @@ test.describe('desktop listener cleanup', () => {
           'gh',
           ['--version'],
           {},
-          permissionSecrets,
+          commandPermissionSecrets,
           desktopApi.send,
           receive
         );
