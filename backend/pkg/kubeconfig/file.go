@@ -107,8 +107,11 @@ func mergeWithExisting(config clientcmdapi.Config, dir, configFile string) (*cli
 		return nil, fmt.Errorf("failed to close temp kubeconfig file: %w", err)
 	}
 
+	// The incoming config comes first so that it wins over the existing file:
+	// clientcmd resolves conflicts in favour of the first entry. Entries that
+	// only exist in the file on disk are still preserved by the merge.
 	load := clientcmd.ClientConfigLoadingRules{
-		Precedence: []string{configFile, tmpPath},
+		Precedence: []string{tmpPath, configFile},
 	}
 
 	merged, err := load.Load()
