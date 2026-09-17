@@ -6,7 +6,10 @@ sidebar_position: 4
 
 Headlamp Desktop app supports installing plugins via the Plugin Catalog.
 
-There is also [documentation for using plugins Headlamp running in-cluster](../in-cluster/index.md#plugin-management).
+There is also documentation for using plugins with Headlamp running in-cluster:
+
+- [Plugin Management](../in-cluster/index.md#plugin-management) (Artifact Hub sidecar)
+- [Plugins with Image Volumes](../in-cluster/plugins-image-volume.md) (Kubernetes 1.33+; feature gate on 1.33–1.34)
 
 
 ## Plugin Catalog
