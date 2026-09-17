@@ -59,6 +59,7 @@ export const Testing = Template.bind({});
 Testing.args = {
   ...argFixture,
   testingAuth: true,
+  testingTitle: 'Authenticating cluster access',
 };
 
 export const HaveClusters = Template.bind({});
