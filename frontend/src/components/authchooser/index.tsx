@@ -23,10 +23,10 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation } from 'react-router-dom';
 import { getAppUrl } from '../../helpers/getAppUrl';
+import { invalidateClusterUserInfo } from '../../lib/auth';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
-import { queryClient } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
@@ -226,8 +226,10 @@ function AuthChooser({ children }: AuthChooserProps) {
           } catch {
             // sessionStorage unavailable (e.g. private browsing with strict settings).
           }
-          queryClient.invalidateQueries({ queryKey: ['clusterMe', clusterName], exact: true });
         }
+        // Invalidate every cluster's cached identity, not just this one: the
+        // backend may have broadcast the new token to sibling clusters.
+        invalidateClusterUserInfo();
         history.replace(from);
       }}
       handleBackButtonPress={() => {

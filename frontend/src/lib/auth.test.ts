@@ -17,8 +17,9 @@
 import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import store from '../redux/stores/store';
-import { getUserInfo, setToken } from './auth';
+import { getUserInfo, invalidateClusterUserInfo, setToken } from './auth';
 import { backendFetch } from './k8s/api/v2/fetch';
+import { queryClient } from './queryClient';
 
 // Mock the dependencies
 vi.mock('./k8s/api/v2/fetch');
@@ -161,6 +162,28 @@ describe('auth', () => {
       expect(spy).toHaveBeenCalled();
 
       spy.mockRestore();
+    });
+  });
+
+  describe('invalidateClusterUserInfo', () => {
+    beforeEach(() => {
+      queryClient.clear();
+    });
+
+    it('invalidates the cached identity of every cluster, not only the one logged into', async () => {
+      // Alice has been browsing cluster B; her identity is cached there. Cluster A
+      // is cached too. Then Bob logs into A. With token broadcast, B's cookie is
+      // now Bob's — so B's cached "alice" must not be served for its staleTime.
+      queryClient.setQueryData(['clusterMe', 'cluster-a'], { name: 'alice' });
+      queryClient.setQueryData(['clusterMe', 'cluster-b'], { name: 'alice' });
+      // An unrelated cache entry must be left alone.
+      queryClient.setQueryData(['auth', 'cluster-b'], { ok: true });
+
+      await invalidateClusterUserInfo();
+
+      expect(queryClient.getQueryState(['clusterMe', 'cluster-a'])?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(['clusterMe', 'cluster-b'])?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(['auth', 'cluster-b'])?.isInvalidated).toBe(false);
     });
   });
 });
