@@ -24,7 +24,13 @@ Ready to run Headlamp locally? Here's the full setup from scratch.
 
 ### Prerequisites
 
-Make sure you have Node.js (>= 22.0.0 with npm >= 11.0.0) and Go installed before starting; see the development dependencies for the full list.
+Make sure you have Node.js (>= 22.0.0 with npm >= 11.0.0) and Go (>= 1.26.5) installed before starting; see the development dependencies for the full list.
+
+You can validate your local toolchain and contributor-facing version metadata with:
+
+```bash
+npm run env:check
+```
 
 ### Build and Run
 
