@@ -45,6 +45,7 @@ vi.mock('@xterm/addon-fit', () => ({
   FitAddon: vi.fn().mockImplementation(() => ({
     fit: vi.fn(),
     activate: vi.fn(),
+    dispose: vi.fn(),
   })),
 }));
 
