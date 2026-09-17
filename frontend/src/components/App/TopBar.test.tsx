@@ -21,7 +21,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AppBarActionsMenu } from './TopBar';
+import { AppBarActionsMenu, KubeconfigCopyMenuItem } from './TopBar';
 
 // ── Mocks needed to prevent circular-dependency crashes when TopBar.tsx is ──
 // imported (it transitively loads k8s resource classes through lib/k8s and
@@ -42,20 +42,33 @@ vi.mock('../../helpers/getProductInfo', () => ({
 }));
 vi.mock('../../lib/router/createRouteURL', () => ({ createRouteURL: vi.fn(() => '/') }));
 vi.mock('../../redux/hooks', () => ({ useTypedSelector: vi.fn(() => undefined) }));
-vi.mock('../../redux/uiSlice', () => ({ uiSlice: { actions: { setVersionDialogOpen: vi.fn() } } }));
+vi.mock('../../redux/uiSlice', () => ({
+  default: vi.fn(() => ({})),
+  uiSlice: { actions: { setVersionDialogOpen: vi.fn() } },
+}));
 vi.mock('../cluster/Chooser', () => ({
   ClusterTitle: () => null,
   useClusterTitleVisible: vi.fn(() => false),
 }));
 vi.mock('../globalSearch/GlobalSearch', () => ({ GlobalSearch: () => null }));
 vi.mock('../Sidebar/HeadlampButton', () => ({ default: () => null }));
-vi.mock('../Sidebar/sidebarSlice', () => ({ setWhetherSidebarOpen: vi.fn() }));
+vi.mock('../Sidebar/sidebarSlice', () => ({
+  default: vi.fn(() => ({})),
+  setWhetherSidebarOpen: vi.fn(),
+}));
 vi.mock('./AppLogo', () => ({ AppLogo: () => null }));
 vi.mock('../App/Settings', () => ({
   navigateToClusterSettings: vi.fn(),
   SettingsButton: () => null,
 }));
 vi.mock('@tanstack/react-query', () => ({ useQueries: vi.fn(() => []) }));
+vi.mock('notistack', () => ({
+  useSnackbar: vi.fn(() => ({ enqueueSnackbar: vi.fn() })),
+}));
+vi.mock('./Home/clusterKubeconfigExport', () => ({
+  getClusterKubeconfigYaml: vi.fn(async () => 'apiVersion: v1'),
+  downloadKubeconfigYaml: vi.fn(),
+}));
 vi.mock('react-redux', () => ({
   useDispatch: vi.fn(() => vi.fn()),
   useSelector: vi.fn(),
@@ -107,6 +120,21 @@ describe('AppBarActionsMenu', () => {
 
     const item = screen.getByRole('menuitem');
     expect(item).toHaveTextContent('inner content');
+  });
+
+  it('passes KubeconfigCopyMenuItem through without nesting menuitems', () => {
+    // The mobile "Copy kubeconfig" action renders its own MenuItem, so
+    // AppBarActionsMenu must not wrap it in NullableMenuItem again.
+    const action = {
+      id: 'kubeconfig-copy',
+      action: <KubeconfigCopyMenuItem clusterName="cluster-a" onCopyDone={vi.fn()} />,
+    };
+    render(<AppBarActionsMenu appBarActions={[action]} />);
+
+    const items = screen.getAllByRole('menuitem');
+    expect(items).toHaveLength(1);
+    expect(items[0].querySelector('[role="menuitem"], [role="button"], button')).toBeNull();
+    expect(items[0]).toHaveTextContent('Copy kubeconfig');
   });
 
   it('renders nothing for a null action', () => {

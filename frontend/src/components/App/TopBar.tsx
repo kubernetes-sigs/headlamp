@@ -29,6 +29,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useQueries } from '@tanstack/react-query';
 import { has } from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -49,10 +50,17 @@ import { uiSlice } from '../../redux/uiSlice';
 import { navigateToClusterSettings, SettingsButton } from '../App/Settings';
 import { ClusterTitle, useClusterTitleVisible } from '../cluster/Chooser';
 import ErrorBoundary from '../common/ErrorBoundary';
+import { useCopyToClipboard } from '../common/useCopyToClipboard';
 import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
 import { AppLogo } from './AppLogo';
+import {
+  downloadKubeconfigYaml,
+  getClusterKubeconfigYaml,
+  useKubeconfigExportEnabled,
+} from './Home/clusterKubeconfigExport';
+import KubeconfigButton from './KubeconfigButton';
 import { handleLogoutPathUpdate } from './TopBar.utils';
 
 export interface TopBarProps {}
@@ -207,6 +215,49 @@ function NullableMenuItem({ children }: { children: React.ReactNode }) {
   return show ? <MenuItem ref={ref}>{children}</MenuItem> : null;
 }
 
+/**
+ * Mobile-menu "Copy kubeconfig" entry. Rendered as a single MenuItem (like the
+ * sibling Download entry) instead of CopyButton with buttonStyle="menu", which
+ * would nest one MenuItem inside the MenuItem that NullableMenuItem adds and
+ * break menu semantics. Shares CopyButton's copy behavior via
+ * useCopyToClipboard.
+ */
+export function KubeconfigCopyMenuItem({
+  clusterName,
+  onCopyDone,
+}: {
+  clusterName: string;
+  onCopyDone: () => void;
+}) {
+  const { t } = useTranslation(['translation']);
+  const { enqueueSnackbar } = useSnackbar();
+  const { copied, copy } = useCopyToClipboard(() => getClusterKubeconfigYaml(clusterName), {
+    onCopied: () => {
+      enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
+        variant: 'success',
+      });
+      onCopyDone();
+    },
+    onError: () => {
+      enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+        variant: 'error',
+      });
+      onCopyDone();
+    },
+  });
+
+  return (
+    <MenuItem onClick={copy}>
+      <ListItemIcon>
+        <Icon icon={copied ? 'mdi:check' : 'mdi:content-copy'} />
+      </ListItemIcon>
+      <ListItemText>
+        {copied ? t('translation|Copied!') : t('translation|Copy kubeconfig')}
+      </ListItemText>
+    </MenuItem>
+  );
+}
+
 export function AppBarActionsMenu({
   appBarActions,
 }: {
@@ -217,8 +268,11 @@ export function AppBarActionsMenu({
       appBarActions.map(action => {
         const Action = has(action, 'action') ? action.action : action;
         if (React.isValidElement(Action)) {
-          // If the action is already a MenuItem, pass it through directly to avoid nesting.
-          if ((Action as React.ReactElement).type === MenuItem) {
+          // If the action is already a MenuItem (or a known component that
+          // renders exactly one MenuItem, like KubeconfigCopyMenuItem), pass
+          // it through directly to avoid nesting it inside another MenuItem.
+          const ActionType = (Action as React.ReactElement).type;
+          if (ActionType === MenuItem || ActionType === KubeconfigCopyMenuItem) {
             return <ErrorBoundary>{Action}</ErrorBoundary>;
           }
           return (
@@ -289,12 +343,14 @@ export const PureTopBar = memo(
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const history = useHistory();
+    const { enqueueSnackbar } = useSnackbar();
 
     const openSideBar = !!(isSidebarOpenUserSelected === undefined ? false : isSidebarOpen);
 
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState<null | HTMLElement>(null);
     const isClusterContext = !!cluster;
+    const kubeconfigExportEnabled = useKubeconfigExportEnabled(cluster);
     const isClusterTitleVisible = useClusterTitleVisible(cluster, clusters);
 
     const isMenuOpen = Boolean(anchorEl);
@@ -436,6 +492,38 @@ export const PureTopBar = memo(
         action: null,
       },
       {
+        id: DefaultAppBarAction.KUBECONFIG_COPY,
+        action:
+          isClusterContext && cluster && kubeconfigExportEnabled ? (
+            <KubeconfigCopyMenuItem clusterName={cluster} onCopyDone={handleMenuClose} />
+          ) : null,
+      },
+      {
+        id: DefaultAppBarAction.KUBECONFIG_DOWNLOAD,
+        action:
+          isClusterContext && cluster && kubeconfigExportEnabled ? (
+            <MenuItem
+              onClick={async () => {
+                handleMenuClose();
+                try {
+                  const kubeconfigYaml = await getClusterKubeconfigYaml(cluster);
+                  downloadKubeconfigYaml(cluster, kubeconfigYaml);
+                } catch (err) {
+                  console.error('Failed to fetch kubeconfig for download:', err);
+                  enqueueSnackbar(t('translation|Failed to find kubeconfig for this cluster'), {
+                    variant: 'error',
+                  });
+                }
+              }}
+            >
+              <ListItemIcon>
+                <Icon icon="mdi:file-download-outline" />
+              </ListItemIcon>
+              <ListItemText>{t('translation|Download kubeconfig')}</ListItemText>
+            </MenuItem>
+          ) : null,
+      },
+      {
         id: DefaultAppBarAction.SETTINGS,
         action: isClusterContext ? (
           <MenuItem
@@ -507,6 +595,10 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.NOTIFICATION,
         action: null,
+      },
+      {
+        id: DefaultAppBarAction.KUBECONFIG,
+        action: <KubeconfigButton onClickExtra={handleMenuClose} />,
       },
       {
         id: DefaultAppBarAction.SETTINGS,
