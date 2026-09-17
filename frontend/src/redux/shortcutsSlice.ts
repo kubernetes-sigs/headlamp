@@ -79,6 +79,22 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
     defaultKey: 'ctrl+shift+f',
     category: 'search',
   },
+  NAVIGATE_TO_PODS: {
+    id: 'NAVIGATE_TO_PODS',
+    labelKey: 'Navigate to Pods',
+    descriptionKey: 'Go to the Pods list page',
+    key: 'alt+shift+p',
+    defaultKey: 'alt+shift+p',
+    category: 'navigation',
+  },
+  NAVIGATE_TO_DEPLOYMENTS: {
+    id: 'NAVIGATE_TO_DEPLOYMENTS',
+    labelKey: 'Navigate to Deployments',
+    descriptionKey: 'Go to the Deployments list page',
+    key: 'alt+shift+d',
+    defaultKey: 'alt+shift+d',
+    category: 'navigation',
+  },
 };
 
 export interface ShortcutsState {
