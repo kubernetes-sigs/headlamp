@@ -2,6 +2,7 @@
   "Activity": {
     "close": [Function],
     "launch": [Function],
+    "minimizeAll": [Function],
     "reset": [Function],
     "update": [Function],
   },
