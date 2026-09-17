@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
-import { JOB_COMPLETE, JOB_RUNNING } from './storyHelper';
+import { JOB_COMPLETE, JOB_RUNNING, JOB_SUSPENDED } from './storyHelper';
 
 const emptyList = (kind: string, apiVersion: string) => ({
   kind,
@@ -90,6 +90,20 @@ Running.parameters = {
       story: [
         http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs/hello`, () =>
           HttpResponse.json(JOB_RUNNING)
+        ),
+        ...commonHandlers,
+      ],
+    },
+  },
+};
+
+export const Suspended = Template.bind({});
+Suspended.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs/hello`, () =>
+          HttpResponse.json(JOB_SUSPENDED)
         ),
         ...commonHandlers,
       ],

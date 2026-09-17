@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import JobDetails from './Details';
+import JobSuspendButton from './JobSuspendButton';
 
 const { mockDetailsGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
@@ -139,10 +140,50 @@ describe('JobDetails', () => {
     expect(props.onResourceUpdate).toBeDefined();
 
     // Should not throw when called with a resource
-    expect(() => props.onResourceUpdate(fakeJob)).not.toThrow();
+    expect(() => act(() => props.onResourceUpdate(fakeJob))).not.toThrow();
     // Should not throw when called with a different UID (triggers state reset)
     expect(() =>
-      props.onResourceUpdate({ ...fakeJob, metadata: { ...fakeJob.metadata, uid: 'new-uid' } })
+      act(() =>
+        props.onResourceUpdate({ ...fakeJob, metadata: { ...fakeJob.metadata, uid: 'new-uid' } })
+      )
     ).not.toThrow();
+  });
+
+  it('adds a suspend action for running jobs', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+        <JobDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const actions = props.actions(fakeJob);
+    const suspendAction = actions.find((action: any) => action.id === 'suspend');
+
+    expect(suspendAction.action.type).toBe(JobSuspendButton);
+    expect(suspendAction.action.props.item).toBe(fakeJob);
+  });
+
+  it('adds a resume action for suspended jobs', () => {
+    const suspendedJob = {
+      ...fakeJob,
+      spec: {
+        ...fakeJob.spec,
+        suspend: true,
+      },
+    };
+
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+        <JobDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const actions = props.actions(suspendedJob);
+    const suspendAction = actions.find((action: any) => action.id === 'suspend');
+
+    expect(suspendAction.action.type).toBe(JobSuspendButton);
+    expect(suspendAction.action.props.item).toBe(suspendedJob);
   });
 });
