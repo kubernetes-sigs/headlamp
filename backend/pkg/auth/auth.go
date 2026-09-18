@@ -89,13 +89,41 @@ func BearerTokenValue(token string) string {
 	return strings.TrimSpace(token)
 }
 
+// StripBaseURL removes baseURL from the start of path so that a request made
+// under a path-based base URL can be matched against the /clusters/... routes.
+// The base URL only matches up to a "/" boundary, so "/foo" doesn't strip
+// "/foobar". The path is returned unchanged when it doesn't start with baseURL.
+func StripBaseURL(path, baseURL string) string {
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	if baseURL == "" {
+		return path
+	}
+
+	if path == baseURL {
+		return "/"
+	}
+
+	if strings.HasPrefix(path, baseURL+"/") {
+		return path[len(baseURL):]
+	}
+
+	return path
+}
+
 // ParseClusterAndToken extracts the cluster name from the URL path and
 // the Bearer token from the Authorization header of the HTTP request, falling
 // back to the cluster cookie when the header is missing.
 func ParseClusterAndToken(r *http.Request) (string, string) {
+	return ParseClusterAndTokenWithBaseURL(r, "")
+}
+
+// ParseClusterAndTokenWithBaseURL is like ParseClusterAndToken, but first
+// strips baseURL from the request path, for when Headlamp is served under a
+// path-based base URL.
+func ParseClusterAndTokenWithBaseURL(r *http.Request, baseURL string) (string, string) {
 	cluster := ""
 
-	matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
+	matches := clusterPathRegex.FindStringSubmatch(StripBaseURL(r.URL.Path, baseURL))
 	if len(matches) > 1 {
 		cluster = matches[1]
 	}

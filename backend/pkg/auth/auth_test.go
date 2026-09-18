@@ -270,6 +270,59 @@ func TestParseClusterAndToken(t *testing.T) {
 	}
 }
 
+func TestStripBaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		baseURL string
+		want    string
+	}{
+		{"no base URL", "/clusters/main/api", "", "/clusters/main/api"},
+		{"strips base URL", "/dev/headlamp/clusters/main/api", "/dev/headlamp", "/clusters/main/api"},
+		{"base URL with trailing slash", "/dev/headlamp/clusters/main/api", "/dev/headlamp/", "/clusters/main/api"},
+		{"path is the base URL", "/dev/headlamp", "/dev/headlamp", "/"},
+		{"only matches on a segment boundary", "/dev/hlx/clusters/main/api", "/dev/hl", "/dev/hlx/clusters/main/api"},
+		{"path outside base URL", "/clusters/main/api", "/dev/headlamp", "/clusters/main/api"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, auth.StripBaseURL(tt.path, tt.baseURL))
+		})
+	}
+}
+
+func TestParseClusterAndTokenWithBaseURL(t *testing.T) {
+	const baseURL = "/dev/internal/headlamp"
+
+	tests := []struct {
+		name        string
+		url         string
+		wantCluster string
+		wantToken   string
+	}{
+		{"cluster request under base URL", baseURL + "/clusters/main/api/v1/pods", "main", "cookie-token"},
+		{"request outside base URL", "/other/clusters/main/api/v1/pods", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, nil)
+			req.AddCookie(&http.Cookie{
+				Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("main")),
+				Value:    "cookie-token",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			cluster, token := auth.ParseClusterAndTokenWithBaseURL(req, baseURL)
+			assert.Equal(t, tt.wantCluster, cluster)
+			assert.Equal(t, tt.wantToken, token)
+		})
+	}
+}
+
 var berlinLocation = func() *time.Location {
 	loc, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
