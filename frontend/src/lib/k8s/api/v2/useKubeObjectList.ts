@@ -22,6 +22,7 @@ import {
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
+import type { NamespaceListConfig } from '../../useDiscoveredNamespaces';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
@@ -555,27 +556,34 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   });
 }
 
+export type KubeListRequest = {
+  cluster: string;
+  namespaces?: string[];
+};
+
 /**
  * Creates multiple requests to list Kube objects
- * Handles multiple clusters, namespaces and allowed namespaces
+ * Handles multiple clusters, namespaces and discovered namespaces
  *
  * @param clusters - list of clusters
- * @param getAllowedNamespaces -  function to get allowed namespaces for a cluster
+ * @param getNamespaceConfig - function to get namespace routing config for a cluster
  * @param isResourceNamespaced - if the resource is namespaced
  * @param requestedNamespaces - requested namespaces(optional)
  * @param hasAllowedNamespacesRestriction - checks whether each cluster has an active restriction
  *
- * @returns list of requests for clusters and appropriate namespaces
+ * @returns list of requests for clusters and appropriate namespaces.
+ * When a finite allowed set is active and intersects requested namespaces to empty,
+ * that cluster is omitted so flattenListRequests does not treat [] as cluster-wide.
  */
 export function makeListRequests(
   clusters: string[],
-  getAllowedNamespaces: (cluster: string | null) => string[],
+  getNamespaceConfig: (cluster: string | null) => NamespaceListConfig,
   isResourceNamespaced: boolean,
   requestedNamespaces: string[] = [],
   hasAllowedNamespacesRestriction: (cluster: string) => boolean = () => false
-): Array<{ cluster: string; namespaces?: string[] }> {
+): KubeListRequest[] {
   return clusters.flatMap(cluster => {
-    const allowedNamespaces = getAllowedNamespaces(cluster);
+    const { namespaces: allowedNamespaces } = getNamespaceConfig(cluster);
 
     if (
       isResourceNamespaced &&
@@ -589,12 +597,13 @@ export function makeListRequests(
 
     if (allowedNamespaces.length) {
       namespaces = namespaces.filter(ns => allowedNamespaces.includes(ns));
-      if (isResourceNamespaced && namespaces.length === 0) {
+
+      if (namespaces.length === 0) {
         return [];
       }
     }
 
-    return { cluster, namespaces: isResourceNamespaced ? namespaces : undefined };
+    return [{ cluster, namespaces: isResourceNamespaced ? namespaces : undefined }];
   });
 }
 
@@ -663,9 +672,10 @@ export function useKubeObjectList<K extends KubeObject>({
   queryParams,
   watch = true,
   refetchInterval,
+  pendingDiscovery = false,
   emptyWhenNoRequests = false,
 }: {
-  requests: Array<{ cluster: string; namespaces?: string[] }>;
+  requests: KubeListRequest[];
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   queryParams?: QueryParameters;
@@ -673,17 +683,23 @@ export function useKubeObjectList<K extends KubeObject>({
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
   refetchInterval?: number;
+  /** When true, callers are waiting for namespace discovery routing before list requests exist. */
+  pendingDiscovery?: boolean;
   /** Return an empty list instead of a loading state when requests were intentionally suppressed. */
   emptyWhenNoRequests?: boolean;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
-  const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
+  const isPendingDiscovery = pendingDiscovery;
+  const hasRequests = requests.length > 0;
+  const shouldProbeEndpoints = hasRequests && !isPendingDiscovery;
+  const maybeNamespace = shouldProbeEndpoints
+    ? requests.find(it => it.namespaces)?.namespaces?.[0]
+    : undefined;
 
-  // Get working endpoint from the first cluster
-  // Now if clusters have different apiVersions for the same resource for example, this will not work
+  // Skip endpoint probing while callers wait for namespace discovery routing.
   const { endpoint, error: endpointError } = useEndpoints(
-    requests.length === 0 ? [] : kubeObjectClass.apiEndpoint.apiInfo,
-    requests[0]?.cluster,
+    shouldProbeEndpoints ? kubeObjectClass.apiEndpoint.apiInfo : [],
+    shouldProbeEndpoints ? requests[0]!.cluster : '',
     maybeNamespace
   );
 
@@ -729,6 +745,21 @@ export function useKubeObjectList<K extends KubeObject>({
   const query = useQueries({
     queries,
     combine(results) {
+      if (isPendingDiscovery && queries.length === 0) {
+        return {
+          data: [],
+          clusterResults: {},
+          items: null,
+          errors: [],
+          isError: false,
+          isLoading: true,
+          isFetching: false,
+          isSuccess: false,
+          hasMore: false,
+          remainingItemCount: undefined,
+        };
+      }
+
       const hasMore =
         hasPendingListRequests || results.some(result => !!result.data?.list?.metadata?.continue);
       const hasUnknownRemainingItemCount = results.some(
@@ -763,9 +794,9 @@ export function useKubeObjectList<K extends KubeObject>({
             : results.flatMap(result => result?.data?.list?.items ?? []),
         errors: results.map(result => result.error).filter(Boolean),
         isError: results.some(result => result.isError),
-        isLoading: results.some(result => result.isLoading),
-        isFetching: results.some(result => result.isFetching),
-        isSuccess: results.every(result => result.isSuccess),
+        isLoading: isPendingDiscovery || results.some(result => result.isLoading),
+        isFetching: isPendingDiscovery || results.some(result => result.isFetching),
+        isSuccess: !isPendingDiscovery && results.every(result => result.isSuccess),
         // Whether any result set has more items available via pagination.
         hasMore,
         remainingItemCount:

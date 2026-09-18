@@ -14,30 +14,96 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useCluster } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import {
+  getEffectiveNamespaces,
+  getNamespaceDiscoveryAlert,
+  useDiscoveredNamespaces,
+  usesDiscoveredNamespaceRouting,
+} from '../../lib/k8s/useDiscoveredNamespaces';
 import { StatusLabel } from '../common/Label';
+import Link from '../common/Link';
 import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
+import {
+  ResourceTableFromResourceClassProps,
+  ResourceTableProps,
+} from '../common/Resource/ResourceTable';
 import CreateNamespaceButton from './CreateNamespaceButton';
 
 export default function NamespacesList() {
-  const { t } = useTranslation(['glossary', 'translation']);
+  const { t, i18n } = useTranslation(['glossary', 'translation']);
+  const cluster = useCluster();
+  const {
+    data: discovery,
+    isLoading: discoveryLoading,
+    isFetching: discoveryFetching,
+    isError: discoveryIsError,
+  } = useDiscoveredNamespaces(cluster);
+  const effectiveNamespaces = React.useMemo(
+    () => getEffectiveNamespaces(cluster, discovery),
+    [cluster, discovery]
+  );
+  const useDiscoveredTable = usesDiscoveredNamespaceRouting(discovery);
+
+  const tableNamespaceItems = React.useMemo(
+    () =>
+      effectiveNamespaces.map(namespace => ({
+        metadata: { name: namespace },
+      })),
+    [effectiveNamespaces]
+  );
 
   function makeStatusLabel(namespace: Namespace) {
     const status = namespace.status.phase;
     return <StatusLabel status={status === 'Active' ? 'success' : 'error'}>{status}</StatusLabel>;
   }
 
-  return (
-    <ResourceListView
-      title={t('Namespaces')}
-      headerProps={{
-        titleSideActions: [<CreateNamespaceButton />],
-        noNamespaceFilter: true,
-      }}
-      resourceClass={Namespace}
-      columns={[
+  const resourceTableProps:
+    | ResourceTableProps<Namespace>
+    | ResourceTableFromResourceClassProps<typeof Namespace> = React.useMemo(() => {
+    if (useDiscoveredTable) {
+      return {
+        columns: [
+          {
+            id: 'name',
+            label: t('translation|Name'),
+            getValue: ns => ns.metadata.name,
+            render: ({ metadata }) => (
+              <Link
+                routeName={'namespace'}
+                params={{
+                  name: metadata.name,
+                }}
+              >
+                {metadata.name}
+              </Link>
+            ),
+          },
+          'cluster',
+          {
+            id: 'status',
+            gridTemplate: 'auto',
+            label: t('translation|Status'),
+            getValue: () => 'Unknown',
+          },
+          {
+            id: 'age',
+            label: t('translation|Age'),
+            getValue: () => 'Unknown',
+          },
+        ],
+        data: tableNamespaceItems as unknown as Namespace[],
+      } satisfies ResourceTableProps<Namespace>;
+    }
+    return {
+      resourceClass: Namespace,
+      columns: [
         'name',
         'cluster',
         {
@@ -60,7 +126,37 @@ export default function NamespacesList() {
             ns.metadata.labels ? <MetadataDictGrid dict={ns.metadata.labels} /> : null,
         },
         'age',
-      ]}
-    />
+      ],
+    } satisfies ResourceTableFromResourceClassProps<typeof Namespace>;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- column labels must refresh on locale change
+  }, [useDiscoveredTable, tableNamespaceItems, i18n.language]);
+
+  const discoveryError = getNamespaceDiscoveryAlert({
+    effectiveNamespaces,
+    discovery,
+    isLoading: discoveryLoading,
+    isFetching: discoveryFetching,
+    isError: discoveryIsError,
+    t,
+  });
+
+  return (
+    <>
+      {discoveryError && (
+        <Box mb={2}>
+          <Alert severity="warning">{discoveryError}</Alert>
+        </Box>
+      )}
+      <ResourceListView
+        title={t('Namespaces')}
+        enableRowActions={!useDiscoveredTable}
+        enableRowSelection={!useDiscoveredTable}
+        headerProps={{
+          titleSideActions: [<CreateNamespaceButton />],
+          noNamespaceFilter: true,
+        }}
+        {...(resourceTableProps as ResourceTableProps<Namespace>)}
+      />
+    </>
   );
 }
