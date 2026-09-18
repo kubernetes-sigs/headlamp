@@ -32,6 +32,7 @@ const packageJson = JSON.parse(
   };
   /** Dependency lifecycle scripts explicitly approved by npm. */
   allowScripts?: Record<string, boolean>;
+  /** Desktop package scripts keyed by lifecycle or command name. */
   scripts: Record<string, string>;
   /** Desktop build dependencies keyed by package name. */
   devDependencies: Record<string, string>;
@@ -56,25 +57,38 @@ const { expandMsiArtifactName } = require('../windows/msi/artifact-name.js') as 
 };
 
 describe('desktop package configuration', () => {
-  it('allows only the Electron install script', () => {
+  it('configures Electron lazy installation', () => {
     const packageLock = JSON.parse(
       fs.readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
     );
     const lockedElectron = packageLock.packages['node_modules/electron'];
 
-    expect(packageJson.allowScripts).toEqual({ electron: true });
-    expect(lockedElectron.hasInstallScript).toBe(true);
+    expect(packageJson.scripts['electron:install']).toBe('install-electron');
+    for (const script of [
+      'prebuild',
+      'predev',
+      'predev:debug',
+      'predev-only-app',
+      'predev-only-app:debug',
+      'prepackage',
+      'prepackage:prepared',
+      'pretest',
+      'pretest:oauth-coverage',
+    ]) {
+      expect(packageJson.scripts[script]).toBe('npm run electron:install');
+    }
+    expect(lockedElectron.hasInstallScript).toBeUndefined();
     expect(packageJson.devDependencies.electron).toBe(`^${lockedElectron.version}`);
   });
 
-  it('has the Electron binary installed by its approved script', () => {
+  it('has the Electron binary installed by its explicit install command', () => {
     const electronDirectory = new URL('../node_modules/electron/', import.meta.url);
     const electronPackage = JSON.parse(
       fs.readFileSync(new URL('package.json', electronDirectory), 'utf8')
     );
     const executablePath = fs.readFileSync(new URL('path.txt', electronDirectory), 'utf8').trim();
 
-    expect(electronPackage.scripts.postinstall).toBe('node install.js');
+    expect(electronPackage.bin['install-electron']).toBe('install.js');
     expect(fs.existsSync(new URL(`dist/${executablePath}`, electronDirectory))).toBe(true);
   });
 
