@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import { ChildProcessWithoutNullStreams, exec, execSync, spawn } from 'child_process';
-import { randomBytes } from 'crypto';
+import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
 import dotenv from 'dotenv';
 import {
   app,
@@ -29,30 +28,50 @@ import {
   shell,
 } from 'electron';
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
-import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
-import fs from 'node:fs';
-import { userInfo } from 'node:os';
-import { promisify } from 'node:util';
 import { platform } from 'os';
 import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { setupCustomCAs, setupSystemCAs } from './certificates';
+import {
+  loadBuildManifest,
+  productPluginCommandPolicies,
+  resolveBuildManifestPath,
+} from '../scripts/build-manifest';
+import { withBackendMemoryDefaults } from './backendMemory';
+import {
+  observeInternalBackendReady,
+  resolveBackendToken,
+  waitForExternalBackend,
+} from './backendToken';
+import { createCertificateSetup } from './certificates';
+import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
+import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
+import {
+  getLegalDocumentsResourcePath,
+  loadLegalDocuments,
+  readLegalDocument,
+} from './legal-documents';
+import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
+import { AppMenu, menusToTemplate } from './menu';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
+  defaultKubeConfigsDir,
   defaultPluginsDir,
   defaultUserPluginsDir,
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
+  setAppConfigDirName,
 } from './plugin-management';
+import { readProtocolScheme } from './protocol';
+import { createProtocolHandler } from './protocolHandler';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -60,7 +79,11 @@ import {
   runScript,
   setupRunCmdHandlers,
 } from './runCmd';
-import { loadSettings, SETTINGS_PATH } from './settings';
+import { pluginConfigDirName } from './runtimeProductIdentity';
+import { isTrustedDocumentUrl, setupSecureStorageHandlers } from './secureStorage';
+import { areDevelopmentPluginsEnabled, loadSettings, SETTINGS_PATH } from './settings';
+import { getShellEnv } from './shellEnv';
+import { shouldCheckForAppUpdates } from './shouldCheckForAppUpdates';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -69,10 +92,21 @@ import {
   setTrayIconEnabled,
 } from './tray';
 import windowSize from './windowSize';
+import {
+  clampZoom,
+  DEFAULT_ZOOM_FACTOR,
+  flushZoomFactorSave,
+  loadZoomFactor,
+  saveZoomFactor,
+} from './zoom';
+
+const isDev = !!process.env.ELECTRON_DEV;
 
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
 }
+
+setAppConfigDirName(pluginConfigDirName(app.getName(), isDev));
 
 // On Linux, force the GTK 3 backend. Electron 36+ defaults to GTK 4, which
 // conflicts with GTK 2/3 symbols pulled into the process by IM modules and
@@ -94,13 +128,8 @@ const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
 const settings = loadSettings(SETTINGS_PATH);
-setupSystemCAs(settings);
+const ensureCertificates = createCertificateSetup(settings);
 
-if (settings.customCAPath) {
-  setupCustomCAs(settings.customCAPath);
-}
-
-const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
 
 if (isDev) {
@@ -108,7 +137,12 @@ if (isDev) {
 } else {
   frontendPath = path.join(process.resourcesPath, 'frontend', 'index.html');
 }
-const backendToken = randomBytes(32).toString('hex');
+const useExternalServer = isDev && process.env.EXTERNAL_SERVER === 'true';
+const backendToken = resolveBackendToken(
+  isDev,
+  useExternalServer,
+  process.env.HEADLAMP_BACKEND_TOKEN
+);
 
 const startUrl = (
   process.env.ELECTRON_START_URL ||
@@ -130,15 +164,7 @@ const args = yargs(hideBin(process.argv))
     'List all static and user-added plugins.',
     () => {},
     () => {
-      try {
-        const backendPath = path.join(process.resourcesPath, 'headlamp-server');
-        const stdout = execSync(`${backendPath} list-plugins`);
-        process.stdout.write(stdout);
-        process.exit(0);
-      } catch (error) {
-        console.error(`Error listing plugins: ${error}`);
-        process.exit(1);
-      }
+      process.exit(runListPluginsCommand(process.resourcesPath));
     }
   )
   .options({
@@ -185,19 +211,129 @@ if ('remote-debugging-port' in args) {
 }
 
 const isHeadlessMode = args.headless === true;
-let disableGPU = args['disable-gpu'] === true;
+const disableGPU = args['disable-gpu'];
+const windowsVMDetection = startWindowsVMDetection(disableGPU);
+if (disableGPU === true) {
+  console.info('Disabling GPU hardware acceleration. Reason: related flag is set.');
+  app.disableHardwareAcceleration();
+}
 const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
+/** Explicit loopback address shared by the availability probe and bundled backend. */
+const INTERNAL_BACKEND_HOST = '127.0.0.1';
+/** Maximum time to wait for the bundled backend's trusted readiness marker. */
+const INTERNAL_BACKEND_READY_TIMEOUT_MS = 30_000;
+/** Releases backend-port IPC requests after the spawned child confirms a successful bind. */
+let resolveBackendReady = () => {};
+/** Rejects backend-port IPC requests when startup cannot establish a trusted endpoint. */
+let rejectBackendReady: (error: Error) => void = () => {};
+/** Resolves when it is safe for the renderer to connect to the selected backend port. */
+let backendReady = Promise.resolve();
+/** Settlement state for the current backend generation. */
+let backendReadyState: 'pending' | 'ready' | 'failed' = 'ready';
+
+/**
+ * Creates readiness state for a new internal backend generation.
+ *
+ * @returns Nothing.
+ */
+function resetBackendReady() {
+  if (useExternalServer) {
+    return;
+  }
+  backendReadyState = 'pending';
+  backendReady = new Promise<void>((resolve, reject) => {
+    resolveBackendReady = () => {
+      backendReadyState = 'ready';
+      resolve();
+    };
+    rejectBackendReady = error => {
+      backendReadyState = 'failed';
+      reject(error);
+    };
+  });
+  // A renderer normally observes this promise through sendBackendPort. Keep early startup
+  // failures handled even when no renderer request has arrived yet.
+  void backendReady.catch(() => {});
+}
+
+resetBackendReady();
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
-const useExternalServer = process.env.EXTERNAL_SERVER || false;
-const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
+const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
+const appBuildManifestPath = isDev
+  ? resolveBuildManifestPath()
+  : path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
+const legalDocuments = loadLegalDocuments(appBuildManifestPath);
+const protocolScheme = readProtocolScheme(appBuildManifestPath);
+const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
+const productPluginCommandPolicy = productPluginCommandPolicies(
+  loadBuildManifest(appBuildManifestPath),
+  isDev ? 'development' : 'production'
+);
+
+/** Successful post-bind startup of an internal backend process. */
+interface InternalBackendReadyOutcome {
+  /** Identifies trusted child readiness as the first startup outcome. */
+  type: 'ready';
+}
+
+/** Internal backend exit observed before trusted post-bind readiness. */
+interface InternalBackendExitOutcome {
+  /** Identifies child-process exit as the first startup outcome. */
+  type: 'exit';
+  /** Exit status reported by the child, or null when terminated by a signal. */
+  exitCode: number | null;
+}
+
+/** Internal backend process error observed before trusted post-bind readiness. */
+interface InternalBackendErrorOutcome {
+  /** Identifies a process error as the first startup outcome. */
+  type: 'error';
+  /** Error emitted by the child process. */
+  error: Error;
+}
+
+/** Internal backend readiness marker was not observed within the startup deadline. */
+interface InternalBackendTimeoutOutcome {
+  /** Identifies expiration of the trusted readiness-marker deadline. */
+  type: 'timeout';
+}
+
+/** Indicates that none of the configured backend ports can be allocated. */
+class BackendPortAllocationError extends Error {}
+
+/** Stable backend process exit code indicating that the selected port became occupied. */
+const SERVER_ADDRESS_IN_USE_EXIT_CODE = 98;
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+/** Whether backend connection details may still be delivered to the renderer. */
+let backendCredentialsAvailable = false;
+
+/** Invalidates connection details and settles pending backend-port requests after startup fails. */
+function rejectBackendStartup(error: Error) {
+  backendCredentialsAvailable = false;
+  rejectBackendReady(error);
+}
+
+function isFromMainWindowFrame(event: IpcMainEvent, window = mainWindow): boolean {
+  return (
+    !!window &&
+    event.sender === window.webContents &&
+    event.senderFrame === window.webContents.mainFrame &&
+    isTrustedDocumentUrl(event.senderFrame.url, startUrl)
+  );
+}
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
+
+const protocolHandler = createProtocolHandler({
+  protocolScheme,
+  startUrl,
+  getMainWindow: () => mainWindow,
+});
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -248,7 +384,7 @@ class PluginManagerEventListeners {
     };
   } = {};
 
-  constructor() {
+  constructor(private readonly window: BrowserWindow) {
     this.cache = {};
   }
 
@@ -281,6 +417,9 @@ class PluginManagerEventListeners {
    */
   setupEventHandlers() {
     ipcMain.on('plugin-manager', async (event, data) => {
+      if (!isFromMainWindowFrame(event, this.window)) {
+        return;
+      }
       let eventData: Action;
 
       try {
@@ -351,6 +490,7 @@ class PluginManagerEventListeners {
 
     let pluginInfo: ArtifactHubHeadlampPkg | undefined = undefined;
     try {
+      ensureCertificates();
       pluginInfo = await PluginManager.fetchPluginInfo(URL, { signal: controller.signal });
     } catch (error) {
       console.error('Error fetching plugin info:', error);
@@ -446,6 +586,7 @@ class PluginManagerEventListeners {
       controller,
     };
 
+    ensureCertificates();
     PluginManager.update(
       pluginName,
       destinationFolder,
@@ -479,7 +620,10 @@ class PluginManagerEventListeners {
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
 
-    removeRunCmdConsent(pluginName);
+    const installedPlugin = PluginManager.list(destinationFolder)?.find(
+      plugin => plugin.pluginName === pluginName
+    );
+    removeRunCmdConsent(pluginName, installedPlugin?.folderName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
@@ -632,100 +776,6 @@ class PluginManagerEventListeners {
   }
 }
 
-/**
- * Returns the user's preferred shell or a fallback shell.
- * @returns A promise that resolves to the shell path.
- */
-async function getShell(): Promise<string> {
-  // Fallback chain
-  const shells = ['/bin/zsh', '/bin/bash', '/bin/sh'];
-  let userShell = '';
-
-  try {
-    userShell = userInfo().shell || process.env.SHELL || '';
-    if (userShell) shells.unshift(userShell);
-  } catch (error) {
-    console.error('Failed to get user shell:', error);
-  }
-
-  for (const shell of shells) {
-    try {
-      await fsPromises.stat(shell);
-      return shell;
-    } catch (error) {
-      console.error(`Shell not found: ${shell}, error: ${error}`);
-    }
-  }
-
-  console.error('No valid shell found, defaulting to /bin/sh');
-  return '/bin/sh';
-}
-
-/**
- * Retrieves the environment variables from the user's shell.
- * @returns A promise that resolves to the shell environment.
- */
-async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
-  const execPromisify = promisify(exec);
-  const shell = await getShell();
-  const isWindows = process.platform === 'win32';
-
-  // For Windows, just return the current environment
-  if (isWindows) {
-    return { ...process.env };
-  }
-
-  // For Unix-like systems
-  const isZsh = shell.includes('zsh');
-  // interactive is supported only on zsh
-  const shellArgs = isZsh ? ['--login', '--interactive', '-c'] : ['--login', '-c'];
-
-  try {
-    const env = { ...process.env, DISABLE_AUTO_UPDATE: 'true' };
-    let stdout: string;
-    let isEnvNull = false;
-
-    try {
-      // Try env -0 first
-      const command = 'env -0';
-      ({ stdout } = await execPromisify(`${shell} ${shellArgs.join(' ')} '${command}'`, {
-        encoding: 'utf8',
-        timeout: 10000,
-        env,
-      }));
-      isEnvNull = true;
-    } catch (error) {
-      // If env -0 fails, fall back to env
-      console.log('env -0 failed, falling back to env');
-      const command = 'env';
-      ({ stdout } = await execPromisify(`${shell} ${shellArgs.join(' ')} '${command}'`, {
-        encoding: 'utf8',
-        timeout: 10000,
-        env,
-      }));
-    }
-
-    const processLines = (separator: string) => {
-      return stdout.split(separator).reduce((acc, line) => {
-        const firstEqualIndex = line.indexOf('=');
-        if (firstEqualIndex > 0) {
-          const key = line.slice(0, firstEqualIndex);
-          const value = line.slice(firstEqualIndex + 1);
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as NodeJS.ProcessEnv);
-    };
-
-    const envVars = isEnvNull ? processLines('\0') : processLines('\n');
-    const mergedEnv = { ...process.env, ...envVars };
-    return mergedEnv;
-  } catch (error) {
-    console.error('Failed to get shell environment:', error);
-    return process.env;
-  }
-}
-
 let shellEnvironmentPromise: Promise<NodeJS.ProcessEnv> | null = null;
 
 /** Returns the cached login-shell changes merged with the current process environment. */
@@ -757,7 +807,7 @@ async function isPortAvailable(port: number): Promise<boolean> {
     });
 
     try {
-      server.listen({ port, host: 'localhost', exclusive: true });
+      server.listen({ port, host: INTERNAL_BACKEND_HOST, exclusive: true });
     } catch (err) {
       server.emit('error', err as NodeJS.ErrnoException);
     }
@@ -767,21 +817,14 @@ async function isPortAvailable(port: number): Promise<boolean> {
 /**
  * Find an available port starting from the default port
  * Tries to find a free port, skipping all occupied ports (including Headlamp)
+ * @param startPort - First port to probe within the configured range.
  * @returns Available port number, or throws if no port found after MAX_PORT_ATTEMPTS
  */
 async function findAvailablePort(startPort: number): Promise<number> {
-  for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
-    const port = startPort + i;
-    // Skip ports already used by another Headlamp instance.
-    const headlampPIDs = await getHeadlampPIDsOnPort(port);
-    if (headlampPIDs && headlampPIDs.length > 0) {
-      console.info(
-        `Port ${port} is occupied by Headlamp process(es) ${headlampPIDs.join(
-          ', '
-        )}, trying next port...`
-      );
-      continue;
-    }
+  const endPort = defaultPort + MAX_PORT_ATTEMPTS - 1;
+  for (let port = startPort; port <= endPort; port++) {
+    // Probe the socket first so normal startup does not load and retain the
+    // process-inspection dependency when the preferred port is free.
     const available = await isPortAvailable(port);
 
     if (available) {
@@ -791,31 +834,42 @@ async function findAvailablePort(startPort: number): Promise<number> {
       return port;
     }
 
-    console.info(`Port ${port} is occupied by another process, trying next port...`);
+    console.info(`Port ${port} is occupied, trying next port...`);
   }
 
-  throw new Error(
+  throw new BackendPortAllocationError(
     `Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts starting from ${startPort}`
   );
 }
 
-async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNullStreams> {
-  const serverFilePath = isDev
+async function startServer(
+  flags: string[] = [],
+  startPort = defaultPort
+): Promise<ChildProcessWithoutNullStreams> {
+  const defaultServerFilePath = isDev
     ? path.resolve('../backend/headlamp-server')
     : path.join(process.resourcesPath, './headlamp-server');
+  // The bind-race E2E uses a fixture for one child generation. Retries must launch
+  // the real backend so it remains Electron's direct child on every platform.
+  const testServerFilePath = isDev ? process.env.HEADLAMP_E2E_BACKEND_PATH : undefined;
+  const serverFilePath = testServerFilePath || defaultServerFilePath;
+  delete process.env.HEADLAMP_E2E_BACKEND_PATH;
 
-  actualPort = await findAvailablePort(defaultPort);
+  actualPort = await findAvailablePort(startPort);
 
-  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
+  let serverArgs: string[] = [
+    `--listen-addr=${INTERNAL_BACKEND_HOST}`,
+    `--port=${actualPort}`,
+    '--app-name',
+    app.getName(),
+  ];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
 
-  const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
-  const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
   let buildManifest: Record<string, any> = {};
   try {
-    const manifestContent = await fsPromises.readFile(manifestFile, 'utf8');
+    const manifestContent = await fsPromises.readFile(appBuildManifestPath, 'utf8');
     buildManifest = JSON.parse(manifestContent);
   } catch (err) {
     // If the manifest doesn't exist or can't be read, fall back to empty object
@@ -857,6 +911,15 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
     // Directory doesn't exist or is not readable — ignore and continue.
   }
 
+  serverArgs = serverArgs.concat([
+    '--plugins-dir',
+    defaultPluginsDir(),
+    '--user-plugins-dir',
+    defaultUserPluginsDir(),
+    '--kubeconfig-dir',
+    defaultKubeConfigsDir(),
+  ]);
+
   serverArgs = serverArgs.concat(flags);
   console.log('arguments passed to backend server', serverArgs);
 
@@ -871,9 +934,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   const options = {
     detached: true,
     windowsHide: true,
-    env: {
-      ...extendedEnv,
-    },
+    env: withBackendMemoryDefaults(extendedEnv),
   };
 
   return spawn(serverFilePath, serverArgs, options);
@@ -903,6 +964,8 @@ async function isWSL(): Promise<boolean> {
 let serverProcess: ChildProcessWithoutNullStreams | null;
 let intentionalQuit: boolean;
 let serverProcessQuit: boolean;
+/** Child processes that emitted the trusted post-bind readiness marker. */
+const readyServerProcesses = new WeakSet<ChildProcessWithoutNullStreams>();
 
 function quitServerProcess() {
   if ((!serverProcess || serverProcessQuit) && process.platform !== 'win32') {
@@ -1215,7 +1278,12 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   let menu: Electron.Menu;
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
-      menusToTemplate(appWindow, appMenu) || [];
+      menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        openExternal: url => shell.openExternal(url),
+        openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
+        adjustZoom,
+        setZoom,
+      }) || [];
     menu = Menu.buildFromTemplate(menuTemplate);
   } catch (e) {
     console.error(`Failed to build menus from template ${appMenu}:`, e);
@@ -1266,57 +1334,10 @@ function updateMenuLabels(menus: AppMenu[]) {
   });
 }
 
-export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
-  url?: string;
-  /** The submenus of this menu */
-  submenu?: AppMenu[];
-  /** A string identifying this menu */
-  id: string;
-  /** Whether to render this menu only after plugins are loaded (to give it time for the plugins
-   * to override the menu) */
-  afterPlugins?: boolean;
-}
-
-function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: AppMenu[]) {
-  const menusToDisplay: MenuItemConstructorOptions[] = [];
-  menusFromPlugins.forEach(appMenu => {
-    const { url, afterPlugins = false, ...otherProps } = appMenu;
-    const menu: MenuItemConstructorOptions = otherProps;
-
-    if (!loadFullMenu && !!afterPlugins) {
-      return;
-    }
-
-    // Handle the "About" menu item from the Help menu specially
-    if (appMenu.id === 'original-about-help') {
-      menu.click = () => {
-        mainWindow?.webContents.send('open-about-dialog');
-      };
-    } else if (!!url) {
-      menu.click = async () => {
-        // Open external links in the external browser.
-        if (!!mainWindow && !url.startsWith('http')) {
-          mainWindow.webContents.loadURL(url);
-        } else {
-          await shell.openExternal(url);
-        }
-      };
-    }
-
-    // If the menu has a submenu, then recursively convert it.
-    if (Array.isArray(otherProps.submenu)) {
-      menu.submenu = menusToTemplate(mainWindow, otherProps.submenu);
-    }
-
-    menusToDisplay.push(menu);
-  });
-
-  return menusToDisplay;
-}
-
 async function getRunningHeadlampPIDs() {
-  const processes = await find_process('name', 'headlamp-server.*');
+  // Process inspection is only needed during cleanup, not normal startup.
+  const { default: findProcess } = await import('find-process');
+  const processes = await findProcess('name', 'headlamp-server.*');
   // Only consider processes owned by the current user: on shared machines
   // (e.g. Windows remote desktop servers) other users run their own
   // headlamp-server and we must never touch those.
@@ -1328,111 +1349,141 @@ async function getRunningHeadlampPIDs() {
   return ownPids;
 }
 
-/**
- * Check if a specific port is occupied by a Headlamp process
- * @returns Array of Headlamp PIDs using the port, or null if port is free or used by another process
- */
-async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
-  try {
-    // Get all Headlamp processes
-    const headlampProcesses = await find_process('name', 'headlamp-server');
-    if (headlampProcesses.length === 0) {
-      return null;
-    }
-
-    // Parse command line arguments to find which Headlamp process is using this port
-    const headlampOnPort = headlampProcesses.filter(p => {
-      if (!p.cmd) return false;
-
-      // Look for --port=XXXX or --port XXXX in the command line
-      const portRegex = /--port[=\s]+(\d+)/;
-      const match = p.cmd.match(portRegex);
-
-      if (match && match[1]) {
-        const processPort = parseInt(match[1], 10);
-        return processPort === port;
-      }
-
-      // If no port specified, Headlamp uses default port 4466
-      if (port === 4466 && !p.cmd.includes('--port')) {
-        return true;
-      }
-
-      return false;
-    });
-
-    if (headlampOnPort.length === 0) {
-      return null;
-    }
-
-    // Scope to the current user's processes, like getRunningHeadlampPIDs():
-    // another user's server on the port is just a generic occupied port
-    // (isPortAvailable still detects it), not ours to report or touch.
-    const ownPids = await filterUserOwnedPids(headlampOnPort.map(p => p.pid));
-    if (ownPids.length === 0) {
-      return null;
-    }
-
-    return ownPids;
-  } catch (error) {
-    console.error(`Error checking if port ${port} is used by Headlamp:`, error);
-    return null;
-  }
-}
-
 function killProcess(pid: number) {
   if (process.platform === 'win32') {
     // Otherwise on Windows the process will stick around.
-    execSync('taskkill /pid ' + pid + ' /T /F');
+    execFileSync('taskkill', ['/pid', String(pid), '/T', '/F']);
   } else {
     process.kill(pid, 'SIGHUP');
   }
 }
 
 const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
-let cachedZoom: number = 1.0;
+let cachedZoom: number = DEFAULT_ZOOM_FACTOR;
 
-function saveZoomFactor(factor: number) {
-  try {
-    fs.writeFileSync(ZOOM_FILE_PATH, JSON.stringify({ zoomFactor: factor }), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save zoom factor:', err);
+function applyZoom(forceRefresh = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
   }
+
+  const wc = mainWindow.webContents;
+  // The window may be mid-close (e.g. deferred scheduleApplyZoom callbacks);
+  // setZoomFactor on a destroyed WebContents throws.
+  if (!wc || wc.isDestroyed()) {
+    return;
+  }
+
+  // Chromium's renderer process skips re-calculating layout and re-scaling
+  // newly painted DOM elements if it believes the zoom factor is already set
+  // to cachedZoom (e.g. on in-page SPA navigation or window focus/restore).
+  // Nudging the zoomFactor slightly (±0.001) forces Chromium to recognize
+  // a factor change and re-layout/repaint the page, then we immediately restore
+  // it to the target cachedZoom.
+  if (forceRefresh && cachedZoom !== DEFAULT_ZOOM_FACTOR) {
+    let nudge = clampZoom(cachedZoom + 0.001);
+    if (nudge === cachedZoom) {
+      nudge = clampZoom(cachedZoom - 0.001);
+    }
+    wc.setZoomFactor(nudge);
+  }
+  wc.setZoomFactor(cachedZoom);
 }
 
-async function loadZoomFactor(): Promise<number> {
-  try {
-    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
-    const { zoomFactor = 1.0 } = JSON.parse(content);
-    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
-  } catch (err) {
-    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
-    return 1.0;
-  }
-}
+function scheduleApplyZoom(forceRefresh = false) {
+  applyZoom(forceRefresh);
+  setImmediate(() => {
+    applyZoom(forceRefresh);
 
-// The zoom factor should respect the fixed limits set by Electron.
-function clampZoom(factor: number) {
-  return Math.min(5.0, Math.max(0.25, factor));
+    // Re-grab webContents: the window may have closed since scheduling.
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) {
+      return;
+    }
+
+    wc.executeJavaScript(
+      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+    )
+      .then(() => applyZoom(forceRefresh))
+      .catch(() => {});
+  });
 }
 
 function setZoom(factor: number) {
-  cachedZoom = factor;
-  mainWindow?.webContents.setZoomFactor(cachedZoom);
+  cachedZoom = clampZoom(factor);
+  applyZoom(false);
+  saveZoomFactor(ZOOM_FILE_PATH, cachedZoom);
 }
 
 function adjustZoom(delta: number) {
-  const newZoom = clampZoom(cachedZoom + delta);
-  setZoom(newZoom);
+  setZoom(cachedZoom + delta);
 }
+
+// React Router in the frontend renderer sends 'route-changed' after rendering
+// and painting a new route; re-apply zoom with forceRefresh to ensure the new view
+// is rendered at the correct scale. Registered outside createWindow so it is not
+// re-attached multiple times when the window is reopened (e.g. on macOS activate).
+ipcMain.on('route-changed', () => {
+  scheduleApplyZoom(true);
+});
 
 function startElectron() {
   console.info('App starting...');
+
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    return;
+  }
 
   // Increase max listeners to prevent false positive warnings
   // The app legitimately needs multiple IPC listeners (currently 11)
   // Default is 10, setting to 20 provides headroom for future additions
   ipcMain.setMaxListeners(20);
+
+  /** Sends the launch token only after the current backend generation is ready. */
+  async function sendBackendToken(event: IpcMainEvent): Promise<void> {
+    const requestedBackendReady = backendReady;
+    try {
+      await requestedBackendReady;
+    } catch {
+      return;
+    }
+    if (
+      requestedBackendReady !== backendReady ||
+      !backendCredentialsAvailable ||
+      !isFromMainWindowFrame(event)
+    ) {
+      return;
+    }
+    event.sender.send('backend-token', backendToken);
+  }
+  ipcMain.on('request-backend-token', sendBackendToken);
+
+  /**
+   * Sends the selected port after the internal backend accepts its launch token.
+   *
+   * @param event - Backend-port request from the trusted main renderer frame.
+   */
+  async function sendBackendPort(event: IpcMainEvent): Promise<void> {
+    const requestedBackendReady = backendReady;
+    try {
+      await requestedBackendReady;
+    } catch {
+      return;
+    }
+    if (
+      requestedBackendReady !== backendReady ||
+      !backendCredentialsAvailable ||
+      !isFromMainWindowFrame(event)
+    ) {
+      return;
+    }
+    event.sender.send('backend-port', actualPort);
+  }
+  ipcMain.on('request-backend-port', sendBackendPort);
 
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
@@ -1444,80 +1495,120 @@ function startElectron() {
 
   console.log('Check for updates: ', shouldCheckForUpdates);
 
+  /**
+   * Starts the bundled backend and waits for its trusted post-bind output marker.
+   *
+   * Renderer readiness is released only after the spawned child reports a successful
+   * socket bind. If the child loses the port-allocation race, startup is retried
+   * with a newly selected port without sending the token to the port owner.
+   *
+   * @param startPort - First port to consider for this startup attempt.
+   * @returns The backend child process that owns the selected listening socket.
+   * @throws When the backend exits before binding its selected port.
+   */
+  async function startInternalBackend(
+    startPort = defaultPort
+  ): Promise<ChildProcessWithoutNullStreams> {
+    const startedServerProcess = await startServer([], startPort);
+    serverProcess = startedServerProcess;
+    serverProcessQuit = false;
+    attachServerEventHandlers(startedServerProcess);
+    let stopObservingReadiness = () => {};
+    /** Reports when this spawned child confirms that it owns the listening socket. */
+    const readyOutcome = new Promise<InternalBackendReadyOutcome>(resolve => {
+      stopObservingReadiness = observeInternalBackendReady(startedServerProcess.stdout, () => {
+        resolve({ type: 'ready' });
+      });
+    });
+    /** Reports an exit that occurs before trusted post-bind readiness. */
+    const exitOutcome = new Promise<InternalBackendExitOutcome | InternalBackendErrorOutcome>(
+      resolve => {
+        startedServerProcess.once('exit', exitCode => {
+          stopObservingReadiness();
+          resolve({ type: 'exit', exitCode });
+        });
+        startedServerProcess.once('error', error => {
+          stopObservingReadiness();
+          resolve({ type: 'error', error });
+        });
+      }
+    );
+    /** Prevents malformed or missing child output from blocking desktop startup forever. */
+    let readinessTimeout: NodeJS.Timeout | undefined;
+    const timeoutOutcome = new Promise<InternalBackendTimeoutOutcome>(resolve => {
+      readinessTimeout = setTimeout(
+        () => resolve({ type: 'timeout' }),
+        INTERNAL_BACKEND_READY_TIMEOUT_MS
+      );
+    });
+    /** First terminal startup outcome for this child process. */
+    const outcome = await Promise.race([readyOutcome, exitOutcome, timeoutOutcome]);
+    clearTimeout(readinessTimeout);
+    stopObservingReadiness();
+
+    if (outcome.type === 'timeout') {
+      startedServerProcess.kill();
+      throw new Error(
+        `Backend did not become ready within ${INTERNAL_BACKEND_READY_TIMEOUT_MS} ms`
+      );
+    }
+
+    if (outcome.type === 'error') {
+      throw new Error(`Backend failed to start: ${outcome.error.message}`, {
+        cause: outcome.error,
+      });
+    }
+    if (outcome.type === 'exit') {
+      if (outcome.exitCode === SERVER_ADDRESS_IN_USE_EXIT_CODE) {
+        console.warn('Server failed to start because its selected port became occupied; retrying');
+        return startInternalBackend(actualPort + 1);
+      }
+      throw new Error(`Backend exited before becoming ready with code ${outcome.exitCode}`);
+    }
+
+    readyServerProcesses.add(startedServerProcess);
+    backendCredentialsAvailable = true;
+    resolveBackendReady();
+    return startedServerProcess;
+  }
+
   async function startServerIfNeeded() {
+    if (useExternalServer) {
+      await waitForExternalBackend(actualPort, backendToken);
+      backendCredentialsAvailable = true;
+      return;
+    }
     if (!useExternalServer) {
+      if (
+        backendCredentialsAvailable &&
+        serverProcess &&
+        serverProcess.exitCode === null &&
+        !serverProcess.killed
+      ) {
+        return;
+      }
+      if (backendReadyState !== 'pending') {
+        resetBackendReady();
+      }
       try {
         // Try to start the server (it will find an available port)
-        serverProcess = await startServer();
-        attachServerEventHandlers(serverProcess);
-
-        serverProcess.addListener('exit', async e => {
-          const ERROR_ADDRESS_IN_USE = 98;
-          if (e === ERROR_ADDRESS_IN_USE) {
-            // This is a fallback - we should have already checked for port conflicts
-            // before starting the server. This handles edge cases where the port
-            // became occupied between our check and the server start.
-            console.warn('Server failed to start due to address in use (unexpected)');
-
-            const runningHeadlamp = await getRunningHeadlampPIDs();
-
-            if (!mainWindow) {
-              return;
-            }
-
-            if (!!runningHeadlamp) {
-              const resp = dialog.showMessageBoxSync(mainWindow, {
-                title: i18n.t('Another process is running'),
-                message: i18n.t(
-                  'Looks like another process is already running. Continue by terminating that process automatically, or quit?'
-                ),
-                type: 'question',
-                buttons: [i18n.t('Continue'), i18n.t('Quit')],
-              });
-
-              if (resp === 0) {
-                runningHeadlamp.forEach(pid => {
-                  try {
-                    killProcess(pid);
-                  } catch (e: unknown) {
-                    const message = e instanceof Error ? e.message : String(e);
-                    console.error(`Failed to kill process with PID ${pid}: ${message}`);
-                  }
-                });
-
-                // Wait a bit and retry
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              } else {
-                mainWindow.close();
-                return;
-              }
-            }
-
-            // If we couldn't kill the process, warn the user and quit.
-            const processes = await getRunningHeadlampPIDs();
-            if (!!processes) {
-              dialog.showMessageBoxSync({
-                type: 'warning',
-                title: i18n.t('Failed to quit the other running process'),
-                message: i18n.t(
-                  `Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.`,
-                  { process_list: processes }
-                ),
-              });
-
-              mainWindow.close();
-              return;
-            }
-            serverProcess = await startServer();
-            attachServerEventHandlers(serverProcess);
-          }
-        });
+        await startInternalBackend();
       } catch (error: unknown) {
+        if (!(error instanceof BackendPortAllocationError)) {
+          const message = error instanceof Error ? error.message : String(error);
+          rejectBackendStartup(error instanceof Error ? error : new Error(message));
+          console.error('Backend failed to start:', message);
+          dialog.showErrorBox(i18n.t('Failed to start'), message);
+          mainWindow?.close();
+          return;
+        }
+
         // Failed to find an available port after all attempts
         const message = error instanceof Error ? error.message : String(error);
         console.error('Failed to find an available port:', message);
 
         if (!mainWindow) {
+          rejectBackendStartup(error instanceof Error ? error : new Error(message));
           console.error('Cannot show dialog - no main window available');
           return;
         }
@@ -1555,11 +1646,13 @@ function startElectron() {
 
             // Retry starting the server
             try {
-              serverProcess = await startServer();
-              attachServerEventHandlers(serverProcess);
+              await startInternalBackend();
             } catch (retryError: unknown) {
               const retryMessage =
                 retryError instanceof Error ? retryError.message : String(retryError);
+              rejectBackendStartup(
+                retryError instanceof Error ? retryError : new Error(retryMessage)
+              );
               console.error('Failed to start server after killing processes:', retryMessage);
               dialog.showErrorBox(
                 i18n.t('Failed to start'),
@@ -1569,10 +1662,12 @@ function startElectron() {
             }
           } else {
             // User chose to quit
+            rejectBackendStartup(error instanceof Error ? error : new Error(message));
             mainWindow.close();
           }
         } else {
           // No Headlamp processes found, but still can't find a port
+          rejectBackendStartup(error instanceof Error ? error : new Error(message));
           dialog.showErrorBox(
             i18n.t('No available ports'),
             i18n.t(
@@ -1591,15 +1686,36 @@ function startElectron() {
     const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
+    // Flush any pending debounced zoom save before reading so reopening the
+    // window immediately after a zoom change reads the latest factor.
+    flushZoomFactorSave();
+
+    // Load before constructing the window so no await sits between window
+    // creation and the 'closed' handler; closing during the read would
+    // otherwise leave a destroyed window that later loadURL/menu calls throw on.
+    cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
     mainWindow = new BrowserWindow({
       width,
       height,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
         preload: `${__dirname}/preload.js`,
       },
     });
+    protocolHandler.attachToWebContents(mainWindow.webContents);
+    setupRunCmdHandlers(
+      mainWindow,
+      ipcMain,
+      productPluginCommandPolicy,
+      startUrl,
+      undefined,
+      isDev,
+      areDevelopmentPluginsEnabled
+    );
+
+    applyZoom();
 
     // Load the frontend
     mainWindow.loadURL(startUrl);
@@ -1629,15 +1745,32 @@ function startElectron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', async () => {
-      const startZoom = await loadZoomFactor();
-      if (startZoom !== 1.0) {
-        setZoom(startZoom);
+    mainWindow.webContents.on('did-finish-load', () => {
+      scheduleApplyZoom(true);
+    });
+
+    mainWindow.webContents.on('did-frame-finish-load', (_event, isMainFrame) => {
+      if (isMainFrame) {
+        scheduleApplyZoom(true);
+      }
+    });
+
+    mainWindow.webContents.on('zoom-changed', (_event, zoomDirection) => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      const wc = mainWindow.webContents;
+      if (!wc || wc.isDestroyed()) {
+        return;
       }
 
-      // Inject the backend port into the window object
-      mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
+      const delta = zoomDirection === 'in' ? 0.1 : -0.1;
+      adjustZoom(delta);
     });
+
+    // Electron can visually reset zoom after SPA navigation or when the window regains focus.
+    mainWindow.on('focus', () => scheduleApplyZoom(true));
+    mainWindow.on('show', () => scheduleApplyZoom(true));
 
     mainWindow.webContents.on('dom-ready', () => {
       const defaultMenu = getDefaultAppMenu();
@@ -1659,10 +1792,11 @@ function startElectron() {
       mainWindow = null;
     });
 
-    // Workaround to cookies to be saved, since file:// protocal and localhost:port
-    // are treated as a cross site request.
+    // Work around cookies not being saved because file:// and the backend origin
+    // are treated as a cross-site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.startsWith(`http://localhost:${actualPort}`)) {
+      const backendOrigin = `http://${INTERNAL_BACKEND_HOST}:${actualPort}`;
+      if (details.url === backendOrigin || details.url.startsWith(`${backendOrigin}/`)) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -1677,21 +1811,6 @@ function startElectron() {
       }
     });
 
-    // Force Single Instance Application
-    const gotTheLock = app.requestSingleInstanceLock();
-    if (gotTheLock) {
-      app.on('second-instance', () => {
-        // Someone tried to run a second instance, we should focus our window.
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
-        }
-      });
-    } else {
-      app.quit();
-      return;
-    }
-
     /*
     if a library is trying to open a url other than app url in electron take it
     to the default browser
@@ -1705,49 +1824,40 @@ function startElectron() {
       shell.openExternal(url);
     });
 
-    app.on('open-url', (event, url) => {
-      mainWindow?.focus();
-      let urlObj;
-      try {
-        urlObj = new URL(url);
-      } catch (e) {
-        dialog.showErrorBox(
-          i18n.t('Invalid URL'),
-          i18n.t('Application opened with an invalid URL: {{ url }}', { url })
-        );
-        return;
-      }
-
-      const urlParam = urlObj.hostname;
-      let baseUrl = startUrl;
-      // this check helps us to avoid adding multiple / to the startUrl when appending the incoming url to it
-      if (baseUrl.endsWith('/')) {
-        baseUrl = baseUrl.slice(0, startUrl.length - 1);
-      }
-      // load the index.html from build and route to the hostname received in the protocol handler url
-      mainWindow?.loadURL(baseUrl + '#' + urlParam + urlObj.search);
-    });
-
     i18n.on('languageChanged', () => {
       updateMenuLabels(currentMenu);
       setMenu(mainWindow, currentMenu);
     });
 
-    ipcMain.on('appConfig', () => {
-      mainWindow?.webContents.send('appConfig', {
+    ipcMain.on('appConfig', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('appConfig', {
         checkForUpdates: shouldCheckForUpdates,
         appVersion,
+        protocolScheme,
       });
     });
 
-    ipcMain.on('pluginsLoaded', () => {
+    ipcMain.handle('get-legal-documents', () =>
+      legalDocuments.map(({ id, title }) => ({ id, title }))
+    );
+    ipcMain.handle('get-legal-document', (_event, id: unknown) =>
+      readLegalDocument(legalDocumentsResourcePath, legalDocuments, id)
+    );
+
+    ipcMain.on('pluginsLoaded', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
       loadFullMenu = true;
       console.info('Plugins are loaded. Loading full menu.');
       setMenu(mainWindow, currentMenu);
     });
 
     ipcMain.on('setMenu', (event: IpcMainEvent, menus: any) => {
-      if (!mainWindow) {
+      if (!mainWindow || !isFromMainWindowFrame(event, mainWindow)) {
         return;
       }
 
@@ -1770,33 +1880,33 @@ function startElectron() {
     });
 
     ipcMain.on('locale', (event: IpcMainEvent, newLocale: string) => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
       if (!!newLocale && i18n.language !== newLocale) {
         i18n.changeLanguage(newLocale);
       }
     });
 
-    ipcMain.on('request-backend-token', () => {
-      mainWindow?.webContents.send('backend-token', backendToken);
-    });
-
-    ipcMain.on('request-backend-port', () => {
-      mainWindow?.webContents.send('backend-port', actualPort);
-    });
-
-    ipcMain.on('request-tray-icon', () => {
-      mainWindow?.webContents.send('tray-icon', isTrayIconEnabled());
+    ipcMain.on('request-tray-icon', event => {
+      if (!isFromMainWindowFrame(event, mainWindow)) {
+        return;
+      }
+      event.sender.send('tray-icon', isTrayIconEnabled());
     });
 
     ipcMain.on('set-tray-icon', (event: IpcMainEvent, enabled: boolean) => {
-      if (typeof enabled !== 'boolean') {
+      if (!isFromMainWindowFrame(event, mainWindow) || typeof enabled !== 'boolean') {
         return;
       }
       applyTrayIconSetting(enabled);
     });
 
-    setupRunCmdHandlers(mainWindow, ipcMain);
+    setupDevelopmentPluginsHandlers(mainWindow, ipcMain, startUrl);
 
-    new PluginManagerEventListeners().setupEventHandlers();
+    setupSecureStorageHandlers(mainWindow, startUrl);
+
+    new PluginManagerEventListeners(mainWindow).setupEventHandlers();
 
     // Handle opening plugin folder in file explorer
     ipcMain.on(
@@ -1805,6 +1915,9 @@ function startElectron() {
         event: IpcMainEvent,
         pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
       ) => {
+        if (!isFromMainWindowFrame(event, mainWindow)) {
+          return;
+        }
         let folderPath: string | null = null;
 
         if (pluginInfo.type === 'user') {
@@ -1839,26 +1952,14 @@ function startElectron() {
     if (ENABLE_MCP) {
       const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
       const settingsPath = path.join(app.getPath('userData'), 'mcp-tools-settings.json');
-      mcpClient = new MCPClient(configPath, settingsPath);
+      mcpClient = new MCPClient(configPath, settingsPath, ensureCertificates, startUrl);
       await mcpClient.initialize();
       mcpClient.setMainWindow(mainWindow);
     }
   }
 
-  if (disableGPU) {
-    console.info('Disabling GPU hardware acceleration. Reason: related flag is set.');
-  } else if (
-    disableGPU === undefined &&
-    process.platform === 'linux' &&
-    ['arm', 'arm64'].includes(process.arch)
-  ) {
-    console.info(
-      'Disabling GPU hardware acceleration. Reason: known graphical issues in Linux on ARM (use --disable-gpu=false to force it if needed).'
-    );
-    disableGPU = true;
-  }
-
-  if (disableGPU) {
+  if (waitForWindowsVMDetection(windowsVMDetection)) {
+    console.info('Disabling GPU hardware acceleration. Reason: running in a Windows VM.');
     app.disableHardwareAcceleration();
   }
 
@@ -1868,6 +1969,7 @@ function startElectron() {
       createWindow,
       getBackendPort: () => actualPort,
       getMainWindow: () => mainWindow,
+      isBackendAvailable: () => backendCredentialsAvailable,
       isDev,
       quit: () => {
         isQuitting = true;
@@ -1891,13 +1993,38 @@ function startElectron() {
     }
   }
 
+  /**
+   * Starts the backend and application window in the required order.
+   *
+   * @returns A promise that resolves after the backend and window are ready.
+   */
+  let startupPromise: Promise<void> | null = null;
+
+  function startBackendAndWindow(): Promise<void> {
+    if (!startupPromise) {
+      startupPromise = (async () => {
+        if (useExternalServer) {
+          await startServerIfNeeded();
+          await createWindow();
+          return;
+        }
+
+        await Promise.all([startServerIfNeeded(), createWindow()]);
+      })().finally(() => {
+        startupPromise = null;
+      });
+    }
+
+    return startupPromise;
+  }
+
   app.on('ready', async () => {
-    await Promise.all([startServerIfNeeded(), createWindow()]);
+    await startBackendAndWindow();
     hasTray = createHeadlampTray(buildTrayOptions());
   });
   app.on('activate', async function () {
-    if (mainWindow === null) {
-      await Promise.all([startServerIfNeeded(), createWindow()]);
+    if (!mainWindow) {
+      await startBackendAndWindow();
     }
   });
 
@@ -1909,9 +2036,10 @@ function startElectron() {
 
   app.once('before-quit', async () => {
     isQuitting = true;
+    // Persist any zoom change still waiting on the debounced save.
+    flushZoomFactorSave();
     cleanupHeadlampTray();
     hasTray = false;
-    saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
@@ -1936,31 +2064,16 @@ if (!isRunningScript) {
  * add some error handlers to the serverProcess.
  * @param  {ChildProcess} serverProcess to attach the error handlers to.
  */
-function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams) {
-  serverProcess.on('error', err => {
+function attachServerEventHandlers(startedServerProcess: ChildProcessWithoutNullStreams) {
+  startedServerProcess.on('error', err => {
     console.error(`server process failed to start: ${err}`);
   });
 
-  const extractPortFromOutput = (data: Buffer) => {
-    const output = data.toString();
-    const portMatch = output.match(/Listen address:.*:(\d+)/);
-    if (portMatch && portMatch[1]) {
-      actualPort = parseInt(portMatch[1], 10);
-      console.info(`Backend server listening on port: ${actualPort}`);
-
-      // Update the environment variable for the frontend
-      if (mainWindow) {
-        mainWindow.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
-      }
-    }
-  };
-
-  serverProcess.stdout.on('data', data => {
+  startedServerProcess.stdout.on('data', data => {
     console.info(`server process stdout: ${data}`);
-    extractPortFromOutput(data);
   });
 
-  serverProcess.stderr.on('data', data => {
+  startedServerProcess.stderr.on('data', data => {
     const sterrMessage = `server process stderr: ${data}`;
     if (data && data.indexOf && data.indexOf('Requesting') !== -1) {
       // The server prints out urls it's getting, which aren't errors.
@@ -1968,10 +2081,20 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
     } else {
       console.error(sterrMessage);
     }
-    extractPortFromOutput(data);
   });
 
-  serverProcess.on('close', (code, signal) => {
+  startedServerProcess.on('exit', () => {
+    if (serverProcess !== startedServerProcess || !readyServerProcesses.has(startedServerProcess)) {
+      return;
+    }
+    backendCredentialsAvailable = false;
+    resetBackendReady();
+    if (!intentionalQuit && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('backend-unavailable');
+    }
+  });
+
+  startedServerProcess.on('close', (code, signal) => {
     const closeMessage = `server process process exited with code:${code} signal:${signal}`;
     if (!intentionalQuit) {
       // @todo: message mainWindow, or loadURL to an error url?
@@ -1979,7 +2102,9 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
     } else {
       console.info(closeMessage);
     }
-    serverProcessQuit = true;
+    if (serverProcess === startedServerProcess) {
+      serverProcessQuit = true;
+    }
   });
 }
 

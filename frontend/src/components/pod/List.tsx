@@ -461,6 +461,7 @@ export function PodListRenderer(props: PodListProps) {
           gridTemplate: 'min-content',
           label: t('glossary|IP'),
           getValue: pod => pod.status?.podIP ?? '',
+          copyable: true,
         },
         {
           id: 'node',

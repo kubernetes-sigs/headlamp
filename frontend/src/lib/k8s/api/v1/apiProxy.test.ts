@@ -23,6 +23,7 @@ import nock from 'nock';
 import { Mock, MockedFunction } from 'vitest';
 import WS from 'vitest-websocket-mock';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import * as cluster from '../../../cluster';
 import * as apiProxy from '../../apiProxy';
 
@@ -116,6 +117,7 @@ const newestConfigMap = {
 describe('apiProxy', () => {
   describe('clusterRequest', () => {
     afterEach(() => {
+      setBackendToken(null);
       nock.cleanAll();
     });
 
@@ -124,6 +126,21 @@ describe('apiProxy', () => {
 
       const response = await apiProxy.clusterRequest(testPath);
       expect(response).toEqual(mockResponse);
+    });
+
+    it('adds backend credentials to non-cluster requests', async () => {
+      let backendTokenHeader: string | string[] | undefined;
+      setBackendToken('desktop-token');
+      nock(baseApiUrl)
+        .get(testPath)
+        .reply(function () {
+          backendTokenHeader = this.req.headers['x-headlamp_backend-token'];
+          return [200, mockResponse];
+        });
+
+      await apiProxy.clusterRequest(testPath);
+
+      expect(backendTokenHeader).toBe('desktop-token');
     });
 
     it('Successfully handles clusterRequest with status 401', async () => {
@@ -149,6 +166,40 @@ describe('apiProxy', () => {
 
       const response = await apiProxy.clusterRequest(testPath, {}, queryParams);
       expect(response).toEqual(mockResponse);
+    });
+
+    it.each([
+      ['Headers', new Headers({ 'X-CUSTOM-HEADER': 'headers-value' }), 'headers-value'],
+      ['header tuples', [['X-CUSTOM-HEADER', 'tuple-value']] as [string, string][], 'tuple-value'],
+    ])('adds backend credentials to %s input', async (_name, headers, customHeader) => {
+      setBackendToken('desktop-token');
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}${testPath}`)
+        .matchHeader('X-CUSTOM-HEADER', customHeader)
+        .matchHeader('X-HEADLAMP_BACKEND-TOKEN', 'desktop-token')
+        .reply(200, mockResponse);
+
+      const response = await apiProxy.clusterRequest(testPath, { cluster: clusterName, headers });
+
+      expect(response).toEqual(mockResponse);
+    });
+
+    it('auto-logs out after a 401 with a Headers authorization value', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      nock(baseApiUrl).get(testPath).reply(401, errorResponse401);
+      const logoutRequest = nock(baseApiUrl).post('/clusters/set-token').reply(200);
+
+      await expect(
+        apiProxy.clusterRequest(testPath, {
+          headers: new Headers({ Authorization: '******' }),
+        })
+      ).rejects.toThrow(errorResponse401.error);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        'Logging out due to auth error',
+        expect.objectContaining({ status: 401, path: testPath })
+      );
+      await vi.waitFor(() => expect(logoutRequest.isDone()).toBe(true));
     });
   });
 
@@ -1167,11 +1218,13 @@ describe('apiProxy', () => {
     });
 
     afterEach(() => {
+      setBackendToken(null);
       vi.resetAllMocks();
     });
 
     describe('drainNode', () => {
       it('Successfully drains a node', async () => {
+        setBackendToken('desktop-token');
         const response = await apiProxy.drainNode(clusterName, nodeName);
         expect(response).toEqual(mockResponse);
 
@@ -1180,6 +1233,9 @@ describe('apiProxy', () => {
         expect(url).toContain('drain-node');
         expect(options.method).toBe('POST');
         expect(new Headers(options.headers).get('content-type')).toEqual('application/json');
+        expect(new Headers(options.headers).get('X-HEADLAMP_BACKEND-TOKEN')).toEqual(
+          'desktop-token'
+        );
         expect(options.body).toEqual(JSON.stringify({ cluster: clusterName, nodeName }));
       });
 
@@ -1200,6 +1256,7 @@ describe('apiProxy', () => {
 
     describe('drainNodeStatus', () => {
       it('Successfully gets drain node status', async () => {
+        setBackendToken('desktop-token');
         const response = await apiProxy.drainNodeStatus(clusterName, nodeName);
         expect(response).toEqual(mockResponse);
 
@@ -1208,6 +1265,9 @@ describe('apiProxy', () => {
         expect(url).toContain('drain-node-status');
         expect(options.method).toBe('GET');
         expect(new Headers(options.headers).get('content-type')).toEqual('application/json');
+        expect(new Headers(options.headers).get('X-HEADLAMP_BACKEND-TOKEN')).toEqual(
+          'desktop-token'
+        );
       });
 
       it('Successfully handles drainNodeStatus with error', async () => {

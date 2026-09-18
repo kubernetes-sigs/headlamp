@@ -1,33 +1,38 @@
 {
   "name": "headlamp",
-  "version": "0.44.0",
+  "version": "0.45.0",
   "description": "Easy-to-use and extensible Kubernetes web UI",
   "main": "build/main.js",
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
   "productName": "Headlamp",
   "engines": {
     "npm": ">=11.0.0",
-    "node": ">=22.0.0"
+    "node": ">=22.6.0"
+  },
+  "allowScripts": {
+    "electron": true
   },
   "scripts": {
-    "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --dir --publish never",
+    "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --config electron-builder.config.ts --dir --publish never",
     "compile-electron": "node scripts/build-electron.js",
     "copy-icons": "mkdirp build/icons && copyfiles -f ../frontend/build/*.png ../frontend/build/*.ico ../frontend/build/*.icns ../frontend/build/*.svg build/icons",
     "copy-plugins": "npx --no-install shx rm -rf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
     "dev": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 electron .",
     "dev:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 electron . --remote-debugging-port=9222",
-    "dev-only-app": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron .",
-    "dev-only-app:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron . --remote-debugging-port=9222",
+    "dev-only-app": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true HEADLAMP_BACKEND_TOKEN=headlamp electron .",
+    "dev-only-app:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true HEADLAMP_BACKEND_TOKEN=headlamp electron . --remote-debugging-port=9222",
     "format": "cd .. && npm run frontend:format",
-    "i18n": "npx --no-install i18next ./electron/main.ts -c ./electron/i18next-parser.config.ts",
+    "i18n": "npx --no-install i18next ./electron/main.ts ./electron/protocolHandler.ts ./electron/developmentPlugins.ts -c ./electron/i18next-parser.config.ts",
     "i18n-check": "npm run i18n -- --fail-on-update",
     "lint": "cd .. && npm run frontend:lint",
     "lint-fix": "cd .. && npm run frontend:lint:fix",
-    "package": "npm run build && electron-builder build --publish never",
+    "package": "npm run build && electron-builder build --config electron-builder.config.ts --publish never",
     "package-msi": "npm run build && node windows/msi/build.js",
     "start": "node scripts/start.js",
     "star": "node scripts/start.js --star",
     "test": "vitest run",
+    "test:backend-token-coverage": "vitest run electron/backendToken.test.ts --coverage --coverage.provider=istanbul --coverage.include=electron/backendToken.ts --coverage.thresholds.branches=80",
+    "test:oauth-coverage": "vitest run electron/oauthProvider.test.ts electron/protocolHandler.test.ts --coverage --coverage.provider=istanbul --coverage.include=electron/oauthProvider.ts --coverage.include=electron/protocolHandler.ts --coverage.thresholds.branches=80",
     "tsc": "tsc",
     "verify-build-linux": "bash scripts/verify-build-linux.sh",
     "verify-build-mac": "bash scripts/verify-build-mac.sh",
@@ -93,7 +98,6 @@
           ]
         }
       ],
-      "executableName": "headlamp",
       "maintainer": "Kinvolk <hello@kinvolk.io>",
       "category": "Network",
       "extraResources": [
@@ -140,6 +144,8 @@
     },
     "files": [
       "build/main.js",
+      "build/mcp/MCPAdapter.js",
+      "build/lazy/*.js",
       "build/preload.js"
     ],
     "extraResources": [
@@ -162,6 +168,14 @@
       {
         "from": "./app-build-manifest.json",
         "to": "app-build-manifest.json"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../NOTICE",
+        "to": "NOTICE"
       }
     ],
     "publish": {
@@ -182,19 +196,29 @@
     "@types/node": "^22.14.0",
     "@types/semver": "^7.7.0",
     "@types/yargs": "^17.0.35",
+    "@vitest/coverage-istanbul": "3.2.7",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
     "electron": "^38.8.6",
     "electron-builder": "^26.6.0",
     "esbuild": "^0.25.0",
     "i18next-parser": "^9.0.0",
     "typescript": "5.5.4",
-    "vitest": "^3.0.0"
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "typescript": "5.5.4",
-    "js-yaml": "^4.1.1"
+    "js-yaml": "^4.1.1",
+    "langsmith": "0.8.10",
+    "hono": "4.13.2",
+    "@peculiar/asn1-schema": "2.8.0",
+    "@langchain/langgraph-sdk": "1.9.29",
+    "@langchain/langgraph-checkpoint": "1.1.3"
   },
   "dependencies": {
+    "@langchain/core": "1.2.7",
     "@langchain/mcp-adapters": "^1.0.0",
+    "@langchain/langgraph": "1.4.9",
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
@@ -202,11 +226,13 @@
     "find-process": "^1.4.10",
     "glob": "^10.5.0",
     "i18next": "^23.12.1",
-    "i18next-fs-backend": "^2.6.6",
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
     "shx": "^0.4.0",
     "tar": "^7.5.11",
     "yargs": "^17.7.2"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
   }
 }

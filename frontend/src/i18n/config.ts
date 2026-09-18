@@ -99,6 +99,34 @@ export const supportedLanguages: {
     label: 'עברית',
     dir: 'rtl',
   },
+  cs: {
+    label: 'Čeština',
+    dir: 'ltr',
+  },
+  hu: {
+    label: 'Magyar',
+    dir: 'ltr',
+  },
+  id: {
+    label: 'Bahasa Indonesia',
+    dir: 'ltr',
+  },
+  nl: {
+    label: 'Nederlands',
+    dir: 'ltr',
+  },
+  pl: {
+    label: 'Polski',
+    dir: 'ltr',
+  },
+  sv: {
+    label: 'Svenska',
+    dir: 'ltr',
+  },
+  tr: {
+    label: 'Türkçe',
+    dir: 'ltr',
+  },
 };
 
 export const isRTL = (lang: string) => supportedLanguages[lang]?.dir === 'rtl';

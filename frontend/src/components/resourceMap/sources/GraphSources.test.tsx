@@ -25,6 +25,7 @@ import {
   kubeOwnersEdgesReversed,
   makeKubeObjectNode,
   makeKubeToKubeEdge,
+  SOURCE_LOADING_TIMEOUT_MS,
   useSources,
 } from './GraphSources';
 
@@ -184,6 +185,82 @@ describe('GraphSourceManager', () => {
     expect(context.edges).toEqual([]);
   });
 
+  it('stops blocking the whole Map view once a hung source times out', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    const settledHook = vi.fn(() => ({ nodes: [{ id: 'settled-node' }] }));
+    const hungHook = vi.fn(() => null);
+
+    render(
+      <GraphSourceManager
+        sources={[
+          source('settled', null, { hook: settledHook }),
+          source('hung', null, { hook: hungHook }),
+        ]}
+        relations={[]}
+      >
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.sourceData?.get('settled')?.nodes).toBeTruthy());
+    // The hung source never resolves, so the aggregate is still loading.
+    expect(context.isLoading).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(SOURCE_LOADING_TIMEOUT_MS);
+    });
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.sourceData?.get('hung')).toEqual({ nodes: [], edges: [] });
+    expect(context.nodes.map(node => node.id)).toEqual(['settled-node']);
+
+    vi.useRealTimers();
+  });
+
+  it('restarts the timeout when a source later re-enters a null loading state', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    const stableHook = vi.fn(() => ({ nodes: [{ id: 'stable-node' }] }));
+    const renderSources = (
+      lateLoadingData: { nodes?: GraphNode[]; edges?: GraphEdge[] } | null
+    ) => [
+      source('stable', null, { hook: stableHook }),
+      source('late-loading', null, { hook: vi.fn(() => lateLoadingData) }),
+    ];
+
+    const { rerender } = render(
+      <GraphSourceManager sources={renderSources({ nodes: [{ id: 'late-node' }] })} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(SOURCE_LOADING_TIMEOUT_MS);
+    });
+
+    rerender(
+      <GraphSourceManager sources={renderSources(null)} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.sourceData?.get('late-loading')).toBeNull());
+    expect(context.isLoading).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(SOURCE_LOADING_TIMEOUT_MS);
+    });
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.sourceData?.get('late-loading')).toEqual({ nodes: [], edges: [] });
+    expect(context.nodes.map(node => node.id)).toEqual(['stable-node']);
+
+    vi.useRealTimers();
+  });
+
   it('toggles leaves and recursively selects or deselects groups', async () => {
     const first = source('first', { nodes: [] });
     const second = source('second', { nodes: [] });
@@ -234,6 +311,85 @@ describe('GraphSourceManager', () => {
     expect(context.edges).toEqual([
       {
         id: 'first-node-second-node-first-all',
+        source: 'first-node',
+        target: 'second-node',
+        label: undefined,
+      },
+    ]);
+  });
+
+  it('applies a relation edgeAttributes callback to the generated edge', async () => {
+    const edgeAttributes = vi.fn(() => ({ nonGroupingSide: 'source' as const }));
+
+    render(
+      <GraphSourceManager
+        sources={[
+          source('first', { nodes: [{ id: 'first-node' }] }),
+          source('second', { nodes: [{ id: 'second-node' }] }),
+        ]}
+        relations={[
+          {
+            id: 'first-second',
+            fromSource: 'first',
+            toSource: 'second',
+            predicate: () => true,
+            edgeAttributes,
+          },
+        ]}
+      >
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(edgeAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'first-node' }),
+      expect.objectContaining({ id: 'second-node' })
+    );
+    expect(context.edges).toEqual([
+      {
+        id: 'first-node-second-node-first-second',
+        source: 'first-node',
+        target: 'second-node',
+        label: undefined,
+        nonGroupingSide: 'source',
+      },
+    ]);
+  });
+
+  it('does not let a relation edgeAttributes callback override the generated id/source/target', async () => {
+    // edgeAttributes is typed to exclude these fields, but nothing stops a
+    // dynamically-loaded plugin relation from returning them anyway at runtime.
+    const edgeAttributes = vi.fn(() => ({
+      id: 'hijacked-id',
+      source: 'nonexistent-node',
+      target: 'nonexistent-node',
+    })) as unknown as Relation['edgeAttributes'];
+
+    render(
+      <GraphSourceManager
+        sources={[
+          source('first', { nodes: [{ id: 'first-node' }] }),
+          source('second', { nodes: [{ id: 'second-node' }] }),
+        ]}
+        relations={[
+          {
+            id: 'first-second',
+            fromSource: 'first',
+            toSource: 'second',
+            predicate: () => true,
+            edgeAttributes,
+          },
+        ]}
+      >
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.edges).toEqual([
+      {
+        id: 'first-node-second-node-first-second',
         source: 'first-node',
         target: 'second-node',
         label: undefined,

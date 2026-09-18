@@ -73,7 +73,7 @@ export interface KubeCRD extends KubeObjectInterface {
 class CustomResourceDefinition extends KubeObject<KubeCRD> {
   static kind = 'CustomResourceDefinition';
   static apiName = 'customresourcedefinitions';
-  static apiVersion = ['apiextensions.k8s.io/v1', 'apiextensions.k8s.io/v1beta1'];
+  static apiVersion = ['apiextensions.k8s.io/v1'];
   static isNamespaced = false;
 
   static readOnlyFields = ['metadata.managedFields'];

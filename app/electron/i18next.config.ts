@@ -15,11 +15,10 @@
  */
 
 import i18next from 'i18next';
-import i18nextBackend from 'i18next-fs-backend/cjs';
-import * as path from 'path';
 import { CURRENT_LOCALES, LOCALES_DIR } from './i18n-helper';
+import { createJsonBackend } from './i18nextJsonBackend';
 
-i18next.use(i18nextBackend).init({
+i18next.use(createJsonBackend(LOCALES_DIR)).init({
   debug: process.env.NODE_ENV === 'development',
   fallbackLng: 'en',
   supportedLngs: CURRENT_LOCALES,
@@ -28,9 +27,6 @@ i18next.use(i18nextBackend).init({
   lowerCaseLng: true,
   ns: ['app'],
   defaultNS: 'app',
-  backend: {
-    loadPath: path.join(LOCALES_DIR, '{{lng}}/{{ns}}.json'),
-  },
   interpolation: {
     escapeValue: false, // not needed for react as it escapes by default
     format: function (value, format, lng) {

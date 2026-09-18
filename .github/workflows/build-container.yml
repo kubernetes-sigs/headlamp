@@ -13,6 +13,7 @@ on:
     - Dockerfile
     - Dockerfile.plugins
     - 'e2e-tests/**'
+    - 'charts/**'
   push:
     branches:
       - main
@@ -176,42 +177,20 @@ jobs:
         fi
     - name: Multi-Cluster Setup
       run: |
-        # Use Cluster 1 context
-        kubectl config use-context test
-        export TEST_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-        export TEST_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
-        kubectl create serviceaccount headlamp-admin --namespace kube-system
-        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
-        echo "HEADLAMP_TEST_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)" >> $GITHUB_ENV
-
-        # Use Cluster 2 context
-        kubectl config use-context test2
-        export TEST2_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-        export TEST2_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
-        kubectl create serviceaccount headlamp-admin --namespace kube-system
-        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
-        echo "HEADLAMP_TEST2_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)" >> $GITHUB_ENV
-
-        envsubst < e2e-tests/kubernetes-headlamp-ci.yaml | kubectl --context=test apply -f -
+        ./e2e-tests/scripts/setup-multicluster.sh --skip-image-build
     - name: Run e2e tests
       run: |
-        echo "------------------------------------sleeping 12...------------------------------------"
-        sleep 12
         kubectl config use-context test
         kubectl get services --all-namespaces
         kubectl get deployments -n kube-system
-        echo "------------------Waiting for headlamp deployment to be available...------------------"
-        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=30s
         echo "----------------------------------Opening the service----------------------------------"
-        IP_ADDRESS=$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-        SERVICE_PORT=$(kubectl get services headlamp -n kube-system -o=jsonpath='{.spec.ports[0].nodePort}')
-        export SERVICE_URL="http://${IP_ADDRESS}:${SERVICE_PORT}"
-        echo $SERVICE_URL
-        curl -L $SERVICE_URL | grep -q "Headlamp: Kubernetes Web UI"        
-        echo "--------------------------------Export Tokens Received From Previous Step--------------------------------"
-        export HEADLAMP_TEST_TOKEN=${HEADLAMP_TEST_TOKEN}
-        export HEADLAMP_TEST2_TOKEN=${HEADLAMP_TEST2_TOKEN}
+        echo "${HEADLAMP_TEST_URL}"
+        curl -fL --connect-timeout 5 --max-time 30 "${HEADLAMP_TEST_URL}" | grep -q "Headlamp: Kubernetes Web UI"
         echo "---------------------------------Certificate handling---------------------------------"
+        # The Multi-Cluster Setup step already resolved the node address and NodePort.
+        AUTHORITY="${HEADLAMP_TEST_URL#http://}"
+        IP_ADDRESS="${AUTHORITY%%:*}"
+        SERVICE_PORT="${AUTHORITY##*:}"
         export KUBECONFIG=$HOME/.kube/config
         ca_data=$(yq e '.clusters[0].cluster."certificate-authority-data"' $KUBECONFIG | base64 --decode)
         echo "$ca_data" > ca.crt
@@ -229,8 +208,9 @@ jobs:
         echo "-----------------------------Running playwright e2e tests-----------------------------"
         cd e2e-tests
         npm ci
+        npm run test:unit:coverage
         npx playwright install --with-deps
-        HEADLAMP_TEST_URL=$SERVICE_URL npx playwright test
+        npx playwright test
         exit_code=$?
         if [ $exit_code -ne 0 ]; then
           echo "Playwright tests failed with exit code $exit_code"
@@ -302,6 +282,49 @@ jobs:
           echo "❌ In-cluster API tests failed with exit code $EXIT_CODE"
           exit $EXIT_CODE
         fi
+    - name: Set up Helm
+      uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+      with:
+        version: v3.18.4
+    - name: Deploy Headlamp via Helm and run plugin manager tests
+      run: |
+        # The "test" context's kind-test cluster entry gets its server rewritten to the
+        # Headlamp NodePort service URL by the earlier "Run e2e tests" step, so it can no
+        # longer reach the real Kubernetes API server. Use "test2" instead, which is untouched.
+        kubectl config use-context test2
+        # HEADLAMP_TEST_TOKEN was minted against the "test" cluster's headlamp-admin service
+        # account, which the "test2" API server won't accept. Mint a token from test2's own
+        # headlamp-admin service account (bound to cluster-admin earlier in this workflow) instead.
+        HELM_TEST_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)
+        kubectl create namespace headlamp-helm --dry-run=client -o yaml | kubectl apply -f -
+        echo 'image:' > helm-values.yaml
+        echo '  registry: ghcr.io' >> helm-values.yaml
+        echo '  repository: headlamp-k8s/headlamp' >> helm-values.yaml
+        echo '  tag: latest' >> helm-values.yaml
+        echo '  pullPolicy: Never' >> helm-values.yaml
+        echo 'config:' >> helm-values.yaml
+        echo '  baseURL: "/headlamp-helm"' >> helm-values.yaml
+        echo '  watchPlugins: true' >> helm-values.yaml
+        echo 'service:' >> helm-values.yaml
+        echo '  type: NodePort' >> helm-values.yaml
+        echo 'pluginsManager:' >> helm-values.yaml
+        echo '  enabled: true' >> helm-values.yaml
+        echo '  configContent: |' >> helm-values.yaml
+        echo '    plugins:' >> helm-values.yaml
+        echo '      - name: flux' >> helm-values.yaml
+        echo '        source: https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux' >> helm-values.yaml
+        # Use a release name distinct from "headlamp" so the chart's ClusterRoleBinding
+        # (named "<release>-admin") doesn't collide with the cluster-scoped
+        # "headlamp-admin" binding created earlier in this workflow for the e2e tests.
+        helm install headlamp-helm-e2e ./charts/headlamp --namespace headlamp-helm -f helm-values.yaml
+        echo "Waiting for headlamp helm deployment to be available..."
+        kubectl wait deployment -n headlamp-helm headlamp-helm-e2e --for condition=Available=True --timeout=120s
+        IP_ADDRESS=$(kubectl get nodes --context test2 -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        SERVICE_PORT=$(kubectl get services headlamp-helm-e2e -n headlamp-helm -o=jsonpath='{.spec.ports[0].nodePort}')
+        export SERVICE_URL="http://${IP_ADDRESS}:${SERVICE_PORT}/headlamp-helm"
+        echo "Helm Headlamp URL: $SERVICE_URL"
+        cd e2e-tests
+        HEADLAMP_TEST_URL=$SERVICE_URL HEADLAMP_TEST_TOKEN=$HELM_TEST_TOKEN HEADLAMP_TEST_HELM=true npx playwright test tests/helmPlugins.spec.ts
     # Clear disk space by removing unnecessary files, apt files and uninstall some playwright dependencies
     - name: Clear Disk Space
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'

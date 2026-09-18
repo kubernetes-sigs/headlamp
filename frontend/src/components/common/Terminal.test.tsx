@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { Terminal as XTerminal } from '@xterm/xterm';
 import React from 'react';
 import { TestContext } from '../../test';
 import Terminal from './Terminal';
@@ -156,6 +157,114 @@ describe('Terminal', () => {
       await act(() => new Promise(res => process.nextTick(res)));
 
       expect(capturedContainer).toBe('main');
+    });
+  });
+
+  describe('context menu (Electron)', () => {
+    async function renderTerminal(socket: { readyState: number; send: (d: any) => void } | null) {
+      const streamReturn = {
+        cancel: () => {},
+        getSocket: () => socket,
+      };
+      const pod = createMockPod(async () => streamReturn);
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+    }
+
+    let getSelectionSpy: ReturnType<typeof vi.spyOn> | null = null;
+    const originalUserAgent = window.navigator.userAgent;
+
+    beforeEach(() => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'Electron',
+        configurable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      });
+      getSelectionSpy?.mockRestore();
+      getSelectionSpy = null;
+      delete (navigator as any).clipboard;
+    });
+
+    it('shows the context menu with Copy and Paste on right click', async () => {
+      await renderTerminal({ readyState: 1, send: () => {} });
+
+      fireEvent.contextMenu(document.getElementById('xterm-container')!);
+
+      expect(screen.getByRole('menuitem', { name: 'translation|Copy' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'translation|Paste' })).toBeInTheDocument();
+    });
+
+    it('disables Paste when the socket is not ready', async () => {
+      await renderTerminal({ readyState: 0, send: () => {} });
+
+      fireEvent.contextMenu(document.getElementById('xterm-container')!);
+
+      expect(screen.getByRole('menuitem', { name: 'translation|Paste' })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      );
+    });
+
+    it('disables Copy when there is no selection', async () => {
+      getSelectionSpy = vi.spyOn(XTerminal.prototype, 'getSelection').mockReturnValue('');
+      await renderTerminal({ readyState: 1, send: () => {} });
+
+      fireEvent.contextMenu(document.getElementById('xterm-container')!);
+
+      expect(screen.getByRole('menuitem', { name: 'translation|Copy' })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      );
+    });
+
+    it('copies the current selection to the clipboard', async () => {
+      getSelectionSpy = vi
+        .spyOn(XTerminal.prototype, 'getSelection')
+        .mockReturnValue('selected text');
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      await renderTerminal({ readyState: 1, send: () => {} });
+
+      fireEvent.contextMenu(document.getElementById('xterm-container')!);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Copy' }));
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(writeText).toHaveBeenCalledWith('selected text');
+    });
+
+    it('sends pasted clipboard text over the socket on stdin channel 0', async () => {
+      const send = vi.fn();
+      const readText = vi.fn().mockResolvedValue('pasted text');
+      Object.assign(navigator, { clipboard: { readText } });
+
+      await renderTerminal({ readyState: 1, send });
+
+      fireEvent.contextMenu(document.getElementById('xterm-container')!);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Paste' }));
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(readText).toHaveBeenCalled();
+      expect(send).toHaveBeenCalled();
+      const sentBuffer = send.mock.calls[0][0] as ArrayBuffer;
+      const sentBytes = new Uint8Array(sentBuffer);
+      expect(sentBytes[0]).toBe(0);
+      expect(new TextDecoder().decode(sentBytes.slice(1))).toBe('pasted text');
     });
   });
 });

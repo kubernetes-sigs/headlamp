@@ -77,6 +77,35 @@ describe('filterGraph', () => {
     expect(filteredNodes.map(it => it.id)).toEqual(['3', '4']);
   });
 
+  it('filters nodes by exact namespace and cluster pairs', () => {
+    const pairedNodes: GraphNode[] = [
+      {
+        id: 'cluster-a-foo',
+        kubeObject: new Pod(
+          { kind: 'Pod', metadata: { namespace: 'foo' }, status: {} } as any,
+          'cluster-a'
+        ),
+      },
+      {
+        id: 'cluster-b-foo',
+        kubeObject: new Pod(
+          { kind: 'Pod', metadata: { namespace: 'foo' }, status: {} } as any,
+          'cluster-b'
+        ),
+      },
+    ];
+    const filters: GraphFilter[] = [
+      {
+        type: 'namespaceCluster',
+        namespaceRefs: new Set([JSON.stringify(['cluster-a', 'foo'])]),
+      },
+    ];
+
+    expect(filterGraph(pairedNodes, [], filters).nodes.map(node => node.id)).toEqual([
+      'cluster-a-foo',
+    ]);
+  });
+
   it('filters nodes by error status', () => {
     const filters: GraphFilter[] = [{ type: 'hasErrors' }];
     const { nodes: filteredNodes } = filterGraph(nodes, edges, filters);

@@ -32,6 +32,8 @@ interface HeadlampTrayOptions {
   createWindow: () => Promise<void>;
   getBackendPort: () => number;
   getMainWindow: () => BrowserWindow | null;
+  /** Returns whether the backend still owns its confirmed endpoint. */
+  isBackendAvailable: () => boolean;
   isDev: boolean;
   quit: () => void;
 }
@@ -112,9 +114,11 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
     return true;
   }
 
+  const trayIconFilename =
+    process.platform === 'darwin' ? 'tray-iconTemplate.png' : 'tray-icon.png';
   const iconPath = options.isDev
-    ? path.join(__dirname, '..', 'assets', 'tray-icon.png')
-    : path.join(process.resourcesPath, 'assets', 'tray-icon.png');
+    ? path.join(__dirname, '..', 'assets', trayIconFilename)
+    : path.join(process.resourcesPath, 'assets', trayIconFilename);
 
   const trayIcon = nativeImage.createFromPath(iconPath);
   if (trayIcon.isEmpty()) {
@@ -147,10 +151,15 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
   return true;
 }
 
-async function getClusterStatuses(options: HeadlampTrayOptions): Promise<ClusterStatus[]> {
+export async function getClusterStatuses(options: HeadlampTrayOptions): Promise<ClusterStatus[]> {
+  if (!options.isBackendAvailable()) {
+    return [];
+  }
+
   try {
-    const configResponse = await fetch(`http://localhost:${options.getBackendPort()}/config`, {
-      headers: { Authorization: `Bearer ${options.backendToken}` },
+    // Keep the app token separate from Authorization, which cluster routes reserve for Kubernetes credentials.
+    const configResponse = await fetch(`http://127.0.0.1:${options.getBackendPort()}/config`, {
+      headers: { 'X-HEADLAMP_BACKEND-TOKEN': options.backendToken },
     });
 
     if (!configResponse.ok) {
@@ -172,10 +181,13 @@ async function getClusterStatuses(options: HeadlampTrayOptions): Promise<Cluster
       }
 
       try {
+        if (!options.isBackendAvailable()) {
+          return { name: cluster.name, status: 'unknown' as const };
+        }
         const healthResponse = await fetch(
-          `http://localhost:${options.getBackendPort()}/clusters/${cluster.name}/healthz`,
+          `http://127.0.0.1:${options.getBackendPort()}/clusters/${cluster.name}/healthz`,
           {
-            headers: { Authorization: `Bearer ${options.backendToken}` },
+            headers: { 'X-HEADLAMP_BACKEND-TOKEN': options.backendToken },
           }
         );
 

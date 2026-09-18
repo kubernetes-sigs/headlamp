@@ -28,6 +28,7 @@ import (
 	"hash"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -38,6 +39,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -70,6 +72,7 @@ const (
 	logFieldRoot           = "root"
 	logFieldClusterProfile = "clusterprofile"
 	logFieldServer         = "server"
+	logFieldNamespace      = "namespace"
 )
 
 // Options controls Cluster Inventory discovery.
@@ -80,6 +83,9 @@ type Options struct {
 	ProviderFile string
 	// LabelSelector filters ClusterProfile resources before they are synced.
 	LabelSelector string
+	// Namespaces limits ClusterProfile discovery to a comma-separated list of namespaces.
+	// A value of "*" watches all namespaces; empty watches each root's default namespace.
+	Namespaces string
 	// RootReconcileInterval controls how often root clusters are reconciled.
 	// Values less than or equal to zero use DefaultRootReconcileInterval.
 	RootReconcileInterval time.Duration
@@ -88,6 +94,8 @@ type Options struct {
 	NoCRDCacheTTL time.Duration
 	// HubConfig enables discovery from the in-cluster root when set.
 	HubConfig *rest.Config
+	// HubNamespace is the default namespace for the in-cluster root.
+	HubNamespace string
 	// DiscoverFromStore enables discovery from non-internal contexts already in Store.
 	DiscoverFromStore bool
 }
@@ -99,7 +107,9 @@ type Runner struct {
 	rootReconcileInterval time.Duration
 	noCRDCacheTTL         time.Duration
 	labelSelector         labels.Selector
+	namespaces            []string
 	hubConfig             *rest.Config
+	hubNamespace          string
 	discoverFromStore     bool
 
 	clientForConfig func(*rest.Config) (ciaclient.Interface, error)
@@ -108,24 +118,31 @@ type Runner struct {
 	mu                sync.Mutex
 	roots             map[string]*rootState
 	profiles          map[string]profileState
-	profileKeysByRoot map[string]map[string]struct{}
+	profileKeysByRoot map[string]map[string]string
 	noCRD             map[string]time.Time
 }
 
-// rootState tracks the active informer and identity for one discovery root.
+// rootState tracks the active informers and identity for one discovery root.
 type rootState struct {
 	rootID      string
 	serverURL   string
 	fingerprint string
 	ctx         context.Context
 	cancel      context.CancelFunc
-	informer    cache.SharedIndexInformer
+	watches     []rootWatch
 }
 
-// rootInformer bundles a root state with its informer factory before activation.
-type rootInformer struct {
-	state   *rootState
-	factory externalversions.SharedInformerFactory
+// rootWatch pairs a ClusterProfile informer with the factory that owns it.
+type rootWatch struct {
+	namespace string
+	factory   externalversions.SharedInformerFactory
+	informer  cache.SharedIndexInformer
+}
+
+// rootConfig contains the Kubernetes client config and watched namespaces for one root.
+type rootConfig struct {
+	restConfig *rest.Config
+	namespaces []string
 }
 
 // profileState tracks the Headlamp context created from one ClusterProfile.
@@ -153,6 +170,11 @@ func NewRunner(opts Options) (*Runner, error) {
 		return nil, err
 	}
 
+	namespaces, err := normalizeNamespaces(opts.Namespaces)
+	if err != nil {
+		return nil, err
+	}
+
 	rootReconcileInterval := opts.RootReconcileInterval
 	if rootReconcileInterval <= 0 {
 		rootReconcileInterval = DefaultRootReconcileInterval
@@ -169,7 +191,9 @@ func NewRunner(opts Options) (*Runner, error) {
 		rootReconcileInterval: rootReconcileInterval,
 		noCRDCacheTTL:         noCRDCacheTTL,
 		labelSelector:         labelSelector,
+		namespaces:            namespaces,
 		hubConfig:             opts.HubConfig,
+		hubNamespace:          opts.HubNamespace,
 		discoverFromStore:     opts.DiscoverFromStore,
 		clientForConfig: func(config *rest.Config) (ciaclient.Interface, error) {
 			return ciaclient.NewForConfig(config)
@@ -177,7 +201,7 @@ func NewRunner(opts Options) (*Runner, error) {
 		now:               time.Now,
 		roots:             map[string]*rootState{},
 		profiles:          map[string]profileState{},
-		profileKeysByRoot: map[string]map[string]struct{}{},
+		profileKeysByRoot: map[string]map[string]string{},
 		noCRD:             map[string]time.Time{},
 	}, nil
 }
@@ -208,12 +232,15 @@ func (r *Runner) reconcileRoots(ctx context.Context) {
 	}
 
 	presentRoots := map[string]struct{}{}
-	desiredRoots := map[string]*rest.Config{}
+	desiredRoots := map[string]rootConfig{}
 	storeRootsLoaded := true
 
 	if r.hubConfig != nil {
 		presentRoots[inClusterRootID] = struct{}{}
-		desiredRoots[inClusterRootID] = r.hubConfig
+		desiredRoots[inClusterRootID] = rootConfig{
+			restConfig: r.hubConfig,
+			namespaces: r.namespacesForRoot(r.hubNamespace),
+		}
 	}
 
 	if r.discoverFromStore {
@@ -236,7 +263,7 @@ func (r *Runner) reconcileRoots(ctx context.Context) {
 
 // collectStoreSeedRoots adds existing non-internal Headlamp contexts as discovery roots.
 func (r *Runner) collectStoreSeedRoots(
-	desiredRoots map[string]*rest.Config,
+	desiredRoots map[string]rootConfig,
 	presentRoots map[string]struct{},
 ) bool {
 	contexts, err := r.store.GetContexts()
@@ -270,15 +297,18 @@ func (r *Runner) collectStoreSeedRoots(
 			continue
 		}
 
-		desiredRoots[rootID] = seedConfig
+		desiredRoots[rootID] = rootConfig{
+			restConfig: seedConfig,
+			namespaces: r.namespacesForRoot(headlampContext.KubeContext.Namespace),
+		}
 	}
 
 	return true
 }
 
 // reconcileRoot ensures one discovery root has a matching active ClusterProfile informer.
-func (r *Runner) reconcileRoot(ctx context.Context, rootID string, config *rest.Config) {
-	if config == nil {
+func (r *Runner) reconcileRoot(ctx context.Context, rootID string, root rootConfig) {
+	if root.restConfig == nil {
 		return
 	}
 
@@ -286,26 +316,26 @@ func (r *Runner) reconcileRoot(ctx context.Context, rootID string, config *rest.
 		return
 	}
 
-	serverURL := normalizeServerURL(config.Host)
+	serverURL := normalizeServerURL(root.restConfig.Host)
 	if r.hasNoCRD(serverURL) {
 		r.stopRoot(rootID, true)
 
 		return
 	}
 
-	fingerprint := restConfigFingerprint(config)
+	fingerprint := rootFingerprint(root)
 	if r.rootMatches(rootID, serverURL, fingerprint) {
 		return
 	}
 
-	rootInformer, ok := r.newRootInformer(ctx, rootID, serverURL, fingerprint, config)
+	state, ok := r.newRootState(ctx, rootID, serverURL, fingerprint, root)
 	if !ok {
 		return
 	}
 
-	previous, current := r.activateRoot(rootInformer.state)
+	previous, current := r.activateRoot(state)
 	if current {
-		rootInformer.state.cancel()
+		state.cancel()
 
 		return
 	}
@@ -314,7 +344,7 @@ func (r *Runner) reconcileRoot(ctx context.Context, rootID string, config *rest.
 		previous.cancel()
 	}
 
-	go r.runRootInformer(rootInformer.state, rootInformer.factory)
+	go r.runRootInformer(state)
 }
 
 // rootMatches reports whether the active root already matches the given connection identity.
@@ -327,35 +357,57 @@ func (r *Runner) rootMatches(rootID, serverURL, fingerprint string) bool {
 	return current != nil && current.serverURL == serverURL && current.fingerprint == fingerprint
 }
 
-// newRootInformer creates an unstarted ClusterProfile informer for a discovery root.
-func (r *Runner) newRootInformer(
+// newRootState creates unstarted ClusterProfile informers for a discovery root.
+func (r *Runner) newRootState(
 	ctx context.Context,
 	rootID string,
 	serverURL string,
 	fingerprint string,
-	config *rest.Config,
-) (*rootInformer, bool) {
-	client, err := r.clientForConfig(rest.CopyConfig(config))
+	root rootConfig,
+) (*rootState, bool) {
+	client, err := r.clientForConfig(rest.CopyConfig(root.restConfig))
 	if err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: config.Host}, err,
+		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: serverURL}, err,
 			"cluster-inventory: failed to create client")
 
 		return nil, false
 	}
 
 	rootCtx, cancel := context.WithCancel(ctx)
-	factory := r.newClusterProfileInformerFactory(client)
-	informer := factory.Apis().V1alpha1().ClusterProfiles().Informer()
 	state := &rootState{
 		rootID:      rootID,
 		serverURL:   serverURL,
 		fingerprint: fingerprint,
 		ctx:         rootCtx,
 		cancel:      cancel,
-		informer:    informer,
+		watches:     make([]rootWatch, 0, len(root.namespaces)),
 	}
 
-	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	for _, namespace := range root.namespaces {
+		watch, ok := r.newRootWatch(state, client, namespace)
+		if !ok {
+			cancel()
+
+			return nil, false
+		}
+
+		state.watches = append(state.watches, watch)
+	}
+
+	return state, true
+}
+
+// newRootWatch creates an unstarted ClusterProfile informer for one namespace of a root.
+func (r *Runner) newRootWatch(
+	state *rootState,
+	client ciaclient.Interface,
+	namespace string,
+) (rootWatch, bool) {
+	options := r.clusterProfileInformerOptions(namespace)
+	factory := externalversions.NewSharedInformerFactoryWithOptions(client, 0, options...)
+	informer := factory.Apis().V1alpha1().ClusterProfiles().Informer()
+
+	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			r.handleClusterProfileUpsert(state, obj)
 		},
@@ -367,44 +419,38 @@ func (r *Runner) newRootInformer(
 		},
 	})
 	if err != nil {
-		cancel()
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: config.Host}, err,
+		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, err,
 			"cluster-inventory: failed to add ClusterProfile event handler")
 
-		return nil, false
+		return rootWatch{}, false
 	}
 
 	if err := informer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
-		r.handleRootWatchError(state, err)
+		r.handleRootWatchError(state, namespace, err)
 	}); err != nil {
-		cancel()
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: config.Host}, err,
+		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, err,
 			"cluster-inventory: failed to set ClusterProfile watch error handler")
 
-		return nil, false
+		return rootWatch{}, false
 	}
 
-	return &rootInformer{state: state, factory: factory}, true
+	return rootWatch{namespace: namespace, factory: factory, informer: informer}, true
 }
 
-// newClusterProfileInformerFactory creates an informer factory for ClusterProfiles.
-func (r *Runner) newClusterProfileInformerFactory(client ciaclient.Interface) externalversions.SharedInformerFactory {
-	return externalversions.NewSharedInformerFactoryWithOptions(client, 0, r.clusterProfileInformerOptions()...)
-}
+// clusterProfileInformerOptions returns informer options for one namespace of a root.
+func (r *Runner) clusterProfileInformerOptions(namespace string) []externalversions.SharedInformerOption {
+	options := make([]externalversions.SharedInformerOption, 0, 2)
+	options = append(options, externalversions.WithNamespace(namespace))
 
-// clusterProfileInformerOptions returns informer options derived from the label selector.
-func (r *Runner) clusterProfileInformerOptions() []externalversions.SharedInformerOption {
 	if r.labelSelector == nil {
-		return nil
+		return options
 	}
 
 	selector := r.labelSelector.String()
 
-	return []externalversions.SharedInformerOption{
-		externalversions.WithTweakListOptions(func(options *metav1.ListOptions) {
-			options.LabelSelector = selector
-		}),
-	}
+	return append(options, externalversions.WithTweakListOptions(func(listOptions *metav1.ListOptions) {
+		listOptions.LabelSelector = selector
+	}))
 }
 
 // activateRoot records a root as active and returns any previous active root.
@@ -422,19 +468,35 @@ func (r *Runner) activateRoot(state *rootState) (*rootState, bool) {
 	return previous, false
 }
 
-// runRootInformer starts a root informer and prunes profiles missing after the initial sync.
-func (r *Runner) runRootInformer(state *rootState, factory externalversions.SharedInformerFactory) {
-	defer factory.Shutdown()
+// runRootInformer starts each namespace informer and waits for shutdown.
+func (r *Runner) runRootInformer(state *rootState) {
+	defer func() {
+		for _, watch := range state.watches {
+			watch.factory.Shutdown()
+		}
+	}()
 
-	factory.Start(state.ctx.Done())
+	for _, watch := range state.watches {
+		logger.Log(logger.LevelInfo, map[string]string{
+			logFieldRoot:      state.rootID,
+			logFieldServer:    state.serverURL,
+			logFieldNamespace: namespaceLogValue(watch.namespace),
+		}, nil, "cluster-inventory: starting ClusterProfile watch")
 
-	if !cache.WaitForCacheSync(state.ctx.Done(), state.informer.HasSynced) {
+		watch.factory.Start(state.ctx.Done())
+		go r.waitForRootWatchSync(state, watch)
+	}
+
+	<-state.ctx.Done()
+}
+
+// waitForRootWatchSync prunes stale profiles after one namespace cache has synced.
+func (r *Runner) waitForRootWatchSync(state *rootState, watch rootWatch) {
+	if !cache.WaitForCacheSync(state.ctx.Done(), watch.informer.HasSynced) {
 		return
 	}
 
-	r.completeRootSyncFromCache(state)
-
-	<-state.ctx.Done()
+	r.completeRootWatchSyncFromCache(state, watch)
 }
 
 // handleClusterProfileUpsert syncs an added or updated ClusterProfile into the context store.
@@ -454,7 +516,7 @@ func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 		return
 	}
 
-	if !r.recordRootProfile(state, profileKey) {
+	if !r.recordRootProfile(state, profileKey, cp.Namespace) {
 		return
 	}
 
@@ -475,18 +537,19 @@ func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
 	r.pruneClusterProfile(state, profileKey)
 }
 
-// handleRootWatchError reacts to ClusterProfile watch errors for a discovery root.
-func (r *Runner) handleRootWatchError(state *rootState, err error) {
+// handleRootWatchError reacts to ClusterProfile watch errors for one namespace of a root.
+func (r *Runner) handleRootWatchError(state *rootState, namespace string, err error) {
 	if isNoCRDError(err) {
 		r.markRootNoCRD(state)
-		logger.Log(logger.LevelInfo, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, nil,
-			"cluster-inventory: ClusterProfile CRD is not available")
 
 		return
 	}
 
-	logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, err,
-		"cluster-inventory: ClusterProfile watch error")
+	logger.Log(logger.LevelWarn, map[string]string{
+		logFieldRoot:      state.rootID,
+		logFieldServer:    state.serverURL,
+		logFieldNamespace: namespace,
+	}, err, "cluster-inventory: ClusterProfile watch error")
 }
 
 // syncClusterProfile converts a ClusterProfile to a Headlamp context and stores it.
@@ -611,35 +674,55 @@ func (r *Runner) recordSyncedProfile(state *rootState, profileKey string, contex
 	r.profiles[profileKey] = profileState{contextName: contextName}
 }
 
-// completeRootSyncFromCache prunes profiles no longer present after a root cache sync.
-func (r *Runner) completeRootSyncFromCache(state *rootState) {
-	seen := map[string]struct{}{}
-
-	for _, obj := range state.informer.GetIndexer().List() {
-		cp, ok := clusterProfileFromObject(obj)
-		if !ok {
-			continue
-		}
-
-		if !r.clusterProfileMatchesSelector(cp) {
-			continue
-		}
-
-		profileKey := makeProfileKey(state.rootID, cp.Namespace+"/"+cp.Name)
-		seen[profileKey] = struct{}{}
-	}
+// completeRootWatchSyncFromCache prunes profiles missing from one synced namespace cache.
+func (r *Runner) completeRootWatchSyncFromCache(state *rootState, watch rootWatch) {
+	seen := r.profileKeysFromRootWatch(state.rootID, watch)
 
 	r.mu.Lock()
-
 	if r.roots[state.rootID] != state {
 		r.mu.Unlock()
+
 		return
 	}
 
 	previous := r.profileKeysByRoot[state.rootID]
-	r.profileKeysByRoot[state.rootID] = seen
 
 	var contextNames []string
+
+	if watch.namespace == metav1.NamespaceAll {
+		contextNames = r.syncAllNamespaceProfilesLocked(state.rootID, previous, seen)
+	} else {
+		contextNames = r.syncNamedNamespaceProfilesLocked(state, watch.namespace, previous, seen)
+	}
+
+	r.mu.Unlock()
+
+	r.removeContexts(contextNames)
+}
+
+func (r *Runner) profileKeysFromRootWatch(rootID string, watch rootWatch) map[string]string {
+	seen := map[string]string{}
+
+	for _, obj := range watch.informer.GetIndexer().List() {
+		cp, ok := clusterProfileFromObject(obj)
+		if !ok || !r.clusterProfileMatchesSelector(cp) {
+			continue
+		}
+
+		profileKey := makeProfileKey(rootID, cp.Namespace+"/"+cp.Name)
+		seen[profileKey] = cp.Namespace
+	}
+
+	return seen
+}
+
+func (r *Runner) syncAllNamespaceProfilesLocked(
+	rootID string,
+	previous map[string]string,
+	seen map[string]string,
+) []string {
+	r.profileKeysByRoot[rootID] = seen
+	contextNames := []string{}
 
 	for profileKey := range previous {
 		if _, ok := seen[profileKey]; ok {
@@ -648,13 +731,60 @@ func (r *Runner) completeRootSyncFromCache(state *rootState) {
 
 		contextNames = append(contextNames, r.pruneProfileLocked(profileKey)...)
 	}
-	r.mu.Unlock()
 
-	r.removeContexts(contextNames)
+	return contextNames
+}
+
+func (r *Runner) syncNamedNamespaceProfilesLocked(
+	state *rootState,
+	namespace string,
+	previous map[string]string,
+	seen map[string]string,
+) []string {
+	next := make(map[string]string, len(previous)+len(seen))
+	for profileKey, profileNamespace := range previous {
+		next[profileKey] = profileNamespace
+	}
+
+	contextNames := []string{}
+
+	for profileKey, profileNamespace := range previous {
+		_, stillPresent := seen[profileKey]
+
+		if profileNamespace != namespace && r.rootWatchesNamespace(state, profileNamespace) {
+			continue
+		}
+
+		if profileNamespace == namespace && stillPresent {
+			continue
+		}
+
+		delete(next, profileKey)
+		contextNames = append(contextNames, r.pruneProfileLocked(profileKey)...)
+	}
+
+	for profileKey, profileNamespace := range seen {
+		next[profileKey] = profileNamespace
+	}
+
+	r.profileKeysByRoot[state.rootID] = next
+
+	return contextNames
+}
+
+// rootWatchesNamespace reports whether a root state intentionally watches a namespace.
+func (r *Runner) rootWatchesNamespace(state *rootState, namespace string) bool {
+	for _, watch := range state.watches {
+		if watch.namespace == metav1.NamespaceAll || watch.namespace == namespace {
+			return true
+		}
+	}
+
+	return false
 }
 
 // recordRootProfile records that a current root has seen a ClusterProfile.
-func (r *Runner) recordRootProfile(state *rootState, profileKey string) bool {
+func (r *Runner) recordRootProfile(state *rootState, profileKey string, namespace string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -663,10 +793,10 @@ func (r *Runner) recordRootProfile(state *rootState, profileKey string) bool {
 	}
 
 	if r.profileKeysByRoot[state.rootID] == nil {
-		r.profileKeysByRoot[state.rootID] = map[string]struct{}{}
+		r.profileKeysByRoot[state.rootID] = map[string]string{}
 	}
 
-	r.profileKeysByRoot[state.rootID][profileKey] = struct{}{}
+	r.profileKeysByRoot[state.rootID][profileKey] = namespace
 
 	return true
 }
@@ -829,7 +959,7 @@ func (r *Runner) markNoCRD(serverURL string) {
 	r.noCRD[serverURL] = r.now().Add(r.noCRDCacheTTL)
 }
 
-// markRootNoCRD stops a root and caches its server as missing the ClusterProfile CRD.
+// markRootNoCRD stops a root once and caches its server as missing the ClusterProfile CRD.
 func (r *Runner) markRootNoCRD(state *rootState) {
 	var (
 		cancel       context.CancelFunc
@@ -849,6 +979,8 @@ func (r *Runner) markRootNoCRD(state *rootState) {
 
 	if cancel != nil {
 		cancel()
+		logger.Log(logger.LevelInfo, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, nil,
+			"cluster-inventory: ClusterProfile CRD is not available")
 	}
 }
 
@@ -880,6 +1012,81 @@ func normalizeLabelSelector(selector string) (labels.Selector, error) {
 	return parsed, nil
 }
 
+// normalizeNamespaces parses a user-provided comma-separated namespace list.
+func normalizeNamespaces(value string) ([]string, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+
+	var (
+		namespaces    = make([]string, 0, strings.Count(value, ",")+1)
+		allNamespaces bool
+	)
+
+	for _, namespace := range strings.Split(value, ",") {
+		namespace = strings.TrimSpace(namespace)
+
+		switch namespace {
+		case "":
+			return nil, errors.New("invalid cluster-inventory-namespaces: namespace must not be empty")
+		case "*":
+			if allNamespaces {
+				return nil, errors.New(`invalid cluster-inventory-namespaces: "*" must be used on its own`)
+			}
+
+			allNamespaces = true
+		default:
+			if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+				return nil, fmt.Errorf("invalid cluster-inventory-namespaces: %q: %s",
+					namespace, strings.Join(errs, "; "))
+			}
+
+			namespaces = append(namespaces, namespace)
+		}
+	}
+
+	if allNamespaces {
+		if len(namespaces) > 0 {
+			return nil, errors.New(`invalid cluster-inventory-namespaces: "*" must be used on its own`)
+		}
+
+		return []string{metav1.NamespaceAll}, nil
+	}
+
+	slices.Sort(namespaces)
+
+	return slices.Compact(namespaces), nil
+}
+
+// ValidateNamespaces validates a comma-separated Cluster Inventory namespace list.
+func ValidateNamespaces(value string) error {
+	_, err := normalizeNamespaces(value)
+
+	return err
+}
+
+// namespacesForRoot returns the configured namespaces, or the root's default namespace.
+func (r *Runner) namespacesForRoot(defaultNamespace string) []string {
+	if len(r.namespaces) > 0 {
+		return r.namespaces
+	}
+
+	if defaultNamespace == "" {
+		defaultNamespace = metav1.NamespaceDefault
+	}
+
+	return []string{defaultNamespace}
+}
+
+// namespaceLogValue renders the all-namespace sentinel in a human-readable form.
+func namespaceLogValue(namespace string) string {
+	if namespace == metav1.NamespaceAll {
+		return "*"
+	}
+
+	return namespace
+}
+
 // contextNameFromProfileKey builds a stable Headlamp context name for a profile key.
 func contextNameFromProfileKey(profileKey string) string {
 	return clusterInventoryContextPrefix +
@@ -909,14 +1116,18 @@ func normalizeServerURL(host string) string {
 	return strings.TrimRight(parsed.String(), "/")
 }
 
-// restConfigFingerprint hashes the REST config fields that affect root identity.
-func restConfigFingerprint(config *rest.Config) string {
+// rootFingerprint hashes the connection and namespace settings that affect root identity.
+func rootFingerprint(root rootConfig) string {
 	fingerprintHash := sha256.New()
 
-	writeRestConfigFingerprint(fingerprintHash, config)
-	writeTLSConfigFingerprint(fingerprintHash, config)
-	writeImpersonateFingerprint(fingerprintHash, config)
-	writeExecFingerprint(fingerprintHash, config.ExecProvider)
+	writeRestConfigFingerprint(fingerprintHash, root.restConfig)
+	writeTLSConfigFingerprint(fingerprintHash, root.restConfig)
+	writeImpersonateFingerprint(fingerprintHash, root.restConfig)
+	writeExecFingerprint(fingerprintHash, root.restConfig.ExecProvider)
+
+	for _, namespace := range root.namespaces {
+		writeHashString(fingerprintHash, namespace)
+	}
 
 	return hex.EncodeToString(fingerprintHash.Sum(nil))
 }

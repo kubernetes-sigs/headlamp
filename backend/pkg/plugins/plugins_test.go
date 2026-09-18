@@ -477,6 +477,37 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.NoError(t, err)
 }
 
+func TestGeneratePluginPathsPreservesInventorySource(t *testing.T) {
+	rootDir := t.TempDir()
+	userPluginDir := filepath.Join(rootDir, "user-plugins")
+	developmentPluginDir := filepath.Join(rootDir, "plugins")
+
+	for _, pluginDir := range []string{userPluginDir, developmentPluginDir} {
+		pluginPath := filepath.Join(pluginDir, "shared-plugin")
+		require.NoError(t, os.MkdirAll(pluginPath, 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(pluginPath, "main.js"), nil, 0o600))
+	}
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(userPluginDir, "shared-plugin", "package.json"),
+		[]byte(`{"name":"shared-plugin"}`),
+		0o600,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(developmentPluginDir, "shared-plugin", "package.json"),
+		[]byte(`{"name":"shared-plugin","isManagedByHeadlampPlugin":true}`),
+		0o600,
+	))
+
+	pluginList, err := plugins.GeneratePluginPaths("", userPluginDir, developmentPluginDir)
+	require.NoError(t, err)
+	require.Len(t, pluginList, 2)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[0].Type)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[0].Source)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[1].Type)
+	require.Equal(t, plugins.PluginTypeDevelopment, pluginList[1].Source)
+}
+
 func TestHandlePluginReload(t *testing.T) {
 	// create cache
 	ch := cache.New[interface{}]()

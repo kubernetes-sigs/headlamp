@@ -36,6 +36,27 @@ This command starts the Vite development server for the frontend
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview)
 for network requests. If you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
 
+Packaged products can generate the frontend version, product name, and source
+revision from app build inputs. See [Custom product builds](./app.md#custom-product-builds)
+for the `HEADLAMP_BUILD_MANIFEST` and `HEADLAMP_SOURCE_COMMIT` configuration.
+
+## Product error content
+
+Products that build Headlamp can customize the generic error and not-found
+pages with these build-time environment variables:
+
+| Environment variable                        | Default                           | Description                                           |
+| ------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| `REACT_APP_HEADLAMP_ERROR_PAGE_TITLE`       | `Uh-oh! Something went wrong.`    | Title for the generic error page.                     |
+| `REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC`     | Headlamp broken illustration      | URL or public path of the generic error page graphic. |
+| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE`   | `Whoops! This page doesn't exist` | Title for the not-found page.                         |
+| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC` | Headlamp 404 illustration         | URL or public path of the not-found page graphic.     |
+
+Set the variables in `frontend/.env` or in the environment used to start or
+build the frontend. Restart the development server or rebuild the frontend
+after changing them. Product-provided titles are not translated by Headlamp;
+products are responsible for localizing their text and graphics.
+
 ## Linting
 
 For local development, run:
@@ -124,18 +145,17 @@ npm run test:a11y
 ```
 
 This command will:
+
 1. Build the Storybook
 2. Run axe accessibility tests on all stories
 3. Report any accessibility violations found
 
 The tests will fail if any accessibility issues are detected, making it useful for CI/CD pipelines.
 
-
 #### Baseline Storybook a11y Configuration
 
 Known failures are tracked in `frontend/.axe-storybook-baseline.test-a11y.json`. This file is
 used by the test suite to allow known failures while catching new violations.
-
 
 ## Property testing (fuzzing)
 

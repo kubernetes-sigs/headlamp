@@ -17,10 +17,12 @@
 import React from 'react';
 import { vi } from 'vitest';
 import { AppLogoProps, AppLogoType } from './AppLogo';
+import { darkTheme } from './defaultAppThemes';
 import themeReducer, {
   applyBackendThemeConfig,
   initialState,
   setBrandingAppLogoComponent,
+  setPluginDefaultTheme,
   setTheme,
 } from './themeSlice';
 
@@ -39,7 +41,7 @@ describe('themeSlice', () => {
   });
 
   it('should handle setTheme', () => {
-    const themeName = 'Dark';
+    const themeName = darkTheme.name;
     const actual = themeReducer(initialState, setTheme(themeName));
     expect(actual.name).toEqual(themeName);
   });
@@ -71,7 +73,7 @@ describe('themeSlice', () => {
       expect(actual.name).toEqual('corporate');
     });
 
-    it('should persist to localStorage when theme is not forced', () => {
+    it('should not store a backend default as a user preference', () => {
       // setupTests defines matchMedia with writable:true so direct assignment works;
       // Object.defineProperty with configurable:true would throw on a non-configurable property.
       (window as any).matchMedia = vi.fn((query: string) => ({
@@ -83,7 +85,29 @@ describe('themeSlice', () => {
         applyBackendThemeConfig({ defaultLightTheme: 'solarized-light' })
       );
       expect(actual.name).toEqual('solarized-light');
-      expect(localStorage.headlampThemePreference).toEqual('solarized-light');
+      expect(localStorage.headlampThemePreference).toBeUndefined();
+    });
+
+    it('should prefer a pending plugin default over a backend default', () => {
+      (window as any).matchMedia = vi.fn((query: string) => ({
+        matches: query === '(prefers-color-scheme: light)',
+      }));
+      const pending = themeReducer(initialState, setPluginDefaultTheme('product'));
+      const actual = themeReducer(
+        pending,
+        applyBackendThemeConfig({ defaultLightTheme: 'backend' })
+      );
+
+      expect(actual.name).toEqual('product');
+      expect(localStorage.headlampThemePreference).toEqual('product');
+    });
+
+    it('should prefer a forced theme over a pending plugin default', () => {
+      const pending = themeReducer(initialState, setPluginDefaultTheme('product'));
+      const actual = themeReducer(pending, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+
+      expect(actual.name).toEqual('corporate');
+      expect(localStorage.headlampThemePreference).toBeUndefined();
     });
   });
 });

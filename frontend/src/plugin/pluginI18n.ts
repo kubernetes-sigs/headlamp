@@ -18,6 +18,7 @@ import i18next, { createInstance, i18n, TFunction, TOptions } from 'i18next';
 import { useEffect, useState } from 'react';
 import { useTranslation as useReactI18nTranslation } from 'react-i18next';
 import { getAppUrl } from '../helpers/getAppUrl';
+import type { PluginPackageHeadlampConfig } from './pluginsSlice';
 
 export interface PluginTranslations {
   [locale: string]: {
@@ -41,9 +42,7 @@ export interface UseTranslationResult {
 
 export interface PluginPackageInfo {
   name: string;
-  headlamp?: {
-    i18n?: string[]; // Array of supported locales
-  };
+  headlamp?: PluginPackageHeadlampConfig;
   [key: string]: unknown;
 }
 
@@ -51,6 +50,17 @@ export interface PluginPackageInfo {
 const pluginI18nInstances: { [pluginName: string]: i18n } = {};
 const pluginPaths: { [pluginName: string]: string } = {};
 const pluginSupportedLocales: { [pluginName: string]: string[] } = {};
+
+// In-flight locale loads, keyed by `${pluginName}:${locale}`. A resource bundle
+// only exists once its fetch has finished, so without this every caller that
+// reacts to the same language change starts its own duplicate request.
+const pendingLocaleLoads: { [key: string]: Promise<void> } = {};
+
+// The language most recently asked for. Concurrent switches can finish out of
+// order - a slow fetch for one locale landing after a later, faster one - so
+// completions that are no longer the active request are dropped instead of
+// being applied on top of it.
+let latestRequestedLanguage: string | null = null;
 
 /**
  * Load translations for a plugin from its directory
@@ -73,6 +83,68 @@ async function loadPluginTranslations(
 }
 
 /**
+ * Lazily load a single locale's translations into an existing plugin instance.
+ * Used when the active language changes, so a locale is only fetched the first
+ * time it is actually needed instead of all locales being fetched up front
+ * (see #4854).
+ */
+async function ensurePluginLocaleLoaded(
+  instance: i18n,
+  pluginName: string,
+  pluginPath: string,
+  locale: string
+): Promise<void> {
+  if (instance.hasResourceBundle(locale, pluginName)) {
+    return;
+  }
+
+  // Share one request between everything that wants this locale. Both the
+  // `languageChanged` listener and every mounted `useTranslation` hook react to
+  // the same switch, and a bundle only appears once the fetch resolves, so
+  // without this a plugin used by many components refetches it once per caller.
+  const key = `${pluginName}:${locale}`;
+  if (!pendingLocaleLoads[key]) {
+    pendingLocaleLoads[key] = (async () => {
+      const translations = await loadPluginTranslations(pluginPath, locale);
+      // Register the bundle even when it is empty. It records that the locale
+      // has been attempted, so `hasResourceBundle` short-circuits any later
+      // switch back to it; otherwise a plugin whose file is missing gets
+      // re-probed - another 404 - every time the user returns to that language
+      // (#4854). Missing keys still fall through to the `en` fallback.
+      instance.addResourceBundle(locale, pluginName, translations);
+    })().finally(() => {
+      delete pendingLocaleLoads[key];
+    });
+  }
+
+  await pendingLocaleLoads[key];
+}
+
+/**
+ * Load the target locale if needed and switch a plugin instance to it, ignoring
+ * the result if a newer language change has been requested in the meantime.
+ */
+async function applyPluginLanguage(
+  instance: i18n,
+  pluginName: string,
+  language: string
+): Promise<void> {
+  latestRequestedLanguage = language;
+
+  const pluginPath = pluginPaths[pluginName];
+  const supportedLocales = pluginSupportedLocales[pluginName];
+  if (pluginPath && supportedLocales?.includes(language)) {
+    await ensurePluginLocaleLoaded(instance, pluginName, pluginPath, language);
+  }
+
+  if (latestRequestedLanguage !== language) {
+    return;
+  }
+
+  await instance.changeLanguage(language);
+}
+
+/**
  * Create or get an i18next instance for a plugin
  * Uses hard defaults: namespace = plugin name, loads from plugin path
  */
@@ -87,29 +159,30 @@ async function getPluginI18nInstance(
 
   const instance = createInstance();
 
-  // Use supported locales from package.json or fall back to common locales
-  const locales = supportedLocales || [
-    'en',
-    'es',
-    'fr',
-    'de',
-    'pt-PT',
-    'pt-BR',
-    'it',
-    'zh',
-    'ko',
-    'ja',
-  ];
+  // Only consider the locales a plugin explicitly declares via `headlamp.i18n`
+  // in package.json. Without a declaration there are no translation files to
+  // load, so probing for them would only generate 404s (see #4854).
+  const locales = supportedLocales ?? [];
+
+  // Eagerly load only the locale the user is actually viewing (plus the English
+  // fallback). Previously every declared locale was fetched up front, so a plugin
+  // declaring many locales whose files are missing from the image produced a 404
+  // per locale on every load - enough to trip rate limiters like CrowdSec (#4854).
+  // Other locales are loaded lazily when the language changes.
+  const currentLanguage = i18next.resolvedLanguage || i18next.language || 'en';
+  const initialLocales = [...new Set([currentLanguage, 'en'])].filter(locale =>
+    locales.includes(locale)
+  );
   const resources: Record<string, Record<string, Record<string, string>>> = {};
 
-  // Load translations for each locale that exists
-  for (const locale of locales) {
+  for (const locale of initialLocales) {
     const translations = await loadPluginTranslations(pluginPath, locale);
-    if (Object.keys(translations).length > 0) {
-      resources[locale] = {
-        [pluginName]: translations,
-      };
-    }
+    // Registered even when empty, for the same reason as in
+    // `ensurePluginLocaleLoaded`: it marks the locale as already attempted so
+    // switching away and back does not re-probe a file that is not there.
+    resources[locale] = {
+      [pluginName]: translations,
+    };
   }
 
   // If English is not in the supported locales but is the fallback language,
@@ -194,6 +267,9 @@ export function registerPluginTranslations(pluginName: string, translations: Plu
 export function useTranslation(pluginNameParam?: string): UseTranslationResult {
   const [ready, setReady] = useState(false);
   const [instance, setInstance] = useState<i18n | null>(null);
+  // Bumped whenever the plugin instance finishes changing language, to re-render
+  // consumers with the newly loaded translations.
+  const [, setLanguageVersion] = useState(0);
   const [pluginName] = useState(() => {
     if (pluginNameParam) {
       return pluginNameParam;
@@ -244,8 +320,17 @@ export function useTranslation(pluginNameParam?: string): UseTranslationResult {
           return;
         }
 
-        // Initialize plugin i18n instance
+        // Only initialize an i18n instance for plugins that explicitly declare
+        // their supported locales via `headlamp.i18n` in package.json. Plugins
+        // without a declaration have no translation files, so probing for them
+        // produces a flood of 404s (see #4854). For those, leave `instance` null
+        // so `t()` falls back to returning the original string keys.
         const supportedLocales = pluginSupportedLocales[currentPluginName];
+        if (!supportedLocales?.length) {
+          setReady(true);
+          return;
+        }
+
         const pluginInstance = await getPluginI18nInstance(
           currentPluginName,
           pluginPath,
@@ -262,13 +347,34 @@ export function useTranslation(pluginNameParam?: string): UseTranslationResult {
     initializeTranslations();
   }, [pluginName]);
 
-  // Sync language changes from main i18n
+  // Re-render once the plugin instance has actually switched language. This hook
+  // only subscribes to the main i18n instance, and that re-render happens while
+  // the plugin's locale is still being fetched - without this the component would
+  // keep showing the previous language's text until some unrelated render.
   useEffect(() => {
-    const mainLanguage = mainI18n?.resolvedLanguage || mainI18n?.language;
-    if (instance && mainLanguage && mainLanguage !== instance.language) {
-      instance.changeLanguage(mainLanguage);
+    if (!instance) {
+      return;
     }
-  }, [mainI18n?.resolvedLanguage, mainI18n?.language, instance]);
+
+    const handleLanguageChanged = () => setLanguageVersion(version => version + 1);
+    instance.on('languageChanged', handleLanguageChanged);
+
+    return () => {
+      instance.off('languageChanged', handleLanguageChanged);
+    };
+  }, [instance]);
+
+  // Sync language changes from main i18n, loading the target locale on demand.
+  useEffect(() => {
+    const targetLanguage = mainI18n?.resolvedLanguage || mainI18n?.language;
+    if (!instance || !pluginName || !targetLanguage || targetLanguage === instance.language) {
+      return;
+    }
+
+    applyPluginLanguage(instance, pluginName, targetLanguage).catch(error => {
+      console.error(`Failed to change language for plugin ${pluginName}:`, error);
+    });
+  }, [mainI18n?.resolvedLanguage, mainI18n?.language, instance, pluginName]);
 
   // Translation function
   const t = (key: string, options?: TOptions) => {
@@ -304,12 +410,20 @@ export function getPluginTranslationsInfo(): PluginI18nInfo[] {
 }
 
 /**
- * Change language for all plugin instances
+ * Change language for all plugin instances, loading the target locale on demand
+ * so locales are only fetched when actually used rather than all up front (#4854).
  */
-export function changePluginLanguage(language: string) {
-  Object.values(pluginI18nInstances).forEach(instance => {
-    instance.changeLanguage(language);
-  });
+export async function changePluginLanguage(language: string): Promise<void> {
+  await Promise.all(
+    Object.keys(pluginI18nInstances).map(pluginName =>
+      // Kept per-plugin so one failing plugin cannot reject the whole batch, and
+      // so the fire-and-forget call in the `languageChanged` listener can never
+      // surface as an unhandled rejection.
+      applyPluginLanguage(pluginI18nInstances[pluginName], pluginName, language).catch(error => {
+        console.error(`Failed to change language for plugin ${pluginName}:`, error);
+      })
+    )
+  );
 }
 
 /**

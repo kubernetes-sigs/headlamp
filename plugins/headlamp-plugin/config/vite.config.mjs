@@ -39,6 +39,8 @@ const externalModules = {
   '@kinvolk/headlamp-plugin/lib/k8s': 'pluginLib.K8s',
   '@kinvolk/headlamp-plugin/lib': 'pluginLib',
   '@kinvolk/headlamp-plugin/lib/components/common': 'pluginLib.CommonComponents',
+  '@kinvolk/headlamp-plugin/lib/components/resourceMap': 'pluginLib.ResourceMap',
+  '@kinvolk/headlamp-plugin/lib/ResourceMap': 'pluginLib.ResourceMap',
 };
 
 const noSubmodules = [

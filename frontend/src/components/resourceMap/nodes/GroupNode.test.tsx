@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   setNodeSelection: vi.fn(),
 }));
 
-vi.mock('../GraphView', () => ({
+vi.mock('../graphViewContext', () => ({
   useGraphView: () => ({ setNodeSelection: mocks.setNodeSelection }),
   useNode: () => mocks.node,
 }));

@@ -16,6 +16,7 @@
 ## Interfaces
 
 - [AppLogoProps](../interfaces/plugin_registry.AppLogoProps.md)
+- [AppThemeRegistrationOptions](../interfaces/plugin_registry.AppThemeRegistrationOptions.md)
 - [ClusterChooserProps](../interfaces/plugin_registry.ClusterChooserProps.md)
 - [CreateResourceEvent](../interfaces/plugin_registry.CreateResourceEvent.md)
 - [DeleteResourceEvent](../interfaces/plugin_registry.DeleteResourceEvent.md)
@@ -137,6 +138,18 @@ ___
 
 ___
 
+### PluginRunCommand
+
+Ƭ **PluginRunCommand**: (`command`: `string`, `args`: `string`[], `options`: `Record`<`string`, `never`>) => `ReturnType`<typeof `runCommand`\>
+
+Command-running function made available to a plugin authorized by the product manifest.
+
+#### Defined in
+
+[components/App/runCommand.ts](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/runCommand.ts)
+
+___
+
 ### PluginSettingsComponentType
 
 Ƭ **PluginSettingsComponentType**: `React.ComponentType`<[`PluginSettingsDetailsProps`](../interfaces/plugin_registry.PluginSettingsDetailsProps.md)\> \| `ReactElement` \| ``null``
@@ -174,6 +187,25 @@ ___
 [plugin/registry.tsx:107](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L107)
 
 ## Variables
+
+### DefaultCreateProject
+
+• `Const` **DefaultCreateProject**: `Object`
+
+IDs plugins can register to replace Headlamp's built-in project creation options.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `FROM_YAML` | ``"headlamp.projects.from-yaml"`` | Replace the built-in YAML project creation flow. |
+| `NEW_PROJECT` | ``"headlamp.projects.new-project"`` | Replace the built-in project form that uses existing or new namespaces. |
+
+#### Defined in
+
+[redux/projectsSlice.ts:32](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/redux/projectsSlice.ts#L32)
+
+___
 
 ### DefaultHeadlampEvents
 
@@ -288,6 +320,44 @@ More complete logo example in plugins/examples/change-logo:
 
 ___
 
+### registerAppTheme
+
+▸ **registerAppTheme**(`theme`, `options?`): `void`
+
+Add a new theme that will be available in the settings.
+Theme names should be unique.
+
+**`example`**
+
+```ts
+registerAppTheme(
+  {
+    name: 'My Custom Theme',
+    base: 'light',
+    primary: '#ff0000',
+    secondary: '#333333',
+  },
+  { default: true }
+);
+```
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `theme` | `AppTheme` | `undefined` | App theme definition. |
+| `options` | [`AppThemeRegistrationOptions`](../interfaces/plugin_registry.AppThemeRegistrationOptions.md) | `{}` | Options that control whether the theme is selected during registration. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1098](https://github.com/kubernetes-sigs/headlamp/blob/9a1cd9722/frontend/src/plugin/registry.tsx#L1098)
+
+___
+
 ### registerClusterChooser
 
 ▸ **registerClusterChooser**(`chooser`): `void`
@@ -319,6 +389,88 @@ registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => {
 #### Defined in
 
 [plugin/registry.tsx:573](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L573)
+
+___
+
+### registerClusterEmptyState
+
+▸ **registerClusterEmptyState**(`component`): `void`
+
+Replace the empty state shown on the Home page when no clusters are configured.
+
+The component receives Headlamp's default content so a product can wrap it.
+Registering another component replaces the previous registration.
+
+**`example`**
+
+```tsx
+import { registerClusterEmptyState } from '@kinvolk/headlamp-plugin/lib';
+
+registerClusterEmptyState(({ defaultContent }) => (
+  <section>
+    <p>Choose how to connect your first cluster.</p>
+    {defaultContent}
+  </section>
+));
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `component` | `ClusterEmptyStateComponent` | Product-owned empty state component. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:972](https://github.com/kubernetes-sigs/headlamp/blob/558672b5a/frontend/src/plugin/registry.tsx#L972)
+
+___
+
+### registerCustomCreateProject
+
+▸ **registerCustomCreateProject**(`customCreateProject`): `void`
+
+Register a new way to create Headlamp 'Projects'.
+
+**`example`**
+
+```tsx
+import {
+  DefaultCreateProject,
+  registerCustomCreateProject,
+} from '@kinvolk/headlamp-plugin/lib';
+
+registerCustomCreateProject({
+  id: DefaultCreateProject.NEW_PROJECT,
+  name: 'Create Managed Project',
+  description: 'Create a project managed by the platform',
+  icon: 'mdi:folder-plus',
+  component: ({ onBack }) => (
+    <div>
+      Create project
+      <button onClick={onBack}>Back</button>
+    </div>
+  ),
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `customCreateProject` | `CustomCreateProject` | Definition for custom creator |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1167](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/plugin/registry.tsx#L1167)
 
 ___
 
@@ -652,6 +804,42 @@ void
 
 ___
 
+### registerProjectGrouping
+
+▸ **registerProjectGrouping**(`projectGrouping`): `void`
+
+Register custom grouping for project namespaces.
+
+The returned key is opaque and only distinguishes entries that share a project ID.
+Return the project ID to retain Headlamp's default cross-cluster grouping.
+
+**`example`**
+
+```tsx
+registerProjectGrouping({
+  getProjectKey: ({ namespace, projectId }) =>
+    namespace.metadata.labels?.['example.com/separate-by-cluster'] === 'true'
+      ? `${projectId}:${namespace.cluster}`
+      : projectId,
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `projectGrouping` | `ProjectGrouping` | Project grouping definition |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1139](https://github.com/kubernetes-sigs/headlamp/blob/85131ccb0/frontend/src/plugin/registry.tsx#L1139)
+
+___
+
 ### registerResourceTableColumnsProcessor
 
 ▸ **registerResourceTableColumnsProcessor**(`processor`): `void`
@@ -874,7 +1062,10 @@ This function uses the desktopApi.send and desktopApi.receive methods to communi
 **`example`**
 
 ```ts
-  const minikube = runCommand('minikube', ['status']);
+  import type { PluginRunCommand } from '@kinvolk/headlamp-plugin/lib';
+  declare const pluginRunCommand: PluginRunCommand;
+  const minikube = pluginRunCommand('minikube', ['status'], {});
+
   minikube.stdout.on('data', (data) => {
     console.log('stdout:', data);
   });
@@ -890,7 +1081,7 @@ This function uses the desktopApi.send and desktopApi.receive methods to communi
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `command` | ``"minikube"`` \| ``"az"`` | The command to run. |
+| `command` | `string` | The command to run. |
 | `args` | `string`[] | An array of arguments to pass to the command. |
 | `options` | `Object` | - |
 

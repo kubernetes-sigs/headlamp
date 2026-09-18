@@ -20,6 +20,7 @@ import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
@@ -445,5 +446,26 @@ describe('useGetAllRelations', () => {
         node(new KubeObject({ metadata: { uid: 'other' } } as any, 'cluster-a'))
       )
     ).toBe(false);
+  });
+
+  it('marks pvc-pod edges as nonGroupingSide for RWX PVCs only', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'pvc-pod');
+    const matchingPod = pod({ uid: 'pod', name: 'pod', namespace: 'namespace-a' }, {}, 'cluster-a');
+
+    const pvc = (accessModes: string[]) =>
+      new PersistentVolumeClaim(
+        {
+          metadata: { uid: 'pvc', name: 'pvc', namespace: 'namespace-a' },
+          spec: { accessModes, resources: { requests: {} } },
+        } as any,
+        'cluster-a'
+      );
+
+    expect(relation.edgeAttributes?.(node(pvc(['ReadWriteMany'])), node(matchingPod))).toEqual({
+      nonGroupingSide: 'source',
+    });
+    expect(relation.edgeAttributes?.(node(pvc(['ReadWriteOnce'])), node(matchingPod))).toEqual({});
   });
 });

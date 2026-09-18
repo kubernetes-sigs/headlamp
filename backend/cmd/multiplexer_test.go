@@ -53,6 +53,7 @@ func TestNewMultiplexer(t *testing.T) {
 	assert.Equal(t, store, m.kubeConfigStore)
 	assert.NotNil(t, m.connections)
 	assert.NotNil(t, m.upgrader)
+	assert.Equal(t, []string{MultiplexerProtocol}, m.upgrader.Subprotocols)
 }
 
 func TestHandleClientWebSocket(t *testing.T) {

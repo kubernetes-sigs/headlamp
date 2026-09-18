@@ -18,7 +18,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { loadSettings, saveSettings } from './settings';
+import {
+  areDevelopmentPluginsEnabled,
+  loadSettings,
+  saveSettings,
+  setDevelopmentPluginsEnabled,
+} from './settings';
 
 function tmpPath(): string {
   return path.join(os.tmpdir(), `settings-test-${Date.now()}-${Math.random()}.json`);
@@ -73,5 +78,35 @@ describe('settings load/save', () => {
     const dirPath = os.tmpdir();
     const res = loadSettings(dirPath);
     expect(res).toEqual({});
+  });
+
+  it('keeps development plugins disabled unless the setting is exactly true', () => {
+    expect(areDevelopmentPluginsEnabled(filePath)).toBe(false);
+    saveSettings(filePath, { developmentPlugins: 'true' });
+    expect(areDevelopmentPluginsEnabled(filePath)).toBe(false);
+    saveSettings(filePath, { developmentPlugins: true });
+    expect(areDevelopmentPluginsEnabled(filePath)).toBe(true);
+  });
+
+  it('keeps development plugins disabled for non-object settings', () => {
+    fs.writeFileSync(filePath, 'null', 'utf-8');
+
+    expect(areDevelopmentPluginsEnabled(filePath)).toBe(false);
+  });
+
+  it('persists development plugin opt-in without replacing other settings', () => {
+    saveSettings(filePath, { existing: 'value' });
+
+    setDevelopmentPluginsEnabled(true, filePath);
+
+    expect(loadSettings(filePath)).toEqual({ existing: 'value', developmentPlugins: true });
+  });
+
+  it('replaces non-object settings when persisting development plugin opt-in', () => {
+    fs.writeFileSync(filePath, 'null', 'utf-8');
+
+    setDevelopmentPluginsEnabled(true, filePath);
+
+    expect(loadSettings(filePath)).toEqual({ developmentPlugins: true });
   });
 });

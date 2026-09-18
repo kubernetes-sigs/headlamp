@@ -39,6 +39,14 @@ function renderEndpoints(endpointSlice: EndpointSlice) {
   });
 }
 
+function getCopyableEndpointAddresses(endpointSlice: EndpointSlice) {
+  return (
+    endpointSlice.spec?.endpoints
+      ?.flatMap((endpoint: { addresses?: string[] }) => endpoint.addresses ?? [])
+      .join('\n') ?? ''
+  );
+}
+
 export default function EndpointSliceList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
@@ -53,8 +61,7 @@ export default function EndpointSliceList() {
         {
           id: 'endpoints',
           label: t('translation|Endpoints'),
-          getValue: endpoint =>
-            endpoint.spec?.endpoints?.map((c: any) => c.addresses?.join(','))?.join(','),
+          getValue: endpoint => getCopyableEndpointAddresses(endpoint),
           render: endpoint => renderEndpoints(endpoint),
           gridTemplate: 'auto',
           cellProps: {
@@ -63,6 +70,7 @@ export default function EndpointSliceList() {
               gap: '4px',
             },
           },
+          copyable: true,
         },
         {
           id: 'ports',
