@@ -359,6 +359,8 @@ type MeHandlerOptions struct {
 	GroupsPaths string
 	// UserInfoURL is the URL to fetch additional user info for the /me endpoint.
 	UserInfoURL string
+	// BaseURL is the path Headlamp is served under, if any.
+	BaseURL string
 	// ProxyAuthEnabled indicates if the identity proxy bypass is enabled
 	ProxyAuthEnabled        bool
 	ProxyAuthUsernameHeader string
@@ -389,7 +391,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 			return
 		}
 
-		requestCluster, token := ParseClusterAndToken(r)
+		requestCluster, token := ParseClusterAndTokenWithBaseURL(r, opts.BaseURL)
 
 		if requestCluster == "" {
 			requestCluster = clusterName

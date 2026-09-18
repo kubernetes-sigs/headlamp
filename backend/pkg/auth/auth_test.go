@@ -1275,6 +1275,44 @@ func TestHandleMe_Success(t *testing.T) {
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
 }
 
+func TestHandleMe_BaseURL(t *testing.T) {
+	t.Parallel()
+
+	token := makeTestToken(t, map[string]interface{}{
+		"preferred_username": "alice",
+		"exp":                float64(time.Now().Add(time.Hour).Unix()),
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/dev/internal/headlamp/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+	req.AddCookie(&http.Cookie{
+		Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		UsernamePaths: "preferred_username",
+		BaseURL:       "/dev/internal/headlamp",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string `json:"username"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "alice", got.Username)
+}
+
 func TestHandleMe_HeaderToken(t *testing.T) {
 	t.Parallel()
 
