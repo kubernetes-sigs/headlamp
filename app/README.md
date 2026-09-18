@@ -2,6 +2,11 @@
 
 ## Quickstart
 
+Desktop development requires Node.js 22.12 or newer and npm 11 or newer.
+Electron's binary is installed automatically before desktop builds, development
+launches, packaging, and tests. Run `npm run electron:install` to install it
+explicitly after installing dependencies.
+
 ### Running the app on Ubuntu WSL
 
 Headlamp on WSL requires some packages installed (maybe it requires more) to run the app.
