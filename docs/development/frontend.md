@@ -36,6 +36,10 @@ This command starts the Vite development server for the frontend
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview)
 for network requests. If you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
 
+Packaged products can generate the frontend version, product name, and source
+revision from app build inputs. See [Custom product builds](./app.md#custom-product-builds)
+for the `HEADLAMP_BUILD_MANIFEST` and `HEADLAMP_SOURCE_COMMIT` configuration.
+
 ## Product error content
 
 Products that build Headlamp can customize the generic error and not-found
@@ -141,18 +145,17 @@ npm run test:a11y
 ```
 
 This command will:
+
 1. Build the Storybook
 2. Run axe accessibility tests on all stories
 3. Report any accessibility violations found
 
 The tests will fail if any accessibility issues are detected, making it useful for CI/CD pipelines.
 
-
 #### Baseline Storybook a11y Configuration
 
 Known failures are tracked in `frontend/.axe-storybook-baseline.test-a11y.json`. This file is
 used by the test suite to allow known failures while catching new violations.
-
 
 ## Property testing (fuzzing)
 

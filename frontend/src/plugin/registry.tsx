@@ -18,7 +18,7 @@ import { has } from 'lodash';
 import React, { ReactNode } from 'react';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
 import { PluginManager } from '../components/App/pluginManager';
-import { runCommand } from '../components/App/runCommand';
+import { type PluginRunCommand, runCommand } from '../components/App/runCommand';
 import { setBrandingAppLogoComponent, themeSlice } from '../components/App/themeSlice';
 import { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
 import {
@@ -117,9 +117,11 @@ import {
   CustomCreateProject,
   ProjectDeleteButton,
   ProjectDetailsTab,
+  ProjectGrouping,
   ProjectHeaderAction,
   ProjectOverviewSection,
   setProjectDeleteButton,
+  setProjectGrouping,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
@@ -1068,11 +1070,19 @@ export function registerAddClusterProvider(item: ClusterProviderInfo) {
   store.dispatch(addAddClusterProvider(item));
 }
 
+/** Options that control app theme registration. */
+export interface AppThemeRegistrationOptions {
+  /** Select the registered theme when the user has no saved theme preference. */
+  default?: boolean;
+}
+
 /**
  * Add a new theme that will be available in the settings.
  * Theme name should be unique
  *
  * @param theme - App Theme definition
+ * @param options - Options that control whether the theme is selected during registration.
+ * @returns Nothing.
  *
  * @example
  *
@@ -1082,11 +1092,14 @@ export function registerAddClusterProvider(item: ClusterProviderInfo) {
  *   base: "light",
  *   primary: "#ff0000",
  *   secondary: "#333",
- * })
+ * }, { default: true })
  *
  */
-export function registerAppTheme(theme: AppTheme) {
+export function registerAppTheme(theme: AppTheme, options: AppThemeRegistrationOptions = {}): void {
   store.dispatch(themeSlice.actions.addCustomAppTheme(theme));
+  if (options.default) {
+    store.dispatch(themeSlice.actions.setPluginDefaultTheme(theme.name));
+  }
 }
 
 /**
@@ -1166,6 +1179,30 @@ export function registerUIPanel(panel: UIPanel) {
  */
 export function registerCustomCreateProject(customCreateProject: CustomCreateProject) {
   store.dispatch(addCustomCreateProject(customCreateProject));
+}
+
+/**
+ * Register custom grouping for project namespaces.
+ *
+ * The returned key is opaque and only distinguishes entries that share a project ID.
+ * Return the project ID to retain Headlamp's default cross-cluster grouping.
+ *
+ * @param projectGrouping - Project grouping definition
+ *
+ * @example
+ * ```tsx
+ * registerProjectGrouping({
+ *   getProjectKey: ({ namespace, projectId }) =>
+ *     namespace.metadata.labels?.['example.com/separate-by-cluster'] === 'true'
+ *       ? `${projectId}:${namespace.cluster}`
+ *       : projectId,
+ * });
+ * ```
+ *
+ * @returns Nothing.
+ */
+export function registerProjectGrouping(projectGrouping: ProjectGrouping) {
+  store.dispatch(setProjectGrouping(projectGrouping));
 }
 
 /**
@@ -1390,4 +1427,4 @@ export {
   ConfigStore,
 };
 
-export type { CallbackActionOptions };
+export type { CallbackActionOptions, PluginRunCommand };

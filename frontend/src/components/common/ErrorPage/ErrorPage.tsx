@@ -115,6 +115,11 @@ export default function ErrorComponent(props: ErrorComponentProps) {
     graphic = getErrorPageGraphic('error') || headlampBrokenImage,
     error,
   } = props;
+  const homeLinkProps = {
+    href: window.desktopApi ? '#' : '/',
+    underline: 'always' as const,
+  };
+
   return (
     <Grid
       container
@@ -139,7 +144,7 @@ export default function ErrorComponent(props: ErrorComponentProps) {
               message
             ) : (
               <Trans t={t}>
-                Head back <Link href={window.desktopApi ? '#' : '/'}>home</Link>.
+                Head back <Link {...homeLinkProps}>home</Link>.
               </Trans>
             )}
           </Typography>

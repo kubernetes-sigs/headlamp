@@ -18,7 +18,7 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../../App';
 import { createMuiTheme } from '../../../lib/themes';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
@@ -33,6 +33,7 @@ import SettingsCluster from './SettingsCluster';
 const _dont_delete_me = App;
 
 const theme = createMuiTheme({ name: 'Light', base: 'light' });
+const originalDesktopApi = window.desktopApi;
 
 function renderWithProviders(children: ReactNode) {
   return render(
@@ -47,6 +48,8 @@ function renderWithProviders(children: ReactNode) {
 describe('Settings theme', () => {
   afterEach(() => {
     window.history.pushState({}, '', '/');
+    window.desktopApi = originalDesktopApi;
+    vi.restoreAllMocks();
   });
 
   it('resolves the theme-picker grid breakpoint from the live theme, not a static import', async () => {

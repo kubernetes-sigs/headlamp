@@ -99,8 +99,8 @@ function setupActivities(activities: Activity[]) {
 
 export const Basic: StoryFn = () => {
   setupActivities([
-    makeActivity({ id: '1', location: 'split-left', content: 'Left' }),
-    makeActivity({ id: '2', location: 'split-right', content: 'Right' }),
+    makeActivity({ id: '1', location: 'split-left', content: 'Left', title: 'Left Activity' }),
+    makeActivity({ id: '2', location: 'split-right', content: 'Right', title: 'Right Activity' }),
   ]);
 
   return <ActivitiesRenderer />;

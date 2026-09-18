@@ -182,4 +182,28 @@ describe('updateSettingsPackages tests', () => {
 
     expect(updatedSettingsPlugins[0].isEnabled).toBe(false);
   });
+
+  test('clears the development mode blocked marker when a plugin becomes loadable again', () => {
+    const backendPlugins: PluginInfo[] = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        type: 'development',
+      },
+    ];
+    const settingsPlugins: PluginInfo[] = [
+      {
+        ...backendPlugins[0],
+        isEnabled: false,
+        isLoaded: false,
+        isDevelopmentModeBlocked: true,
+      },
+    ];
+
+    const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, settingsPlugins);
+
+    expect(updatedSettingsPlugins[0].isEnabled).toBe(false);
+    expect(updatedSettingsPlugins[0]).not.toHaveProperty('isDevelopmentModeBlocked');
+  });
 });

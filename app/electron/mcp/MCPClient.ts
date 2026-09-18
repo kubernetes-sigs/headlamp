@@ -15,7 +15,8 @@
  */
 
 import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
-import { type BrowserWindow, dialog, ipcMain } from 'electron';
+import { type BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { isTrustedDocumentUrl } from '../secureStorage';
 import type { MultiServerMCPClient } from './MCPAdapter';
 import {
   hasClusterDependentServers,
@@ -82,11 +83,13 @@ export default class MCPClient {
    * @param configPath - Path to the persisted MCP tool configuration.
    * @param settingsPath - Path to the persisted MCP server settings.
    * @param ensureCertificates - Initializes certificate trust before networking.
+   * @param trustedStartUrl - Exact Headlamp document URL authorized to invoke MCP IPC.
    */
   constructor(
     configPath: string,
     settingsPath: string,
-    private readonly ensureCertificates: () => void = () => {}
+    private readonly ensureCertificates: () => void = () => {},
+    private readonly trustedStartUrl?: string
   ) {
     this.configPath = configPath;
     this.settingsPath = settingsPath;
@@ -626,32 +629,50 @@ export default class MCPClient {
     }
   }
 
+  private assertTrustedIpcEvent(event: IpcMainInvokeEvent): void {
+    if (
+      !this.mainWindow ||
+      event.sender !== this.mainWindow.webContents ||
+      event.senderFrame !== this.mainWindow.webContents.mainFrame ||
+      (this.trustedStartUrl !== undefined &&
+        !isTrustedDocumentUrl(event.senderFrame.url, this.trustedStartUrl))
+    ) {
+      throw new Error('MCP IPC request rejected');
+    }
+  }
+
   /**
    * Setup IPC handlers for MCP operations.
    */
   private setupIpcHandlers(): void {
-    ipcMain?.handle('mcp-execute-tool', async (event, { toolName, args, toolCallId }) =>
+    const handle = <Arguments extends unknown[], Result>(
+      channel: string,
+      handler: (...args: Arguments) => Result
+    ) => {
+      ipcMain?.handle(channel, (event, ...args: Arguments) => {
+        this.assertTrustedIpcEvent(event);
+        return handler(...args);
+      });
+    };
+
+    handle('mcp-execute-tool', ({ toolName, args, toolCallId }) =>
       this.mcpExecuteTool(toolName, args, toolCallId)
     );
-    ipcMain?.handle('mcp-get-status', async () => this.mcpGetStatus());
-    ipcMain?.handle('mcp-reset-client', async () => this.mcpResetClient());
-    ipcMain?.handle('mcp-update-config', async (event, mcpSettings: MCPSettings) =>
-      this.mcpUpdateConfig(mcpSettings)
-    );
-    ipcMain?.handle('mcp-get-config', async () => this.mcpGetConfig());
-    ipcMain?.handle('mcp-get-tools-config', async () => this.mcpGetToolsConfig());
-    ipcMain?.handle('mcp-update-tools-config', async (event, toolsConfig: MCPToolsConfig) =>
+    handle('mcp-get-status', () => this.mcpGetStatus());
+    handle('mcp-reset-client', () => this.mcpResetClient());
+    handle('mcp-update-config', (mcpSettings: MCPSettings) => this.mcpUpdateConfig(mcpSettings));
+    handle('mcp-get-config', () => this.mcpGetConfig());
+    handle('mcp-get-tools-config', () => this.mcpGetToolsConfig());
+    handle('mcp-update-tools-config', (toolsConfig: MCPToolsConfig) =>
       this.mcpUpdateToolsConfig(toolsConfig)
     );
-    ipcMain?.handle('mcp-set-tool-enabled', async (event, { serverName, toolName, enabled }) =>
+    handle('mcp-set-tool-enabled', ({ serverName, toolName, enabled }) =>
       this.mcpSetToolEnabled(serverName, toolName, enabled)
     );
-    ipcMain?.handle('mcp-get-tool-stats', async (event, { serverName, toolName }) =>
+    handle('mcp-get-tool-stats', ({ serverName, toolName }) =>
       this.mcpGetToolStats(serverName, toolName)
     );
-    ipcMain?.handle('mcp-cluster-change', async (event, { cluster }) =>
-      this.mcpClusterChange(cluster)
-    );
+    handle('mcp-cluster-change', ({ cluster }) => this.mcpClusterChange(cluster));
   }
 }
 

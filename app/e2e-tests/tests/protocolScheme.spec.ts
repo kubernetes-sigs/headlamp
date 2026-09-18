@@ -16,31 +16,48 @@
 
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
+import { createServer, Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { _electron, ElectronApplication, Page } from 'playwright';
 
-const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
-const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
+const electronPath = require('electron') as string;
 const appPath = path.resolve(__dirname, '../../');
-const manifestPath = path.join(appPath, 'app-build-manifest.json');
 
 let electronApp: ElectronApplication;
 let electronPage: Page;
-let originalManifest: string;
+let backend: Server;
+let temporaryAppPath: string;
 
 test.describe('desktop protocol scheme', () => {
-  test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'Requires Electron app mode');
-
   test.beforeAll(async () => {
-    originalManifest = fs.readFileSync(manifestPath, 'utf8');
-    const productManifest = JSON.parse(originalManifest);
+    backend = createServer((request, response) => {
+      if (request.url === '/config') {
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+        return;
+      }
+
+      response.writeHead(404).end();
+    });
+    await new Promise<void>(resolve => backend.listen(0, resolve));
+    const port = (backend.address() as AddressInfo).port;
+
+    temporaryAppPath = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-protocol-e2e-'));
     fs.writeFileSync(
-      manifestPath,
+      path.join(temporaryAppPath, 'package.json'),
+      JSON.stringify({
+        name: 'headlamp-protocol-e2e',
+        version: '1.0.0',
+        main: `${appPath}/build/main.js`,
+      })
+    );
+    fs.writeFileSync(
+      path.join(temporaryAppPath, 'app-build-manifest.json'),
       JSON.stringify(
         {
-          ...productManifest,
           product: {
-            ...productManifest.product,
             protocols: { name: 'test-headlamp-protocol', schemes: ['test-headlamp'] },
           },
         },
@@ -57,13 +74,16 @@ test.describe('desktop protocol scheme', () => {
     }
 
     electronApp = await _electron.launch({
-      cwd: appPath,
+      cwd: temporaryAppPath,
       executablePath: electronPath,
-      args: ['.', 'test-headlamp://cluster?name=startup'],
+      args: ['.', 'test-headlamp://cluster?name=startup', `--port=${port}`],
       env: {
         ...electronEnv,
         NODE_ENV: 'development',
         ELECTRON_DEV: 'true',
+        HEADLAMP_BUILD_MANIFEST: 'app-build-manifest.json',
+        ELECTRON_START_URL: pathToFileURL(path.join(appPath, '../frontend/build/index.html')).href,
+        EXTERNAL_SERVER: 'true',
       },
     });
     electronPage = await electronApp.firstWindow();
@@ -72,7 +92,12 @@ test.describe('desktop protocol scheme', () => {
 
   test.afterAll(async () => {
     await electronApp?.close();
-    fs.writeFileSync(manifestPath, originalManifest);
+    await new Promise<void>((resolve, reject) =>
+      backend?.close(error => (error ? reject(error) : resolve()))
+    );
+    if (temporaryAppPath) {
+      fs.rmSync(temporaryAppPath, { force: true, recursive: true });
+    }
   });
 
   test('routes a product protocol URL from the startup command line', async () => {

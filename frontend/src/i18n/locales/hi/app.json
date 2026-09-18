@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "प्लगिन जानकारी प्राप्त करने में विफल",
   "An error occurred while fetching plugin info from {{  URL }}.": "{{  URL }} से प्लगिन जानकारी प्राप्त करते समय एक त्रुटि हुई।",
   "Yes": "हां",
@@ -41,11 +46,6 @@
   "Help": "सहायता",
   "Documentation": "दस्तावेज़ीकरण",
   "Open an Issue": "एक इशू खोलें",
-  "Another process is running": "एक अन्य प्रक्रिया चल रही है",
-  "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "लगता है कि एक अन्य प्रक्रिया पहले से ही चल रही है। उस प्रक्रिया को स्वचालित रूप से समाप्त करके जारी रखें, या बाहर निकलें?",
-  "Continue": "जारी रखें",
-  "Failed to quit the other running process": "अन्य चल रही प्रक्रिया से बाहर निकलने में विफल",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "अन्य चल रही प्रक्रिया से बाहर नहीं निकल सका, PIDs: {{ process_list }}। कृपया उस प्रक्रिया को रोकें और ऐप को फिर से लॉन्च करें।",
   "No available ports": "",
   "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "",
   "Terminate and Retry": "",
@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "अमान्य URL",
-  "Application opened with an invalid URL: {{ url }}": "अनुप्रयोग एक अमान्य URL के साथ खोला गया: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "अनुप्रयोग एक अमान्य URL के साथ खोला गया: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

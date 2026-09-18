@@ -31,6 +31,7 @@ function testHeadlampPlugin() {
 
   // Make a package file of headlamp-plugin we can test
   run('npm', ['install']);
+  run('npm', ['run', 'test:storybook-mocks']);
   run('npm', ['run', 'build']);
   checkFileContains(join('lib', 'index.js'), 'DefaultCreateProject');
   checkFileContains(join('lib', 'index.d.ts'), 'DefaultCreateProject');

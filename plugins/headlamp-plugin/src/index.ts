@@ -32,7 +32,13 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type { CallbackActionOptions, HeadlampEvent, Relation } from './plugin/registry';
+import type {
+  AppThemeRegistrationOptions,
+  CallbackActionOptions,
+  HeadlampEvent,
+  PluginRunCommand,
+  Relation,
+} from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
@@ -72,6 +78,7 @@ import Registry, {
   registerProjectApiResource,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
+  registerProjectGrouping,
   registerProjectHeaderAction,
   registerProjectOverviewSection,
   registerResourceRelationProvider,
@@ -141,6 +148,7 @@ export {
   getSupportedLocales,
   registerCustomCreateProject,
   registerProjectDetailsTab,
+  registerProjectGrouping,
   registerProjectOverviewSection,
   registerProjectHeaderAction,
   registerClusterStatus,
@@ -152,6 +160,7 @@ export {
 export type {
   AppLogoProps,
   AppTheme,
+  AppThemeRegistrationOptions,
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,
@@ -159,5 +168,6 @@ export type {
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,
+  PluginRunCommand,
   Relation,
 };

@@ -186,8 +186,6 @@ export async function clusterRequest(
         response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
       }
     }
-  } finally {
-    clearTimeout(id);
   }
 
   // The backend signals through this header that it wants a reload.
@@ -231,6 +229,8 @@ export async function clusterRequest(
         'with request data:',
         requestData
       );
+    } finally {
+      clearTimeout(id);
     }
 
     const error = new Error(message) as ApiError;
@@ -239,10 +239,15 @@ export async function clusterRequest(
   }
 
   if (!isJSON) {
+    clearTimeout(id);
     return Promise.resolve(response);
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 export function post(

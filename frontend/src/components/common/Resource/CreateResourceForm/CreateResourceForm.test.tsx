@@ -27,6 +27,7 @@ vi.mock('../../../../lib/k8s/namespace', () => ({
 }));
 
 const { ContainerTextField } = await import('./workloadFields');
+const { ServicePortsTextField } = await import('./CreateResourceForm');
 const { default: CreateResourceForm } = await import('./index');
 
 function renderContainers(value: unknown) {
@@ -60,6 +61,108 @@ describe('ContainerTextField partial-input tolerance', () => {
       { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }], imagePullPolicy: 'Always' },
     ]);
     expect(getAllByRole('textbox').length).toBeGreaterThan(0);
+  });
+});
+
+// Mirrors the same YAML-editor tolerance guarantee for the Service ports editor:
+// while the user types, js-yaml may hand us [null], strings, or `null` — none of
+// those may crash the form.
+describe('ServicePortsTextField partial-input tolerance', () => {
+  function renderPorts(
+    value: unknown,
+    onChange: (ports: any[]) => void = () => {},
+    showNodePort?: boolean
+  ) {
+    return render(
+      <ServicePortsTextField value={value as any} onChange={onChange} showNodePort={showNodePort} />
+    );
+  }
+
+  it('renders a null sequence entry without crashing (ports:\\n  -)', () => {
+    expect(() => renderPorts([null])).not.toThrow();
+  });
+
+  it('renders when value is null', () => {
+    expect(() => renderPorts(null)).not.toThrow();
+  });
+
+  it('renders when value is a string instead of an array', () => {
+    expect(() => renderPorts('foo')).not.toThrow();
+  });
+
+  it('renders the default Service port row from getBaseObject', () => {
+    const { getAllByDisplayValue } = renderPorts([
+      { name: '', port: 80, protocol: 'TCP', targetPort: 80 },
+    ]);
+    // Port and Target Port both render "80".
+    expect(getAllByDisplayValue('80')).toHaveLength(2);
+  });
+
+  it('emits a numeric port when the user edits the Port input', () => {
+    const handleChange = vi.fn();
+    const { getAllByRole } = renderPorts(
+      [{ name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 }],
+      handleChange
+    );
+    // Row order: Name (text), Port (number), TargetPort (text), NodePort (number).
+    const spinButtons = getAllByRole('spinbutton');
+    fireEvent.change(spinButtons[0], { target: { value: '8080' } });
+    expect(handleChange).toHaveBeenCalledWith([
+      expect.objectContaining({ port: 8080, protocol: 'TCP' }),
+    ]);
+  });
+
+  it('preserves a named targetPort (string) instead of coercing to a number', () => {
+    const handleChange = vi.fn();
+    const { getAllByRole } = renderPorts(
+      [{ name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 }],
+      handleChange
+    );
+    // Row order: Name (text), Port (number), TargetPort (text), NodePort (number).
+    // targetPort accepts named strings, so it renders as a text input.
+    const textInputs = getAllByRole('textbox');
+    // Name is [0], TargetPort is [1].
+    fireEvent.change(textInputs[1], { target: { value: 'http' } });
+    expect(handleChange).toHaveBeenCalledWith([expect.objectContaining({ targetPort: 'http' })]);
+  });
+
+  it('adds a new port row without nodePort by default (showNodePort defaults to true, but hidden case)', () => {
+    const handleChange = vi.fn();
+    const { getByLabelText } = renderPorts([], handleChange, false);
+    fireEvent.click(getByLabelText('Add port'));
+    expect(handleChange).toHaveBeenCalledWith([
+      { name: '', port: 80, protocol: 'TCP', targetPort: 80 },
+    ]);
+  });
+
+  it('adds a new port row with nodePort when showNodePort is enabled', () => {
+    const handleChange = vi.fn();
+    const { getByLabelText } = renderPorts([], handleChange, true);
+    fireEvent.click(getByLabelText('Add port'));
+    expect(handleChange).toHaveBeenCalledWith([
+      { name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 },
+    ]);
+  });
+
+  it('hides the Node Port column when showNodePort is false', () => {
+    const { queryByLabelText } = renderPorts(
+      [{ name: '', port: 80, protocol: 'TCP', targetPort: 80 }],
+      () => {},
+      false
+    );
+    expect(queryByLabelText('Node Port')).toBeNull();
+  });
+
+  it('strips nodePort from ports when showNodePort is false', () => {
+    const handleChange = vi.fn();
+    renderPorts(
+      [{ name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 }],
+      handleChange,
+      false
+    );
+    expect(handleChange).toHaveBeenCalledWith([
+      { name: '', port: 80, protocol: 'TCP', targetPort: 80 },
+    ]);
   });
 });
 

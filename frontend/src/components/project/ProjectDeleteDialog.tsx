@@ -34,6 +34,7 @@ import { ProjectDefinition } from '../../redux/projectsSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import { DialogTitle } from '../common/Dialog';
 import AuthVisible from '../common/Resource/AuthVisible';
+import { projectIncludesNamespace } from './projectGrouping';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 interface ProjectDeleteDialogProps {
@@ -56,7 +57,7 @@ export function ProjectDeleteDialog({
 
   const handleDelete = () => {
     const projectNamespaces = namespaces.filter(ns =>
-      project.namespaces.includes(ns.metadata.name)
+      projectIncludesNamespace(project, { name: ns.metadata.name, cluster: ns.cluster })
     );
 
     dispatchDeleteProjectEvent({

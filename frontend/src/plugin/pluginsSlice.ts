@@ -104,6 +104,9 @@ export type PluginInfo = {
    */
   isLoaded?: boolean;
 
+  /** Whether Plugin Development Mode currently blocks this plugin from loading. */
+  isDevelopmentModeBlocked?: boolean;
+
   /**
    * overriddenBy indicates which higher-priority version is loaded instead of this one.
    * Format: "type" (e.g., "development" or "user")
