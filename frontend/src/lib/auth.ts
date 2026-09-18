@@ -132,6 +132,20 @@ export function setToken(cluster: string, token: string | null) {
 }
 
 /**
+ * Invalidates the cached user identity (`clusterMe`) for every cluster.
+ *
+ * Call this after an OIDC login completes. The backend may broadcast the new
+ * token to sibling clusters that share the same identity provider, which
+ * replaces their auth cookies too. Invalidating only the cluster that was
+ * logged into would leave the other clusters showing a stale identity from
+ * cache (for up to their staleTime) while requests to them already run as the
+ * new user.
+ */
+export function invalidateClusterUserInfo() {
+  return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+}
+
+/**
  * Logs out the user by clearing the authentication token for the specified cluster.
  *
  * @param cluster - The name of the cluster to log out from.
