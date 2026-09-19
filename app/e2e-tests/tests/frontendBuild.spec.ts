@@ -31,6 +31,7 @@ test('loads the default frontend production build in Electron', async () => {
   expect(fs.existsSync(indexFile)).toBe(true);
   const index = fs.readFileSync(indexFile, 'utf8');
   expect(index).not.toMatch(/(?:src|href)="\//);
+  expect(index).toContain('<base href="./">');
 
   const electronApp = await _electron.launch({
     cwd: appPath,
