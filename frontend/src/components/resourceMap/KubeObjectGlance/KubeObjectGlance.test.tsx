@@ -14,13 +14,23 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { KubeObjectGlance } from './KubeObjectGlance';
 
 const mocks = vi.hoisted(() => ({
   objectEvents: vi.fn(),
   isClassOf: (kind: string) => vi.fn((resource: any) => resource.matches?.includes(kind)),
 }));
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+
+  const promise = new Promise<T>(resolver => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key.split('|').at(-1) }),
@@ -156,6 +166,35 @@ describe('KubeObjectGlance', () => {
     expect(mocks.objectEvents).toHaveBeenLastCalledWith(nextResource);
   });
 
+  it('ignores an older event response that resolves after the current resource', async () => {
+    const firstRequest = createDeferred<Array<{ message: string; lastOccurrence: string }>>();
+    const secondRequest = createDeferred<Array<{ message: string; lastOccurrence: string }>>();
+
+    mocks.objectEvents
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise);
+
+    const firstResource = { matches: [] } as any;
+    const secondResource = { matches: ['Pod'] } as any;
+
+    const { rerender } = render(<KubeObjectGlance resource={firstResource} />);
+    rerender(<KubeObjectGlance resource={secondResource} />);
+
+    await waitFor(() => expect(mocks.objectEvents).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      secondRequest.resolve([{ message: 'current-event', lastOccurrence: 'current-time' }]);
+    });
+
+    expect(await screen.findByLabelText('current-event')).toBeInTheDocument();
+
+    await act(async () => {
+      firstRequest.resolve([{ message: 'stale-event', lastOccurrence: 'stale-time' }]);
+    });
+
+    expect(screen.getByLabelText('current-event')).toBeInTheDocument();
+    expect(screen.queryByLabelText('stale-event')).not.toBeInTheDocument();
+  });
   it('renders no sections when the resource is unsupported and has no events', async () => {
     mocks.objectEvents.mockResolvedValue([]);
     const { container } = render(<KubeObjectGlance resource={{ matches: [] } as any} />);
