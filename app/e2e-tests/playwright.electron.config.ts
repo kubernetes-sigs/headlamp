@@ -40,6 +40,7 @@ export default defineConfig({
     'updateChecks.spec.ts',
     'oauthProvider.spec.ts',
     'protocolScheme.spec.ts',
+    'frontendBuild.spec.ts',
     'runtimeProductIdentity.spec.ts',
   ],
   timeout: 60 * 1000,
