@@ -106,6 +106,14 @@ func TestUserAgentRoundTripper_RoundTrip(t *testing.T) {
 	t.Run("propagates errors from base round tripper", func(t *testing.T) {
 		testPropagatesErrors(t)
 	})
+
+	t.Run("omits user agent on websocket upgrade request", func(t *testing.T) {
+		testOmitsUserAgentOnWebSocketUpgrade(t)
+	})
+
+	t.Run("delegates websocket upgrade to upgrade transport when configured", func(t *testing.T) {
+		testDelegatesWebSocketUpgradeToUpgradeTransport(t)
+	})
 }
 
 func testAddsUserAgentHeader(t *testing.T) {
@@ -297,4 +305,61 @@ func TestUserAgentIntegration(t *testing.T) {
 		expectedUA := "TestHeadlamp 1.2.3 (" + runtime.GOOS + "/" + runtime.GOARCH + ")"
 		assert.Equal(t, expectedUA, capturedUserAgent)
 	})
+}
+
+func testOmitsUserAgentOnWebSocketUpgrade(t *testing.T) {
+	t.Helper()
+
+	mockRT := &mockRoundTripper{}
+	userAgent := "TestApp/1.0.0 (linux/amd64)"
+	rt := &kubeconfig.UserAgentRoundTripper{
+		Base:      mockRT,
+		UserAgent: userAgent,
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/exec", nil)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	if resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	require.NotNil(t, mockRT.capturedRequest)
+	// User-Agent must NOT be added for websocket upgrade
+	assert.Empty(t, mockRT.capturedRequest.Header.Get("User-Agent"))
+}
+
+func testDelegatesWebSocketUpgradeToUpgradeTransport(t *testing.T) {
+	t.Helper()
+
+	baseRT := &mockRoundTripper{}
+	upgradeRT := &mockRoundTripper{}
+	userAgent := "TestApp/1.0.0 (linux/amd64)"
+	rt := &kubeconfig.UserAgentRoundTripper{
+		Base:             baseRT,
+		UpgradeTransport: upgradeRT,
+		UserAgent:        userAgent,
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/exec", nil)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	if resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	// Must be handled by upgradeRT, not baseRT
+	assert.Nil(t, baseRT.capturedRequest)
+	require.NotNil(t, upgradeRT.capturedRequest)
+	assert.Empty(t, upgradeRT.capturedRequest.Header.Get("User-Agent"))
 }
