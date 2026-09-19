@@ -42,12 +42,27 @@ var (
 )
 
 // userAgentRoundTripper wraps an http.RoundTripper and adds a Headlamp User-Agent header.
+// If an upgradeTransport is configured and the incoming request is a WebSocket upgrade,
+// it delegates to upgradeTransport (which enforces HTTP/1.1) and omits the User-Agent.
 type userAgentRoundTripper struct {
-	base      http.RoundTripper
-	userAgent string
+	base             http.RoundTripper
+	upgradeTransport http.RoundTripper
+	userAgent        string
 }
 
 func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
+		newReq := req.Clone(req.Context())
+
+		newReq.Header["User-Agent"] = []string{""}
+
+		if rt.upgradeTransport != nil {
+			return rt.upgradeTransport.RoundTrip(newReq)
+		}
+
+		return rt.base.RoundTrip(newReq)
+	}
+
 	newReq := req.Clone(req.Context())
 
 	newReq.Header.Set("User-Agent", rt.userAgent)
@@ -813,22 +828,12 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 		return fmt.Errorf("build proxy configuration: %w", err)
 	}
 
-	roundTripper, err := makeTransportFor(restConf)
+	transport, err := c.buildProxyTransport(restConf)
 	if err != nil {
 		return fmt.Errorf("build proxy transport: %w", err)
 	}
 
-	// Static bearer/basic auth takes precedence over exec in client-go.
-	if restConf.ExecProvider != nil &&
-		restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
-		roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
-	}
-
-	// Wrap the round tripper to add Headlamp User-Agent
-	proxy.Transport = &userAgentRoundTripper{
-		base:      roundTripper,
-		userAgent: buildUserAgent(),
-	}
+	proxy.Transport = transport
 
 	return nil
 }
@@ -856,6 +861,40 @@ func (c *Context) SetupProxy() error {
 	c.proxy = proxy
 
 	return nil
+}
+
+func (c *Context) buildProxyTransport(restConf *rest.Config) (http.RoundTripper, error) {
+	roundTripper, err := makeTransportFor(restConf)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a dedicated transport for WebSocket upgrades that only offers
+	// HTTP/1.1, since the Upgrade mechanism is an HTTP/1.1 feature. net/http
+	// already selects HTTP/1.1 for requests with "Connection: Upgrade" and
+	// "Upgrade: websocket" (tested with Go 1.26.10's standard transport), so
+	// this makes that choice explicit rather than depending on it.
+	upgradeConf := rest.CopyConfig(restConf)
+	upgradeConf.NextProtos = []string{"http/1.1"}
+
+	upgradeRoundTripper, err := makeTransportFor(upgradeConf)
+	if err != nil {
+		return nil, err
+	}
+
+	// Static bearer/basic auth takes precedence over exec in client-go.
+	if restConf.ExecProvider != nil &&
+		restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
+		roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
+		upgradeRoundTripper = &execCredentialRetryRoundTripper{base: upgradeRoundTripper}
+	}
+
+	// Wrap the round tripper to add Headlamp User-Agent and handle upgrades
+	return &userAgentRoundTripper{
+		base:             roundTripper,
+		upgradeTransport: upgradeRoundTripper,
+		userAgent:        buildUserAgent(),
+	}, nil
 }
 
 // AuthType returns the authentication type for the context.
