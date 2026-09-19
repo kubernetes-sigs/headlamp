@@ -56,10 +56,6 @@
     "GlobalSearch/Basic Example": ["color-contrast"],
     "Settings/PodDebugSettings/Default": ["label-title-only"],
     "Settings/PodDebugSettings/Disabled": ["label-title-only"],
-    "project/NewProjectPopup/Default": ["heading-order"],
-    "project/NewProjectPopup/With Existing Projects (for duplicate name testing)": [
-      "heading-order"
-    ],
     "Settings/PodDebugSettings/Version Dialog": ["aria-dialog-name"],
     "Settings/NumRowsInput/Default": ["aria-input-field-name"],
     "Settings/SettingsCluster/Default": ["heading-order", "label-title-only"],
@@ -68,7 +64,6 @@
     "Settings/SettingsCluster/With Appearance": ["heading-order", "label-title-only"],
     "Settings/SettingsCluster/Dynamic Cluster": ["heading-order", "label-title-only"],
     "Settings/SettingsCluster/Multiple Allowed Namespaces": ["heading-order", "label-title-only"],
-    "Sidebar/SidebarItem/Section Header": ["color-contrast"],
     "Sidebar/SidebarItem/Collapsed Section Header": ["list"],
     "AdvancedSearch/ResourceSearch/Default": ["aria-progressbar-name"],
     "cluster/ClusterChooserPopup/No Recent Clusters": ["aria-input-field-name"],
