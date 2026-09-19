@@ -451,6 +451,69 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 	}
 }
 
+func TestSetupProxyWebSocketUpgradeHTTP1Transport(t *testing.T) {
+	var (
+		capturedUA    string
+		capturedAuth  string
+		capturedProto string
+	)
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedUA = r.Header.Get("User-Agent")
+		capturedAuth = r.Header.Get("Authorization")
+		capturedProto = r.Proto
+
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			w.WriteHeader(http.StatusSwitchingProtocols)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	server.EnableHTTP2 = true
+
+	server.StartTLS()
+	defer server.Close()
+
+	ctx := &kubeconfig.Context{
+		Name: "test-upgrade-context",
+		Cluster: &api.Cluster{
+			Server:                server.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{
+			Token: "test-bearer-token",
+		},
+	}
+
+	// Regular request gets User-Agent and bearer token added
+	req1, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
+	require.NoError(t, err)
+
+	rec1 := httptest.NewRecorder()
+	require.NoError(t, ctx.ProxyRequest(rec1, req1))
+	assert.NotEmpty(t, capturedUA)
+	assert.Equal(t, "Bearer test-bearer-token", capturedAuth)
+
+	// WebSocket upgrade request delegates to HTTP/1.1 upgrade transport,
+	// preserves authentication, and omits User-Agent
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/exec", nil)
+	require.NoError(t, err)
+
+	req2.Header.Set("Connection", "Upgrade")
+	req2.Header.Set("Upgrade", "websocket")
+	req2.Header.Set("User-Agent", "inbound-agent")
+
+	rec2 := httptest.NewRecorder()
+	require.NoError(t, ctx.ProxyRequest(rec2, req2))
+	assert.Equal(t, "HTTP/1.1", capturedProto)
+	assert.Equal(t, "Bearer test-bearer-token", capturedAuth)
+	assert.Empty(t, capturedUA)
+	assert.Equal(t, "inbound-agent", req2.Header.Get("User-Agent"))
+}
+
 func TestLoadContextsFromBase64String(t *testing.T) {
 	t.Run("valid_base64", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
