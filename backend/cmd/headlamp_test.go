@@ -2330,6 +2330,7 @@ func TestRewriteIndexHTML(t *testing.T) {
 	indexContent := []byte(`<!DOCTYPE html>
 <html>
 <head>
+	<base href="./">
     <title data-headlamp-product-name></title>
     <script>var headlampBaseUrl = __baseUrl__;</script>
     <link rel="stylesheet" href="./styles.css">
@@ -2359,6 +2360,7 @@ func TestRewriteIndexHTML(t *testing.T) {
 			expectedOutput: `<!DOCTYPE html>
 <html>
 <head>
+	<base href="/">
     <title>Branded &amp; Headlamp</title>
     <script>var headlampBaseUrl = '/';</script>
     <link rel="stylesheet" href="/styles.css">
@@ -2374,6 +2376,7 @@ func TestRewriteIndexHTML(t *testing.T) {
 			expectedOutput: `<!DOCTYPE html>
 <html>
 <head>
+	<base href="/custom/">
     <title>Branded &amp; Headlamp</title>
     <script>var headlampBaseUrl = '/custom';</script>
     <link rel="stylesheet" href="/custom/styles.css">

@@ -55,6 +55,13 @@ Or from the repository root:
 npm run app:test:e2e
 ```
 
+To build the frontend with the default production builder and verify that output
+in the real Electron app without requiring minikube:
+
+```bash
+npm run app:test:e2e:frontend-build
+```
+
 Optional flags can be passed from either directory:
 
 ```bash

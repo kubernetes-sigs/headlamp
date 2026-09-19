@@ -275,9 +275,9 @@ frontend: frontend-install
 frontend-build:
 	cd frontend && npm run build
 
-.PHONY: frontend-build-rsbuild
-frontend-build-rsbuild:
-	cd frontend && npm run build:rsbuild
+.PHONY: frontend-build-vite
+frontend-build-vite:
+	cd frontend && npm run build:vite
 
 .PHONY: frontend-build-storybook
 frontend-build-storybook:
