@@ -280,6 +280,7 @@
   "Leases": "리스",
   "Mutating Webhook Configurations": "변형 웹훅 구성",
   "Validating Webhook Configurations": "검증 웹훅 구성",
+  "Devices": "",
   "Scheduling (alpha)": "스케줄링(알파)",
   "Git Version": "Git 버전",
   "Git Tree State": "Git 트리 상태",
