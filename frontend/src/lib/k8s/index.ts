@@ -31,6 +31,7 @@ import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
+import DeviceClass from './deviceClass';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
@@ -78,6 +79,7 @@ export const ResourceClasses = {
   CronJob,
   DaemonSet,
   Deployment,
+  DeviceClass,
   Endpoint: Endpoints,
   Endpoints,
   EndpointSlice,
@@ -359,6 +361,7 @@ export * as cronJob from './cronJob';
 export * as controllerRevision from './controllerRevision';
 export * as daemonSet from './daemonSet';
 export * as deployment from './deployment';
+export * as deviceClass from './deviceClass';
 export * as event from './event';
 export * as ingress from './ingress';
 export * as ingressClass from './ingressClass';
