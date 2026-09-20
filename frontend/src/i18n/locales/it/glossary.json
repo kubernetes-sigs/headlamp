@@ -280,6 +280,7 @@
   "Leases": "Lease",
   "Mutating Webhook Configurations": "Configurazioni Mutating Webhook",
   "Validating Webhook Configurations": "Configurazioni Validating Webhook",
+  "Devices": "",
   "Scheduling (alpha)": "Scheduling (alpha)",
   "Git Version": "Versione Git",
   "Git Tree State": "Stato Git",

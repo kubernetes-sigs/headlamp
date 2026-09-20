@@ -38,6 +38,8 @@ import CustomResourceDefinitionDetails from '../../components/crd/Details';
 import CustomResourceDefinitionList from '../../components/crd/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
+import DeviceClassDetails from '../../components/device/DeviceClassDetails';
+import DeviceClassList from '../../components/device/DeviceClassList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -776,6 +778,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Workload',
     sidebar: 'schedulingWorkloads',
     component: () => <SchedulingWorkloadDetails />,
+  },
+  deviceclasses: {
+    path: '/deviceclasses',
+    exact: true,
+    name: 'Device Classes',
+    sidebar: 'deviceClasses',
+    component: () => <DeviceClassList />,
+  },
+  deviceClass: {
+    path: '/deviceclasses/:name',
+    exact: true,
+    name: 'Device Class',
+    sidebar: 'deviceClasses',
+    component: () => <DeviceClassDetails />,
   },
   priorityclasses: {
     path: '/priorityclasses',
