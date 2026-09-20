@@ -483,6 +483,7 @@
       "CustomResourceDefinition": [Function],
       "DaemonSet": [Function],
       "Deployment": [Function],
+      "DeviceClass": [Function],
       "Endpoint": [Function],
       "EndpointSlice": [Function],
       "Endpoints": [Function],
@@ -550,6 +551,9 @@
       "default": [Function],
     },
     "deployment": {
+      "default": [Function],
+    },
+    "deviceClass": {
       "default": [Function],
     },
     "event": {
