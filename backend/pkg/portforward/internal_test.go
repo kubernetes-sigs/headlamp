@@ -791,7 +791,7 @@ func (b *blockingContextStore) GetContext(name string) (*kubeconfig.Context, err
 // G1 acquires the lock and blocks in GetContext; only then is G2 started (guaranteed 409).
 // G2 completes, the test unblocks G1, which returns 500 on the missing context.
 //
-//nolint:funlen
+//nolint:funlen // Long test function covering concurrent port-forwarding lock synchronization.
 func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 	c := cache.New[interface{}]()
 
