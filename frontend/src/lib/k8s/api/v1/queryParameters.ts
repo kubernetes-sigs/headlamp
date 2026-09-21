@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-// @todo: QueryParamaters should be specific to different resources.
-//        Because some only support some paramaters.
+// @todo: QueryParameters should be specific to different resources.
+//        Because some only support some parameters.
 
 /**
- * QueryParamaters is a map of query parameters for the Kubernetes API.
+ * QueryParameters is a map of query parameters for the Kubernetes API.
  */
 export interface QueryParameters {
   /**
@@ -53,7 +53,7 @@ export interface QueryParameters {
    */
   dryRun?: string;
   /**
-   * fieldSeletor restricts the list of returned objects by their fields. Defaults to everything.
+   * fieldSelector restricts the list of returned objects by their fields. Defaults to everything.
    *
    * @see https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/
    */
