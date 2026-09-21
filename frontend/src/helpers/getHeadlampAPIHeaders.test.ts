@@ -23,6 +23,8 @@ import {
 describe('Headlamp backend token transports', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    delete (window as Partial<Window>).desktopApi;
+    window.headlampBackendPort = undefined;
     setBackendToken(null);
   });
 
@@ -60,6 +62,19 @@ describe('Headlamp backend token transports', () => {
 
     expect(getHeadlampAPIHeaders()).toEqual({
       'X-HEADLAMP_BACKEND-TOKEN': 'environment-token',
+    });
+  });
+
+  it('does not expose credentials in Electron before the backend port is confirmed', () => {
+    window.desktopApi = {} as typeof window.desktopApi;
+    setBackendToken('desktop-token');
+
+    expect(getHeadlampAPIHeaders()).toEqual({});
+    expect(getHeadlampWebSocketProtocol()).toBeNull();
+
+    window.headlampBackendPort = 4467;
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token',
     });
   });
 });

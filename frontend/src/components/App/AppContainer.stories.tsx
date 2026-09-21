@@ -30,6 +30,8 @@ const WithEnv = (Story: React.ComponentType) => {
     receive: (channel: string, callback: (value: unknown) => void) => {
       if (channel === 'backend-token') {
         callback('storybook-token');
+      } else if (channel === 'backend-port') {
+        callback(4466);
       } else if (channel === 'plugin-permission-secrets') {
         callback({});
       }

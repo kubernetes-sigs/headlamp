@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'plugin-permission-secrets',
       'open-about-dialog',
       'backend-port',
+      'backend-unavailable',
       'tray-icon',
       'development-plugins',
     ];

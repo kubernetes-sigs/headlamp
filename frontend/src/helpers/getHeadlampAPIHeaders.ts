@@ -28,6 +28,13 @@
  */
 let backendToken: string | null = import.meta.env.REACT_APP_HEADLAMP_BACKEND_TOKEN || null;
 
+/** Returns whether desktop IPC has confirmed the endpoint that may receive the token. */
+function hasConfirmedDesktopBackend(): boolean {
+  return (
+    typeof window === 'undefined' || !window.desktopApi || window.headlampBackendPort !== undefined
+  );
+}
+
 /**
  * Sets the backend token to use when making API calls from Headlamp when running as an app.
  *
@@ -46,7 +53,7 @@ export function setBackendToken(token: string | null): void {
  * @returns The backend authorization header, or an empty object when no token is configured.
  */
 export function getHeadlampAPIHeaders(): { [key: string]: string } {
-  if (backendToken === null) {
+  if (backendToken === null || !hasConfirmedDesktopBackend()) {
     return {};
   }
 
@@ -61,7 +68,7 @@ export function getHeadlampAPIHeaders(): { [key: string]: string } {
  * @returns A namespaced, base64url-encoded subprotocol, or null when no backend token is configured.
  */
 export function getHeadlampWebSocketProtocol(): string | null {
-  if (backendToken === null) {
+  if (backendToken === null || !hasConfirmedDesktopBackend()) {
     return null;
   }
 

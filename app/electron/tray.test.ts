@@ -112,18 +112,61 @@ describe('tray cluster status requests', () => {
       createWindow: vi.fn(),
       getBackendPort: () => 4466,
       getMainWindow: () => null,
+      isBackendAvailable: () => true,
       isDev: true,
       quit: vi.fn(),
     });
 
     const expectedHeaders = { 'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token' };
-    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:4466/config', {
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:4466/config', {
       headers: expectedHeaders,
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'http://localhost:4466/clusters/test-cluster/healthz',
+      'http://127.0.0.1:4466/clusters/test-cluster/healthz',
       { headers: expectedHeaders }
     );
+  });
+
+  it('does not send the backend token after backend ownership is lost', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getClusterStatuses({
+      backendToken: 'desktop-token',
+      createWindow: vi.fn(),
+      getBackendPort: () => 4466,
+      getMainWindow: () => null,
+      isBackendAvailable: () => false,
+      isDev: true,
+      quit: vi.fn(),
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('stops authenticated health requests when ownership is lost during a poll', async () => {
+    let backendAvailable = true;
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => {
+        backendAvailable = false;
+        return { clusters: [{ name: 'test-cluster' }] };
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const statuses = await getClusterStatuses({
+      backendToken: 'desktop-token',
+      createWindow: vi.fn(),
+      getBackendPort: () => 4466,
+      getMainWindow: () => null,
+      isBackendAvailable: () => backendAvailable,
+      isDev: true,
+      quit: vi.fn(),
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(statuses).toEqual([{ name: 'test-cluster', status: 'unknown' }]);
   });
 });

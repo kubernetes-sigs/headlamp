@@ -59,6 +59,7 @@ jobs:
     - name: App linux
       run: |
         make app-linux
+        make backend
     - name: Install desktop e2e dependencies
       run: |
         cd app/e2e-tests
@@ -129,6 +130,10 @@ jobs:
         make app-build
         cd app
         npm run package -- --win --${{ matrix.arch }}
+    - name: Install desktop e2e dependencies
+      run: npm --prefix app/e2e-tests ci
+    - name: Test external backend token
+      run: npm run app:test:e2e -- tests/externalBackendToken.spec.ts
     - name: Verify Windows build
       shell: pwsh
       run: npm run app:verify-build-windows
