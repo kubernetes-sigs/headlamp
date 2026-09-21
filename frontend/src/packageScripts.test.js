@@ -59,27 +59,34 @@ test('packaged-source scripts use package-owned tsx', () => {
   expect(dependencySync).toMatch(/dependenciesToNotCopy = \[[\s\S]*?'tsx'/);
 });
 
-test('Rsbuild development honors PUBLIC_URL', async () => {
-  const previousPublicUrl = process.env.PUBLIC_URL;
-  process.env.PUBLIC_URL = '/headlamp';
+test.each(['/headlamp', '/headlamp/'])(
+  'Rsbuild development honors PUBLIC_URL %s',
+  async publicUrl => {
+    const previousPublicUrl = process.env.PUBLIC_URL;
+    process.env.PUBLIC_URL = publicUrl;
 
-  try {
-    vi.resetModules();
-    const { default: rsbuildConfig } = await import('../rsbuild.config');
-    const [httpProxy, webSocketProxy] = rsbuildConfig.server.proxy;
+    try {
+      vi.resetModules();
+      const { default: rsbuildConfig } = await import('../rsbuild.config');
+      const [httpProxy, webSocketProxy] = rsbuildConfig.server.proxy;
 
-    expect(rsbuildConfig.source.define['import.meta.env.BASE_URL']).toBe('"/headlamp"');
-    expect(rsbuildConfig.html.templateParameters.BASE_URL).toBe('/headlamp');
-    expect(rsbuildConfig.server.base).toBe('/headlamp');
-    expect(rsbuildConfig.source.define).not.toHaveProperty('import.meta.env');
-    expect(httpProxy.pathFilter).toContain('/headlamp/api');
-    expect(webSocketProxy.pathFilter).toContain('/headlamp/wsMultiplexer');
-  } finally {
-    if (previousPublicUrl === undefined) {
-      delete process.env.PUBLIC_URL;
-    } else {
-      process.env.PUBLIC_URL = previousPublicUrl;
+      expect(rsbuildConfig.source.define['import.meta.env.BASE_URL']).toBe(
+        JSON.stringify(publicUrl)
+      );
+      expect(rsbuildConfig.html.templateParameters.BASE_URL).toBe(publicUrl);
+      expect(rsbuildConfig.server.base).toBe(publicUrl);
+      expect(rsbuildConfig.source.define).not.toHaveProperty('import.meta.env');
+      expect(httpProxy.pathFilter).toContain('/headlamp/api');
+      expect(httpProxy.pathFilter).not.toContain('/headlamp//api');
+      expect(webSocketProxy.pathFilter).toContain('/headlamp/wsMultiplexer');
+      expect(webSocketProxy.pathFilter).not.toContain('/headlamp//wsMultiplexer');
+    } finally {
+      if (previousPublicUrl === undefined) {
+        delete process.env.PUBLIC_URL;
+      } else {
+        process.env.PUBLIC_URL = previousPublicUrl;
+      }
+      vi.resetModules();
     }
-    vi.resetModules();
   }
-});
+);

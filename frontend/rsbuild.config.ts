@@ -32,11 +32,10 @@ const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
 const frontendBaseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || './';
 const serverBase = frontendBaseUrl.startsWith('/') ? frontendBaseUrl : undefined;
+const serverRouteBase = serverBase?.replace(/\/+$/, '');
 
 const withServerBase = (paths: string[]) =>
-  serverBase && serverBase !== '/'
-    ? [...paths, ...paths.map(path => `${serverBase}${path}`)]
-    : paths;
+  serverRouteBase ? [...paths, ...paths.map(path => `${serverRouteBase}${path}`)] : paths;
 
 const removeViteEntryPlugin = (): RsbuildPlugin => ({
   name: 'remove-vite-entry',
