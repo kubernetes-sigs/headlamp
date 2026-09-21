@@ -35,10 +35,12 @@ const {
 } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
+    _clusterName: string;
     static kind = '';
     static apiGroupName = '';
-    constructor(data: any) {
+    constructor(data: any, cluster = '') {
       this.jsonData = data;
+      this._clusterName = cluster;
     }
     get kind() {
       return this.jsonData?.kind;
@@ -59,7 +61,7 @@ const {
       return this.jsonData?.status;
     }
     get cluster() {
-      return '';
+      return this._clusterName;
     }
     getName() {
       return this.jsonData?.metadata?.name ?? '';
@@ -510,11 +512,13 @@ describe('LogsButton', () => {
   });
 
   it('streams logs successfully', async () => {
+    const streamedClusters: string[] = [];
     mockClusterFetch.mockResolvedValue({
       json: async () => ({ items: [mockPodData] }),
     });
 
-    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
+    Pod.prototype.getLogs = vi.fn(function (this: Pod, ...args: any[]) {
+      streamedClusters.push(this.cluster);
       const onLogs = args.find(arg => typeof arg === 'function');
       onLogs({ logs: ['log line 1\n'] });
       return () => {};
@@ -522,7 +526,7 @@ describe('LogsButton', () => {
 
     render(
       <TestContext>
-        <LogsButton item={new Deployment(deploymentData as any)} />
+        <LogsButton item={new Deployment(deploymentData as any, 'test-cluster')} />
       </TestContext>
     );
     fireEvent.click(screen.getByLabelText('translation|Show logs'));
@@ -532,6 +536,7 @@ describe('LogsButton', () => {
     await waitFor(() => {
       expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('log line 1'));
     });
+    expect(streamedClusters).toEqual(['test-cluster']);
   });
 
   it('streams a selected pod in chunks and ignores updates after unmount', async () => {
