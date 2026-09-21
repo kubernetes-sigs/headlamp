@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "engines": {
     "npm": ">=11.0.0",
-    "node": ">=22.6.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "install:all": "npm install && npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
@@ -67,6 +67,7 @@
     "app:test": "npm run app:test:unit && npm run app:test:e2e",
     "app:test:unit": "cd app && npm run test",
     "app:test:e2e": "cd app/e2e-tests && npm run test-app --",
+    "app:test:e2e:frontend-build": "npm run frontend:build && npm run backend:build && cd app/e2e-tests && npm run test-app -- frontendBuild.spec.ts",
     "app:tsc": "cd app && npm run tsc",
     "app:i18n-check": "cd app && npm run i18n-check",
     "app:format": "cd app && npm run format",

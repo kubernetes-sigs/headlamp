@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -23,6 +24,7 @@ func getTestHTML() string {
 	return `<!DOCTYPE html>
 <html lang="en">
   <head>
+		<base href="./">
 		<title data-headlamp-product-name></title>
     <script>
         // handles both webpack and rspack build systems
@@ -43,6 +45,11 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 
 	t.Run("check_headlampBaseUrl_is_set_to_baseURL", func(t *testing.T) {
 		testHeadlampBaseURLWithBaseURL(t, testHTML)
+	})
+
+	t.Run("check_rsbuild_headlampBaseUrl_is_set_to_baseURL", func(t *testing.T) {
+		rsbuildHTML := strings.Replace(testHTML, "./<%= BASE_URL %>", "%BASE_URL%./", 1)
+		testHeadlampBaseURLWithBaseURL(t, rsbuildHTML)
 	})
 
 	t.Run("check_product_name_is_escaped_in_title", func(t *testing.T) {
@@ -93,6 +100,7 @@ func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {
 	// Check that the __baseUrl__ assignment was replaced
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), `<base href="/headlamp/">`)
 }
 
 func testEmptyPathReturnsIndex(t *testing.T, testHTML string) {
@@ -127,6 +135,7 @@ func testFileNotFound(t *testing.T, testHTML string) {
 	// Check that the __baseUrl__ assignment was replaced in fallback case
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), `<base href="/headlamp/">`)
 }
 
 func testFileNotFoundUsesIndexContentType(t *testing.T, testHTML string) {

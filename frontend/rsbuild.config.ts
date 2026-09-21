@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { defineConfig } from '@rsbuild/core';
+import { defineConfig, type RsbuildPlugin } from '@rsbuild/core';
 import { pluginNodePolyfill } from '@rsbuild/plugin-node-polyfill';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSvgr } from '@rsbuild/plugin-svgr';
@@ -22,17 +22,53 @@ import { pluginSvgr } from '@rsbuild/plugin-svgr';
 // Dynamically inject REACT_APP_ environment variables
 const reactAppEnvVars = Object.entries(process.env)
   .filter(([key, value]) => key.startsWith('REACT_APP_') && value !== undefined)
-  .reduce(
-    (env, [key, value]) => {
-      env[`import.meta.env.${key}`] = JSON.stringify(value);
-      return env;
-    },
-    { 'import.meta.env': '{}' }
-  );
+  .reduce<Record<string, string>>((env, [key, value]) => {
+    env[`import.meta.env.${key}`] = JSON.stringify(value);
+    return env;
+  }, {});
 
 // Use environment variable for backend port, defaulting to 4466
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
+const frontendBaseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || './';
+const serverBase = frontendBaseUrl.startsWith('/') ? frontendBaseUrl : undefined;
+const serverRouteBase = serverBase?.replace(/\/+$/, '');
+
+const withServerBase = (paths: string[]) =>
+  serverRouteBase ? [...paths, ...paths.map(path => `${serverRouteBase}${path}`)] : paths;
+
+const removeViteEntryPlugin = (): RsbuildPlugin => ({
+  name: 'remove-vite-entry',
+  setup(api) {
+    api.modifyHTML(html => {
+      const viteEntry = '<script type="module" src="/src/index.tsx"></script>';
+      if (!html.includes(viteEntry)) {
+        throw new Error('Expected the Vite source entry in the HTML template');
+      }
+      return html.replace(viteEntry, '');
+    });
+  },
+});
+
+const useRelativeStaticAssetsPlugin = (): RsbuildPlugin => ({
+  name: 'use-relative-static-assets',
+  setup(api) {
+    api.modifyHTML(html =>
+      html.replace(
+        /((?:src|href)=")\/(favicon\.ico|apple-touch-icon\.png|favicon-32x32\.png|favicon-16x16\.png|safari-pinned-tab\.svg|manifest\.json)(")/g,
+        '$1./$2$3'
+      )
+    );
+  },
+});
+
+const useRuntimeBasePlugin = (): RsbuildPlugin => ({
+  name: 'use-runtime-base',
+  apply: 'build',
+  setup(api) {
+    api.modifyHTML(html => html.replace('<head>', '<head>\n    <base href="./">'));
+  },
+});
 
 export default defineConfig({
   source: {
@@ -41,7 +77,7 @@ export default defineConfig({
     },
     define: {
       global: 'globalThis',
-      'import.meta.env.BASE_URL': JSON.stringify(process.env.BASE_URL || './'), // Define BASE_URL with a default value
+      'import.meta.env.BASE_URL': JSON.stringify(frontendBaseUrl),
       'import.meta.env.UNDER_TEST': JSON.stringify(process.env.UNDER_TEST === 'true'), // Define UNDER_TEST as a boolean literal
       ...reactAppEnvVars, // Inject REACT_APP_ environment variables
     },
@@ -49,16 +85,17 @@ export default defineConfig({
   html: {
     template: './index.html',
     templateParameters: {
-      BASE_URL: process.env.BASE_URL || '/',
+      BASE_URL: frontendBaseUrl,
     },
   },
   server: {
+    base: serverBase,
     port: 3000,
     cors: true,
     // Combine routes into one proxy instance to avoid Node's MaxListeners warning (>10 routes)
     proxy: [
       {
-        pathFilter: [
+        pathFilter: withServerBase([
           '/api',
           '/clusters',
           '/plugins',
@@ -72,12 +109,12 @@ export default defineConfig({
           '/parseKubeConfig',
           '/cluster',
           '/metrics',
-        ],
+        ]),
         target: backendTarget,
         changeOrigin: true,
       },
       {
-        pathFilter: ['/wsMultiplexer'],
+        pathFilter: withServerBase(['/wsMultiplexer']),
         target: backendTarget,
         changeOrigin: true,
         ws: true,
@@ -88,6 +125,7 @@ export default defineConfig({
   //   hmr: false,
   // },
   output: {
+    assetPrefix: 'auto',
     distPath: {
       root: 'build',
     },
@@ -154,6 +192,9 @@ export default defineConfig({
   },
 
   plugins: [
+    removeViteEntryPlugin(),
+    useRelativeStaticAssetsPlugin(),
+    useRuntimeBasePlugin(),
     pluginReact({
       swcReactOptions: {
         throwIfNamespace: false,
