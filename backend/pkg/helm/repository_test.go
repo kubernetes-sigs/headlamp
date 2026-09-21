@@ -122,13 +122,13 @@ func checkRepoExists(t *testing.T, helmHandler *helm.Handler, repoName string) b
 	return false
 }
 
-//nolint:unparam
+//nolint:unparam // repoName parameter always receives constant "headlamp_test_repo" across existing tests.
 func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL string) {
 	t.Helper()
 
 	addRepo := helm.AddUpdateRepoRequest{
-		Name: "headlamp_test_repo",
-		URL:  "https://kubernetes-sigs.github.io/headlamp/",
+		Name: repoName,
+		URL:  repoURL,
 	}
 
 	addRepoRequest, err := http.NewRequestWithContext(context.Background(), "POST",
@@ -140,7 +140,7 @@ func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL stri
 	helmHandler.AddRepo(rr, addRepoRequest)
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	assert.True(t, checkRepoExists(t, helmHandler, "headlamp_test_repo"))
+	assert.True(t, checkRepoExists(t, helmHandler, repoName))
 }
 
 // TestAddRepositoryToHelm.

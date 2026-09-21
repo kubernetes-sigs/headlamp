@@ -10,7 +10,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 )
 
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering HTTP streaming proxy responses.
 func TestHTTPGetStream(t *testing.T) {
 	tests := []struct {
 		name        string
