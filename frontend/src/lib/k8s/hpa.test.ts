@@ -86,4 +86,531 @@ describe('HPA class', () => {
     expect(metrics[0].value).toBe('0% (0m)/0%');
     expect(metrics[0].shortValue).toBe('0% /0%');
   });
+
+  it('matches metrics by identifier when status.currentMetrics is in different order than spec.metrics', () => {
+    const data = {
+      ...mockHpaData,
+      spec: {
+        ...mockHpaData.spec,
+        metrics: [
+          {
+            type: 'Resource',
+            resource: {
+              name: 'cpu',
+              target: {
+                type: 'Utilization',
+                averageUtilization: 80,
+              },
+            },
+          },
+          {
+            type: 'Resource',
+            resource: {
+              name: 'memory',
+              target: {
+                type: 'AverageValue',
+                averageValue: '500Mi',
+              },
+            },
+          },
+        ],
+      },
+      status: {
+        ...mockHpaData.status,
+        currentMetrics: [
+          {
+            type: 'Resource',
+            resource: {
+              name: 'memory',
+              current: {
+                averageValue: '250Mi',
+              },
+            },
+          },
+          {
+            type: 'Resource',
+            resource: {
+              name: 'cpu',
+              current: {
+                averageUtilization: 45,
+                averageValue: '450m',
+              },
+            },
+          },
+        ],
+      },
+    };
+    const hpa = new HPA(data as any);
+    const mockT = (key: string) => key.replace('translation|', '');
+    const metrics = hpa.metrics(mockT);
+
+    expect(metrics).toHaveLength(2);
+    expect(metrics[0].name).toBe('cpu');
+    expect(metrics[0].value).toBe('45% (450m)/80%');
+    expect(metrics[0].shortValue).toBe('45% /80%');
+
+    expect(metrics[1].name).toBe('memory');
+    expect(metrics[1].value).toBe('250Mi/500Mi');
+    expect(metrics[1].shortValue).toBe('250Mi/500Mi');
+  });
+
+  it('handles partially reported or missing currentMetrics gracefully with <unknown>', () => {
+    const data = {
+      ...mockHpaData,
+      spec: {
+        ...mockHpaData.spec,
+        metrics: [
+          {
+            type: 'Resource',
+            resource: {
+              name: 'cpu',
+              target: {
+                type: 'Utilization',
+                averageUtilization: 80,
+              },
+            },
+          },
+          {
+            type: 'Resource',
+            resource: {
+              name: 'memory',
+              target: {
+                type: 'AverageValue',
+                averageValue: '500Mi',
+              },
+            },
+          },
+        ],
+      },
+      status: {
+        ...mockHpaData.status,
+        currentMetrics: [
+          {
+            type: 'Resource',
+            resource: {
+              name: 'memory',
+              current: {
+                averageValue: '250Mi',
+              },
+            },
+          },
+        ],
+      },
+    };
+    const hpa = new HPA(data as any);
+    const mockT = (key: string) => key.replace('translation|', '');
+    const metrics = hpa.metrics(mockT);
+
+    expect(metrics).toHaveLength(2);
+    expect(metrics[0].name).toBe('cpu');
+    expect(metrics[0].value).toBe('<unknown>/80%');
+    expect(metrics[0].shortValue).toBe('<unknown>/80%');
+
+    expect(metrics[1].name).toBe('memory');
+    expect(metrics[1].value).toBe('250Mi/500Mi');
+  });
+
+  it('matches Pods, Object, External, and ContainerResource metrics by identifier', () => {
+    const data = {
+      ...mockHpaData,
+      spec: {
+        ...mockHpaData.spec,
+        metrics: [
+          {
+            type: 'Pods',
+            pods: {
+              metric: { name: 'packets-per-second' },
+              target: { type: 'AverageValue', averageValue: '1k' },
+            },
+          },
+          {
+            type: 'Object',
+            object: {
+              describedObject: {
+                apiVersion: 'networking.k8s.io/v1',
+                kind: 'Ingress',
+                name: 'main-ingress',
+              },
+              metric: { name: 'requests-per-second' },
+              target: { type: 'Value', value: '10k' },
+            },
+          },
+          {
+            type: 'External',
+            external: {
+              metric: { name: 'queue-depth' },
+              target: { type: 'Value', value: '30' },
+            },
+          },
+          {
+            type: 'ContainerResource',
+            containerResource: {
+              container: 'app',
+              name: 'cpu',
+              target: { type: 'AverageValue', averageValue: '200m' },
+            },
+          },
+        ],
+      },
+      status: {
+        ...mockHpaData.status,
+        currentMetrics: [
+          {
+            type: 'ContainerResource',
+            containerResource: {
+              container: 'app',
+              name: 'cpu',
+              current: { averageValue: '120m' },
+            },
+          },
+          {
+            type: 'Object',
+            object: {
+              describedObject: {
+                apiVersion: 'networking.k8s.io/v1',
+                kind: 'Ingress',
+                name: 'main-ingress',
+              },
+              metric: { name: 'requests-per-second' },
+              current: { value: '2k' },
+            },
+          },
+          {
+            type: 'External',
+            external: {
+              metric: { name: 'queue-depth' },
+              current: { value: '15' },
+            },
+          },
+          {
+            type: 'Pods',
+            pods: {
+              metric: { name: 'packets-per-second' },
+              current: { averageValue: '800' },
+            },
+          },
+        ],
+      },
+    };
+    const hpa = new HPA(data as any);
+    const mockT = (key: string) => key.replace('translation|', '');
+    const metrics = hpa.metrics(mockT);
+
+    expect(metrics).toHaveLength(4);
+    expect(metrics[0].name).toBe('packets-per-second');
+    expect(metrics[0].value).toBe('800/1k');
+
+    expect(metrics[1].name).toBe('requests-per-second');
+    expect(metrics[1].value).toBe('2k/10k');
+
+    expect(metrics[2].name).toBe('queue-depth');
+    expect(metrics[2].value).toBe('15/30');
+
+    expect(metrics[3].name).toBe('cpu');
+    expect(metrics[3].value).toBe('120m/200m');
+  });
+
+  it('pairs metrics that share a name by selector and described object', () => {
+    const data = {
+      ...mockHpaData,
+      spec: {
+        ...mockHpaData.spec,
+        metrics: [
+          {
+            type: 'Pods',
+            pods: {
+              metric: { name: 'requests', selector: { matchLabels: { route: 'a' } } },
+              target: { type: 'AverageValue', averageValue: '100' },
+            },
+          },
+          {
+            type: 'Pods',
+            pods: {
+              metric: { name: 'requests', selector: { matchLabels: { route: 'b' } } },
+              target: { type: 'AverageValue', averageValue: '200' },
+            },
+          },
+          {
+            type: 'Object',
+            object: {
+              describedObject: { apiVersion: 'v1', kind: 'Service', name: 'first' },
+              metric: { name: 'latency' },
+              target: { type: 'Value', value: '10' },
+            },
+          },
+          {
+            type: 'Object',
+            object: {
+              describedObject: { apiVersion: 'v1', kind: 'Service', name: 'second' },
+              metric: { name: 'latency' },
+              target: { type: 'Value', value: '20' },
+            },
+          },
+        ],
+      },
+      status: {
+        ...mockHpaData.status,
+        currentMetrics: [
+          {
+            type: 'Object',
+            object: {
+              describedObject: { apiVersion: 'v1', kind: 'Service', name: 'second' },
+              metric: { name: 'latency' },
+              current: { value: '15' },
+            },
+          },
+          {
+            type: 'Pods',
+            pods: {
+              metric: { name: 'requests', selector: { matchLabels: { route: 'b' } } },
+              current: { averageValue: '150' },
+            },
+          },
+          {
+            type: 'Object',
+            object: {
+              describedObject: { apiVersion: 'v1', kind: 'Service', name: 'first' },
+              metric: { name: 'latency' },
+              current: { value: '5' },
+            },
+          },
+          {
+            type: 'Pods',
+            pods: {
+              metric: { name: 'requests', selector: { matchLabels: { route: 'a' } } },
+              current: { averageValue: '50' },
+            },
+          },
+        ],
+      },
+    };
+    const hpa = new HPA(data as any);
+    const mockT = (key: string) => key.replace('translation|', '');
+    const metrics = hpa.metrics(mockT);
+
+    expect(metrics.map(m => m.value)).toEqual(['50/100', '150/200', '5/10', '15/20']);
+  });
+
+  it('matches selectors whose matchExpressions and values are in a different order', () => {
+    const specSelector = {
+      matchExpressions: [
+        { key: 'route', operator: 'In', values: ['a', 'b'] },
+        { key: 'tier', operator: 'Exists' },
+      ],
+    };
+    const statusSelector = {
+      matchExpressions: [
+        { key: 'tier', operator: 'Exists', values: [] },
+        { key: 'route', operator: 'In', values: ['b', 'a'] },
+      ],
+    };
+    const data = {
+      ...mockHpaData,
+      spec: {
+        ...mockHpaData.spec,
+        metrics: [
+          {
+            type: 'External',
+            external: {
+              metric: { name: 'queue', selector: specSelector },
+              target: { type: 'Value', value: '10' },
+            },
+          },
+        ],
+      },
+      status: {
+        ...mockHpaData.status,
+        currentMetrics: [
+          {
+            type: 'External',
+            external: {
+              metric: { name: 'queue', selector: statusSelector },
+              current: { value: '4' },
+            },
+          },
+        ],
+      },
+    };
+    const hpa = new HPA(data as any);
+    const mockT = (key: string) => key.replace('translation|', '');
+
+    expect(hpa.metrics(mockT).map(m => m.value)).toEqual(['4/10']);
+  });
+
+  describe('metrics that share an identifier but have different targets', () => {
+    const mockT = (key: string) => key.replace('translation|', '');
+    const hpaWith = (metrics: any[], currentMetrics: any[]) =>
+      new HPA({
+        ...mockHpaData,
+        spec: { ...mockHpaData.spec, metrics },
+        status: { ...mockHpaData.status, currentMetrics },
+      } as any);
+    // Both orders of two entries; the fixtures differ in shape, so they are typed loosely.
+    const orders = (a: any, b: any): [any, any][] => [
+      [a, b],
+      [b, a],
+    ];
+
+    // The utilization status also carries averageValue, so it is a candidate for both targets.
+    const cpuUtilization = {
+      type: 'Resource',
+      resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 80 } },
+    };
+    const cpuAverage = {
+      type: 'Resource',
+      resource: { name: 'cpu', target: { type: 'AverageValue', averageValue: '500m' } },
+    };
+    const cpuUtilizationStatus = {
+      type: 'Resource',
+      resource: { name: 'cpu', current: { averageUtilization: 60, averageValue: '300m' } },
+    };
+    const cpuAverageStatus = {
+      type: 'Resource',
+      resource: { name: 'cpu', current: { averageValue: '450m' } },
+    };
+
+    it.each(
+      orders(cpuUtilization, cpuAverage).flatMap(spec =>
+        orders(cpuUtilizationStatus, cpuAverageStatus).map(status => ({ spec, status }))
+      )
+    )('pairs Resource cpu by target form in every spec and status order', ({ spec, status }) => {
+      const hpa = hpaWith(spec, status);
+      const values = hpa.metrics(mockT).map(m => m.value);
+
+      expect(values).toHaveLength(2);
+      expect(values).toContain('60% (300m)/80%');
+      expect(values).toContain('450m/500m');
+    });
+
+    it.each(
+      orders(
+        { type: 'External', external: { metric: { name: 'queue' }, current: { value: '40' } } },
+        {
+          type: 'External',
+          external: { metric: { name: 'queue' }, current: { averageValue: '4' } },
+        }
+      )
+    )('pairs External metrics by target form in either status order', (first, second) => {
+      const hpa = hpaWith(
+        [
+          {
+            type: 'External',
+            external: { metric: { name: 'queue' }, target: { type: 'Value', value: '100' } },
+          },
+          {
+            type: 'External',
+            external: {
+              metric: { name: 'queue' },
+              target: { type: 'AverageValue', averageValue: '10' },
+            },
+          },
+        ],
+        [first, second]
+      );
+
+      expect(hpa.metrics(mockT).map(m => m.value)).toEqual(['40/100', '4/10']);
+    });
+
+    it.each(
+      orders(
+        {
+          type: 'ContainerResource',
+          containerResource: {
+            container: 'app',
+            name: 'cpu',
+            current: { averageUtilization: 60, averageValue: '300m' },
+          },
+        },
+        {
+          type: 'ContainerResource',
+          containerResource: { container: 'app', name: 'cpu', current: { averageValue: '450m' } },
+        }
+      )
+    )('pairs ContainerResource metrics by target form in either status order', (first, second) => {
+      const hpa = hpaWith(
+        [
+          {
+            type: 'ContainerResource',
+            containerResource: {
+              container: 'app',
+              name: 'cpu',
+              target: { type: 'AverageValue', averageValue: '500m' },
+            },
+          },
+          {
+            type: 'ContainerResource',
+            containerResource: {
+              container: 'app',
+              name: 'cpu',
+              target: { type: 'Utilization', averageUtilization: 80 },
+            },
+          },
+        ],
+        [first, second]
+      );
+
+      expect(hpa.metrics(mockT).map(m => m.value)).toEqual(['450m/500m', '60%/80%']);
+    });
+
+    it('reads the field that matches the target, not the first one present', () => {
+      const hpa = hpaWith(
+        [cpuAverage],
+        [
+          {
+            type: 'Resource',
+            resource: { name: 'cpu', current: { averageUtilization: 60, averageValue: '300m' } },
+          },
+        ]
+      );
+
+      expect(hpa.metrics(mockT).map(m => m.value)).toEqual(['300m/500m']);
+    });
+
+    it('shows <unknown> when the status has no reading in the target form', () => {
+      const hpa = hpaWith(
+        [
+          {
+            type: 'External',
+            external: { metric: { name: 'queue' }, target: { type: 'Value', value: '10' } },
+          },
+        ],
+        [
+          {
+            type: 'External',
+            external: { metric: { name: 'queue' }, current: { averageValue: '4' } },
+          },
+        ]
+      );
+
+      expect(hpa.metrics(mockT).map(m => m.value)).toEqual(['<unknown>/10']);
+    });
+  });
+
+  it('safely handles HPA with undefined status or null currentMetrics', () => {
+    const data = {
+      apiVersion: 'autoscaling/v2',
+      kind: 'HorizontalPodAutoscaler',
+      metadata: { name: 'unready-hpa', namespace: 'default' },
+      spec: {
+        maxReplicas: 5,
+        scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'app' },
+        metrics: [
+          {
+            type: 'Resource',
+            resource: {
+              name: 'cpu',
+              target: { type: 'Utilization', averageUtilization: 70 },
+            },
+          },
+        ],
+      },
+    };
+    const hpa = new HPA(data as any);
+    const mockT = (key: string) => key.replace('translation|', '');
+    const metrics = hpa.metrics(mockT);
+
+    expect(metrics).toHaveLength(1);
+    expect(metrics[0].name).toBe('cpu');
+    expect(metrics[0].value).toBe('<unknown>/70%');
+  });
 });
