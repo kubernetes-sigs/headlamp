@@ -3625,6 +3625,137 @@ func TestRedirectToOIDCProvider(t *testing.T) {
 	assert.Equal(t, "https://issuer.example/authorize?state=value", recorder.Header().Get("Location"))
 }
 
+func makeTestRenameConfig(contextName, customName, path string) *api.Config {
+	ctx := &api.Context{
+		Cluster:          contextName,
+		LocationOfOrigin: path,
+	}
+	if customName != "" {
+		_ = updateHeadlampInfo(ctx, map[string]interface{}{"customName": customName})
+	}
+
+	return &api.Config{
+		Clusters: map[string]*api.Cluster{contextName: {Server: "https://127.0.0.1:6443"}},
+		Contexts: map[string]*api.Context{contextName: ctx},
+	}
+}
+
+func TestUpdateCustomContextToCache(t *testing.T) {
+	tests := []struct {
+		name        string
+		initial     *kubeconfig.Context
+		renameFrom  string
+		contextName string
+		source      string
+		path        string
+		wantSource  int
+		wantPath    string
+	}{
+		{
+			name: "preserves source",
+			initial: &kubeconfig.Context{
+				Name:           "static-cluster",
+				Source:         kubeconfig.KubeConfig,
+				KubeConfigPath: "/path/to/static",
+			},
+			renameFrom:  "static-cluster",
+			contextName: "static-cluster",
+			source:      kubeConfigSource,
+			path:        "/path/to/static",
+			wantSource:  kubeconfig.KubeConfig,
+			wantPath:    "/path/to/static",
+		},
+		{
+			name:        "unloaded dynamic context does not inherit static source",
+			initial:     nil,
+			renameFrom:  "prod",
+			contextName: "prod",
+			source:      "dynamic_cluster",
+			path:        "/headlamp/dynamic/config",
+			wantSource:  kubeconfig.DynamicCluster,
+			wantPath:    "/headlamp/dynamic/config",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+			if tt.initial != nil {
+				require.NoError(t, c.KubeConfigStore.AddContext(tt.initial))
+			}
+
+			conf := makeTestRenameConfig(tt.contextName, "renamed-cluster", tt.path)
+			require.Empty(t, c.updateCustomContextToCache(conf, tt.renameFrom, tt.contextName, tt.source))
+
+			renamedCtx, err := c.KubeConfigStore.GetContext("renamed-cluster")
+			require.NoError(t, err)
+			require.NotNil(t, renamedCtx)
+			assert.Equal(t, tt.wantSource, renamedCtx.Source)
+			assert.Equal(t, tt.wantPath, renamedCtx.KubeConfigPath)
+		})
+	}
+}
+
+func TestUpdateCustomContextToCacheRejectsFileBackedDynamicOIDCCA(t *testing.T) {
+	kubeConfigDir := t.TempDir()
+	dynamicConfigPath := filepath.Join(kubeConfigDir, "config")
+
+	rejectedConfig := &api.Config{
+		Clusters: map[string]*api.Cluster{
+			"dynamic-oidc": {Server: "https://127.0.0.1:6443"},
+		},
+		AuthInfos: map[string]*api.AuthInfo{
+			"oidc-user": {
+				AuthProvider: &api.AuthProviderConfig{
+					Name: "oidc",
+					Config: map[string]string{
+						"idp-issuer-url":            "https://issuer.example.com",
+						"client-id":                 "test-client",
+						"idp-certificate-authority": "/etc/passwd",
+					},
+				},
+			},
+		},
+		Contexts: map[string]*api.Context{
+			"dynamic-oidc": {
+				Cluster:          "dynamic-oidc",
+				AuthInfo:         "oidc-user",
+				LocationOfOrigin: dynamicConfigPath,
+			},
+		},
+	}
+	require.NoError(t, clientcmd.WriteToFile(*rejectedConfig, dynamicConfigPath))
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigDir:         kubeConfigDir,
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	// Startup rejects the dynamic context with file-backed OIDC CA.
+	loadDynamicClusters(&c, dynamicConfigPath, nil)
+	_, err := c.KubeConfigStore.GetContext("dynamic-oidc")
+	require.Error(t, err)
+
+	// Attempting to rename the unloaded context must also reject it and not cache it.
+	errs := c.updateCustomContextToCache(rejectedConfig, "dynamic-oidc", "dynamic-oidc", "dynamic_cluster")
+	require.NotEmpty(t, errs)
+	assert.ErrorContains(t, errs[0], "file-backed idp-certificate-authority is not allowed for dynamic clusters")
+
+	_, err = c.KubeConfigStore.GetContext("dynamic-oidc")
+	require.Error(t, err)
+}
+
 // TestHandleError_NilError ensures handleError does not panic when a caller
 // passes a nil error. Calling err.Error() on a nil error would otherwise crash
 // the request handler; handleError falls back to the message instead.

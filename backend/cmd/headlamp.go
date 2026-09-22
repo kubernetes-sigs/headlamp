@@ -905,7 +905,7 @@ func loadKubeConfigClusters(config *HeadlampConfig, path string, skipFunc func(k
 		}
 	}
 
-	logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err, msg)
+	logger.Log(logger.LevelError, map[string]string{kubeConfigSource: path}, err, msg)
 }
 
 // loadDynamicClusters loads clusters that Headlamp itself persists when clusters are added at
@@ -916,7 +916,7 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		logger.Log(logger.LevelInfo, map[string]string{"kubeconfig": path}, nil,
+		logger.Log(logger.LevelInfo, map[string]string{kubeConfigSource: path}, nil,
 			"No kubeconfig for dynamically added clusters")
 
 		return
@@ -924,8 +924,16 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, path, kubeconfig.DynamicCluster, skipFunc)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err,
+		logger.Log(logger.LevelError, map[string]string{kubeConfigSource: path}, err,
 			"loading the kubeconfig of dynamically added clusters")
+
+		if strings.Contains(err.Error(), "file-backed idp-certificate-authority") {
+			logger.Log(logger.LevelError, map[string]string{kubeConfigSource: path}, nil,
+				"One or more persisted dynamic clusters use file-backed idp-certificate-authority. "+
+					"File paths for dynamic clusters are not permitted for security. "+
+					"To migrate, update the persisted cluster configuration to embed the CA certificate using "+
+					"idp-certificate-authority-data with base64-encoded content instead. See docs/development/oidc.md for details.")
+		}
 	}
 }
 
@@ -3064,7 +3072,12 @@ func (c *HeadlampConfig) processManualConfig(clusterReq ClusterReq) ([]kubeconfi
 		},
 	}
 
-	return kubeconfig.LoadContextsFromAPIConfig(conf, false)
+	contexts, errs := kubeconfig.LoadContextsFromAPIConfigWithSource(conf, kubeconfig.DynamicCluster, false)
+	for i := range contexts {
+		contexts[i].Source = kubeconfig.DynamicCluster
+	}
+
+	return contexts, errs
 }
 
 // handleLoadErrors handles the load errors.
@@ -3294,9 +3307,14 @@ func (c *HeadlampConfig) updateCustomContextToCache(
 			contextSource = kubeconfig.KubeConfig
 		}
 
+		authInfo := config.AuthInfos[context.AuthInfo]
+		if err := kubeconfig.ValidateDynamicClusterAuthInfo(contextName, contextSource, authInfo); err != nil {
+			return []error{err}
+		}
+
 		original = &kubeconfig.Context{
 			Cluster:               config.Clusters[context.Cluster],
-			AuthInfo:              config.AuthInfos[context.AuthInfo],
+			AuthInfo:              authInfo,
 			KubeContext:           context,
 			Source:                contextSource,
 			KubeConfigPath:        context.LocationOfOrigin,

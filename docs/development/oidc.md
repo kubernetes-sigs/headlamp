@@ -116,6 +116,8 @@ You can also configure OIDC with custom CA certificates directly in your kubecon
 
 ### Using CA Certificate File Path
 
+> **Note:** File-backed `idp-certificate-authority` is only supported for static kubeconfig files loaded directly by the server. Dynamically added clusters reject local file paths for security reasons and must use `idp-certificate-authority-data` instead.
+
 Add the `idp-certificate-authority` field to your OIDC auth provider configuration:
 
 ```yaml
@@ -136,7 +138,7 @@ users:
 
 ### Using Base64-encoded CA Certificate Data
 
-Alternatively, you can embed the CA certificate directly in the kubeconfig using base64-encoded data:
+Alternatively, you can embed the CA certificate directly in the kubeconfig using base64-encoded data (required for dynamically added clusters):
 
 ```yaml
 apiVersion: v1
@@ -153,6 +155,20 @@ users:
         scope: "profile,email"
         idp-certificate-authority-data: "LS0tLS1CRUdJTiBD...=="
 ```
+
+### Migration Guidance for Persisted Dynamic Clusters
+
+Earlier versions of Headlamp permitted dynamically added clusters to specify a host file path via `idp-certificate-authority`. For security reasons, dynamic clusters now reject local filesystem paths to prevent unauthorized local file access.
+
+If an existing dynamic cluster fails to load upon upgrading (reporting `file-backed idp-certificate-authority is not allowed for dynamic clusters; use idp-certificate-authority-data`), migrate the configuration by converting the file-backed certificate into embedded base64 data:
+
+1. Encode the CA certificate into base64:
+   - On Linux: `base64 -w 0 /path/to/ca-certificate.pem`
+   - On macOS: `base64 -i /path/to/ca-certificate.pem | tr -d '\n'`
+2. Update the dynamic cluster kubeconfig entry:
+   - Replace `idp-certificate-authority: "/path/to/ca-certificate.pem"`
+   - With `idp-certificate-authority-data: "<base64-encoded-certificate>"`
+
 
 
 ## Security Considerations
