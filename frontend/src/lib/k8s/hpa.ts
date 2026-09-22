@@ -44,7 +44,7 @@ interface MetricValueStatus {
 }
 
 function metricValueStatus(status: MetricValueStatus, t: Function): string {
-  if (status.averageUtilization) {
+  if (status.averageUtilization !== undefined && status.averageUtilization !== null) {
     return `${status.averageUtilization}%`;
   }
   if (status.averageValue) {
@@ -98,7 +98,7 @@ type MetricSourceType = 'Resource' | 'Pods' | 'Object' | 'External' | 'Container
 
 interface HpaSpec {
   maxReplicas: number;
-  minReplicas: number;
+  minReplicas?: number;
   targetCPUUtilizationPercentage?: number;
   scaleTargetRef: CrossVersionObjectReference;
   metrics: {
@@ -144,7 +144,8 @@ interface HpaStatus {
         object?: {
           current: MetricValueStatus;
           metric: MetricIdentifier;
-          desiredObject: CrossVersionObjectReference;
+          describedObject?: CrossVersionObjectReference;
+          desiredObject?: CrossVersionObjectReference;
         };
         pods?: {
           current: MetricValueStatus;
@@ -181,6 +182,37 @@ interface HPAMetrics {
   shortValue: string;
 }
 
+function findCurrentMetric(
+  currentMetrics: HpaStatus['currentMetrics'],
+  spec: HpaSpec['metrics'][number]
+) {
+  if (!currentMetrics) {
+    return undefined;
+  }
+  return currentMetrics.find(cm => {
+    if (cm.type !== spec.type) {
+      return false;
+    }
+    switch (spec.type) {
+      case 'Resource':
+        return cm.resource?.name === spec.resource?.name;
+      case 'Pods':
+        return cm.pods?.metric?.name === spec.pods?.metric?.name;
+      case 'Object':
+        return cm.object?.metric?.name === spec.object?.metric?.name;
+      case 'External':
+        return cm.external?.metric?.name === spec.external?.metric?.name;
+      case 'ContainerResource':
+        return (
+          cm.containerResource?.container === spec.containerResource?.container &&
+          cm.containerResource?.name === spec.containerResource?.name
+        );
+      default:
+        return false;
+    }
+  });
+}
+
 class HPA extends KubeObject<KubeHPA> {
   static kind = 'HorizontalPodAutoscaler';
   static apiName = 'horizontalpodautoscalers';
@@ -211,7 +243,7 @@ class HPA extends KubeObject<KubeHPA> {
     const specMetrics = this.spec?.metrics || [];
     for (let iter = 0; iter < specMetrics.length; iter++) {
       const spec = specMetrics[iter];
-      const status = this.status?.currentMetrics?.[iter];
+      const status = findCurrentMetric(this.status?.currentMetrics, spec);
       switch (spec.type) {
         case 'External':
           {
@@ -302,21 +334,14 @@ class HPA extends KubeObject<KubeHPA> {
               }
               if (spec.resource.target.type === 'Utilization') {
                 definition = `${definition} ${defineMetricTarget(spec.resource.target)}`;
-                if (status) {
-                  value = `${
-                    status.resource
-                      ? status.resource.current.averageUtilization
-                      : t('translation|<unknown>')
-                  }% (${
-                    status.resource
-                      ? status.resource.current.averageValue
-                      : t('translation|<unknown>')
-                  })/${metricTargetValue(spec.resource.target)}`;
-                  shortValue = `${
-                    status.resource
-                      ? status.resource.current.averageUtilization
-                      : t('translation|<unknown>')
-                  }% /${metricTargetValue(spec.resource.target)}`;
+                if (
+                  status?.resource?.current?.averageUtilization !== undefined &&
+                  status.resource.current.averageUtilization !== null
+                ) {
+                  const avgUtil = status.resource.current.averageUtilization;
+                  const avgVal = status.resource.current.averageValue ?? t('translation|<unknown>');
+                  value = `${avgUtil}% (${avgVal})/${metricTargetValue(spec.resource.target)}`;
+                  shortValue = `${avgUtil}% /${metricTargetValue(spec.resource.target)}`;
                 } else {
                   value = `${t('translation|<unknown>')}/${metricTargetValue(
                     spec.resource.target

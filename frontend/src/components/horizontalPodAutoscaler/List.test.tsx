@@ -92,4 +92,20 @@ describe('HpaList', () => {
     expect(getColumn('currentReplicas').getValue(hpa)).toBe(2);
     expect(getColumn('targets').getValue(hpa)).toBe('50%/80%, 10/20');
   });
+
+  it('falls back gracefully when minReplicas is omitted or status is missing', () => {
+    render(
+      <TestContext>
+        <HpaList />
+      </TestContext>
+    );
+
+    const hpaWithoutStatus = {
+      referenceObject: { kind: 'Deployment', metadata: { name: 'web' } },
+      spec: { maxReplicas: 5 },
+    } as any;
+
+    expect(getColumn('minReplicas').getValue(hpaWithoutStatus)).toBe(1);
+    expect(getColumn('currentReplicas').getValue(hpaWithoutStatus)).toBe('-');
+  });
 });
