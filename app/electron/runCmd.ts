@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams } from 'child_process';
+import spawn from 'cross-spawn';
 import { BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
@@ -1103,7 +1104,7 @@ export async function handleRunCommand(
           : shellEnvironment),
         ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
       },
-    });
+    }) as ChildProcessWithoutNullStreams;
   } catch (error) {
     removePreparedFiles();
     const message = error instanceof Error ? error.message : String(error);
