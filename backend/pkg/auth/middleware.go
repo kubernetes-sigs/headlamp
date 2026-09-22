@@ -175,6 +175,8 @@ func (c *OIDCTokenRefreshConfig) shouldSkipOIDCRefresh(
 	w http.ResponseWriter, r *http.Request, span trace.Span,
 	status *string, next http.Handler,
 ) bool {
+	// Use URL.Path rather than URL.String() so query parameters do not affect
+	// whether this is a cluster request.
 	if !strings.HasPrefix(StripBaseURL(r.URL.Path, c.BaseURL), "/clusters/") {
 		c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
 
