@@ -50,8 +50,8 @@ vi.mock('electron', () => ({
   dialog: { showMessageBoxSync: showMessageBoxSyncMock },
 }));
 
-vi.mock('child_process', () => ({
-  spawn: spawnMock,
+vi.mock('cross-spawn', () => ({
+  default: spawnMock,
 }));
 
 vi.mock('./plugin-management', () => ({
