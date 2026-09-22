@@ -190,7 +190,8 @@ func loadOidcCACert(oidcCAFile string) string {
 		return ""
 	}
 
-	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	//nolint:gosec // OIDC CA certificate file read from configured file path.
+	caFileContents, err := os.ReadFile(oidcCAFile)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 		os.Exit(1)
