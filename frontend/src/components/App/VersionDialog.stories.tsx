@@ -50,7 +50,11 @@ const getVersion = () => ({
 });
 
 const Template: StoryFn = () => {
-  return <VersionDialogComponent getVersion={getVersion} />;
+  return (
+    <div aria-label="Version Dialog Story">
+      <VersionDialogComponent getVersion={getVersion} />
+    </div>
+  );
 };
 
 export const VersionDialog = Template.bind({});
