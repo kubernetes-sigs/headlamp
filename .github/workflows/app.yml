@@ -65,8 +65,8 @@ jobs:
         cd app/e2e-tests
         npm ci
         npx playwright install --with-deps chromium
-    - name: Test desktop listener cleanup
-      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts
+    - name: Test desktop privileged bridges
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts tests/clusterRegistration.spec.ts
     - name: Test desktop OAuth callbacks
       run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
     - name: Test external backend token
@@ -128,6 +128,9 @@ jobs:
       run: npm --prefix app/e2e-tests ci
     - name: Test external backend token
       run: npm run app:test:e2e -- tests/externalBackendToken.spec.ts
+    - name: Test desktop cluster registration
+      if: matrix.arch == 'x64'
+      run: npm run app:test:e2e -- tests/clusterRegistration.spec.ts
     - name: Verify Windows build
       shell: pwsh
       run: npm run app:verify-build-windows

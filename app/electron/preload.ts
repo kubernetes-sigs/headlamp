@@ -171,6 +171,17 @@ contextBridge.exposeInMainWorld('desktopApi', {
     ipcRenderer.send('cluster-changed', cluster);
   },
 
+  registerCluster: (
+    provider: string,
+    options: unknown,
+    capabilitySecret?: string
+  ): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('register-cluster', {
+      provider,
+      options,
+      capabilitySecret,
+    }),
+
   platform: process.platform,
 
   /** @returns Legal documents declared by the packaged application manifest. */

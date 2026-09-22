@@ -36,6 +36,9 @@ export type BuildManifest = {
   /** Reusable command grant arrays referenced by command policies. */
   commandSets?: Record<string, RunCommandGrant[]>;
 
+  /** Verified external tools available to native product integrations. */
+  'external-tools'?: ProductExternalTool[];
+
   /** Plugin declarations consumed by the app packaging scripts. */
   plugins?: BuildPlugin[];
 
@@ -71,6 +74,32 @@ export interface ProductPluginExecutable {
   tool: string;
 }
 
+/** Platform-specific path and digest for one packaged external tool. */
+export interface ProductExternalToolPlatform {
+  /** Path relative to the packaged resources directory. */
+  path: string;
+  /** Lowercase SHA-256 digest of the packaged file. */
+  sha256: string;
+}
+
+/** Product-owned external tool with one or more platform records. */
+export interface ProductExternalTool {
+  /** Stable identifier referenced by provider tool roles. */
+  id: string;
+  /** Packaged path and digest for each supported runtime platform. */
+  platforms: Partial<Record<'linux' | 'darwin' | 'win32', ProductExternalToolPlatform>>;
+}
+
+/** Product-owned native cluster registration provider configuration. */
+export interface ProductClusterRegistrationProvider {
+  /** Stable provider ID supplied by the authorized plugin. */
+  id: string;
+  /** Built-in provider implementation selected by the product. */
+  type: string;
+  /** Verified external-tool IDs used by this provider. */
+  tools: Record<string, string>;
+}
+
 /** Product command grants for one exact plugin origin and runtime environment. */
 export interface ProductPluginRunCommands {
   /** Runtime in which this policy applies. */
@@ -96,6 +125,8 @@ export interface ProductPluginRunCommands {
   commands?: RunCommandGrant[];
   /** Named command grant sets from the product manifest, combined in order. */
   commandSets?: string[];
+  /** Native cluster registration providers granted to these exact plugin identities. */
+  clusterRegistrationProviders?: ProductClusterRegistrationProvider[];
 }
 
 /** Validated command policy for one plugin identity and inventory. */
@@ -119,6 +150,8 @@ export interface ProductPluginCommandPolicy {
   };
   /** Reviewed command grants for the plugin. */
   grants: RunCommandGrant[];
+  /** Native cluster registration providers granted to this verified plugin identity. */
+  clusterRegistrationProviders: ProductClusterRegistrationProvider[];
 }
 
 const COMMAND_POLICY_DOCS_FILE = 'docs/development/plugins/command-capabilities.md';
@@ -342,6 +375,50 @@ export function validateBuildManifest(value: unknown): BuildManifest {
   }
 
   const manifest = value as BuildManifest;
+  const externalTools = manifest['external-tools'];
+  if (externalTools !== undefined) {
+    if (
+      !Array.isArray(externalTools) ||
+      externalTools.length > 128 ||
+      new Set(externalTools.map(tool => tool?.id)).size !== externalTools.length ||
+      externalTools.some(tool => {
+        if (
+          typeof tool !== 'object' ||
+          tool === null ||
+          Array.isArray(tool) ||
+          Object.keys(tool).some(key => !['id', 'platforms'].includes(key)) ||
+          typeof tool.id !== 'string' ||
+          !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(tool.id) ||
+          typeof tool.platforms !== 'object' ||
+          tool.platforms === null ||
+          Array.isArray(tool.platforms)
+        ) {
+          return true;
+        }
+        const platforms = Object.entries(tool.platforms);
+        return (
+          platforms.length === 0 ||
+          platforms.some(
+            ([platform, record]) =>
+              !['linux', 'darwin', 'win32'].includes(platform) ||
+              typeof record !== 'object' ||
+              record === null ||
+              Array.isArray(record) ||
+              Object.keys(record).some(key => !['path', 'sha256'].includes(key)) ||
+              typeof record.path !== 'string' ||
+              record.path.trim() === '' ||
+              path.posix.isAbsolute(record.path) ||
+              path.win32.isAbsolute(record.path) ||
+              record.path.replaceAll('\\', '/').split('/').includes('..') ||
+              typeof record.sha256 !== 'string' ||
+              !/^[a-f0-9]{64}$/.test(record.sha256)
+          )
+        );
+      })
+    ) {
+      throw new Error('Invalid build manifest external-tools');
+    }
+  }
   const proxyUrls = manifest['proxy-urls'];
   if (proxyUrls !== undefined) {
     if (!Array.isArray(proxyUrls) || proxyUrls.some(pattern => typeof pattern !== 'string')) {
@@ -471,6 +548,7 @@ export function productPluginCommandPolicies(
             'pluginExecutables',
             'commands',
             'commandSets',
+            'clusterRegistrationProviders',
           ].includes(key)
       )
     ) {
@@ -552,6 +630,41 @@ export function productPluginCommandPolicies(
       throw new Error(`Invalid build manifest runCommands[${index}].commands`);
     }
     const parsedGrants = parseRunCommandGrants(commands);
+    const clusterRegistrationProviders = policy.clusterRegistrationProviders ?? [];
+    if (
+      !Array.isArray(clusterRegistrationProviders) ||
+      clusterRegistrationProviders.length > 16 ||
+      new Set(clusterRegistrationProviders.map(provider => provider?.id)).size !==
+        clusterRegistrationProviders.length ||
+      clusterRegistrationProviders.some(
+        provider =>
+          typeof provider !== 'object' ||
+          provider === null ||
+          Array.isArray(provider) ||
+          Object.keys(provider).some(key => !['id', 'type', 'tools'].includes(key)) ||
+          typeof provider.id !== 'string' ||
+          !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(provider.id) ||
+          typeof provider.type !== 'string' ||
+          !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(provider.type) ||
+          typeof provider.tools !== 'object' ||
+          provider.tools === null ||
+          Array.isArray(provider.tools) ||
+          Object.keys(provider.tools).length > 16 ||
+          Object.entries(provider.tools).some(
+            ([role, tool]) =>
+              !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(role) ||
+              typeof tool !== 'string' ||
+              !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(tool)
+          )
+      )
+    ) {
+      throw new Error(`Invalid build manifest runCommands[${index}].clusterRegistrationProviders`);
+    }
+    if (policy.pluginLocation === 'user' && clusterRegistrationProviders.length > 0) {
+      throw new Error(
+        `Build manifest runCommands[${index}] cannot grant cluster registration to user plugins`
+      );
+    }
     for (const tool of pluginExecutables) {
       if (!parsedGrants.some(grant => grant.tool === tool)) {
         throw new Error(`Unused build manifest runCommands[${index}] plugin executable ${tool}`);
@@ -644,6 +757,7 @@ export function productPluginCommandPolicies(
             },
           }),
           grants,
+          clusterRegistrationProviders,
         });
       }
     }

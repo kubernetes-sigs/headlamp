@@ -33,6 +33,12 @@
       "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
       "additionalProperties": { "$ref": "#/definitions/commandGrantList" }
     },
+    "external-tools": {
+      "type": "array",
+      "description": "Verified external tools available to native product integrations.",
+      "maxItems": 128,
+      "items": { "$ref": "#/definitions/externalTool" }
+    },
     "product": {
       "type": "object",
       "description": "Product identity applied to Electron Builder and generated frontend metadata.",
@@ -106,6 +112,40 @@
   },
   "additionalProperties": true,
   "definitions": {
+    "externalTool": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "platforms": {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "linux": { "$ref": "#/definitions/externalToolPlatform" },
+            "darwin": { "$ref": "#/definitions/externalToolPlatform" },
+            "win32": { "$ref": "#/definitions/externalToolPlatform" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["id", "platforms"],
+      "additionalProperties": false
+    },
+    "externalToolPlatform": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?![\\\\/])(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))[^\\u0000]+$"
+        },
+        "sha256": { "$ref": "#/definitions/lowercaseSha256" }
+      },
+      "required": ["path", "sha256"],
+      "additionalProperties": false
+    },
     "plugin": {
       "type": "object",
       "properties": {
@@ -180,6 +220,13 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
           }
+        },
+        "clusterRegistrationProviders": {
+          "type": "array",
+          "description": "Native cluster registration providers granted to these exact plugin identities.",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/clusterRegistrationProvider" }
         }
       },
       "required": ["environment", "pluginLocation", "plugins"],
@@ -202,8 +249,44 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "pluginLocation": { "const": "user" }
+            },
+            "required": ["pluginLocation"]
+          },
+          "then": {
+            "properties": {
+              "clusterRegistrationProviders": { "maxItems": 0 }
+            }
+          }
         }
       ],
+      "additionalProperties": false
+    },
+    "clusterRegistrationProvider": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "type": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+        "tools": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          }
+        }
+      },
+      "required": ["id", "type", "tools"],
       "additionalProperties": false
     },
     "pluginExecutable": {
@@ -401,6 +484,11 @@
       "type": "string",
       "description": "Hexadecimal SHA-256 digest.",
       "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "lowercaseSha256": {
+      "type": "string",
+      "description": "Lowercase hexadecimal SHA-256 digest.",
+      "pattern": "^[a-f0-9]{64}$"
     },
     "legalDocument": {
       "type": "object",
