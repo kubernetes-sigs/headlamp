@@ -80,7 +80,8 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	freshURL := *r.URL
 
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
+	//nolint:gosec // Request is dispatched in-process to next.ServeHTTP, not sent by an HTTP client.
+	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil)
 	if err != nil {
 		return err
 	}
