@@ -184,6 +184,14 @@ export function selectMainAPIGroup(spec: CRDSpecLike | undefined): [string, stri
 }
 
 /**
+ * Orders served CRD versions with the storage version first while preserving
+ * the original order for the remaining versions.
+ */
+export function orderCRDVersions(versions: UsableCRDVersion[]): UsableCRDVersion[] {
+  return [...versions].sort((a, b) => Number(Boolean(b.storage)) - Number(Boolean(a.storage)));
+}
+
+/**
  * Duck-typed surface a CRD instance might expose. New in-tree code has both
  * methods; older plugin bundles only ship `getMainAPIGroup()`.
  */
