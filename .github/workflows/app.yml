@@ -166,5 +166,9 @@ jobs:
     - name: App Mac
       run: |
         make app-mac
+    - name: Install desktop e2e dependencies
+      run: npm --prefix app/e2e-tests ci
+    - name: Test plugin secure storage migration
+      run: npm run app:test:e2e -- tests/pluginSecureStorage.spec.ts --grep "migrates legacy GitHub"
     - name: Verify Mac build
       run: npm run app:verify-build-mac
