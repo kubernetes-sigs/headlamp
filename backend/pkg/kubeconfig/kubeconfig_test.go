@@ -340,6 +340,44 @@ func TestOidcConfigWithNilAuthInfo(t *testing.T) {
 	assert.EqualError(t, err, "authProvider is nil")
 }
 
+func TestOidcConfigDynamicClusterRejectsFilePathCA(t *testing.T) {
+	context := &kubeconfig.Context{
+		Source: kubeconfig.DynamicCluster,
+		AuthInfo: &api.AuthInfo{
+			AuthProvider: &api.AuthProviderConfig{
+				Config: map[string]string{
+					"idp-certificate-authority": "/etc/passwd",
+				},
+			},
+		},
+	}
+
+	oidcConfig, err := context.OidcConfig()
+	require.Error(t, err)
+	assert.Nil(t, oidcConfig)
+	assert.ErrorContains(t, err, "file-backed idp-certificate-authority is not allowed for dynamic clusters")
+}
+
+func TestOidcConfigDynamicClusterAcceptsCAData(t *testing.T) {
+	certData := base64.StdEncoding.EncodeToString([]byte("test-ca-cert"))
+	context := &kubeconfig.Context{
+		Source: kubeconfig.DynamicCluster,
+		AuthInfo: &api.AuthInfo{
+			AuthProvider: &api.AuthProviderConfig{
+				Config: map[string]string{
+					"idp-certificate-authority-data": certData,
+				},
+			},
+		},
+	}
+
+	oidcConfig, err := context.OidcConfig()
+	require.NoError(t, err)
+	require.NotNil(t, oidcConfig)
+	require.NotNil(t, oidcConfig.CACert)
+	assert.Equal(t, "test-ca-cert", *oidcConfig.CACert)
+}
+
 // createTempKubeconfig creates a temporary kubeconfig file for testing.
 func createTempKubeconfig(t *testing.T, content string) string {
 	t.Helper()

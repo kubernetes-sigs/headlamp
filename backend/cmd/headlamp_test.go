@@ -2279,6 +2279,46 @@ func TestHandleClusterRename_NameCollision(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestUpdateCustomContextToCache_PreservesSource(t *testing.T) {
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	origCtx := &kubeconfig.Context{
+		Name:           "dynamic-cluster",
+		Source:         kubeconfig.DynamicCluster,
+		KubeConfigPath: "/path/to/dynamic/kubeconfig",
+	}
+	err := c.KubeConfigStore.AddContext(origCtx)
+	require.NoError(t, err)
+
+	conf := &api.Config{
+		Clusters: map[string]*api.Cluster{
+			"renamed-cluster": {
+				Server: "https://127.0.0.1:6443",
+			},
+		},
+		Contexts: map[string]*api.Context{
+			"renamed-cluster": {
+				Cluster: "renamed-cluster",
+			},
+		},
+	}
+
+	errs := c.updateCustomContextToCache(conf, "dynamic-cluster")
+	require.Empty(t, errs)
+
+	renamedCtx, err := c.KubeConfigStore.GetContext("renamed-cluster")
+	require.NoError(t, err)
+	require.NotNil(t, renamedCtx)
+	assert.Equal(t, kubeconfig.DynamicCluster, renamedCtx.Source)
+	assert.Equal(t, "/path/to/dynamic/kubeconfig", renamedCtx.KubeConfigPath)
+}
+
 // TestHandleError_NilError ensures handleError does not panic when a caller
 // passes a nil error. Calling err.Error() on a nil error would otherwise crash
 // the request handler; handleError falls back to the message instead.
