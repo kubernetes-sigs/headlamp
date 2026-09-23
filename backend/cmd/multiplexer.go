@@ -610,7 +610,13 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	// starts the heartbeat, so without this the reconnected socket stays alive
 	// but nothing forwards its messages and the client silently stops receiving
 	// updates.
-	go m.handleClusterMessages(newConn, newConn.Client)
+newConn.mu.RLock()
+clientConn := newConn.Client
+newConn.mu.RUnlock()
+
+if clientConn != nil {
+	go m.handleClusterMessages(newConn, clientConn)
+}
 
 	return newConn, nil
 }
