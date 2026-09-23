@@ -588,13 +588,18 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
+	conn.mu.RLock()
+	clientConn := conn.Client
+	token := conn.Token
+	conn.mu.RUnlock()
+
 	newConn, err := m.establishClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
 		conn.Query,
-		conn.Client,
-		conn.Token,
+		clientConn,
+		token,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
@@ -610,13 +615,13 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	// starts the heartbeat, so without this the reconnected socket stays alive
 	// but nothing forwards its messages and the client silently stops receiving
 	// updates.
-newConn.mu.RLock()
-clientConn := newConn.Client
-newConn.mu.RUnlock()
+	newConn.mu.RLock()
+	clientConn = newConn.Client
+	newConn.mu.RUnlock()
 
-if clientConn != nil {
-	go m.handleClusterMessages(newConn, clientConn)
-}
+	if clientConn != nil {
+		go m.handleClusterMessages(newConn, clientConn)
+	}
 
 	return newConn, nil
 }
