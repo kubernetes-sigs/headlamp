@@ -147,7 +147,7 @@ export function describeMissingField(id: MissingFieldId): string {
  * Resolves `[group, version, plural]` from a CRD spec, or returns `null` when
  * the spec is incomplete. Prefer the storage version, fall back to the first
  * served version; honor `spec.version` (the v1beta1 single-version field)
- * when `spec.versions` is empty, or when it matches a served entry there.
+ * when `spec.versions` is empty.
  */
 export function selectMainAPIGroup(spec: CRDSpecLike | undefined): [string, string, string] | null {
   if (!spec?.group || !spec?.names?.plural) {
@@ -165,18 +165,10 @@ export function selectMainAPIGroup(spec: CRDSpecLike | undefined): [string, stri
       resolvedVersion = versionItem.name;
     }
   }
-  // `spec.version` is the v1beta1 single-version field. When `spec.versions`
-  // is populated, only honor `spec.version` if it matches a served entry
-  // there. When `spec.versions` is missing/empty (an older v1beta1 CRD shape
-  // that never populated the array), accept `spec.version` as-is.
-  let version: string | undefined = resolvedVersion;
-  if (spec.version) {
-    if (versions.length === 0) {
-      version = spec.version;
-    } else if (versions.some(v => v?.name === spec.version && v?.served)) {
-      version = spec.version;
-    }
-  }
+  // `spec.version` is the v1beta1 single-version field. It is only valid when
+  // the newer multi-version field is absent; when `spec.versions` is populated,
+  // the storage/served selection above is authoritative.
+  const version = versions.length === 0 ? spec.version : resolvedVersion;
   if (!version) {
     return null;
   }

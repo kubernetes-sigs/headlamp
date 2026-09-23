@@ -105,7 +105,7 @@ describe('selectMainAPIGroup', () => {
     ]);
   });
 
-  it('honors spec.version when it matches a served entry in versions[]', () => {
+  it('continues to prefer the storage version when spec.version matches a served entry', () => {
     expect(
       selectMainAPIGroup(
         spec({
@@ -116,7 +116,7 @@ describe('selectMainAPIGroup', () => {
           ],
         })
       )
-    ).toEqual(['example.com', 'v1beta1', 'widgets']);
+    ).toEqual(['example.com', 'v1', 'widgets']);
   });
 
   it('ignores spec.version when it does not match a served entry in versions[]', () => {
