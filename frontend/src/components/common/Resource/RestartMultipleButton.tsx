@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useQueries } from '@tanstack/react-query';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -57,9 +58,29 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
   const location = useLocation();
   const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCES);
 
+  // Per-item RBAC check for `patch`, mirroring the gate used by the single-item
+  // RestartButton via AuthVisible. Items the user is not authorized to restart are
+  // filtered out, and the button is hidden if none remain.
+  const authQueries = useQueries({
+    queries: (items ?? []).map(item => ({
+      queryKey: [
+        'restartMultiple:auth',
+        (item as any).cluster,
+        item.metadata?.namespace,
+        item.metadata?.name,
+        item.kind,
+      ],
+      queryFn: () => item.getAuthorization('patch'),
+    })),
+  });
+  const authorizedItems = (items ?? []).filter(
+    (_item, idx) => authQueries[idx]?.data?.status?.allowed === true
+  );
+  const authChecksPending = authQueries.some(q => q.isLoading);
+
   async function restartResources() {
     return Promise.all(
-      items.map(item => {
+      authorizedItems.map(item => {
         const patchData = {
           spec: {
             template: {
@@ -77,7 +98,7 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
   }
 
   const handleRestart = () => {
-    const itemsLength = items.length;
+    const itemsLength = authorizedItems.length;
 
     dispatch(
       clusterAction(() => restartResources(), {
@@ -91,6 +112,12 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
       })
     );
   };
+
+  // Hide the action while RBAC is still resolving, and when nothing remains to
+  // restart (empty selection or user lacks `patch` for every item).
+  if (!items || items.length === 0 || authChecksPending || authorizedItems.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -106,12 +133,12 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
         <ConfirmDialog
           open={openDialog}
           title={t('translation|Restart items')}
-          description={<RestartMultipleButtonDescription items={items} />}
+          description={<RestartMultipleButtonDescription items={authorizedItems} />}
           handleClose={() => setOpenDialog(false)}
           onConfirm={() => {
             handleRestart();
             dispatchRestartEvent({
-              resources: items,
+              resources: authorizedItems,
               status: EventStatus.CONFIRMED,
             });
             if (afterConfirm) {
