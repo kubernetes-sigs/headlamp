@@ -18,6 +18,7 @@ import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useQueries } from '@tanstack/react-query';
 import _, { uniq } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -78,8 +79,38 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
   const location = useLocation();
   const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCES);
 
+  // Per-item RBAC check, mirroring the gates used by the single-item DeleteButton via
+  // AuthVisible. Pods are evicted rather than deleted when the useEvict setting is on,
+  // and eviction is a "create" on the pods/eviction subresource rather than a "delete",
+  // so each item is checked against the operation that will actually be performed.
+  // Items the user is not authorized for are filtered out, and the button is hidden
+  // if none remain.
+  const authQueries = useQueries({
+    queries: (items ?? []).map(item => {
+      const isEvict = settingsObj.useEvict && item.kind === 'Pod';
+      return {
+        queryKey: [
+          'deleteMultiple:auth',
+          isEvict ? 'evict' : 'delete',
+          (item as any).cluster,
+          item.metadata?.namespace,
+          item.metadata?.name,
+          item.kind,
+        ],
+        queryFn: () =>
+          isEvict
+            ? item.getAuthorization('create', { subresource: 'eviction' })
+            : item.getAuthorization('delete'),
+      };
+    }),
+  });
+  const authorizedItems = (items ?? []).filter(
+    (_item, idx) => authQueries[idx]?.data?.status?.allowed === true
+  );
+  const authChecksPending = authQueries.some(q => q.isLoading);
+
   // Protected namespaces included in the current selection, if any.
-  const protectedNamespaces = (items ?? []).filter(
+  const protectedNamespaces = authorizedItems.filter(
     (item): item is Namespace => Namespace.isClassOf(item) && item.isProtected()
   );
   // Build the confirm string from the same label-or-name value that isProtected() checks,
@@ -140,7 +171,9 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
     [options]
   );
 
-  if (!items || items.length === 0) {
+  // Hide the action while RBAC is still resolving, and when nothing remains to
+  // delete (empty selection or user lacks permission for every item).
+  if (!items || items.length === 0 || authChecksPending || authorizedItems.length === 0) {
     return null;
   }
 
@@ -161,7 +194,7 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
         description={
           <Grid container direction="column">
             <Grid item>
-              <DeleteMultipleButtonDescription items={items} />
+              <DeleteMultipleButtonDescription items={authorizedItems} />
             </Grid>
             {protectedNamespaces.length > 0 && (
               <>
@@ -203,9 +236,9 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
         confirmButtonDisabled={confirmButtonDisabled}
         handleClose={() => setOpenAlert(false)}
         onConfirm={() => {
-          deleteFunc(items);
+          deleteFunc(authorizedItems);
           dispatchDeleteEvent({
-            resources: items,
+            resources: authorizedItems,
             status: EventStatus.CONFIRMED,
           });
           if (afterConfirm) {
