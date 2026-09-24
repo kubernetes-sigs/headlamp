@@ -17,6 +17,7 @@
 import { expect, test } from '@playwright/test';
 import findProcess from 'find-process';
 import fs from 'fs';
+import net from 'net';
 import os from 'os';
 import path from 'path';
 import { _electron } from 'playwright';
@@ -25,10 +26,28 @@ const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'elec
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
 
-test('passes app-specific storage directories to the backend', async () => {
-  test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'Requires Electron app mode');
-
+test('uses Headlamp development config directories for branded products', async () => {
   const configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-config-'));
+  // Give Electron a branded identity while verifying that development still uses Headlamp paths.
+  const manifestFile = path.join(configHome, 'app-build-manifest.json');
+  fs.writeFileSync(
+    manifestFile,
+    JSON.stringify({ product: { name: 'example-desktop', productName: 'Example Desktop' } })
+  );
+  const backendPort = await new Promise<number>((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    // Restrict the temporary listener to local IPv4 instead of exposing it on external interfaces.
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close();
+        reject(new Error('Failed to reserve an Electron backend port'));
+        return;
+      }
+      server.close(error => (error ? reject(error) : resolve(address.port)));
+    });
+  });
   const appName = 'Headlamp';
   const configBase =
     process.platform === 'darwin'
@@ -44,11 +63,12 @@ test('passes app-specific storage directories to the backend', async () => {
   const electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--port=${backendPort}`],
     env: {
       ...process.env,
       APPDATA: configHome,
       ELECTRON_DEV: 'true',
+      HEADLAMP_BUILD_MANIFEST: manifestFile,
       HOME: configHome,
       LOCALAPPDATA: configHome,
       XDG_CONFIG_HOME: configHome,

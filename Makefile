@@ -83,26 +83,28 @@ frontend/build:
 	make frontend
 
 .PHONY: app
-app-build: frontend/build
-	cd app && npm ci && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run build
-app: app-build
+app-prepare: frontend/build
+	cd app && npm ci && node --experimental-strip-types ./scripts/setup-plugins.ts
+app-build: app-prepare
+	cd app && npm run build
+app: app-prepare
 	cd app && npm run package -- --win --linux --mac
-app-win: app-build
+app-win: app-prepare
 	cd app && npm run package -- --win --x64 --arm64
-app-win-x64: app-build
+app-win-x64: app-prepare
 	cd app && npm run package -- --win --x64
-app-win-arm64: app-build
+app-win-arm64: app-prepare
 	cd app && npm run package -- --win --arm64
 app-win-msi: app-win-msi-x64
-app-win-msi-x64: app-build
+app-win-msi-x64: app-prepare
 	cd app && npm run package -- --win --x64
 	cd app && MSI_ARCH="x64" node windows/msi/build.js
-app-win-msi-arm64: app-build
+app-win-msi-arm64: app-prepare
 	cd app && npm run package -- --win --arm64
 	cd app && MSI_ARCH="arm64" node windows/msi/build.js
-app-linux: app-build
+app-linux: app-prepare
 	cd app && npm run package -- --linux
-app-mac: app-build
+app-mac: app-prepare
 	cd app && npm run package -- --mac
 app-test:
 	cd app && npm install
@@ -287,10 +289,10 @@ run-backend:
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
-	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-dev:
@@ -305,10 +307,10 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
     HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
-    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-backend-with-traces:
@@ -319,10 +321,10 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
     HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
-    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-frontend:

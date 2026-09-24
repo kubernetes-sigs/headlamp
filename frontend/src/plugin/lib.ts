@@ -71,6 +71,8 @@ export abstract class Plugin {
 export interface DesktopApi {
   /** Operating system platform hosting the desktop app. */
   platform: NodeJS.Platform;
+  /** Whether Electron is running in development mode, independent of the frontend build mode. */
+  isDevelopment?: boolean;
   /** Additional APIs exposed by the desktop preload bridge. */
   [key: string]: any;
 }
