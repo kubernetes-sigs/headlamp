@@ -1,4 +1,4 @@
-package serviceproxy //nolint:testpackage // Unit tests verify unexported connection management logic.
+package serviceproxy //nolint:testpackage // Tests exercise unexported service proxy internals.
 
 import (
 	"bytes"

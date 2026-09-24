@@ -123,13 +123,7 @@ jobs:
     - name: Run tsc type checker
       run: make app-tsc
     - name: App Windows ${{ matrix.arch }}
-      run: |
-        cd app
-        npm ci --force
-        cd ..
-        make app-build
-        cd app
-        npm run package -- --win --${{ matrix.arch }}
+      run: make app-win-${{ matrix.arch }}
     - name: Install desktop e2e dependencies
       run: npm --prefix app/e2e-tests ci
     - name: Test external backend token

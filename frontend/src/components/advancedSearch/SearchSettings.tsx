@@ -52,7 +52,7 @@ export function SearchSettings({
         startIcon={<Icon icon="mdi:settings" />}
         onClick={e => setAnchorEl(e.currentTarget)}
       >
-        Settings
+        {t('Settings')}
       </Button>
       <Popover
         elevation={4}

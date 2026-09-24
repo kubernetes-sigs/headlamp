@@ -195,7 +195,7 @@ function HomeComponent(props: HomeComponentProps) {
 
   return (
     <PageGrid>
-      <SectionBox title="Home" headerProps={{ headerStyle: 'main' }}>
+      <SectionBox title={t('Home')} headerProps={{ headerStyle: 'main' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
           <Tabs value={view} onChange={(_, newView) => setView(() => newView)}>
             <Tab

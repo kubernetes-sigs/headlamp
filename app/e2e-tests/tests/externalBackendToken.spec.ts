@@ -238,6 +238,13 @@ http.createServer((request, response) => {
     await new Promise<void>((resolve, reject) =>
       unrelatedServer.close(error => (error ? reject(error) : resolve()))
     );
-    fs.rmSync(internalUserDataDir, { force: true, recursive: true });
+    // On Windows, Electron's child processes can keep files in the profile
+    // locked for a moment after the process tree is killed.
+    fs.rmSync(internalUserDataDir, {
+      force: true,
+      recursive: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
   }
 });

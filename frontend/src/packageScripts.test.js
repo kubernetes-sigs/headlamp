@@ -39,8 +39,9 @@ test('packaged-source scripts use package-owned tsx', () => {
   );
 
   expect(rootPackage.devDependencies).toHaveProperty('tsx');
-  expect(rootPackage.scripts['app:build']).toContain('tsx ./scripts/setup-plugins.ts');
-  expect(rootPackage.scripts['app:build:dir']).toContain('tsx ./scripts/setup-plugins.ts');
+  expect(rootPackage.scripts['app:prepare']).toContain('tsx ./scripts/setup-plugins.ts');
+  expect(rootPackage.scripts['app:build']).toContain('npm run app:prepare');
+  expect(rootPackage.scripts['app:build:dir']).toContain('npm run app:prepare');
   expect(rootPackage.scripts['app:start']).toContain('tsx ./scripts/setup-plugins.ts');
   expect(frontendPackage.dependencies).toHaveProperty('tsx');
   expect(frontendPackage.scripts.postbuild).toBe('tsx ./scripts/precompress-build.ts build');
