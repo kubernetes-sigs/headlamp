@@ -314,7 +314,7 @@ export const RestartConfirmationDialogOpen: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Restart items'));
+    await userEvent.click(await screen.findByLabelText('Restart items'));
 
     await waitFor(() =>
       expect(screen.getByRole('dialog', { name: 'Restart items' })).toBeVisible()
@@ -333,7 +333,7 @@ export const RestartConfirmationDialogCancel: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Restart items'));
+    await userEvent.click(await screen.findByLabelText('Restart items'));
 
     await waitFor(() =>
       expect(screen.getByRole('dialog', { name: 'Restart items' })).toBeVisible()
@@ -360,7 +360,7 @@ export const RestartMultipleConfirm: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Restart items'));
+    await userEvent.click(await screen.findByLabelText('Restart items'));
 
     await waitFor(() =>
       expect(screen.getByRole('dialog', { name: 'Restart items' })).toBeVisible()
@@ -415,7 +415,7 @@ export const RestartConfirmationDialogError: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Restart items'));
+    await userEvent.click(await screen.findByLabelText('Restart items'));
 
     await waitFor(() =>
       expect(screen.getByRole('dialog', { name: 'Restart items' })).toBeVisible()
