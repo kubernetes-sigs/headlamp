@@ -255,7 +255,7 @@ export const DeleteConfirmationDialogOpen: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Delete items'));
+    await userEvent.click(await screen.findByLabelText('Delete items'));
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
@@ -272,7 +272,7 @@ export const DeleteConfirmationDialogCancel: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Delete items'));
+    await userEvent.click(await screen.findByLabelText('Delete items'));
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
@@ -293,7 +293,7 @@ export const DeleteConfirmationDialogConfirm: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Delete items'));
+    await userEvent.click(await screen.findByLabelText('Delete items'));
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
@@ -387,7 +387,7 @@ export const DeleteConfirmationDialogError: StoryObj = {
     },
   },
   play: async () => {
-    await userEvent.click(screen.getByLabelText('Delete items'));
+    await userEvent.click(await screen.findByLabelText('Delete items'));
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
