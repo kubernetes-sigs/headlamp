@@ -19,6 +19,7 @@ package auth_test
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -33,6 +34,9 @@ const (
 )
 
 func TestSanitizeClusterName(t *testing.T) {
+	longInput := "very-long-cluster-name-that-exceeds-fifty-characters-limit"
+	longExpected := "very-long-cluster-name-that-exceeds-fifty-1daebb19"
+
 	tests := []struct {
 		input    string
 		expected string
@@ -42,7 +46,7 @@ func TestSanitizeClusterName(t *testing.T) {
 		{"cluster123", "cluster123"},
 		{"my-cluster@#$%", "my-cluster"},
 		{"", ""},
-		{"very-long-cluster-name-that-exceeds-fifty-characters-limit", "very-long-cluster-name-that-exceeds-fifty-characte"},
+		{longInput, longExpected},
 	}
 
 	for _, test := range tests {
@@ -50,6 +54,37 @@ func TestSanitizeClusterName(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("SanitizeClusterName(%q) = %q, expected %q", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestSanitizeClusterName_NoCollisionsOnLongPrefixes(t *testing.T) {
+	clusterA := "production-us-east-1-kubernetes-cluster-primary-alpha"
+	clusterB := "production-us-east-1-kubernetes-cluster-primary-bravo"
+
+	sanitizedA := auth.SanitizeClusterName(clusterA)
+	sanitizedB := auth.SanitizeClusterName(clusterB)
+
+	if len(sanitizedA) > 50 {
+		t.Errorf("Expected len(sanitizedA) <= 50, got %d", len(sanitizedA))
+	}
+
+	if len(sanitizedB) > 50 {
+		t.Errorf("Expected len(sanitizedB) <= 50, got %d", len(sanitizedB))
+	}
+
+	if sanitizedA == sanitizedB {
+		t.Errorf("Expected distinct sanitized names for distinct clusters, but both got %q", sanitizedA)
+	}
+
+	// Test distinct cluster names >50 chars that sanitize to the same 50-char base prefix
+	lossyA := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@"
+	lossyB := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#"
+
+	sanitizedLossyA := auth.SanitizeClusterName(lossyA)
+	sanitizedLossyB := auth.SanitizeClusterName(lossyB)
+
+	if sanitizedLossyA == sanitizedLossyB {
+		t.Errorf("Expected distinct sanitized names for lossy sanitized clusters, but got %q", sanitizedLossyA)
 	}
 }
 
@@ -175,10 +210,10 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 	testTTL := 100
 	auth.SetTokenCookie(w, req, "test-cluster", "test-token", "", testTTL)
 
-	// Check if cookie was set
+	// Check if cookie was set (1 token chunk + 9 cleared chunk headers)
 	cookies := w.Result().Cookies()
-	if len(cookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
+	if len(cookies) != 10 {
+		t.Fatalf("Expected 10 cookies, got %d", len(cookies))
 	}
 
 	cookie := cookies[0]
@@ -203,7 +238,11 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 	}
 
 	// Test getting the cookie
-	req.AddCookie(cookie)
+	for _, c := range cookies {
+		if c.MaxAge > 0 {
+			req.AddCookie(c)
+		}
+	}
 
 	token, err := auth.GetTokenFromCookie(req, "test-cluster")
 	if err != nil {
@@ -211,7 +250,7 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 	}
 
 	if token != "test-token" {
-		t.Errorf("Expected token 'test-token', got %q", token)
+		t.Errorf("Expected token to be 'test-token', got %q", token)
 	}
 }
 
@@ -228,13 +267,15 @@ func TestGetAuthCookieChunked(t *testing.T) {
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
-	if len(cookies) < 2 {
-		t.Fatalf("Expected at least 2 cookies for a chunked token, got %d", len(cookies))
+	if len(cookies) != 10 {
+		t.Fatalf("Expected 10 cookies (2 token chunks + 8 cleared chunks), got %d", len(cookies))
 	}
 
 	// Test getting the cookie
 	for _, cookie := range cookies {
-		req.AddCookie(cookie)
+		if cookie.MaxAge > 0 {
+			req.AddCookie(cookie)
+		}
 	}
 
 	token, err := auth.GetTokenFromCookie(req, "test-cluster")
@@ -247,50 +288,136 @@ func TestGetAuthCookieChunked(t *testing.T) {
 	}
 }
 
+func applyResponseCookies(cookieMap map[string]*http.Cookie, cookies []*http.Cookie) {
+	for _, c := range cookies {
+		if c.MaxAge < 0 {
+			delete(cookieMap, c.Name)
+		} else {
+			cookieMap[c.Name] = c
+		}
+	}
+}
+
+func TestSetTokenCookie_OverwritesLongerTokenWithShorterToken(t *testing.T) {
+	cluster := "test-cluster"
+	longToken := strings.Repeat("A", 3800*3+500)
+	shortToken := strings.Repeat("B", 3800+500)
+
+	req1 := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	req1.Host = localhost
+	w1 := httptest.NewRecorder()
+
+	auth.SetTokenCookie(w1, req1, cluster, longToken, "", 86400)
+
+	cookieMap := make(map[string]*http.Cookie)
+	applyResponseCookies(cookieMap, w1.Result().Cookies())
+
+	reqVerify1 := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	for _, c := range cookieMap {
+		reqVerify1.AddCookie(c)
+	}
+
+	retrievedLong, err := auth.GetTokenFromCookie(reqVerify1, cluster)
+	if err != nil || retrievedLong != longToken {
+		t.Fatalf("Expected retrieved long token to match longToken, err: %v", err)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	req2.Host = localhost
+
+	for _, c := range cookieMap {
+		req2.AddCookie(c)
+	}
+
+	w2 := httptest.NewRecorder()
+	auth.SetTokenCookie(w2, req2, cluster, shortToken, "", 86400)
+
+	applyResponseCookies(cookieMap, w2.Result().Cookies())
+
+	reqVerify2 := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	for _, c := range cookieMap {
+		reqVerify2.AddCookie(c)
+	}
+
+	retrievedShort, err := auth.GetTokenFromCookie(reqVerify2, cluster)
+	if err != nil || retrievedShort != shortToken {
+		t.Fatalf("Expected retrieved short token to match shortToken, err: %v", err)
+	}
+}
+
+func TestSetTokenCookie_RejectsOversizedToken(t *testing.T) {
+	cluster := "test-cluster"
+	// Token requiring 11 chunks (> 10 maxCookieChunks)
+	oversizedToken := strings.Repeat("X", 3800*10+500)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	req.Host = localhost
+	w := httptest.NewRecorder()
+
+	auth.SetTokenCookie(w, req, cluster, oversizedToken, "", 86400)
+
+	cookies := w.Result().Cookies()
+	if len(cookies) != 0 {
+		t.Fatalf("Expected 0 cookies set for oversized token exceeding maxCookieChunks, got %d", len(cookies))
+	}
+}
+
 func TestClearAuthCookie(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
 	req.Host = localhost
 	w := httptest.NewRecorder()
 
-	// Set cookie
-	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-test-cluster.0",
-		Value:    "test-token",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		Path:     "/",
-		MaxAge:   86400, // 24 hours
-	})
+	// Set a 2-chunk cookie first
+	auth.SetTokenCookie(w, req, "test-cluster", strings.Repeat("a", 5000), "", 86400)
 
-	// Clear a cookie
-	auth.ClearTokenCookie(w, req, "test-cluster", "")
+	// Clear the cookie
+	req2 := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	for _, cookie := range w.Result().Cookies() {
+		req2.AddCookie(cookie)
+	}
 
-	// Check if cookie was set
+	w2 := httptest.NewRecorder()
+	auth.ClearTokenCookie(w2, req2, "test-cluster", "")
+
+	cookies := w2.Result().Cookies()
+	if len(cookies) != 10 {
+		t.Fatalf("Expected 10 cleared cookies, got %d", len(cookies))
+	}
+
+	for i, cookie := range cookies {
+		expectedName := fmt.Sprintf("headlamp-auth-test-cluster.%d", i)
+		if cookie.Name != expectedName {
+			t.Errorf("Expected cookie name %q, got %q", expectedName, cookie.Name)
+		}
+
+		if cookie.Value != "" {
+			t.Errorf("Expected cookie value to be empty for %s, got %q", cookie.Name, cookie.Value)
+		}
+
+		if cookie.MaxAge != -1 {
+			t.Errorf("Expected MaxAge to be -1 for %s, got %d", cookie.Name, cookie.MaxAge)
+		}
+	}
+}
+
+func TestClearAuthCookie_WithoutIncomingCookies(t *testing.T) {
+	// Verify that ClearTokenCookie helper unconditionally emits cookie deletion headers up to maxCookieChunks
+	// even when the incoming request carries no cookies.
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "http://localhost:4466/", nil)
+	w := httptest.NewRecorder()
+
+	auth.ClearTokenCookie(w, req, "my-cluster", "")
+
 	cookies := w.Result().Cookies()
-	if len(cookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
+	if len(cookies) != 10 {
+		t.Fatalf("Expected 10 expiration cookies when request carries no incoming cookies, got %d", len(cookies))
 	}
 
-	// Test clearing the cookie
-	auth.ClearTokenCookie(w, req, "test-cluster", "")
-
-	// Check if cookie was cleared
-	clearedCookies := w.Result().Cookies()
-	if len(clearedCookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(clearedCookies))
+	if cookies[0].Name != "headlamp-auth-my-cluster.0" {
+		t.Errorf("Expected first cookie name 'headlamp-auth-my-cluster.0', got %q", cookies[0].Name)
 	}
 
-	cookie := clearedCookies[0]
-	if cookie.Name != "headlamp-auth-test-cluster.0" {
-		t.Errorf("Expected cookie name 'headlamp-auth-test-cluster.0', got %q", cookie.Name)
-	}
-
-	if cookie.Value != "" {
-		t.Errorf("Expected cookie value to be empty, got %q", cookie.Value)
-	}
-
-	if cookie.MaxAge != -1 {
-		t.Errorf("Expected MaxAge to be -1, got %d", cookie.MaxAge)
+	if cookies[0].MaxAge != -1 {
+		t.Errorf("Expected MaxAge to be -1, got %d", cookies[0].MaxAge)
 	}
 }
