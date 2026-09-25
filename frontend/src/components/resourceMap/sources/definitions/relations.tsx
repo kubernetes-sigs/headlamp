@@ -17,6 +17,7 @@
 import { useMemo } from 'react';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -41,9 +42,11 @@ import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookCon
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import PodGroup from '../../../../lib/k8s/podGroup';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
+import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
@@ -449,6 +452,48 @@ const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRo
 const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
 const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
 
+// The scheduling API objects carry no owner references, so the hierarchy is read from
+// the spec fields that name the parent. Edges point from child to parent, as the owner
+// reference relations above do.
+const podGroupToWorkload = makeRelation(
+  'podgroup-workload',
+  PodGroup,
+  SchedulingWorkload,
+  (podGroup, workload) =>
+    !podGroup.parentCompositePodGroupName && podGroup.workloadName === workload.metadata.name
+);
+
+const podToPodGroup = makeRelation(
+  'pod-podgroup',
+  Pod,
+  PodGroup,
+  (pod, podGroup) => pod.spec.schedulingGroup?.podGroupName === podGroup.metadata.name
+);
+
+const compositePodGroupToWorkload = makeRelation(
+  'compositepodgroup-workload',
+  CompositePodGroup,
+  SchedulingWorkload,
+  (composite, workload) =>
+    !composite.parentCompositePodGroupName && composite.workloadName === workload.metadata.name
+);
+
+const compositePodGroupToParent = makeRelation(
+  'compositepodgroup-parent',
+  CompositePodGroup,
+  CompositePodGroup,
+  (child, parent) =>
+    child.metadata.uid !== parent.metadata.uid &&
+    child.parentCompositePodGroupName === parent.metadata.name
+);
+
+const podGroupToCompositePodGroup = makeRelation(
+  'podgroup-compositepodgroup',
+  PodGroup,
+  CompositePodGroup,
+  (podGroup, composite) => podGroup.parentCompositePodGroupName === composite.metadata.name
+);
+
 const backendTLSPolicyToService = makeRelation(
   'backendtlspolicy-service',
   BackendTLSPolicy,
@@ -501,6 +546,11 @@ const staticRelations = [
   udpRouteToService,
   backendTLSPolicyToService,
   backendTrafficPolicyToService,
+  podGroupToWorkload,
+  podToPodGroup,
+  compositePodGroupToWorkload,
+  compositePodGroupToParent,
+  podGroupToCompositePodGroup,
 ];
 
 export { BUILT_IN_RELATION_IDS };

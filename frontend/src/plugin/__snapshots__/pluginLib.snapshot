@@ -477,6 +477,7 @@
     "ResourceClasses": {
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
+      "CompositePodGroup": [Function],
       "ConfigMap": [Function],
       "ControllerRevision": [Function],
       "CronJob": [Function],
@@ -532,6 +533,11 @@
     },
     "clusterRoleBinding": {
       "default": [Function],
+    },
+    "compositePodGroup": {
+      "COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION": "CompositePodGroupInitiallyScheduled",
+      "default": [Function],
+      "getCompositeDisruptionMode": [Function],
     },
     "configMap": {
       "default": [Function],
@@ -627,6 +633,7 @@
       "default": [Function],
       "getDisruptionMode": [Function],
       "getSchedulingPolicyKind": [Function],
+      "isSchedulingResourceServed": [Function],
     },
     "replicaSet": {
       "default": [Function],
