@@ -104,6 +104,7 @@
   "To": "تک",
   "Reference Grants": "ریفرنس گرانٹس",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "افقی Pod آٹو اسکیلرز",
   "Ingress Classes": "Ingress کلاسز",

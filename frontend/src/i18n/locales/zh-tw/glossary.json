@@ -104,6 +104,7 @@
   "To": "目標",
   "Reference Grants": "引用授權",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "水平 Pod 自動擴縮",
   "Ingress Classes": "Ingress 類別",

@@ -86,6 +86,21 @@ export interface KubeGatewayL4Route extends KubeObjectInterface {
 }
 
 /**
+ * The spec of a TLSRoute: the L4 route spec plus the hostnames the route matches.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/tlsroute/} Gateway API reference for TLSRoute
+ */
+export interface GatewayTLSRouteSpec extends GatewayL4RouteSpec {
+  hostnames?: string[];
+}
+
+/** The Kubernetes object shape of a TLSRoute. */
+export interface KubeGatewayTLSRoute extends KubeObjectInterface {
+  spec: GatewayTLSRouteSpec;
+  status?: GatewayL4RouteStatus;
+}
+
+/**
  * Listener embodies the concept of a logical endpoint where a Gateway accepts network connections.
  *
  * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#listener} Gateway API reference for Listener
