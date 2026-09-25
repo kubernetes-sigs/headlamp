@@ -32,3 +32,6 @@ func (rt *UserAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 
 	return urt.RoundTrip(req)
 }
+
+// SyncContexts is exported for testing.
+var SyncContexts = syncContexts
