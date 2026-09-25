@@ -528,6 +528,12 @@ const mdiIcons = {
     'timer-sand': {
       body: '<path fill="currentColor" d="M6 2h12v6l-4 4l4 4v6H6v-6l4-4l-4-4zm10 14.5l-4-4l-4 4V20h8zm-4-5l4-4V4H8v3.5zM10 6h4v.75l-2 2l-2-2z"/>',
     },
+    pin: {
+      body: '\u003Cpath fill="currentColor" d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/\u003E',
+    },
+    'pin-outline': {
+      body: '\u003Cpath fill="currentColor" d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2zm-6 2H8v-.5l2-2V4h4v7.5l2 2v.5z"/\u003E',
+    },
   },
   aliases: {
     'more-vert': {

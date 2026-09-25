@@ -1,6 +1,7 @@
 {
   "Activity": {
     "close": [Function],
+    "closeOrMinimize": [Function],
     "launch": [Function],
     "reset": [Function],
     "update": [Function],
