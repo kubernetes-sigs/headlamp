@@ -204,6 +204,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		DefaultLightTheme:       c.DefaultLightTheme,
 		DefaultDarkTheme:        c.DefaultDarkTheme,
 		ForceTheme:              c.ForceTheme,
+		OidcAutoLogin:           c.OidcAutoLogin,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

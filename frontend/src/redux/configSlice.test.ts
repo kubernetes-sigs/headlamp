@@ -50,6 +50,14 @@ describe('configSlice', () => {
     expect(nextState.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should handle setConfig with oidcAutoLogin', () => {
+    const clusters: ConfigState['clusters'] = {
+      'cluster-1': { name: 'cluster-1' } as Cluster,
+    };
+    const nextState = configReducer(initialState, setConfig({ clusters, oidcAutoLogin: true }));
+    expect(nextState.oidcAutoLogin).toBe(true);
+  });
+
   it('should handle setConfig with defaultPodDebugImage', () => {
     const clusters: ConfigState['clusters'] = {
       'cluster-1': { name: 'cluster-1' } as Cluster,

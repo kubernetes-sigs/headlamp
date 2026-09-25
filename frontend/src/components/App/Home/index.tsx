@@ -19,7 +19,7 @@ import { Box, Tab, Tabs, Typography } from '@mui/material';
 import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessageReceiver';
 import { useAutoConnectClusters } from '../../../helpers/clusterAutoConnect';
 import { isBackstage } from '../../../helpers/isBackstage';
@@ -39,10 +39,17 @@ import RecentClusters from './RecentClusters';
 
 export default function Home() {
   const history = useHistory();
+  const location = useLocation();
   const clusters = useClustersConf();
 
   if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
-    history.push(createRouteURL('cluster', { cluster: Object.keys(clusters)[0] }));
+    const cluster = Object.keys(clusters)[0];
+    const isLogout = new URLSearchParams(location.search).get('logout') === 'true';
+    if (isLogout) {
+      history.push(createRouteURL('login', { cluster }) + '?logout=true');
+    } else {
+      history.push(createRouteURL('cluster', { cluster }));
+    }
     return null;
   }
 

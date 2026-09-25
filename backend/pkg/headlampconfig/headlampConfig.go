@@ -19,6 +19,7 @@ type WebSocketMultiplexer interface {
 // HeadlampConfig holds full server config. Lives here so packages (e.g. k8cache) can import without cmd.
 type HeadlampConfig struct {
 	*HeadlampCFG
+	OidcAutoLogin             bool
 	OidcClientID              string
 	OidcValidatorClientID     string
 	OidcClientSecret          string
