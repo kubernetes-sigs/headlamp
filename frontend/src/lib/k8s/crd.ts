@@ -18,6 +18,7 @@ import { ResourceClasses } from '.';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import {
   describeMissingField,
+  orderCRDVersions,
   resolveCRDApiGroup,
   selectMainAPIGroup,
   validateCRDSpec,
@@ -184,8 +185,9 @@ class CustomResourceDefinition extends KubeObject<KubeCRD> {
     spec: KubeCRD['spec'],
     usableVersions: ReturnType<typeof validateCRDSpec>['usableVersions']
   ): typeof KubeObject<KubeCRD> {
-    const apiInfo: CRClassArgs['apiInfo'] = usableVersions.length
-      ? usableVersions.map(versionInfo => ({ group: spec.group, version: versionInfo.name }))
+    const orderedVersions = orderCRDVersions(usableVersions);
+    const apiInfo: CRClassArgs['apiInfo'] = orderedVersions.length
+      ? orderedVersions.map(versionInfo => ({ group: spec.group, version: versionInfo.name }))
       : [{ group: spec.group, version: spec.version }];
 
     return makeCustomResourceClass({
