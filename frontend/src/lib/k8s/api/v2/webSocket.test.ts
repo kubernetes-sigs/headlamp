@@ -200,6 +200,100 @@ describe('useWebSockets', () => {
     });
   });
 
+  describe('reconnect after a drop', () => {
+    // Builds a WebSocket stub whose instances expose triggerOpen/triggerClose,
+    // so a drop can be simulated without a real server.
+    function stubWebSocket() {
+      const sockets: Array<{
+        close: ReturnType<typeof vi.fn>;
+        triggerOpen: () => void;
+        triggerClose: () => void;
+      }> = [];
+      const WebSocketMock = vi.fn(function () {
+        const listeners: Record<string, Array<(arg?: unknown) => void>> = {};
+        const instance = {
+          binaryType: '',
+          close: vi.fn(),
+          addEventListener: (type: string, listener: (arg?: unknown) => void) => {
+            (listeners[type] = listeners[type] ?? []).push(listener);
+          },
+          removeEventListener: (type: string, listener: (arg?: unknown) => void) => {
+            listeners[type] = (listeners[type] ?? []).filter(it => it !== listener);
+          },
+          triggerOpen: () => (listeners.open ?? []).forEach(listener => listener()),
+          triggerClose: () => (listeners.close ?? []).forEach(listener => listener()),
+        };
+        sockets.push(instance);
+        return instance;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      return { sockets, WebSocketMock };
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    it('keeps reconnecting when a reconnected socket drops again', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const url = 'api/v1/pods?watch=1&resourceVersion=reconnect-twice';
+      const { sockets, WebSocketMock } = stubWebSocket();
+
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url, onMessage: vi.fn() }],
+        })
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+      sockets[0].triggerOpen();
+
+      // First drop reconnects after the initial 1s backoff.
+      sockets[0].triggerClose();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+      sockets[1].triggerOpen();
+
+      // The reconnected socket must have replaced the pending marker, or its
+      // own close is ignored and the watch stays dead forever.
+      sockets[1].triggerClose();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(3);
+
+      hook.unmount();
+    });
+
+    it('closes a reconnected socket when the last listener unsubscribes', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const url = 'api/v1/pods?watch=1&resourceVersion=reconnect-cleanup';
+      const { sockets } = stubWebSocket();
+
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url, onMessage: vi.fn() }],
+        })
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      sockets[0].triggerOpen();
+      sockets[0].triggerClose();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sockets).toHaveLength(2);
+      sockets[1].triggerOpen();
+
+      // Unmounting must close the reconnected socket; while the marker was
+      // still in the map, cleanup could not reach it and the backend watch
+      // stayed open.
+      hook.unmount();
+      expect(sockets[1].close).toHaveBeenCalled();
+    });
+  });
+
   it('keeps a pending shared websocket alive when its first listener unsubscribes', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=4';
     const server = new WS(`${BASE_WS_URL}${url}`);
