@@ -17,8 +17,8 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
-import ListView from './ClassList';
 import { BASE_PV } from './storyHelper';
+import ListView from './VolumeList';
 
 export default {
   title: 'PersistentVolume/ListView',
@@ -44,7 +44,7 @@ Items.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () =>
+        http.get(`${API_BASE}/api/v1/persistentvolumes`, () =>
           HttpResponse.json({
             kind: 'PersistentVolumeList',
             items: [BASE_PV],
