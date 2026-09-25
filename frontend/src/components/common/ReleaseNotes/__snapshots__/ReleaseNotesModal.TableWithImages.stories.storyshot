@@ -41,7 +41,7 @@
                 class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
-                Release Notes (1.9.9)
+                Release Notes (0.45.0)
               </h1>
             </div>
             <div
@@ -71,14 +71,52 @@
             class="MuiBox-root css-10e9614"
           >
             <h2>
-              Screenshot
+              Performance
             </h2>
-            <img
-              alt="Example release screenshot"
-              height="352"
-              src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704"
-              width="800"
-            />
+            <table>
+              <thead>
+                <tr>
+                  <th
+                    style="text-align: left;"
+                  >
+                    <img
+                      alt=""
+                      height="0"
+                      src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png"
+                      width="800"
+                    />
+                  </th>
+                  <th
+                    style="text-align: right;"
+                  >
+                    <img
+                      alt=""
+                      height="0"
+                      src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png"
+                      width="200"
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td
+                    style="text-align: left;"
+                  >
+                    Plugin i18n now fetches only the active locale's translation file, preventing unnecessary requests.
+                  </td>
+                  <td
+                    style="text-align: right;"
+                  >
+                    Thanks to:
+                    <br />
+                    @illume
+                    <br />
+                    #7358
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
