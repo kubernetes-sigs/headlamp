@@ -398,39 +398,38 @@ function Chooser(props: ClusterDialogProps) {
   const [show, setShow] = React.useState(props.open);
   const { t } = useTranslation();
 
-  React.useEffect(
-    () => {
-      if (open !== null && open !== show) {
-        setShow(open);
-        return;
+  const handleButtonClick = React.useCallback(
+    (cluster: Cluster) => {
+      if (cluster.name !== getCluster()) {
+        setRecentCluster(cluster);
+        history.push({
+          pathname: generatePath(getClusterPrefixedPath(), {
+            cluster: cluster.name,
+          }),
+        });
       }
 
-      // If we only have one cluster configured, then we skip offering
-      // the choice to the user.
-      if (!!clusters && Object.keys(clusters).length === 1) {
-        handleButtonClick(Object.values(clusters)[0]);
+      setShow(false);
+
+      if (!!onClose) {
+        onClose();
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open, show, clusters]
+    [history, onClose]
   );
 
-  function handleButtonClick(cluster: Cluster) {
-    if (cluster.name !== getCluster()) {
-      setRecentCluster(cluster);
-      history.push({
-        pathname: generatePath(getClusterPrefixedPath(), {
-          cluster: cluster.name,
-        }),
-      });
+  React.useEffect(() => {
+    if (open !== null && open !== show) {
+      setShow(open);
+      return;
     }
 
-    setShow(false);
-
-    if (!!onClose) {
-      onClose();
+    // If we only have one cluster configured, then we skip offering
+    // the choice to the user.
+    if (!!clusters && Object.keys(clusters).length === 1) {
+      handleButtonClick(Object.values(clusters)[0]);
     }
-  }
+  }, [open, show, clusters, handleButtonClick]);
 
   function handleClose() {
     if (open === null) {
