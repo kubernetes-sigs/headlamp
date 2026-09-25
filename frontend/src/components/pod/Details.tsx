@@ -679,7 +679,7 @@ export default function PodDetails(props: PodDetailsProps) {
   }, [podItem, launchTerminal, autoLaunchView, autoLaunchContainer]);
 
   function prepareExtraInfo(item: Pod | null) {
-    let extraInfo: (NameValueTableRow & { hideLabel?: boolean })[] = [];
+    let extraInfo: NameValueTableRow[] = [];
     if (item) {
       extraInfo = [
         {
@@ -733,7 +733,7 @@ export default function PodDetails(props: PodDetailsProps) {
           value: item.status.hostIPs
             ? item.status.hostIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
             : '',
-          hideLabel: !item.status.hostIPs || item.status.hostIPs.length === 0,
+          hide: !item.status.hostIPs || item.status.hostIPs.length === 0,
         },
         // Show Pod IP only if Pod IPs doesn't exist or is empty
         ...(item.status.podIPs && item.status.podIPs.length > 0
@@ -750,7 +750,7 @@ export default function PodDetails(props: PodDetailsProps) {
           value: item.status.podIPs
             ? item.status.podIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
             : '',
-          hideLabel: !item.status.podIPs || item.status.podIPs.length === 0,
+          hide: !item.status.podIPs || item.status.podIPs.length === 0,
         },
         {
           name: t('QoS Class'),
