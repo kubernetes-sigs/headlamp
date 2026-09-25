@@ -92,13 +92,44 @@ export function streamResult<T extends KubeObjectInterface>(
         url +
         asQuery({ ...queryParams, ...{ watch: '1', fieldSelector: `metadata.name=${name}` } });
 
-      socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, cluster: clusterName });
+      socket = stream(watchUrl, update, { isJson: true, cluster: clusterName });
     } catch (err) {
       console.error('Error in api request', { err, url });
       // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
       //        See https://github.com/kinvolk/headlamp/pull/833
       if (errCb && typeof errCb === 'function') errCb(err as ApiError, cancel);
     }
+  }
+
+  function update({ type, object }: StreamUpdate) {
+    // An ERROR event carries a Status object rather than the watched resource,
+    // so it must never reach cb as if the object itself had changed.
+    if (type === 'ERROR') {
+      const statusCode = (object as { code?: number })?.code;
+
+      // 410 Gone means the version this watch started from has expired (etcd
+      // compaction, proxy restart). Re-fetch the object and start a fresh
+      // watch rather than reconnecting to a version the server no longer has.
+      if (statusCode === 410) {
+        console.error('Watch resourceVersion expired, refetching', { url, name });
+
+        if (socket) socket.cancel();
+
+        run();
+
+        return;
+      }
+
+      console.error('Error in update', { type, object });
+
+      if (errCb && typeof errCb === 'function') {
+        errCb(object as ApiError, cancel);
+      }
+
+      return;
+    }
+
+    cb(object as T);
   }
 
   function cancel() {
@@ -243,9 +274,27 @@ export function streamResultsForCluster(
       case 'DELETED':
         delete results[object.metadata.uid];
         break;
-      case 'ERROR':
+      case 'ERROR': {
+        // 410 Gone means the resourceVersion the watch was started from has
+        // expired (etcd compaction, proxy restarts). Reconnects to the same
+        // URL would keep failing forever, so relist and restart the watch
+        // from a fresh resourceVersion instead.
+        const statusCode = (object as { code?: number })?.code;
+        if (statusCode === 410) {
+          console.error('Watch resourceVersion expired, relisting', { url });
+          socket?.cancel();
+          Object.keys(results).forEach(uid => delete results[uid]);
+          run();
+
+          return;
+        }
+
         console.error('Error in update', { type, object });
+        if (errCb && typeof errCb === 'function') {
+          errCb(object as ApiError, cancel);
+        }
         break;
+      }
       default:
         console.error('Unknown update type', type);
     }
