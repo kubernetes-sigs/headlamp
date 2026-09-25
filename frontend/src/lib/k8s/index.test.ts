@@ -301,6 +301,7 @@ const notNamespacedClasses = [
   'ClusterRole',
   'ClusterRoleBinding',
   'CustomResourceDefinition',
+  'DeviceClass',
   'GatewayClass',
   'IngressClass',
   'Namespace',
