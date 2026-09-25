@@ -54,6 +54,59 @@ export interface ClusterUserInfo {
   groups?: string[];
   /** Extra info about the user */
   extra?: Record<string, string[]>;
+  /** Set when auth APIs failed and the cluster name was used as a placeholder username. */
+  isClusterNamePlaceholder?: boolean;
+}
+
+/**
+ * True when user identity is not yet resolved for RBAC matching.
+ * Relies on an explicit placeholder flag rather than comparing username to cluster.
+ */
+export function isFallbackClusterIdentity(userInfo: ClusterUserInfo): boolean {
+  const username = userInfo.username;
+  if (!username || username === 'unknown') {
+    return true;
+  }
+  return userInfo.isClusterNamePlaceholder === true;
+}
+
+/**
+ * Returns the Kubernetes RBAC identity for the current user (preferred for RoleBinding matching).
+ *
+ * Uses SelfSubjectReview first — this is the same username/groups the API server uses for RBAC,
+ * which may differ from Headlamp /me JWT claim parsing (common with OKTA/OIDC).
+ */
+export async function getClusterUserInfoForRbac(cluster = ''): Promise<ClusterUserInfo> {
+  const clusterName = cluster || getCluster() || '';
+
+  if (!clusterName) {
+    return { username: 'unknown' };
+  }
+
+  try {
+    const response = await post(
+      '/apis/authentication.k8s.io/v1/selfsubjectreviews',
+      {
+        apiVersion: 'authentication.k8s.io/v1',
+        kind: 'SelfSubjectReview',
+      },
+      false,
+      {
+        timeout: 5 * 1000,
+        cluster: clusterName,
+      }
+    );
+
+    if (response?.status?.userInfo?.username) {
+      return response.status.userInfo;
+    }
+  } catch (error) {
+    if (isDebugVerbose('k8s/api/v1/clusterApi@getClusterUserInfoForRbac')) {
+      console.debug('SelfSubjectReview failed for cluster', clusterName, error);
+    }
+  }
+
+  return getClusterUserInfo(clusterName);
 }
 
 /**
@@ -108,13 +161,13 @@ export async function getClusterUserInfo(cluster = ''): Promise<ClusterUserInfo>
     }
 
     // Fallback: return cluster name as username
-    return { username: clusterName };
+    return { username: clusterName, isClusterNamePlaceholder: true };
   } catch (error) {
     // If SelfSubjectReview is not available, return cluster name
     if (isDebugVerbose('k8s/api/v1/clusterApi@getClusterUserInfo')) {
       console.debug('SelfSubjectReview not available for cluster', clusterName, error);
     }
-    return { username: clusterName };
+    return { username: clusterName, isClusterNamePlaceholder: true };
   }
 }
 
