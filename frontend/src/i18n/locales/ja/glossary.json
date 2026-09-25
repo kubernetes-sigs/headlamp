@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "ポッド中断バジェット",
   "Workload": "ワークロード",
   "Pod Groups": "Podグループ",
+  "Composite Pod Groups": "",
   "Port Forwarding": "ポートフォワーディング",
   "PriorityClass": "優先度クラス",
   "Replica Sets": "レプリカセット",

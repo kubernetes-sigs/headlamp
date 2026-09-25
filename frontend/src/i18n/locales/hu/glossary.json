@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Podkimaradási költségkeret",
   "Workload": "",
   "Pod Groups": "",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Porttovábbítás",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Replikakészletek",

@@ -29,6 +29,8 @@ import SettingsClusters from '../../components/App/Settings/SettingsClusters';
 import AuthChooser from '../../components/authchooser';
 import Overview from '../../components/cluster/Overview';
 import { PageGrid } from '../../components/common/Resource/Resource';
+import CompositePodGroupDetails from '../../components/compositePodGroup/Details';
+import CompositePodGroupList from '../../components/compositePodGroup/List';
 import ConfigDetails from '../../components/configmap/Details';
 import ConfigMapList from '../../components/configmap/List';
 import CustomResourceDetails from '../../components/crd/CustomResourceDetails';
@@ -760,6 +762,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Pod Group',
     sidebar: 'podGroups',
     component: () => <PodGroupDetails />,
+  },
+  compositepodgroups: {
+    path: '/compositepodgroups',
+    exact: true,
+    name: 'Composite Pod Groups',
+    sidebar: 'compositePodGroups',
+    component: () => <CompositePodGroupList />,
+  },
+  CompositePodGroup: {
+    path: '/compositepodgroups/:namespace/:name',
+    exact: true,
+    name: 'Composite Pod Group',
+    sidebar: 'compositePodGroups',
+    component: () => <CompositePodGroupDetails />,
   },
   // The 'workloads' route name is taken by the Workloads overview page, so the
   // scheduling.k8s.io Workload uses 'schedulingWorkloads' as its list route.

@@ -68,7 +68,18 @@ export default function PodGroupDetails(props: {
           },
           {
             name: t('translation|Composite Pod Group'),
-            value: item.parentCompositePodGroupName,
+            value: item.parentCompositePodGroupName && (
+              <Link
+                routeName="CompositePodGroup"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name: item.parentCompositePodGroupName,
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.parentCompositePodGroupName}
+              </Link>
+            ),
             hide: !item.parentCompositePodGroupName,
           },
           {
