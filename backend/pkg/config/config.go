@@ -74,13 +74,21 @@ type Config struct {
 	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
 	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
 
-	OidcClientID                 string `koanf:"oidc-client-id"`
-	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
-	OidcClientSecret             string `koanf:"oidc-client-secret"`
-	OidcIdpIssuerURL             string `koanf:"oidc-idp-issuer-url"`
-	OidcCallbackURL              string `koanf:"oidc-callback-url"`
-	OidcValidatorIdpIssuerURL    string `koanf:"oidc-validator-idp-issuer-url"`
-	OidcScopes                   string `koanf:"oidc-scopes"`
+	OidcClientID              string `koanf:"oidc-client-id"`
+	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
+	OidcClientSecret          string `koanf:"oidc-client-secret"`
+	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL           string `koanf:"oidc-callback-url"`
+	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
+	OidcScopes                string `koanf:"oidc-scopes"`
+	// Static OIDC endpoint URLs. When oidc-auth-url, oidc-token-url and oidc-jwks-url
+	// are all provided, Headlamp builds the provider from these endpoints directly
+	// instead of performing OIDC discovery against the issuer's
+	// /.well-known/openid-configuration document. oidc-userinfo-url is optional.
+	OidcAuthURL                  string `koanf:"oidc-auth-url"`
+	OidcTokenURL                 string `koanf:"oidc-token-url"`
+	OidcJWKSURL                  string `koanf:"oidc-jwks-url"`
+	OidcUserinfoURL              string `koanf:"oidc-userinfo-url"`
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
@@ -129,11 +137,8 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
-			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
-			"meant to be used in inCluster mode or with --oidc-use-cookie")
+	if err := c.validateOIDCInClusterUsage(); err != nil {
+		return err
 	}
 
 	// Extracted to keep Validate's cognitive complexity within the linter limit.
@@ -152,6 +157,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateStaticOIDCEndpoints(); err != nil {
+		return err
+	}
+
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
 	}
@@ -165,25 +174,37 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
-	if c.TracingEnabled != nil && *c.TracingEnabled {
-		if c.ServiceName == "" {
-			return errors.New("service-name is required when tracing is enabled")
-		}
-
-		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
-			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
-			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
-			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
-		}
-
-		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
-			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
-			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
-		}
+	if err := c.validateTracing(); err != nil {
+		return err
 	}
 
 	if err := c.validateClusterInventory(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateTracing ensures the telemetry tracing flags are internally consistent
+// when tracing is enabled.
+func (c *Config) validateTracing() error {
+	if c.TracingEnabled == nil || !*c.TracingEnabled {
+		return nil
+	}
+
+	if c.ServiceName == "" {
+		return errors.New("service-name is required when tracing is enabled")
+	}
+
+	if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
+		(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
+		(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+		return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+	}
+
+	if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+		(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+		return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 	}
 
 	return nil
@@ -196,6 +217,23 @@ func (c *Config) validateAppName() error {
 		if (character < ' ' && character != '\t') || character == 0x7f {
 			return errors.New("app-name contains invalid HTTP header characters")
 		}
+	}
+
+	return nil
+}
+
+// validateOIDCInClusterUsage rejects OIDC client/issuer flags outside in-cluster
+// mode unless cookie-based OIDC is explicitly enabled.
+func (c *Config) validateOIDCInClusterUsage() error {
+	if c.InCluster || c.OidcUseCookie {
+		return nil
+	}
+
+	if c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "" {
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode or with --oidc-use-cookie")
 	}
 
 	return nil
@@ -214,6 +252,49 @@ func (c *Config) validateOIDCCAFile() error {
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caFileContents) {
 		return errors.New("invalid oidc-ca-file")
+	}
+
+	return nil
+}
+
+// validateStaticOIDCEndpoints ensures that when any of the static OIDC endpoint
+// URLs is configured, the three required ones (auth, token and JWKS) are all
+// provided. A partial configuration is rejected so Headlamp never silently falls
+// back to discovery with an incomplete static setup. oidc-userinfo-url is optional.
+//
+// Static endpoints are only meaningful for in-cluster deployments and are rejected
+// outside that mode so they are not silently ignored.
+func (c *Config) validateStaticOIDCEndpoints() error {
+	provided := 0
+
+	for _, url := range []string{c.OidcAuthURL, c.OidcTokenURL, c.OidcJWKSURL} {
+		if url != "" {
+			provided++
+		}
+	}
+
+	anyStatic := provided > 0 || c.OidcUserinfoURL != ""
+
+	// Static OIDC endpoints are only supported in in-cluster mode.
+	if anyStatic && !c.InCluster {
+		return errors.New("oidc-auth-url, oidc-token-url, oidc-jwks-url and oidc-userinfo-url " +
+			"flags are only meant to be used in in-cluster mode")
+	}
+
+	// oidc-userinfo-url on its own is not enough to enable static mode.
+	if provided == 0 {
+		if c.OidcUserinfoURL != "" {
+			return errors.New("oidc-userinfo-url requires oidc-auth-url, oidc-token-url and " +
+				"oidc-jwks-url to be set")
+		}
+
+		return nil
+	}
+
+	const requiredStaticEndpoints = 3
+	if provided != requiredStaticEndpoints {
+		return errors.New("oidc-auth-url, oidc-token-url and oidc-jwks-url must all be set together " +
+			"to configure static OIDC endpoints")
 	}
 
 	return nil
@@ -661,6 +742,15 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-callback-url", "", "Callback URL for OIDC")
 	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
 	f.String("oidc-scopes", "profile,email", "A comma separated list of scopes needed from the OIDC provider")
+	f.String("oidc-auth-url", "",
+		"Static OIDC authorization endpoint URL. When set together with oidc-token-url and "+
+			"oidc-jwks-url, Headlamp skips OIDC discovery")
+	f.String("oidc-token-url", "",
+		"Static OIDC token endpoint URL. Required alongside oidc-auth-url and oidc-jwks-url for static mode")
+	f.String("oidc-jwks-url", "",
+		"Static OIDC JWK Set endpoint URL. Required alongside oidc-auth-url and oidc-token-url for static mode")
+	f.String("oidc-userinfo-url", "",
+		"Static OIDC UserInfo endpoint URL. Optional; only used when the static OIDC endpoints are configured")
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")

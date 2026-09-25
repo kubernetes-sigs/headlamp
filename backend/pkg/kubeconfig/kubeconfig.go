@@ -92,6 +92,10 @@ func (c *Context) Copy() *Context {
 			ClientSecret: c.OidcConf.ClientSecret,
 			IdpIssuerURL: c.OidcConf.IdpIssuerURL,
 			Scopes:       make([]string, len(c.OidcConf.Scopes)),
+			AuthURL:      c.OidcConf.AuthURL,
+			TokenURL:     c.OidcConf.TokenURL,
+			JWKSURL:      c.OidcConf.JWKSURL,
+			UserInfoURL:  c.OidcConf.UserInfoURL,
 		}
 		copy(oidcConf.Scopes, c.OidcConf.Scopes)
 
@@ -159,6 +163,20 @@ type OidcConfig struct {
 	SkipTLSVerify *bool
 	// OIDC CA certificate.
 	CACert *string
+	// Static OIDC endpoint URLs. These are populated from Headlamp's CLI flags
+	// (not from kubeconfig files) and, when AuthURL, TokenURL and JWKSURL are all
+	// set, let the provider be built directly instead of via OIDC discovery.
+	// UserInfoURL is optional.
+	AuthURL     string
+	TokenURL    string
+	JWKSURL     string
+	UserInfoURL string
+}
+
+// HasStaticOIDCEndpoints reports whether the static OIDC endpoint URLs required to
+// bypass discovery (authorization, token and JWK Set endpoints) are all configured.
+func (c *OidcConfig) HasStaticOIDCEndpoints() bool {
+	return c != nil && c.AuthURL != "" && c.TokenURL != "" && c.JWKSURL != ""
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -1222,6 +1240,7 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcStaticEndpoints OidcStaticEndpoints,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) (*Context, error) {
@@ -1243,9 +1262,20 @@ func GetInClusterContext(
 		oidcScopes,
 		oidcSkipTLSVerify,
 		oidcCACert,
+		oidcStaticEndpoints,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
 	), nil
+}
+
+// OidcStaticEndpoints groups the optional static OIDC endpoint URLs sourced from
+// Headlamp's CLI flags. When AuthURL, TokenURL and JWKSURL are all set, the OIDC
+// provider is built from these endpoints instead of through discovery.
+type OidcStaticEndpoints struct {
+	AuthURL     string
+	TokenURL    string
+	JWKSURL     string
+	UserInfoURL string
 }
 
 func newInClusterContextFromConfig(
@@ -1257,6 +1287,7 @@ func newInClusterContextFromConfig(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcStaticEndpoints OidcStaticEndpoints,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) *Context {
@@ -1282,24 +1313,10 @@ func newInClusterContextFromConfig(
 		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
 	}
 
-	var oidcConf *OidcConfig
-
-	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
-		var caCert *string
-		if oidcCACert != "" {
-			caCert = &oidcCACert
-		}
-
-		// client secret is optional for in-cluster OIDC configuration
-		oidcConf = &OidcConfig{
-			ClientID:      oidcClientID,
-			ClientSecret:  oidcClientSecret,
-			IdpIssuerURL:  oidcIssuerURL,
-			Scopes:        strings.Split(oidcScopes, ","),
-			SkipTLSVerify: &oidcSkipTLSVerify,
-			CACert:        caCert,
-		}
-	}
+	oidcConf := newInClusterOidcConfig(
+		oidcIssuerURL, oidcClientID, oidcClientSecret, oidcScopes,
+		oidcSkipTLSVerify, oidcCACert, oidcStaticEndpoints,
+	)
 
 	return &Context{
 		Name:        contextName,
@@ -1308,6 +1325,40 @@ func newInClusterContextFromConfig(
 		AuthInfo:    inClusterAuthInfo,
 		Source:      InCluster,
 		OidcConf:    oidcConf,
+	}
+}
+
+// newInClusterOidcConfig builds the OidcConfig for the in-cluster context from the
+// CLI-flag-sourced OIDC settings, or returns nil when OIDC is not configured. The
+// static endpoint URLs are attached so the auth flow can bypass discovery when they
+// are all set.
+func newInClusterOidcConfig(
+	oidcIssuerURL, oidcClientID, oidcClientSecret, oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
+	oidcStaticEndpoints OidcStaticEndpoints,
+) *OidcConfig {
+	if oidcClientID == "" || oidcIssuerURL == "" || oidcScopes == "" {
+		return nil
+	}
+
+	var caCert *string
+	if oidcCACert != "" {
+		caCert = &oidcCACert
+	}
+
+	// client secret is optional for in-cluster OIDC configuration
+	return &OidcConfig{
+		ClientID:      oidcClientID,
+		ClientSecret:  oidcClientSecret,
+		IdpIssuerURL:  oidcIssuerURL,
+		Scopes:        strings.Split(oidcScopes, ","),
+		SkipTLSVerify: &oidcSkipTLSVerify,
+		CACert:        caCert,
+		AuthURL:       oidcStaticEndpoints.AuthURL,
+		TokenURL:      oidcStaticEndpoints.TokenURL,
+		JWKSURL:       oidcStaticEndpoints.JWKSURL,
+		UserInfoURL:   oidcStaticEndpoints.UserInfoURL,
 	}
 }
 

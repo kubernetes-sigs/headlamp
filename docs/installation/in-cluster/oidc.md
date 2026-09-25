@@ -78,6 +78,23 @@ By default, headlamp leverages the `id_token` provided back from the OIDC Provid
 
 - `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
 
+### Static OIDC Endpoints (bypassing discovery)
+
+By default, Headlamp discovers the OIDC provider's authorization, token, JWKS and UserInfo endpoints automatically by fetching the issuer's `/.well-known/openid-configuration` document. In some in-cluster deployments the discovery endpoint may not be reachable from the Headlamp pod (e.g. the issuer URL is only valid for browser redirects). In that case you can supply the endpoint URLs directly so Headlamp skips the discovery request.
+
+- `-oidc-auth-url` or env var `HEADLAMP_CONFIG_OIDC_AUTH_URL` — the authorization endpoint
+- `-oidc-token-url` or env var `HEADLAMP_CONFIG_OIDC_TOKEN_URL` — the token endpoint
+- `-oidc-jwks-url` or env var `HEADLAMP_CONFIG_OIDC_JWKS_URL` — the JWK Set endpoint
+- `-oidc-userinfo-url` or env var `HEADLAMP_CONFIG_OIDC_USERINFO_URL` — the UserInfo endpoint (optional)
+
+**Rules:**
+
+- All three required endpoints (`oidc-auth-url`, `oidc-token-url`, `oidc-jwks-url`) must be set together. Providing only a subset is a configuration error.
+- `oidc-userinfo-url` is optional and only takes effect when the three required endpoints are configured.
+- When all three required endpoints are configured, Headlamp uses them directly and does not perform OIDC discovery.
+- When they are not configured, Headlamp continues to use OIDC discovery as before.
+- These flags are only accepted in in-cluster mode (`--in-cluster`). Providing them outside in-cluster mode results in a configuration error.
+
 ### Example: OIDC with Keycloak in Minikube
 
 If you are interested in a comprehensive example of using OIDC and Headlamp,
