@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { useEffect } from 'react';
+import { useHistory } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import { PureAlertNotification } from './AlertNotification';
@@ -23,6 +25,20 @@ vi.mock('../../lib/cluster', async importOriginal => ({
   ...(await importOriginal<typeof import('../../lib/cluster')>()),
   getCluster: () => 'test-cluster',
 }));
+
+const BANNER_TEXT = 'Lost connection to the cluster.';
+
+type TestHistory = ReturnType<typeof useHistory>;
+
+// Hands the router history to the test so it can navigate between routes
+// while the component stays mounted, like the app-level instance does.
+function HistoryGrabber({ onReady }: { onReady: (history: TestHistory) => void }) {
+  const history = useHistory();
+  useEffect(() => {
+    onReady(history);
+  }, [history, onReady]);
+  return null;
+}
 
 describe('PureAlertNotification', () => {
   // The suite-wide config fakes Date + setTimeout/clearTimeout; opt setInterval/clearInterval
@@ -66,5 +82,121 @@ describe('PureAlertNotification', () => {
     // interval would still be 10s and this advance would see no new call.
     await act(async () => await vi.advanceTimersByTimeAsync(5000));
     expect(checkerFunction).toHaveBeenCalledTimes(3);
+  });
+
+  // Routes in ROUTES_WITHOUT_ALERT hide the alert, so polling there only
+  // accrues expected failures. That stale error and backoff used to render
+  // as a "lost connection" banner right after OIDC sign-in.
+  it('does not poll cluster health on routes that hide the alert', async () => {
+    const checkerFunction = vi.fn().mockRejectedValue(new Error('no session'));
+
+    await act(async () => {
+      render(
+        <TestContext urlPrefix="/c/test-cluster/login">
+          <PureAlertNotification checkerFunction={checkerFunction} />
+        </TestContext>
+      );
+    });
+
+    await act(async () => await vi.advanceTimersByTimeAsync(20000));
+    expect(checkerFunction).not.toHaveBeenCalled();
+  });
+
+  // A failed check on a cluster view must not survive a pass through a hidden
+  // route. Before the fix the error and the raised backoff stayed in state, so
+  // the banner came back at once when the user returned from the login page,
+  // and the next check ran on the raised cadence.
+  it('clears stale error and backoff after a pass through a hidden route', async () => {
+    const checkerFunction = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue({});
+    let testHistory!: TestHistory;
+
+    await act(async () => {
+      render(
+        <TestContext urlPrefix="/c/test-cluster">
+          <HistoryGrabber
+            onReady={history => {
+              testHistory = history;
+            }}
+          />
+          <PureAlertNotification checkerFunction={checkerFunction} />
+        </TestContext>
+      );
+    });
+
+    // t=5s: the check fails on the cluster view and the banner shows.
+    await act(async () => await vi.advanceTimersByTimeAsync(5000));
+    expect(checkerFunction).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(BANNER_TEXT)).not.toBeNull();
+
+    // On the login route the banner hides and polling stops.
+    await act(async () => {
+      testHistory.push('/c/test-cluster/login');
+    });
+    expect(screen.queryByText(BANNER_TEXT)).toBeNull();
+    await act(async () => await vi.advanceTimersByTimeAsync(20000));
+    expect(checkerFunction).toHaveBeenCalledTimes(1);
+
+    // Back on the cluster view no stale banner appears before any new check.
+    await act(async () => {
+      testHistory.push('/c/test-cluster');
+    });
+    expect(screen.queryByText(BANNER_TEXT)).toBeNull();
+
+    // The next check runs 5s later on the base cadence and succeeds.
+    await act(async () => await vi.advanceTimersByTimeAsync(5000));
+    expect(checkerFunction).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(BANNER_TEXT)).toBeNull();
+  });
+
+  // clearInterval stops future ticks only. A check that is in flight when the
+  // route hides the alert settles later. When it settles after the user is
+  // back on a cluster view, its rejection belongs to the old poller epoch and
+  // must not write a banner or a backoff into the new one.
+  it('ignores a check that settles after a pass through a hidden route', async () => {
+    const pendingRejects: Array<(reason: Error) => void> = [];
+    const checkerFunction = vi.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          pendingRejects.push(reject);
+        })
+    );
+    let testHistory!: TestHistory;
+
+    await act(async () => {
+      render(
+        <TestContext urlPrefix="/c/test-cluster">
+          <HistoryGrabber
+            onReady={history => {
+              testHistory = history;
+            }}
+          />
+          <PureAlertNotification checkerFunction={checkerFunction} />
+        </TestContext>
+      );
+    });
+
+    // t=5s: a check starts and stays in flight.
+    await act(async () => await vi.advanceTimersByTimeAsync(5000));
+    expect(checkerFunction).toHaveBeenCalledTimes(1);
+
+    // A quick pass through the login route and back while the check is
+    // still pending.
+    await act(async () => {
+      testHistory.push('/c/test-cluster/login');
+    });
+    await act(async () => {
+      testHistory.push('/c/test-cluster');
+    });
+
+    // The old check settles now. It must leave no banner behind.
+    await act(async () => {
+      pendingRejects[0](new Error('late rejection'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByText(BANNER_TEXT)).toBeNull();
+
+    // The backoff stayed at the base cadence: the next check fires 5s later.
+    await act(async () => await vi.advanceTimersByTimeAsync(5000));
+    expect(checkerFunction).toHaveBeenCalledTimes(2);
   });
 });
