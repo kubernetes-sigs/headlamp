@@ -74,7 +74,7 @@ export default function Tabs(props: TabsProps) {
    * @param event - The event triggered by selecting a new tab.
    * @param newValue - The index of the newly selected tab.
    */
-  function handleTabChange(event: any, newValue: number) {
+  function handleTabChange(_event: React.SyntheticEvent, newValue: number) {
     setTabIndex(newValue);
 
     if (onTabChanged !== null) {
