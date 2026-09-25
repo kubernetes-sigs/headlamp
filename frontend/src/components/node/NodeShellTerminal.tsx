@@ -167,7 +167,9 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
     connectStream: async onDataCallback => {
-      const cluster = getCluster();
+      // Create the debugger pod on the node's own cluster, not the first
+      // cluster in the URL.
+      const cluster = item.cluster || getCluster();
       if (!cluster) {
         const message = t('translation|No cluster selected');
         enqueueSnackbar(message, { variant: 'error' });
