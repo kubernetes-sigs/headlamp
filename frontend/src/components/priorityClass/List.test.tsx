@@ -65,6 +65,21 @@ describe('PriorityClassList', () => {
 
     expect(value.getValue({ value: 1000000 })).toBe(1000000);
     expect(globalDefault.getValue({ globalDefault: true })).toBe('true');
-    expect(globalDefault.getValue({ globalDefault: false })).toBe('False');
+    expect(globalDefault.getValue({ globalDefault: false })).toBe('false');
+    expect(globalDefault.getValue({ globalDefault: undefined })).toBe('false');
+  });
+
+  it('renders the global default column as a translated Yes/No', () => {
+    render(
+      <TestContext>
+        <PriorityClassList />
+      </TestContext>
+    );
+
+    const props = mockListView.mock.calls[0][0];
+    const globalDefault = props.columns.find((c: any) => c?.id === 'globalDefault');
+
+    expect(globalDefault.render({ globalDefault: true })).toBe('translation|Yes');
+    expect(globalDefault.render({ globalDefault: false })).toBeNull();
   });
 });
