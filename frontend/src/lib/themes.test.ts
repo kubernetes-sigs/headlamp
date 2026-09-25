@@ -103,6 +103,27 @@ describe('themes.ts', () => {
 
       expect(theme.palette.secondary.contrastText).toBe('#000');
     });
+
+    it.each(['light', 'dark'] as const)(
+      'should use the default radius when a %s theme omits radius',
+      base => {
+        const theme = createMuiTheme({ base, name: `${base} theme` });
+
+        expect(theme.shape.borderRadius).toBe(4);
+      }
+    );
+
+    it('should preserve a zero radius', () => {
+      const theme = createMuiTheme({ base: 'light', name: 'Square', radius: 0 });
+
+      expect(theme.shape.borderRadius).toBe(0);
+    });
+
+    it('should preserve a custom radius', () => {
+      const theme = createMuiTheme({ base: 'light', name: 'Rounded', radius: 8 });
+
+      expect(theme.shape.borderRadius).toBe(8);
+    });
   });
 
   describe('getThemeName', () => {
