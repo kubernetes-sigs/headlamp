@@ -84,7 +84,8 @@ export function PodDebugAction(props: PodDebugActionProps) {
     return null;
   }
 
-  const cluster = getCluster();
+  // Read the settings of the pod's own cluster, not the first cluster in the URL.
+  const cluster = item.cluster || getCluster();
   const getActivityId = () => `pod-debug-${item.metadata.uid}`;
 
   if (!isPodDebugEnabled(cluster)) {

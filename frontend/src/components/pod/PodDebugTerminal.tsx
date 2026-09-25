@@ -200,7 +200,8 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
 
   const connectStream = useCallback(
     async (onDataCallback: (data: ArrayBuffer) => void) => {
-      const cluster = getCluster();
+      // Read the settings of the pod's own cluster, not the first cluster in the URL.
+      const cluster = item.cluster || getCluster();
       if (!cluster) {
         enqueueSnackbar(t('translation|No cluster selected'), { variant: 'error' });
         return { stream: null };
