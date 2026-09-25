@@ -97,4 +97,9 @@ export const cronJobList = [
     metadata: { ...baseCronJob.metadata, name: 'last-day-of-month' },
     spec: { ...baseCronJob.spec, schedule: '0 0 L * *' },
   },
+  {
+    ...baseCronJob,
+    metadata: { ...baseCronJob.metadata, name: 'starting-deadline-zero' },
+    spec: { ...baseCronJob.spec, schedule: '* * * * *', startingDeadlineSeconds: 0 },
+  },
 ];
