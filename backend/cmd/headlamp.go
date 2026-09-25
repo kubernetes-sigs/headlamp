@@ -821,6 +821,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
 	r.Handle("/clusters/{clusterName}/me", auth.NewBackendTokenMiddleware(config.UseInCluster)(
 		auth.HandleMe(auth.MeHandlerOptions{
+			BaseURL:                 config.BaseURL,
 			UsernamePaths:           config.MeUsernamePaths,
 			EmailPaths:              config.MeEmailPaths,
 			GroupsPaths:             config.MeGroupsPaths,

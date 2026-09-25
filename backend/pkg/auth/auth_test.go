@@ -111,6 +111,7 @@ func TestDecodeBase64JSON(t *testing.T) {
 	}
 }
 
+//nolint:gosec // test fixture tokens
 var parseClusterAndTokenTests = []struct {
 	name        string
 	url         string
@@ -179,6 +180,41 @@ var parseClusterAndTokenTests = []struct {
 				Value: "cookie-token",
 			},
 		},
+	},
+	{
+		name:        "subpath baseURL cluster path",
+		url:         "/headlamp/clusters/subpath-cluster/api",
+		authHeader:  "Bearer test-subpath-token",
+		wantCluster: "subpath-cluster",
+		wantToken:   "test-subpath-token",
+	},
+	{
+		name:        "exact cluster root path without trailing slash",
+		url:         "/clusters/exact-cluster",
+		authHeader:  "Bearer test-exact-token",
+		wantCluster: "exact-cluster",
+		wantToken:   "test-exact-token",
+	},
+	{
+		name:        "subpath baseURL exact cluster root path",
+		url:         "/headlamp/clusters/subpath-exact",
+		authHeader:  "Bearer test-subpath-exact-token",
+		wantCluster: "subpath-exact",
+		wantToken:   "test-subpath-exact-token",
+	},
+	{
+		name:        "nested clusters path (Cluster API resource)",
+		url:         "/headlamp/clusters/prod/apis/cluster.x-k8s.io/v1beta1/namespaces/default/clusters/demo",
+		authHeader:  "Bearer test-nested-token",
+		wantCluster: "prod",
+		wantToken:   "test-nested-token",
+	},
+	{
+		name:        "root nested clusters path",
+		url:         "/clusters/prod/apis/cluster.x-k8s.io/v1beta1/namespaces/default/clusters/demo",
+		authHeader:  "Bearer test-root-nested-token",
+		wantCluster: "prod",
+		wantToken:   "test-root-nested-token",
 	},
 }
 
@@ -1367,4 +1403,102 @@ func TestHandleMe_MissingCookie(t *testing.T) {
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
+}
+
+func TestHandleMe_WithBaseURL(t *testing.T) {
+	t.Parallel()
+
+	expiry := time.Now().Add(time.Hour).Unix()
+	claims := map[string]interface{}{
+		"preferred_username": "bob",
+		"email":              "bob@example.com",
+		"groups":             []string{"admins"},
+		"exp":                float64(expiry),
+	}
+
+	token := makeTestToken(t, claims)
+
+	// Path starts with BaseURL=/clusters/admin and targets clusterName=prod
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/admin/clusters/prod/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "prod"})
+	req.AddCookie(&http.Cookie{
+		Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("prod")),
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		BaseURL:       "/clusters/admin",
+		UsernamePaths: "preferred_username",
+		EmailPaths:    "email",
+		GroupsPaths:   "groups",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string   `json:"username"`
+		Email    string   `json:"email"`
+		Groups   []string `json:"groups"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "bob", got.Username)
+	assert.Equal(t, "bob@example.com", got.Email)
+	assert.Equal(t, []string{"admins"}, got.Groups)
+}
+
+func TestHandleMe_WithSlashOnlyBaseURL(t *testing.T) {
+	t.Parallel()
+
+	expiry := time.Now().Add(time.Hour).Unix()
+	claims := map[string]interface{}{
+		"preferred_username": "alice",
+		"email":              "alice@example.com",
+		"groups":             []string{"users"},
+		"exp":                float64(expiry),
+	}
+
+	token := makeTestToken(t, claims)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/prod/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "prod"})
+	req.AddCookie(&http.Cookie{
+		Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("prod")),
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     auth.GetCookiePath("/", "prod"),
+	})
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		BaseURL:       "/",
+		UsernamePaths: "preferred_username",
+		EmailPaths:    "email",
+		GroupsPaths:   "groups",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string   `json:"username"`
+		Email    string   `json:"email"`
+		Groups   []string `json:"groups"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "alice", got.Username)
+	assert.Equal(t, "alice@example.com", got.Email)
+	assert.Equal(t, []string{"users"}, got.Groups)
 }
