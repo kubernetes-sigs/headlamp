@@ -33,6 +33,7 @@ export default defineConfig({
     'configDirectories.spec.ts',
     'namespaces.spec.ts',
     'clusterAutoConnect.spec.ts',
+    'clusterRegistration.spec.ts',
     'externalBackendToken.spec.ts',
     'pluginSecureStorage.spec.ts',
     'listenerCleanup.spec.ts',
