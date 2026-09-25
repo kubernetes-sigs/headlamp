@@ -89,7 +89,7 @@ export default function NodeShellSettings(props: SettingsProps) {
             value: (
               <TextField
                 onChange={event => {
-                  const value = event.target.value.replace(' ', '');
+                  const value = event.target.value.replace(/\s/g, '');
                   updateNodeShell({ linuxImage: value });
                 }}
                 value={image}
@@ -113,7 +113,7 @@ export default function NodeShellSettings(props: SettingsProps) {
             value: (
               <TextField
                 onChange={event => {
-                  const value = event.target.value.replace(' ', '');
+                  const value = event.target.value.replace(/\s/g, '');
                   setNamespaceInput(value);
                   if (isValidNamespaceFormat(value) || value === '') {
                     updateNodeShell({ namespace: value });
