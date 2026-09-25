@@ -39,6 +39,20 @@ const POD_FAILED_CONTAINER_REASONS = [
   'DeadlineExceeded',
 ];
 
+/**
+ * Whether an init container is a sidecar, i.e. a "restartable" init container.
+ *
+ * Init containers with `restartPolicy: 'Always'` keep running for the whole pod
+ * lifetime instead of running to completion, so they count towards the pod's
+ * effective resource requests and limits additively rather than as a one-off
+ * init step.
+ *
+ * @see {@link https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/} Kubernetes definition for sidecar containers
+ */
+export function isRestartableInitContainer(container?: KubeContainer): boolean {
+  return container?.restartPolicy === 'Always';
+}
+
 export interface KubeVolume {
   name: string;
   [volumeName: string]: any;
@@ -381,10 +395,6 @@ class Pod extends KubeObject<KubePod> {
     return lastRestartDate;
   }
 
-  private isRestartableInitContainer(spec?: KubeContainer): boolean {
-    return !!spec && (spec as any).restartPolicy === 'Always';
-  }
-
   private isPodInitializedConditionTrue(status?: KubePod['status']): boolean {
     for (const c of status?.conditions ?? []) {
       if (c.type === 'Initialized' && c.status === 'True') {
@@ -426,7 +436,7 @@ class Pod extends KubeObject<KubePod> {
     let totalContainers = (this.spec?.containers ?? []).length;
     for (const ic of this.spec?.initContainers ?? []) {
       initContainers[ic.name] = ic;
-      if (this.isRestartableInitContainer(ic)) {
+      if (isRestartableInitContainer(ic)) {
         totalContainers++;
       }
     }
@@ -450,7 +460,7 @@ class Pod extends KubeObject<KubePod> {
         }
       }
 
-      if (this.isRestartableInitContainer(initContainers[container.name])) {
+      if (isRestartableInitContainer(initContainers[container.name])) {
         restartableInitContainerRestarts += container.restartCount;
         if (
           container.lastState?.terminated !== null &&
@@ -468,7 +478,7 @@ class Pod extends KubeObject<KubePod> {
       switch (true) {
         case container.state.terminated?.exitCode === 0:
           continue;
-        case !!container.started && this.isRestartableInitContainer(initContainers[container.name]):
+        case !!container.started && isRestartableInitContainer(initContainers[container.name]):
           if (container.ready) {
             readyContainers++;
           }
