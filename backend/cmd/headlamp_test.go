@@ -54,6 +54,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -157,6 +161,94 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 
 	_, err := kubeConfigStore.GetContext(kubeconfig.DefaultInClusterContextName)
 	require.Error(t, err)
+}
+
+// TestCreateHeadlampHandlerTracesRequests checks that the handler serving Headlamp
+// requests is traced, and that its request span continues an incoming trace.
+//
+//nolint:funlen
+func TestCreateHeadlampHandlerTracesRequests(t *testing.T) {
+	const (
+		traceID      = "4bf92f3577b34da6a3ce929d0e0e4736"
+		parentSpanID = "00f067aa0ba902b7"
+	)
+
+	tests := []struct {
+		name    string
+		baseURL string
+	}{
+		{name: "no base URL"},
+		{name: "with base URL", baseURL: "/headlamp"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+			spanRecorder := tracetest.NewSpanRecorder()
+			tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+			originalTracerProvider := otel.GetTracerProvider()
+			originalPropagator := otel.GetTextMapPropagator()
+
+			otel.SetTracerProvider(tracerProvider)
+			otel.SetTextMapPropagator(propagation.TraceContext{})
+			t.Cleanup(func() {
+				otel.SetTracerProvider(originalTracerProvider)
+				otel.SetTextMapPropagator(originalPropagator)
+
+				_ = tracerProvider.Shutdown(context.Background())
+			})
+
+			tel, err := telemetry.NewTelemetry(GetDefaultTestTelemetryConfig())
+			require.NoError(t, err)
+
+			metrics, err := telemetry.NewMetrics()
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			handler := createHeadlampHandler(ctx, &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						BaseURL:         tc.baseURL,
+						KubeConfigDir:   t.TempDir(),
+						PluginDir:       t.TempDir(),
+						UserPluginDir:   t.TempDir(),
+						KubeConfigStore: kubeconfig.NewContextStore(),
+						Telemetry:       tel,
+						Metrics:         metrics,
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: telemetry.NewRequestHandler(tel, metrics),
+				},
+			})
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.baseURL+"/config", nil)
+			req.Header.Set("traceparent", "00-"+traceID+"-"+parentSpanID+"-01")
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			require.Equal(t, http.StatusOK, rr.Code)
+
+			var requestSpans []sdktrace.ReadOnlySpan
+
+			for _, span := range spanRecorder.Ended() {
+				if span.Name() == "headlamp-server" {
+					requestSpans = append(requestSpans, span)
+				}
+			}
+
+			require.Len(t, requestSpans, 1, "expected one headlamp-server request span")
+
+			span := requestSpans[0]
+			assert.Equal(t, trace.SpanKindServer, span.SpanKind())
+			assert.Equal(t, traceID, span.SpanContext().TraceID().String())
+			assert.True(t, span.Parent().IsRemote(), "request span should have a remote parent")
+			assert.Equal(t, parentSpanID, span.Parent().SpanID().String())
+		})
+	}
 }
 
 //nolint:funlen
