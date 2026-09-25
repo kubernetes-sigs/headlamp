@@ -181,10 +181,10 @@ export function useKubeObject<K extends KubeObject>({
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
       if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+        client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
       }
     },
-    [client, queryKey, kubeObjectClass]
+    [client, queryKey, kubeObjectClass, cluster]
   );
 
   const connectionsRequests = useMemo(() => {
