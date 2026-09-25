@@ -47,6 +47,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/audit"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
@@ -64,6 +65,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -971,6 +973,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Auth token management
 	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
 		http.HandlerFunc(config.handleSetToken))).Methods("POST")
+
+	// Audit Logs
+	auditStreamer := audit.NewStreamer()
+	r.HandleFunc("/audit/webhook", auditStreamer.HandleWebhook).Methods("POST")
+	r.HandleFunc("/audit/stream", auditStreamer.HandleWebSocket)
 
 	// Websocket connections
 	if config.Multiplexer != nil {

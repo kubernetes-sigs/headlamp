@@ -4,6 +4,7 @@
   "Cluster selector": "Klusterväljare",
   "Namespace": "Namnområde",
   "Git Commit": "Git-incheckning",
+  "Audit Logs": "",
   "Memory": "Minne",
   "CPU": "Processor",
   "Pods": "Poddar",
