@@ -735,6 +735,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
+	if config.Telemetry != nil && config.Metrics != nil {
+		r.Use(telemetry.TracingMiddleware("headlamp-server"))
+		r.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
 	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
 	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
 
@@ -1550,13 +1555,6 @@ func StartHeadlampServer(config *HeadlampConfig) {
 			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
 		}
 	}()
-
-	router := mux.NewRouter()
-
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
 
 	if config.StaticDir != "" {
 		if err := copyStaticFiles(config); err != nil {
