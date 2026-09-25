@@ -52,4 +52,40 @@ describe('pluginLib variable', () => {
     // It's an implementation detail of our pluginLib that plugins must not rely on.
     expect(window.pluginLib).not.toHaveProperty('queryClient');
   });
+
+  it('should expose the documented public plugin API', () => {
+    // These are the properties plugins are documented to rely on, either via
+    // the prose docs (docs/development/plugins/functionality/index.md) or via
+    // the @kinvolk/headlamp-plugin externals mapping
+    // (plugins/headlamp-plugin/config/vite.config.mjs). Removing any of these
+    // would be a breaking change for existing plugins.
+    const documentedApi = [
+      // Named directly in the functionality docs as "the main ones".
+      'K8s',
+      'Headlamp',
+      'CommonComponents',
+      'Notification',
+      'Router',
+      'Activity',
+      // Mapped by @kinvolk/headlamp-plugin's externals config.
+      'ApiProxy',
+      'Crd',
+      'Utils',
+      // The Plugin base class and registerPlugin-adjacent helpers.
+      'Plugin',
+      'useTranslation',
+      // Registry helpers re-exported from ./registry.
+      'registerSidebarEntry',
+      'registerRoute',
+      'registerAppBarAction',
+      'registerDetailsViewSection',
+      'registerAppLogo',
+      'registerClusterChooser',
+      'registerPluginSettings',
+    ];
+
+    documentedApi.forEach(key => {
+      expect(window.pluginLib).toHaveProperty(key);
+    });
+  });
 });
