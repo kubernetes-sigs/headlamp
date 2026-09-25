@@ -62,6 +62,6 @@ Add support for multiple languages and locales
 
 👉 **Ready to build?** Jump into [Building & Shipping](./building.md)
 
-👉 **Need architectural details?** Read about [Plugin Architecture](./architecture.md)
+👉 **Need architectural details?** Read about [Plugin Architecture](../architecture.md)
 
 The Headlamp plugin ecosystem is growing rapidly. Whether you're building internal tools or creating plugins for the community, you're contributing to making Kubernetes more accessible and powerful for everyone!
