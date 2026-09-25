@@ -156,6 +156,20 @@ function getPortForwardsFromStorage(): PortForwardState[] {
   }
 }
 
+/** Adds the port forward to storage, replacing any stored entry with the same id. */
+function savePortForwardToStorage(portForward: PortForwardState) {
+  const others = getPortForwardsFromStorage().filter(pf => pf.id !== portForward.id);
+  localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify([...others, portForward]));
+}
+
+function removePortForwardFromStorage(id: string) {
+  const portForwards = getPortForwardsFromStorage();
+  const remaining = portForwards.filter(pf => pf.id !== id);
+  if (remaining.length !== portForwards.length) {
+    localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(remaining));
+  }
+}
+
 function PortForwardContent(props: PortForwardProps) {
   const { containerPort, resource } = props;
   const isPod = resource?.kind !== 'Service';
@@ -329,11 +343,11 @@ function PortForwardContent(props: PortForwardProps) {
     )
       .then((data: PortForwardState) => {
         setLoading(false);
-        setPortForward(data);
-
-        const parsedPortForwards = getPortForwardsFromStorage();
-        parsedPortForwards.push(data);
-        localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
+        // The start response has no cluster or status. Without the cluster the
+        // stored entry is dropped when it is read back after a restart.
+        const startedPortForward = { ...data, cluster, status: PORT_FORWARD_RUNNING_STATUS };
+        setPortForward(startedPortForward);
+        savePortForwardToStorage(startedPortForward);
       })
       .catch(error => {
         const message = getErrorMessage(error);
@@ -342,14 +356,7 @@ function PortForwardContent(props: PortForwardProps) {
         setPortForward(null);
 
         if (portForward?.id) {
-          const parsedPortForwards = getPortForwardsFromStorage();
-          const index = parsedPortForwards.findIndex(
-            (pf: PortForwardState) => pf.id === portForward.id
-          );
-          if (index !== -1) {
-            parsedPortForwards.splice(index, 1);
-            localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
-          }
+          removePortForwardFromStorage(portForward.id);
         }
       });
   }
@@ -389,15 +396,21 @@ function PortForwardContent(props: PortForwardProps) {
     setLoading(true);
     stopOrDeletePortForward(cluster, id, false)
       .then(() => {
-        const parsedPortForwards = getPortForwardsFromStorage();
-        const index = parsedPortForwards.findIndex((pf: PortForwardState) => pf.id === id);
-        if (index !== -1) {
-          parsedPortForwards.splice(index, 1);
-          localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
-        }
+        removePortForwardFromStorage(id);
         setPortForward(null);
       })
-      .catch(error => {
+      .catch(async error => {
+        // Port forwards restored from storage after a restart are unknown to the
+        // backend, so deleting them fails. Keep the entry only if the backend
+        // still has it.
+        const isKnownToBackend = await listPortForward(cluster)
+          .then(portForwards => (portForwards || []).some(pf => pf.id === id))
+          .catch(() => true);
+        if (!isKnownToBackend) {
+          removePortForwardFromStorage(id);
+          setPortForward(null);
+          return;
+        }
         const message = getErrorMessage(error);
         setError(message || 'Failed to delete port forward');
       })
