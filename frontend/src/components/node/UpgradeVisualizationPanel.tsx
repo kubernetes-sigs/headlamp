@@ -17,7 +17,7 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
-import { green } from '@mui/material/colors';
+import { blue, green } from '@mui/material/colors';
 import Paper from '@mui/material/Paper';
 import Step from '@mui/material/Step';
 import StepConnector, { stepConnectorClasses } from '@mui/material/StepConnector';
@@ -77,6 +77,7 @@ function formatTimestamp(ts: string): string {
 }
 
 const successBgColor = green[800]; // #2e7d32 — dark green, works in both modes
+const surgeBgColor = blue[800]; // #1565c0 — dark blue, sufficient contrast for white text in both modes
 
 function useActiveBgColor() {
   const theme = useTheme();
@@ -266,7 +267,13 @@ function NodeIdleRow({ state, node }: { state: NodeUpgradeState; node: Node | un
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="subtitle2">{state.nodeName}</Typography>
         {isReady && <Chip label={t('Ready')} size="small" color="success" variant="outlined" />}
-        {state.isSurge && <Chip label={t('Surge Node')} size="small" color="info" />}
+        {state.isSurge && (
+          <Chip
+            label={t('Surge Node')}
+            size="small"
+            sx={{ backgroundColor: surgeBgColor, color: '#fff' }}
+          />
+        )}
       </Box>
       {version && (
         <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 500 }}>
