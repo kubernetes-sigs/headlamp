@@ -1617,6 +1617,30 @@ func TestRestrictedEndpointsRequireToken(t *testing.T) {
 			body:   nil,
 		},
 		{
+			name:   "GET /plugins (listPlugins)",
+			method: http.MethodGet,
+			path:   "/plugins",
+			body:   nil,
+		},
+		{
+			name:   "GET /plugins/{path} (dev plugin static file)",
+			method: http.MethodGet,
+			path:   "/plugins/test-plugin/main.js",
+			body:   nil,
+		},
+		{
+			name:   "GET /user-plugins/{path}",
+			method: http.MethodGet,
+			path:   "/user-plugins/main.js",
+			body:   nil,
+		},
+		{
+			name:   "GET /static-plugins/{path}",
+			method: http.MethodGet,
+			path:   "/static-plugins/main.js",
+			body:   nil,
+		},
+		{
 			name:   "GET /clusters/{name}/helm/releases (handleClusterHelm)",
 			method: http.MethodGet,
 			path:   "/clusters/" + minikubeName + "/helm/releases",
@@ -1697,6 +1721,12 @@ func newRestrictedEndpointsHandler(t *testing.T) http.Handler {
 
 	devPluginDir := filepath.Join(pluginRoot, "plugins")
 	require.NoError(t, os.Mkdir(devPluginDir, 0o750))
+
+	staticPluginDir := filepath.Join(pluginRoot, "static-plugins")
+	require.NoError(t, os.Mkdir(staticPluginDir, 0o750))
+	// createHeadlampHandler re-derives StaticPluginDir from this env var, overwriting
+	// whatever is set on the config struct below.
+	t.Setenv("HEADLAMP_STATIC_PLUGINS_DIR", staticPluginDir)
 
 	pluginDir := filepath.Join(devPluginDir, "test-plugin")
 	require.NoError(t, os.Mkdir(pluginDir, 0o750))
@@ -1801,6 +1831,8 @@ func TestRestrictedEndpointsBypassedWithoutConfiguredToken(t *testing.T) {
 		{http.MethodPost, "/cluster"},
 		{http.MethodDelete, "/cluster/" + minikubeName},
 		{http.MethodDelete, "/plugins/test-plugin"},
+		{http.MethodGet, "/plugins"},
+		{http.MethodGet, "/user-plugins/main.js"},
 	}
 
 	for _, route := range routes {
@@ -1850,6 +1882,8 @@ func TestRestrictedEndpointsBypassedInCluster(t *testing.T) {
 		{http.MethodPost, "/cluster"},
 		{http.MethodDelete, "/cluster/" + minikubeName},
 		{http.MethodDelete, "/plugins/test-plugin"},
+		{http.MethodGet, "/plugins"},
+		{http.MethodGet, "/user-plugins/main.js"},
 		{http.MethodGet, "/clusters/" + minikubeName + "/helm/releases"},
 	}
 
