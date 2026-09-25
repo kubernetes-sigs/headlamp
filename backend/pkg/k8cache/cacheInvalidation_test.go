@@ -882,3 +882,90 @@ func TestSyncWatchers(t *testing.T) {
 	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
 	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }
+
+// TestHandleNonGETCacheInvalidation_PatchWithQueryStillInvalidates verifies that a
+// mutation carrying a query string still purges the cached entry. Headlamp appends
+// pretty=true to every PATCH and JSON Patch, so a query-bearing mutation must not
+// skip invalidation and leave a stale entry for the TTL.
+func TestHandleNonGETCacheInvalidation_PatchWithQueryStillInvalidates(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{
+		Path:     "/clusters/kind/api/v1/namespaces/ns/configmaps/my-config",
+		RawQuery: "pretty=true",
+	}
+
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
+
+	called := 0
+
+	var seen []string
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		called++
+
+		seen = append(seen, req.URL.RawQuery)
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"ConfigMap"}`))
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPatch, targetURL.String(), nil,
+	)
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	assert.Equal(t, 2, called, "original PATCH and fresh GET should both be forwarded")
+	require.Len(t, seen, 2)
+	assert.Equal(t, "pretty=true", seen[0], "the mutation itself keeps its query")
+	assert.Empty(t, seen[1], "the refresh must be queryless so it matches the path-only cache key")
+
+	cached, getErr := mockCache.Get(context.Background(), cacheKey)
+	if getErr == nil {
+		assert.NotContains(t, cached, "stale", "stale entry must not survive the mutation")
+	}
+}
+
+// TestHandleNonGETCacheInvalidation_RefreshDropsNarrowingQuery verifies that a mutation
+// carrying a collection-narrowing query does not refresh the cache from a filtered body.
+// The cache key is built from the path and context only, so a labelSelector on the refresh
+// would store a filtered list where a queryless GET expects the whole collection.
+func TestHandleNonGETCacheInvalidation_RefreshDropsNarrowingQuery(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{
+		Path:     "/clusters/kind/api/v1/namespaces/ns/configmaps",
+		RawQuery: "labelSelector=app%3Dweb",
+	}
+
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		body := `{"kind":"ConfigMapList","items":["all"]}`
+		if req.URL.RawQuery != "" {
+			body = `{"kind":"ConfigMapList","items":["filtered"]}`
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodDelete, targetURL.String(), nil,
+	)
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	cached, getErr := mockCache.Get(context.Background(), cacheKey)
+	if getErr == nil {
+		assert.NotContains(t, cached, "filtered",
+			"the refresh must not store a query-narrowed body under the path-only key")
+	}
+}
