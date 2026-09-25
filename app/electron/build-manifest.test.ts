@@ -921,6 +921,49 @@ describe('build manifest selection', () => {
     expect(argumentPattern.test('list\0all')).toBe(false);
   });
 
+  it('validates explicit approval lists consistently in the schema and runtime', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    for (const pluginLocation of ['development', 'shipped', 'user']) {
+      const approval = { tool: 'examplectl', args: ['project', 'list'], allowTrailingArgs: true };
+      for (const [approvedCommands, valid] of [
+        [undefined, true],
+        [[], true],
+        [[approval], true],
+        [[{ tool: 'examplectl', args: [] }], true],
+        [[{ tool: 'examplectl', args: [], allowTrailingArgs: true }], false],
+        [[approval, approval], false],
+        [Array(65).fill(approval), false],
+        [[{ ...approval, executable: { source: 'plugin', path: 'bin/examplectl' } }], false],
+        [[{ ...approval, args: [' '] }], false],
+        [[{ ...approval, tool: '/bin/sh' }], false],
+        [null, false],
+        [true, false],
+        ['all', false],
+      ] as const) {
+        const policy = {
+          environment: 'development',
+          pluginLocation,
+          ...(approvedCommands !== undefined && { approvedCommands }),
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['project', 'list'] }],
+        };
+        const allowed = valid && (approvedCommands === undefined || pluginLocation !== 'user');
+        const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+        expect(validate(manifest)).toBe(allowed);
+        if (allowed) {
+          const [parsed] = productPluginCommandPolicies(manifest, 'development');
+          expect(parsed.approvedCommands).toEqual(approvedCommands);
+          expect(parsed.source).toBe(pluginLocation);
+        } else {
+          expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+        }
+      }
+    }
+  });
+
   it('rejects duplicate command grants in the schema', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')

@@ -163,6 +163,13 @@
           "maxItems": 64,
           "items": { "$ref": "#/definitions/pluginIdentity" }
         },
+        "approvedCommands": {
+          "description": "Explicit default approvals for verified development or shipped plugins. Requests must also match commands, and saved denials still apply. Omitted or empty means no default approvals.",
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/approvedCommand" }
+        },
         "pluginExecutables": {
           "type": "array",
           "description": "Tools supplied by these plugin bundles at the derived path bin/<tool> instead of resolved on the sanitized system PATH.",
@@ -191,6 +198,14 @@
       "allOf": [
         {
           "if": {
+            "required": ["approvedCommands"]
+          },
+          "then": {
+            "properties": { "pluginLocation": { "enum": ["development", "shipped"] } }
+          }
+        },
+        {
+          "if": {
             "properties": {
               "environment": { "const": "production" },
               "pluginLocation": { "const": "user" }
@@ -209,6 +224,26 @@
         }
       ],
       "additionalProperties": false
+    },
+    "approvedCommand": {
+      "type": "object",
+      "properties": {
+        "tool": { "$ref": "#/definitions/commandGrant/properties/tool" },
+        "args": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/definitions/commandGrant/properties/args/items" }
+        },
+        "allowTrailingArgs": { "type": "boolean", "default": false }
+      },
+      "required": ["tool", "args"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "args": { "type": "array", "maxItems": 0 } } },
+          "then": { "properties": { "allowTrailingArgs": { "const": false } } }
+        }
+      ]
     },
     "pluginExecutable": {
       "type": "object",

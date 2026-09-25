@@ -222,6 +222,7 @@
     "@langchain/langgraph": "1.4.9",
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
+    "cross-spawn": "^7.0.6",
     "dotenv": "^16.4.5",
     "electron-wix-msi": "^5.1.3",
     "find-process": "^1.4.10",
