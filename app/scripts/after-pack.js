@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 exports.default = async context => {
+  const startedAt = Date.now();
+  console.log(`[build-timing] Electron afterPack started at ${new Date(startedAt).toISOString()}`);
   const { loadBuildManifest, verifyPackagedResources } = await import(
     '../build/build-manifest.mjs'
   );
@@ -21,4 +23,9 @@ exports.default = async context => {
   }
 
   verifyPackagedResources(resourcesDirectory, loadBuildManifest(), context.electronPlatformName);
+  console.log(
+    `[build-timing] Electron afterPack completed in ${((Date.now() - startedAt) / 1000).toFixed(
+      3
+    )}s`
+  );
 };
