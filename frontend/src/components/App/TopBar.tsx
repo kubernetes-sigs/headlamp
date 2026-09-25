@@ -29,6 +29,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useQueries } from '@tanstack/react-query';
 import { has } from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -49,10 +50,13 @@ import { uiSlice } from '../../redux/uiSlice';
 import { navigateToClusterSettings, SettingsButton } from '../App/Settings';
 import { ClusterTitle, useClusterTitleVisible } from '../cluster/Chooser';
 import ErrorBoundary from '../common/ErrorBoundary';
+import CopyButton from '../common/Resource/CopyButton';
 import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
 import { AppLogo } from './AppLogo';
+import { downloadKubeconfigYaml, getClusterKubeconfigYaml } from './Home/clusterKubeconfigExport';
+import KubeconfigButton from './KubeconfigButton';
 import { handleLogoutPathUpdate } from './TopBar.utils';
 
 export interface TopBarProps {}
@@ -289,6 +293,7 @@ export const PureTopBar = memo(
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const history = useHistory();
+    const { enqueueSnackbar } = useSnackbar();
 
     const openSideBar = !!(isSidebarOpenUserSelected === undefined ? false : isSidebarOpen);
 
@@ -436,6 +441,52 @@ export const PureTopBar = memo(
         action: null,
       },
       {
+        id: `${DefaultAppBarAction.KUBECONFIG}_COPY`,
+        action:
+          isClusterContext && cluster ? (
+            <CopyButton
+              buttonStyle="menu"
+              description={t('translation|Copy kubeconfig')}
+              text={() => getClusterKubeconfigYaml(cluster)}
+              onClick={handleMenuClose}
+              onCopied={() =>
+                enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
+                  variant: 'success',
+                })
+              }
+              onError={() =>
+                enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+                  variant: 'error',
+                })
+              }
+            />
+          ) : null,
+      },
+      {
+        id: `${DefaultAppBarAction.KUBECONFIG}_DOWNLOAD`,
+        action:
+          isClusterContext && cluster ? (
+            <MenuItem
+              onClick={async () => {
+                handleMenuClose();
+                const kubeconfigYaml = await getClusterKubeconfigYaml(cluster);
+                if (kubeconfigYaml) {
+                  downloadKubeconfigYaml(cluster, kubeconfigYaml);
+                } else {
+                  enqueueSnackbar(t('translation|Failed to find kubeconfig for this cluster'), {
+                    variant: 'error',
+                  });
+                }
+              }}
+            >
+              <ListItemIcon>
+                <Icon icon="mdi:file-download-outline" />
+              </ListItemIcon>
+              <ListItemText>{t('translation|Download kubeconfig')}</ListItemText>
+            </MenuItem>
+          ) : null,
+      },
+      {
         id: DefaultAppBarAction.SETTINGS,
         action: isClusterContext ? (
           <MenuItem
@@ -507,6 +558,10 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.NOTIFICATION,
         action: null,
+      },
+      {
+        id: DefaultAppBarAction.KUBECONFIG,
+        action: <KubeconfigButton onClickExtra={handleMenuClose} />,
       },
       {
         id: DefaultAppBarAction.SETTINGS,

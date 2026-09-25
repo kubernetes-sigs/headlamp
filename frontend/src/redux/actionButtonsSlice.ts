@@ -60,6 +60,7 @@ export enum DefaultHeaderAction {
 export enum DefaultAppBarAction {
   CLUSTER = 'CLUSTER',
   NOTIFICATION = 'NOTIFICATION',
+  KUBECONFIG = 'KUBECONFIG',
   SETTINGS = 'SETTINGS',
   USER = 'USER',
   GLOBAL_SEARCH = 'GLOBAL_SEARCH',
