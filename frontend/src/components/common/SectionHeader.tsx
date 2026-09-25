@@ -28,11 +28,15 @@ export interface SectionHeaderProps {
   actions?: React.ReactNode[] | null;
   noPadding?: boolean;
   headerStyle?: HeaderStyle;
+  /** Heading element to render, e.g. 'h3'. `headerStyle` sets the visual size,
+   *  which is not always the correct level for the heading's position in the
+   *  document outline. Use this to keep the styling while fixing the outline. */
+  headingLevel?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   titleSideActions?: React.ReactNode[];
 }
 
 export default function SectionHeader(props: SectionHeaderProps) {
-  const { noPadding = false, headerStyle = 'main', titleSideActions = [] } = props;
+  const { noPadding = false, headerStyle = 'main', headingLevel, titleSideActions = [] } = props;
   const actions = props.actions || [];
   const titleVariants: { [key: string]: Variant } = {
     main: 'h1',
@@ -58,6 +62,10 @@ export default function SectionHeader(props: SectionHeaderProps) {
             {!!props.title && (
               <Typography
                 variant={titleVariants[headerStyle]}
+                // Only override the element when a level is given; passing
+                // `component={undefined}` does not typecheck against MUI's
+                // overloads. Same approach as DialogTitle's htmlFor.
+                {...(headingLevel ? ({ component: headingLevel } as const) : {})}
                 noWrap
                 sx={theme => ({
                   ...theme.palette.headerStyle[headerStyle || 'normal'],
