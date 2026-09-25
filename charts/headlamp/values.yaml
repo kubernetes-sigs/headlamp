@@ -147,6 +147,8 @@ config:
     accessProvidersConfig: {}
     # accessProvidersConfig:
     #   providers:
+    #     - name: oidc
+    #       credentialSource: oidc
     #     - name: secretreader
     #       execConfig:
     #         apiVersion: client.authentication.k8s.io/v1
