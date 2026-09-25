@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { GatewayL4RouteRule } from '../../lib/k8s/gateway';
 import EmptyContent from '../common/EmptyContent';
-import NameValueTable from '../common/NameValueTable';
+import NameValueTable, { NameValueTableRow } from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import { GatewayL4Route, GatewayL4RouteClass } from './L4RouteList';
@@ -33,6 +33,8 @@ export interface L4RouteDetailsProps {
   name?: string;
   namespace?: string;
   cluster?: string;
+  /** Optional main-info rows (e.g. TLSRoute SNI hostnames). */
+  extraInfo?: (item: GatewayL4Route | null) => NameValueTableRow[] | null;
 }
 
 function L4RouteRuleTable(props: {
@@ -69,7 +71,13 @@ function L4RouteRuleTable(props: {
 
 export default function L4RouteDetails(props: L4RouteDetailsProps) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { resourceClass, name = params.name, namespace = params.namespace, cluster } = props;
+  const {
+    resourceClass,
+    name = params.name,
+    namespace = params.namespace,
+    cluster,
+    extraInfo,
+  } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
@@ -80,6 +88,7 @@ export default function L4RouteDetails(props: L4RouteDetailsProps) {
       cluster={cluster}
       withEvents
       noDefaultActions
+      extraInfo={extraInfo}
       extraSections={(item: GatewayL4Route) =>
         item && [
           {
