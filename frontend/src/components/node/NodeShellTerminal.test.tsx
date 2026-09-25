@@ -158,6 +158,30 @@ describe('NodeShellTerminal', () => {
     expect(res.stream).toBe(mockStream.mock.results[0].value);
   });
 
+  it("creates and attaches to the debugger pod on the node's own cluster", async () => {
+    // With several clusters selected, getCluster() returns the first one in the URL.
+    mockGetCluster.mockReturnValue('cluster-a');
+    const node = { cluster: 'cluster-b', getName: () => 'worker-1' } as any;
+
+    render(
+      <TestContext>
+        <NodeShellTerminal item={node} />
+      </TestContext>
+    );
+
+    await terminalHookArgsRef.current.connectStream(vi.fn());
+
+    expect(mockApply).toHaveBeenCalledWith(
+      expect.objectContaining({ spec: expect.objectContaining({ nodeName: 'worker-1' }) }),
+      'cluster-b'
+    );
+    expect(mockStream).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Function),
+      expect.objectContaining({ cluster: 'cluster-b' })
+    );
+  });
+
   it('handles pod creation error (Error and non-Error) in connectStream', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
