@@ -52,6 +52,8 @@
   "Failed to start": "Başlatılamadı",
   "Could not start the server even after terminating existing processes.": "Mevcut işlemler sonlandırıldıktan sonra bile sunucu başlatılamadı.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "{{startPort}}-{{endPort}} aralığında kullanılabilir bir bağlantı noktası bulunamadı. Lütfen bir bağlantı noktası serbest bırakın ve yeniden deneyin.",
+  "Headlamp failed to start": "",
+  "The backend server could not be started:\n\n{{ error }}": "",
   "Invalid URL": "Geçersiz URL",
   "Application opened with an invalid URL: {{ url }}": "Uygulama geçersiz bir URL'yle açıldı: {{ url }}",
   "OAuth callback failed": "",
