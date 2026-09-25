@@ -184,6 +184,42 @@ describe('AuthVisible', () => {
     expect(clusterBItem.getAuthorization).toHaveBeenCalledTimes(1);
   });
 
+  it('checks the permission on the given cluster when one is passed', async () => {
+    const resourceClass = {
+      apiName: 'pods',
+      apiVersion: 'v1',
+      getAuthorization: vi.fn().mockResolvedValue({
+        status: {
+          allowed: true,
+          reason: 'Allowed',
+        },
+      }),
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible
+          item={resourceClass as any}
+          authVerb="create"
+          namespace="default"
+          cluster="cluster-b"
+        >
+          <div>Cluster content</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Cluster content')).toBeInTheDocument();
+    });
+
+    expect(resourceClass.getAuthorization).toHaveBeenCalledWith(
+      'create',
+      { subresource: undefined, namespace: 'default' },
+      'cluster-b'
+    );
+  });
+
   it('warns and returns null if authVerb is invalid', () => {
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mockItem = {
