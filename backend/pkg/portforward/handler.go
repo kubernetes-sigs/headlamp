@@ -434,7 +434,8 @@ func monitorPodAndManagePortForward(
 				logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
 				pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
-				portforwardstore(cache, pfSnapshot)
+				updatePortForwardStatus(cache, pfSnapshot)
+
 				safeCloseChan(pfDetails.closeChan)
 
 				return
@@ -526,7 +527,8 @@ func handlePortForwardReadiness(
 			pfDetails.mu.Unlock()
 		}
 
-		portforwardstore(cache, pfSnapshot)
+		updatePortForwardStatus(cache, pfSnapshot)
+
 		logger.Log(logger.LevelInfo, logParams, nil, msg)
 
 		return errors.New(msg)
@@ -554,7 +556,7 @@ func forwardPortsAsync(
 			logger.Log(logger.LevelError, logParams, err, "ForwardPorts() failed")
 
 			pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, err.Error())
-			portforwardstore(cache, pfSnapshot)
+			updatePortForwardStatus(cache, pfSnapshot)
 
 			select {
 			case forwardErrChan <- err:
@@ -588,7 +590,7 @@ func forwardPortsAsync(
 		}
 
 		if shouldStore {
-			portforwardstore(cache, pfSnapshot)
+			updatePortForwardStatus(cache, pfSnapshot)
 		}
 	}()
 }
