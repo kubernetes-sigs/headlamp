@@ -36,12 +36,22 @@ var (
 )
 
 // userAgentRoundTripper wraps an http.RoundTripper and adds a Headlamp User-Agent header.
+// If an upgradeTransport is configured and the incoming request is a WebSocket upgrade,
+// it delegates to upgradeTransport (which enforces HTTP/1.1) and omits the User-Agent.
 type userAgentRoundTripper struct {
-	base      http.RoundTripper
-	userAgent string
+	base             http.RoundTripper
+	upgradeTransport http.RoundTripper
+	userAgent        string
 }
 
 func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
+		if rt.upgradeTransport != nil {
+			return rt.upgradeTransport.RoundTrip(req)
+		}
+		return rt.base.RoundTrip(req)
+	}
+
 	newReq := req.Clone(req.Context())
 
 	newReq.Header.Set("User-Agent", rt.userAgent)
@@ -469,10 +479,21 @@ func (c *Context) SetupProxy() error {
 	if err == nil {
 		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
-			// Wrap the round tripper to add Headlamp User-Agent
+			// Create a dedicated HTTP/1.1 transport for WebSocket upgrades.
+			// Standard client-go transports negotiate HTTP/2 ALPN, which rejects
+			// RFC 7540 hop-by-hop Upgrade headers with a GOAWAY/PROTOCOL_ERROR frame.
+			var upgradeRoundTripper http.RoundTripper
+			upgradeConf := rest.CopyConfig(restConf)
+			upgradeConf.TLSClientConfig.NextProtos = []string{"http/1.1"}
+			if uRt, uErr := makeTransportFor(upgradeConf); uErr == nil {
+				upgradeRoundTripper = uRt
+			}
+
+			// Wrap the round tripper to add Headlamp User-Agent and handle upgrades
 			proxy.Transport = &userAgentRoundTripper{
-				base:      roundTripper,
-				userAgent: buildUserAgent(),
+				base:             roundTripper,
+				upgradeTransport: upgradeRoundTripper,
+				userAgent:        buildUserAgent(),
 			}
 		}
 	}

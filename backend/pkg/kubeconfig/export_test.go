@@ -15,8 +15,9 @@ var ResolveKubeconfigPaths = resolveKubeconfigPaths
 
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
-	Base      roundTripperInterface
-	UserAgent string
+	Base             roundTripperInterface
+	UpgradeTransport roundTripperInterface
+	UserAgent        string
 }
 
 type roundTripperInterface interface {
@@ -26,8 +27,9 @@ type roundTripperInterface interface {
 // RoundTrip implements the http.RoundTripper interface.
 func (rt *UserAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	urt := &userAgentRoundTripper{
-		base:      rt.Base,
-		userAgent: rt.UserAgent,
+		base:             rt.Base,
+		upgradeTransport: rt.UpgradeTransport,
+		userAgent:        rt.UserAgent,
 	}
 
 	return urt.RoundTrip(req)
