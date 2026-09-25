@@ -91,6 +91,7 @@ func (c *Context) Copy() *Context {
 			ClientID:     c.OidcConf.ClientID,
 			ClientSecret: c.OidcConf.ClientSecret,
 			IdpIssuerURL: c.OidcConf.IdpIssuerURL,
+			AuthStyle:    c.OidcConf.AuthStyle,
 			Scopes:       make([]string, len(c.OidcConf.Scopes)),
 		}
 		copy(oidcConf.Scopes, c.OidcConf.Scopes)
@@ -159,6 +160,10 @@ type OidcConfig struct {
 	SkipTLSVerify *bool
 	// OIDC CA certificate.
 	CACert *string
+	// Token-endpoint client authentication style: "auto", "params", or "header".
+	// Empty is treated as "auto" (x/oauth2 auto-detection). "params" forces
+	// client_secret_post; "header" forces HTTP Basic (client_secret_basic).
+	AuthStyle string
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -378,11 +383,20 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		caCert = &caCertString
 	}
 
+	authStyle := strings.ToLower(strings.TrimSpace(c.AuthInfo.AuthProvider.Config["auth-style"]))
+	switch authStyle {
+	case "", "auto", "params", "header":
+	default:
+		return nil, fmt.Errorf("invalid oidc auth-style %q: must be one of auto, params, header",
+			c.AuthInfo.AuthProvider.Config["auth-style"])
+	}
+
 	return &OidcConfig{
 		ClientID:     c.AuthInfo.AuthProvider.Config["client-id"],
 		ClientSecret: c.AuthInfo.AuthProvider.Config["client-secret"],
 		Scopes:       strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
 		IdpIssuerURL: c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
+		AuthStyle:    authStyle,
 		CACert:       caCert,
 	}, nil
 }
@@ -1222,6 +1236,7 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcAuthStyle string,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) (*Context, error) {
@@ -1243,12 +1258,13 @@ func GetInClusterContext(
 		oidcScopes,
 		oidcSkipTLSVerify,
 		oidcCACert,
+		oidcAuthStyle,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
 	), nil
 }
 
-func newInClusterContextFromConfig(
+func newInClusterContextFromConfig( //nolint:funlen // long parameter threading; splitting would not improve clarity
 	clusterConfig *rest.Config,
 	contextName string,
 	oidcIssuerURL string,
@@ -1257,6 +1273,7 @@ func newInClusterContextFromConfig(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcAuthStyle string,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) *Context {
@@ -1298,6 +1315,7 @@ func newInClusterContextFromConfig(
 			Scopes:        strings.Split(oidcScopes, ","),
 			SkipTLSVerify: &oidcSkipTLSVerify,
 			CACert:        caCert,
+			AuthStyle:     oidcAuthStyle,
 		}
 	}
 

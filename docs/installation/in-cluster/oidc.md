@@ -78,6 +78,27 @@ By default, headlamp leverages the `id_token` provided back from the OIDC Provid
 
 - `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
 
+### Token Endpoint Authentication Style
+
+By default Headlamp lets the OAuth2 library auto-detect how client credentials
+are sent to the token endpoint: it first tries HTTP Basic authentication and,
+if that fails, retries by sending the credentials as form parameters. Some
+identity providers do not url-decode HTTP Basic credentials, so a client secret
+containing characters like `! $ ? @ ^` fails the first attempt and the retry
+reuses the same single-use authorization code, which the provider has already
+invalidated. This surfaces as an `invalid_grant` error on every login.
+
+To avoid the probe, you can force the authentication style:
+
+- `-oidc-auth-style=params` or env var `HEADLAMP_CONFIG_OIDC_AUTH_STYLE=params`
+  sends the client ID and secret as form parameters (`client_secret_post`).
+- `-oidc-auth-style=header` sends them using an HTTP Basic `Authorization`
+  header (`client_secret_basic`).
+- `-oidc-auth-style=auto` (the default) keeps the auto-detect behavior.
+
+For per-cluster kubeconfig setups, set the `auth-style` key under the OIDC
+auth-provider config to `auto`, `params`, or `header`.
+
 ### Example: OIDC with Keycloak in Minikube
 
 If you are interested in a comprehensive example of using OIDC and Headlamp,
