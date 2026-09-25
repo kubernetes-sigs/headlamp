@@ -198,7 +198,7 @@ export default function PortForwardingList() {
     if (option === PortForwardAction.Stop) {
       setPortForwardInActionSafely({ ...portforward, loading: true });
       // stop portforward
-      stopOrDeletePortForward(cluster, id, true).finally(() => {
+      stopOrDeletePortForward(cluster, id, /* stopOnly */ true).finally(() => {
         setPortForwardInActionSafely(null);
         // Always refresh the backend-backed port-forward list so localStorage
         // stays in sync even if the component unmounts before the request settles.
@@ -208,7 +208,7 @@ export default function PortForwardingList() {
     if (option === PortForwardAction.Delete) {
       setPortForwardInActionSafely({ ...portforward, loading: true });
       // delete portforward
-      stopOrDeletePortForward(cluster, id, false).finally(() => {
+      stopOrDeletePortForward(cluster, id, /* stopOnly */ false).finally(() => {
         setPortForwardInActionSafely(null);
 
         // remove portforward from storage too
