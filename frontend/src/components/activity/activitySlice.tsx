@@ -80,6 +80,14 @@ export const activitySlice = createSlice({
       delete state.activities[action.payload];
     },
     update(state, action: PayloadAction<Partial<Activity> & { id: string }>) {
+      // Ignore updates for activities that no longer exist — e.g. a content
+      // component clearing state on unmount after its activity was already
+      // closed. Spreading onto a missing entry would recreate a ghost
+      // activity with no content or location.
+      if (!state.activities[action.payload.id]) {
+        return;
+      }
+
       // Bump this activity in history
       if (!action.payload.minimized) {
         state.history = state.history.filter(it => it !== action.payload.id);
