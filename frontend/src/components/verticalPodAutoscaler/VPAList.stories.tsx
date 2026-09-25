@@ -138,19 +138,67 @@ const Template: StoryFn = () => {
   return <VpaList />;
 };
 
+const vpaApiGroupUrl = `${API_BASE}/apis/autoscaling.k8s.io/v1`;
+const vpaListUrl = `${API_BASE}/apis/autoscaling.k8s.io/v1/verticalpodautoscalers`;
+
 export const List = Template.bind({});
 List.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1`, () =>
+        // VPA.isEnabled() looks for this resource name on the API group.
+        http.get(vpaApiGroupUrl, () =>
           HttpResponse.json({ resources: [{ name: 'verticalpodautoscalers' }] })
         ),
-        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1/verticalpodautoscalers`, () =>
+        http.get(vpaListUrl, () =>
           HttpResponse.json({
             kind: 'VPAList',
             metadata: {},
             items,
+          })
+        ),
+      ],
+    },
+  },
+};
+
+/**
+ * Keeps VPA.isEnabled() pending so List.tsx stays on vpaEnabled === null
+ * ("Checking if Vertical Pod Autoscaler is enabled…").
+ * Storyshots disabled: a never-resolving handler never fires request:end.
+ */
+export const Checking = Template.bind({});
+Checking.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [http.get(vpaApiGroupUrl, () => new Promise(() => {}))],
+    },
+  },
+};
+
+/**
+ * API group responds without verticalpodautoscalers, so VPA.isEnabled()
+ * resolves false and List.tsx shows the not-enabled empty state.
+ */
+export const NotEnabled = Template.bind({});
+NotEnabled.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(vpaApiGroupUrl, () =>
+          HttpResponse.json({
+            kind: 'APIResourceList',
+            groupVersion: 'autoscaling.k8s.io/v1',
+            resources: [
+              {
+                name: 'horizontalpodautoscalers',
+                singularName: 'horizontalpodautoscaler',
+                namespaced: true,
+                kind: 'HorizontalPodAutoscaler',
+                verbs: ['get', 'list', 'watch'],
+              },
+            ],
           })
         ),
       ],
