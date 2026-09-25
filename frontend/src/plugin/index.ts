@@ -42,6 +42,7 @@ import * as CommonComponents from '../components/common';
 import * as ResourceMap from '../components/resourceMap';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
+import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../helpers/isElectron';
 import i18next from '../i18n/config';
 import * as K8s from '../lib/k8s';
@@ -487,7 +488,7 @@ export async function fetchAndExecutePlugins(
   const deadline = Date.now() + PLUGIN_STARTUP_TIMEOUT_MS;
   const permissionSecretsPromise = permissionSecretsFromApp();
 
-  const headers = addBackstageAuthHeaders();
+  const headers = { ...getHeadlampAPIHeaders(), ...addBackstageAuthHeaders() };
 
   // Backend now returns plugin metadata with path, type, and name
   interface PluginMetadata {
