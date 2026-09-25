@@ -40,9 +40,10 @@ import {
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
-import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
+import { useKeyboardNavigation } from '../../../lib/useKeyboardNavigation';
 import { useShortcut } from '../../../lib/useShortcut';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
@@ -126,6 +127,17 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    */
   loading?: boolean;
   renderRowSelectionToolbar?: (props: { table: MRT_TableInstance<RowItem> }) => ReactNode;
+  /**
+   * Called when a row is activated via keyboard (Enter key).
+   * Receives the row's original data item.
+   * When provided, arrow-key navigation and Enter-to-open are enabled on the table.
+   * The keyboard event is passed so callers can inspect modifier keys (Ctrl/Cmd/Shift).
+   */
+  onRowOpen?: (row: RowItem, event: React.KeyboardEvent) => void;
+  /**
+   * Accessible name for the table, announced when a row receives keyboard focus.
+   */
+  ariaLabel?: string;
 };
 
 // Use a zero-indexed "useURLState" hook, so pages are shown in the URL as 1-indexed
@@ -164,6 +176,14 @@ const StyledRow = styled('tr')(({ theme }) => ({
   display: 'contents',
   '&[data-selected=true]': {
     background: alpha(theme.palette.primary.main, 0.2),
+  },
+  '&[data-focused=true] td': {
+    background: alpha(theme.palette.primary.main, 0.12),
+    borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+    borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+  },
+  '&[data-focused=true] td:first-of-type': {
+    borderLeft: `3px solid ${theme.palette.primary.main}`,
   },
 }));
 const StyledBody = styled('tbody')({ display: 'contents' });
@@ -210,6 +230,8 @@ export default function Table<RowItem extends Record<string, any>>({
   filterFunction,
   errorMessage,
   loading,
+  onRowOpen,
+  ariaLabel,
   ...tableProps
 }: TableProps<RowItem>) {
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
@@ -564,45 +586,72 @@ export default function Table<RowItem extends Record<string, any>>({
   const rows = useMRT_Rows(table);
   const rowIds = useMemo(() => rows.map(r => r.id), [rows]);
 
+  const {
+    focusedRowIndex,
+    onKeyDown: onTableKeyDown,
+    onRowClick: onKeyboardRowClick,
+    clearFocus,
+  } = useKeyboardNavigation({
+    rowCount: rows.length,
+    enabled: !!onRowOpen,
+    onRowOpen: (index, event) => {
+      const row = rows[index]?.original;
+      if (row) onRowOpen?.(row, event);
+    },
+  });
+
   // Handle shift+click range selection
-  const handleRowClick = (e: React.MouseEvent, clickedIndex: number) => {
-    if (!table || !table.getRowModel || tableProps.enableRowSelection === false) {
-      return;
-    }
-
-    const target = e.target as HTMLElement | null;
-    const shouldHandle =
-      !!target &&
-      !!target.closest('input[type="checkbox"]') &&
-      !target.closest('.MuiSwitch-root, [role="switch"]') &&
-      !target.closest('[role="dialog"]');
-
-    if (!shouldHandle) {
-      return;
-    }
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (e.shiftKey && lastSelectedRowIndex !== null) {
-      const start = Math.min(lastSelectedRowIndex, clickedIndex);
-      const end = Math.max(lastSelectedRowIndex, clickedIndex);
-
-      const newSelected: Record<string, boolean> = {};
-      for (let i = start; i <= end; i++) {
-        const rowId = rowIds[i];
-        if (rowId) {
-          newSelected[rowId] = true;
-        }
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent, clickedIndex: number) => {
+      if (!table || !table.getRowModel || tableProps.enableRowSelection === false) {
+        return;
       }
 
-      table.setRowSelection(prev => ({ ...prev, ...newSelected }));
-    } else {
-      const rowId = rowIds[clickedIndex];
-      table.setRowSelection(prev => ({ ...prev, [rowId]: !prev[rowId] }));
-      setLastSelectedRowIndex(clickedIndex);
-    }
-  };
+      const target = e.target as HTMLElement | null;
+      const shouldHandle =
+        !!target &&
+        !!target.closest('input[type="checkbox"]') &&
+        !target.closest('.MuiSwitch-root, [role="switch"]') &&
+        !target.closest('[role="dialog"]');
+
+      if (!shouldHandle) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.shiftKey && lastSelectedRowIndex !== null) {
+        const start = Math.min(lastSelectedRowIndex, clickedIndex);
+        const end = Math.max(lastSelectedRowIndex, clickedIndex);
+
+        const newSelected: Record<string, boolean> = {};
+        for (let i = start; i <= end; i++) {
+          const rowId = rowIds[i];
+          if (rowId) {
+            newSelected[rowId] = true;
+          }
+        }
+
+        table.setRowSelection(prev => ({ ...prev, ...newSelected }));
+      } else {
+        const rowId = rowIds[clickedIndex];
+        table.setRowSelection(prev => ({ ...prev, [rowId]: !prev[rowId] }));
+        setLastSelectedRowIndex(clickedIndex);
+      }
+    },
+    [lastSelectedRowIndex, rowIds, table, tableProps.enableRowSelection]
+  );
+
+  const handleRowClickCombined = useCallback(
+    (e: React.MouseEvent, rowIndex: number) => {
+      if (onRowOpen) {
+        onKeyboardRowClick(rowIndex);
+      }
+      handleRowClick(e, rowIndex);
+    },
+    [onRowOpen, onKeyboardRowClick, handleRowClick]
+  );
 
   const emptyMsg = emptyMessage || t('No data to be shown.');
   const isEmpty = !tableProps.data?.length && !loading;
@@ -639,6 +688,7 @@ export default function Table<RowItem extends Record<string, any>>({
       <>
         {(tableProps.enableTopToolbar ?? true) && <MRT_TopToolbar table={table} />}
         <MuiTable
+          aria-label={ariaLabel}
           sx={{
             display: 'grid',
             border: '1px solid',
@@ -674,7 +724,13 @@ export default function Table<RowItem extends Record<string, any>>({
                 cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
                 table={table as MRT_TableInstance<Record<string, any>>}
                 isSelected={row.getIsSelected()}
-                onRowClick={handleRowClick}
+                isFocused={focusedRowIndex === index}
+                isInitialTabStop={!!onRowOpen && focusedRowIndex === -1 && index === 0}
+                keyboardEnabled={!!onRowOpen}
+                onKeyDown={onTableKeyDown}
+                onBlur={clearFocus}
+                onRowClick={handleRowClickCombined}
+                onRowFocus={onKeyboardRowClick}
               />
             ))}
           </StyledBody>
@@ -726,21 +782,103 @@ const MemoHeadCell = memo(
     a.filterValue === b.filterValue
 );
 
-const Row = memo(
-  <RowItem extends Record<string, any>>({
-    cells,
-    table,
-    isSelected,
-    onRowClick,
-    rowIndex,
-  }: {
-    table: MRT_TableInstance<RowItem>;
-    cells: MRT_Cell<RowItem, unknown>[];
-    isSelected: boolean;
-    onRowClick?: (e: React.MouseEvent, rowIndex: number) => void;
-    rowIndex: number;
-  }) => (
-    <StyledRow data-selected={isSelected} onClickCapture={e => onRowClick?.(e, rowIndex)}>
+const Row = memo(function Row<RowItem extends Record<string, any>>({
+  cells,
+  table,
+  isSelected,
+  isFocused,
+  isInitialTabStop,
+  onRowClick,
+  onRowFocus,
+  onKeyDown,
+  onBlur,
+  rowIndex,
+  keyboardEnabled,
+}: {
+  table: MRT_TableInstance<RowItem>;
+  cells: MRT_Cell<RowItem, unknown>[];
+  isSelected: boolean;
+  isFocused?: boolean;
+  isInitialTabStop?: boolean;
+  onRowClick?: (e: React.MouseEvent, rowIndex: number) => void;
+  onRowFocus?: (rowIndex: number) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  onBlur?: () => void;
+  rowIndex: number;
+  keyboardEnabled?: boolean;
+}) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+        onBlur?.();
+      }
+    },
+    [onBlur]
+  );
+
+  const handleClickCapture = useCallback(
+    (e: React.MouseEvent) => onRowClick?.(e, rowIndex),
+    [onRowClick, rowIndex]
+  );
+
+  // Controls inside a cell handle their own keys. Without this guard, Enter on a checkbox or
+  // an action button would be prevented here and would also activate the row.
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.target !== e.currentTarget) {
+        return;
+      }
+      onKeyDown?.(e);
+    },
+    [onKeyDown]
+  );
+
+  // Tabbing into the roving tab stop has to seed the focused index, or the row shows no
+  // highlight, Enter does nothing, and the first ArrowDown lands on row 0 instead of moving.
+  const handleFocus = useCallback(
+    (e: React.FocusEvent) => {
+      if (e.target !== e.currentTarget) {
+        return;
+      }
+      onRowFocus?.(rowIndex);
+    },
+    [onRowFocus, rowIndex]
+  );
+
+  useEffect(() => {
+    if (!keyboardEnabled || !isFocused || !rowRef.current) {
+      return;
+    }
+    const activeElement = document.activeElement;
+    if (activeElement && rowRef.current.contains(activeElement)) {
+      return;
+    }
+    const tableElement = rowRef.current.closest('table');
+    if (activeElement && tableElement && !tableElement.contains(activeElement)) {
+      return;
+    }
+    rowRef.current.focus({ preventScroll: true });
+
+    // StyledRow is display:contents, so the <tr> has no layout box and scrolling it does
+    // nothing. Its cells are the grid items that actually occupy space, so scroll one of those.
+    rowRef.current.firstElementChild?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [isFocused, keyboardEnabled]);
+
+  return (
+    <StyledRow
+      ref={rowRef}
+      role="row"
+      data-selected={isSelected}
+      data-focused={isFocused || undefined}
+      aria-selected={isSelected || undefined}
+      tabIndex={keyboardEnabled ? (isFocused || isInitialTabStop ? 0 : -1) : undefined}
+      onKeyDown={keyboardEnabled ? handleKeyDown : undefined}
+      onFocus={keyboardEnabled ? handleFocus : undefined}
+      onBlur={keyboardEnabled ? handleBlur : undefined}
+      onClickCapture={handleClickCapture}
+    >
       {cells.map(cell => (
         <MemoCell
           cell={cell as MRT_Cell<Record<string, any>, unknown>}
@@ -751,8 +889,8 @@ const Row = memo(
         />
       ))}
     </StyledRow>
-  )
-);
+  );
+});
 
 const MemoCell = memo(
   <RowItem extends Record<string, any>>({
