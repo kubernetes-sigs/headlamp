@@ -35,9 +35,9 @@ export default function DeploymentsList() {
     const { replicas: r1, availableReplicas: avail1 } = d1.status;
     const { replicas: r2, availableReplicas: avail2 } = d2.status;
 
-    const availSorted = avail1 - avail2;
+    const availSorted = (avail1 || 0) - (avail2 || 0);
     if (availSorted === 0) {
-      return r1 - r2;
+      return (r1 || 0) - (r2 || 0);
     }
 
     return availSorted;
