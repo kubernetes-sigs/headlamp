@@ -281,7 +281,7 @@ func createMockService(namespace, name string) *corev1.Service {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Long test function containing multiple getAuthToken test scenarios.
 func TestGetAuthToken(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -398,7 +398,7 @@ func TestGetAuthToken(t *testing.T) {
 			expectedToken: "spaced-token",
 			expectError:   false,
 		},
-		{ //nolint:gosec
+		{ //nolint:gosec // Hardcoded mock bearer token string used strictly for unit testing.
 			name:        "valid token with Bearer prefix",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
@@ -443,7 +443,7 @@ func TestGetAuthToken(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Long test function covering multiple GetServiceFromCluster error scenarios.
 func TestGetServiceFromCluster(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -542,7 +542,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering request URI parsing edge cases.
 func TestParseInfoFromRequest(t *testing.T) {
 	tests := []struct {
 		name                string

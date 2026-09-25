@@ -454,7 +454,7 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 func TestLoadContextsFromBase64String(t *testing.T) {
 	t.Run("valid_base64", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
-		kubeConfigContent, err := os.ReadFile(kubeConfigFile) //nolint:gosec
+		kubeConfigContent, err := os.ReadFile(kubeConfigFile) //nolint:gosec // Test helper reading mock kubeconfig file.
 		require.NoError(t, err)
 
 		base64String := base64.StdEncoding.EncodeToString(kubeConfigContent)
@@ -790,7 +790,7 @@ func TestCustomObjectDeepCopy(t *testing.T) {
 	})
 }
 
-//nolint:funlen
+//nolint:funlen // Long test function covering multiple config load error scenarios.
 func TestHandleConfigLoadError(t *testing.T) {
 	testKubeconfig := map[string]interface{}{
 		"clusters": []interface{}{
@@ -933,7 +933,7 @@ func TestHandleConfigLoadError(t *testing.T) {
 // TestMalformedKubeconfig verifies the server gracefully handles malformed
 // kubeconfig files with missing required fields (e.g. cluster, user, or clusters array).
 //
-//nolint:funlen
+//nolint:funlen // Long test function checking various malformed kubeconfig edge cases.
 func TestMalformedKubeconfigDoesNotPanic(t *testing.T) {
 	t.Run("missing_cluster_field_in_context", func(t *testing.T) {
 		// Verify handling of a context where the "cluster" field is missing.

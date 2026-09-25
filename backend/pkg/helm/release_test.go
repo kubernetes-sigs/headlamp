@@ -86,7 +86,7 @@ func getStatus(t *testing.T, ch cache.Cache[interface{}], action string, release
 	return status.Status, status.Err
 }
 
-//nolint:unparam
+//nolint:unparam // Action parameter signature preserved for status polling helper compatibility.
 func pingStatusTillSuccess(t *testing.T, action, releaseName string, cache cache.Cache[interface{}]) {
 	t.Helper()
 

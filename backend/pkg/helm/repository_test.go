@@ -122,7 +122,7 @@ func checkRepoExists(t *testing.T, helmHandler *helm.Handler, repoName string) b
 	return false
 }
 
-//nolint:unparam
+//nolint:unparam // repoName and repoURL parameters maintained for helper uniformity.
 func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL string) {
 	t.Helper()
 
