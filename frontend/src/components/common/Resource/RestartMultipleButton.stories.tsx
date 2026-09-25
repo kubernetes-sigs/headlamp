@@ -36,20 +36,25 @@ export default {
 
 const Template: StoryFn<typeof RestartMultipleButton> = args => <RestartMultipleButton {...args} />;
 
+const createMockRestartableResource = (uid: string, name: string): RestartableResource =>
+  ({
+    metadata: { uid, name, creationTimestamp: getTestDate().toISOString() },
+    getAuthorization: async () => ({ status: { allowed: true, reason: '' } }),
+  } as unknown as RestartableResource);
+
+const mockItems = [
+  createMockRestartableResource('1', 'Resource 1'),
+  createMockRestartableResource('2', 'Resource 2'),
+];
+
 export const Default = Template.bind({});
 Default.args = {
-  items: [
-    { metadata: { uid: '1', name: 'Resource 1', creationTimestamp: getTestDate().toISOString() } },
-    { metadata: { uid: '2', name: 'Resource 2', creationTimestamp: getTestDate().toISOString() } },
-  ] as RestartableResource[],
+  items: mockItems,
 };
 
 export const AfterConfirmCallback = Template.bind({});
 AfterConfirmCallback.args = {
-  items: [
-    { metadata: { uid: '1', name: 'Resource 1', creationTimestamp: getTestDate().toISOString() } },
-    { metadata: { uid: '2', name: 'Resource 2', creationTimestamp: getTestDate().toISOString() } },
-  ] as RestartableResource[],
+  items: mockItems,
   afterConfirm: () => {
     console.log('afterConfirm callback executed!');
   },
@@ -57,10 +62,7 @@ AfterConfirmCallback.args = {
 
 export const MenuButtonStyle = Template.bind({});
 MenuButtonStyle.args = {
-  items: [
-    { metadata: { uid: '1', name: 'Resource 1', creationTimestamp: getTestDate().toISOString() } },
-    { metadata: { uid: '2', name: 'Resource 2', creationTimestamp: getTestDate().toISOString() } },
-  ] as RestartableResource[],
+  items: mockItems,
   buttonStyle: 'menu',
 };
 MenuButtonStyle.decorators = [
