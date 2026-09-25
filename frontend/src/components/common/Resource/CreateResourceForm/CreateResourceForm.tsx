@@ -274,6 +274,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
               value={value ?? ''}
               onChange={ns => handleFieldChange(field.path, ns)}
               required={field.required}
+              label={field.label}
             />
           </FieldWrapper>
         );
@@ -554,7 +555,7 @@ export interface NamespaceTextFieldProps {
 
 /** Autocomplete namespace selector that fetches existing namespaces from the cluster. */
 export function NamespaceTextField(props: NamespaceTextFieldProps) {
-  const { value, onChange, required } = props;
+  const { value, onChange, required, label } = props;
   const [namespaces] = Namespace.useList();
   const options = React.useMemo(
     () => (namespaces ?? []).map(ns => ns.metadata.name).sort(),
@@ -584,6 +585,10 @@ export function NamespaceTextField(props: NamespaceTextFieldProps) {
           InputProps={{
             ...params.InputProps,
             sx: theme => ({ background: theme.palette.background.default }),
+          }}
+          inputProps={{
+            ...params.inputProps,
+            ...(label ? { 'aria-label': label } : {}),
           }}
         />
       )}
