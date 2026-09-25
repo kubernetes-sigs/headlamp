@@ -46,6 +46,7 @@
               />
             </button>
             <button
+              aria-label="Minimize"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Minimize"
@@ -56,6 +57,7 @@
               />
             </button>
             <button
+              aria-label="Close"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Close"
@@ -118,6 +120,7 @@
               </span>
             </button>
             <button
+              aria-label="Minimize"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Minimize"
@@ -128,6 +131,7 @@
               />
             </button>
             <button
+              aria-label="Close"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Close"
