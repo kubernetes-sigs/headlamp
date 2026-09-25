@@ -459,7 +459,7 @@ func TestCleanupConnections(t *testing.T) {
 	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
 	conn.WSConn = wsConn.conn
 
-	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "", "test-user")
 	m.connections[connKey] = conn
 
 	m.cleanupConnections()
@@ -480,10 +480,10 @@ func TestCloseConnection(t *testing.T) {
 	conn := createTestConnection("test-cluster-1", "test-user", "/api/v1/pods", "", clientConn)
 	conn.WSConn = wsConn.conn
 
-	connKey := m.createConnectionKey("test-cluster-1", "/api/v1/pods", "test-user")
+	connKey := m.createConnectionKey("test-cluster-1", "/api/v1/pods", "", "test-user")
 	m.connections[connKey] = conn
 
-	m.CloseConnection("test-cluster-1", "/api/v1/pods", "test-user")
+	m.CloseConnection("test-cluster-1", "/api/v1/pods", "", "test-user")
 	assert.Empty(t, m.connections)
 	assert.True(t, conn.closed)
 }
@@ -500,7 +500,7 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
 	conn.WSConn = wsConn.conn
 
-	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "", "test-user")
 	m.connections[connKey] = conn
 
 	m.closeClientConnections(clientConn)
@@ -1412,7 +1412,7 @@ func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) 
 	)
 	conn.usesServiceAccountToken = true
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.Query, conn.UserID)
 	m.connections[connKey] = conn
 
 	// No context is stored to match a stateless context that expired while
@@ -1465,7 +1465,7 @@ func TestReconnect_WithToken(t *testing.T) {
 	conn.Status.State = StateError // Simulate an error state
 
 	// Add the connection to the multiplexer's connections map
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.Query, conn.UserID)
 	m.connections[connKey] = conn
 
 	// Test reconnection with the same token
@@ -1486,7 +1486,7 @@ func TestReconnect_WithToken(t *testing.T) {
 	newConn.Status.State = StateError
 
 	// Update the connection in the multiplexer's map
-	connKey = m.createConnectionKey(newConn.ClusterID, newConn.Path, newConn.UserID)
+	connKey = m.createConnectionKey(newConn.ClusterID, newConn.Path, newConn.Query, newConn.UserID)
 	m.connections[connKey] = newConn
 
 	// Reconnect with the new token
@@ -1926,12 +1926,300 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 
 	clusterID := "my-production-cluster"
 	path := "/api/v1/namespaces/kube-system/pods"
+	query := "watch=1&resourceVersion=123456"
 	userID := "user-abc123-def456"
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
+		benchConnectionKeySink = m.createConnectionKey(clusterID, path, query, userID)
 	}
+}
+
+// pushKubeAPIServer is a fake Kubernetes API server that hands its server-side
+// WebSocket connections back to the test, so the test can push frames on demand.
+// That simulates cluster watch events arriving with no client action, which is
+// what a real watch does. An echo server cannot express that.
+type pushKubeAPIServer struct {
+	srv      *httptest.Server
+	conns    chan *websocket.Conn
+	mu       sync.Mutex
+	upgrades int
+}
+
+func newPushKubeAPIServer() *pushKubeAPIServer {
+	ps := &pushKubeAPIServer{conns: make(chan *websocket.Conn, 8)}
+	ps.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ps.mu.Lock()
+		ps.upgrades++
+		ps.mu.Unlock()
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		ps.conns <- c
+
+		// Keep the server side alive until the multiplexer closes it.
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+
+	return ps
+}
+
+func (ps *pushKubeAPIServer) upgradeCount() int {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	return ps.upgrades
+}
+
+// startClientReader pumps every frame the client socket receives into a channel.
+// gorilla/websocket makes read errors permanent, so a deadline-based drain would
+// poison the socket; a single long-lived reader avoids that.
+func startClientReader(ws *websocket.Conn) <-chan Message {
+	ch := make(chan Message, 64)
+
+	go func() {
+		defer close(ch)
+
+		for {
+			var msg Message
+			if err := ws.ReadJSON(&msg); err != nil {
+				return
+			}
+
+			ch <- msg
+		}
+	}()
+
+	return ch
+}
+
+// collectFrames gathers frames from the reader channel for the given window.
+func collectFrames(t *testing.T, ch <-chan Message, wait time.Duration) []Message {
+	t.Helper()
+
+	var frames []Message
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				return frames
+			}
+
+			t.Logf("client received frame: type=%s path=%s query=%q data=%.70q", msg.Type, msg.Path, msg.Query, msg.Data)
+			frames = append(frames, msg)
+		case <-timer.C:
+			return frames
+		}
+	}
+}
+
+func dataFrames(frames []Message) []Message {
+	var out []Message
+
+	for _, f := range frames {
+		if f.Type == "DATA" {
+			out = append(out, f)
+		}
+	}
+
+	return out
+}
+
+const (
+	queryWatchCluster = "test-cluster"
+	queryWatchUser    = "test-user"
+	queryWatchPath    = "/api/v1/namespaces/default/pods"
+)
+
+// queryWatchHarness wires a multiplexer to a fake API server and a client WebSocket,
+// so a test can send REQUEST and CLOSE messages and push cluster events by hand.
+type queryWatchHarness struct {
+	t        *testing.T
+	m        *Multiplexer
+	upstream *pushKubeAPIServer
+	client   *WSConnLock
+	frames   <-chan Message
+}
+
+func newQueryWatchHarness(t *testing.T) *queryWatchHarness {
+	t.Helper()
+
+	upstream := newPushKubeAPIServer()
+	t.Cleanup(upstream.srv.Close)
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    queryWatchCluster,
+		Cluster: &api.Cluster{Server: upstream.srv.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	m := NewMultiplexer(store, false)
+	front := httptest.NewServer(http.HandlerFunc(m.HandleClientWebSocket))
+	t.Cleanup(front.Close)
+
+	ws, resp, err := newTestDialer().Dial("ws"+strings.TrimPrefix(front.URL, "http"), nil)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		t.Cleanup(func() { _ = resp.Body.Close() })
+	}
+
+	t.Cleanup(func() { _ = ws.Close() })
+
+	return &queryWatchHarness{
+		t:        t,
+		m:        m,
+		upstream: upstream,
+		client:   NewWSConnLock(ws),
+		frames:   startClientReader(ws),
+	}
+}
+
+// send writes a REQUEST or CLOSE message for the harness path with the given query.
+func (h *queryWatchHarness) send(msgType, query string) {
+	h.t.Helper()
+
+	require.NoError(h.t, h.client.WriteJSON(Message{
+		Type:      msgType,
+		ClusterID: queryWatchCluster,
+		Path:      queryWatchPath,
+		Query:     query,
+		UserID:    queryWatchUser,
+	}))
+}
+
+// nextUpstream waits for the multiplexer to open a new watch on the fake API server.
+func (h *queryWatchHarness) nextUpstream(failMsg string) *websocket.Conn {
+	h.t.Helper()
+
+	select {
+	case c := <-h.upstream.conns:
+		return c
+	case <-time.After(5 * time.Second):
+		h.t.Fatal(failMsg)
+
+		return nil
+	}
+}
+
+// push sends a watch event from the fake API server and returns the DATA frames the client got.
+func (h *queryWatchHarness) push(up *websocket.Conn, event, name, resourceVersion string) []Message {
+	h.t.Helper()
+
+	payload := `{"type":"` + event + `","object":{"metadata":{"name":"` + name +
+		`","resourceVersion":"` + resourceVersion + `"}}}`
+	require.NoError(h.t, up.WriteMessage(websocket.TextMessage, []byte(payload)))
+
+	return dataFrames(collectFrames(h.t, h.frames, 2*time.Second))
+}
+
+// drain discards frames such as STATUS updates that the test does not check.
+func (h *queryWatchHarness) drain() {
+	h.t.Helper()
+
+	_ = collectFrames(h.t, h.frames, 300*time.Millisecond)
+}
+
+// registered reports whether the multiplexer still tracks a connection for the query.
+func (h *queryWatchHarness) registered(query string) bool {
+	h.m.mutex.RLock()
+	defer h.m.mutex.RUnlock()
+
+	_, ok := h.m.connections[h.m.createConnectionKey(queryWatchCluster, queryWatchPath, query, queryWatchUser)]
+
+	return ok
+}
+
+// closedNotices returns the STATUS frames that report a closed watch.
+func closedNotices(frames []Message) []Message {
+	var out []Message
+
+	for _, f := range frames {
+		if f.Type == "STATUS" && strings.Contains(f.Data, `"closed"`) {
+			out = append(out, f)
+		}
+	}
+
+	return out
+}
+
+// TestMultiplexer_SamePathDifferentQuery_CloseOneKeepsOther checks that two subscriptions
+// that differ only by query string are kept apart. The frontend resubscribes with a new
+// resourceVersion on every watch event and then closes the old subscription, so closing
+// one must not take down the other.
+func TestMultiplexer_SamePathDifferentQuery_CloseOneKeepsOther(t *testing.T) {
+	const (
+		queryA = "watch=true&resourceVersion=100"
+		queryB = "watch=true&resourceVersion=101"
+	)
+
+	h := newQueryWatchHarness(t)
+
+	// REQUEST A gets an upstream watch, and its frames carry A's query.
+	h.send("REQUEST", queryA)
+	upA := h.nextUpstream("multiplexer never opened an upstream watch for REQUEST A")
+	h.drain()
+
+	framesA := h.push(upA, "ADDED", "pod-a", "100")
+	require.NotEmpty(t, framesA, "harness sanity: a cluster frame must reach the client for REQUEST A")
+	require.Equal(t, queryA, framesA[0].Query)
+
+	// REQUEST B differs only by query, so it needs an upstream watch of its own.
+	h.send("REQUEST", queryB)
+	upB := h.nextUpstream("REQUEST B has a different query and needs its own upstream watch")
+	assert.Equal(t, 2, h.upstream.upgradeCount(), "each query should get its own upstream watch")
+	h.drain()
+
+	framesB := h.push(upB, "MODIFIED", "pod-b", "101")
+	if assert.NotEmpty(t, framesB, "a cluster frame after REQUEST B must reach the client") {
+		assert.Equal(t, queryB, framesB[0].Query,
+			"frame for subscriber B must be tagged with B's query, or the frontend cannot route it")
+	}
+
+	// CLOSE A ends only A, and the closed notice says which watch ended.
+	h.send("CLOSE", queryA)
+
+	notices := closedNotices(collectFrames(t, h.frames, time.Second))
+	require.NotEmpty(t, notices, "CLOSE A should send a closed notice")
+
+	for _, n := range notices {
+		assert.Equal(t, queryA, n.Query,
+			"the closed notice must carry A's query so the frontend knows which watch ended")
+	}
+
+	assert.False(t, h.registered(queryA), "CLOSE A must remove A's connection")
+	assert.True(t, h.registered(queryB), "B's connection must survive CLOSE A")
+
+	// With no further client message, a cluster event must still reach subscriber B.
+	framesAfterClose := h.push(upB, "MODIFIED", "pod-c", "102")
+	if assert.NotEmpty(t, framesAfterClose, "B must still receive frames after CLOSE A") {
+		assert.Equal(t, queryB, framesAfterClose[0].Query)
+	}
+}
+
+func TestCreateConnectionKeyIncludesQuery(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	a := m.createConnectionKey("c1", "/api/v1/pods", "watch=1&resourceVersion=1", "u1")
+	b := m.createConnectionKey("c1", "/api/v1/pods", "watch=1&resourceVersion=2", "u1")
+
+	assert.NotEqual(t, a, b, "watches on the same path with different queries need different keys")
+	assert.Equal(t, a, m.createConnectionKey("c1", "/api/v1/pods", "watch=1&resourceVersion=1", "u1"))
 }
