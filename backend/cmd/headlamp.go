@@ -658,6 +658,27 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
+func (c *HeadlampConfig) securityHeadersMiddleware(next http.Handler) http.Handler {
+	var ancestors []string
+
+	for _, a := range c.AllowedFrameAncestors {
+		if t := strings.TrimSpace(a); t != "" {
+			ancestors = append(ancestors, t)
+		}
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(ancestors) > 0 {
+			w.Header().Set("Content-Security-Policy", fmt.Sprintf("frame-ancestors %s", strings.Join(ancestors, " ")))
+		} else {
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -1532,6 +1553,8 @@ func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, e
 	if isLoopbackAddr(config.ListenAddr) {
 		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
 	}
+
+	handler = config.securityHeadersMiddleware(handler)
 
 	return handler, nil
 }
