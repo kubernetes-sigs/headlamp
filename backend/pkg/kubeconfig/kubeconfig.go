@@ -241,7 +241,7 @@ type Base64Error struct {
 
 // Error returns a string representation of the error.
 func (e Base64Error) Error() string {
-	var messages []string //nolint:prealloc
+	messages := make([]string, 0, len(e.Errors))
 
 	for _, err := range e.Errors {
 		messages = append(messages, err.Error())
@@ -357,7 +357,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec
+		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA cert file read from OIDC config path.
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -505,7 +505,8 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
-	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
+	//nolint:gosec // Kubeconfig path is provided by server flag, environment variable, or cluster store.
+	data, err := os.ReadFile(kubeConfigPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}

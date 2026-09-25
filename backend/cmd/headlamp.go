@@ -225,7 +225,8 @@ func fileExists(filename string) bool {
 }
 
 func mustReadFile(path string) []byte {
-	data, err := os.ReadFile(path) //nolint:gosec
+	//nolint:gosec // Static frontend path comes from the configured asset directory.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
@@ -658,7 +659,7 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
-//nolint:gocognit,funlen,gocyclo
+//nolint:gocognit,funlen,gocyclo // Main HTTP routing setup requires multi-route registration.
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
@@ -875,7 +876,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
 		defer cancel()
 
-		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
+		//nolint:gosec // Proxy URL is validated against the configured proxy allowlist.
+		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -897,7 +899,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		client := http.Client{}
 
-		resp, err := client.Do(proxyReq) //nolint:gosec
+		//nolint:gosec // Destination URL is validated against the configured proxy allowlist.
+		resp, err := client.Do(proxyReq)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -1020,7 +1023,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			//nolint:gosec // Explicit runtime Insecure configuration setting enables skipping TLS verification.
+			tlsCfg := &tls.Config{InsecureSkipVerify: true}
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
@@ -1928,7 +1932,8 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
+//nolint:funlen // Handler constructs multi-step cluster proxy pipeline.
+func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
@@ -2307,7 +2312,9 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // addCluster adds cluster to store and updates the kubeconfig file.
-func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//
+//nolint:funlen // Multi-field cluster kubeconfig validation.
+func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 
@@ -2939,7 +2946,8 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 /*
 This function is used to handle the node drain request.
 */
-func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//nolint:funlen // Node drain handler coordinates pod evictions.
+func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	_, span := telemetry.CreateSpan(ctx, r, "node-management", "handleNodeDrain")
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
