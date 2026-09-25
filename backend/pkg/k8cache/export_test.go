@@ -17,8 +17,9 @@ func ExportedRunWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	watchResources []string,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	runWatcher(ctx, k8scache, contextKey, kContext, watchResources)
 }
 
 // ResetRegistries clears both registries for test isolation.
@@ -163,13 +164,19 @@ func ExportedRedactCacheKey(key string) string {
 }
 
 // ExportedFilterImportantResources exposes filterImportantResources for testing.
-func ExportedFilterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
-	return filterImportantResources(gvrList)
+func ExportedFilterImportantResources(
+	gvrList []schema.GroupVersionResource,
+	watchResources []string,
+) []schema.GroupVersionResource {
+	return filterImportantResources(gvrList, watchResources)
 }
 
 // ExportedReturnGVRList exposes returnGVRList for testing.
-func ExportedReturnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
-	return returnGVRList(apiResourceLists)
+func ExportedReturnGVRList(
+	apiResourceLists []*metav1.APIResourceList,
+	watchResources []string,
+) []schema.GroupVersionResource {
+	return returnGVRList(apiResourceLists, watchResources)
 }
 
 // ExportedInvalidateCacheKeysForResourceEvent exposes invalidateCacheKeysForResourceEvent for testing.
