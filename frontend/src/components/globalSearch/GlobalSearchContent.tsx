@@ -48,6 +48,7 @@ import Node from '../../lib/k8s/node';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../lib/k8s/pod';
 import ReplicaSet from '../../lib/k8s/replicaSet';
+import Secret from '../../lib/k8s/secret';
 import Service from '../../lib/k8s/service';
 import ServiceAccount from '../../lib/k8s/serviceAccount';
 import StatefulSet from '../../lib/k8s/statefulSet';
@@ -100,6 +101,7 @@ const classes: KubeObjectClass[] = [
   Job,
   CronJob,
   ConfigMap,
+  Secret,
   Namespace,
   StatefulSet,
   ReplicaSet,
