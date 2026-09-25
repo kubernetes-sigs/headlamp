@@ -453,6 +453,27 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("DELETE")
 }
 
+// isRequestAuthenticated reports whether the request carries a bearer token
+// or a session cookie for at least one known cluster.
+func (c *HeadlampConfig) isRequestAuthenticated(r *http.Request) bool {
+	if auth.BearerTokenValue(r.Header.Get("Authorization")) != "" {
+		return true
+	}
+
+	contexts, err := c.KubeConfigStore.GetContexts()
+	if err != nil {
+		return false
+	}
+
+	for _, ctx := range contexts {
+		if token, err := auth.GetTokenFromCookie(r, ctx.Name); err == nil && token != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // addPluginListRoute registers a GET endpoint handler at "/plugins" that serves the list of available plugins.
 // It handles Telemetry, metrics collection, and plugin list caching.
 func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
@@ -474,6 +495,12 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 		}
 
 		logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
+
+		if !config.isRequestAuthenticated(r) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 
