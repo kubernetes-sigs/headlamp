@@ -309,6 +309,8 @@ const notNamespacedClasses = [
   'PriorityClass',
   'RuntimeClass',
   'StorageClass',
+  'ValidatingAdmissionPolicy',
+  'ValidatingAdmissionPolicyBinding',
   'VolumeAttributesClass',
 ];
 
