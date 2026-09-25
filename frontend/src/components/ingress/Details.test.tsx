@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { TestContext } from '../../test';
-import IngressDetails from './Details';
+import IngressDetails, { LinkStringFormat } from './Details';
 
 const { mockDetailsGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
@@ -179,5 +179,35 @@ describe('IngressDetails', () => {
     expect(sections).toHaveLength(1);
     expect(sections[0].id).toBe('headlamp.ingress-rules');
     expect(sections[0].section).toBeTruthy();
+  });
+});
+
+describe('LinkStringFormat', () => {
+  const multiHostTlsIngress: any = {
+    jsonData: {
+      spec: {
+        tls: [
+          {
+            hosts: ['a.example.com', 'b.example.com'],
+            secretName: 'multi-host-tls',
+          },
+        ],
+      },
+    },
+    spec: {
+      rules: [],
+    },
+  };
+
+  it('detects https for a host covered by a multi-host TLS rule', () => {
+    render(<LinkStringFormat url="b.example.com" item={multiHostTlsIngress} />);
+
+    expect(screen.getByRole('link')).toHaveAttribute('href', 'https://b.example.com/');
+  });
+
+  it('falls back to http for a host not covered by any TLS rule', () => {
+    render(<LinkStringFormat url="other.example.com" item={multiHostTlsIngress} />);
+
+    expect(screen.getByRole('link')).toHaveAttribute('href', 'http://other.example.com/');
   });
 });
