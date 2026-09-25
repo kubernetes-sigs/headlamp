@@ -15,7 +15,12 @@
             <p
               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
             >
-              Pods
+              <a
+                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                href="/c/story-cluster/pods"
+              >
+                Pods
+              </a>
             </p>
           </div>
           <p
@@ -34,11 +39,11 @@
               class="MuiBox-root css-5cned0"
             >
               <span
-                aria-label="Loading data for "
+                aria-label="Loading data for Pods"
                 class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
                 role="progressbar"
                 style="width: 40px; height: 40px;"
-                title="Loading data for "
+                title="Loading data for Pods"
               >
                 <svg
                   class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"

@@ -15,13 +15,40 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import React, { useEffect, useRef } from 'react';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
+import { TestContext } from '../../../test';
 import { NodesStatusCircleChart, PodsStatusCircleChart } from './StatusCharts';
+
+function WithCluster({ children }: { children: React.ReactNode }) {
+  const previous = useRef<string | undefined>(undefined);
+  if (previous.current === undefined) {
+    previous.current = window.location.pathname;
+    window.history.replaceState({}, '', '/c/story-cluster/');
+  }
+  useEffect(
+    () => () => {
+      if (previous.current !== undefined) {
+        window.history.replaceState({}, '', previous.current);
+      }
+    },
+    []
+  );
+  return <>{children}</>;
+}
 
 const meta: Meta = {
   title: 'Cluster/StatusCharts',
-  decorators: [Story => <Story />],
+  decorators: [
+    Story => (
+      <TestContext urlPrefix="/c" routerMap={{ cluster: 'story-cluster' }}>
+        <WithCluster>
+          <Story />
+        </WithCluster>
+      </TestContext>
+    ),
+  ],
 };
 
 export default meta;

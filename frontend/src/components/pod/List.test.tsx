@@ -17,7 +17,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type Pod from '../../lib/k8s/pod';
-import { PodListRenderer } from './List';
+import { filterPod, PodListRenderer } from './List';
 
 const { mockTranslation } = vi.hoisted(() => ({
   mockTranslation: vi.fn((key: string, values?: Record<string, string>) => {
@@ -93,5 +93,60 @@ describe('PodListRenderer', () => {
 
     finishLoading();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled());
+  });
+});
+
+describe('filterPod', () => {
+  const readyPod = {
+    status: {
+      conditions: [{ type: 'Ready', status: 'True' }],
+    },
+  } as unknown as Pod;
+
+  const notReadyPod = {
+    status: {
+      conditions: [{ type: 'Ready', status: 'False' }],
+    },
+  } as unknown as Pod;
+
+  const pendingPod = {
+    status: {
+      conditions: [],
+    },
+  } as unknown as Pod;
+
+  const succeededPod = {
+    status: {
+      phase: 'Succeeded',
+      conditions: [],
+    },
+  } as unknown as Pod;
+
+  it('filters ready pods correctly', () => {
+    expect(filterPod(readyPod, 'Ready')).toBe(true);
+    expect(filterPod(readyPod, 'ready')).toBe(true);
+    expect(filterPod(succeededPod, 'Ready')).toBe(true);
+    expect(filterPod(notReadyPod, 'Ready')).toBe(false);
+    expect(filterPod(pendingPod, 'Ready')).toBe(false);
+  });
+
+  it('filters not ready pods correctly', () => {
+    expect(filterPod(notReadyPod, 'NotReady')).toBe(true);
+    expect(filterPod(notReadyPod, 'not ready')).toBe(true);
+    expect(filterPod(notReadyPod, 'not-ready')).toBe(true);
+    expect(filterPod(pendingPod, 'NotReady')).toBe(true);
+    expect(filterPod(readyPod, 'NotReady')).toBe(false);
+    expect(filterPod(succeededPod, 'NotReady')).toBe(false);
+  });
+
+  it('returns undefined for unrelated search terms so default fuzzy column matching applies', () => {
+    expect(filterPod(readyPod, 'nginx')).toBeUndefined();
+    expect(filterPod(notReadyPod, 'nginx')).toBeUndefined();
+  });
+
+  it('returns true when search is undefined to preserve rows for Table prefiltering', () => {
+    expect(filterPod(readyPod, undefined)).toBe(true);
+    expect(filterPod(notReadyPod, undefined)).toBe(true);
+    expect(filterPod(pendingPod, undefined)).toBe(true);
   });
 });
