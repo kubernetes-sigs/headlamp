@@ -548,11 +548,16 @@ func IsAllowed(
 		},
 	}
 
+	ssarStart := time.Now()
+
 	result, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(
 		r.Context(),
 		review,
 		metav1.CreateOptions{},
 	)
+
+	recordSSARDuration(r.Context(), time.Since(ssarStart))
+
 	if err != nil {
 		return false, err
 	}
