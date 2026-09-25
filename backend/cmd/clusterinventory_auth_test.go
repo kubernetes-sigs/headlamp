@@ -212,7 +212,7 @@ func TestInventoryMultiplexerRejectsMissingCredentialsOnReusedConnection(t *test
 	}))
 	m := NewMultiplexer(store, true)
 	message := Message{ClusterID: "inventory", UserID: "user-a", Path: "/api/v1/pods"}
-	m.connections[m.createConnectionKey(message.ClusterID, message.Path, message.UserID)] = &Connection{}
+	m.connections[m.createConnectionKey(message.ClusterID, message.Path, message.Query, message.UserID)] = &Connection{}
 
 	for _, token := range []*string{nil, new(string)} {
 		_, err := m.getOrCreateConnection(message, nil, token)
