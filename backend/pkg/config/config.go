@@ -46,27 +46,28 @@ type Config struct {
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
-	NoBrowser              bool   `koanf:"no-browser"`
-	CacheEnabled           bool   `koanf:"cache-enabled"`
-	EnableHelm             bool   `koanf:"enable-helm"`
-	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
-	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
-	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
-	ListenAddr             string `koanf:"listen-addr"`
-	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
-	Port                   uint   `koanf:"port"`
-	KubeConfigPath         string `koanf:"kubeconfig"`
-	KubeConfigDir          string `koanf:"kubeconfig-dir"`
-	SkippedKubeContexts    string `koanf:"skipped-kube-contexts"`
-	StaticDir              string `koanf:"html-static-dir"`
-	PluginsDir             string `koanf:"plugins-dir"`
-	UserPluginsDir         string `koanf:"user-plugins-dir"`
-	BaseURL                string `koanf:"base-url"`
-	SessionTTL             int    `koanf:"session-ttl"`
-	PodDebugImage          string `koanf:"pod-debug-image"`
-	NodeShellImage         string `koanf:"node-shell-image"`
-	NodeShellNamespace     string `koanf:"node-shell-namespace"`
-	ProxyURLs              string `koanf:"proxy-urls"`
+	NoBrowser              bool          `koanf:"no-browser"`
+	CacheEnabled           bool          `koanf:"cache-enabled"`
+	CacheResyncPeriod      time.Duration `koanf:"cache-resync-period"`
+	EnableHelm             bool          `koanf:"enable-helm"`
+	EnableDynamicClusters  bool          `koanf:"enable-dynamic-clusters"`
+	EnableClusterInventory bool          `koanf:"enable-cluster-inventory"`
+	AllowKubeconfigChanges bool          `koanf:"allow-kubeconfig-changes"`
+	ListenAddr             string        `koanf:"listen-addr"`
+	WatchPluginsChanges    bool          `koanf:"watch-plugins-changes"`
+	Port                   uint          `koanf:"port"`
+	KubeConfigPath         string        `koanf:"kubeconfig"`
+	KubeConfigDir          string        `koanf:"kubeconfig-dir"`
+	SkippedKubeContexts    string        `koanf:"skipped-kube-contexts"`
+	StaticDir              string        `koanf:"html-static-dir"`
+	PluginsDir             string        `koanf:"plugins-dir"`
+	UserPluginsDir         string        `koanf:"user-plugins-dir"`
+	BaseURL                string        `koanf:"base-url"`
+	SessionTTL             int           `koanf:"session-ttl"`
+	PodDebugImage          string        `koanf:"pod-debug-image"`
+	NodeShellImage         string        `koanf:"node-shell-image"`
+	NodeShellNamespace     string        `koanf:"node-shell-namespace"`
+	ProxyURLs              string        `koanf:"proxy-urls"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
@@ -582,6 +583,7 @@ func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	addGeneralFlags(f, appName)
+	addCacheFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -603,7 +605,6 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"If unset, it is derived from the kube-system/kubeadm-config ConfigMap (treating \"kubernetes\" as unset), "+
 			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
-	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
@@ -651,6 +652,12 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+}
+
+func addCacheFlags(f *flag.FlagSet) {
+	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Duration("cache-resync-period", 30*time.Minute,
+		"How often informers re-list resources to recover from missed watch events (0 disables resync)")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
