@@ -825,6 +825,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			EmailPaths:              config.MeEmailPaths,
 			GroupsPaths:             config.MeGroupsPaths,
 			UserInfoURL:             config.MeUserInfoURL,
+			BaseURL:                 config.BaseURL,
 			ProxyAuthEnabled:        config.ProxyAuthEnabled,
 			ProxyAuthUsernameHeader: config.ProxyAuthUsernameHeader,
 			ProxyAuthGroupHeader:    config.ProxyAuthGroupHeader,

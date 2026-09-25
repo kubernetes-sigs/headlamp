@@ -270,6 +270,59 @@ func TestParseClusterAndToken(t *testing.T) {
 	}
 }
 
+func TestStripBaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		baseURL string
+		want    string
+	}{
+		{"no base URL", "/clusters/main/api", "", "/clusters/main/api"},
+		{"strips base URL", "/dev/headlamp/clusters/main/api", "/dev/headlamp", "/clusters/main/api"},
+		{"base URL with trailing slash", "/dev/headlamp/clusters/main/api", "/dev/headlamp/", "/clusters/main/api"},
+		{"path is the base URL", "/dev/headlamp", "/dev/headlamp", "/"},
+		{"only matches on a segment boundary", "/dev/hlx/clusters/main/api", "/dev/hl", "/dev/hlx/clusters/main/api"},
+		{"path outside base URL", "/clusters/main/api", "/dev/headlamp", "/clusters/main/api"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, auth.StripBaseURL(tt.path, tt.baseURL))
+		})
+	}
+}
+
+func TestParseClusterAndTokenWithBaseURL(t *testing.T) {
+	const baseURL = "/dev/internal/headlamp"
+
+	tests := []struct {
+		name        string
+		url         string
+		wantCluster string
+		wantToken   string
+	}{
+		{"cluster request under base URL", baseURL + "/clusters/main/api/v1/pods", "main", "cookie-token"},
+		{"request outside base URL", "/other/clusters/main/api/v1/pods", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, nil)
+			req.AddCookie(&http.Cookie{
+				Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("main")),
+				Value:    "cookie-token",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			cluster, token := auth.ParseClusterAndTokenWithBaseURL(req, baseURL)
+			assert.Equal(t, tt.wantCluster, cluster)
+			assert.Equal(t, tt.wantToken, token)
+		})
+	}
+}
+
 var berlinLocation = func() *time.Location {
 	loc, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
@@ -1220,6 +1273,44 @@ func TestHandleMe_Success(t *testing.T) {
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
+}
+
+func TestHandleMe_BaseURL(t *testing.T) {
+	t.Parallel()
+
+	token := makeTestToken(t, map[string]interface{}{
+		"preferred_username": "alice",
+		"exp":                float64(time.Now().Add(time.Hour).Unix()),
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/dev/internal/headlamp/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+	req.AddCookie(&http.Cookie{
+		Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		UsernamePaths: "preferred_username",
+		BaseURL:       "/dev/internal/headlamp",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string `json:"username"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "alice", got.Username)
 }
 
 func TestHandleMe_HeaderToken(t *testing.T) {
