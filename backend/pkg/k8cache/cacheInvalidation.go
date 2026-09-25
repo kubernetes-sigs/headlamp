@@ -115,8 +115,8 @@ func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bo
 	return false
 }
 
-// returnGVRList returns list+watch GroupVersionResources filtered to an allowlisted set of
-// API resource names (e.g. pods, deployments) used for cache invalidation watchers.
+// returnGVRList returns discovered GroupVersionResources that support both list and watch.
+// Subresources and explicitly skipped noisy kinds are excluded from cache invalidation watchers.
 func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
 	skipKinds := map[string]bool{
 		"Lease": true,
@@ -146,37 +146,7 @@ func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVer
 		}
 	}
 
-	filtered := filterImportantResources(gvrList)
-
-	return filtered
-}
-
-// filterImportantResources filters the provided list of GroupVersionResources to
-// include only those that are deemed important for caching and watching.
-func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
-	allowed := map[string]struct{}{
-		"pods":         {},
-		"services":     {},
-		"deployments":  {},
-		"replicasets":  {},
-		"statefulsets": {},
-		"daemonsets":   {},
-		"nodes":        {},
-		"configmaps":   {},
-		"secrets":      {},
-		"jobs":         {},
-		"cronjobs":     {},
-	}
-
-	filtered := make([]schema.GroupVersionResource, 0, len(allowed))
-
-	for _, gvr := range gvrList {
-		if _, ok := allowed[gvr.Resource]; ok {
-			filtered = append(filtered, gvr)
-		}
-	}
-
-	return filtered
+	return gvrList
 }
 
 // Corrected CheckForChanges.
