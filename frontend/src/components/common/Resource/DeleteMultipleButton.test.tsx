@@ -40,7 +40,7 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
       return this.jsonData?.kind ?? (this.constructor as any).kind;
     }
     get cluster() {
-      return '';
+      return this.jsonData?.cluster ?? '';
     }
     getName() {
       return this.jsonData?.metadata?.name ?? '';
@@ -87,12 +87,13 @@ vi.mock('../../../lib/k8s/pod', () => ({
 import { TestContext } from '../../../test';
 import DeleteMultipleButton from './DeleteMultipleButton';
 
-function makeNamespace(metadata: Record<string, any>) {
+function makeNamespace(metadata: Record<string, any>, cluster?: string) {
   return new (MockNamespace as any)({
     kind: 'Namespace',
     apiVersion: 'v1',
     metadata: { uid: `uid-${metadata.name}`, ...metadata },
     status: { phase: 'Active' },
+    cluster,
   });
 }
 
@@ -172,5 +173,34 @@ describe('DeleteMultipleButton', () => {
       '../../../lib/k8s/namespace'
     );
     expect(MockNamespace.PROTECTED_NAMESPACES).toEqual(RealNamespace.PROTECTED_NAMESPACES);
+  });
+
+  it('does not nest the item list inside a paragraph', async () => {
+    renderButton([makeNamespace({ name: 'my-app' }), makeNamespace({ name: 'team-b' })]);
+    const dialog = await openDialog();
+
+    expect(within(dialog).getByRole('list')).toBeInTheDocument();
+    expect(dialog.querySelector('p ul')).not.toBeInTheDocument();
+  });
+
+  it('only shows the cluster label when items span more than one cluster', async () => {
+    renderButton([
+      makeNamespace({ name: 'my-app' }, 'cluster-a'),
+      makeNamespace({ name: 'team-b' }, 'cluster-a'),
+    ]);
+    const dialog = await openDialog();
+
+    expect(within(dialog).queryByText(/cluster: cluster-a/)).not.toBeInTheDocument();
+  });
+
+  it('shows the cluster label on every item when items span multiple clusters', async () => {
+    renderButton([
+      makeNamespace({ name: 'my-app' }, 'cluster-a'),
+      makeNamespace({ name: 'team-b' }, 'cluster-b'),
+    ]);
+    const dialog = await openDialog();
+
+    expect(within(dialog).getByText(/cluster: cluster-a/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/cluster: cluster-b/)).toBeInTheDocument();
   });
 });
