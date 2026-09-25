@@ -59,6 +59,18 @@
           />
         </svg>
         <button
+          aria-label="Toggle welcome dialog (test)"
+          class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedInherit MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorInherit MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedInherit MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorInherit MuiButton-disableElevation css-o99mm9-MuiButtonBase-root-MuiButton-root"
+          data-mui-internal-clone-element="true"
+          tabindex="0"
+          type="button"
+        >
+          test
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </button>
+        <button
           aria-controls="primary-user-menu"
           aria-haspopup="true"
           aria-label="Account of current user"
