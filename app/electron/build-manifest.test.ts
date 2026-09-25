@@ -908,6 +908,39 @@ describe('build manifest selection', () => {
     );
   });
 
+  it('does not authorize the obsolete Azure AKS package identity', () => {
+    const manifest = loadBuildManifest(DEFAULT_MANIFEST_FILE);
+    const identities = (['development', 'production'] as const).flatMap(environment =>
+      productPluginCommandPolicies(manifest, environment).map(
+        policy => `${policy.source}:${policy.bundleName}:${policy.packageName}`
+      )
+    );
+
+    expect(identities).not.toContain('development:azure-aks:azure-aks');
+  });
+
+  it('validates the optional app-owned command environment module', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    for (const [commandEnvironment, valid] of [
+      [undefined, true],
+      ['runtime/environment.cjs', true],
+      ['', false],
+      [null, false],
+      ['/outside.cjs', false],
+      ['C:\\outside.cjs', false],
+      ['callback.js', false],
+      ['a\0.cjs', false],
+    ] as const) {
+      const manifest = commandEnvironment === undefined ? {} : { commandEnvironment };
+      expect(validate(manifest)).toBe(valid);
+      if (valid) expect(() => validateBuildManifest(manifest)).not.toThrow();
+      else expect(() => validateBuildManifest(manifest)).toThrow('commandEnvironment');
+    }
+  });
+
   it('requires schema command arguments to contain a non-whitespace character', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')

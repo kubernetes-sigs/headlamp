@@ -66,7 +66,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
   const { t } = useTranslation();
   const { pathname } = useLocation();
 
-  function registerSetInterval(): NodeJS.Timeout {
+  function registerSetInterval(isStale: () => boolean): NodeJS.Timeout {
     return setInterval(() => {
       if (!window.navigator.onLine) {
         setError(t('translation|Offline') as string);
@@ -80,6 +80,11 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
       checkerFunction()
         .then(() => {
+          // A check whose effect has been torn down by navigation or backoff
+          // re-registration describes a route that is no longer current.
+          if (isStale()) {
+            return;
+          }
           setError(false);
           // Reset the backoff so polling returns to the normal cadence once the
           // cluster recovers; otherwise the interval stays elevated for the rest
@@ -87,6 +92,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
           setNetworkStatusCheckTimeFactor(0);
         })
         .catch(err => {
+          if (isStale()) {
+            return;
+          }
           const message = err instanceof Error ? err.message : String(err);
           setError(message);
           setNetworkStatusCheckTimeFactor(
@@ -109,11 +117,15 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
   React.useEffect(
     () => {
-      const id = registerSetInterval();
-      return () => clearInterval(id);
+      let stale = false;
+      const id = registerSetInterval(() => stale);
+      return () => {
+        stale = true;
+        clearInterval(id);
+      };
     },
     // eslint-disable-next-line
-    [networkStatusCheckTimeFactor]
+    [networkStatusCheckTimeFactor, pathname]
   );
 
   const showOnRoute = React.useMemo(() => {
