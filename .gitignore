@@ -15,3 +15,10 @@ node_modules
 plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
 .DS_Store
+
+kind.exe
+kind-config.yaml
+merged-kubeconfig.yaml
+restricted-kubeconfig.yaml
+restricted-role.yaml
+server-url.txt
