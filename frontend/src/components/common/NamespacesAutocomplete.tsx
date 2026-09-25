@@ -199,14 +199,7 @@ export function NamespacesAutocomplete() {
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
   const cluster = useCluster();
-  const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
-
-  React.useEffect(() => {
-    const allowedNamespaces = getCombinedAllowedNamespaces(cluster || '');
-    if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
-    }
-  }, [cluster]);
+  const namespaceNames = getCombinedAllowedNamespaces(cluster || '');
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');

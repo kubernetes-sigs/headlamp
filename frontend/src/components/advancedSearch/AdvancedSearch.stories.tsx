@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import React from 'react';
-import { TestContext } from '../../test';
+import { initialState as configInitialState } from '../../redux/configSlice';
+import reducers from '../../redux/reducers/reducers';
+import { API_BASE, TestContext } from '../../test';
 import { AdvancedSearch } from './AdvancedSearch';
 
 export default {
@@ -25,11 +29,46 @@ export default {
   argTypes: {},
 } as Meta;
 
+const clusters = ['development', 'staging', 'production'].reduce(
+  (result, name) => ({ ...result, [name]: { name } }),
+  {}
+);
+
+const makeStore = () =>
+  configureStore({
+    reducer: reducers,
+    preloadedState: {
+      config: {
+        ...configInitialState,
+        clusters,
+        allClusters: clusters,
+      },
+    },
+  });
+
 const Template: StoryFn = args => (
-  <TestContext>
+  <TestContext store={makeStore()} routerMap={{ cluster: 'development+staging' }} urlPrefix="/c">
     <AdvancedSearch {...args} />
   </TestContext>
 );
 
 export const Default = Template.bind({});
 Default.args = {};
+Default.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/clusters/:cluster/api`, () => HttpResponse.json({ items: [] })),
+        http.get(`${API_BASE}/clusters/:cluster/apis`, () => HttpResponse.json({ items: [] })),
+        http.get(`${API_BASE}/clusters/:cluster/api/v1/namespaces`, () =>
+          HttpResponse.json({
+            apiVersion: 'v1',
+            kind: 'NamespaceList',
+            metadata: {},
+            items: [],
+          })
+        ),
+      ],
+    },
+  },
+};
