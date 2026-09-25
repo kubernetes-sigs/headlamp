@@ -211,63 +211,102 @@ export interface GraphSourceManagerProps {
  */
 export function GraphSourceManager({ sources, children, relations }: GraphSourceManagerProps) {
   const [sourceData, setSourceData] = useState(new Map<string, MaybeNodesAndEdges>());
-  const [selectedSources, setSelectedSources] = useState(() => {
-    const _selectedSources = new Set<string>();
-
-    const step = (source: GraphSource) => {
-      if (source.isEnabledByDefault ?? true) {
-        _selectedSources.add(source.id);
-        if ('sources' in source) {
-          source.sources.forEach(step);
+  const [overrides, setOverrides] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem('headlamp_resource_map_source_overrides');
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          const valid: Record<string, boolean> = {};
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'boolean') {
+              valid[k] = v;
+            }
+          }
+          return valid;
         }
       }
+    } catch (e) {
+      console.error('Error loading map source overrides from localStorage:', e);
+    }
+    return {};
+  });
+
+  const [selectedSources, setSelectedSources] = useState(() => {
+    const _selectedSources = new Set<string>();
+    const step = (source: GraphSource, parentEnabled: boolean) => {
+      const isExplicitlyOverridden = typeof overrides[source.id] === 'boolean';
+      const isEnabled = isExplicitlyOverridden
+        ? overrides[source.id]
+        : source.isEnabledByDefault ?? parentEnabled;
+
+      if (isEnabled) {
+        _selectedSources.add(source.id);
+      }
+      if ('sources' in source) {
+        source.sources.forEach(child => step(child, isEnabled));
+      }
     };
-    sources.map(step);
+    sources.forEach(source => step(source, true));
     return _selectedSources;
   });
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('headlamp_resource_map_source_overrides', JSON.stringify(overrides));
+    } catch (e) {
+      console.error('Error saving map source overrides to localStorage:', e);
+    }
+  }, [overrides]);
+
   const toggleSelection = useCallback(
     (source: GraphSource) => {
-      setSelectedSources(selection => {
-        const isSelected = (source: GraphSource): boolean =>
-          'sources' in source ? source.sources.every(s => isSelected(s)) : selection.has(source.id);
+      const isSelected = (s: GraphSource): boolean =>
+        'sources' in s ? s.sources.every(child => isSelected(child)) : selectedSources.has(s.id);
 
-        const deselectAll = (source: GraphSource) => {
-          if ('sources' in source) {
-            source.sources.forEach(deselectAll);
-          } else {
-            selection.delete(source.id);
-          }
-        };
+      const nextSelected = new Set(selectedSources);
+      const changes: Record<string, boolean> = {};
 
-        const selectAll = (source: GraphSource) => {
-          if ('sources' in source) {
-            source.sources.forEach(s => selectAll(s));
-          } else {
-            selection.add(source.id);
-          }
-        };
-
-        if (!('sources' in source)) {
-          // not a group, just toggle the selection
-          if (selection.has(source.id)) {
-            selection.delete(source.id);
-          } else {
-            selection.add(source.id);
-          }
-        } else {
-          // if all children are selected, deselect them
-          if (source.sources.every(isSelected)) {
-            source.sources.forEach(deselectAll);
-            selection.delete(source.id);
-          } else {
-            source.sources.forEach(selectAll);
-          }
+      const deselectAll = (s: GraphSource) => {
+        nextSelected.delete(s.id);
+        changes[s.id] = false;
+        if ('sources' in s) {
+          s.sources.forEach(deselectAll);
         }
-        return new Set(selection);
-      });
+      };
+
+      const selectAll = (s: GraphSource) => {
+        nextSelected.add(s.id);
+        changes[s.id] = true;
+        if ('sources' in s) {
+          s.sources.forEach(selectAll);
+        }
+      };
+
+      if (!('sources' in source)) {
+        if (selectedSources.has(source.id)) {
+          nextSelected.delete(source.id);
+          changes[source.id] = false;
+        } else {
+          nextSelected.add(source.id);
+          changes[source.id] = true;
+        }
+      } else {
+        if (source.sources.every(isSelected)) {
+          source.sources.forEach(deselectAll);
+          nextSelected.delete(source.id);
+          changes[source.id] = false;
+        } else {
+          source.sources.forEach(selectAll);
+          nextSelected.add(source.id);
+          changes[source.id] = true;
+        }
+      }
+
+      setSelectedSources(nextSelected);
+      setOverrides(prev => ({ ...prev, ...changes }));
     },
-    [setSelectedSources]
+    [selectedSources, setSelectedSources, setOverrides]
   );
 
   const onData = useCallback(
@@ -388,8 +427,11 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       });
 
       const isLoading =
-        sourceData.size === 0 ||
-        selectedSources?.values()?.some?.(source => sourceData.get(source) === null);
+        selectedSourceIds.length > 0 &&
+        (sourceData.size === 0 ||
+          selectedSourceIds.some(
+            source => !sourceData.has(source) || sourceData.get(source) === null
+          ));
 
       return {
         nodes,
