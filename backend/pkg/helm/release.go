@@ -432,6 +432,11 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 }
 
 func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
+	if !VerifyUser(actionConfig, req.Name) {
+		h.setReleaseStatusSilent("uninstall", req.Name, failed, errors.New("user is not authorized to perform this operation"))
+		return
+	}
+
 	// Get uninstall client
 	uninstallClient := action.NewUninstall(actionConfig)
 
@@ -527,6 +532,11 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 }
 
 func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+	if !VerifyUser(actionConfig, req.Name) {
+		h.setReleaseStatusSilent("rollback", req.Name, failed, errors.New("user is not authorized to perform this operation"))
+		return
+	}
+
 	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
@@ -683,12 +693,12 @@ func (h *Handler) getChart(
 }
 
 // Verify the user has minimal privileges by performing a whoami check.
-// This prevents spurious downloads by ensuring basic authentication before proceeding.
-func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
+// This prevents spurious downloads and unauthorized actions by ensuring basic authentication before proceeding.
+func VerifyUser(actionConfig *action.Configuration, releaseName string) bool {
 	restConfig, err := actionConfig.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+			map[string]string{logFieldReleaseName: releaseName},
 			err, "getting chart")
 
 		return false
@@ -697,7 +707,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	cs, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+			map[string]string{logFieldReleaseName: releaseName},
 			err, "getting chart")
 
 		return false
@@ -707,14 +717,14 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
 		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+			map[string]string{logFieldReleaseName: releaseName},
 			err, "getting chart")
 
 		return false
 	}
 
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
-		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName},
 			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
 
 		return false
@@ -731,7 +741,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.Version = req.Version
 
-	if !VerifyUser(actionConfig, req) {
+	if !VerifyUser(actionConfig, req.Name) {
 		return
 	}
 
