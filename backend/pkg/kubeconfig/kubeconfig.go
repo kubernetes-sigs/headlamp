@@ -1224,6 +1224,7 @@ func GetInClusterContext(
 	oidcCACert string,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
+	oidcUseImpersonation bool,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -1245,6 +1246,7 @@ func GetInClusterContext(
 		oidcCACert,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
+		oidcUseImpersonation,
 	), nil
 }
 
@@ -1259,6 +1261,7 @@ func newInClusterContextFromConfig(
 	oidcCACert string,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
+	oidcUseImpersonation bool,
 ) *Context {
 	cluster := &api.Cluster{
 		Server:                   clusterConfig.Host,
@@ -1278,7 +1281,11 @@ func newInClusterContextFromConfig(
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
-	if unsafeUseServiceAccountToken {
+	// Both modes need Headlamp's own in-cluster service account token file tracked on the
+	// context: unsafe mode uses it to authenticate every user's request directly, and
+	// impersonation mode uses it as the trusted credential it impersonates OIDC users
+	// through (see UsesInClusterServiceAccountToken and shouldUseImpersonationForContext).
+	if unsafeUseServiceAccountToken || oidcUseImpersonation {
 		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
 	}
 

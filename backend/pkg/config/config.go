@@ -97,6 +97,7 @@ type Config struct {
 	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
+	OidcUseImpersonation         bool   `koanf:"oidc-use-impersonation"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -140,6 +141,10 @@ func (c *Config) Validate() error {
 	c.warnRedundantThemeDefaults()
 
 	if err := c.validateServiceAccountTokenFlags(); err != nil {
+		return err
+	}
+
+	if err := c.validateOidcImpersonationFlag(); err != nil {
 		return err
 	}
 
@@ -266,6 +271,38 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
 		return errors.New("--service-account-token-path requires " +
 			"--unsafe-use-service-account-token to be enabled")
+	}
+
+	return nil
+}
+
+// validateOidcImpersonationFlag ensures --oidc-use-impersonation is only used with --in-cluster,
+// since it relies on the pod's own in-cluster service account credential to authenticate to the
+// API server while impersonating the OIDC user. It also rejects combining it with
+// --unsafe-use-service-account-token: the two flags authenticate every request as the same
+// trusted in-cluster credential, but --unsafe-use-service-account-token additionally discards
+// the caller's identity instead of impersonating it, so --oidc-use-impersonation would silently
+// never take effect (see shouldUseUnsafeServiceAccountTokenForContext, checked first).
+func (c *Config) validateOidcImpersonationFlag() error {
+	if c.OidcUseImpersonation && !c.InCluster {
+		return errors.New("--oidc-use-impersonation is only meant to be used with --in-cluster")
+	}
+
+	if c.OidcUseImpersonation && c.UnsafeUseServiceAccountToken {
+		return errors.New("--oidc-use-impersonation cannot be used together with " +
+			"--unsafe-use-service-account-token: the latter already authenticates every request " +
+			"as the pod's service account without impersonation, so --oidc-use-impersonation " +
+			"would have no effect")
+	}
+
+	// Mirrors the condition newInClusterContextFromConfig uses to decide whether OIDC is
+	// configured at all. Without it, no cookie can ever exist, so every proxied request
+	// would hit the "no valid OIDC token to resolve an identity" error forever -- which
+	// looks like a broken installation rather than the missing-OIDC-config mistake it is.
+	if c.OidcUseImpersonation && (c.OidcClientID == "" || c.OidcIdpIssuerURL == "" || c.OidcScopes == "") {
+		return errors.New("--oidc-use-impersonation requires OIDC to be configured " +
+			"(--oidc-client-id, --oidc-idp-issuer-url and --oidc-scopes); without OIDC configured " +
+			"there is never a token to impersonate, and every proxied API call would fail")
 	}
 
 	return nil
@@ -674,6 +711,13 @@ func addOIDCFlags(f *flag.FlagSet) {
 		"Comma separated JMESPath expressions used to read groups from the JWT payload")
 	f.String("me-user-info-url", DefaultMeUserInfoURL,
 		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
+	f.Bool("oidc-use-impersonation", false,
+		"When running --in-cluster, authenticate to the Kubernetes API server using Headlamp's own "+
+			"in-cluster service account token and impersonate the OIDC user (Impersonate-User/Impersonate-Group "+
+			"headers) instead of forwarding the raw OIDC token as the Bearer credential. Use this when the API "+
+			"server does not trust Headlamp's OIDC issuer directly. Requires the service account to have RBAC "+
+			"'impersonate' permission on users/groups/serviceaccounts. Username/groups are resolved using the "+
+			"same --me-username-path/--me-groups-path JMESPath expressions used by the /me endpoint.")
 }
 
 func addProxyAuthFlags(f *flag.FlagSet) {
