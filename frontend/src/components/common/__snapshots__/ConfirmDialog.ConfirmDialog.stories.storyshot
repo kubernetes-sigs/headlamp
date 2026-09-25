@@ -29,7 +29,7 @@
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1d2u6dd-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
-        <h2
+        <div
           class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
           id="alert-dialog-title"
           style="display: flex;"
@@ -49,7 +49,7 @@
               </h1>
             </div>
           </div>
-        </h2>
+        </div>
         <div
           class="MuiDialogContent-root css-9hw3b4-MuiDialogContent-root"
           tabindex="-1"
