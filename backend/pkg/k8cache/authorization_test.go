@@ -259,6 +259,109 @@ func runGetKindAndVerbTests(t *testing.T, tests []getKindAndVerbTestCase) {
 	}
 }
 
+func TestGetGroupAndNamespaceResourcePaths(t *testing.T) {
+	testGetGroupAndNamespaceCases(t, []groupAndNamespaceTestCase{
+		{
+			name:              "Core API, cluster scope",
+			muxVars:           map[string]string{"api": "api/v1/pods"},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Core API, namespaced",
+			muxVars:           map[string]string{"api": "api/v1/namespaces/ns/pods"},
+			expectedGroup:     "",
+			expectedNamespace: "ns",
+		},
+		{
+			name:              "Named API group, cluster scope",
+			muxVars:           map[string]string{"api": "apis/apps/v1/deployments"},
+			expectedGroup:     "apps",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Named API group, namespaced",
+			muxVars:           map[string]string{"api": "apis/apps/v1/namespaces/ns/deployments"},
+			expectedGroup:     "apps",
+			expectedNamespace: "ns",
+		},
+		{
+			name:              "Leading slash is ignored",
+			muxVars:           map[string]string{"api": "/apis/apps/v1/namespaces/ns/deployments"},
+			expectedGroup:     "apps",
+			expectedNamespace: "ns",
+		},
+	})
+}
+
+func TestGetGroupAndNamespaceClusterScopedAndInvalidPaths(t *testing.T) {
+	testGetGroupAndNamespaceCases(t, []groupAndNamespaceTestCase{
+		{
+			name:              "Core API version-only path",
+			muxVars:           map[string]string{"api": "api/v1"},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Named API version-only path",
+			muxVars:           map[string]string{"api": "apis/apps/v1"},
+			expectedGroup:     "apps",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Namespace resource stays cluster scoped",
+			muxVars:           map[string]string{"api": "api/v1/namespaces/kube-system"},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Namespace subresource stays cluster scoped",
+			muxVars:           map[string]string{"api": "api/v1/namespaces/kube-system/status"},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Non resource endpoint",
+			muxVars:           map[string]string{"api": "openapi/v2/namespaces/not-a-real-namespace"},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+		{
+			name:              "No mux vars",
+			muxVars:           map[string]string{},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+		{
+			name:              "Empty api var",
+			muxVars:           map[string]string{"api": ""},
+			expectedGroup:     "",
+			expectedNamespace: "",
+		},
+	})
+}
+
+type groupAndNamespaceTestCase struct {
+	name              string
+	muxVars           map[string]string
+	expectedGroup     string
+	expectedNamespace string
+}
+
+func testGetGroupAndNamespaceCases(t *testing.T, tests []groupAndNamespaceTestCase) {
+	t.Helper()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+			req = mux.SetURLVars(req, tc.muxVars)
+			group, namespace := k8cache.GetGroupAndNamespace(req)
+			assert.Equal(t, tc.expectedGroup, group)
+			assert.Equal(t, tc.expectedNamespace, namespace)
+		})
+	}
+}
+
 func TestIsAllowed(t *testing.T) {
 	tests := []struct {
 		name      string
