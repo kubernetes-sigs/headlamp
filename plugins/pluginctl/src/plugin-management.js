@@ -130,14 +130,18 @@ class PluginManager {
       }
 
       const pluginDir = path.join(destinationFolder, plugin.folderName);
-      // read the package.json of the plugin
-      const packageJsonPath = path.join(pluginDir, 'package.json');
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+      if (!plugin.artifacthubURL) {
+        throw new Error(`No artifacthub URL found for plugin "${pluginName}"`);
+      }
+      if (!plugin.artifacthubVersion) {
+        throw new Error(`No artifacthub version found for plugin "${pluginName}"`);
+      }
 
       const pluginData = await fetchPluginInfo(plugin.artifacthubURL, progressCallback, signal);
 
       const latestVersion = pluginData.version;
-      const currentVersion = packageJson.artifacthub.version;
+      const currentVersion = plugin.artifacthubVersion;
 
       if (semver.lte(latestVersion, currentVersion)) {
         throw new Error('No updates available');
@@ -249,14 +253,12 @@ class PluginManager {
           const packageJsonPath = path.join(pluginDir, 'package.json');
           const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
           const pluginName = packageJson.name || pluginFolder.name;
-          const pluginTitle = packageJson.artifacthub.title;
+          const pluginTitle = packageJson.artifacthub?.title ?? null;
           const pluginVersion = packageJson.version || null;
-          const artifacthubURL = packageJson.artifacthub ? packageJson.artifacthub.url : null;
-          const repoName = packageJson.artifacthub ? packageJson.artifacthub.repoName : null;
-          const author = packageJson.artifacthub ? packageJson.artifacthub.author : null;
-          const artifacthubVersion = packageJson.artifacthub
-            ? packageJson.artifacthub.version
-            : null;
+          const artifacthubURL = packageJson.artifacthub?.url ?? null;
+          const repoName = packageJson.artifacthub?.repoName ?? null;
+          const author = packageJson.artifacthub?.author ?? null;
+          const artifacthubVersion = packageJson.artifacthub?.version ?? null;
           // Store plugin data (folder name and plugin name)
           pluginsData.push({
             pluginName,
