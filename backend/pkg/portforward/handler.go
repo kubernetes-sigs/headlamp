@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -119,22 +118,6 @@ func (pf *portForward) setStatusAndSnapshot(status, errMsg string) portForward {
 	return *pf
 }
 
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() { _ = l.Close() }()
-
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
 // StartPortForward handles the port forward request.
 //
 //nolint:funlen
@@ -189,17 +172,9 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		return
 	}
 
-	if p.Port == "" {
-		freePort, err := getFreePort()
-		if err != nil || freePort == 0 {
-			logger.Log(logger.LevelError, nil, err, "getting free port")
-			http.Error(w, "can't find any available port "+err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		p.Port = strconv.Itoa(freePort)
-	}
+	// Let the forwarder bind to port 0 directly when no local port was requested.
+	// This avoids a TOCTOU race from selecting and releasing a port before the
+	// forwarder binds; the assigned port is retrieved after the listener is active.
 
 	kContext, err := kubeConfigStore.GetContext(contextKey)
 	if err != nil {
@@ -216,7 +191,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
-	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName)
+	err = startPortForward(kContext, cache, &p, token, contextKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -480,6 +455,7 @@ func handlePortForwardSuccess(
 func handlePortForwardReadiness(
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
+	forwarder *portforward.PortForwarder,
 	readyChan chan struct{},
 	errOut *bytes.Buffer,
 	logParams map[string]string,
@@ -490,6 +466,28 @@ func handlePortForwardReadiness(
 		if errOut.String() != "" {
 			return handlePortForwardError(cache, pfDetails, logParams,
 				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
+		}
+
+		if forwarder != nil {
+			ports, err := forwarder.GetPorts()
+			if err != nil {
+				return handlePortForwardError(cache, pfDetails, logParams,
+					fmt.Sprintf("failed to get forwarded ports: %v", err))
+			}
+
+			if len(ports) == 0 {
+				return handlePortForwardError(cache, pfDetails, logParams, "no forwarded ports returned by portforwarder")
+			}
+
+			portStr := strconv.Itoa(int(ports[0].Local))
+			if pfDetails.mu != nil {
+				pfDetails.mu.Lock()
+			}
+			pfDetails.Port = portStr
+			if pfDetails.mu != nil {
+				pfDetails.mu.Unlock()
+			}
+			logParams["port"] = portStr
 		}
 
 		handlePortForwardSuccess(cache, pfDetails, logParams)
@@ -611,7 +609,7 @@ func runAndMonitorPortForward(
 
 	forwardPortsAsync(cache, pfDetails, forwarder, forwardErrChan, logParams)
 
-	err := handlePortForwardReadiness(cache, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+	err := handlePortForwardReadiness(cache, pfDetails, forwarder, readyChan, errOut, logParams, forwardErrChan)
 	if err != nil {
 		return err
 	}
@@ -624,7 +622,7 @@ func runAndMonitorPortForward(
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string, clusterName string, requestClusterName string,
+	p *portForwardRequest, token string, clusterName string, requestClusterName string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -638,6 +636,9 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	}
 
 	portMapping := p.Port + ":" + p.TargetPort
+	if p.Port == "" || p.Port == "0" {
+		portMapping = "0:" + p.TargetPort
+	}
 
 	var (
 		forwarder           *portforward.PortForwarder
@@ -671,7 +672,20 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		Error:            "",
 	}
 
-	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
+	err = runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
+	if err != nil {
+		return err
+	}
+
+	if pfDetails.mu != nil {
+		pfDetails.mu.Lock()
+	}
+	p.Port = pfDetails.Port
+	if pfDetails.mu != nil {
+		pfDetails.mu.Unlock()
+	}
+
+	return nil
 }
 
 func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
