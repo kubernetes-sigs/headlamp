@@ -78,29 +78,59 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	DeleteKeys(key, k8scache)
 
+	// Capture the original mutating request's response in a recorder so that
+	// we don't write to the real ResponseWriter yet. This avoids a double
+	// write (and potential "superfluous response.WriteHeader" panics) when the
+	// fresh GET is also served below.
+	origRecorder := httptest.NewRecorder()
+	next.ServeHTTP(origRecorder, r)
+
 	freshURL := *r.URL
 
 	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
 	if err != nil {
-		return err
+		// Even on error we must replay the original response to the client.
+		replayRecordedResponse(w, origRecorder)
+		return ErrHandled
 	}
 
 	freshReq.Header = r.Header.Clone()
-	next.ServeHTTP(w, r)
 
 	rr := httptest.NewRecorder()
 	freshRcw := NewResponseCapture(rr)
 	next.ServeHTTP(freshRcw, freshReq)
 
 	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
-		return err
+		logger.Log(logger.LevelError, nil, err, "failed to store fresh response in cache after invalidation")
 	}
+
+	// Replay the original mutating request's response to the client exactly once.
+	replayRecordedResponse(w, origRecorder)
 
 	return ErrHandled
 }
 
 // ErrHandled indicates the request was fully handled by cache invalidation; middleware must return.
 var ErrHandled = errors.New("handled by cache invalidation")
+
+// replayRecordedResponse copies headers, status code, and body from an httptest.ResponseRecorder to an http.ResponseWriter.
+func replayRecordedResponse(w http.ResponseWriter, rec *httptest.ResponseRecorder) {
+	for k, vv := range rec.Header() {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+
+	if rec.Code != 0 {
+		w.WriteHeader(rec.Code)
+	}
+
+	if rec.Body != nil && rec.Body.Len() > 0 {
+		if _, err := w.Write(rec.Body.Bytes()); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to write recorded response to ResponseWriter")
+		}
+	}
+}
 
 // SkipWebSocket skip all the websocket requests coming from the client/ frontend to ensure
 // real time data updation in the frontend.
