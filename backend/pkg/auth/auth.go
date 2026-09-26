@@ -47,6 +47,18 @@ const (
 	oidcKeyPrefix = "oidc-token-"
 )
 
+// oidcTransportTemplate is a private snapshot of the default transport.
+// ConfigureTLSContext clones it so per-context settings cannot inherit later
+// changes to the process-wide http.DefaultTransport.
+var oidcTransportTemplate = func() *http.Transport {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil
+	}
+
+	return base.Clone()
+}()
+
 const JWTExpirationTTL = 10 * time.Second // seconds
 
 // errFieldMessage is the JSON field name used by writeMeJSON for error messages.
@@ -228,28 +240,6 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 // When caCert is provided, a client with that CA pool is installed and takes precedence,
 // re-enabling verification while trusting the supplied certificate bundle.
 func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *string) context.Context {
-	if skipTLSVerify != nil && *skipTLSVerify {
-		base, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			logger.Log(logger.LevelError, nil,
-				errors.New("http.DefaultTransport is not *http.Transport"),
-				"failed to configure TLS transport")
-
-			return ctx
-		}
-
-		tlsSkipTransport := base.Clone()
-
-		tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
-		if base.TLSClientConfig != nil {
-			tlsCfg = base.TLSClientConfig.Clone()
-			tlsCfg.InsecureSkipVerify = true
-		}
-
-		tlsSkipTransport.TLSClientConfig = tlsCfg
-		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
-	}
-
 	if caCert != nil && *caCert != "" {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
@@ -259,8 +249,8 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 			return ctx
 		}
 
-		base, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
+		base := oidcTransportTemplate
+		if base == nil {
 			logger.Log(logger.LevelError, nil,
 				errors.New("http.DefaultTransport is not *http.Transport"),
 				"failed to configure TLS transport")
@@ -279,7 +269,31 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		tlsCfg.InsecureSkipVerify = false
 
 		customTransport.TLSClientConfig = tlsCfg
-		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
+
+		return oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
+	}
+
+	if skipTLSVerify != nil && *skipTLSVerify {
+		base := oidcTransportTemplate
+		if base == nil {
+			logger.Log(logger.LevelError, nil,
+				errors.New("http.DefaultTransport is not *http.Transport"),
+				"failed to configure TLS transport")
+
+			return ctx
+		}
+
+		tlsSkipTransport := base.Clone()
+
+		tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		if base.TLSClientConfig != nil {
+			tlsCfg = base.TLSClientConfig.Clone()
+			tlsCfg.InsecureSkipVerify = true
+		}
+
+		tlsSkipTransport.TLSClientConfig = tlsCfg
+
+		return oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
 	}
 
 	return ctx

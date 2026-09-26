@@ -1157,6 +1157,80 @@ func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
 	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
 }
 
+// TestConfigureTLSContext_CACertPrecedenceOverSkipTLS verifies that when both
+// skipTLSVerify and caCert are provided, caCert takes precedence and InsecureSkipVerify is false.
+func TestConfigureTLSContext_CACertPrecedenceOverSkipTLS(t *testing.T) {
+	caCertBytes, err := os.ReadFile("../../cmd/headlamp_testdata/ca.crt")
+	require.NoError(t, err)
+
+	skipTLSVerify := true
+	caCert := string(caCertBytes)
+	resultCtx := auth.ConfigureTLSContext(context.Background(), &skipTLSVerify, &caCert)
+
+	client, ok := resultCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "context should contain an *http.Client")
+
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "transport should be *http.Transport")
+
+	assert.False(t, tr.TLSClientConfig.InsecureSkipVerify, "InsecureSkipVerify should be false when caCert is provided")
+	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be configured")
+}
+
+// TestConfigureTLSContext_ContextsDoNotInheritTLSSettings verifies that a
+// context's TLS settings do not leak through a subsequently changed global
+// default transport into another OIDC context.
+func TestConfigureTLSContext_ContextsDoNotInheritTLSSettings(t *testing.T) {
+	caCertBytes, err := os.ReadFile("../../cmd/headlamp_testdata/ca.crt")
+	require.NoError(t, err)
+
+	caCert := string(caCertBytes)
+	caCtx := auth.ConfigureTLSContext(context.Background(), nil, &caCert)
+	caClient, ok := caCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "CA context should contain an *http.Client")
+	caTransport, ok := caClient.Transport.(*http.Transport)
+	require.True(t, ok, "CA context transport should be *http.Transport")
+	require.NotNil(t, caTransport.TLSClientConfig.RootCAs, "CA context should configure RootCAs")
+
+	previousDefaultTransport := http.DefaultTransport
+	defer func() {
+		http.DefaultTransport = previousDefaultTransport
+	}()
+
+	// Simulate another OIDC context or component installing its transport as
+	// the process-wide default. A new context must still start from the private
+	// template rather than inheriting this context's custom CA pool.
+	http.DefaultTransport = caTransport
+
+	skipTLSVerify := true
+	skipCtx := auth.ConfigureTLSContext(context.Background(), &skipTLSVerify, nil)
+	skipClient, ok := skipCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "skip-TLS context should contain an *http.Client")
+	skipTransport, ok := skipClient.Transport.(*http.Transport)
+	require.True(t, ok, "skip-TLS context transport should be *http.Transport")
+
+	assert.True(t, skipTransport.TLSClientConfig.InsecureSkipVerify, "skip-TLS context should skip verification")
+	assert.Nil(t, skipTransport.TLSClientConfig.RootCAs,
+		"skip-TLS context should not inherit another context's custom CA pool")
+	assert.NotSame(t, caTransport.TLSClientConfig, skipTransport.TLSClientConfig,
+		"OIDC contexts should have independent TLS configurations")
+}
+
+// TestConfigureTLSContext_InvalidCACertDoesNotFallbackToSkipTLS verifies that
+// when an invalid CA certificate is provided along with skipTLSVerify=true,
+// it does not fall back to skipping TLS verification.
+func TestConfigureTLSContext_InvalidCACertDoesNotFallbackToSkipTLS(t *testing.T) {
+	baseCtx := context.Background()
+	skipTLSVerify := true
+	invalidCert := "invalid-pem-certificate-data"
+
+	resultCtx := auth.ConfigureTLSContext(baseCtx, &skipTLSVerify, &invalidCert)
+
+	// Since appending CA cert failed, the original unmodified context should be returned,
+	// rather than installing an insecure client with skipTLSVerify=true.
+	assert.Equal(t, baseCtx, resultCtx, "context should not fall back to skipTLSVerify on invalid caCert")
+}
+
 func makeTestToken(t *testing.T, claims map[string]interface{}) string {
 	// helper to build unsigned JWT-like string for tests
 	header := map[string]string{"alg": "none", "typ": "JWT"}
