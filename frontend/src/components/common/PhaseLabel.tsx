@@ -39,8 +39,8 @@ export interface PhaseLabelProps {
  * PhaseLabel renders a Kubernetes .status.phase string as a coloured StatusLabel.
  *
  * This component is intended to replace scattered inline phase-to-status mappings across the UI
- * (e.g. namespace/Details.tsx, namespace/List.tsx, portforward/index.tsx) as call sites are migrated
- * and helpers such as storage/utils.tsx:StatusLabelByPhase are deprecated.
+ * (e.g. namespace/Details.tsx, namespace/List.tsx, portforward/index.tsx) as call sites are
+ * migrated.
  *
  * Colour rules:
  * - phase === successPhase                   -> 'success'
