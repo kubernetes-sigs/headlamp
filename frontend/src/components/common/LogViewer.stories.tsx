@@ -20,8 +20,11 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { Meta, StoryFn } from '@storybook/react';
 import { useCallback, useEffect, useState } from 'react';
+import { Provider } from 'react-redux';
 import { action } from 'storybook/actions';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { getTestDate } from '../../helpers/testHelpers';
+import store from '../../redux/stores/store';
 import { LogViewer, LogViewerProps } from './LogViewer';
 
 export default {
@@ -30,6 +33,13 @@ export default {
   argTypes: {
     onClose: { action: 'closed' },
   },
+  decorators: [
+    Story => (
+      <Provider store={store}>
+        <Story />
+      </Provider>
+    ),
+  ],
   parameters: {
     storyshots: {
       disable: true,
@@ -290,4 +300,59 @@ ReconnectToSeeLogs.parameters = {
       story: 'LogViewer simulating recovery of connection loss upon clicking on reconnect button.',
     },
   },
+};
+
+export const CopyContextMenu = Template.bind({});
+CopyContextMenu.args = {
+  logs: ['first log entry\n', 'second log entry\n', 'third log entry\n'],
+  title: 'Copy Context Menu',
+  downloadName: 'copy-context-menu-logs',
+  open: true,
+};
+CopyContextMenu.parameters = {
+  docs: {
+    description: {
+      story:
+        'LogViewer showing the right-click context menu with a Copy option when text is selected.',
+    },
+  },
+};
+CopyContextMenu.play = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+
+  // Wait for xterm to mount and render its rows
+  const xtermScreen = await waitFor(() => {
+    const el = canvasElement.querySelector('.xterm-rows');
+    if (!el) throw new Error('xterm not ready');
+    return el;
+  });
+
+  // Select all text in the terminal so the menu has something to copy
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(xtermScreen);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+
+  // xterm tracks selection via its own buffer, not the DOM selection API,
+  // so trigger it through a mouse-drag simulation instead
+  const firstRow = xtermScreen.querySelector('div');
+  if (firstRow) {
+    await userEvent.pointer([
+      { keys: '[MouseLeft>]', target: firstRow, coords: { x: 0, y: 0 } },
+      { target: firstRow, coords: { x: 100, y: 0 } },
+      { keys: '[/MouseLeft]' },
+    ]);
+  }
+
+  // Right-click to open the context menu
+  const terminalContainer = canvasElement.querySelector('#xterm-container');
+  if (terminalContainer) {
+    terminalContainer.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 })
+    );
+  }
+
+  // Menu should render with the Copy item
+  await waitFor(() => expect(canvas.getByText('Copy')).toBeInTheDocument());
 };

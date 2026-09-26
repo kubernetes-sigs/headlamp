@@ -19,6 +19,8 @@ import Button from '@mui/material/Button';
 import DialogContent from '@mui/material/DialogContent';
 import Grid from '@mui/material/Grid';
 import InputBase from '@mui/material/InputBase';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import { alpha, useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
@@ -73,6 +75,31 @@ export function LogViewer(props: LogViewerProps) {
   const searchAddonRef = React.useRef<any>(null);
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
+  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number } | null>(null);
+  const [hasSelection, setHasSelection] = React.useState(false);
+
+  const handleContextMenu = React.useCallback((event: MouseEvent) => {
+    if (!xtermRef.current?.hasSelection()) {
+      return; // let the native menu show when there's nothing to copy
+    }
+    event.preventDefault();
+    setHasSelection(true);
+    setContextMenu({ x: event.clientX + 2, y: event.clientY - 6 });
+  }, []);
+
+  const handleCloseContextMenu = () => setContextMenu(null);
+
+  const handleCopy = async () => {
+    const selection = xtermRef.current?.getSelection();
+    if (selection) {
+      try {
+        await navigator.clipboard.writeText(selection);
+      } catch (e) {
+        console.error('Failed to copy logs to clipboard: ', e);
+      }
+    }
+    handleCloseContextMenu();
+  };
 
   useShortcut('LOG_VIEWER_SEARCH', () => {
     setShowSearch(true);
@@ -117,6 +144,7 @@ export function LogViewer(props: LogViewerProps) {
     enableCopyPasteInXterm(xtermRef.current);
 
     xtermRef.current.open(terminalContainerRef!);
+    xtermRef.current.element?.addEventListener('contextmenu', handleContextMenu);
 
     fitAddonRef.current!.fit();
 
@@ -130,6 +158,7 @@ export function LogViewer(props: LogViewerProps) {
 
     return function cleanup() {
       window.removeEventListener('resize', pageResizeHandler);
+      xtermRef.current.element?.removeEventListener('contextmenu', handleContextMenu);
       xtermRef.current?.dispose();
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
@@ -243,6 +272,16 @@ export function LogViewer(props: LogViewerProps) {
           onClose={() => setShowSearch(false)}
           searchAddonRef={searchAddonRef}
         />
+        <Menu
+          open={contextMenu !== null}
+          onClose={handleCloseContextMenu}
+          anchorReference="anchorPosition"
+          anchorPosition={contextMenu ? { top: contextMenu.y, left: contextMenu.x } : undefined}
+        >
+          <MenuItem onClick={handleCopy} disabled={!hasSelection}>
+            {t('translation|Copy')}
+          </MenuItem>
+        </Menu>
       </Box>
     </DialogContent>
   );
