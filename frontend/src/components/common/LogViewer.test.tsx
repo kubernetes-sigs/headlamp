@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { SearchAddon } from '@xterm/addon-search';
+import { Terminal as XTerminal } from '@xterm/xterm';
+import type { MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
-import { SearchPopover } from './LogViewer';
+import { LogViewer, SearchPopover } from './LogViewer';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -28,10 +30,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 function makeSearchAddon() {
+  // xterm emits this event synchronously from findNext, including for zero matches.
   type Results = { resultIndex: number; resultCount: number };
   const listeners = new Set<(results: Results) => void>();
   const addon = {
-    // xterm emits this event synchronously from findNext, including for zero matches.
     findNext: vi.fn((term: string) => {
       const resultCount = term === 'Connection' ? 1 : 0;
       listeners.forEach(listener => listener({ resultIndex: resultCount ? 0 : -1, resultCount }));
@@ -77,5 +79,49 @@ describe('SearchPopover', () => {
     }
     unmount();
     expect(listeners.size).toBe(0);
+  });
+});
+
+describe('LogViewer context menu', () => {
+  async function renderLogViewer() {
+    const xtermRef: MutableRefObject<XTerminal | null> = { current: null };
+    const result = render(
+      <TestContext>
+        <LogViewer
+          noDialog
+          open
+          logs={['first log line\n']}
+          onClose={() => {}}
+          title="test"
+          xtermRef={xtermRef}
+        />
+      </TestContext>
+    );
+    await waitFor(() => expect(xtermRef.current?.element).toBeTruthy());
+    return { ...result, xtermRef, xtermElement: result.container.querySelector('.xterm')! };
+  }
+
+  it('does not open context menu without a selection', async () => {
+    const { xtermElement } = await renderLogViewer();
+
+    fireEvent.contextMenu(xtermElement);
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('copies the selected text to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    const { xtermRef, xtermElement } = await renderLogViewer();
+    vi.spyOn(xtermRef.current!, 'hasSelection').mockReturnValue(true);
+    vi.spyOn(xtermRef.current!, 'getSelection').mockReturnValue('first log line');
+
+    fireEvent.contextMenu(xtermElement, { clientX: 10, clientY: 10 });
+    fireEvent.click(await screen.findByRole('menuitem'));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('first log line'));
   });
 });
