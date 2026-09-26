@@ -59,7 +59,7 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		forwardErrChan := make(chan error, 1)
 		close(forwardErrChan)
 
-		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		err := handlePortForwardReadiness(c, pfDetails, nil, readyChan, errOut, logParams, forwardErrChan)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "stopped before ready")
 		assert.Equal(t, STOPPED, pfDetails.Status)
@@ -77,7 +77,7 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		forwardErrChan := make(chan error, 1)
 		forwardErrChan <- nil
 
-		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		err := handlePortForwardReadiness(c, pfDetails, nil, readyChan, errOut, logParams, forwardErrChan)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "nil error received")
 		assert.Equal(t, STOPPED, pfDetails.Status)
@@ -95,10 +95,43 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		forwardErrChan := make(chan error, 1)
 		forwardErrChan <- fmt.Errorf("some error")
 
-		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		err := handlePortForwardReadiness(c, pfDetails, nil, readyChan, errOut, logParams, forwardErrChan)
 		assert.Error(t, err)
 		assert.Equal(t, "some error", err.Error())
 		assert.Equal(t, STOPPED, pfDetails.Status)
+	})
+
+	t.Run("ready_success_updates_port", func(t *testing.T) {
+		pfDetails := &portForward{
+			mu:        &sync.Mutex{},
+			ID:        "ready-id",
+			Cluster:   "cluster",
+			closeChan: make(chan struct{}, 1),
+			Status:    STOPPED,
+			Port:      "0",
+		}
+		readyChan := make(chan struct{}, 1)
+		close(readyChan)
+
+		stopChan := make(chan struct{})
+		defer close(stopChan)
+
+		forwarder, err := portforward.New(nil, []string{"9876:80"}, stopChan, readyChan, nil, nil)
+		require.NoError(t, err)
+
+		forwardErrChan := make(chan error, 1)
+
+		err = handlePortForwardReadiness(c, pfDetails, forwarder, readyChan, errOut, logParams, forwardErrChan)
+		assert.NoError(t, err)
+		assert.Equal(t, RUNNING, pfDetails.Status)
+		assert.Equal(t, "9876", pfDetails.Port)
+
+		cached, err := c.Get(context.Background(), portforwardKeyGenerator(*pfDetails))
+		require.NoError(t, err)
+		cachedPF, ok := cached.(portForward)
+		require.True(t, ok)
+		assert.Equal(t, "9876", cachedPF.Port)
+		assert.Equal(t, RUNNING, cachedPF.Status)
 	})
 }
 
