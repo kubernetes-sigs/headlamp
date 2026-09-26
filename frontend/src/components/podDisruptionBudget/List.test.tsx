@@ -83,6 +83,23 @@ describe('PDBList', () => {
     expect(getColumn('allowedDisruptions').getValue(pdb)).toBe(3);
   });
 
+  it('shows 0 instead of N/A when a value is zero', () => {
+    render(
+      <TestContext>
+        <PDBList />
+      </TestContext>
+    );
+
+    const blocking = {
+      spec: { minAvailable: 0, maxUnavailable: 0 },
+      status: { disruptionsAllowed: 0 },
+    } as any;
+
+    expect(getColumn('minAvailable').getValue(blocking)).toBe(0);
+    expect(getColumn('maxUnavailable').getValue(blocking)).toBe(0);
+    expect(getColumn('allowedDisruptions').getValue(blocking)).toBe(0);
+  });
+
   it('falls back to N/A when fields are missing', () => {
     render(
       <TestContext>
