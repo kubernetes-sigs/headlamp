@@ -23,6 +23,8 @@ describe('parseGlobalSearchLabelSelector', () => {
     'tier notin (backend)',
     '!partition',
     'partition,!debug',
+    'partition,environment',
+    'partition , environment',
     'generation>2',
   ])('recognizes the explicit selector %s', selector => {
     expect(parseGlobalSearchLabelSelector(selector)).toBe(selector);

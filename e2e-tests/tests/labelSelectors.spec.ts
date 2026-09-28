@@ -25,6 +25,7 @@ import { HeadlampPage } from './headlampPage';
 const execFileAsync = promisify(execFile);
 const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
 const selector = 'environment in (production),tier in (frontend)';
+const existenceSelector = 'environment,tier';
 const runID = `${process.pid}-${Date.now()}`;
 const matchingPod = `selector-match-${runID}`;
 const nonMatchingPod = `selector-miss-${runID}`;
@@ -52,12 +53,12 @@ async function openCluster(page: import('@playwright/test').Page) {
   return headlampPage;
 }
 
-function isPodListRequest(requestURL: string, expectedLimit: string) {
+function isPodListRequest(requestURL: string, expectedLimit: string, expectedSelector = selector) {
   const url = new URL(requestURL);
   return (
     url.pathname.startsWith(`/clusters/${cluster}/api/v1/`) &&
     url.pathname.endsWith('/pods') &&
-    url.searchParams.get('labelSelector') === selector &&
+    url.searchParams.get('labelSelector') === expectedSelector &&
     url.searchParams.get('limit') === expectedLimit
   );
 }
@@ -244,5 +245,30 @@ test.describe.serial('label selectors', () => {
       })
       .toBe(true);
     page.off('request', recordPodRequest);
+  });
+
+  test('searches multi-key existence selectors server-side', async ({ page }) => {
+    const headlampPage = await openCluster(page);
+    await headlampPage.navigateTopage(`/c/${cluster}/pods`, /Pods/);
+
+    await page.keyboard.press('/');
+    const searchInput = page.getByPlaceholder(
+      'Search resources, pages, clusters, or label selectors'
+    );
+    const selectorProbe = page.waitForRequest(request =>
+      isPodListRequest(request.url(), '1', existenceSelector)
+    );
+    await searchInput.fill(existenceSelector);
+    await selectorProbe;
+
+    const result = page.getByText(`Pods ${existenceSelector}`, { exact: true });
+    await expect(result).toBeVisible();
+    await result.click();
+    await expect(page).toHaveURL(url => {
+      return (
+        url.pathname === `/c/${cluster}/pods` &&
+        url.searchParams.get('labelSelector') === existenceSelector
+      );
+    });
   });
 });
