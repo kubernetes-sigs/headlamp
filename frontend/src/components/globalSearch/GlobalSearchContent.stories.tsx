@@ -141,6 +141,13 @@ const meta: Meta<typeof GlobalSearchContent> = {
             `${sampleClusterApiBase}/apis/leaderworkerset.x-k8s.io/v1/leaderworkersets`,
             () => HttpResponse.json(makeKubeList('leaderworkerset.x-k8s.io/v1', 'LeaderWorkerSet'))
           ),
+          // GlobalSearch may list before cluster routing is resolved (non-prefixed URLs).
+          http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingresses`, () =>
+            HttpResponse.json(makeKubeList('networking.k8s.io/v1', 'Ingress'))
+          ),
+          http.get(`${API_BASE}/apis/extensions/v1beta1/ingresses`, () =>
+            HttpResponse.json(makeKubeList('extensions/v1beta1', 'Ingress'))
+          ),
         ],
       },
     },

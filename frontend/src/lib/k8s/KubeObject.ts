@@ -18,10 +18,7 @@ import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
 import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
-import {
-  getCombinedAllowedNamespaces,
-  hasAllowedNamespacesRestriction,
-} from '../../helpers/clusterSettings';
+import { hasAllowedNamespacesRestriction } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
@@ -35,7 +32,7 @@ import type {
   RecursivePartial,
 } from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
-import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
+import { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
@@ -43,14 +40,12 @@ import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList'
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
-
-function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
-  if (!cluster) {
-    return [];
-  }
-
-  return getCombinedAllowedNamespaces(cluster);
-}
+import {
+  getNamespaceListConfig,
+  useDiscoveredNamespaces,
+  useDiscoveredNamespacesMap,
+  usesDiscoveredNamespaceRouting,
+} from './useDiscoveredNamespaces';
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   jsonData: T;
@@ -331,14 +326,22 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       listCallback(allObjs);
     }
 
-    const listCalls = [];
+    const listCalls: Array<() => Promise<CancelFunction>> = [];
     const queryParams = cloneDeep(opts);
     let namespaces: string[] = [];
     unset(queryParams, 'namespace');
 
     const cluster = opts?.cluster;
+    const activeCluster = cluster || getCluster();
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { data: discovery, isLoading: discoveryLoading } = useDiscoveredNamespaces(
+      this.isNamespaced ? activeCluster : null
+    );
 
-    if (!!opts?.namespace) {
+    if (
+      (typeof opts?.namespace === 'string' && opts.namespace.length > 0) ||
+      (Array.isArray(opts?.namespace) && opts.namespace.length > 0)
+    ) {
       if (typeof opts.namespace === 'string') {
         namespaces = [opts.namespace];
       } else if (Array.isArray(opts.namespace)) {
@@ -348,11 +351,15 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       }
     }
 
-    // If the request itself has no namespaces set, we check whether to apply the
-    // allowed namespaces.
-    if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
+    // If the request itself has no namespaces set, use discovered namespaces.
+    if (namespaces.length === 0 && this.isNamespaced && !discoveryLoading) {
+      namespaces = getNamespaceListConfig(activeCluster, discovery, false).namespaces;
     }
+
+    const hasExplicitNamespace =
+      (typeof opts?.namespace === 'string' && opts.namespace.length > 0) ||
+      (Array.isArray(opts?.namespace) && opts.namespace.length > 0);
+    const waitingForDiscovery = this.isNamespaced && discoveryLoading && !hasExplicitNamespace;
 
     if (namespaces.length > 0) {
       // If we have a namespace set, then we have to make an API call for each
@@ -366,14 +373,36 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           })
         );
       }
-    } else {
+    } else if (!waitingForDiscovery) {
       // If we don't have a namespace set, then we only have one API call
       // response to set and we return it right away.
       listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
     }
 
+    // useConnectApi only re-runs on cluster changes; discovery is async, so wire
+    // list calls here with deps that include discovery completion and routing.
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(...listCalls);
+    const clusterFromUrl = useCluster();
+    const namespaceRoutingKey = namespaces.join('\0');
+    const listQueryKey = JSON.stringify(queryParams);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useEffect(() => {
+      if (waitingForDiscovery) {
+        return;
+      }
+
+      setObjs({});
+
+      const cancellables = listCalls.map(func => func());
+
+      return function cleanup() {
+        for (const cancellablePromise of cancellables) {
+          void cancellablePromise.then(cancellable => cancellable()).catch(() => {});
+        }
+      };
+      // listCalls is rebuilt when namespaceRoutingKey or listQueryKey change.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clusterFromUrl, waitingForDiscovery, activeCluster, namespaceRoutingKey, listQueryKey]);
   }
 
   static useList<K extends KubeObject>(
@@ -399,24 +428,48 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     const fallbackClusters = useSelectedClusters();
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const allowedNamespacesResolutionKey = React.useContext(AllowedNamespacesResolutionContext);
+
     const isNamespaced = this.isNamespaced;
+
+    const clusterList = cluster
+      ? [cluster]
+      : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { map: discoveryMap, isLoadingByCluster } = useDiscoveredNamespacesMap(
+      isNamespaced ? clusterList : []
+    );
 
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { requests, emptyWhenNoRequests } = useMemo(() => {
+    const { requests, pendingDiscovery, emptyWhenNoRequests } = useMemo(() => {
       if (requestedLists) {
         return {
           requests: requestedLists.map(request => ({
             cluster: request.cluster,
             namespaces: isNamespaced ? request.namespaces : undefined,
           })),
+          pendingDiscovery: false,
           emptyWhenNoRequests: false,
         };
       }
 
-      const clusterList = cluster
-        ? [cluster]
-        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+      const hasExplicitNamespace =
+        (typeof namespace === 'string' && namespace.length > 0) ||
+        (Array.isArray(namespace) && namespace.length > 0);
+
+      const anyDiscoveryPending =
+        isNamespaced &&
+        !hasExplicitNamespace &&
+        clusterList.some(currentCluster => isLoadingByCluster[currentCluster]);
+
+      const clustersForRequests = hasExplicitNamespace
+        ? clusterList
+        : clusterList.filter(currentCluster => !isLoadingByCluster[currentCluster]);
+
+      if (anyDiscoveryPending && clustersForRequests.length === 0) {
+        return { requests: [], pendingDiscovery: true, emptyWhenNoRequests: false };
+      }
 
       const namespacesFromParams =
         typeof namespace === 'string'
@@ -426,16 +479,28 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           : undefined;
 
       const requests = makeListRequests(
-        clusterList,
-        getAllowedNamespaces,
+        clustersForRequests,
+        currentCluster =>
+          getNamespaceListConfig(
+            currentCluster,
+            discoveryMap[currentCluster ?? ''],
+            (namespacesFromParams?.length ?? 0) > 0
+          ),
         isNamespaced,
         namespacesFromParams,
         hasAllowedNamespacesRestriction
       );
+
       return {
         requests,
+        pendingDiscovery: anyDiscoveryPending,
         emptyWhenNoRequests:
-          requests.length === 0 && clusterList.some(hasAllowedNamespacesRestriction),
+          !anyDiscoveryPending &&
+          requests.length === 0 &&
+          (clustersForRequests.some(hasAllowedNamespacesRestriction) ||
+            clustersForRequests.some(currentCluster =>
+              usesDiscoveredNamespaceRouting(discoveryMap[currentCluster ?? ''])
+            )),
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
@@ -446,6 +511,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       requestedLists,
       isNamespaced,
       allowedNamespacesResolutionKey,
+      discoveryMap,
+      isLoadingByCluster,
     ]);
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -453,6 +520,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       queryParams: queryParams,
       kubeObjectClass: this,
       requests,
+      pendingDiscovery,
       emptyWhenNoRequests,
       refetchInterval,
     });
