@@ -405,6 +405,9 @@ export function createMuiTheme(currentTheme: AppTheme) {
         styleOverrides: {
           root: {
             color: currentTheme.link?.color ?? '#0078D4',
+            '&:active': {
+              color: '#a855f7',
+            },
           },
         },
         defaultProps: {
@@ -529,6 +532,9 @@ export function createMuiTheme(currentTheme: AppTheme) {
           styleOverrides: {
             root: {
               color: '#6CB6F2',
+              '&:active': {
+                color: '#a855f7',
+              },
             },
           },
           defaultProps: {
