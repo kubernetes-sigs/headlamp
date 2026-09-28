@@ -468,6 +468,7 @@ func handlePortForwardReadiness(
 				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
 		}
 
+		successLogParams := logParams
 		if forwarder != nil {
 			ports, err := forwarder.GetPorts()
 			if err != nil {
@@ -487,10 +488,15 @@ func handlePortForwardReadiness(
 			if pfDetails.mu != nil {
 				pfDetails.mu.Unlock()
 			}
-			logParams["port"] = portStr
+
+			successLogParams = make(map[string]string, len(logParams)+1)
+			for key, value := range logParams {
+				successLogParams[key] = value
+			}
+			successLogParams["port"] = portStr
 		}
 
-		handlePortForwardSuccess(cache, pfDetails, logParams)
+		handlePortForwardSuccess(cache, pfDetails, successLogParams)
 	case err, ok := <-forwardErrChan:
 		if !ok {
 			return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
