@@ -392,6 +392,33 @@ describe('platform metadata', () => {
     ).toThrow('Unsupported build manifest platforms.mac.hardenedRuntime');
   });
 
+  it('supports Linux maintainer metadata only on Linux', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    const maintainer = 'Example Company <support@example.com>';
+
+    expect(
+      applyPlatformMetadata(
+        {},
+        {
+          platforms: { linux: { maintainer } },
+        }
+      )
+    ).toEqual({ linux: { maintainer } });
+    expect(validate({ platforms: { linux: { maintainer } } })).toBe(true);
+    expect(() =>
+      applyPlatformMetadata(
+        {},
+        {
+          platforms: { mac: { maintainer } },
+        }
+      )
+    ).toThrow('Unsupported build manifest platforms.mac.maintainer');
+    expect(validate({ platforms: { mac: { maintainer } } })).toBe(false);
+  });
+
   it('rejects non-string allowed settings', () => {
     expect(() =>
       applyPlatformMetadata({}, { platforms: { win: { artifactName: false } } })
@@ -437,6 +464,11 @@ describe('product metadata', () => {
       appId: 'io.headlamp',
       productName: 'Headlamp',
       category: 'Network',
+      linux: {
+        category: 'Network',
+        maintainer: 'Kinvolk <hello@kinvolk.io>',
+        vendor: 'Kinvolk',
+      },
       extraMetadata: { channel: 'stable' },
     };
 
@@ -444,6 +476,7 @@ describe('product metadata', () => {
       applyProductMetadata(defaults, {
         product: {
           name: 'example-desktop',
+          companyName: 'Example Company',
           productName: 'Example Desktop',
           version: '1.2.3',
           appId: 'io.example.desktop',
@@ -455,12 +488,18 @@ describe('product metadata', () => {
       appId: 'io.example.desktop',
       productName: 'Example Desktop',
       category: 'Network',
+      linux: {
+        category: 'Network',
+        maintainer: 'Kinvolk <hello@kinvolk.io>',
+        vendor: 'Example Company',
+      },
       artifactName: '${name}-${version}.${ext}',
       protocols: { name: 'example', schemes: ['example'] },
       buildVersion: '1.2.3',
       extraMetadata: {
         channel: 'stable',
         name: 'example-desktop',
+        author: { name: 'Example Company' },
         productName: 'Example Desktop',
         version: '1.2.3',
       },
@@ -469,11 +508,16 @@ describe('product metadata', () => {
       appId: 'io.headlamp',
       productName: 'Headlamp',
       category: 'Network',
+      linux: {
+        category: 'Network',
+        maintainer: 'Kinvolk <hello@kinvolk.io>',
+        vendor: 'Kinvolk',
+      },
       extraMetadata: { channel: 'stable' },
     });
   });
 
-  it.each(['name', 'productName', 'version', 'appId', 'artifactName'])(
+  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName'])(
     'rejects a non-string product.%s',
     field => {
       expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
@@ -481,6 +525,19 @@ describe('product metadata', () => {
       );
     }
   );
+
+  it('declares product company metadata in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+
+    expect(schema.properties.product.properties.companyName).toMatchObject({
+      type: 'string',
+    });
+    expect(validate({ product: { companyName: 'Example Company' } })).toBe(true);
+    expect(validate({ product: { companyName: 1 } })).toBe(false);
+  });
 
   it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
     expect(() => applyProductMetadata({}, { product: { protocols } })).toThrow(
@@ -1152,6 +1209,7 @@ describe('build manifest selection', () => {
         packageName: '@example/plugin',
         source: 'development',
         grants: commands,
+        clusterRegistrationProviders: [],
       },
     ]);
     expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
@@ -1164,8 +1222,132 @@ describe('build manifest selection', () => {
           package: 'example-plugin',
         },
         grants: [{ tool: 'examplectl', args: ['production'] }],
+        clusterRegistrationProviders: [],
       },
     ]);
+  });
+
+  it('loads consumer-owned cluster registration providers', () => {
+    const provider = {
+      id: 'azure',
+      type: 'azure',
+      tools: { cli: 'az', python: 'az-python', kubelogin: 'az-kubelogin' },
+    };
+    const manifest = validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [provider],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      expect.objectContaining({ clusterRegistrationProviders: [provider] }),
+    ]);
+  });
+
+  it('allows cluster registration providers without external tools', () => {
+    const provider = { id: 'cluster-api', type: 'cluster-api', tools: {} };
+    const manifest = validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [provider],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      expect.objectContaining({ clusterRegistrationProviders: [provider] }),
+    ]);
+  });
+
+  it('rejects cluster registration grants for user-installed plugins', () => {
+    const manifest = {
+      runCommands: [
+        {
+          environment: 'development',
+          pluginLocation: 'user',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [{ id: 'example', type: 'example', tools: {} }],
+        },
+      ],
+    };
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+
+    expect(addFormats(new Ajv()).compile(schema)(manifest)).toBe(false);
+    expect(() => validateBuildManifest(manifest)).toThrow(
+      'cannot grant cluster registration to user plugins'
+    );
+  });
+
+  it('validates external-tool platform paths and digests', () => {
+    const tool = {
+      id: 'examplectl',
+      platforms: {
+        linux: { path: 'external-tools/examplectl', sha256: 'a'.repeat(64) },
+        darwin: { path: 'external-tools/examplectl', sha256: 'b'.repeat(64) },
+        win32: { path: 'external-tools/examplectl.exe', sha256: 'c'.repeat(64) },
+      },
+    };
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validateSchema = addFormats(new Ajv()).compile(schema);
+
+    expect(validateBuildManifest({ 'external-tools': [tool] })['external-tools']).toEqual([tool]);
+    expect(validateSchema({ 'external-tools': [tool] })).toBe(true);
+    for (const invalid of [
+      { ...tool, id: '../examplectl' },
+      { ...tool, platforms: {} },
+      { ...tool, platforms: { linux: { path: '../examplectl', sha256: 'a'.repeat(64) } } },
+      { ...tool, platforms: { win32: { path: '\\examplectl.exe', sha256: 'a'.repeat(64) } } },
+      {
+        ...tool,
+        platforms: { win32: { path: '\\\\server\\share\\examplectl.exe', sha256: 'a'.repeat(64) } },
+      },
+      { ...tool, platforms: { linux: { path: 'examplectl', sha256: 'A'.repeat(64) } } },
+      { ...tool, platforms: { linux: { path: 'examplectl', sha256: 'invalid' } } },
+    ]) {
+      expect(() => validateBuildManifest({ 'external-tools': [invalid] })).toThrow(
+        'Invalid build manifest external-tools'
+      );
+    }
+    expect(() => validateBuildManifest({ 'external-tools': [tool, tool] })).toThrow(
+      'Invalid build manifest external-tools'
+    );
+  });
+
+  it('rejects malformed cluster registration providers', () => {
+    expect(() =>
+      validateBuildManifest({
+        runCommands: [
+          {
+            environment: 'production',
+            pluginLocation: 'shipped',
+            plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+            commands: [{ tool: 'examplectl', args: ['list'] }],
+            clusterRegistrationProviders: [
+              {
+                id: '../azure',
+                type: 'azure',
+                tools: { cli: 'az', python: 'az-python', kubelogin: 'az-kubelogin' },
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow('runCommands[0].clusterRegistrationProviders');
   });
 
   it('composes reusable command sets in declaration order', () => {

@@ -17,6 +17,7 @@
 /** Product identity fields consumed by Electron Builder and the app runtime. */
 export type ProductMetadata = {
   name?: string;
+  companyName?: string;
   productName?: string;
   version?: string;
   appId?: string;
@@ -45,7 +46,14 @@ export function readProductMetadata(manifest: unknown): ProductMetadata | undefi
   }
 
   const metadata = product as ProductMetadata;
-  const scalarFields = ['name', 'productName', 'version', 'appId', 'artifactName'] as const;
+  const scalarFields = [
+    'name',
+    'companyName',
+    'productName',
+    'version',
+    'appId',
+    'artifactName',
+  ] as const;
   for (const field of scalarFields) {
     if (metadata[field] !== undefined && typeof metadata[field] !== 'string') {
       throw new Error(`Build manifest product.${field} must be a string`);

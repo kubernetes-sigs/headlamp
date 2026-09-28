@@ -498,6 +498,7 @@ export interface DataFieldProps extends BaseTextFieldProps {
 
 export function DataField(props: DataFieldProps) {
   const { disableLabel, label, value, onSave, onChange } = props;
+  const { t } = useTranslation();
   // Make sure we reload after a theme change
   const theme = useTheme();
 
@@ -568,7 +569,7 @@ export function DataField(props: DataFieldProps) {
       {onSave && (
         <Box mt={1} display="flex" justifyContent="flex-end">
           <Button variant="contained" color="primary" onClick={() => onSave && onSave(data)}>
-            Save
+            {t('translation|Save')}
           </Button>
         </Box>
       )}

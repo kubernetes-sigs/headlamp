@@ -56,6 +56,7 @@ import * as stateless from '../stateless/index';
 import {
   createPluginRunCommand,
   findCommandCapability,
+  getPluginClusterRegistrationArgValues,
   PluginCommandCapability,
   preparePluginCommandCapabilities,
 } from './commandCapabilities';
@@ -566,7 +567,6 @@ export async function fetchAndExecutePlugins(
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
   const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
-
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
 
@@ -663,6 +663,7 @@ export async function fetchAndExecutePlugins(
   // This is to prevent plugins from snooping on the permission secrets.
   const pluginDesktopApiSend = window?.desktopApi?.send;
   const pluginDesktopApiReceive = window?.desktopApi?.receive;
+  const pluginRegisterCluster = window?.desktopApi?.registerCluster;
   const internalRunCommand = runCommand;
   const PrivateFunction = Function;
   const internalRunPlugin = runPlugin;
@@ -736,6 +737,13 @@ export async function fetchAndExecutePlugins(
             argumentNames.push('pluginRunCommand', 'pluginPath');
             argumentValues.push(productRunCommand, pluginPath);
           }
+          const [registrationArgs, registrationValues] = getPluginClusterRegistrationArgValues(
+            commandCapabilities,
+            packageInfosToExecute[index],
+            pluginRegisterCluster
+          );
+          argumentNames.push(...registrationArgs);
+          argumentValues.push(...registrationValues);
           const storageNamespace = secureStorageNamespaces[index];
           const storageCapability = storageNamespace
             ? secureStorageCapabilities[storageNamespace]
