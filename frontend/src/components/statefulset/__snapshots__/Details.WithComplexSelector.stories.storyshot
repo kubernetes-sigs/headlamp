@@ -273,7 +273,7 @@
                       >
                         <a
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
-                          href="/?labelSelector=app%3Dmock-app%2Ctier%3Dbackend%2Cenvironment%3Dproduction&namespace=default"
+                          href="/?labelSelector=app%3Dmock-app%2Cenvironment%3Dproduction%2Ctier%3Dbackend&namespace=default"
                         >
                           <span
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
@@ -283,7 +283,7 @@
                         </a>
                         <a
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
-                          href="/?labelSelector=app%3Dmock-app%2Ctier%3Dbackend%2Cenvironment%3Dproduction&namespace=default"
+                          href="/?labelSelector=app%3Dmock-app%2Cenvironment%3Dproduction%2Ctier%3Dbackend&namespace=default"
                         >
                           <span
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
@@ -293,7 +293,7 @@
                         </a>
                         <a
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
-                          href="/?labelSelector=app%3Dmock-app%2Ctier%3Dbackend%2Cenvironment%3Dproduction&namespace=default"
+                          href="/?labelSelector=app%3Dmock-app%2Cenvironment%3Dproduction%2Ctier%3Dbackend&namespace=default"
                         >
                           <span
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"

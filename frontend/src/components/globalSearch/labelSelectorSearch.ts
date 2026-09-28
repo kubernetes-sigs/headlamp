@@ -16,7 +16,7 @@
 
 import { validateLabelSelector } from '../../lib/labelSelectorValidation';
 
-const explicitSelectorSyntax = /(?:!=|==|=|>|<|(?:^|,)\s*!|\s+(?:in|notin)\s*\()/;
+const explicitSelectorSyntax = /(?:,|!=|==|=|>|<|(?:^|,)\s*!|\s+(?:in|notin)\s*\()/;
 
 /**
  * Returns an explicit, valid Kubernetes label selector from a global search query.

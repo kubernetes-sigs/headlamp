@@ -47,7 +47,7 @@ export function matchLabelsSimplifier(
   }
 
   const segments: string[] = [];
-  for (const key in matchLabels) {
+  for (const key of Object.keys(matchLabels).sort()) {
     segments.push(`${key}${isEqualSeparator ? '=' : ': '}${matchLabels[key]}`);
   }
 
