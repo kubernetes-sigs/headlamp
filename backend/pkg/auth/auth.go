@@ -47,6 +47,28 @@ const (
 	oidcKeyPrefix = "oidc-token-"
 )
 
+// OIDC token-endpoint client authentication styles.
+const (
+	AuthStyleAuto   = "auto"
+	AuthStyleParams = "params"
+	AuthStyleHeader = "header"
+)
+
+// ParseAuthStyle maps a configured auth-style string to an oauth2.AuthStyle.
+// "params" forces client_secret_post, "header" forces HTTP Basic
+// (client_secret_basic), and anything else (including "" and "auto") preserves
+// x/oauth2 auto-detection.
+func ParseAuthStyle(style string) oauth2.AuthStyle {
+	switch strings.ToLower(strings.TrimSpace(style)) {
+	case AuthStyleParams:
+		return oauth2.AuthStyleInParams
+	case AuthStyleHeader:
+		return oauth2.AuthStyleInHeader
+	default:
+		return oauth2.AuthStyleAutoDetect
+	}
+}
+
 const JWTExpirationTTL = 10 * time.Second // seconds
 
 // errFieldMessage is the JSON field name used by writeMeJSON for error messages.
@@ -187,7 +209,7 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 // token from the cache to obtain a new OAuth2 token
 // from the specified token URL endpoint.
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
-	tokenType string, token string, tokenURL string, ctx context.Context,
+	tokenType string, token string, tokenURL string, authStyle oauth2.AuthStyle, ctx context.Context,
 ) (*oauth2.Token, error) {
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
@@ -205,7 +227,8 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Endpoint: oauth2.Endpoint{
-			TokenURL: tokenURL,
+			TokenURL:  tokenURL,
+			AuthStyle: authStyle,
 		},
 	}
 
@@ -313,6 +336,7 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 		tokenType,
 		token,
 		provider.Endpoint().TokenURL,
+		ParseAuthStyle(oidcAuthConfig.AuthStyle),
 		ctx,
 	)
 	if err != nil {
