@@ -47,6 +47,7 @@ import {
   waitForExternalBackend,
 } from './backendToken';
 import { createCertificateSetup } from './certificates';
+import { setupClusterRegistrationHandler } from './cluster-registration';
 import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
@@ -267,8 +268,9 @@ const appBuildManifestPath = isDev
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 const protocolScheme = readProtocolScheme(appBuildManifestPath);
 const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
+const appBuildManifest = loadBuildManifest(appBuildManifestPath);
 const productPluginCommandPolicy = productPluginCommandPolicies(
-  loadBuildManifest(appBuildManifestPath),
+  appBuildManifest,
   isDev ? 'development' : 'production'
 );
 
@@ -317,7 +319,10 @@ function rejectBackendStartup(error: Error) {
   rejectBackendReady(error);
 }
 
-function isFromMainWindowFrame(event: IpcMainEvent, window = mainWindow): boolean {
+function isFromMainWindowFrame(
+  event: Pick<IpcMainEvent, 'sender' | 'senderFrame'>,
+  window = mainWindow
+): boolean {
   return (
     !!window &&
     event.sender === window.webContents &&
@@ -1705,7 +1710,7 @@ function startElectron() {
       },
     });
     protocolHandler.attachToWebContents(mainWindow.webContents);
-    setupRunCmdHandlers(
+    const privatePluginCapabilities = setupRunCmdHandlers(
       mainWindow,
       ipcMain,
       productPluginCommandPolicy,
@@ -1713,6 +1718,14 @@ function startElectron() {
       undefined,
       isDev,
       areDevelopmentPluginsEnabled
+    );
+    setupClusterRegistrationHandler(
+      mainWindow,
+      ipcMain,
+      privatePluginCapabilities?.authorizeClusterRegistration,
+      appBuildManifest,
+      isDev ? path.join(__dirname, '..', 'resources') : process.resourcesPath,
+      startUrl
     );
 
     applyZoom();

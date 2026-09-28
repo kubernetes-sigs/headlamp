@@ -283,13 +283,54 @@ describe('createProductCommandCapabilities', () => {
       {
         bundleName: 'example-plugin',
         packageName: '@example/plugin',
+        source: 'shipped',
         capability: expect.stringMatching(/^[a-f0-9]{64}$/),
+        clusterRegistrationProviders: [],
       },
     ]);
     expect(result.capabilityRegistry.get(result.capabilities[0].capability)).toEqual({
       ...policies[0],
       webContentsId: 7,
     });
+  });
+
+  it('publishes configured provider IDs without exposing provider tool paths', () => {
+    const providerPolicy = {
+      ...policies[0],
+      clusterRegistrationProviders: [
+        {
+          id: 'example',
+          type: 'example',
+          tools: { cli: 'examplectl' },
+        },
+      ],
+    };
+    const result = createProductCommandCapabilities(
+      [
+        {
+          bundleName: 'example-plugin',
+          packageName: '@example/plugin',
+          path: 'static-plugins/example-plugin',
+          source: 'shipped',
+          type: 'shipped',
+          sourceDigest,
+        },
+      ],
+      [providerPolicy],
+      7
+    );
+
+    expect(result.capabilities[0]).toEqual({
+      bundleName: 'example-plugin',
+      packageName: '@example/plugin',
+      source: 'shipped',
+      capability: expect.any(String),
+      clusterRegistrationProviders: ['example'],
+    });
+    expect(result.capabilities[0]).not.toHaveProperty('tools');
+    expect(
+      result.capabilityRegistry.get(result.capabilities[0].capability)?.clusterRegistrationProviders
+    ).toEqual(providerPolicy.clusterRegistrationProviders);
   });
 
   it('grants shipped AI Assistant system commands only to its exact identity', () => {
@@ -326,7 +367,9 @@ describe('createProductCommandCapabilities', () => {
       {
         bundleName: 'headlamp_ai-assistant',
         packageName: '@headlamp-k8s/ai-assistant',
+        source: 'shipped',
         capability: expect.stringMatching(/^[a-f0-9]{64}$/),
+        clusterRegistrationProviders: [],
       },
     ]);
     expect(result.capabilityRegistry.get(result.capabilities[0].capability)?.grants).toEqual([

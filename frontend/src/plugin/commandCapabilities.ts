@@ -15,6 +15,7 @@
  */
 
 import { PluginRunCommand, runCommand } from '../components/App/runCommand';
+import { DesktopRegisterCluster, getClusterRegistrationArgValues } from './clusterRegistration';
 import { PluginInfo } from './pluginsSlice';
 
 // Keep these IPC contract interfaces in sync with app/electron/runCmd.ts.
@@ -65,7 +66,9 @@ export interface PluginCommandRegistration {
  * const commandCapability: PluginCommandCapability = {
  *   bundleName: 'example-plugin',
  *   packageName: '@example/plugin',
+ *   source: 'shipped',
  *   capability: '4f8c2a917bd03e65a1c94f286e5b70d39ac214ef53d8b607c1e49a728f306db5',
+ *   clusterRegistrationProviders: [],
  * };
  * ```
  */
@@ -74,8 +77,12 @@ export interface PluginCommandCapability {
   bundleName: string;
   /** Package identity bound to the capability. */
   packageName: string;
+  /** Verified plugin inventory bound to the capability. */
+  source: NonNullable<PluginInfo['source']>;
   /** Opaque authorization token. */
   capability: string;
+  /** Provider IDs this exact plugin identity may invoke. */
+  clusterRegistrationProviders: string[];
 }
 
 interface PluginCommandCapabilitiesBridge {
@@ -153,15 +160,49 @@ export function findCommandCapability(
   capabilities: PluginCommandCapability[],
   plugin: PluginInfo
 ): string | undefined {
-  if (!plugin.folderName) {
-    return undefined;
-  }
-  for (const capability of capabilities) {
-    if (capability.bundleName === plugin.folderName && capability.packageName === plugin.name) {
-      return capability.capability;
-    }
-  }
-  return undefined;
+  return findPluginCapability(capabilities, plugin)?.capability;
+}
+
+/**
+ * Finds provider grants and bearer capability for one exact plugin identity.
+ *
+ * @param capabilities - Capabilities returned by Electron's main process.
+ * @param plugin - Plugin package and inventory metadata.
+ * @returns Matching capability, or undefined when no product grant exists.
+ */
+export function findPluginCapability(
+  capabilities: PluginCommandCapability[],
+  plugin: PluginInfo
+): PluginCommandCapability | undefined {
+  if (!plugin.folderName) return undefined;
+  return capabilities.find(
+    capability =>
+      capability.bundleName === plugin.folderName &&
+      capability.packageName === plugin.name &&
+      capability.source === plugin.source
+  );
+}
+
+/**
+ * Builds registration arguments only for a capability matching the plugin's exact inventory.
+ *
+ * @param capabilities - Capabilities returned by Electron's main process.
+ * @param plugin - Plugin package and inventory metadata being executed.
+ * @param desktopRegisterCluster - Private preload bridge captured before plugin execution.
+ * @returns Registration argument names and values, or empty arrays without an exact grant.
+ */
+export function getPluginClusterRegistrationArgValues(
+  capabilities: PluginCommandCapability[],
+  plugin: PluginInfo,
+  desktopRegisterCluster: DesktopRegisterCluster | undefined
+): [string[], unknown[]] {
+  const capability = findPluginCapability(capabilities, plugin);
+  if (!capability) return [[], []];
+  return getClusterRegistrationArgValues(
+    capability.clusterRegistrationProviders,
+    desktopRegisterCluster,
+    capability.capability
+  );
 }
 
 /**
