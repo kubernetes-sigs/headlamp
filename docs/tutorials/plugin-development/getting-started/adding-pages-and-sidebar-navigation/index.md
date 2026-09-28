@@ -740,6 +740,6 @@ registerSidebarEntry({
 ### Useful Links
 
 - [Iconify MDI Icons](https://icon-sets.iconify.design/mdi/)
-- [registerSidebarEntry API](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registersidebarentry)
-- [registerRoute API](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registerroute)
+- [registerSidebarEntry API](https://headlamp.dev/docs/latest/development/api/plugin/registry/API#registersidebarentry)
+- [registerRoute API](https://headlamp.dev/docs/latest/development/api/plugin/registry/API#registerroute)
 - [Sidebar Example Plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
