@@ -16,20 +16,29 @@
 
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
-import Node from './node';
+import Node, { KubeNode, KubeNodeStatus } from './node';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
 
 describe('Node class', () => {
-  const makeNode = (metadata: any = {}, status?: any) =>
+  const makeNode = (metadata: Partial<KubeNode['metadata']> = {}, status?: KubeNodeStatus) =>
     new Node({
       apiVersion: 'v1',
       kind: 'Node',
-      metadata: { name: 'test-node', ...metadata },
+      metadata: {
+        name: 'test-node',
+        creationTimestamp: '2022-01-01T00:00:00Z',
+        uid: 'test-node-uid',
+        ...metadata,
+      },
+      spec: {
+        podCIDR: '',
+        taints: [],
+      },
       ...(status !== undefined ? { status } : {}),
-    } as any);
+    });
 
   describe('getRoles', () => {
     it('extracts role names from node-role.kubernetes.io labels', () => {

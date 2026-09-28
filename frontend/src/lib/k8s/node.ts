@@ -25,34 +25,36 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import { NODE_POOL_LABEL_KEYS } from './nodeConstants';
 
-export interface KubeNode extends KubeObjectInterface {
-  status: {
-    addresses?: {
-      address: string;
-      type: string;
-    }[];
-    /**
-     * Resource quantities keyed by their k8s name (e.g. cpu, memory, pods, ephemeral-storage).
-     * Note: keys are kebab-case as returned by the API, not camelCase.
-     */
-    allocatable?: { [key: string]: string };
-    capacity?: { [key: string]: string };
-    conditions?: (Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'> & {
-      lastHeartbeatTime: string;
-    })[];
-    nodeInfo?: {
-      architecture: string;
-      bootID: string;
-      containerRuntimeVersion: string;
-      kernelVersion: string;
-      kubeProxyVersion: string;
-      kubeletVersion: string;
-      machineID: string;
-      operatingSystem: string;
-      osImage: string;
-      systemUUID: string;
-    };
+export interface KubeNodeStatus {
+  addresses?: {
+    address: string;
+    type: string;
+  }[];
+  /**
+   * Resource quantities keyed by their k8s name (e.g. cpu, memory, pods, ephemeral-storage).
+   * Note: keys are kebab-case as returned by the API, not camelCase.
+   */
+  allocatable?: { [key: string]: string };
+  capacity?: { [key: string]: string };
+  conditions?: (Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'> & {
+    lastHeartbeatTime: string;
+  })[];
+  nodeInfo?: {
+    architecture: string;
+    bootID: string;
+    containerRuntimeVersion: string;
+    kernelVersion: string;
+    kubeProxyVersion: string;
+    kubeletVersion: string;
+    machineID: string;
+    operatingSystem: string;
+    osImage: string;
+    systemUUID: string;
   };
+}
+
+export interface KubeNode extends KubeObjectInterface {
+  status?: KubeNodeStatus;
   spec: {
     podCIDR: string;
     taints: {

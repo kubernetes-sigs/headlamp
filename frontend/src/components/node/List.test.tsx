@@ -93,5 +93,8 @@ describe('NodeList', () => {
 
     expect(() => softwareCol.getValue(nodeWithoutStatus)).not.toThrow();
     expect(softwareCol.getValue(nodeWithoutStatus)).toBeUndefined();
+
+    expect(() => softwareCol.render(nodeWithoutStatus)).not.toThrow();
+    expect(softwareCol.render(nodeWithoutStatus)).toEqual(<></>);
   });
 });
