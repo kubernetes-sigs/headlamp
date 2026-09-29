@@ -55,6 +55,8 @@ const (
 	CleanupRoutineInterval = 5 * time.Minute
 	// SecureWebSocketScheme is the secure WebSocket scheme.
 	SecureWebSocketScheme = "wss"
+	// MultiplexerProtocol is the public subprotocol selected for client connections.
+	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
 )
 
 // ConnectionState represents the current state of a connection.
@@ -214,6 +216,7 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
 		upgrader: websocket.Upgrader{
+			Subprotocols: []string{MultiplexerProtocol},
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},

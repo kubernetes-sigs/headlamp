@@ -45,15 +45,18 @@ vi.mock('../../redux/headlampEventSlice', async () => {
   };
 });
 let capturedOnResourceUpdate: ((item: any, error?: any) => void) | undefined;
+let capturedExtraInfo: ((item: any) => any[]) | undefined;
 
 vi.mock('../common/Resource', () => ({
   DetailsGrid: (props: any) => {
     capturedOnResourceUpdate = props.onResourceUpdate;
+    capturedExtraInfo = props.extraInfo;
     return <div data-testid="details-grid" />;
   },
   ConditionsSection: () => null,
   ContainersSection: () => null,
   VolumeSection: () => null,
+  MetadataDictGrid: () => null,
 }));
 
 vi.mock('../common/Terminal', () => ({
@@ -86,6 +89,10 @@ vi.mock('../common/Tooltip/TooltipLight', () => ({
 
 vi.mock('../common/Resource/AuthVisible', () => ({
   default: ({ children }: any) => <div>{children}</div>,
+}));
+
+vi.mock('../diagnostics/Diagnostics', () => ({
+  PodDiagnosticsSection: () => null,
 }));
 
 vi.mock('../../lib/k8s', () => ({}));
@@ -456,6 +463,45 @@ describe('PodDetails auto-launch views', () => {
         })
       );
     });
+  });
+});
+
+describe('PodDetails Pod Group row', () => {
+  beforeEach(() => {
+    capturedExtraInfo = undefined;
+  });
+
+  function getPodGroupRow(schedulingGroup?: { podGroupName: string }) {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }} urlPrefix="/c/main/pods">
+        <PodDetails name="test-pod" namespace="default" />
+      </TestContext>
+    );
+
+    const rows = capturedExtraInfo!({
+      ...mockPod,
+      spec: { ...mockPod.spec, schedulingGroup },
+    });
+
+    return rows.find(row => row.name === 'Pod Group');
+  }
+
+  it('links to the pod group the pod was scheduled with', () => {
+    const row = getPodGroupRow({ podGroupName: 'training-job-workers' });
+
+    expect(row.hide).toBe(false);
+    expect(row.value.props.routeName).toBe('PodGroup');
+    expect(row.value.props.params).toEqual({
+      namespace: 'default',
+      name: 'training-job-workers',
+    });
+
+    const { getByText } = render(row.value);
+    expect(getByText('training-job-workers')).toBeInTheDocument();
+  });
+
+  it('hides the row when the pod has no scheduling group', () => {
+    expect(getPodGroupRow().hide).toBe(true);
   });
 });
 

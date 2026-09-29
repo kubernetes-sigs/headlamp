@@ -55,7 +55,10 @@ import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
 
-// Component props interface
+export interface WorkloadLogsProps {
+  item: KubeObject;
+}
+
 interface LogsButtonProps {
   item: KubeObject | null;
 }
@@ -92,7 +95,10 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   paddingRight: theme.spacing(2),
 }));
 
-function LogsButtonContent({ item }: LogsButtonProps) {
+/**
+ * Workload log controls and output for embedding outside the Activity view.
+ */
+export function WorkloadLogs({ item }: WorkloadLogsProps) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
   const [selectedContainer, setSelectedContainer] = useState('');
@@ -111,24 +117,20 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
-  const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>(() => {
-    try {
-      const stored = localStorage.getItem('headlamp.logs.severityFilter');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Normalize and validate against ALL_SEVERITIES
-          const validSeverities = parsed.filter(s => ALL_SEVERITIES.includes(s as LogSeverity));
-          if (validSeverities.length > 0) {
-            return validSeverities as LogSeverity[];
-          }
-        }
+  const [storedSeverities, setStoredSeverities] = useLocalStorageState<LogSeverity[]>(
+    'headlamp.logs.severityFilter',
+    [...ALL_SEVERITIES]
+  );
+
+  const selectedSeverities = React.useMemo(() => {
+    if (Array.isArray(storedSeverities) && storedSeverities.length > 0) {
+      const validSeverities = storedSeverities.filter(s => ALL_SEVERITIES.includes(s));
+      if (validSeverities.length > 0) {
+        return validSeverities;
       }
-    } catch {
-      // ignore parse errors
     }
     return [...ALL_SEVERITIES];
-  });
+  }, [storedSeverities]);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
   const processLogsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -570,8 +572,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           onChange={event => {
             const value = event.target.value as LogSeverity[];
             if (value.length > 0) {
-              setSelectedSeverities(value);
-              localStorage.setItem('headlamp.logs.severityFilter', JSON.stringify(value));
+              setStoredSeverities(value);
             }
           }}
           label={t('translation|Severity')}
@@ -691,7 +692,7 @@ export function launchWorkloadLogs(
     icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
     cluster: item.cluster,
     location: 'full',
-    content: <LogsButtonContent item={item} />,
+    content: <WorkloadLogs item={item} />,
   });
   dispatchHeadlampEvent?.({
     type: HeadlampEventType.LOGS,

@@ -16,6 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import { Box, Typography } from '@mui/material';
+import { Theme } from '@mui/material/styles';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import DaemonSet from '../../lib/k8s/daemonSet';
@@ -79,6 +80,19 @@ interface ProjectResourcesTabProps {
   selectedCategoryName?: string;
   setSelectedCategoryName: (name: string) => void;
 }
+
+export const resourcePaneStyles = (theme: Theme) => ({
+  flexGrow: 1,
+  padding: theme.spacing(1),
+  overflowY: 'auto',
+  borderLeft: '1px solid',
+  borderColor: theme.palette.divider,
+  [theme.breakpoints.down('md')]: {
+    borderLeft: 0,
+    borderTop: '1px solid',
+    flexShrink: 0,
+  },
+});
 
 export function ProjectResourcesTab({
   projectResources,
@@ -389,14 +403,18 @@ export function ProjectResourcesTab({
   return (
     <>
       <Box
+        data-testid="project-resource-grid"
         sx={theme => ({
           display: 'flex',
           border: '1px solid',
           borderColor: theme.palette.divider,
           borderTop: 0,
           flexGrow: 1,
-          minHeight: 0,
+          minHeight: '18.75rem',
           flexBasis: 0,
+          [theme.breakpoints.down('md')]: {
+            flexDirection: 'column',
+          },
         })}
       >
         <ResourceCategoriesList
@@ -404,15 +422,7 @@ export function ProjectResourcesTab({
           selectedCategoryName={selectedCategoryName}
           onCategoryClick={setSelectedCategoryName}
         />
-        <Box
-          sx={theme => ({
-            flexGrow: 1,
-            p: 1,
-            overflowY: 'auto',
-            borderLeft: '1px solid',
-            borderColor: theme.palette.divider,
-          })}
-        >
+        <Box sx={resourcePaneStyles}>
           {selectedCategory && (
             <Box>
               {selectedResources.length === 0 ? (

@@ -22,11 +22,68 @@ import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 import { apiResourceId } from '../lib/k8s/api/v2/ApiResource';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
+/** A project entry assembled from one or more Kubernetes namespaces. */
 export interface ProjectDefinition {
+  /** Project ID read from the `headlamp.dev/project-id` namespace label. */
   id: string;
+  /** Opaque grouping key used when one project ID represents multiple project entries. */
+  key?: string;
+  /** Namespaces included in the project entry. */
   namespaces: string[];
+  /** Clusters containing the project entry's namespaces. */
   clusters: string[];
+  /** Exact namespace and cluster pairs included in the project entry. */
+  namespaceRefs?: ProjectNamespaceReference[];
 }
+
+/** Identifies one Kubernetes namespace within a specific Headlamp cluster. */
+export interface ProjectNamespaceReference {
+  /** Kubernetes namespace name. */
+  name: string;
+  /** Headlamp cluster name containing the namespace. */
+  cluster: string;
+}
+
+/** Namespace data available to a custom project grouping callback. */
+export interface ProjectNamespace {
+  /** Kubernetes namespace metadata used for grouping. */
+  metadata: {
+    /** Kubernetes namespace name. */
+    name: string;
+    /** Kubernetes namespace labels, when present. */
+    labels?: Record<string, string>;
+  };
+  /** Headlamp cluster name containing the namespace. */
+  cluster: string;
+}
+
+/** Parameters passed to a custom project grouping callback. */
+export interface ProjectGroupingParams {
+  /** Namespace being assigned to a project entry. */
+  namespace: ProjectNamespace;
+  /** Project ID read from the namespace label. */
+  projectId: string;
+}
+
+/** Custom behavior for grouping project namespaces into separate entries. */
+export interface ProjectGrouping {
+  /**
+   * Return an opaque key for grouping a namespace into a project entry.
+   * The project ID is used when the returned key is empty.
+   *
+   * @param params - Namespace and labelled project ID to group.
+   * @returns An opaque grouping key.
+   */
+  getProjectKey: (params: ProjectGroupingParams) => string;
+}
+
+/** IDs plugins can register to replace Headlamp's built-in project creation options. */
+export const DefaultCreateProject = {
+  /** Replace the built-in project form that uses existing or new namespaces. */
+  NEW_PROJECT: 'headlamp.projects.new-project',
+  /** Replace the built-in YAML project creation flow. */
+  FROM_YAML: 'headlamp.projects.from-yaml',
+} as const;
 
 /** Define custom way to create new Projects */
 export interface CustomCreateProject {
@@ -46,8 +103,32 @@ export interface CustomCreateProject {
  * Custom section for the project overview tab
  */
 export interface ProjectOverviewSection {
+  /** Unique identifier for the section registration. */
   id: string;
+  /**
+   * Component rendered in the project overview.
+   *
+   * Return `null` when the section has nothing to show: the surrounding card is then hidden so no
+   * blank space is left behind. Returning a wrapper element that renders no visible content keeps
+   * the card on screen.
+   *
+   * @param props - Properties supplied to the section component.
+   * @param props.project - Project currently displayed.
+   * @param props.projectResources - Kubernetes resources loaded for the project.
+   * @returns Content to render in the section, or `null` to hide it.
+   */
   component: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
+  /**
+   * Determines whether the section is displayed for a project.
+   *
+   * The section is displayed by default when this function is omitted. Rejected promises and
+   * synchronous errors are treated as `false`.
+   *
+   * @param params - Section enablement context.
+   * @param params.project - Project being evaluated.
+   * @returns A promise resolving to `true` when the section should be displayed.
+   */
+  isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
 }
 
 export interface ProjectDetailsTab {
@@ -66,13 +147,18 @@ export interface ProjectDeleteButton {
 
 export interface ProjectHeaderAction {
   id: string;
-  component: (props: { project: ProjectDefinition }) => ReactNode;
+  component: (props: {
+    project: ProjectDefinition;
+    setSelectedTab?: (tabId: string) => void;
+  }) => ReactNode;
   /** Function to check if this action should be displayed in the given project. If not provided the action will be enabled. */
   isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
 }
 
 export interface ProjectsState {
   customCreateProject: Record<string, CustomCreateProject>;
+  /** Plugin-provided project grouping behavior. */
+  projectGrouping?: ProjectGrouping;
   overviewSections: Record<string, ProjectOverviewSection>;
   detailsTabs: Record<string, ProjectDetailsTab>;
   projectDeleteButton?: ProjectDeleteButton;
@@ -96,6 +182,11 @@ const projectsSlice = createSlice({
     /** Register custom project create popup, for plugins */
     addCustomCreateProject(state, action: PayloadAction<CustomCreateProject>) {
       state.customCreateProject[action.payload.id] = action.payload;
+    },
+
+    /** Set custom project grouping behavior. */
+    setProjectGrouping(state, action: PayloadAction<ProjectGrouping>) {
+      state.projectGrouping = action.payload;
     },
 
     /** Register additional tab for project details page */
@@ -131,6 +222,7 @@ const projectsSlice = createSlice({
 
 export const {
   addCustomCreateProject,
+  setProjectGrouping,
   addDetailsTab,
   addOverviewSection,
   setProjectDeleteButton,

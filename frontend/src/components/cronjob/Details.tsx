@@ -35,6 +35,7 @@ import { localeDate } from '../../lib/util';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import ActionButton from '../common/ActionButton';
+import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
 import { JobsListRenderer } from '../job/List';
@@ -236,6 +237,26 @@ export default function CronJobDetails(props: {
           {
             name: t('Schedule'),
             value: getSchedule(item, i18n.language),
+          },
+          {
+            name: t('Service Account'),
+            value: (
+              <Link
+                routeName="serviceAccount"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name:
+                    item.spec?.jobTemplate?.spec?.template?.spec?.serviceAccountName ||
+                    item.spec?.jobTemplate?.spec?.template?.spec?.serviceAccount ||
+                    'default',
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.spec?.jobTemplate?.spec?.template?.spec?.serviceAccountName ||
+                  item.spec?.jobTemplate?.spec?.template?.spec?.serviceAccount ||
+                  'default'}
+              </Link>
+            ),
           },
           {
             name: t('Time Zone'),

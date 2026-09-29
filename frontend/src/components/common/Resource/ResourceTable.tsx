@@ -22,6 +22,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { TableCellProps } from '@mui/material/TableCell';
 import {
+  MRT_Cell,
   MRT_FilterFns,
   MRT_Row,
   MRT_SortingFn,
@@ -56,6 +57,7 @@ import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
 import { getA8RMetadata } from './A8RInfo';
+import CopyableCell from './CopyableCell';
 import DeleteButton from './DeleteButton';
 import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
@@ -102,6 +104,7 @@ export type ResourceTableColumn<RowItem> = {
       datum: keyof RowItem;
       render?: never;
       getValue?: never;
+      copyable?: never;
     }
   | {
       datum?: never;
@@ -109,12 +112,19 @@ export type ResourceTableColumn<RowItem> = {
       render?: (item: RowItem) => ReactNode;
       /** Plain value for filtering and sorting. This is going to be displayed unless render property is defined */
       getValue: (item: RowItem) => string | number | null | undefined;
+      /**
+       * If true, adds a copy-to-clipboard button that appears on hover.
+       * The value from getValue() will be copied when clicked.
+       * @default false
+       */
+      copyable?: boolean;
     }
   | {
       datum?: never;
       render?: never;
       /** @deprecated please use getValue and render (optional, if you need custom renderer) */
       getter: (item: RowItem) => any;
+      copyable?: never;
     }
 );
 
@@ -438,9 +448,33 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
           } else {
             mrtColumn.accessorFn = (item: RowItem) => item[column.datum];
           }
-          if ('render' in column) {
+          if ('render' in column && 'getValue' in column) {
+            const renderFn = column.render;
+            if (column.copyable) {
+              mrtColumn.Cell = ({
+                row,
+                cell,
+              }: {
+                row: MRT_Row<RowItem>;
+                cell: MRT_Cell<RowItem>;
+              }) => {
+                const value = String(cell.getValue<string | number | null | undefined>() ?? '');
+                return (
+                  <CopyableCell value={value}>{renderFn?.(row.original) ?? null}</CopyableCell>
+                );
+              };
+            } else {
+              mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
+                renderFn?.(row.original) ?? null;
+            }
+          } else if ('render' in column) {
             mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
               column.render?.(row.original) ?? null;
+          } else if (column.copyable && 'getValue' in column) {
+            mrtColumn.Cell = ({ cell }: { cell: MRT_Cell<RowItem> }) => {
+              const value = String(cell.getValue<string | number | null | undefined>() ?? '');
+              return <CopyableCell value={value}>{value}</CopyableCell>;
+            };
           }
           if (sort && typeof sort === 'function') {
             mrtColumn.sortingFn = sortingFn(sort);
@@ -464,6 +498,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'age',
               header: t('translation|Age'),
               gridTemplate: 'min-content',
+              responsivePriority: 1,
               accessorFn: (item: RowItem) => -new Date(item.metadata.creationTimestamp).getTime(),
               enableColumnFilter: false,
               muiTableBodyCellProps: {
@@ -484,6 +519,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'labels',
               header: t('translation|Labels'),
               gridTemplate: 'min-content',
+              responsivePriority: -2,
               accessorFn: (item: RowItem) =>
                 item.metadata.labels
                   ? Object.entries(item.metadata.labels)
@@ -496,6 +532,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'namespace',
               header: t('glossary|Namespace'),
               gridTemplate: 'auto',
+              responsivePriority: -2,
               accessorFn: (item: RowItem) => item.getNamespace() ?? '-',
               filterVariant: 'multi-select',
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
@@ -518,6 +555,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'cluster',
               header: t('glossary|Cluster'),
               gridTemplate: 'min-content',
+              responsivePriority: -1,
               Cell: ({ row }: { row: MRT_Row<RowItem> }) => (
                 <Box sx={{ whiteSpace: 'nowrap' }}>{row.original.cluster}</Box>
               ),
@@ -531,6 +569,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               accessorFn: (resource: RowItem) => String(resource?.kind),
               filterVariant: 'multi-select',
               gridTemplate: 'min-content',
+              responsivePriority: -1,
             };
           default:
             throw new Error(`Unknown column: ${col}`);
@@ -681,12 +720,17 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   const filterFunc = filterFunction ?? defaultFilterFunc;
 
+  // Faceted values build a unique-value map per column across the full dataset.
+  // On large clusters this is the dominant cause of OOM crashes, so we disable
+  // it once the dataset exceeds a threshold where the cost outweighs the UX benefit.
+  const enableFacetedValues = (data?.length ?? 0) <= 500;
+
   return (
     <>
       <ClusterGroupErrorMessage errors={errors} />
       <Table<RowItem>
         enableFullScreenToggle={false}
-        enableFacetedValues
+        enableFacetedValues={enableFacetedValues}
         enableRowSelection={wrappedEnableRowSelection}
         renderRowSelectionToolbar={renderRowSelectionToolbar}
         errorMessage={errorMessage}

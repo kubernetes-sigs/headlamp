@@ -47,6 +47,7 @@ spec:
         args:
         - "-in-cluster"
         - "-enable-helm"
+        - "-in-cluster-context-name=main"
         ports:
         - name: http
           containerPort: 4466

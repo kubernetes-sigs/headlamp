@@ -1,0 +1,8 @@
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: static-provider
+    namespaces:
+      - Team-A

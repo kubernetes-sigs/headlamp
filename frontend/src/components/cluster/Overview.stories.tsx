@@ -242,3 +242,31 @@ ErrorState.parameters = {
     },
   },
 };
+
+export const MetricsUnavailableState = Template.bind({});
+MetricsUnavailableState.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/events', () =>
+          HttpResponse.json({
+            kind: 'EventsList',
+            items: [],
+            metadata: {},
+          })
+        ),
+        http.get('http://localhost:4466/api/v1/pods', () =>
+          HttpResponse.json({
+            kind: 'PodList',
+            apiVersion: 'v1',
+            metadata: {},
+            items: [],
+          })
+        ),
+        http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+          HttpResponse.json({ message: 'Service Unavailable' }, { status: 500 })
+        ),
+      ],
+    },
+  },
+};

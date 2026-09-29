@@ -15,18 +15,23 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
-import { PluginInfo } from '../../../plugin/pluginsSlice';
-import { TestContext } from '../../../test';
-import { PluginSettingsPure } from './PluginSettings';
+import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
+import { HeadlampEventType } from '../../../redux/headlampEventSlice';
+import store from '../../../redux/stores/store';
+import { recordHeadlampEvents, TestContext } from '../../../test';
+import { lightTheme } from '../defaultAppThemes';
+import PluginSettings, { PluginSettingsPure } from './PluginSettings';
 
 vi.mock('../../../helpers/isElectron', () => ({
   isElectron: () => true,
 }));
 
-const theme = createMuiTheme({ name: 'Light', base: 'light' });
+const theme = createMuiTheme({ name: lightTheme.name, base: 'light' });
+const originalDesktopApi = window.desktopApi;
 
 function createPlugins(count: number): PluginInfo[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -72,6 +77,55 @@ describe('PluginSettingsPure', () => {
 
     const deleteButtons = screen.getAllByLabelText('Delete Plugin');
     expect(deleteButtons).toHaveLength(3);
+  });
+
+  it('enables local plugin development', async () => {
+    const onDevelopmentPluginsChange = vi.fn();
+    renderPluginSettings({
+      showDevelopmentPluginsSetting: true,
+      developmentPluginsEnabled: false,
+      onDevelopmentPluginsChange,
+    });
+
+    const pluginDevelopmentMode = screen.getByRole('checkbox', {
+      name: 'Load development plugins',
+    });
+    expect(pluginDevelopmentMode).not.toBeChecked();
+    expect(pluginDevelopmentMode).toHaveAccessibleDescription(
+      'Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.'
+    );
+
+    await userEvent.click(pluginDevelopmentMode);
+
+    expect(onDevelopmentPluginsChange).toHaveBeenCalledWith(true);
+  });
+
+  it('explains globally blocked development plugins to keyboard users', async () => {
+    renderPluginSettings({
+      plugins: [
+        {
+          ...createPlugins(1)[0],
+          type: 'development',
+          source: 'development',
+          isEnabled: true,
+          isLoaded: false,
+          isDevelopmentModeBlocked: true,
+        },
+      ],
+    });
+
+    const blockedStatus = screen.getByRole('note', {
+      name: 'Not Loaded. Enable Plugin Development Mode to load this plugin',
+    });
+    act(() => blockedStatus.focus());
+
+    expect(blockedStatus).toHaveFocus();
+    expect(
+      await screen.findByRole('tooltip', {
+        name: 'Enable Plugin Development Mode to load this plugin',
+      })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Toggle plugin-0' })).toBeNull();
   });
 
   it('calls onDelete when delete is confirmed', () => {
@@ -196,6 +250,87 @@ describe('PluginSettingsPure', () => {
     // Wait for the async onDelete rejection to be handled and the row to be restored.
     await waitFor(() => {
       expect(screen.getAllByLabelText('Delete Plugin')).toHaveLength(2);
+    });
+  });
+});
+
+describe('PluginSettings events', () => {
+  afterEach(() => {
+    window.desktopApi = originalDesktopApi;
+  });
+
+  it('loads and updates Plugin Development Mode through the desktop bridge', async () => {
+    const send = vi.fn();
+    const unsubscribe = vi.fn();
+    let receiveDevelopmentPlugins: ((enabled: boolean) => void) | undefined;
+    window.desktopApi = {
+      isDevelopment: false,
+      send,
+      receive: vi.fn((channel: string, callback: (enabled: boolean) => void) => {
+        if (channel === 'development-plugins') {
+          receiveDevelopmentPlugins = callback;
+        }
+        return unsubscribe;
+      }),
+    } as any;
+
+    const { unmount } = render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettings />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(window.desktopApi.receive).toHaveBeenCalledWith(
+      'development-plugins',
+      expect.any(Function)
+    );
+    expect(send).toHaveBeenCalledWith('request-development-plugins');
+
+    act(() => receiveDevelopmentPlugins?.(true));
+    expect(await screen.findByRole('checkbox', { name: 'Load development plugins' })).toBeChecked();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Load development plugins' }));
+    expect(send).toHaveBeenCalledWith('set-development-plugins', false);
+
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('hides packaged-only controls in Electron development mode', () => {
+    const send = vi.fn();
+    window.desktopApi = { isDevelopment: true, send } as any;
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettings />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(screen.queryByRole('checkbox', { name: 'Load development plugins' })).toBeNull();
+    expect(send).not.toHaveBeenCalledWith('request-development-plugins');
+  });
+
+  it('dispatches PLUGIN_LIST_VIEW with the configured plugins', async () => {
+    const plugins = createPlugins(2);
+    store.dispatch(setPluginSettings(plugins));
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettings />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(events.filter(e => e.type === HeadlampEventType.PLUGIN_LIST_VIEW)).toEqual([
+        { type: HeadlampEventType.PLUGIN_LIST_VIEW, data: { plugins } },
+      ]);
     });
   });
 });

@@ -19,7 +19,7 @@ import { initialize, mswLoader } from 'msw-storybook-addon';
 import './index.css';
 import { Title, Subtitle, Description, Primary, Controls } from '@storybook/addon-docs/blocks';
 
-import { baseMocks } from './baseMocks';
+import { baseMocks, fallbackMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   darkTheme,
@@ -98,6 +98,8 @@ export const parameters = {
        * }
        */
       base: baseMocks,
+      story: [],
+      fallback: fallbackMocks,
     },
   },
 };

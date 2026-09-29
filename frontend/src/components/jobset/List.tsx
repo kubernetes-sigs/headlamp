@@ -14,57 +14,97 @@
  * limitations under the License.
  */
 
-import { useTranslation } from 'react-i18next';
+import Link from '@mui/material/Link';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+import { getTopCondition } from '../../lib/k8s/conditions';
 import JobSet from '../../lib/k8s/jobSet';
+import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
+import SectionBox from '../common/SectionBox';
 
 // Explicit priority to make the rendered condition stable and meaningful.
 const conditionPriority = ['Failed', 'Completed', 'Suspended', 'StartupPolicyCompleted'];
 
-function getJobSetCondition(jobSet: JobSet): string {
-  const conditions = jobSet.status?.conditions;
-  if (!conditions) return '-';
-
-  const trueConditions = conditions.filter(c => c.status === 'True');
-  if (trueConditions.length === 0) {
-    return '-';
-  }
-
-  let selected = trueConditions[0];
-  let bestPriorityIndex = conditionPriority.length;
-
-  for (const cond of trueConditions) {
-    const idx = conditionPriority.indexOf(cond.type);
-    if (idx !== -1 && idx < bestPriorityIndex) {
-      bestPriorityIndex = idx;
-      selected = cond;
-    }
-  }
-
-  return selected.type ?? '-';
-}
-
 export default function JobSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const [jobSetEnabled, setJobSetEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const jobSetStatus = async () => {
+      const enabled = await JobSet.isEnabled();
+      if (!cancelled) {
+        setJobSetEnabled(enabled);
+      }
+    };
+    jobSetStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <ResourceListView
-      title={t('glossary|Job Sets')}
-      resourceClass={JobSet}
-      columns={[
-        'name',
-        'namespace',
-        'cluster',
-        {
-          id: 'conditions',
-          label: t('translation|Conditions'),
-          gridTemplate: 'min-content',
-          getValue: (jobSet: JobSet) => getJobSetCondition(jobSet),
-        },
-        'age',
-      ]}
-      reflectInURL="jobsets"
-      id="headlamp-jobsets"
-    />
+    <>
+      {jobSetEnabled === null ? (
+        <SectionBox title={t('glossary|Job Sets')}>
+          <Paper variant="outlined">
+            <Empty>
+              <Typography style={{ textAlign: 'center' }}>
+                {t('glossary|Checking if JobSet is enabled…')}
+              </Typography>
+            </Empty>
+          </Paper>
+        </SectionBox>
+      ) : jobSetEnabled ? (
+        <ResourceListView
+          title={t('glossary|Job Sets')}
+          resourceClass={JobSet}
+          columns={[
+            'name',
+            'namespace',
+            'cluster',
+            {
+              id: 'conditions',
+              label: t('translation|Conditions'),
+              gridTemplate: 'min-content',
+              getValue: (jobSet: JobSet) =>
+                getTopCondition(jobSet.status?.conditions, conditionPriority) ?? '-',
+            },
+            'age',
+          ]}
+          reflectInURL="jobsets"
+          id="headlamp-jobsets"
+        />
+      ) : (
+        <SectionBox title={t('glossary|Job Sets')}>
+          <Paper variant="outlined">
+            <Empty>
+              <Typography style={{ textAlign: 'center' }}>
+                <Trans
+                  t={t}
+                  ns="glossary"
+                  i18nKey="JobSet is not enabled. <1>Learn More</1>"
+                  components={{
+                    1: (
+                      <Link
+                        href="https://jobset.sigs.k8s.io/docs/installation/"
+                        target="_blank"
+                        rel="noopener"
+                        sx={{ textDecoration: 'underline' }}
+                      />
+                    ),
+                  }}
+                />
+              </Typography>
+            </Empty>
+          </Paper>
+        </SectionBox>
+      )}
+    </>
   );
 }

@@ -97,7 +97,7 @@ jobs:
       run: |
         cd app
         npm ci
-        node scripts/setup-plugins.js
+        node --experimental-strip-types scripts/setup-plugins.ts
 
     - name: Build Windows ${{ matrix.arch }} App
       shell: pwsh

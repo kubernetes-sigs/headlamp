@@ -72,7 +72,7 @@ function Settings(props) {
    * @param {React.ChangeEvent<HTMLInputElement>} event - The change event from the input field.
    */
   const handleChange = event => {
-    onDataChange({ errorMessage: event.target.value });
+    onDataChange?.({ ...data, errorMessage: event.target.value });
   };
 
   const settingsRows = [
@@ -82,9 +82,10 @@ function Settings(props) {
         <TextField
           fullWidth
           helperText="Enter the custom error message to display when the pod count cannot be retrieved."
-          defaultValue={data?.errorMessage ? data.errorMessage : 'Uh... pods!?'}
+          value={data?.errorMessage ?? 'Uh... pods!?'}
           onChange={handleChange}
           variant="standard"
+          inputProps={{ 'aria-label': 'Custom Error Message' }}
         />
       ),
     },

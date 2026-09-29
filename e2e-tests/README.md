@@ -1,37 +1,165 @@
-# end to end tests with playwright and minikube
+# end to end tests with playwright
 
-```
-npx playwright install
-```
+These tests run against Headlamp deployed **in-cluster**, across **two**
+clusters whose kubectl contexts are named `test` and `test2`.
 
-The instructions below assume Headlamp is running locally in-cluster with minikube.
+Those names are not arbitrary. The specs hardcode them: `podsPage.spec.ts`
+navigates to `/c/test/pods`, and `multiCluster.spec.ts` asserts a home page
+listing both `test` and `test2`. `headlamp.spec.ts` also asserts on a
+`headlamp-admin` service account and on the `headlamp` Service, both of which
+come from the in-cluster deployment rather than from a dev server.
+
+The setup below mirrors what CI does in `.github/workflows/build-container.yml`,
+which is the reference if anything here drifts.
+
+## Setup
+
+Run these commands from the repository root on Linux with Docker running and
+Node.js `>=22.0.0`, npm `>=11.0.0`, `curl`, `envsubst`, `grep`, `kind`, `kubectl`,
+`jq`, and `make` installed.
+
+Install the Playwright dependencies:
 
 ```bash
-# Determine if the headlamp addon is enabled
-minikube addons list
-
-# If the addon is not already enabled run the following command
-minikube addons enable headlamp
-
-# Generate the URL needed for the HEADLAMP_TEST_URL environment variable
-# note: Make sure to use the URL created after the " Starting tunnel for service headlamp. " message
-minikube service headlamp -n headlamp
-
-# Open the browser to the URL generated above, it should direct you to a page waiting for a token
-
-# run in a separate terminal...
-export HEADLAMP_TEST_URL= # from the "minikube service headlamp -n headlamp" command directly above.
-
-# Create a token for the tests to use
-export HEADLAMP_TOKEN=$(kubectl create token headlamp --duration 24h -n headlamp)
-
-# To see the token to login via the web browser
-echo $HEADLAMP_TOKEN
+cd e2e-tests
+npm ci
+npx playwright install --with-deps
+cd ..
 ```
 
-Now with those two environment variables set we can run the tests.
+Set up the two clusters, Headlamp, and the Cluster Inventory fixture:
 
-IMPORTANT: Make sure that the following npx commands are ran in the same terminal session as the environment variables were set.
+```bash
+./e2e-tests/scripts/setup-multicluster.sh
+```
+
+The script writes the URL and credentials needed by Playwright to
+`e2e-tests/.env`. Load them and run the multi-cluster and Cluster Inventory
+specs:
+
+```bash
+set -a
+source e2e-tests/.env
+set +a
+cd e2e-tests
+npx playwright test tests/multiCluster.spec.ts tests/clusterInventory.spec.ts
+cd ..
+```
+
+The setup is idempotent. It creates `test` and `test2` when neither exists,
+reuses them when both exist, and fails without deleting anything when the
+environment is only partially present. Clusters created by a successful setup
+stay running for subsequent tests. The setup log reports whether it created or
+reused the clusters.
+
+If the setup reused the clusters, leave both clusters and contexts intact and
+remove only the generated environment file:
+
+```bash
+rm -f e2e-tests/.env
+```
+
+If the setup created both clusters, remove that environment when finished:
+
+```bash
+kind delete cluster --name test
+kind delete cluster --name test2
+kubectl config delete-context test 2>/dev/null || true
+kubectl config delete-context test2 2>/dev/null || true
+rm -f e2e-tests/.env
+```
+
+CI reaches the Service on its NodePort, at
+`http://<node InternalIP>:<nodePort>`. That address is reachable from the host
+on Linux, but not on every platform; if it is not reachable on yours, any means
+of exposing the Service will do, as long as `HEADLAMP_TEST_URL` points at it.
+
+`HEADLAMP_TEST_URL` defaults to `http://localhost:3000` if unset
+(`playwright.config.ts`), so an unset variable shows up as connection errors
+rather than as an obvious configuration problem.
+
+### Kubeconfig with certificates on disk
+
+`dynamicCluster.spec.ts` reads your kubeconfig with `kubectl config view`, which
+redacts embedded `certificate-authority-data` and the client certificate fields,
+and then reads the referenced files from disk. If those fields are embedded
+rather than file paths, seven tests in that file fail with `ENOENT`.
+
+CI works around this by rewriting the kubeconfig so the certificates live in
+files. If you hit those failures, do the same, and note that the paths must be
+absolute, because the test resolves them relative to its own working directory:
+
+```bash
+umask 077
+mkdir -p ~/headlamp-e2e-certs
+
+# test cluster
+kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/test-ca.crt
+kubectl config view --raw --minify --context=test -o jsonpath='{.users[0].user.client-certificate-data}' | base64 --decode > ~/headlamp-e2e-certs/test-client.crt
+kubectl config view --raw --minify --context=test -o jsonpath='{.users[0].user.client-key-data}' | base64 --decode > ~/headlamp-e2e-certs/test-client.key
+
+kubectl config set-cluster kind-test \
+  --certificate-authority="$HOME/headlamp-e2e-certs/test-ca.crt" \
+  --embed-certs=false
+
+kubectl config set-credentials admin@kind-test \
+  --client-certificate="$HOME/headlamp-e2e-certs/test-client.crt" \
+  --client-key="$HOME/headlamp-e2e-certs/test-client.key" \
+  --embed-certs=false
+
+# test2 cluster
+kubectl config view --raw --minify --context=test2 -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-ca.crt
+kubectl config view --raw --minify --context=test2 -o jsonpath='{.users[0].user.client-certificate-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-client.crt
+kubectl config view --raw --minify --context=test2 -o jsonpath='{.users[0].user.client-key-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-client.key
+
+kubectl config set-cluster kind-test2 \
+  --certificate-authority="$HOME/headlamp-e2e-certs/test2-ca.crt" \
+  --embed-certs=false
+
+kubectl config set-credentials admin@kind-test2 \
+  --client-certificate="$HOME/headlamp-e2e-certs/test2-client.crt" \
+  --client-key="$HOME/headlamp-e2e-certs/test2-client.key" \
+  --embed-certs=false
+```
+
+### Additional suites
+
+`tests/incluster-api.spec.ts` tests a separate Headlamp deployment running in
+in-cluster mode. CI runs it in a dedicated step after deploying
+`kubernetes-headlamp-incluster-ci.yaml` to the `test2` cluster. To reproduce
+that setup locally:
+
+```bash
+kubectl config use-context test2
+kubectl create serviceaccount headlamp --namespace kube-system
+kubectl create clusterrolebinding headlamp \
+  --serviceaccount=kube-system:headlamp --clusterrole=cluster-admin
+kubectl apply -f e2e-tests/kubernetes-headlamp-incluster-ci.yaml
+kubectl wait deployment -n kube-system headlamp \
+  --for condition=Available=True --timeout=120s
+
+kubectl port-forward -n kube-system service/headlamp 8080:80
+```
+
+Leave the port-forward running, then use a second terminal to set the URL and
+service account token before running the spec:
+
+```bash
+export HEADLAMP_TEST_URL=http://localhost:8080
+export HEADLAMP_SA_TOKEN=$(kubectl create token headlamp --duration=1h -n kube-system)
+
+cd e2e-tests
+npx playwright test tests/incluster-api.spec.ts
+```
+
+### Cluster Inventory
+
+The Cluster Inventory E2E uses the same `test` and `test2` clusters and the same
+Headlamp Deployment as the regular multi-cluster tests. It installs the v0.1.3
+Cluster Inventory API CRD on `test`, publishes one `ClusterProfile` for
+`test2`, and verifies both discovery and proxy access to a running pod in
+`tests/clusterInventory.spec.ts`. The generated `.env` enables this spec; it is
+otherwise skipped unless `HEADLAMP_CLUSTER_INVENTORY_E2E=true`.
 
 ## Run all tests
 
@@ -65,6 +193,55 @@ npx playwright test -g "404 page is present"
 npx playwright test -g "404 page is present" --headed
 ```
 
+## OAuth2-Proxy + Dex e2e test (opt-in)
+
+The spec `tests/dexOauth2Proxy.spec.ts` exercises the
+[Headlamp + OAuth2-Proxy + Dex tutorial](../docs/installation/in-cluster/dex/index.md)
+end-to-end against the runnable
+[`test-scripts/`](../docs/installation/in-cluster/dex/test-scripts/)
+stack (Minikube + Dex + Headlamp + OAuth2-Proxy). It covers the
+authentication gating, login and logout, Kubernetes API access, session
+handling, redirects, and common bypass attempts. It is **opt-in**: the
+whole `describe` block is skipped unless
+`HEADLAMP_TEST_DEX_OAUTH2_PROXY=1` is set — because the stack takes
+several minutes to bring up.
+
+The browser must resolve `host.minikube.internal` to the machine running Dex.
+If Playwright runs outside WSL or a VM, add the mapping on the browser side and
+use the WSL/VM address that reaches Dex rather than assuming `127.0.0.1`.
+
+Two modes are supported:
+
+1. **Have the test bring the stack up and tear it down (recommended):**
+
+   ```shell
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY_MANAGE=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   ```
+
+    The test runs
+    `../docs/installation/in-cluster/dex/test-scripts/run.sh`
+    in `beforeAll` and `cleanup.sh` in `afterAll`.
+
+2. **Use a stack you already brought up:**
+
+    ```shell
+    cd ../docs/installation/in-cluster/dex/test-scripts
+    ./run.sh
+    cd -
+    export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+    npx playwright test tests/dexOauth2Proxy.spec.ts
+    # …when done:
+    ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
+    ```
+
+The test points at `http://localhost:8080` (the port `run.sh`
+port-forwards to OAuth2-Proxy) and signs in to Dex as
+`admin@example.com` / `password` (the static user from
+`dex-config.yaml`). Override with `HEADLAMP_TEST_DEX_OAUTH2_PROXY_URL`,
+`HEADLAMP_TEST_DEX_USER` and `HEADLAMP_TEST_DEX_PASSWORD` if needed.
+
 ## Recommended configuration
 
 ### Playwright UI Mode
@@ -79,6 +256,15 @@ npx playwright test -g "404 page is present" --headed
 
 ## Optional configuration
 
+### System Chromium
+
+Playwright downloads a supported Chromium build by default. On an unsupported
+Linux distribution, use an existing Chromium executable instead:
+
+```bash
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$(command -v chromium)"
+```
+
 ### Headed vs Headless
 
 - If you wish to see the test run in a real browser, you can add the `--headed` flag to the command.
@@ -92,6 +278,10 @@ npx playwright test -g "404 page is present" --headed
   - within the playwright.config.ts file locate the `const config: PlaywrightTestConfig` object. within the object, modify the use object to contain a field for `launchOptions: { slowMo: }` set to a number of milliseconds ex. `use: { ..., launchOptions: { slowMo: 1000 }` property to slow down the tests to take 1 second between each step.
 
 ## Running Playwright through a Virtual Machine (VM)
+
+> Note: this section predates the two-cluster kind setup described above and has
+> not been updated for it. It still refers to a single minikube cluster and to
+> `kubernetes-headlamp-ci.yml`, which is now `kubernetes-headlamp-ci.yaml`.
 
 ### Log into Azure CLI
 

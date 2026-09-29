@@ -18,10 +18,14 @@ import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
 import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import {
+  getCombinedAllowedNamespaces,
+  hasAllowedNamespacesRestriction,
+} from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
+import { AllowedNamespacesResolutionContext } from './allowedNamespacesContext';
 import { post } from './api/v1/clusterRequests';
 import type { DeleteParameters } from './api/v1/deleteParameters';
 import type {
@@ -45,8 +49,7 @@ function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
     return [];
   }
 
-  const clusterSettings = loadClusterSettings(cluster);
-  return clusterSettings.allowedNamespaces || [];
+  return getCombinedAllowedNamespaces(cluster);
 }
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
@@ -138,8 +141,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    */
   static get apiGroupName(): string | undefined {
     // Get any of the versions, group will be the same
-    const apiVersion = typeof this.apiVersion === 'string' ? this.apiVersion : this.apiVersion[0];
+    const apiVersion = Array.isArray(this.apiVersion) ? this.apiVersion[0] : this.apiVersion;
 
+    if (!apiVersion) return;
     if (!apiVersion.includes('/')) return;
 
     return apiVersion.split('/')[0];
@@ -378,22 +382,38 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster,
       clusters,
       namespace,
+      requests: requestedLists,
       refetchInterval,
       ...queryParams
     }: {
       cluster?: string;
       clusters?: string[];
       namespace?: string | string[];
+      /** Exact cluster and namespace combinations to list instead of building a cross-product. */
+      requests?: Array<{ cluster: string; namespaces?: string[] }>;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
     } & QueryParameters = {}
   ) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const fallbackClusters = useSelectedClusters();
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const allowedNamespacesResolutionKey = React.useContext(AllowedNamespacesResolutionContext);
+    const isNamespaced = this.isNamespaced;
 
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const requests = useMemo(() => {
+    const { requests, emptyWhenNoRequests } = useMemo(() => {
+      if (requestedLists) {
+        return {
+          requests: requestedLists.map(request => ({
+            cluster: request.cluster,
+            namespaces: isNamespaced ? request.namespaces : undefined,
+          })),
+          emptyWhenNoRequests: false,
+        };
+      }
+
       const clusterList = cluster
         ? [cluster]
         : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
@@ -405,20 +425,35 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           ? namespace
           : undefined;
 
-      return makeListRequests(
+      const requests = makeListRequests(
         clusterList,
         getAllowedNamespaces,
-        this.isNamespaced,
-        namespacesFromParams
+        isNamespaced,
+        namespacesFromParams,
+        hasAllowedNamespacesRestriction
       );
+      return {
+        requests,
+        emptyWhenNoRequests:
+          requests.length === 0 && clusterList.some(hasAllowedNamespacesRestriction),
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cluster, clusters, fallbackClusters, namespace, this.isNamespaced]);
+    }, [
+      cluster,
+      clusters,
+      fallbackClusters,
+      namespace,
+      requestedLists,
+      isNamespaced,
+      allowedNamespacesResolutionKey,
+    ]);
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const result = useKubeObjectList<K>({
       queryParams: queryParams,
       kubeObjectClass: this,
       requests,
+      emptyWhenNoRequests,
       refetchInterval,
     });
 
@@ -432,6 +467,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     opts?: {
       queryParams?: QueryParameters;
       cluster?: string;
+      initialData?: K;
     }
   ) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -441,6 +477,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace: namespace,
       cluster: opts?.cluster,
       queryParams: opts?.queryParams,
+      initialData: opts?.initialData,
     });
   }
 

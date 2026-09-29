@@ -15,8 +15,11 @@
  */
 
 import { useCallback, useEffect, useMemo } from 'react';
+import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getBaseWsUrl } from './webSocket';
+
+const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
 
 /**
  * WebSocket manager to handle connections across the application.
@@ -106,7 +109,10 @@ export const WebSocketManager = {
     return new Promise((resolve, reject) => {
       let socket: WebSocket;
       try {
-        socket = new WebSocket(wsUrl);
+        const backendTokenProtocol = getHeadlampWebSocketProtocol();
+        socket = backendTokenProtocol
+          ? new WebSocket(wsUrl, [MULTIPLEXER_PROTOCOL, backendTokenProtocol])
+          : new WebSocket(wsUrl);
       } catch (e) {
         this.connecting = false;
         reject(e instanceof Error ? e : new Error(String(e)));

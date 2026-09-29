@@ -34,6 +34,14 @@ Complete tutorial from installation to your first working plugin, with practical
 
 Learn the development workflow, production builds, and deployment strategies.
 
+### 🔐 [Desktop Command Capabilities](./command-capabilities.md)
+
+Configure product-owned command grants for verified plugins.
+
+### [Desktop Cluster Registration Providers](./cluster-registration-providers.md)
+
+Add capability-protected native credential providers for desktop products.
+
 ### 📖 [Common Patterns](./common-patterns.md)
 
 Ready-to-use examples for typical plugin scenarios like dashboards, resource extensions, and external integrations.

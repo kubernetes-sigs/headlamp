@@ -199,4 +199,31 @@ describe('ResourceTable Column Visibility', () => {
       namespace: true,
     });
   });
+
+  it('disables faceted values when more than 500 rows are loaded', () => {
+    const columns = [
+      {
+        id: 'name',
+        label: 'Name',
+        getValue: (item: any) => item.metadata.name,
+      },
+    ];
+    const data = Array.from({ length: 501 }, (_, index) => ({
+      metadata: { name: `pod-${index}` },
+    })) as any[];
+
+    const result = renderTable({ id: 'large-table', columns, data });
+
+    expect(lastTablePropsHolder.current.enableFacetedValues).toBe(false);
+
+    result.rerender(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <ResourceTable id="large-table" columns={columns} data={data.slice(0, 500)} />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
+  });
 });

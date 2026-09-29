@@ -14,8 +14,20 @@ Headlamp integration uses the `v0.1.x` API, so fields and behavior may change.
 
 Headlamp can discover additional clusters from Cluster Inventory API
 `ClusterProfile` resources when started with Cluster Inventory enabled. The
-backend uses `sigs.k8s.io/cluster-inventory-api v0.1.0`, the `pkg/access`
+backend uses `sigs.k8s.io/cluster-inventory-api v0.1.3`, the `pkg/access`
 provider configuration package, and `ClusterProfile.status.accessProviders`.
+
+For a local end-to-end environment, follow the setup in
+[`e2e-tests/README.md`](https://github.com/kubernetes-sigs/headlamp/blob/main/e2e-tests/README.md).
+It uses the regular E2E `test` and `test2` kind clusters and deploys Cluster
+Inventory into the same Headlamp instance as the multi-cluster tests.
+
+Explicit namespace lists, all-namespace discovery, label filtering, and
+kubeconfig context namespace changes are covered by the backend tests:
+
+```bash
+npm run backend:test
+```
 
 The provider configuration file is not a `ClusterProfile` status object. It uses
 the upstream access configuration shape with a top-level `providers` array:
@@ -46,9 +58,16 @@ HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
   --enable-cluster-inventory \
   --cluster-inventory-provider-file "$WORK/provider-config.json" \
   --cluster-inventory-label-selector='!headlamp.dev/ignore' \
+  --cluster-inventory-namespaces=inventory-e2e \
   --cluster-inventory-root-reconcile-interval=10s \
   --cluster-inventory-no-crd-cache-ttl=30s
 ```
+
+Without `--cluster-inventory-namespaces`, each root is watched in its own
+default namespace: the pod namespace when running in-cluster, and the
+kubecontext namespace (or `default`) for roots seeded from the kubeconfig.
+Pass a comma-separated list to watch more than one namespace. Use `*` on its
+own to watch all namespaces.
 
 In another terminal:
 
@@ -56,16 +75,16 @@ In another terminal:
 npm run frontend:start
 ```
 
-Install the `v0.1.0` CRD on clusters that publish inventory:
+Install the `v0.1.3` CRD on clusters that publish inventory:
 
 ```bash
 kubectl --context kind-ci-hub apply -f \
-  https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/v0.1.0/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml
+  https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/v0.1.3/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml
 ```
 
 Patch sample status with `status.accessProviders` and health conditions:
 
-`ClusterProfile.spec.clusterManager.name` is required by the v0.1.0 CRD, even
+`ClusterProfile.spec.clusterManager.name` is required by the v0.1.3 CRD, even
 when the access details are patched later through the status subresource. The
 CRD also requires `reason` on each condition, so include it even when adapting
 examples that omit the field.
