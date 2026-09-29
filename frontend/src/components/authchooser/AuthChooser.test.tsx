@@ -17,11 +17,13 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
+import React from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../lib/themes';
 import store from '../../redux/stores/store';
+import Home from '../App/Home';
 import AuthChooser from '.';
 
 const { clusters, testAuthMock } = vi.hoisted(() => ({
@@ -31,6 +33,21 @@ const { clusters, testAuthMock } = vi.hoisted(() => ({
 
 vi.mock('../../lib/k8s', () => ({
   useClustersConf: () => clusters,
+  useClustersVersion: () => [{}, {}],
+}));
+
+vi.mock('../../lib/k8s/event', () => ({
+  default: class Event {},
+  useEventWarningList: () => ({}),
+}));
+
+vi.mock('../App/Home/ClusterTable', () => ({
+  default: () => <div data-testid="home" />,
+}));
+vi.mock('../App/Home/RecentClusters', () => ({ default: () => null }));
+vi.mock('../project/ProjectList', () => ({ default: () => null }));
+vi.mock('../common/SectionBox', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 
 // getCluster() reads the browser URL rather than the router, which MemoryRouter
@@ -75,6 +92,9 @@ async function renderFailedAuthChooser() {
             <Route path="/c/:cluster">
               <AuthChooser />
             </Route>
+            <Route exact path="/">
+              <Home />
+            </Route>
             <LocationDisplay />
           </MemoryRouter>
         </SnackbarProvider>
@@ -105,7 +125,7 @@ describe('AuthChooser', () => {
     expect(screen.getByTestId('location').dataset.pathname).toBe('/');
   });
 
-  it('tells the chooser not to send a lone cluster straight back', async () => {
+  it('keeps a lone cluster on the chooser after leaving failed auth', async () => {
     clusters.main = { name: 'main', auth_type: '' };
 
     await renderFailedAuthChooser();
@@ -114,5 +134,6 @@ describe('AuthChooser', () => {
     const location = screen.getByTestId('location');
     expect(location.dataset.pathname).toBe('/');
     expect(location.dataset.fromAuthChooser).toBe('true');
+    expect(screen.getByTestId('home')).toBeVisible();
   });
 });
