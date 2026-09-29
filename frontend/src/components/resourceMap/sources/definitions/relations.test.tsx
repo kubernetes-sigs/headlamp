@@ -229,6 +229,17 @@ describe('useGetAllRelations', () => {
     ).toBe(false);
   });
 
+  it('reserves the cluster scoped RBAC relation IDs against plugin registrations', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const expectedIds = ['clusterrolebinding-clusterrole', 'clusterrolebinding-sa'];
+
+    expect(result.current.map(relation => relation.id)).toEqual(
+      expect.arrayContaining(expectedIds)
+    );
+    expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
+  });
+
   it.each([
     ['TCPRoute', TCPRoute, 'tcproute-gateway'],
     ['UDPRoute', UDPRoute, 'udproute-gateway'],

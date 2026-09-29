@@ -31,6 +31,8 @@ export const BUILT_IN_RELATION_IDS = [
   'networkpolicy-pod',
   'rolebinding-role',
   'rolebinding-sa',
+  'clusterrolebinding-clusterrole',
+  'clusterrolebinding-sa',
   'sa-deployment',
   'sa-daemonset',
   'pvc-pod',
