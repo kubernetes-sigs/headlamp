@@ -67,8 +67,8 @@ func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
 	return payloadMap, nil
 }
 
-// clusterPathRegex matches /clusters/<cluster>/...
-var clusterPathRegex = regexp.MustCompile(`^/clusters/([^/]+)/.*`)
+// clusterPathRegex matches .../clusters/<cluster>/...
+var clusterPathRegex = regexp.MustCompile(`(?:^|/)clusters/([^/]+)/.*`)
 
 // bearerTokenRegex matches valid bearer tokens as specified by RFC 6750:
 // https://datatracker.ietf.org/doc/html/rfc6750#section-2.1
