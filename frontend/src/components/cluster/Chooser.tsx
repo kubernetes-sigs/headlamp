@@ -272,6 +272,7 @@ function ClusterList(props: ClusterListProps) {
               id="cluster-selector-autocomplete"
               options={clusters}
               getOptionLabel={option => getClusterDisplayLabel(option)}
+              getOptionKey={option => option.name}
               style={{ width: '100%' }}
               disableClearable
               autoComplete
