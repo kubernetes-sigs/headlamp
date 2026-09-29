@@ -30,6 +30,7 @@ export const BUILT_IN_RELATION_IDS = [
   'ingress-secret',
   'networkpolicy-pod',
   'rolebinding-role',
+  'rolebinding-clusterrole',
   'rolebinding-sa',
   'clusterrolebinding-clusterrole',
   'clusterrolebinding-sa',
