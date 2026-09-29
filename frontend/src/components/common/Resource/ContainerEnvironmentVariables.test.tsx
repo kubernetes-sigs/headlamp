@@ -121,12 +121,16 @@ const container: KubeContainer = {
 
 const theme = createMuiTheme({ base: 'light', name: 'light' });
 
-function renderInContext(children: React.ReactNode) {
-  return render(
+function withContext(children: React.ReactNode) {
+  return (
     <TestContext>
       <ThemeProvider theme={theme}>{children}</ThemeProvider>
     </TestContext>
   );
+}
+
+function renderInContext(children: React.ReactNode) {
+  return render(withContext(children));
 }
 
 /** Options passed to a mocked useGet on its most recent call. */
@@ -136,11 +140,28 @@ function lastUseGetOptions(resourceClass: any) {
   return calls[calls.length - 1][2];
 }
 
-describe('ContainerEnvironmentVariables cluster scoping', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
+/** A Secret from `cluster` whose API_KEY decodes to `plaintext`. */
+function makeSecret(plaintext: string, cluster = POD_CLUSTER) {
+  return new (Secret as any)(
+    {
+      kind: 'Secret',
+      apiVersion: 'v1',
+      metadata: { name: SECRET_NAME, namespace: NAMESPACE, uid: 'secret-uid' },
+      data: { API_KEY: Base64.encode(plaintext) },
+    },
+    cluster
+  );
+}
 
+afterEach(() => {
+  // resetAllMocks also drops any per-test useGet return value, restoring the pending
+  // default the mocks were created with.
+  vi.resetAllMocks();
+  // Link reads the URL cluster from window.location, so tests that set one undo it here.
+  window.history.pushState({}, '', '/');
+});
+
+describe('ContainerEnvironmentVariables cluster scoping', () => {
   it('resolves referenced Secrets against the given cluster', () => {
     renderInContext(
       <ContainerEnvironmentVariables
@@ -192,25 +213,77 @@ describe('ContainerEnvironmentVariables cluster scoping', () => {
     expect(lastUseGetOptions(Secret)).toEqual({ cluster: POD_CLUSTER });
     expect(lastUseGetOptions(ConfigMap)).toEqual({ cluster: POD_CLUSTER });
   });
+
+  it('links "From" to the resource in the pod cluster rather than the URL cluster', () => {
+    // The URL stays on cluster-a while the pod on screen belongs to cluster-b, which is
+    // what the resource map and the details drawer produce.
+    window.history.pushState({}, '', '/c/cluster-a/pods/default/test-pod');
+    (Secret as any).useGet.mockReturnValue([makeSecret('cluster-b-password'), null]);
+
+    const { getByRole } = renderInContext(
+      <ContainerEnvironmentVariables
+        pod={podJson as unknown as KubePod}
+        container={container}
+        cluster={POD_CLUSTER}
+      />
+    );
+
+    const href = getByRole('link', { name: `Secret: ${SECRET_NAME}` }).getAttribute('href');
+    expect(href).toMatch(/^\/c\/cluster-b\b/);
+    expect(href).not.toMatch(/^\/c\/cluster-a\b/);
+  });
+});
+
+describe('ContainerEnvironmentVariables scope changes', () => {
+  const otherNamespacePod = {
+    ...podJson,
+    metadata: { ...podJson.metadata, namespace: 'other-namespace' },
+  };
+
+  // A reused instance keeps its fetched maps, and a pending lookup reports nothing to
+  // replace them with, so without a reset the previous values would stay on screen.
+  it.each([
+    ['cluster', { pod: podJson, cluster: 'cluster-b' }],
+    ['namespace', { pod: otherNamespacePod, cluster: 'cluster-a' }],
+  ])(
+    'drops values fetched before the %s changed while the new lookup is pending',
+    (_label, next) => {
+      const secretA = makeSecret('cluster-a-password', 'cluster-a');
+      (Secret as any).useGet.mockImplementation((_name: string, namespace: string, opts: any) =>
+        namespace === NAMESPACE && opts?.cluster === 'cluster-a' ? [secretA, null] : [null, null]
+      );
+
+      const { getByRole, getByDisplayValue, queryByDisplayValue, queryByText, rerender } =
+        renderInContext(
+          <ContainerEnvironmentVariables
+            pod={podJson as unknown as KubePod}
+            container={container}
+            cluster="cluster-a"
+          />
+        );
+      fireEvent.click(getByRole('button', { name: /toggle field visibility/i }));
+      expect(getByDisplayValue('cluster-a-password')).toBeInTheDocument();
+
+      rerender(
+        withContext(
+          <ContainerEnvironmentVariables
+            pod={next.pod as unknown as KubePod}
+            container={container}
+            cluster={next.cluster}
+          />
+        )
+      );
+
+      expect(queryByDisplayValue('cluster-a-password')).not.toBeInTheDocument();
+      expect(queryByText('API_KEY')).not.toBeInTheDocument();
+    }
+  );
 });
 
 describe('ContainerEnvironmentVariables secret values', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('decodes a Secret fetched from the pod cluster', () => {
     const plaintext = 'cluster-b-password';
-    const secret = new (Secret as any)(
-      {
-        kind: 'Secret',
-        apiVersion: 'v1',
-        metadata: { name: SECRET_NAME, namespace: NAMESPACE, uid: 'secret-uid' },
-        data: { API_KEY: Base64.encode(plaintext) },
-      },
-      POD_CLUSTER
-    );
-    (Secret as any).useGet.mockReturnValue([secret, null]);
+    (Secret as any).useGet.mockReturnValue([makeSecret(plaintext), null]);
 
     const { getByRole, getByDisplayValue } = renderInContext(
       <ContainerEnvironmentVariables

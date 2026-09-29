@@ -1128,6 +1128,21 @@ export function buildEnvironmentVariables(
  * Secrets and ConfigMaps as needed.
  */
 export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) {
+  const { pod, cluster } = props;
+
+  // The fetched Secrets and ConfigMaps live in state and are only replaced once a lookup
+  // settles, so an instance reused for a pod in another cluster or namespace would keep
+  // showing the previous values while the new lookups are still pending. Keying on both
+  // remounts it with empty maps instead.
+  return (
+    <ContainerEnvironmentVariablesContent
+      key={`${cluster ?? ''}/${pod?.metadata?.namespace ?? ''}`}
+      {...props}
+    />
+  );
+}
+
+function ContainerEnvironmentVariablesContent(props: EnvironmentVariablesProps) {
   const { pod, container, cluster } = props;
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
