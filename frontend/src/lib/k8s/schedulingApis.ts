@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useSelectedClusters } from '.';
+import CompositePodGroup from './compositePodGroup';
 import PodGroup from './podGroup';
 
 const NO_CLUSTERS: string[] = [];
@@ -58,6 +59,19 @@ function useServingClusters(
  */
 export function useSchedulingApiClusters(): string[] {
   return useServingClusters('schedulingWorkloadsEnabled', cluster => PodGroup.isEnabled(cluster));
+}
+
+/**
+ * The selected clusters that serve CompositePodGroup.
+ *
+ * It needs the CompositePodGroup feature gate on top of the ones the flat scheduling
+ * APIs need, so a cluster that serves Workload and PodGroup may still not serve it.
+ * @returns The clusters known to serve CompositePodGroup, empty while none is.
+ */
+export function useCompositePodGroupClusters(): string[] {
+  return useServingClusters('compositePodGroupClusters', cluster =>
+    CompositePodGroup.isEnabled(cluster)
+  );
 }
 
 /**

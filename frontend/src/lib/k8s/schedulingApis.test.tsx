@@ -19,8 +19,13 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import App from '../../App';
 import { useSelectedClusters } from './api/v1/hooks';
+import CompositePodGroup from './compositePodGroup';
 import PodGroup from './podGroup';
-import { useSchedulingApiClusters, useSchedulingApisEnabled } from './schedulingApis';
+import {
+  useCompositePodGroupClusters,
+  useSchedulingApiClusters,
+  useSchedulingApisEnabled,
+} from './schedulingApis';
 
 vi.mock('./api/v1/hooks', async importOriginal => ({
   ...(await importOriginal<typeof import('./api/v1/hooks')>()),
@@ -67,6 +72,23 @@ describe('useSchedulingApiClusters', () => {
 
     await waitFor(() => expect(isEnabled).toHaveBeenCalledWith('legacy'));
     expect(result.current).toEqual([]);
+  });
+});
+
+describe('useCompositePodGroupClusters', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps only the selected clusters that serve CompositePodGroup', async () => {
+    // Its feature gate comes on top of the flat APIs, so it is probed on its own.
+    vi.mocked(useSelectedClusters).mockReturnValue(['gang', 'composite']);
+    vi.spyOn(PodGroup, 'isEnabled').mockResolvedValue(true);
+    vi.spyOn(CompositePodGroup, 'isEnabled').mockImplementation(
+      async cluster => cluster === 'composite'
+    );
+
+    const { result } = renderHook(() => useCompositePodGroupClusters(), { wrapper });
+
+    await waitFor(() => expect(result.current).toEqual(['composite']));
   });
 });
 

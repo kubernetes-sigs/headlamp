@@ -15,17 +15,18 @@
  */
 
 import { useTheme } from '@mui/material/styles';
-import { useQuery } from '@tanstack/react-query';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
-import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import CRD from '../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
-import { useSchedulingApisEnabled } from '../../lib/k8s/schedulingApis';
+import {
+  useCompositePodGroupClusters,
+  useSchedulingApisEnabled,
+} from '../../lib/k8s/schedulingApis';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
@@ -83,16 +84,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
   // CompositePodGroup needs its own feature gate on top, and unlike the flat resources
   // it is only ever served by v1alpha3, so ask for the resource itself.
-  const { data: compositePodGroupsEnabled = false } = useQuery({
-    queryKey: ['compositePodGroupsEnabled', ...selectedClusters],
-    queryFn: async () => {
-      const enabledPerCluster = await Promise.all(
-        selectedClusters.map(cluster => CompositePodGroup.isEnabled(cluster))
-      );
-      return enabledPerCluster.some(Boolean);
-    },
-    enabled: selectedClusters.length > 0,
-  });
+  const compositePodGroupsEnabled = useCompositePodGroupClusters().length > 0;
 
   const crdsSidebarEntries = useMemo(() => {
     const crdsSidebarEntries: SidebarItemProps[] = [];

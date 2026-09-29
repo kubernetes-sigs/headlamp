@@ -22,6 +22,7 @@ import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -57,7 +58,10 @@ import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
 import { RuntimeClass } from '../../../../lib/k8s/runtime';
-import { useSchedulingApiClusters } from '../../../../lib/k8s/schedulingApis';
+import {
+  useCompositePodGroupClusters,
+  useSchedulingApiClusters,
+} from '../../../../lib/k8s/schedulingApis';
 import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
@@ -167,6 +171,7 @@ export function useGetAllSources(): GraphSource[] {
   });
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
   const schedulingClusters = useSchedulingApiClusters();
+  const compositePodGroupClusters = useCompositePodGroupClusters();
   const gatewayEnabled =
     (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
     !!availableGatewayL4RouteKinds?.length;
@@ -310,6 +315,9 @@ export function useGetAllSources(): GraphSource[] {
               isEnabledByDefault: false,
               sources: [
                 makeKubeSource(SchedulingWorkload, schedulingClusters),
+                ...(compositePodGroupClusters.length > 0
+                  ? [makeKubeSource(CompositePodGroup, compositePodGroupClusters)]
+                  : []),
                 makeKubeSource(PodGroup, schedulingClusters),
               ],
             },
@@ -384,6 +392,7 @@ export function useGetAllSources(): GraphSource[] {
     tcpRouteEnabled,
     udpRouteEnabled,
     schedulingClusters,
+    compositePodGroupClusters,
     t,
   ]);
 }
