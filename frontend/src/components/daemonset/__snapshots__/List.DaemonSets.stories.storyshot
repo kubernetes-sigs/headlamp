@@ -979,16 +979,26 @@
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yzp8vs-MuiTableCell-root"
                   >
                     <div
-                      class="MuiBox-root css-0"
+                      class="MuiBox-root css-1ffwkcq"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
                     >
                       <div
-                        class="MuiBox-root css-yi3mkw"
+                        class="MuiBox-root css-ir1dm3"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <div
+                          class="MuiBox-root css-0"
                         >
-                          kubernetes.io/os: linux
-                        </p>
+                          <div
+                            class="MuiBox-root css-8pi4q1"
+                          >
+                            <p
+                              class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                            >
+                              kubernetes…
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </td>

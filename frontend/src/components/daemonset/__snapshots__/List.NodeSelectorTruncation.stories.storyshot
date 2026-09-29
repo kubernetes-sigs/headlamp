@@ -18,13 +18,13 @@
               <h1
                 class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
-                Replica Sets
+                Daemon Sets
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
               >
                 <button
-                  aria-label="Create ReplicaSet"
+                  aria-label="Create DaemonSet"
                   class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
@@ -265,7 +265,7 @@
               </div>
             </div>
             <table
-              class="MuiTable-root css-155ms3a-MuiTable-root"
+              class="MuiTable-root css-7biw9r-MuiTable-root"
             >
               <thead
                 class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -434,7 +434,62 @@
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1o5ropi-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-twaa4c-MuiTableCell-root"
+                    colspan="1"
+                    data-can-sort="true"
+                    data-index="-1"
+                    scope="col"
+                  >
+                    <div
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                    >
+                      <div
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                      >
+                        <div
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                        >
+                          Pods
+                        </div>
+                        <span
+                          aria-label="Sort by Pods descending"
+                          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          <span
+                            aria-label="Sort by Pods descending"
+                            class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                            role="button"
+                            tabindex="0"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                              data-testid="SyncAltIcon"
+                              focusable="false"
+                              style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                              />
+                            </svg>
+                          </span>
+                          <span
+                            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                          >
+                            0
+                          </span>
+                        </span>
+                      </div>
+                      <div
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                      />
+                    </div>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-r8hk8a-MuiTableCell-root"
                     colspan="1"
                     data-can-sort="true"
                     data-index="-1"
@@ -489,7 +544,7 @@
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-73ohs2-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1jnqbfa-MuiTableCell-root"
                     colspan="1"
                     data-can-sort="true"
                     data-index="-1"
@@ -544,7 +599,7 @@
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-gh9b7p-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-18tod2f-MuiTableCell-root"
                     colspan="1"
                     data-can-sort="true"
                     data-index="-1"
@@ -568,6 +623,61 @@
                         >
                           <span
                             aria-label="Sort by Ready descending"
+                            class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                            role="button"
+                            tabindex="0"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                              data-testid="SyncAltIcon"
+                              focusable="false"
+                              style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                              />
+                            </svg>
+                          </span>
+                          <span
+                            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                          >
+                            0
+                          </span>
+                        </span>
+                      </div>
+                      <div
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                      />
+                    </div>
+                  </th>
+                  <th
+                    aria-sort="none"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-s5y09f-MuiTableCell-root"
+                    colspan="1"
+                    data-can-sort="true"
+                    data-index="-1"
+                    scope="col"
+                  >
+                    <div
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                    >
+                      <div
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                      >
+                        <div
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                        >
+                          Node Selector
+                        </div>
+                        <span
+                          aria-label="Sort by Node Selector ascending"
+                          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          <span
+                            aria-label="Sort by Node Selector ascending"
                             class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                             role="button"
                             tabindex="0"
@@ -678,61 +788,6 @@
                         >
                           <span
                             aria-label="Sort by Images ascending"
-                            class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
-                            role="button"
-                            tabindex="0"
-                          >
-                            <svg
-                              aria-hidden="true"
-                              class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
-                              data-testid="SyncAltIcon"
-                              focusable="false"
-                              style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
-                              />
-                            </svg>
-                          </span>
-                          <span
-                            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
-                          >
-                            0
-                          </span>
-                        </span>
-                      </div>
-                      <div
-                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
-                      />
-                    </div>
-                  </th>
-                  <th
-                    aria-sort="none"
-                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-19t21t5-MuiTableCell-root"
-                    colspan="1"
-                    data-can-sort="true"
-                    data-index="-1"
-                    scope="col"
-                  >
-                    <div
-                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
-                    >
-                      <div
-                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
-                      >
-                        <div
-                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
-                        >
-                          Selector
-                        </div>
-                        <span
-                          aria-label="Sort by Selector ascending"
-                          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
-                          data-mui-internal-clone-element="true"
-                        >
-                          <span
-                            aria-label="Sort by Selector ascending"
                             class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                             role="button"
                             tabindex="0"
@@ -887,7 +942,7 @@
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
-                      headlamp-release-b123456-truncation
+                      gadget-node-selector-truncation
                     </a>
                   </td>
                   <td
@@ -897,48 +952,31 @@
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
-                      default
+                      gadget
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1kpvfns-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-xlf580-MuiTableCell-root"
                   >
-                    0
+                    2
                   </td>
                   <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fynkiw-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1uat6tg-MuiTableCell-root"
                   >
-                    1
+                    2
                   </td>
                   <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qn2n7j-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-w1xyj5-MuiTableCell-root"
                   >
-                    0
+                    2
                   </td>
                   <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-136f0b-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1h9336s-MuiTableCell-root"
                   >
-                    <span
-                      aria-label="headlamp"
-                      class=""
-                      data-mui-internal-clone-element="true"
-                    >
-                      headlamp
-                    </span>
+                    2
                   </td>
                   <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1c21yoq-MuiTableCell-root"
-                  >
-                    <span
-                      aria-label="ghcr.io/headlamp-k8s/headlamp:v0.18.0"
-                      class=""
-                      data-mui-internal-clone-element="true"
-                    >
-                      ghcr.io/headlamp-k8s/headlamp:v0.18.0
-                    </span>
-                  </td>
-                  <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yzp8vs-MuiTableCell-root"
                   >
                     <div
                       class="MuiBox-root css-1ffwkcq"
@@ -962,7 +1000,7 @@
                             <p
                               class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                             >
-                              app.kubern…
+                              extra-long…
                             </p>
                           </div>
                         </div>
@@ -975,10 +1013,32 @@
                     </div>
                   </td>
                   <td
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-136f0b-MuiTableCell-root"
+                  >
+                    <span
+                      aria-label="gadget"
+                      class=""
+                      data-mui-internal-clone-element="true"
+                    >
+                      gadget
+                    </span>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1c21yoq-MuiTableCell-root"
+                  >
+                    <span
+                      aria-label="ghcr.io/inspektor-gadget/inspektor-gadget:v0.15.0"
+                      class=""
+                      data-mui-internal-clone-element="true"
+                    >
+                      ghcr.io/inspektor-gadget/inspektor-gadget:v0.15.0
+                    </span>
+                  </td>
+                  <td
                     class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
                   >
                     <p
-                      aria-label="2023-07-07T05:36:02.000Z"
+                      aria-label="2023-05-02T04:34:53.000Z"
                       class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
                       data-mui-internal-clone-element="true"
                     >

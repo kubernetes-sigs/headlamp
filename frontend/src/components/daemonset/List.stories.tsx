@@ -124,3 +124,43 @@ LongName.parameters = {
     },
   },
 };
+
+export const NodeSelectorTruncation = Template.bind({});
+NodeSelectorTruncation.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () =>
+          HttpResponse.json({
+            kind: 'DaemonSetList',
+            items: [
+              {
+                ...objList[0],
+                metadata: {
+                  ...objList[0].metadata,
+                  name: 'gadget-node-selector-truncation',
+                },
+                spec: {
+                  ...objList[0].spec,
+                  template: {
+                    ...objList[0].spec.template,
+                    spec: {
+                      ...objList[0].spec.template.spec,
+                      nodeSelector: {
+                        'kubernetes.io/os': 'linux-very-long-value-for-testing',
+                        'app.kubernetes.io/instance': 'headlamp-release-very-long-value',
+                        'node-role.kubernetes.io/worker': 'true-with-extra-long-value',
+                        'extra-long-label-key-for-testing': 'extra-long-value-for-testing',
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
