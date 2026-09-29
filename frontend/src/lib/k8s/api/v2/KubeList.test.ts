@@ -214,7 +214,7 @@ describe('KubeList.applyUpdate on events that carry no resource', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('returns the same list on an error, so nothing downstream re-renders', () => {
+  it('returns the same list on an error', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const result = KubeList.applyUpdate(
@@ -233,13 +233,36 @@ describe('KubeList.applyUpdate on events that carry no resource', () => {
 
     const result = KubeList.applyUpdate(
       listAtVersion7,
-      { type: 'BOOKMARK' as any, object: expiredStatus },
+      { type: 'UNKNOWN' as any, object: expiredStatus },
       itemClass,
       cluster
     );
 
     expect(result.metadata.resourceVersion).toBe('7');
     consoleErrorSpy.mockRestore();
+  });
+
+  it('advances the version on a bookmark without changing the items', () => {
+    const result = KubeList.applyUpdate(
+      listAtVersion7,
+      { type: 'BOOKMARK', object: { metadata: { resourceVersion: '8' } } as any },
+      itemClass,
+      cluster
+    );
+
+    expect(result.metadata.resourceVersion).toBe('8');
+    expect(result.items).toBe(listAtVersion7.items);
+  });
+
+  it('ignores a bookmark without a resource version', () => {
+    expect(
+      KubeList.applyUpdate(
+        listAtVersion7,
+        { type: 'BOOKMARK', object: { metadata: {} } as any },
+        itemClass,
+        cluster
+      )
+    ).toBe(listAtVersion7);
   });
 
   // The multiplexer builds its own ERROR event and stamps resourceVersion '0' on it, which

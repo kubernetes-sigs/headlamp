@@ -31,7 +31,7 @@ export interface KubeList<T extends KubeObjectInterface> {
 }
 
 export interface KubeListUpdateEvent<T extends KubeObjectInterface> {
-  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
+  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR' | 'BOOKMARK';
   object: T;
 }
 
@@ -56,14 +56,19 @@ export const KubeList = {
     // Skip if the update's resource version is older than or equal to what we have
     if (
       list.metadata.resourceVersion &&
-      update.object.metadata.resourceVersion &&
+      update.object.metadata?.resourceVersion &&
       parseInt(update.object.metadata.resourceVersion) <= parseInt(list.metadata.resourceVersion)
     ) {
       return list;
     }
 
+    if (update.type === 'BOOKMARK') {
+      const resourceVersion = update.object.metadata?.resourceVersion;
+      return resourceVersion ? { ...list, metadata: { ...list.metadata, resourceVersion } } : list;
+    }
+
     const newItems = [...list.items];
-    const index = newItems.findIndex(item => item.metadata.uid === update.object.metadata.uid);
+    const index = newItems.findIndex(item => item.metadata.uid === update.object.metadata?.uid);
 
     switch (update.type) {
       case 'ADDED':
