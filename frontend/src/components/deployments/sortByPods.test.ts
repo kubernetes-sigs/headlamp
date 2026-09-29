@@ -17,7 +17,7 @@
 import type Deployment from '../../lib/k8s/deployment';
 import { sortByPods } from './sortByPods';
 
-function makeDeployment(name: string, status: object) {
+function makeDeployment(name: string, status: Partial<Deployment['status']>) {
   return { metadata: { name }, status } as Deployment;
 }
 
