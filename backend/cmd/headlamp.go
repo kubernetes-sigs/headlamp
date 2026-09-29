@@ -53,6 +53,7 @@ import (
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
@@ -660,6 +661,10 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
+	if config.ClientsetCache == nil {
+		config.ClientsetCache = k8cache.NewClientsetCache()
+	}
+
 	kubeConfigPath := config.KubeConfigPath
 
 	config.ServerCtx = ctx
@@ -1579,6 +1584,13 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	// Create a cancellable context for watcher goroutines
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	if config.ClientsetCache == nil {
+		config.ClientsetCache = k8cache.NewClientsetCache()
+	}
+
+	config.ClientsetCache.Start(ctx)
+	defer config.ClientsetCache.Stop()
 
 	handler, err := serverHandler(ctx, config)
 	if err != nil {

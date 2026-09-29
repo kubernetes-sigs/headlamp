@@ -207,8 +207,10 @@ func CheckForChanges(
 // SyncWatchers stops watchers for contexts that are no longer active and purges
 // their cached API responses and authorization clientsets.
 // activeContexts is a list of currently valid context keys.
-func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
-	clearBlockedClientsetPrefixesForActiveContexts(activeContexts)
+func SyncWatchers(k8scache cache.Cache[string], authCache *ClientsetCache, activeContexts []string) {
+	if authCache != nil {
+		authCache.ClearBlockedClientsetPrefixesForActiveContexts(activeContexts)
+	}
 
 	activeMap := make(map[string]bool, len(activeContexts))
 	for _, ctx := range activeContexts {
@@ -229,7 +231,7 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 				cancel()
 				watcherRegistry.Delete(contextKey)
 				contextCancel.Delete(contextKey)
-				cleanupRemovedContext(k8scache, contextKey)
+				cleanupRemovedContext(k8scache, authCache, contextKey)
 				cleaned[contextKey] = struct{}{}
 			}
 		}
@@ -237,7 +239,7 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 		return true
 	})
 
-	for contextKey := range collectCachedContextKeys(k8scache) {
+	for contextKey := range collectCachedContextKeys(k8scache, authCache) {
 		if activeMap[contextKey] {
 			continue
 		}
@@ -246,7 +248,7 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 			continue
 		}
 
-		cleanupRemovedContext(k8scache, contextKey)
+		cleanupRemovedContext(k8scache, authCache, contextKey)
 	}
 }
 

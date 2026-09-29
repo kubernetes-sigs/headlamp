@@ -17,10 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,4 +73,26 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 		assert.Empty(t, headlampCFG.ProxyURLs)
 	})
+}
+
+func TestCreateHeadlampConfig_InitializesClientsetCache(t *testing.T) {
+	conf := &config.Config{}
+	cfg := createHeadlampConfig(conf)
+
+	assert.NotNil(t, cfg.ClientsetCache, "createHeadlampConfig must initialize ClientsetCache")
+}
+
+func TestCreateHeadlampHandler_DefaultsNilClientsetCache(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+			TelemetryHandler: &telemetry.RequestHandler{},
+			Cache:            cache.New[interface{}](),
+		},
+	}
+
+	_ = createHeadlampHandler(context.Background(), cfg)
+
+	assert.NotNil(t, cfg.ClientsetCache, "createHeadlampHandler must initialize nil ClientsetCache")
 }
