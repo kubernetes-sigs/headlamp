@@ -274,11 +274,26 @@ const networkPolicyToPod = makeRelation('networkpolicy-pod', NetworkPolicy, Pod,
   matchesLabels(np.spec.podSelector.matchLabels ?? {}, pod)
 );
 
+// roleRef.kind decides which of the two kinds the name refers to, so it has to be
+// part of the match. Without it a binding that grants a ClusterRole would also draw
+// an edge to any namespaced Role sharing that name, and vice versa.
 const roleBindingsToRole = makeRelation(
   'rolebinding-role',
   RoleBinding,
   Role,
-  (binding, role) => role.metadata.name === binding.roleRef.name
+  (binding, role) => binding.roleRef.kind === 'Role' && role.metadata.name === binding.roleRef.name
+);
+
+// Granting a ClusterRole inside a single namespace is how the built-in view, edit
+// and admin roles are usually handed out, so this is the common way a RoleBinding
+// reaches a ClusterRole. makeRelation skips its shared namespace check here because
+// the ClusterRole is cluster scoped.
+const roleBindingToClusterRole = makeRelation(
+  'rolebinding-clusterrole',
+  RoleBinding,
+  ClusterRole,
+  (binding, clusterRole) =>
+    binding.roleRef.kind === 'ClusterRole' && clusterRole.metadata.name === binding.roleRef.name
 );
 
 const roleBindingToServiceAccount = makeRelation(
@@ -505,6 +520,7 @@ const staticRelations = [
   ingressToSecret,
   networkPolicyToPod,
   roleBindingsToRole,
+  roleBindingToClusterRole,
   roleBindingToServiceAccount,
   clusterRoleBindingToClusterRole,
   clusterRoleBindingToServiceAccount,
