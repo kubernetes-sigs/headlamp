@@ -19,12 +19,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import App from '../../../../App';
 import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../../../lib/k8s/gatewayL4RouteAvailability';
 import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
 import {
+  useCompositePodGroupClustersByVersion,
   usePodGroupClustersByVersion,
   useSchedulingWorkloadClustersByVersion,
 } from '../../../../lib/k8s/schedulingApis';
@@ -53,6 +55,7 @@ vi.mock('../../../../lib/k8s/schedulingApis', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../lib/k8s/schedulingApis')>()),
   usePodGroupClustersByVersion: vi.fn(),
   useSchedulingWorkloadClustersByVersion: vi.fn(),
+  useCompositePodGroupClustersByVersion: vi.fn(),
 }));
 
 // Initialize the complete Kubernetes class registry before loading source definitions.
@@ -125,6 +128,7 @@ describe('useGetAllSources', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
     vi.mocked(usePodGroupClustersByVersion).mockReturnValue({});
     vi.mocked(useSchedulingWorkloadClustersByVersion).mockReturnValue({});
+    vi.mocked(useCompositePodGroupClustersByVersion).mockReturnValue({});
     vi.spyOn(VPA, 'isEnabled').mockResolvedValue(false);
   });
 
@@ -172,12 +176,14 @@ describe('useGetAllSources', () => {
     expect(findGroup(withoutApis.current, 'scheduling')).toBeUndefined();
 
     vi.mocked(usePodGroupClustersByVersion).mockReturnValue({ [V1BETA1]: ['cluster-a'] });
+    vi.mocked(useCompositePodGroupClustersByVersion).mockReturnValue({ [V1ALPHA3]: ['cluster-a'] });
     const { result } = renderHook(() => useGetAllSources());
     const scheduling = findGroup(result.current, 'scheduling');
 
     expect(scheduling.isEnabledByDefault).toBe(false);
     expect(scheduling.sources.map(source => source.id)).toEqual([
       'scheduling.k8s.io/Workload',
+      'scheduling.k8s.io/CompositePodGroup',
       'scheduling.k8s.io/PodGroup',
     ]);
   });
@@ -213,6 +219,32 @@ describe('useGetAllSources', () => {
     expect((podGroupSource.icon as ReactElement<{ apiGroup?: string }>).props.apiGroup).toBe(
       'scheduling.k8s.io'
     );
+  });
+
+  it('leaves CompositePodGroup out while its own feature gate is disabled', () => {
+    // It needs a feature gate on top of the flat APIs, so a cluster that serves Workload
+    // and PodGroup would answer a list of it with a 404.
+    vi.mocked(usePodGroupClustersByVersion).mockReturnValue({ [V1BETA1]: ['cluster-a'] });
+
+    const { result } = renderHook(() => useGetAllSources());
+
+    expect(findGroup(result.current, 'scheduling').sources.map(source => source.id)).toEqual([
+      'scheduling.k8s.io/Workload',
+      'scheduling.k8s.io/PodGroup',
+    ]);
+  });
+
+  it('asks the CompositePodGroup source only for the clusters that serve it', () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['gang', 'composite']);
+    vi.mocked(usePodGroupClustersByVersion).mockReturnValue({ [V1BETA1]: ['gang', 'composite'] });
+    vi.mocked(useCompositePodGroupClustersByVersion).mockReturnValue({ [V1ALPHA3]: ['composite'] });
+    const useList = vi.spyOn(CompositePodGroup, 'useList').mockReturnValue([null] as any);
+
+    const { result: sources } = renderHook(() => useGetAllSources());
+    const compositeSource = findLeaf(sources.current, 'scheduling.k8s.io/CompositePodGroup')!;
+    renderHook(() => compositeSource.useData());
+
+    expect(askedVersions(useList)).toEqual([[V1ALPHA3, ['composite']]]);
   });
 
   it('keeps Gateway sources group-gated without adding undiscovered L4 kinds', () => {
