@@ -18,8 +18,12 @@ import type { BrowserWindow } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 import { AppMenu, menusToTemplate } from './menu';
 
+/** The URL the app window is started with in these tests. */
+const START_URL = 'file:///opt/Headlamp/resources/frontend/index.html';
+
 function setup(mainWindow: BrowserWindow | null = null) {
   const actions = {
+    startUrl: START_URL,
     openExternal: vi.fn().mockResolvedValue(undefined),
     openAboutDialog: vi.fn(),
     adjustZoom: vi.fn(),
@@ -80,15 +84,16 @@ describe('menusToTemplate', () => {
     expect(actions.setZoom).toHaveBeenCalledWith(1);
   });
 
-  it('loads internal URLs in the app window', async () => {
+  it('loads app URLs in the app window', async () => {
     const loadURL = vi.fn().mockResolvedValue(undefined);
     const mainWindow = { webContents: { loadURL } } as unknown as BrowserWindow;
     const { actions, convert } = setup(mainWindow);
-    const [internal] = convert([{ id: 'internal', url: 'file:///settings' }]);
+    const route = `${START_URL}#/settings`;
+    const [internal] = convert([{ id: 'internal', url: route }]);
 
     await internal.click?.({} as never, {} as never, {} as never);
 
-    expect(loadURL).toHaveBeenCalledWith('file:///settings');
+    expect(loadURL).toHaveBeenCalledWith(route);
     expect(actions.openExternal).not.toHaveBeenCalled();
   });
 
@@ -106,12 +111,32 @@ describe('menusToTemplate', () => {
 
   it('opens URLs externally when there is no app window', async () => {
     const { actions, convert } = setup();
-    const [external] = convert([{ id: 'external', url: 'headlamp://cluster' }]);
+    const [external] = convert([{ id: 'external', url: 'http://example.com' }]);
 
     await external.click?.({} as never, {} as never, {} as never);
 
-    expect(actions.openExternal).toHaveBeenCalledWith('headlamp://cluster');
+    expect(actions.openExternal).toHaveBeenCalledWith('http://example.com');
   });
+
+  it.each(['file:///etc/passwd', 'data:text/html,<h1>x', 'headlamp://cluster', 'smb://host/share'])(
+    'ignores the menu URL %s, which reaches neither sink',
+    async url => {
+      const loadURL = vi.fn();
+      const mainWindow = { webContents: { loadURL } } as unknown as BrowserWindow;
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { actions, convert } = setup(mainWindow);
+      const [unsafe] = convert([{ id: 'unsafe', url }]);
+
+      await unsafe.click?.({} as never, {} as never, {} as never);
+
+      expect(loadURL).not.toHaveBeenCalled();
+      expect(actions.openExternal).not.toHaveBeenCalled();
+      expect(consoleWarn).toHaveBeenCalledWith(
+        `Ignoring menu URL ${url}: not an app URL nor an http(s) URL.`
+      );
+      consoleWarn.mockRestore();
+    }
+  );
 
   it('logs rejected URL actions', async () => {
     const error = new Error('open failed');
