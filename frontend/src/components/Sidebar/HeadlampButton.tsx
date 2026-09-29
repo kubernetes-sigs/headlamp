@@ -53,11 +53,11 @@ export default function HeadlampButton({
   return (
     <Box>
       <Button
+        color="inherit"
         onClick={onToggleOpen}
-        sx={theme => ({
+        sx={{
           padding: isSmall && !open ? `10px 10px` : '6px 8px',
-          color: theme.palette.text.primary,
-        })}
+        }}
         aria-label={open ? t('Shrink sidebar') : t('Expand sidebar')}
         disabled={disabled}
       >

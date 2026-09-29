@@ -1,4 +1,4 @@
-package serviceproxy //nolint
+package serviceproxy //nolint:testpackage // Tests exercise unexported service proxy internals.
 
 import (
 	"context"

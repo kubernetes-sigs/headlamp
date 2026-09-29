@@ -86,6 +86,15 @@ export interface ProductPluginCommandPolicy {
   };
   /** Reviewed command grants for the plugin. */
   grants: RunCommandGrant[];
+  /** Product-configured native cluster registration providers for this plugin. */
+  clusterRegistrationProviders?: Array<{
+    /** Stable provider ID supplied by the plugin. */
+    id: string;
+    /** Built-in provider implementation selected by the product. */
+    type: string;
+    /** Verified external-tool IDs consumed by this provider. */
+    tools: Record<string, string>;
+  }>;
 }
 
 // Keep these IPC contract interfaces in sync with frontend/src/plugin/commandCapabilities.ts.
@@ -136,7 +145,9 @@ export interface PluginCommandRegistration {
  * const commandCapability: PluginCommandCapability = {
  *   bundleName: 'example-plugin',
  *   packageName: '@example/plugin',
+ *   source: 'shipped',
  *   capability: '4f8c2a917bd03e65a1c94f286e5b70d39ac214ef53d8b607c1e49a728f306db5',
+ *   clusterRegistrationProviders: [],
  * };
  * ```
  */
@@ -145,8 +156,12 @@ export interface PluginCommandCapability {
   bundleName: string;
   /** Package identity bound to the capability. */
   packageName: string;
+  /** Verified plugin inventory bound to the capability. */
+  source: ProductPluginCommandPolicy['source'];
   /** Opaque authorization token. */
   capability: string;
+  /** Provider IDs this exact plugin identity may invoke. */
+  clusterRegistrationProviders: string[];
 }
 
 /** Command capability state retained only by Electron's main process. */
@@ -765,7 +780,11 @@ export function createProductCommandCapabilities(
     capabilities.push({
       bundleName: policy.bundleName,
       packageName: policy.packageName,
+      source: policy.source,
       capability,
+      clusterRegistrationProviders: (policy.clusterRegistrationProviders ?? []).map(
+        provider => provider.id
+      ),
     });
     capabilityRegistry.set(capability, { ...policy, webContentsId });
   }
@@ -1169,6 +1188,16 @@ function cryptoRandom() {
   return array[0] / (0xffffffff + 1);
 }
 
+/** Capability authorization retained by Electron and used by privileged handlers. */
+export interface PrivatePluginCapabilities {
+  /** Returns the configured provider granted to this verified renderer/plugin capability. */
+  authorizeClusterRegistration(
+    event: Electron.IpcMainInvokeEvent,
+    providerId: string,
+    capability: string
+  ): NonNullable<ProductPluginCommandPolicy['clusterRegistrationProviders']>[number] | undefined;
+}
+
 /**
  * Sets up the IPC handlers for running commands.
  * Called in the main process to handle 'run-command' events.
@@ -1179,6 +1208,8 @@ function cryptoRandom() {
  * @param trustedStartUrl - Headlamp document URL allowed to register and use capabilities.
  * @param pluginRoots - Optional inventory roots used to verify plugin files during registration.
  * @param isDevelopment - Runtime mode selected by the Electron entry point.
+ * @param developmentPluginsEnabled - Reports whether development plugins may receive capabilities.
+ * @returns Private capability secrets, or undefined when no main window is available.
  */
 export function setupRunCmdHandlers(
   mainWindow: BrowserWindow | null,
@@ -1188,7 +1219,7 @@ export function setupRunCmdHandlers(
   pluginRoots?: Record<ProductPluginCommandPolicy['source'], string>,
   isDevelopment = false,
   developmentPluginsEnabled: () => boolean = () => false
-) {
+): PrivatePluginCapabilities | undefined {
   if (mainWindow === null) {
     console.error('Main window is null, cannot set up run command handlers');
     return;
@@ -1286,6 +1317,22 @@ export function setupRunCmdHandlers(
     );
   ipcMain.on('run-command', runCommand);
   runCmdIpcListeners.set(ipcMain, { requestPermissionSecrets, revokeCapabilities, runCommand });
+  return {
+    authorizeClusterRegistration(event, providerId, capability) {
+      const registered = capabilityRegistry.get(capability);
+      if (
+        !registered ||
+        registered.webContentsId !== event.sender.id ||
+        event.sender !== mainWindow.webContents ||
+        event.senderFrame !== mainWindow.webContents.mainFrame ||
+        (trustedStartUrl !== undefined &&
+          !isTrustedDocumentUrl(event.senderFrame.url, trustedStartUrl))
+      ) {
+        return undefined;
+      }
+      return registered.clusterRegistrationProviders?.find(provider => provider.id === providerId);
+    },
+  };
 }
 
 /** Revokes every command capability issued by handlers registered on this IPC instance. */

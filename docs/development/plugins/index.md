@@ -38,6 +38,10 @@ Learn the development workflow, production builds, and deployment strategies.
 
 Configure product-owned command grants for verified plugins.
 
+### [Desktop Cluster Registration Providers](./cluster-registration-providers.md)
+
+Add capability-protected native credential providers for desktop products.
+
 ### 📖 [Common Patterns](./common-patterns.md)
 
 Ready-to-use examples for typical plugin scenarios like dashboards, resource extensions, and external integrations.

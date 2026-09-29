@@ -257,5 +257,13 @@ http.createServer((request, response) => {
     } catch {
       // Ignore cleanup error if directory is still locked on Windows.
     }
+    // On Windows, Electron's child processes can keep files in the profile
+    // locked for a moment after the process tree is killed.
+    fs.rmSync(internalUserDataDir, {
+      force: true,
+      recursive: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
   }
 });

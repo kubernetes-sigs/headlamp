@@ -32,10 +32,19 @@ const packageJson = JSON.parse(
   };
   /** Dependency lifecycle scripts explicitly approved by npm. */
   allowScripts?: Record<string, boolean>;
+  scripts: Record<string, string>;
   /** Desktop build dependencies keyed by package name. */
   devDependencies: Record<string, string>;
   optionalDependencies: Record<string, string>;
 };
+const rootPackageJson = JSON.parse(
+  fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+) as { scripts: Record<string, string> };
+const makefile = fs.readFileSync(new URL('../../Makefile', import.meta.url), 'utf8');
+const appWorkflow = fs.readFileSync(
+  new URL('../../.github/workflows/app.yml', import.meta.url),
+  'utf8'
+);
 const packageLock = JSON.parse(
   fs.readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
 ) as {
@@ -71,6 +80,49 @@ describe('desktop package configuration', () => {
 
   it('uses the product name for artifact filenames', () => {
     expect(packageJson.build.artifactName).toBe('${productName}-${version}-${os}-${arch}.${ext}');
+  });
+
+  it('packages prepared assets without an intermediate Electron Builder pass', () => {
+    expect(packageJson.scripts.package).toBe(
+      'npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder build --config electron-builder.config.ts --publish never'
+    );
+    expect(packageJson.scripts['package:prepared']).toBe(
+      'electron-builder build --config electron-builder.config.ts --publish never'
+    );
+  });
+
+  it('prepares standard package entry points without an intermediate Builder pass', () => {
+    expect(rootPackageJson.scripts['app:prepare']).toBe(
+      'npm run frontend:build && cd app && tsx ./scripts/setup-plugins.ts'
+    );
+    for (const script of [
+      'app:package',
+      'app:package:win',
+      'app:package:win:msi',
+      'app:package:linux',
+      'app:package:mac',
+    ]) {
+      expect(rootPackageJson.scripts[script]).toMatch(/^npm run app:prepare &&/);
+      expect(rootPackageJson.scripts[script]).not.toContain('npm run app:build');
+    }
+
+    expect(makefile).toMatch(/^app-prepare: frontend\/build$/m);
+    expect(makefile).toMatch(/^app-build: app-prepare$/m);
+    for (const target of [
+      'app',
+      'app-win',
+      'app-win-x64',
+      'app-win-arm64',
+      'app-win-msi-x64',
+      'app-win-msi-arm64',
+      'app-linux',
+      'app-mac',
+    ]) {
+      expect(makefile).toMatch(new RegExp(`^${target}: app-prepare$`, 'm'));
+    }
+
+    expect(appWorkflow).toContain('run: make app-win-${{ matrix.arch }}');
+    expect(appWorkflow).not.toContain('make app-build');
   });
 
   it('expands the product name in Windows MSI filenames', () => {
