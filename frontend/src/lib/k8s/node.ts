@@ -79,9 +79,9 @@ class Node extends KubeObject<KubeNode> {
     return this.jsonData.spec;
   }
 
-  static useMetrics(cluster?: string): [KubeMetrics[] | null, ApiError | null] {
+  static useMetrics(cluster?: string): [KubeMetrics[] | null, ApiError[]] {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { items, error } = NodeMetrics.useList({
+    const { items, errors } = NodeMetrics.useList({
       cluster,
       refetchInterval: METRIC_REFETCH_INTERVAL_MS,
     });
@@ -91,7 +91,7 @@ class Node extends KubeObject<KubeNode> {
       [items]
     );
 
-    return [nodeMetrics, error];
+    return [nodeMetrics, errors ?? []];
   }
 
   static useNodeSummaryStats(

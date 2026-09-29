@@ -19,6 +19,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { ApiError } from './api/v2/ApiError';
 import { clusterFetch } from './api/v2/fetch';
 import Node from './node';
 import { SelectedClustersContext } from './SelectedClustersContext';
@@ -26,6 +27,22 @@ import { SelectedClustersContext } from './SelectedClustersContext';
 // Loading the real router from ./node runs into a circular import.
 vi.mock('../router/createRouteURL', () => ({ createRouteURL: vi.fn() }));
 vi.mock('./api/v2/fetch', () => ({ clusterFetch: vi.fn() }));
+
+function renderUseMetrics() {
+  const queryClient = new QueryClient();
+
+  return renderHook(() => Node.useMetrics(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <SelectedClustersContext.Provider value={['cluster-a', 'cluster-b']}>
+            {children}
+          </SelectedClustersContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    ),
+  });
+}
 
 describe('Node.useMetrics', () => {
   it('fetches metrics from all the selected clusters', async () => {
@@ -43,22 +60,23 @@ describe('Node.useMetrics', () => {
           }),
         } as unknown as Response)
     );
-    const queryClient = new QueryClient();
 
-    const { result } = renderHook(() => Node.useMetrics(), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter>
-            <SelectedClustersContext.Provider value={['cluster-a', 'cluster-b']}>
-              {children}
-            </SelectedClustersContext.Provider>
-          </MemoryRouter>
-        </QueryClientProvider>
-      ),
-    });
+    const { result } = renderUseMetrics();
 
     await waitFor(() =>
       expect(result.current[0]?.map(metrics => metrics.cluster)).toEqual(['cluster-a', 'cluster-b'])
+    );
+  });
+
+  it('returns the errors from all the clusters that failed', async () => {
+    vi.mocked(clusterFetch).mockImplementation(async () => {
+      throw new ApiError('Not Found', { status: 404 });
+    });
+
+    const { result } = renderUseMetrics();
+
+    await waitFor(() =>
+      expect(result.current[1].map(error => error.cluster)).toEqual(['cluster-a', 'cluster-b'])
     );
   });
 });

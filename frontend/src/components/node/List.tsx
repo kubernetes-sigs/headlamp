@@ -27,12 +27,12 @@ import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
 import { formatTaint, isNodeCordoned, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
-  const [nodeMetrics, metricsError] = Node.useMetrics();
+  const [nodeMetrics, metricsErrors] = Node.useMetrics();
   const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
   const noMetrics = (node: Node) =>
-    metricsError?.status === 404 && metricsError.cluster === node.cluster;
+    metricsErrors.some(error => error.cluster === node.cluster && error.status === 404);
 
   const hasNodePools = useMemo(() => {
     if (!items || items.length === 0) return false;
