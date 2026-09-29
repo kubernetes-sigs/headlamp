@@ -96,6 +96,7 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
           item.metadata?.namespace,
           item.metadata?.name,
           item.kind,
+          item.jsonData?.apiVersion,
         ],
         queryFn: () =>
           isEvict

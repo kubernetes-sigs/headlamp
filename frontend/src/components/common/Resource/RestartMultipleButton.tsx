@@ -69,6 +69,7 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
         item.metadata?.namespace,
         item.metadata?.name,
         item.kind,
+        item.jsonData?.apiVersion,
       ],
       queryFn: () => item.getAuthorization('patch'),
     })),

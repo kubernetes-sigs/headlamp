@@ -22,6 +22,10 @@ import { vi } from 'vitest';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/clusterActionSlice')>()),
+  clusterAction: (callback: () => Promise<unknown>) => () => callback(),
+}));
 
 // Hoist mock classes before imports so vi.mock can use them. We mock KubeObject/namespace
 // (rather than importing the real ones) to avoid a circular-import ordering issue in the
@@ -55,7 +59,7 @@ const { MockKubeObject, MockNamespace, authPolicy, mockSettings } = vi.hoisted((
     getListLink() {
       return '/namespaces';
     }
-    delete = async () => undefined;
+    delete = vi.fn(async () => undefined);
     getAuthorization = vi.fn(async (verb: string, attrs?: Record<string, any>) => ({
       status: { allowed: authPolicy.allows(this, verb, attrs), reason: '' },
     }));
@@ -211,6 +215,30 @@ describe('DeleteMultipleButton', () => {
 
     expect(within(dialog).getByText(/my-app/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/team-b/)).not.toBeInTheDocument();
+  });
+
+  it('deletes only authorized items after confirmation', async () => {
+    authPolicy.allows = item => item.metadata.name !== 'team-b';
+    const allowed = makeNamespace({ name: 'my-app' });
+    const denied = makeNamespace({ name: 'team-b' });
+    renderButton([allowed, denied]);
+    const dialog = await openDialog();
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(allowed.delete).toHaveBeenCalledOnce());
+    expect(denied.delete).not.toHaveBeenCalled();
+  });
+
+  it('keeps authorization results separate for resources with different API versions', async () => {
+    const allowed = makeNamespace({ name: 'shared' });
+    const denied = makeNamespace({ name: 'shared' });
+    denied.jsonData.apiVersion = 'example.io/v1';
+    authPolicy.allows = item => item === allowed;
+    renderButton([allowed, denied]);
+
+    await screen.findByLabelText('translation|Delete items');
+    expect(allowed.getAuthorization).toHaveBeenCalled();
+    expect(denied.getAuthorization).toHaveBeenCalled();
   });
 
   it('skips the protected namespace confirmation for protected namespaces the user cannot delete', async () => {

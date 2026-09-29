@@ -25,10 +25,15 @@ import RestartMultipleButton from './RestartMultipleButton';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/clusterActionSlice')>()),
+  clusterAction: (callback: () => Promise<unknown>) => () => callback(),
+}));
 
 function makeResource(name: string, allowed: boolean) {
   return {
     kind: 'Deployment',
+    jsonData: { apiVersion: 'apps/v1' },
     cluster: '',
     metadata: { uid: `uid-${name}`, name, namespace: 'default' },
     patch: vi.fn(async () => undefined),
@@ -73,5 +78,28 @@ describe('RestartMultipleButton', () => {
 
     expect(within(dialog).getByText('web')).toBeInTheDocument();
     expect(within(dialog).queryByText('api')).not.toBeInTheDocument();
+  });
+
+  it('patches only authorized items after confirmation', async () => {
+    const allowed = makeResource('web', true);
+    const denied = makeResource('api', false);
+    renderButton([allowed, denied]);
+
+    fireEvent.click(await screen.findByLabelText('translation|Restart items'));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByText('Restart'));
+
+    await waitFor(() => expect(allowed.patch).toHaveBeenCalledOnce());
+    expect(denied.patch).not.toHaveBeenCalled();
+  });
+
+  it('keeps authorization results separate for resources with different API versions', async () => {
+    const allowed = makeResource('shared', true);
+    const denied = makeResource('shared', false);
+    denied.jsonData.apiVersion = 'other.example.io/v1';
+    renderButton([allowed, denied]);
+
+    await screen.findByLabelText('translation|Restart items');
+    expect(allowed.getAuthorization).toHaveBeenCalled();
+    expect(denied.getAuthorization).toHaveBeenCalled();
   });
 });
