@@ -312,10 +312,26 @@ func (m *Multiplexer) resolveClientToken(
 	defer m.mutex.Unlock()
 
 	clusterTokens := m.clientTokens[clientConn]
+	if clusterTokens == nil {
+		clusterTokens = make(map[string]*clientTokenScope)
+		m.clientTokens[clientConn] = clusterTokens
+	}
 
 	scope := clusterTokens[clusterID]
 	if scope == nil {
-		return requestToken
+		// The scope belongs to the browser WebSocket, not the upstream dial.
+		// A failed dial must still observe later refreshes on a retry.
+		requestTokenHash := sha256.Sum256([]byte(*requestToken))
+		clusterTokens[clusterID] = &clientTokenScope{
+			token: *requestToken,
+			acceptedTokenHashes: map[[sha256.Size]byte]struct{}{
+				requestTokenHash: {},
+			},
+		}
+
+		resolvedToken := *requestToken
+
+		return &resolvedToken
 	}
 
 	if scope.token != *requestToken {
