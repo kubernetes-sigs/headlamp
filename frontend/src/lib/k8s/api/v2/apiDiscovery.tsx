@@ -348,50 +348,31 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         apisAggregatedPromise,
       ]);
 
-      let apiAggregatedOk = false;
-      if (
-        apiAggregatedResult.status === 'fulfilled' &&
-        apiAggregatedResult.value &&
-        Array.isArray(apiAggregatedResult.value.items)
-      ) {
-        // The `items` array is itself the answer, so record it before processing. A
-        // payload whose nested shape is malformed can make the processor throw, and
-        // that must not retract an answer the cluster already gave, nor discard what
-        // the other source collected before it.
-        apiAggregatedOk = true;
-        anyClusterAnswered = true;
-        processAggregatedDiscoveryItems(apiAggregatedResult.value.items, resultMap);
-      }
-
-      let apisAggregatedOk = false;
-      if (
-        apisAggregatedResult.status === 'fulfilled' &&
-        apisAggregatedResult.value &&
-        Array.isArray(apisAggregatedResult.value.items)
-      ) {
-        apisAggregatedOk = true;
-        anyClusterAnswered = true;
-        processAggregatedDiscoveryItems(apisAggregatedResult.value.items, resultMap);
-      }
-
-      if (!apiAggregatedOk) {
-        logAggregatedUnusable('/api', cluster, apiAggregatedResult);
-        failureStatuses.add(
-          apiAggregatedResult.status === 'rejected'
-            ? httpStatusOf(apiAggregatedResult.reason)
-            : undefined
-        );
-      }
-      if (!apisAggregatedOk) {
-        logAggregatedUnusable('/apis', cluster, apisAggregatedResult);
-        failureStatuses.add(
-          apisAggregatedResult.status === 'rejected'
-            ? httpStatusOf(apisAggregatedResult.reason)
-            : undefined
-        );
-      }
-      if (!apiAggregatedOk || !apisAggregatedOk) {
-        useFallback = true;
+      for (const [path, result] of [
+        ['/api', apiAggregatedResult],
+        ['/apis', apisAggregatedResult],
+      ] as const) {
+        if (result.status === 'fulfilled' && result.value && Array.isArray(result.value.items)) {
+          // Record the answer before processing, and isolate each source so malformed
+          // nested data cannot prevent the other source from contributing resources.
+          anyClusterAnswered = true;
+          try {
+            processAggregatedDiscoveryItems(result.value.items, resultMap);
+          } catch (error) {
+            console.debug(
+              `Aggregated ${path} discovery processing failed for cluster ${cluster}; falling back to legacy:`,
+              error
+            );
+            failureStatuses.add(httpStatusOf(error));
+            useFallback = true;
+          }
+        } else {
+          logAggregatedUnusable(path, cluster, result);
+          failureStatuses.add(
+            result.status === 'rejected' ? httpStatusOf(result.reason) : undefined
+          );
+          useFallback = true;
+        }
       }
     } catch (error) {
       console.debug(

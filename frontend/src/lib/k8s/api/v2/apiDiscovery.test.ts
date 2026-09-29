@@ -812,6 +812,32 @@ describe('apiDiscovery', () => {
 
       expect(result.map(resource => resource.pluralName)).toContain('pods');
     });
+
+    it.each([false, true])(
+      'processes /apis after malformed /api data (valid prefix: %s)',
+      async includeValidPrefix => {
+        mockClusterFetch
+          .mockResolvedValueOnce(
+            mockJsonResponse({
+              items: [
+                ...(includeValidPrefix ? mockAggregatedApi.items : []),
+                { versions: [{ version: 'v1', resources: 'not-an-array' }] },
+              ],
+            })
+          )
+          .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis))
+          .mockRejectedValueOnce(new Error('legacy /api down'))
+          .mockRejectedValueOnce(new Error('legacy /apis down'));
+
+        const result = await apiDiscovery(['cluster1']);
+
+        expect(result.map(resource => resource.pluralName)).toContain('deployments');
+        if (includeValidPrefix) {
+          expect(result.map(resource => resource.pluralName)).toContain('pods');
+        }
+        expect(mockClusterFetch).toHaveBeenCalledTimes(4);
+      }
+    );
   });
 
   // #4840: critical network and parsing failures used to be swallowed without
