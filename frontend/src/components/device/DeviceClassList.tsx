@@ -16,15 +16,22 @@
 
 import { useTranslation } from 'react-i18next';
 import DeviceClass from '../../lib/k8s/deviceClass';
+import { useClustersServing } from '../../lib/k8s/resourceAvailability';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function DeviceClassList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  // Only some of the selected clusters may serve the API, and asking the others
+  // would report errors for clusters that simply do not have the feature. The
+  // list stays on every selected cluster until the probe has answered, because
+  // an empty set would mean asking none of them.
+  const servingClusters = useClustersServing(DeviceClass);
 
   return (
     <ResourceListView
       title={t('glossary|Device Classes')}
       resourceClass={DeviceClass}
+      clusters={servingClusters.length > 0 ? servingClusters : undefined}
       columns={[
         'name',
         'cluster',
