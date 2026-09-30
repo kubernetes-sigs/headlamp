@@ -148,6 +148,9 @@ function PureLink(
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
+  const drawerLocation = useTypedSelector(
+    state => state?.drawerMode?.detailsDrawerLocation ?? 'split-right'
+  );
 
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 
@@ -195,9 +198,10 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
               ' ' +
               selectedResource.metadata.name +
               selectedResource.cluster,
+            kind: 'details',
             title: selectedResource.kind + ' ' + selectedResource.metadata.name,
             hideTitleInHeader: true,
-            location: 'split-right',
+            location: drawerLocation,
             cluster: selectedResource.cluster,
             temporary: true,
             content: (

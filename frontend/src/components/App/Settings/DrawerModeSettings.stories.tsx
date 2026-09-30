@@ -25,7 +25,9 @@ import DrawerModeSettings from './DrawerModeSettings';
 function storeWith(isDetailDrawerEnabled: boolean) {
   return configureStore({
     reducer: { drawerMode: drawerModeReducer },
-    preloadedState: { drawerMode: { isDetailDrawerEnabled } },
+    preloadedState: {
+      drawerMode: { isDetailDrawerEnabled, detailsDrawerLocation: 'split-right' as const },
+    },
   });
 }
 
