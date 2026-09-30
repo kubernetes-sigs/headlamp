@@ -52,8 +52,12 @@ export interface PhaseLabelProps {
  * <PhaseLabel phase={namespace.status.phase} />
  *
  * @example
- * // PersistentVolume (Bound = success, Available = warning)
- * <PhaseLabel phase={pv.status.phase} successPhase="Bound" warningPhases={['Available']} />
+ * // PersistentVolume (Bound = success; Pending, Available, Released = warning)
+ * <PhaseLabel
+ *   phase={pv.status.phase}
+ *   successPhase="Bound"
+ *   warningPhases={['Pending', 'Available', 'Released']}
+ * />
  *
  * @example
  * // Port forward running check
