@@ -34,8 +34,8 @@ vi.mock('./api/v2/fetch', () => ({
   clusterFetch: vi.fn(),
 }));
 
-const resource = (kind: 'TCPRoute' | 'UDPRoute', verbs = ['list']) => ({
-  name: kind === 'TCPRoute' ? 'tcproutes' : 'udproutes',
+const resource = (kind: 'TCPRoute' | 'TLSRoute' | 'UDPRoute', verbs = ['list']) => ({
+  name: kind === 'TCPRoute' ? 'tcproutes' : kind === 'TLSRoute' ? 'tlsroutes' : 'udproutes',
   kind,
   namespaced: true,
   verbs,
@@ -65,12 +65,13 @@ describe('gatewayL4RouteAvailability', () => {
     mockDiscovery({
       cluster1: {
         v1: [resource('UDPRoute')],
-        v1alpha2: [resource('TCPRoute')],
+        v1alpha2: [resource('TCPRoute'), resource('TLSRoute')],
       },
     });
 
     await expect(gatewayL4RouteAvailability(['cluster1'])).resolves.toEqual([
       'TCPRoute',
+      'TLSRoute',
       'UDPRoute',
     ]);
   });
@@ -96,17 +97,22 @@ describe('gatewayL4RouteAvailability', () => {
   it('returns stable deduplicated kinds when every cluster has identical version sets', async () => {
     mockDiscovery({
       cluster1: {
-        v1: [resource('UDPRoute'), resource('TCPRoute'), resource('TCPRoute')],
-        v1alpha2: [resource('TCPRoute')],
+        v1: [
+          resource('UDPRoute'),
+          resource('TCPRoute'),
+          resource('TLSRoute'),
+          resource('TCPRoute'),
+        ],
+        v1alpha2: [resource('TCPRoute'), resource('TLSRoute')],
       },
       cluster2: {
-        v1: [resource('TCPRoute'), resource('UDPRoute')],
-        v1alpha2: [resource('TCPRoute')],
+        v1: [resource('TCPRoute'), resource('TLSRoute'), resource('UDPRoute')],
+        v1alpha2: [resource('TCPRoute'), resource('TLSRoute')],
       },
     });
 
     await expect(gatewayL4RouteAvailability(['cluster2', 'cluster1', 'cluster1'])).resolves.toEqual(
-      ['TCPRoute', 'UDPRoute']
+      ['TCPRoute', 'TLSRoute', 'UDPRoute']
     );
   });
 

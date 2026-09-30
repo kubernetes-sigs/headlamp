@@ -153,11 +153,13 @@ describe('useGetAllSources', () => {
     expect(gateway.isEnabledByDefault).toBe(false);
     expect(gateway.sources.map(source => source.label)).toContain('gateways');
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/TCPRoute')).toBeUndefined();
+    expect(findLeaf(result.current, 'gateway.networking.k8s.io/TLSRoute')).toBeUndefined();
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/UDPRoute')).toBeUndefined();
   });
 
   it.each([
     ['TCPRoute', 'gateway.networking.k8s.io/TCPRoute', 'gateway.networking.k8s.io/UDPRoute'],
+    ['TLSRoute', 'gateway.networking.k8s.io/TLSRoute', 'gateway.networking.k8s.io/TCPRoute'],
     ['UDPRoute', 'gateway.networking.k8s.io/UDPRoute', 'gateway.networking.k8s.io/TCPRoute'],
   ])('adds only the exactly discovered %s source', (kind, expectedId, absentId) => {
     vi.mocked(useQuery).mockReturnValue({
@@ -173,18 +175,21 @@ describe('useGetAllSources', () => {
     expect(findLeaf(result.current, absentId)).toBeUndefined();
   });
 
-  it('adds both translated L4 sources when both exact kinds are discovered', () => {
+  it('adds all translated L4 sources when all exact kinds are discovered', () => {
     vi.mocked(useQuery).mockReturnValue({
       data: [{ groupName: 'gateway.networking.k8s.io' }],
     } as ReturnType<typeof useQuery>);
     vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({
-      data: ['TCPRoute', 'UDPRoute'],
+      data: ['TCPRoute', 'TLSRoute', 'UDPRoute'],
     } as unknown as ReturnType<typeof useGatewayL4RouteAvailability>);
 
     const { result } = renderHook(() => useGetAllSources());
 
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/TCPRoute')?.label).toBe(
       'TCP Routes'
+    );
+    expect(findLeaf(result.current, 'gateway.networking.k8s.io/TLSRoute')?.label).toBe(
+      'TLS Routes'
     );
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/UDPRoute')?.label).toBe(
       'UDP Routes'
@@ -234,6 +239,7 @@ describe('useGetAllSources', () => {
         crd('UDPRoute', 'example.io', 'udproutes'),
         crd('Gateway', 'gateway.networking.k8s.io', 'gateways'),
         crd('TCPRoute', 'gateway.networking.k8s.io', 'tcproutes'),
+        crd('TLSRoute', 'gateway.networking.k8s.io', 'tlsroutes'),
         crd('UDPRoute', 'gateway.networking.k8s.io', 'udproutes'),
         crd('VerticalPodAutoscaler', 'autoscaling.k8s.io', 'verticalpodautoscalers'),
       ],

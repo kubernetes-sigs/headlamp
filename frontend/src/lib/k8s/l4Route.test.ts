@@ -44,10 +44,12 @@ vi.mock('./patchUtils', () => ({
 }));
 
 import TCPRoute from './tcpRoute';
+import TLSRoute from './tlsRoute';
 import UDPRoute from './udpRoute';
 
 const routeTypes = [
   [TCPRoute, 'TCPRoute', 'tcproutes'],
+  [TLSRoute, 'TLSRoute', 'tlsroutes'],
   [UDPRoute, 'UDPRoute', 'udproutes'],
 ] as const;
 
@@ -125,5 +127,35 @@ describe.each(routeTypes)('%s', (Route, kind, apiName) => {
     expect(route.rules).toEqual([]);
     expect(route.parentRefs).toEqual([]);
     expect(route.parents).toEqual([]);
+  });
+});
+
+describe('TLSRoute hostnames', () => {
+  it('returns hostnames from spec and empty array when absent', () => {
+    const withHostnames = new TLSRoute({
+      apiVersion: 'gateway.networking.k8s.io/v1',
+      kind: 'TLSRoute',
+      metadata: {
+        name: 'tls-route',
+        namespace: 'default',
+        creationTimestamp: '2026-08-07T00:00:00Z',
+        uid: 'tls-route',
+      },
+      spec: { hostnames: ['db.example.com', 'broker.example.com'] },
+    });
+    const withoutHostnames = new TLSRoute({
+      apiVersion: 'gateway.networking.k8s.io/v1',
+      kind: 'TLSRoute',
+      metadata: {
+        name: 'empty-tls-route',
+        namespace: 'default',
+        creationTimestamp: '2026-08-07T00:00:00Z',
+        uid: 'empty-tls-route',
+      },
+      spec: {},
+    });
+
+    expect(withHostnames.hostnames).toEqual(['db.example.com', 'broker.example.com']);
+    expect(withoutHostnames.hostnames).toEqual([]);
   });
 });
