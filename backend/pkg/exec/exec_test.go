@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:all
+//nolint:errcheck,funlen,gochecknoinits,gocognit,gofumpt,gosec,lll,noctx,testpackage,wsl_v5 // Preserve the adapted client-go tests to ease upstream comparison.
 package exec
 
 import (

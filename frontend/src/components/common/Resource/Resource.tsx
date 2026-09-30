@@ -498,6 +498,7 @@ export interface DataFieldProps extends BaseTextFieldProps {
 
 export function DataField(props: DataFieldProps) {
   const { disableLabel, label, value, onSave, onChange } = props;
+  const { t } = useTranslation();
   // Make sure we reload after a theme change
   const theme = useTheme();
 
@@ -568,7 +569,7 @@ export function DataField(props: DataFieldProps) {
       {onSave && (
         <Box mt={1} display="flex" justifyContent="flex-end">
           <Button variant="contained" color="primary" onClick={() => onSave && onSave(data)}>
-            Save
+            {t('translation|Save')}
           </Button>
         </Box>
       )}
@@ -754,7 +755,7 @@ interface FetchedResource {
  * Extracts all environment variable references from a container spec.
  * This is a pure function with no hooks.
  */
-function extractEnvVarReferences(container: KubeContainer): EnvVarReference[] {
+export function extractEnvVarReferences(container: KubeContainer): EnvVarReference[] {
   const refs: EnvVarReference[] = [];
 
   // Process env variables
@@ -868,7 +869,7 @@ function ConfigMapFetcher(props: {
  * Builds environment variables from references and fetched resources.
  * This is a pure function with no hooks.
  */
-function buildEnvironmentVariables(
+export function buildEnvironmentVariables(
   references: EnvVarReference[],
   fetchedSecrets: Map<string, FetchedResource>,
   fetchedConfigMaps: Map<string, FetchedResource>,
@@ -912,7 +913,7 @@ function buildEnvironmentVariables(
           });
         } else if (secret) {
           const secretData = (secret as any).data || {};
-          const value = secretData[ref.key!] ? atob(secretData[ref.key!]) : '';
+          const value = secretData[ref.key!] ? Base64.decode(secretData[ref.key!]) : '';
           variables.set(ref.name, {
             value,
             from: secret,
@@ -971,7 +972,7 @@ function buildEnvironmentVariables(
           const outOfSync = isOutOfSync(secret.metadata?.creationTimestamp);
           Object.entries(secretData).forEach(([key, value]) => {
             variables.set(`${prefix}${key}`, {
-              value: atob(value as string),
+              value: value ? Base64.decode(value as string) : '',
               from: secret,
               isError: false,
               isSecret: true,

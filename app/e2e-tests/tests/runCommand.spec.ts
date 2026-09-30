@@ -15,6 +15,8 @@
  */
 
 import { expect, test } from '@playwright/test';
+import { createServer, Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import path from 'path';
 import { _electron, ElectronApplication, Page } from 'playwright';
 
@@ -24,13 +26,25 @@ const appPath = path.resolve(__dirname, '../../');
 
 let electronApp: ElectronApplication;
 let electronPage: Page;
+let backend: Server;
 
 test.describe('run command', () => {
   test.beforeAll(async () => {
+    backend = createServer((request, response) => {
+      if (request.url === '/config') {
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+        return;
+      }
+
+      response.writeHead(404).end();
+    });
+    await new Promise<void>(resolve => backend.listen(0, resolve));
+    const port = (backend.address() as AddressInfo).port;
+
     electronApp = await _electron.launch({
       cwd: appPath,
       executablePath: electronPath,
-      args: ['.'],
+      args: ['.', `--port=${port}`],
       env: {
         ...process.env,
         NODE_ENV: 'development',
@@ -46,6 +60,9 @@ test.describe('run command', () => {
 
   test.afterAll(async () => {
     await electronApp?.close();
+    await new Promise<void>((resolve, reject) =>
+      backend?.close(error => (error ? reject(error) : resolve()))
+    );
   });
 
   test('rejects invalid commands from the renderer', async () => {

@@ -32,11 +32,12 @@ declare global {
 /**
  * @returns URL depending on dev-mode/electron/docker desktop, base-url, and window.location.origin.
  *
- * @example isDevMode | isElectron returns 'http://localhost:4466/'
+ * @example isDevMode returns 'http://localhost:4466/'
+ * @example isElectron returns '/' until the backend port is confirmed
+ * @example isElectron with port 4467 returns 'http://127.0.0.1:4467/'
  * @example isDockerDesktop returns 'http://localhost:64446/'
  * @example base-url set as '/headlamp' returns '/headlamp/'
- * @example isDevMode | isElectron and base-url is set
- *          it returns 'http://localhost:4466/headlamp/'
+ * @example isDevMode and base-url is set returns 'http://localhost:4466/headlamp/'
  * @example returns 'https://headlamp.example.com/'using the window.location.origin of browser
  *
  */
@@ -44,12 +45,14 @@ export function getAppUrl(): string {
   let url = '';
   let backendPort = 4466;
   let useLocalhost = false;
+  let useInternalBackendHost = false;
 
   if (isElectron()) {
-    if (window?.headlampBackendPort) {
-      backendPort = window.headlampBackendPort;
+    if (!window?.headlampBackendPort) {
+      return '/';
     }
-    useLocalhost = true;
+    backendPort = window.headlampBackendPort;
+    useInternalBackendHost = true;
   }
 
   if (isDevMode()) {
@@ -61,7 +64,9 @@ export function getAppUrl(): string {
     useLocalhost = true;
   }
 
-  if (useLocalhost) {
+  if (useInternalBackendHost) {
+    url = `http://127.0.0.1:${backendPort}`;
+  } else if (useLocalhost) {
     url = `http://localhost:${backendPort}`;
   } else {
     url = window.location.origin;

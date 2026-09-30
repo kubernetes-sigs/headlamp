@@ -1244,6 +1244,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Set auth cookie
 		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
+		if config.OidcUseTokenBroadcast {
+			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+				Writer:          w,
+				Request:         r,
+				KubeConfigStore: config.KubeConfigStore,
+				SourceCluster:   oauthConfig.Cluster,
+				Token:           rawUserToken,
+				BaseURL:         config.BaseURL,
+				SessionTTL:      config.SessionTTL,
+			})
+		}
+
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
@@ -1593,12 +1605,29 @@ func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.H
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
 
-	var err error
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		close(serverDone)
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
+
+		return
+	}
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	if _, err = fmt.Fprintln(os.Stdout, internalBackendReadyMessage); err != nil {
+		close(serverDone)
+		logger.Log(logger.LevelError, nil, err, "Failed to report server readiness")
+
+		return
+	}
 
 	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
+		err = server.ServeTLS(listener, config.TLSCertPath, config.TLSKeyPath)
 	} else {
-		err = server.ListenAndServe()
+		err = server.Serve(listener)
 	}
 
 	close(serverDone)
@@ -1683,15 +1712,8 @@ func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serve
 	}()
 }
 
-// Handle common server startup errors.
-func HandleServerStartError(err *error) {
-	// Check if the reason server failed because the address is already in use
-	// this might be because backend process is already running
-	if errors.Is(*err, syscall.EADDRINUSE) {
-		// Exit with 98 (address in use) exit code
-		os.Exit(int(syscall.EADDRINUSE))
-	}
-}
+// internalBackendReadyMessage tells the Electron parent that this child owns its listening port.
+const internalBackendReadyMessage = "HEADLAMP_BACKEND_READY"
 
 // Returns the helm.Handler given the config and request. Writes http.NotFound if clusterName is not there.
 func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (*helm.Handler, error) {

@@ -49,7 +49,7 @@ const commonOptions = {
 
 const entryPoints = [
   {
-    entryPoints: [path.resolve(__dirname, '../electron/main.ts')],
+    entryPoints: [path.resolve(__dirname, '../electron/bootstrap.ts')],
     outfile: path.resolve(__dirname, '../build/main.js'),
     plugins: [mcpAdapterExternalPlugin, lazyDependenciesExternalPlugin],
   },

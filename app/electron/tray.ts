@@ -32,6 +32,8 @@ interface HeadlampTrayOptions {
   createWindow: () => Promise<void>;
   getBackendPort: () => number;
   getMainWindow: () => BrowserWindow | null;
+  /** Returns whether the backend still owns its confirmed endpoint. */
+  isBackendAvailable: () => boolean;
   isDev: boolean;
   quit: () => void;
 }
@@ -150,9 +152,13 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
 }
 
 export async function getClusterStatuses(options: HeadlampTrayOptions): Promise<ClusterStatus[]> {
+  if (!options.isBackendAvailable()) {
+    return [];
+  }
+
   try {
     // Keep the app token separate from Authorization, which cluster routes reserve for Kubernetes credentials.
-    const configResponse = await fetch(`http://localhost:${options.getBackendPort()}/config`, {
+    const configResponse = await fetch(`http://127.0.0.1:${options.getBackendPort()}/config`, {
       headers: { 'X-HEADLAMP_BACKEND-TOKEN': options.backendToken },
     });
 
@@ -175,8 +181,11 @@ export async function getClusterStatuses(options: HeadlampTrayOptions): Promise<
       }
 
       try {
+        if (!options.isBackendAvailable()) {
+          return { name: cluster.name, status: 'unknown' as const };
+        }
         const healthResponse = await fetch(
-          `http://localhost:${options.getBackendPort()}/clusters/${cluster.name}/healthz`,
+          `http://127.0.0.1:${options.getBackendPort()}/clusters/${cluster.name}/healthz`,
           {
             headers: { 'X-HEADLAMP_BACKEND-TOKEN': options.backendToken },
           }

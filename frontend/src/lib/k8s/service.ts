@@ -89,7 +89,6 @@ class Service extends KubeObject<KubeService> {
       ports: [
         {
           name: '',
-          nodePort: 30000,
           port: 80,
           protocol: 'TCP',
           targetPort: 80,

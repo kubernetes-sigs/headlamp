@@ -144,8 +144,11 @@ source revision used to assemble the package:
 | `HEADLAMP_SOURCE_COMMIT`  | Current Git revision or `unknown` | Source revision written to `REACT_APP_HEADLAMP_GIT_VERSION`. Set this when building from packaged source without its Git repository. |
 
 The manifest's `product.productName` and `product.version` fields configure the
-identity displayed by the frontend as well as the packaged desktop app. Missing
-or empty fields retain the values from `app/package.json`.
+identity displayed by the frontend as well as the packaged desktop app.
+`product.companyName` configures the packaged app's Windows company metadata,
+macOS copyright attribution, and Linux vendor. Set `platforms.linux.maintainer`
+separately to a package contact in `Name <email>` form. Missing or empty fields
+retain the values from `app/package.json`.
 
 For example:
 
@@ -154,7 +157,13 @@ For example:
   "product": {
     "name": "example-desktop",
     "productName": "Example Desktop",
+    "companyName": "Example Company",
     "version": "1.2.3"
+  },
+  "platforms": {
+    "linux": {
+      "maintainer": "Example Company <support@example.com>"
+    }
   }
 }
 ```
@@ -188,7 +197,8 @@ docker buildx build \
 The manifest must remain available throughout the frontend and app packaging
 steps. An unreadable manifest, a non-object `product`, non-string
 `productName`/`version` fields, or values containing newlines stop the frontend
-build rather than silently using an inconsistent product identity. The frontend
+build rather than silently using an inconsistent product identity. Electron
+packaging additionally rejects a non-string `companyName`. The frontend
 environment generator also rejects values containing both a single quote and a
 backtick when they additionally contain either a double quote or a literal
 backslash-`n`/backslash-`r` sequence, because no dotenv quote delimiter can

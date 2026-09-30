@@ -277,7 +277,7 @@ function encryptionIsAvailable(): boolean {
  * @param trustedStartUrl - The URL originally loaded into the Headlamp window.
  * @returns Whether the request comes from the trusted Headlamp document.
  */
-function isTrustedDocumentUrl(documentUrl: string, trustedStartUrl: string): boolean {
+export function isTrustedDocumentUrl(documentUrl: string, trustedStartUrl: string): boolean {
   try {
     const document = new URL(documentUrl);
     const trusted = new URL(trustedStartUrl);
