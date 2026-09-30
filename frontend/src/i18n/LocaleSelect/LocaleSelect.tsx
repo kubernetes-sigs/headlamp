@@ -22,6 +22,14 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { supportedLanguages } from '../config';
 
+const MENU_MAX_HEIGHT = 300;
+// Keep at least one menu item visible when there is very little space below the select.
+const MENU_MIN_HEIGHT = 56;
+// MUI's Popover keeps 16px to the viewport edge (marginThreshold); the extra
+// pixels guard against border/rounding differences so the menu never overlaps
+// the select box.
+const POPOVER_MARGIN = 20;
+
 export interface LocaleSelectProps {
   /** Whether to show the title label above the select dropdown. */
   showTitle?: boolean;
@@ -63,6 +71,22 @@ export default function LocaleSelect(props: LocaleSelectProps) {
   };
 
   /**
+   * Caps the menu height to the viewport space below the select box.
+   *
+   * MUI's Popover does not flip: when the menu would overflow the viewport
+   * bottom, it shifts the whole menu up over the select box instead. Capping
+   * the height to the available space below keeps the menu below the box.
+   */
+  const [menuMaxHeight, setMenuMaxHeight] = React.useState(MENU_MAX_HEIGHT);
+
+  const handleOpen = (event: React.SyntheticEvent) => {
+    const spaceBelow = window.innerHeight - event.currentTarget.getBoundingClientRect().bottom;
+    setMenuMaxHeight(
+      Math.max(MENU_MIN_HEIGHT, Math.min(MENU_MAX_HEIGHT, spaceBelow - POPOVER_MARGIN))
+    );
+  };
+
+  /**
    * Retrieves full language names for supported languages from the i18next configuration.
    *
    * @returns An object mapping language codes to their full names.
@@ -93,10 +117,27 @@ export default function LocaleSelect(props: LocaleSelectProps) {
       <Select
         value={i18n.resolvedLanguage || i18n.language || 'en'}
         onChange={changeLng}
+        onOpen={handleOpen}
         size="small"
         variant="outlined"
         SelectDisplayProps={extraInputProps}
         inputProps={{ 'aria-label': t('Select locale'), ...extraInputProps }}
+        MenuProps={{
+          anchorOrigin: {
+            vertical: 'bottom',
+            horizontal: 'left',
+          },
+          transformOrigin: {
+            vertical: 'top',
+            horizontal: 'left',
+          },
+          PaperProps: {
+            sx: {
+              maxHeight: menuMaxHeight,
+            },
+          },
+        }}
+        sx={{ minWidth: 120 }}
       >
         {(i18n?.options?.supportedLngs || [])
           .filter(lng => lng !== 'cimode')
