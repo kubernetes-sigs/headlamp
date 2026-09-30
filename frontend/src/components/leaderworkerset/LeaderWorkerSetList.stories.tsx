@@ -74,6 +74,9 @@ updatingLeaderWorkerSet.status = {
   ],
 };
 
+const lwsApiGroupUrl = `${API_BASE}/apis/leaderworkerset.x-k8s.io/v1`;
+const lwsListUrl = `${API_BASE}/apis/leaderworkerset.x-k8s.io/v1/leaderworkersets`;
+
 export default {
   title: 'LeaderWorkerSet/List',
   component: List,
@@ -87,21 +90,6 @@ export default {
       );
     },
   ],
-  parameters: {
-    msw: {
-      handlers: {
-        story: [
-          http.get(`${API_BASE}/apis/leaderworkerset.x-k8s.io/v1/leaderworkersets`, () =>
-            HttpResponse.json({
-              kind: 'LeaderWorkerSetList',
-              metadata: {},
-              items: leaderWorkerSetList,
-            })
-          ),
-        ],
-      },
-    },
-  },
 } as Meta;
 
 const Template: StoryFn = () => {
@@ -109,3 +97,54 @@ const Template: StoryFn = () => {
 };
 
 export const Items = Template.bind({});
+Items.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(lwsApiGroupUrl, () =>
+          HttpResponse.json({ resources: [{ name: 'leaderworkersets' }] })
+        ),
+        http.get(lwsListUrl, () =>
+          HttpResponse.json({
+            kind: 'LeaderWorkerSetList',
+            metadata: {},
+            items: leaderWorkerSetList,
+          })
+        ),
+      ],
+    },
+  },
+};
+
+/**
+ * LeaderWorkerSet.isEnabled() stays pending so the list shows the checking state.
+ */
+export const Checking = Template.bind({});
+Checking.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [http.get(lwsApiGroupUrl, () => new Promise(() => {}))],
+    },
+  },
+};
+
+/**
+ * API group responds without leaderworkersets, so isEnabled() resolves false.
+ */
+export const NotEnabled = Template.bind({});
+NotEnabled.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(lwsApiGroupUrl, () =>
+          HttpResponse.json({
+            kind: 'APIResourceList',
+            groupVersion: 'leaderworkerset.x-k8s.io/v1',
+            resources: [],
+          })
+        ),
+      ],
+    },
+  },
+};
