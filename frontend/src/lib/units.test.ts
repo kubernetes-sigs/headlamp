@@ -15,7 +15,15 @@
  */
 
 import * as fc from 'fast-check';
-import { divideK8sResources, parseCpu, parseRam, unparseCpu, unparseRam } from './units';
+import {
+  divideK8sResources,
+  parseCpu,
+  parseQuantity,
+  parseRam,
+  splitQuantity,
+  unparseCpu,
+  unparseRam,
+} from './units';
 
 describe('parseRam', () => {
   it('should parse simple numbers', () => {
@@ -242,5 +250,77 @@ describe('divideK8sResources', () => {
     // These should still work as before (memory)
     expect(divideK8sResources('1Gi', '1Mi')).toBe(1024);
     expect(divideK8sResources('1M', '1K')).toBe(1000);
+  });
+});
+
+describe('splitQuantity', () => {
+  it('splits a quantity into its number and its suffix', () => {
+    expect(splitQuantity('8Gi')).toEqual({ value: 8, unit: 'Gi' });
+    expect(splitQuantity('500M')).toEqual({ value: 500, unit: 'M' });
+    expect(splitQuantity('1.5Ti')).toEqual({ value: 1.5, unit: 'Ti' });
+    expect(splitQuantity('512Ki')).toEqual({ value: 512, unit: 'Ki' });
+    expect(splitQuantity('100k')).toEqual({ value: 100, unit: 'k' });
+  });
+
+  it('reads a quantity without a suffix', () => {
+    expect(splitQuantity('1024')).toEqual({ value: 1024, unit: '' });
+  });
+
+  it('ignores the surrounding space the API may report', () => {
+    expect(splitQuantity(' 8Gi ')).toEqual({ value: 8, unit: 'Gi' });
+  });
+
+  it('folds a decimal exponent into the decimal suffix it stands for', () => {
+    expect(splitQuantity('1e9')).toEqual({ value: 1, unit: 'G' });
+    expect(splitQuantity('2E6')).toEqual({ value: 2, unit: 'M' });
+    expect(splitQuantity('1.5e3')).toEqual({ value: 1.5, unit: 'k' });
+  });
+
+  it('folds a decimal exponent without a matching suffix into the number', () => {
+    expect(splitQuantity('15e2')).toEqual({ value: 1500, unit: '' });
+  });
+
+  it('reads E as the exa suffix, and only as an exponent when digits follow', () => {
+    expect(splitQuantity('1E')).toEqual({ value: 1, unit: 'E' });
+    expect(splitQuantity('1E3')).toEqual({ value: 1, unit: 'k' });
+  });
+
+  it('gives up on a quantity it cannot read', () => {
+    expect(splitQuantity('')).toBeUndefined();
+    expect(splitQuantity('Gi')).toBeUndefined();
+    expect(splitQuantity('8Gib')).toBeUndefined();
+    expect(splitQuantity('8ki')).toBeUndefined();
+    // K on its own is not a Kubernetes suffix; kilo is a lowercase k.
+    expect(splitQuantity('8K')).toBeUndefined();
+    expect(splitQuantity('-16Gi')).toBeUndefined();
+    expect(splitQuantity('1e')).toBeUndefined();
+  });
+});
+
+describe('parseQuantity', () => {
+  it('reads binary and decimal suffixes', () => {
+    expect(parseQuantity('8Gi')).toBe(8 * 2 ** 30);
+    expect(parseQuantity('500M')).toBe(500e6);
+    expect(parseQuantity('1.5Ti')).toBe(1.5 * 2 ** 40);
+  });
+
+  it('reads the lowercase k as kilo', () => {
+    expect(parseQuantity('100k')).toBe(100_000);
+    // 2 Ki is smaller than 100 k, so a claim of 100k cannot be "grown" to it.
+    expect(parseQuantity('2Ki')!).toBeLessThan(parseQuantity('100k')!);
+  });
+
+  it('reads a quantity without a suffix as the plain number', () => {
+    expect(parseQuantity('1024')).toBe(1024);
+  });
+
+  it('reads a decimal exponent', () => {
+    expect(parseQuantity('1e9')).toBe(1e9);
+    expect(parseQuantity('15e2')).toBe(1500);
+  });
+
+  it('gives up on a quantity it cannot read', () => {
+    expect(parseQuantity('')).toBeUndefined();
+    expect(parseQuantity('-16Gi')).toBeUndefined();
   });
 });

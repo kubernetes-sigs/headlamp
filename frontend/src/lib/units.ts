@@ -120,3 +120,84 @@ export function divideK8sResources(
   }
   return parseUnitsOfBytes(a) / parseUnitsOfBytes(b);
 }
+
+/** A Kubernetes quantity split into the number the user edits and its suffix. */
+export interface QuantityParts {
+  value: number;
+  /** The suffix as written, e.g. 'Gi' or 'M'. Empty when the quantity has no suffix. */
+  unit: string;
+}
+
+/** What each suffix of the Kubernetes quantity grammar multiplies its number by. */
+const QUANTITY_SUFFIX_MULTIPLIERS: Record<string, number> = {
+  '': 1,
+  m: 1e-3,
+  k: 1e3,
+  M: 1e6,
+  G: 1e9,
+  T: 1e12,
+  P: 1e15,
+  E: 1e18,
+  Ki: 2 ** 10,
+  Mi: 2 ** 20,
+  Gi: 2 ** 30,
+  Ti: 2 ** 40,
+  Pi: 2 ** 50,
+  Ei: 2 ** 60,
+};
+
+/** The decimal suffix a decimal exponent stands for, e.g. 'e9' for 'G'. */
+const DECIMAL_EXPONENT_SUFFIXES: Record<number, string> = {
+  0: '',
+  3: 'k',
+  6: 'M',
+  9: 'G',
+  12: 'T',
+  15: 'P',
+  18: 'E',
+};
+
+/**
+ * Splits a Kubernetes quantity into its number and its suffix.
+ *
+ * Quantities are written as a number followed by an optional suffix, e.g. '8Gi'. Editing
+ * one means editing the number while keeping the suffix the cluster reported. A decimal
+ * exponent, e.g. '1e9', has no suffix to keep, so it is folded into the decimal suffix it
+ * stands for, or into the number when there is none.
+ * @param quantity - The quantity to split, e.g. '8Gi'.
+ * @returns The number and the suffix, or undefined when the quantity cannot be read.
+ */
+export function splitQuantity(quantity: string): QuantityParts | undefined {
+  const groups =
+    /^(\d+(?:\.\d*)?|\.\d+)(?:([eE][+-]?\d+)|(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E))?$/.exec(
+      quantity?.trim() ?? ''
+    );
+  if (!groups) {
+    return undefined;
+  }
+
+  const value = parseFloat(groups[1]);
+  const [, , exponent, unit = ''] = groups;
+  if (exponent === undefined) {
+    return { value, unit };
+  }
+
+  const power = parseInt(exponent.slice(1), 10);
+  const decimalSuffix = DECIMAL_EXPONENT_SUFFIXES[power];
+  return decimalSuffix === undefined
+    ? { value: value * 10 ** power, unit: '' }
+    : { value, unit: decimalSuffix };
+}
+
+/**
+ * Reads a Kubernetes quantity as a plain number, e.g. the bytes of a storage size.
+ *
+ * It reads the quantity the way splitQuantity does, so that sizes compared with it agree
+ * with the parts a user edits.
+ * @param quantity - The quantity to read, e.g. '8Gi', '100k' or '1e9'.
+ * @returns The number, or undefined when the quantity cannot be read.
+ */
+export function parseQuantity(quantity: string): number | undefined {
+  const parts = splitQuantity(quantity);
+  return parts && parts.value * QUANTITY_SUFFIX_MULTIPLIERS[parts.unit];
+}

@@ -55,6 +55,7 @@ export enum DefaultHeaderAction {
   NODE_TOGGLE_CORDON = 'NODE_TOGGLE_CORDON',
   NODE_DRAIN = 'NODE_DRAIN',
   NODE_SHELL = 'NODE_SHELL',
+  PVC_EXPAND = 'PVC_EXPAND',
 }
 
 export enum DefaultAppBarAction {
