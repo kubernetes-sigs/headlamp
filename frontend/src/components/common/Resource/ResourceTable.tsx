@@ -167,6 +167,11 @@ export interface ResourceTableProps<RowItem> {
   data: Array<RowItem> | null;
   /** Filter out rows from the table */
   filterFunction?: (item: RowItem) => boolean;
+  /**
+   * Structured search: return a boolean to decide the row outright (skipping fuzzy matching),
+   * or undefined to fall back to the default search.
+   */
+  searchFilter?: (item: RowItem, search: string) => boolean | undefined;
   /** Display an error message. Table will be hidden even if data is present */
   errorMessage?: string | null;
   /** Display an errors */
@@ -322,6 +327,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     noProcessing = false,
     hideColumns = [],
     filterFunction,
+    searchFilter,
     errorMessage,
     reflectInURL,
     data,
@@ -750,6 +756,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         renderRowActionMenuItems={renderRowActionMenuItems}
         filterFns={{
           kubeObjectSearch: (row, id, filterValue) => {
+            const searchFilterResult = searchFilter?.(row.original, filterValue);
+            if (searchFilterResult !== undefined) {
+              return searchFilterResult;
+            }
             const customFilterResult = filterFunc(row.original, filterValue);
             const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
             return customFilterResult || fuzzyColumnsResult;

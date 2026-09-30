@@ -212,6 +212,21 @@ export interface PodListProps {
   onLoadMore?: () => Promise<void>;
 }
 
+export function filterPod(pod: Pod, search: string) {
+  const lowerSearch = search.trim().toLowerCase();
+  const isReadyOrSucceeded =
+    pod.status?.phase === 'Succeeded' ||
+    (pod.status?.conditions || []).find(condition => condition.type === 'Ready')?.status === 'True';
+
+  if (lowerSearch === 'ready') {
+    return isReadyOrSucceeded;
+  }
+  if (lowerSearch === 'notready' || lowerSearch === 'not ready' || lowerSearch === 'not-ready') {
+    return !isReadyOrSucceeded;
+  }
+  return undefined;
+}
+
 export function PodListRenderer(props: PodListProps) {
   const {
     pods,
@@ -271,6 +286,7 @@ export function PodListRenderer(props: PodListProps) {
   return (
     <ResourceListView
       title={t('Pods')}
+      searchFilter={filterPod}
       headerProps={{
         noNamespaceFilter,
         titleSideActions: hideCreateButton
