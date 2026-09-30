@@ -86,7 +86,9 @@ while building the section list, `DetailsGrid` logs the error with the resource
 kind, namespace (when present), name, and cluster. It omits that callback's output
 for the current render while preserving the other sections. The callback runs
 again on subsequent renders, so its content can appear once the resource loads.
-Errors thrown while rendering a section remain handled by its error boundary.
+When a section is a React element or component, its error boundary handles
+errors thrown during rendering. Direct ReactNode values, such as arrays returned
+by legacy `sectionsFunc`, are rendered without a per-section error boundary.
 
 ## API documentation
 
