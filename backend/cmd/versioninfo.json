@@ -1,0 +1,35 @@
+{
+	"FixedFileInfo": {
+		"FileVersion": {
+			"Major": 0,
+			"Minor": 0,
+			"Patch": 0,
+			"Build": 0
+		},
+		"ProductVersion": {
+			"Major": 0,
+			"Minor": 0,
+			"Patch": 0,
+			"Build": 0
+		},
+		"FileFlagsMask": "3f",
+		"FileFlags ": "00",
+		"FileOS": "040004",
+		"FileType": "01",
+		"FileSubType": "00"
+	},
+	"StringFileInfo": {
+		"CompanyName": "The Kubernetes Authors",
+		"FileDescription": "Headlamp Server",
+		"InternalName": "headlamp-server",
+		"LegalCopyright": "Copyright The Kubernetes Authors",
+		"OriginalFilename": "headlamp-server.exe",
+		"ProductName": "Headlamp"
+	},
+	"VarFileInfo": {
+		"Translation": {
+			"LangID": "0409",
+			"CharsetID": "04B0"
+		}
+	}
+}
