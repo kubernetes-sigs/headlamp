@@ -60,7 +60,10 @@ func listCharts(filter string, settings *cli.EnvSettings) ([]chartInfo, error) {
 
 		indexFile, err := repo.LoadIndexFile(repoIndexFile)
 		if err != nil {
-			return nil, err
+			logger.Log(logger.LevelWarn, map[string]string{"repository": name}, err,
+				"failed to load repository index file, skipping")
+
+			continue
 		}
 
 		index.AddRepo(name, indexFile, true)
