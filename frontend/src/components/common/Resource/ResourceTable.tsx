@@ -179,6 +179,12 @@ export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjec
   extends Omit<ResourceTableProps<InstanceType<KubeClass>>, 'data'> {
   resourceClass: KubeClass;
   namespaces?: string[];
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceTable<KubeClass extends KubeObjectClass>(
@@ -198,10 +204,11 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, ...otherProps } = props;
+  const { resourceClass, id, clusters, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
   const { items, errors } = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
+    clusters,
   });
 
   // throttle the update of the table to once per second

@@ -23,8 +23,10 @@ import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
+import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PodGroup from '../../lib/k8s/podGroup';
+import { useIsResourceServed } from '../../lib/k8s/resourceAvailability';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
@@ -90,6 +92,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     },
     enabled: selectedClusters.length > 0,
   });
+
+  // Dynamic resource allocation is stable from Kubernetes 1.34, so only show the
+  // Devices section on clusters that serve resource.k8s.io/v1.
+  const devicesEnabled = useIsResourceServed(DeviceClass);
 
   const crdsSidebarEntries = useMemo(() => {
     const crdsSidebarEntries: SidebarItemProps[] = [];
@@ -472,6 +478,20 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       },
     ];
 
+    if (devicesEnabled) {
+      inClusterItems.push({
+        name: 'devices',
+        label: t('glossary|Devices'),
+        icon: 'mdi:expansion-card',
+        subList: [
+          {
+            name: 'deviceClasses',
+            label: t('glossary|Device Classes'),
+          },
+        ],
+      });
+    }
+
     if (schedulingWorkloadsEnabled) {
       inClusterItems.push({
         name: 'scheduling',
@@ -616,6 +636,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     allClustersConf,
     crdsSidebarEntries,
     gatewayKinds,
+    devicesEnabled,
     schedulingWorkloadsEnabled,
     t,
   ]);
