@@ -11,7 +11,7 @@
         class="MuiBox-root css-11hh78l"
       />
       <div
-        aria-label="Left Activity"
+        aria-label="Left"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -26,9 +26,9 @@
             />
             <p
               class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
-              title="Left Activity"
+              title="Left"
             >
-              Left Activity
+              Left
             </p>
             <div
               class="MuiBox-root css-1po99kh"
@@ -36,9 +36,9 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -46,9 +46,10 @@
               />
             </button>
             <button
+              aria-label="Minimize Left"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -56,9 +57,10 @@
               />
             </button>
             <button
+              aria-label="Close Left"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
@@ -74,7 +76,7 @@
         </div>
       </div>
       <div
-        aria-label="Right Activity"
+        aria-label="Right"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -89,9 +91,9 @@
             />
             <p
               class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
-              title="Right Activity"
+              title="Right"
             >
-              Right Activity
+              Right
             </p>
             <div
               class="MuiBox-root css-1po99kh"
@@ -99,9 +101,9 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -118,9 +120,10 @@
               </span>
             </button>
             <button
+              aria-label="Minimize Right"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -128,9 +131,10 @@
               />
             </button>
             <button
+              aria-label="Close Right"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
@@ -164,9 +168,9 @@
               />
               <div
                 class="MuiBox-root css-r1zxuf"
-                title="Right Activity"
+                title="Right"
               >
-                Right Activity
+                Right
               </div>
             </div>
             <span
@@ -200,9 +204,9 @@
               />
               <div
                 class="MuiBox-root css-r1zxuf"
-                title="Left Activity"
+                title="Left"
               >
-                Left Activity
+                Left
               </div>
             </div>
             <span

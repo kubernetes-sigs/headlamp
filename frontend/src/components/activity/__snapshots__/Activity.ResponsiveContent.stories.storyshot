@@ -46,9 +46,9 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -56,9 +56,10 @@
               />
             </button>
             <button
+              aria-label="Minimize Pod metrics collector for a very long deployment name in the activity view"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -66,9 +67,10 @@
               />
             </button>
             <button
+              aria-label="Close Pod metrics collector for a very long deployment name in the activity view"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
@@ -119,9 +121,9 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -129,9 +131,10 @@
               />
             </button>
             <button
+              aria-label="Minimize SomeAreVeryLongAndMightLookDifferent resource details and live logs"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -139,9 +142,10 @@
               />
             </button>
             <button
+              aria-label="Close SomeAreVeryLongAndMightLookDifferent resource details and live logs"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
@@ -192,9 +196,9 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -211,9 +215,10 @@
               </span>
             </button>
             <button
+              aria-label="Minimize Pod"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -221,9 +226,10 @@
               />
             </button>
             <button
+              aria-label="Close Pod"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
