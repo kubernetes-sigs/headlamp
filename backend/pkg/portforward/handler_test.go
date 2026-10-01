@@ -193,8 +193,8 @@ func TestStartPortForward(t *testing.T) {
 	stopResp := httptest.NewRecorder()
 
 	stopReqPayload := map[string]interface{}{
-		"id":           id,
-		"stopOrDelete": true,
+		"id":     id,
+		"action": "stop",
 	}
 
 	jsonStopReq, err := json.Marshal(stopReqPayload)
@@ -204,7 +204,7 @@ func TestStartPortForward(t *testing.T) {
 	stopReq.Header.Set("Content-Type", "application/json")
 	stopReq = mux.SetURLVars(stopReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.StopOrDeletePortForward(ch, minikubeName, stopResp, stopReq)
+	portforward.HandlePortForwardAction(ch, minikubeName, stopResp, stopReq)
 
 	stopRes := stopResp.Result()
 
@@ -304,8 +304,8 @@ func TestStartPortForward(t *testing.T) {
 	deleteResp := httptest.NewRecorder()
 
 	deleteReqPayload := map[string]interface{}{
-		"id":           id,
-		"stopOrDelete": false,
+		"id":     id,
+		"action": "delete",
 	}
 
 	jsonDeleteReq, err := json.Marshal(deleteReqPayload)
@@ -315,7 +315,7 @@ func TestStartPortForward(t *testing.T) {
 	deleteReq.Header.Set("Content-Type", "application/json")
 	deleteReq = mux.SetURLVars(deleteReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.StopOrDeletePortForward(ch, minikubeName, deleteResp, deleteReq)
+	portforward.HandlePortForwardAction(ch, minikubeName, deleteResp, deleteReq)
 
 	deleteRes := deleteResp.Result()
 
@@ -323,7 +323,7 @@ func TestStartPortForward(t *testing.T) {
 
 	deleteRespBody, err := io.ReadAll(deleteRes.Body)
 	require.NoError(t, err)
-	require.Contains(t, string(deleteRespBody), "stopped")
+	require.Contains(t, string(deleteRespBody), "deleted")
 
 	require.Eventually(t, func() bool {
 		_, err := ch.Get(context.Background(), cacheKey)

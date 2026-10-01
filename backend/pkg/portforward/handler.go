@@ -689,52 +689,76 @@ func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod 
 	return nil
 }
 
-// stopOrDeletePortForwardRequest is the payload for stop or delete port forward request handler.
-type stopOrDeletePortForwardRequest struct {
-	ID           string `json:"id"`
-	StopOrDelete bool   `json:"stopOrDelete"`
+// Actions accepted by HandlePortForwardAction.
+const (
+	portForwardActionStop   = "stop"
+	portForwardActionDelete = "delete"
+)
+
+// portForwardActionRequest is the payload for HandlePortForwardAction.
+type portForwardActionRequest struct {
+	ID     string `json:"id"`
+	Action string `json:"action"`
 }
 
-func (r *stopOrDeletePortForwardRequest) Validate() error {
+// Validate checks that the request has an id and a known action.
+func (r *portForwardActionRequest) Validate() error {
 	if r.ID == "" {
 		return errors.New("invalid request, id is required")
+	}
+
+	if r.Action != portForwardActionStop && r.Action != portForwardActionDelete {
+		return fmt.Errorf("invalid request, action must be %q or %q",
+			portForwardActionStop, portForwardActionDelete)
 	}
 
 	return nil
 }
 
-// StopOrDeletePortForward handles stop or delete port forward request.
-func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
+// HandlePortForwardAction stops or deletes a port forward, depending on the
+// action given in the request payload.
+func HandlePortForwardAction(cache cache.Cache[interface{}], contextKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
-	var p stopOrDeletePortForwardRequest
+	var p portForwardActionRequest
 
 	err := json.NewDecoder(r.Body).Decode(&p)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "decoding delete portforward payload")
+		logger.Log(logger.LevelError, nil, err, "decoding portforward action payload")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
 	if err := p.Validate(); err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating delete portforward payload")
+		logger.Log(logger.LevelError, nil, err, "validating portforward action payload")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
-	err = stopOrDeletePortForward(cache, contextKey, p.ID, p.StopOrDelete)
-	if err == nil {
-		if _, err := w.Write([]byte("stopped")); err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, "failed to write response "+err.Error(), http.StatusInternalServerError)
-		}
+	var actionErr error
+
+	successMsg := "stopped"
+
+	if p.Action == portForwardActionDelete {
+		successMsg = "deleted"
+		actionErr = deletePortForward(cache, contextKey, p.ID)
+	} else {
+		actionErr = stopPortForward(cache, contextKey, p.ID)
+	}
+
+	if actionErr != nil {
+		http.Error(w, fmt.Sprintf("failed to %s port forward: %s", p.Action, actionErr.Error()),
+			http.StatusInternalServerError)
 
 		return
 	}
 
-	http.Error(w, "failed to delete port forward "+err.Error(), http.StatusInternalServerError)
+	if _, err := w.Write([]byte(successMsg)); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+		http.Error(w, "failed to write response "+err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // GetPortForwards handles get port forwards request.

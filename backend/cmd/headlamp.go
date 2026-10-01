@@ -789,7 +789,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
+			portforward.HandlePortForwardAction(config.Cache, contextKey, w, r)
 		})),
 	).Methods("DELETE")
 
