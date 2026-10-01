@@ -1,0 +1,17 @@
+<body>
+  <div>
+    <span
+      aria-label="You do not have permission to edit metadata for any of the selected items."
+      class=""
+      data-mui-internal-clone-element="true"
+    >
+      <button
+        aria-label="Edit metadata"
+        class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+        disabled=""
+        tabindex="-1"
+        type="button"
+      />
+    </span>
+  </div>
+</body>
