@@ -84,7 +84,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const dispatch: AppDispatch = useDispatch();
 
   const { enqueueSnackbar } = useSnackbar();
-  const [nodeMetrics, metricsError] = Node.useMetrics(cluster);
+  const [nodeMetrics, metricsErrors] = Node.useMetrics(cluster);
   const [nodeSummaryStats, nodeSummaryError] = Node.useNodeSummaryStats(name, cluster);
   const [isupdatingNodeScheduleProperty, setisUpdatingNodeScheduleProperty] = React.useState(false);
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
@@ -97,7 +97,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
     cluster,
   });
   const [node, setNode] = useState(nodeFromAPI);
-  const noMetrics = metricsError?.status === 404;
+  const noMetrics = metricsErrors.some(error => error.status === 404);
   const [drainDialogOpen, setDrainDialogOpen] = useState(false);
 
   const isMountedRef = React.useRef(true);

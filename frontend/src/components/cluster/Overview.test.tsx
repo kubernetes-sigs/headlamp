@@ -29,7 +29,7 @@ const { chartMocks, eventUseList, nodeUseList, nodeUseMetrics, podUseList } = vi
   },
   eventUseList: vi.fn(() => ({ items: [], errors: null })),
   nodeUseList: vi.fn(() => [[]]),
-  nodeUseMetrics: vi.fn(() => [[], null]),
+  nodeUseMetrics: vi.fn(() => [[], []]),
   podUseList: vi.fn(() => [[]]),
 }));
 
