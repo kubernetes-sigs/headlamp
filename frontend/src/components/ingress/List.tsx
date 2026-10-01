@@ -21,31 +21,32 @@ import LabelListItem from '../common/LabelListItem';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 
+export function getIngressPaths(ingress: Ingress): string[] {
+  const rules = ingress.getRules();
+  let labels: string[] = [];
+
+  rules.forEach(({ http }) => {
+    const text =
+      http?.paths.map(({ path, backend }) => {
+        let target = '';
+        if (backend?.service) {
+          const service = backend.service.name;
+          const port = backend.service.port?.number ?? backend.service.port?.name ?? '';
+          target = service ? `${service}:${port}` : `${port}`;
+        } else if (backend?.resource) {
+          target = `${backend.resource.kind}:${backend.resource.name}`;
+        }
+        return `${path} › ${target}`;
+      }) ?? [];
+    labels = labels.concat(text);
+  });
+
+  return labels;
+}
+
 function RulesDisplay(props: { ingress: Ingress }) {
   const { ingress } = props;
-
-  const rulesText = React.useMemo(() => {
-    const rules = ingress.getRules();
-    let labels: string[] = [];
-
-    rules.forEach(({ http }) => {
-      const text =
-        http?.paths.map(({ path, backend }) => {
-          let target = '';
-          if (!!backend.service) {
-            const service = backend.service.name;
-            const port = backend.service.port.number ?? backend.service.port.name ?? '';
-            target = `${!!service ? service + ':' + port.toString() : port.toString()}`;
-          } else if (!!backend.resource) {
-            target = `${backend.resource.kind}:${backend.resource.name}`;
-          }
-          return `${path} › ${target}`;
-        }) ?? '';
-      labels = labels.concat(text);
-    });
-
-    return labels;
-  }, [ingress]);
+  const rulesText = React.useMemo(() => getIngressPaths(ingress), [ingress]);
 
   return <LabelListItem labels={rulesText} />;
 }
@@ -84,15 +85,15 @@ export default function IngressList() {
             ingress
               .getRules()
               .map(r => r.host ?? '*')
-              .join(''),
+              .join(', '),
           render: ingress => (
             <LabelListItem labels={ingress.getRules().map(({ host }) => host || '*')} />
           ),
         },
         {
-          id: 'ports',
+          id: 'paths',
           label: t('translation|Path'),
-          getValue: () => '',
+          getValue: ingress => getIngressPaths(ingress).join(', '),
           render: (ingress: Ingress) => <RulesDisplay ingress={ingress} />,
         },
         'labels',
