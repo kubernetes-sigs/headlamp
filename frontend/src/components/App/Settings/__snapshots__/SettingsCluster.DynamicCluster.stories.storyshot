@@ -561,7 +561,7 @@
                   aria-label="Namespace"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
-                  placeholder="default"
+                  placeholder="kube-system"
                   type="text"
                   value=""
                 />
@@ -584,7 +584,7 @@
                 class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
                 id=":mock-test-id:"
               >
-                The default namespace is default.
+                The default namespace is kube-system.
               </p>
             </div>
           </dd>
