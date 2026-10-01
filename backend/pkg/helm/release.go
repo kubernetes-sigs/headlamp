@@ -165,7 +165,7 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 		namespace = *req.Namespace
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "list_releases"},
 			err, "creating action config")
@@ -236,7 +236,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetRelease},
 			err, "creating action config")
@@ -246,7 +246,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Last(req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetRelease},
 			err, "release not found")
@@ -303,7 +303,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory},
 			err, "creating action config")
@@ -313,7 +313,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Last(req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetReleaseHistory},
 			err, "release not found")
@@ -382,7 +382,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease},
 			err, "creating action config")
@@ -392,7 +392,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Last(req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opUninstallRelease},
 			err, "release not found")
@@ -479,7 +479,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "rollback_release"},
 			err, "creating action config")
@@ -489,7 +489,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Last(req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name},
 			err, "release not found")
@@ -603,7 +603,7 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "install_release"},
 			err, "creating action config")
@@ -799,7 +799,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := h.newActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "upgrade_release"},
 			err, "creating action config")
@@ -809,7 +809,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Last(req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
 		return
