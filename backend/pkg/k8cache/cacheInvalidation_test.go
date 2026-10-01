@@ -808,10 +808,87 @@ func TestFilterImportantResources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := k8cache.ExportedFilterImportantResources(tt.input)
+			got := k8cache.ExportedFilterImportantResources(tt.input, nil)
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestFilterImportantResources_CustomWatchResources(t *testing.T) {
+	t.Parallel()
+
+	input := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "pods"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Group: "", Version: "v1", Resource: "namespaces"},
+	}
+
+	tests := []struct {
+		name           string
+		watchResources []string
+		want           []schema.GroupVersionResource
+	}{
+		{
+			name:           "custom list selects only specified resources",
+			watchResources: []string{"pods", "ingresses"},
+			want: []schema.GroupVersionResource{
+				{Group: "", Version: "v1", Resource: "pods"},
+				{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+			},
+		},
+		{
+			name:           "single custom resource",
+			watchResources: []string{"namespaces"},
+			want: []schema.GroupVersionResource{
+				{Group: "", Version: "v1", Resource: "namespaces"},
+			},
+		},
+		{
+			name:           "custom resource not in input returns empty",
+			watchResources: []string{"networkpolicies"},
+			want:           []schema.GroupVersionResource{},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := k8cache.ExportedFilterImportantResources(input, tt.watchResources)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReturnGVRList_CustomWatchResources(t *testing.T) {
+	t.Parallel()
+
+	apiResourceLists := []*metav1.APIResourceList{
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "pods", Kind: "Pod", Verbs: []string{"list", "watch", "get"}},
+				{Name: "namespaces", Kind: "Namespace", Verbs: []string{"list", "watch", "get"}},
+			},
+		},
+		{
+			GroupVersion: "networking.k8s.io/v1",
+			APIResources: []metav1.APIResource{
+				{Name: "ingresses", Kind: "Ingress", Verbs: []string{"list", "watch", "get"}},
+			},
+		},
+	}
+
+	got := k8cache.ExportedReturnGVRList(apiResourceLists, []string{"ingresses", "namespaces"})
+
+	want := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "namespaces"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+	}
+
+	assert.Equal(t, want, got)
 }
 
 func TestReturnGVRList_FiltersImportantResources(t *testing.T) {
@@ -840,7 +917,7 @@ func TestReturnGVRList_FiltersImportantResources(t *testing.T) {
 		},
 	}
 
-	got := k8cache.ExportedReturnGVRList(apiResourceLists)
+	got := k8cache.ExportedReturnGVRList(apiResourceLists, nil)
 
 	want := []schema.GroupVersionResource{
 		{Group: "", Version: "v1", Resource: "pods"},
