@@ -70,9 +70,23 @@ export default function ActionButton({
     event.stopPropagation();
   };
 
+  const isDisabled = !!iconButtonProps?.disabled;
+
   if (buttonStyle === 'menu') {
     return (
-      <MenuItem onClick={onClick}>
+      <MenuItem
+        disabled={isDisabled}
+        onClick={isDisabled ? preventDisabledActivation : onClick}
+        onKeyDown={
+          isDisabled
+            ? event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  preventDisabledActivation(event);
+                }
+              }
+            : undefined
+        }
+      >
         <ListItemIcon>
           <Icon icon={icon} color={color} width={width} {...iconProps} />
         </ListItemIcon>
@@ -80,8 +94,6 @@ export default function ActionButton({
       </MenuItem>
     );
   }
-
-  const isDisabled = !!iconButtonProps?.disabled;
   const buttonLabel = iconButtonProps?.['aria-label'] ?? description;
   const button = (
     <IconButton
