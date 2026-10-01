@@ -19,16 +19,16 @@ import { KubeObject } from './KubeObject';
 
 export interface KubePDB extends KubeObjectInterface {
   spec: {
-    selector: {
-      matchLabels: {
+    selector?: {
+      matchLabels?: {
         [key: string]: string;
       };
       matchExpressions?: {
         key: string;
         operator: string;
         values: string[];
-      };
-    };
+      }[];
+    } | null;
     minAvailable?: number;
     maxUnavailable?: number;
   };
