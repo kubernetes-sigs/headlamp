@@ -52,6 +52,11 @@
         "version": { "type": "string" },
         "appId": { "type": "string" },
         "artifactName": { "type": "string" },
+        "trayIcon": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resource-relative icon used by the packaged desktop system tray."
+        },
         "protocols": {
           "type": "object",
           "properties": {

@@ -38,6 +38,7 @@ import { hideBin } from 'yargs/helpers';
 import {
   loadBuildManifest,
   productPluginCommandPolicies,
+  readProductMetadata,
   resolveBuildManifestPath,
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
@@ -273,6 +274,7 @@ const productPluginCommandPolicy = productPluginCommandPolicies(
   appBuildManifest,
   isDev ? 'development' : 'production'
 );
+const productMetadata = readProductMetadata(appBuildManifest);
 
 /** Successful post-bind startup of an internal backend process. */
 interface InternalBackendReadyOutcome {
@@ -1984,6 +1986,7 @@ function startElectron() {
       getMainWindow: () => mainWindow,
       isBackendAvailable: () => backendCredentialsAvailable,
       isDev,
+      trayIcon: productMetadata?.trayIcon,
       quit: () => {
         isQuitting = true;
         app.quit();

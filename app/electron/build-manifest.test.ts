@@ -517,7 +517,7 @@ describe('product metadata', () => {
     });
   });
 
-  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName'])(
+  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName', 'trayIcon'])(
     'rejects a non-string product.%s',
     field => {
       expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
@@ -537,6 +537,17 @@ describe('product metadata', () => {
     });
     expect(validate({ product: { companyName: 'Example Company' } })).toBe(true);
     expect(validate({ product: { companyName: 1 } })).toBe(false);
+  });
+
+  it('requires a non-empty product tray icon in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+
+    expect(validate({ product: { trayIcon: 'assets/tray.png' } })).toBe(true);
+    expect(validate({ product: { trayIcon: '' } })).toBe(false);
+    expect(validate({ product: { trayIcon: 1 } })).toBe(false);
   });
 
   it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
