@@ -77,7 +77,7 @@ func TestWatch(t *testing.T) {
 	// create a sentinel file before starting the watcher
 	// so we can wait for its creation event to ensure the watcher is setup
 	sentinelFile := filepath.Join(dirName, "sentinel-"+uuid.NewString())
-	sf, err := os.Create(sentinelFile) //nolint:gosec
+	sf, err := os.Create(sentinelFile) //nolint:gosec // Test helper creating mock sentinel file for directory watcher.
 	require.NoError(t, err)
 
 	require.NoError(t, sf.Close())
@@ -91,7 +91,7 @@ func TestWatch(t *testing.T) {
 
 	// create a new file in the new directory
 	fileName := filepath.Join(dirName, uuid.NewString())
-	f, err := os.Create(fileName) //nolint:gosec
+	f, err := os.Create(fileName) //nolint:gosec // Test helper creating mock file for watcher event testing.
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())
@@ -110,7 +110,7 @@ func TestWatch(t *testing.T) {
 	t.Log("Got create folder event in the directory")
 
 	subFileName := filepath.Join(subDirName, uuid.NewString())
-	subf, err := os.Create(subFileName) //nolint:gosec
+	subf, err := os.Create(subFileName) //nolint:gosec // Test helper creating mock subdirectory file.
 	require.NoError(t, err)
 
 	require.NoError(t, subf.Close())
@@ -135,7 +135,8 @@ func TestWatch(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
+//nolint:funlen // Subtest scenarios verify plugin catalog directory operations.
+func TestGeneratePluginPaths(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// create a new directory in tempDir
@@ -152,13 +153,13 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := filepath.Join(subDir, "main.js")
-		pf, err := os.Create(pluginPath) //nolint:gosec
+		pf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock plugin main.js file.
 		require.NoError(t, err)
 
 		require.NoError(t, pf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
-		ppf, err := os.Create(packageJSONPath) //nolint:gosec
+		ppf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper creating mock package.json file.
 		require.NoError(t, err)
 
 		require.NoError(t, ppf.Close())
@@ -188,13 +189,13 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := filepath.Join(subDir, "main.js")
-		spf, err := os.Create(pluginPath) //nolint:gosec
+		spf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock static plugin file.
 		require.NoError(t, err)
 
 		require.NoError(t, spf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
-		sppf, err := os.Create(packageJSONPath) //nolint:gosec
+		sppf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper creating mock static plugin package.json.
 		require.NoError(t, err)
 
 		require.NoError(t, sppf.Close())
@@ -224,7 +225,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create random file in the sub directory
 		fileName := filepath.Join(subDir, uuid.NewString())
-		rf, err := os.Create(fileName) //nolint:gosec
+		rf, err := os.Create(fileName) //nolint:gosec // Test helper creating mock file for invalid path test.
 		require.NoError(t, err)
 
 		require.NoError(t, rf.Close())
@@ -250,14 +251,14 @@ func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 
 	// create main.js
 	mainJsPath := filepath.Join(pluginDir, "main.js")
-	mjf, err := os.Create(mainJsPath) //nolint:gosec
+	mjf, err := os.Create(mainJsPath) //nolint:gosec // Test helper initializing mock plugin main.js.
 	require.NoError(t, err)
 
 	require.NoError(t, mjf.Close())
 
 	// create package.json
 	packageJSONPath := filepath.Join(pluginDir, "package.json")
-	pjf, err := os.Create(packageJSONPath) //nolint:gosec
+	pjf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper initializing mock plugin package.json.
 	require.NoError(t, err)
 
 	require.NoError(t, pjf.Close())
@@ -276,7 +277,7 @@ const (
 	testDevPluginName = "dev-plugin-1"
 )
 
-func TestListPlugins(t *testing.T) { //nolint:funlen
+func TestListPlugins(t *testing.T) { //nolint:funlen // Long test function checking plugin discovery logs and manifests.
 	// Capture log output via logger.SetLogFunc.
 	var logEntries []logEntry
 
@@ -365,7 +366,8 @@ func TestListPlugins(t *testing.T) { //nolint:funlen
 	assert.True(t, foundFallback, "should fall back to folder name when package.json is invalid")
 }
 
-func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
+//nolint:funlen // Long test function verifying filesystem watcher events for plugins.
+func TestHandlePluginEvents(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// create a new directory in tempDir
@@ -382,13 +384,13 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 
 	// create main.js and package.json in the sub directory
 	pluginPath := filepath.Join(pluginDirPath, "main.js")
-	pf, err := os.Create(pluginPath) //nolint:gosec
+	pf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock main.js for event testing.
 	require.NoError(t, err)
 
 	require.NoError(t, pf.Close())
 
 	packageJSONPath := filepath.Join(pluginDirPath, "package.json")
-	ppf, err := os.Create(packageJSONPath) //nolint:gosec
+	ppf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper creating mock package.json for event testing.
 	require.NoError(t, err)
 
 	require.NoError(t, ppf.Close())
@@ -575,7 +577,7 @@ func TestPopulatePluginsCache(t *testing.T) {
 
 // TestDelete checks the Delete function.
 //
-//nolint:funlen
+//nolint:funlen // Long test function verifying plugin deletion across multiple directories.
 func TestDelete(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "testdelete")
 	require.NoError(t, err)
