@@ -65,6 +65,50 @@ describe('useQueryParamsState', () => {
     expect(history.length).toBe(2);
   });
 
+  it('should not push a history entry when setting the same value again', () => {
+    const history = createMemoryHistory();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Router history={history}>{children}</Router>
+    );
+
+    const { result } = renderHook(() => useQueryParamsState<string>('test', 'initial'), {
+      wrapper,
+    });
+
+    act(() => {
+      result.current[1]('same');
+    });
+    act(() => {
+      result.current[1]('same');
+    });
+
+    expect(history.location.search).toBe('?test=same');
+    expect(history.length).toBe(2);
+  });
+
+  it('should not push a history entry when removing an absent param', () => {
+    const history = createMemoryHistory();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Router history={history}>{children}</Router>
+    );
+
+    const { result } = renderHook(
+      () => useQueryParamsState<string | undefined>('test', undefined),
+      {
+        wrapper,
+      }
+    );
+
+    act(() => {
+      result.current[1](undefined);
+    });
+    act(() => {
+      result.current[1](undefined);
+    });
+
+    expect(history.length).toBe(1);
+  });
+
   it('should remove the query param if the new value is undefined', () => {
     const history = createMemoryHistory();
     history.replace('?test=value');
