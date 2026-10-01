@@ -21,6 +21,21 @@ import { API_BASE, TestContext } from '../../test';
 import List from './List';
 import { NODE_DUMMY_DATA, NODE_DUMMY_DATA_NO_POOLS } from './storyHelper';
 
+/**
+ * Unrestricted SelfSubjectRulesReview response — empty resourceRules means
+ * Node.useList's RBAC resourceNames check resolves to "not restricted",
+ * so these stories exercise the normal unfiltered node list path.
+ */
+const unrestrictedSSRRHandler = http.post(
+  `${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`,
+  () =>
+    HttpResponse.json({
+      kind: 'SelfSubjectRulesReview',
+      apiVersion: 'authorization.k8s.io/v1',
+      status: { resourceRules: [], nonResourceRules: [], incomplete: false },
+    })
+);
+
 export default {
   title: 'node/List',
   component: List,
@@ -46,6 +61,7 @@ export default {
               items: NODE_DUMMY_DATA,
             })
           ),
+          unrestrictedSSRRHandler,
         ],
       },
     },
@@ -83,6 +99,7 @@ NoNodePools.parameters = {
         http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
           HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
         ),
+        unrestrictedSSRRHandler,
         http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, () =>
           HttpResponse.json({
             apiVersion: 'metrics.k8s.io/v1beta1',
