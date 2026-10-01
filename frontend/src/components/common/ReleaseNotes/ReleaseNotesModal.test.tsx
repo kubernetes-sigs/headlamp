@@ -39,4 +39,56 @@ describe('ReleaseNotesModal', () => {
       'https://example.com/release.png'
     );
   });
+
+  it('renders GFM tables whose header cells use raw <img> spacer tags (issue #7559)', () => {
+    // Trimmed from the real v0.45.0 release body.
+    const releaseNotes = `## Performance
+
+| <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png" width="800" height="0" alt=""> | <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png" width="200" height="0" alt=""> |
+|:--|--:|
+| Plugin i18n now fetches only the active locale's translation file. | Thanks to:<br>@YousufFFFF<br>#7363 |`;
+
+    render(<ReleaseNotesModal releaseNotes={releaseNotes} appVersion="0.45.0" />);
+
+    const table = screen.getByRole('table');
+    expect(
+      within(table).getByRole('cell', {
+        name: "Plugin i18n now fetches only the active locale's translation file.",
+      })
+    ).toBeInTheDocument();
+
+    expect(screen.queryByText(/<br>/)).not.toBeInTheDocument();
+
+    // MUI's Dialog portals to document.body, outside RTL's `container`.
+    const images = document.body.querySelectorAll('img');
+    expect(images[0]).toHaveAttribute('width', '800');
+    expect(images[0]).toHaveAttribute('height', '0');
+    expect(images[1]).toHaveAttribute('width', '200');
+    expect(images[1]).toHaveAttribute('height', '0');
+  });
+
+  it('keeps sized raw images responsive while collapsing zero-height spacers', () => {
+    const releaseNotes =
+      '<img src="https://example.com/shot.png" width="800" height="352" alt="shot" />\n\n' +
+      '| <img src="https://example.com/spacer.png" width="800" height="0" alt=""> Change |\n|:--|\n| Row |';
+
+    render(<ReleaseNotesModal releaseNotes={releaseNotes} appVersion="0.45.0" />);
+
+    expect(getComputedStyle(screen.getByRole('img', { name: 'shot' })).height).toBe('auto');
+    const spacer = document.body.querySelector('img[src="https://example.com/spacer.png"]')!;
+    expect(getComputedStyle(spacer).height).toMatch(/^0(px)?$/);
+  });
+
+  it('drops non-http(s) src on raw <img> tags', () => {
+    const releaseNotes =
+      '<img src="javascript:alert(1)" alt="x" /><img src="https://example.com/ok.png" alt="ok" />';
+
+    render(<ReleaseNotesModal releaseNotes={releaseNotes} appVersion="0.45.0" />);
+
+    expect(document.body.querySelector('img[src^="javascript:"]')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'ok' })).toHaveAttribute(
+      'src',
+      'https://example.com/ok.png'
+    );
+  });
 });

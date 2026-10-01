@@ -41,7 +41,7 @@
                 class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
-                Release Notes (1.9.9)
+                Release Notes (0.45.0)
               </h1>
             </div>
             <div
@@ -70,104 +70,55 @@
           <div
             class="MuiBox-root css-xschgg"
           >
-            <h1>
-              Release Notes
-            </h1>
             <h2>
-              Hello
-            </h2>
-            <h3>
-              Sub-heading
-            </h3>
-            <p>
-              world
-            </p>
-            <h2>
-              Changes
+              Performance
             </h2>
             <table>
               <thead>
                 <tr>
-                  <th>
-                    Feature
+                  <th
+                    style="text-align: left;"
+                  >
+                    <img
+                      alt=""
+                      height="0"
+                      src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png"
+                      width="800"
+                    />
+                    Change
                   </th>
-                  <th>
-                    Status
-                  </th>
-                  <th>
-                    Notes
+                  <th
+                    style="text-align: right;"
+                  >
+                    <img
+                      alt=""
+                      height="0"
+                      src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/docs/images/icon.png"
+                      width="200"
+                    />
+                    Credits
                   </th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>
-                    Dark mode
+                  <td
+                    style="text-align: left;"
+                  >
+                    Plugin i18n now fetches only the active locale's translation file, preventing unnecessary requests.
                   </td>
-                  <td>
-                    ✅ Done
-                  </td>
-                  <td>
-                    Available in settings
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Tables
-                  </td>
-                  <td>
-                    ✅ Done
-                  </td>
-                  <td>
-                    Now rendered properly
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Images
-                  </td>
-                  <td>
-                    ✅ Done
-                  </td>
-                  <td>
-                    Bounded to container
+                  <td
+                    style="text-align: right;"
+                  >
+                    Thanks to:
+                    <br />
+                    @illume
+                    <br />
+                    #7358
                   </td>
                 </tr>
               </tbody>
             </table>
-            <h2>
-              Screenshot
-            </h2>
-            <img
-              alt="Example release screenshot"
-              height="352"
-              src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704"
-              width="800"
-            />
-            <h2>
-              Code Example
-            </h2>
-            <pre>
-              <code
-                class="language-yaml"
-              >
-                apiVersion: v1
-kind: Pod
-
-              </code>
-            </pre>
-            <blockquote>
-              
-
-              <p>
-                <strong>
-                  Note:
-                </strong>
-                 This is a blockquote with important information.
-              </p>
-              
-
-            </blockquote>
           </div>
         </div>
       </div>
