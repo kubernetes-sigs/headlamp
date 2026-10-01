@@ -474,4 +474,231 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.connections[0]?.url).not.toContain('metadata.name%3Dpod-a');
     });
   });
+
+  it('clears query data to null when receiving a DELETED watch event', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).not.toBeNull();
+    });
+
+    const lastCall = mockUseWebSocket.mock.calls[mockUseWebSocket.mock.calls.length - 1][0];
+    const onMessage = lastCall.onMessage;
+
+    onMessage({
+      type: 'DELETED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', deletionTimestamp: '2026-08-11T00:00:00Z' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeNull();
+    });
+  });
+
+  it('updates cluster property and query data on MODIFIED watch event', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'custom-cluster',
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).not.toBeNull();
+    });
+
+    const lastCall = mockUseWebSocket.mock.calls[mockUseWebSocket.mock.calls.length - 1][0];
+    const onMessage = lastCall.onMessage;
+
+    onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '2' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.jsonData?.metadata?.resourceVersion).toBe('2');
+      expect(result.current.data?.cluster).toBe('custom-cluster');
+    });
+  });
+
+  it('keeps watch enabled and restores query data when resource is DELETED and then recreated via ADDED event', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).not.toBeNull();
+    });
+
+    const lastCall = mockUseWebSocket.mock.calls[mockUseWebSocket.mock.calls.length - 1][0];
+    const onMessage = lastCall.onMessage;
+
+    // Send DELETED event
+    onMessage({
+      type: 'DELETED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', deletionTimestamp: '2026-08-11T00:00:00Z' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeNull();
+    });
+
+    // Verify watch remains enabled even though data is null
+    const afterDeleteWsCall =
+      mockUseWebSocket.mock.calls[mockUseWebSocket.mock.calls.length - 1][0];
+    expect(afterDeleteWsCall.enabled).toBe(true);
+
+    // Send ADDED event (recreation of the object)
+    onMessage({
+      type: 'ADDED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '3' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).not.toBeNull();
+      expect(result.current.data?.jsonData?.metadata?.resourceVersion).toBe('3');
+      expect(result.current.data?.cluster).toBe('test');
+    });
+  });
+
+  it('does not corrupt cache when receiving an ERROR watch event', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).not.toBeNull();
+    });
+
+    const podBeforeError = result.current.data;
+    const lastCall = mockUseWebSocket.mock.calls[mockUseWebSocket.mock.calls.length - 1][0];
+    const onMessage = lastCall.onMessage;
+
+    // Kubernetes sends ERROR events with a Status object as the payload,
+    // not a real KubeObject. The cache must be left untouched.
+    onMessage({
+      type: 'ERROR',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Status',
+        metadata: {},
+        status: 'Failure',
+        message: 'too old resource version: 123 (456)',
+        reason: 'Gone',
+        code: 410,
+      },
+    });
+
+    // Cache must still hold the last known-good object, not a mangled Status
+    await waitFor(() => {
+      expect(result.current.data).toBe(podBeforeError);
+    });
+  });
+
+  it('does not start watch when the initial GET has errored', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockRejectedValue(new ApiError('Not Found', { status: 404 }));
+
+    renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'missing-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    // Allow the query to settle (error state)
+    await waitFor(() => {
+      const calls = mockUseWebSocket.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      // Watch must remain disabled while GET is failing
+      expect(lastCall.enabled).toBe(false);
+    });
+  });
 });
