@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import DaemonSet from '../../lib/k8s/daemonSet';
@@ -59,11 +61,85 @@ export default function DaemonSetList() {
         {
           id: 'nodeSelector',
           label: t('Node Selector'),
-          getValue: daemonSet => daemonSet.getNodeSelectors().join(', '),
-          render: daemonSet =>
-            daemonSet.spec?.template?.spec?.nodeSelector ? (
-              <MetadataDictGrid dict={daemonSet.spec.template.spec.nodeSelector} />
-            ) : null,
+          gridTemplate: 1,
+          cellProps: {
+            sx: { minWidth: 0, overflow: 'hidden' },
+          },
+          getValue: daemonSet =>
+            Object.entries(daemonSet.spec?.template?.spec?.nodeSelector ?? {})
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => `${k}=${v}`)
+              .join(', '),
+          render: daemonSet => {
+            const nodeSelector = daemonSet.spec?.template?.spec?.nodeSelector;
+            if (!nodeSelector) return null;
+            const entries = Object.entries(nodeSelector).sort(([a], [b]) => a.localeCompare(b));
+            if (entries.length === 0) return null;
+            const maxVisible = 2;
+            const hiddenCount = Math.max(entries.length - maxVisible, 0);
+            const visibleDict = Object.fromEntries(entries.slice(0, maxVisible));
+            const tooltipText = entries.map(([k, v]) => `${k}: ${v}`).join('\n');
+            return (
+              <LightTooltip
+                title={<span style={{ whiteSpace: 'pre-line' }}>{tooltipText}</span>}
+                interactive
+                sx={theme => ({
+                  backgroundColor: theme.palette.background.default,
+                  color: theme.palette.resourceToolTip.color,
+                  boxShadow: theme.shadows[1],
+                  fontSize: '1rem',
+                  whiteSpace: 'pre-line',
+                })}
+              >
+                <Box
+                  component="div"
+                  tabIndex={0}
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'flex-start',
+                    flexDirection: 'column',
+                    gap: 0.5,
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Box sx={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+                    <MetadataDictGrid
+                      dict={visibleDict}
+                      truncateLimit={10}
+                      disableEntryTooltip
+                      gridProps={{
+                        sx: {
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 0.5,
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                        },
+                      }}
+                    />
+                  </Box>
+                  {hiddenCount > 0 && (
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      noWrap
+                      sx={theme => ({
+                        color: theme.palette.text.secondary,
+                        fontSize: theme.typography.pxToRem(12),
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      })}
+                    >
+                      {t('translation|more_count', { count: hiddenCount })}
+                    </Typography>
+                  )}
+                </Box>
+              </LightTooltip>
+            );
+          },
         },
         {
           id: 'containers',
