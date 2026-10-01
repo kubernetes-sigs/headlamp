@@ -174,6 +174,74 @@ const StyledBody = styled('tbody')({ display: 'contents' });
 const DEFAULT_MIN_COLUMN_WIDTH = 100;
 
 /**
+ * Upper bound for the options served to a single select filter. MRT renders one
+ * unvirtualized menu item per option, so a column with more distinct values serves
+ * only its most frequent ones instead of freezing the tab on every open.
+ */
+const MAX_FILTER_OPTIONS = 1000;
+
+const EMPTY_FACETED_VALUES = new Map<any, number>();
+
+/** The filter variants whose UI is a dropdown that MRT feeds from the faceted values. */
+const DROPDOWN_FILTER_VARIANTS: readonly string[] = ['select', 'multi-select', 'autocomplete'];
+
+/**
+ * MRT sources the select-filter dropdown options from the column's faceted unique
+ * values, but installs no implementation when `enableFacetedValues` is off, which
+ * callers do on large datasets, because TanStack's default builds a unique-value map
+ * for every column, high-cardinality ones included. This implementation is installed
+ * only while faceting is off, walks just the columns whose filter renders a dropdown
+ * and serves an empty map for the rest, so the dropdowns keep their options at any
+ * size while the memory guard keeps covering the columns it exists for. With
+ * faceting on, MRT's native implementation stays in place for every column.
+ *
+ * It relies on two undocumented MRT behaviors, pinned in
+ * Table.facetedFilterOptions.test.tsx: a caller-provided implementation wins over
+ * MRT's own `enableFacetedValues ? ... : undefined`, and the dropdown pipeline reads
+ * faceted values regardless of that flag. With faceting off, TanStack backs
+ * `getFacetedRowModel()` with the pre-filtered rows, so the options are then a
+ * superset that does not narrow with other active filters.
+ */
+const getDropdownFacetedUniqueValues: NonNullable<
+  MaterialTableOptions<Record<string, any>>['getFacetedUniqueValues']
+> = (table, columnId) => {
+  // TanStack creates one closure per column, so caching on the row-model identity
+  // recomputes exactly when the column's rows change, like TanStack's default does.
+  let cachedRows: unknown;
+  let cachedValues = EMPTY_FACETED_VALUES;
+  return () => {
+    const column = table.getColumn(columnId);
+    const columnDef = column?.columnDef as TableColumn<Record<string, any>> | undefined;
+    if (
+      !column ||
+      !DROPDOWN_FILTER_VARIANTS.includes(columnDef?.filterVariant ?? '') ||
+      // MRT prefers caller-provided options, so the walk would go unused.
+      columnDef?.filterSelectOptions
+    ) {
+      return EMPTY_FACETED_VALUES;
+    }
+    const { flatRows } = column.getFacetedRowModel();
+    if (flatRows === cachedRows) {
+      return cachedValues;
+    }
+    const values = new Map<any, number>();
+    for (const row of flatRows) {
+      for (const value of row.getUniqueValues(columnId)) {
+        values.set(value, (values.get(value) ?? 0) + 1);
+      }
+    }
+    cachedRows = flatRows;
+    cachedValues = values;
+    if (values.size > MAX_FILTER_OPTIONS) {
+      // Keep the most frequent values so the dropdown stays useful past the cap.
+      const byCount = Array.from(values).sort(([, a], [, b]) => b - a);
+      cachedValues = new Map(byCount.slice(0, MAX_FILTER_OPTIONS));
+    }
+    return cachedValues;
+  };
+};
+
+/**
  * Tracks the current width of an element using a ResizeObserver.
  * Returns 0 until the element has been measured.
  */
@@ -361,6 +429,17 @@ export default function Table<RowItem extends Record<string, any>>({
     ...tableProps,
     columns: tableColumns ?? [],
     data: tableData,
+    // The key must be absent, not undefined, with faceting on: MRT applies caller options
+    // over its own wiring even when they are undefined, which would drop TanStack's
+    // default and its full faceting contract. A caller-provided implementation is
+    // already in the tableProps spread.
+    ...(tableProps.enableFacetedValues || tableProps.getFacetedUniqueValues
+      ? {}
+      : {
+          // The implementation only reads generic column metadata, so the erased row type is safe.
+          getFacetedUniqueValues:
+            getDropdownFacetedUniqueValues as MaterialTableOptions<RowItem>['getFacetedUniqueValues'],
+        }),
     enablePagination: tableData.length > rowsPerPageOptions[0],
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
