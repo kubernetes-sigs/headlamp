@@ -56,3 +56,10 @@ ShortText.args = {
   children: 'Short text',
   labelId: 'my-label2',
 };
+
+export const ExpandedShortText = Template.bind({});
+ExpandedShortText.args = {
+  children: 'Short text',
+  show: true,
+  labelId: 'my-label3',
+};
