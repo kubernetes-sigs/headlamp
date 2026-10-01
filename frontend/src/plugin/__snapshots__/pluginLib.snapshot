@@ -631,6 +631,11 @@
     "replicaSet": {
       "default": [Function],
     },
+    "resourceClaim": {
+      "default": [Function],
+      "getRequestedDeviceClasses": [Function],
+      "getResourceClaimState": [Function],
+    },
     "role": {
       "default": [Function],
     },
