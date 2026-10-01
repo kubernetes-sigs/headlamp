@@ -19,7 +19,7 @@ import PriorityClass from '../../lib/k8s/priorityClass';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function PriorityClassList() {
-  const { t } = useTranslation(['glossary']);
+  const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <ResourceListView
@@ -38,7 +38,8 @@ export default function PriorityClassList() {
           id: 'globalDefault',
           label: t('translation|Global Default'),
           gridTemplate: 'min-content',
-          getValue: item => String(item.globalDefault || 'False'),
+          getValue: item => String(item?.globalDefault ?? false),
+          render: (item: PriorityClass) => (item?.globalDefault ? t('translation|Yes') : null),
         },
         'labels',
         'age',
