@@ -180,6 +180,10 @@
           "minimum": 1,
           "maximum": 31536000
         },
+        "allowedFrameAncestors": {
+          "type": "string",
+          "description": "Comma-separated list of origins allowed to embed Headlamp in an iframe (e.g., 'https://example.com,https://app.example.com'). If set, emits Content-Security-Policy with frame-ancestors and skips X-Frame-Options."
+        },
         "podDebugImage": {
           "type": "string",
           "description": "Default image to use when creating pod debug containers"
