@@ -1,0 +1,7 @@
+persistentVolumeClaim:
+  enabled: true
+  size: 10Gi
+  storageClassName: standard
+  accessModes:
+    - ReadWriteOnce
+    - ReadOnlyMany
