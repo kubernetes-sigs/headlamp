@@ -29,7 +29,7 @@ import { getCluster } from '../../lib/cluster';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
-import { KubePod } from '../../lib/k8s/pod';
+import Pod, { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 import store from '../../redux/stores/store';
 
@@ -107,7 +107,7 @@ function uniqueString() {
 }
 
 /**
- * Creates the node debugger pod and opens an attach stream to it.
+ * Creates a privileged debug pod on the given node and attaches to its shell.
  *
  * @param item - Node to open a shell on
  * @param cluster - Cluster the node belongs to, already resolved by the caller
@@ -115,7 +115,8 @@ function uniqueString() {
  * @param onError - Error handler callback, called with the pod creation failure message when the
  *                  thrown value carries one, and with undefined otherwise so the caller can supply a
  *                  translated fallback
- * @returns Object with the stream if successful, empty object on error
+ * @returns The attach stream and the created Pod (for later cleanup), or an
+ * empty object if pod creation fails.
  */
 async function shell(
   item: Node,
@@ -153,14 +154,18 @@ async function shell(
   ];
   return {
     stream: stream(url, onExec, { cluster, additionalProtocols, isJson: false }),
+    pod: new Pod(kubePod, cluster),
   };
 }
 
+/** Terminal for a node debug shell — creates the debug pod, streams the session, and deletes the pod when the terminal closes. */
 export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const { item, onClose } = props;
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const podRef = useRef<Pod | null>(null);
+  const isUnmountedRef = useRef(false);
   const { t } = useTranslation(['translation']);
   const { enqueueSnackbar } = useSnackbar();
 
@@ -178,13 +183,27 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       }
 
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, cluster, onDataCallback, (errorMessage?: string) => {
-        const message = errorMessage || t('translation|Failed to create node shell pod');
-        enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
-          variant: 'error',
-        });
-        xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
-      });
+      const { stream, pod } = await shell(
+        item,
+        cluster,
+        onDataCallback,
+        (errorMessage?: string) => {
+          const message = errorMessage || t('translation|Failed to create node shell pod');
+          enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
+            variant: 'error',
+          });
+          xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
+        }
+      );
+      if (pod) {
+        if (isUnmountedRef.current) {
+          pod.delete().catch(e => {
+            console.error('Error:DebugNode: deleting pod', e);
+          });
+        } else {
+          podRef.current = pod;
+        }
+      }
       return {
         stream,
       };
@@ -299,6 +318,17 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isUnmountedRef.current = true;
+      if (podRef.current) {
+        podRef.current.delete().catch(e => {
+          console.error('Error:DebugNode: deleting pod', e);
+        });
+      }
+    };
   }, []);
 
   return (
