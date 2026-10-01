@@ -22,6 +22,7 @@ import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -49,6 +50,7 @@ import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PDB from '../../../../lib/k8s/podDisruptionBudget';
+import PodGroup from '../../../../lib/k8s/podGroup';
 import PriorityClass from '../../../../lib/k8s/priorityClass';
 import ReferenceGrant from '../../../../lib/k8s/referenceGrant';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
@@ -56,6 +58,11 @@ import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
 import { RuntimeClass } from '../../../../lib/k8s/runtime';
+import {
+  useCompositePodGroupClusters,
+  useSchedulingApiClusters,
+} from '../../../../lib/k8s/schedulingApis';
+import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
@@ -89,12 +96,12 @@ const BUILTIN_CRD_KINDS = [
 /**
  * Create a GraphSource from KubeObject class definition
  */
-const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
+const makeKubeSource = (cl: KubeObjectClass, clusters?: string[]): GraphSource => ({
   id: makeKubeSourceId(cl),
   label: cl.apiName,
   icon: <KubeIcon kind={cl.kind as any} />,
   useData() {
-    const [items] = cl.useList({ namespace: useNamespaces() });
+    const [items] = cl.useList({ namespace: useNamespaces(), ...(clusters ? { clusters } : {}) });
 
     return useMemo(() => (items ? { nodes: items?.map(makeKubeObjectNode) } : null), [items]);
   },
@@ -163,6 +170,8 @@ export function useGetAllSources(): GraphSource[] {
     queryKey: ['api-discovery', ...selectedClusters],
   });
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
+  const schedulingClusters = useSchedulingApiClusters();
+  const compositePodGroupClusters = useCompositePodGroupClusters();
   const gatewayEnabled =
     (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
     !!availableGatewayL4RouteKinds?.length;
@@ -290,6 +299,30 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Lease),
         ],
       },
+      ...(schedulingClusters.length > 0
+        ? [
+            {
+              id: 'scheduling',
+              label: t('glossary|Scheduling (alpha)'),
+              icon: (
+                <Icon
+                  icon="mdi:group"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('workloads')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeKubeSource(SchedulingWorkload, schedulingClusters),
+                ...(compositePodGroupClusters.length > 0
+                  ? [makeKubeSource(CompositePodGroup, compositePodGroupClusters)]
+                  : []),
+                makeKubeSource(PodGroup, schedulingClusters),
+              ],
+            },
+          ]
+        : []),
       ...(gatewayEnabled
         ? [
             {
@@ -352,5 +385,14 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled, tcpRouteEnabled, udpRouteEnabled, t]);
+  }, [
+    CustomResourceDefinition,
+    vpaEnabled,
+    gatewayEnabled,
+    tcpRouteEnabled,
+    udpRouteEnabled,
+    schedulingClusters,
+    compositePodGroupClusters,
+    t,
+  ]);
 }

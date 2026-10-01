@@ -16,12 +16,15 @@
 
 import { renderHook } from '@testing-library/react';
 import App from '../../../../App';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import PodGroup from '../../../../lib/k8s/podGroup';
+import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
@@ -94,6 +97,35 @@ const l4Route = (
 
 const gateway = (metadata: Record<string, any>, cluster = 'cluster-a') =>
   new Gateway({ metadata, spec: { gatewayClassName: 'example' }, status: {} } as any, cluster);
+
+const podGroup = (
+  metadata: Record<string, any>,
+  spec: Record<string, any> = {},
+  cluster = 'cluster-a'
+) =>
+  new PodGroup(
+    { metadata, spec: { schedulingPolicy: { basic: {} }, ...spec }, status: {} } as any,
+    cluster
+  );
+
+const compositePodGroup = (
+  metadata: Record<string, any>,
+  spec: Record<string, any> = {},
+  cluster = 'cluster-a'
+) =>
+  new CompositePodGroup(
+    {
+      apiVersion: 'scheduling.k8s.io/v1alpha3',
+      kind: 'CompositePodGroup',
+      metadata,
+      spec: { schedulingPolicy: { gang: { minGroupCount: 2 } }, ...spec },
+      status: {},
+    } as any,
+    cluster
+  );
+
+const schedulingWorkload = (metadata: Record<string, any>, cluster = 'cluster-a') =>
+  new SchedulingWorkload({ metadata, spec: { podGroupTemplates: [] } } as any, cluster);
 
 describe('KubeObject class matching', () => {
   it('does not match a generic plugin object to a typed resource class', () => {
@@ -323,6 +355,17 @@ describe('useGetAllRelations', () => {
     expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
   });
 
+  it('registers the scheduling relation IDs as built-in', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const expectedIds = ['podgroup-workload', 'pod-podgroup'];
+
+    expect(result.current.map(relation => relation.id)).toEqual(
+      expect.arrayContaining(expectedIds)
+    );
+    expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
+  });
+
   it('exercises volume, environment, and projected-secret predicates', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({
       items: [],
@@ -446,6 +489,153 @@ describe('useGetAllRelations', () => {
         node(new KubeObject({ metadata: { uid: 'other' } } as any, 'cluster-a'))
       )
     ).toBe(false);
+  });
+
+  it('links pod groups to the workload they were templated from', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'podgroup-workload');
+    const workload = schedulingWorkload({
+      uid: 'workload',
+      name: 'training',
+      namespace: 'namespace-a',
+    });
+    const groupOf = (spec: Record<string, any>, cluster = 'cluster-a') =>
+      podGroup({ uid: 'group', name: 'group', namespace: 'namespace-a' }, spec, cluster);
+
+    expect(
+      relation.predicate(
+        node(groupOf({ workloadRef: { workloadName: 'training', templateName: 'workers' } })),
+        node(workload)
+      )
+    ).toBe(true);
+
+    expect(
+      relation.predicate(
+        node(
+          groupOf({
+            podGroupTemplateRef: {
+              workload: { workloadName: 'training', podGroupTemplateName: 'workers' },
+            },
+          })
+        ),
+        node(workload)
+      )
+    ).toBe(true);
+
+    expect(
+      relation.predicate(
+        node(groupOf({ workloadRef: { workloadName: 'other', templateName: 'workers' } })),
+        node(workload)
+      )
+    ).toBe(false);
+
+    expect(relation.predicate(node(groupOf({})), node(workload))).toBe(false);
+
+    expect(
+      relation.predicate(
+        node(
+          groupOf(
+            { workloadRef: { workloadName: 'training', templateName: 'workers' } },
+            'cluster-b'
+          )
+        ),
+        node(workload)
+      )
+    ).toBe(false);
+
+    expect(
+      relation.predicate(
+        node(groupOf({ workloadRef: { workloadName: 'training', templateName: 'workers' } })),
+        node(
+          schedulingWorkload({
+            uid: 'other-namespace',
+            name: 'training',
+            namespace: 'namespace-b',
+          })
+        )
+      )
+    ).toBe(false);
+  });
+
+  it('links pods to their scheduling group', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'pod-podgroup');
+    const group = podGroup({ uid: 'group', name: 'workers', namespace: 'namespace-a' });
+    const podIn = (podGroupName?: string, cluster = 'cluster-a') =>
+      pod(
+        { uid: 'pod', name: 'pod', namespace: 'namespace-a' },
+        podGroupName ? { schedulingGroup: { podGroupName } } : {},
+        cluster
+      );
+
+    expect(relation.predicate(node(podIn('workers')), node(group))).toBe(true);
+    expect(relation.predicate(node(podIn('leaders')), node(group))).toBe(false);
+    expect(relation.predicate(node(podIn()), node(group))).toBe(false);
+    expect(relation.predicate(node(podIn('workers', 'cluster-b')), node(group))).toBe(false);
+  });
+
+  it('links a root composite group to its workload and nests the children', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const toWorkload = relationById(result.current, 'compositepodgroup-workload');
+    const toParent = relationById(result.current, 'compositepodgroup-parent');
+    const workload = schedulingWorkload({
+      uid: 'workload',
+      name: 'llm-serving',
+      namespace: 'namespace-a',
+    });
+    const root = compositePodGroup(
+      { uid: 'root', name: 'serving', namespace: 'namespace-a' },
+      { workloadRef: { workloadName: 'llm-serving', templateName: 'serving' } }
+    );
+    const child = compositePodGroup(
+      { uid: 'child', name: 'prefill', namespace: 'namespace-a' },
+      {
+        workloadRef: { workloadName: 'llm-serving', templateName: 'prefill' },
+        parentCompositePodGroupName: 'serving',
+      }
+    );
+
+    expect(toWorkload.predicate(node(root), node(workload))).toBe(true);
+    // A nested group hangs off its parent, not off the workload.
+    expect(toWorkload.predicate(node(child), node(workload))).toBe(false);
+    expect(toParent.predicate(node(child), node(root))).toBe(true);
+    expect(toParent.predicate(node(root), node(root))).toBe(false);
+  });
+
+  it('links pod groups to their composite parent instead of straight to the workload', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const toComposite = relationById(result.current, 'podgroup-compositepodgroup');
+    const toWorkload = relationById(result.current, 'podgroup-workload');
+    const composite = compositePodGroup({
+      uid: 'composite',
+      name: 'prefill',
+      namespace: 'namespace-a',
+    });
+    const workload = schedulingWorkload({
+      uid: 'workload',
+      name: 'llm-serving',
+      namespace: 'namespace-a',
+    });
+    const nested = podGroup(
+      { uid: 'nested', name: 'prefill-0', namespace: 'namespace-a' },
+      {
+        workloadRef: { workloadName: 'llm-serving', templateName: 'prefill' },
+        parentCompositePodGroupName: 'prefill',
+      }
+    );
+    const flat = podGroup(
+      { uid: 'flat', name: 'workers', namespace: 'namespace-a' },
+      { workloadRef: { workloadName: 'llm-serving', templateName: 'workers' } }
+    );
+
+    expect(toComposite.predicate(node(nested), node(composite))).toBe(true);
+    expect(toWorkload.predicate(node(nested), node(workload))).toBe(false);
+    // A group with no composite parent still links straight to the workload.
+    expect(toWorkload.predicate(node(flat), node(workload))).toBe(true);
   });
 
   it('marks pvc-pod edges as nonGroupingSide for RWX PVCs only', () => {

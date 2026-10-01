@@ -54,7 +54,23 @@ export const SCHEDULING_WORKLOAD_DUMMY_DATA: KubeSchedulingWorkload[] = [
           priorityClassName: 'high-priority',
           priority: 1000,
           preemptionPolicy: 'PreemptLowerPriority',
-          podGroupTemplates: [{ name: 'workers', schedulingPolicy: { gang: { minCount: 4 } } }],
+          compositePodGroupTemplates: [
+            {
+              name: 'prefill',
+              schedulingPolicy: { gang: { minGroupCount: 2 } },
+              podGroupTemplates: [
+                { name: 'prefill-workers', schedulingPolicy: { gang: { minCount: 2 } } },
+              ],
+            },
+            {
+              name: 'decode',
+              schedulingPolicy: { basic: {} },
+              disruptionMode: { single: {} },
+              podGroupTemplates: [
+                { name: 'decode-workers', schedulingPolicy: { gang: { minCount: 2 } } },
+              ],
+            },
+          ],
         },
       ],
     },
