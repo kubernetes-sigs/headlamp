@@ -73,4 +73,100 @@ describe('Job class', () => {
       ).toBe('failed');
     });
   });
+
+  const mockJobData = {
+    apiVersion: 'batch/v1',
+    kind: 'Job',
+    metadata: {
+      name: 'test-job',
+      namespace: 'default',
+      uid: 'job-uid-123',
+    },
+    spec: {
+      template: {
+        spec: {
+          containers: [
+            { name: 'worker', image: 'busybox:latest', imagePullPolicy: 'Always' },
+            { name: 'sidecar', image: 'sidecar:v1', imagePullPolicy: 'IfNotPresent' },
+          ],
+        },
+      },
+    },
+    status: {
+      startTime: '2024-01-01T00:00:00Z',
+      completionTime: '2024-01-01T00:01:00Z',
+    },
+  };
+
+  describe('getContainers', () => {
+    it('returns all containers from the pod template spec', () => {
+      const job = new Job(JSON.parse(JSON.stringify(mockJobData)));
+      const containers = job.getContainers();
+      expect(containers).toHaveLength(2);
+      expect(containers[0].name).toBe('worker');
+      expect(containers[1].name).toBe('sidecar');
+    });
+
+    it('returns empty array when spec is missing', () => {
+      const data = JSON.parse(JSON.stringify(mockJobData));
+      delete data.spec;
+      const job = new Job(data);
+      expect(job.getContainers()).toEqual([]);
+    });
+
+    it('returns empty array when template is missing', () => {
+      const data = JSON.parse(JSON.stringify(mockJobData));
+      delete data.spec.template;
+      const job = new Job(data);
+      expect(job.getContainers()).toEqual([]);
+    });
+  });
+
+  describe('getDuration', () => {
+    it('returns duration in milliseconds when both times are present', () => {
+      const job = new Job(JSON.parse(JSON.stringify(mockJobData)));
+      expect(job.getDuration()).toBe(60000);
+    });
+
+    it('returns -1 when startTime is missing', () => {
+      const data = JSON.parse(JSON.stringify(mockJobData));
+      delete data.status.startTime;
+      const job = new Job(data);
+      expect(job.getDuration()).toBe(-1);
+    });
+
+    it('returns -1 when completionTime is missing', () => {
+      const data = JSON.parse(JSON.stringify(mockJobData));
+      delete data.status.completionTime;
+      const job = new Job(data);
+      expect(job.getDuration()).toBe(-1);
+    });
+
+    it('returns -1 when both times are missing', () => {
+      const data = JSON.parse(JSON.stringify(mockJobData));
+      delete data.status;
+      const job = new Job(data);
+      expect(job.getDuration()).toBe(-1);
+    });
+  });
+
+  describe('getBaseObject', () => {
+    it('returns a Job with correct defaults', () => {
+      const base = Job.getBaseObject();
+      expect(base.kind).toBe('Job');
+      expect(base.apiVersion).toBe('batch/v1');
+      expect(base.metadata.namespace).toBe('');
+      expect(base.metadata.labels).toEqual({ app: 'headlamp' });
+      expect(base.spec.selector?.matchLabels).toEqual({ app: 'headlamp' });
+      expect(base.spec.template.spec.restartPolicy).toBe('Never');
+    });
+
+    it('includes a default container template', () => {
+      const base = Job.getBaseObject();
+      expect(base.spec.template.spec.containers).toHaveLength(1);
+      expect(base.spec.template.spec.containers[0].name).toBe('');
+      expect(base.spec.template.spec.containers[0].image).toBe('');
+      expect(base.spec.template.spec.containers[0].imagePullPolicy).toBe('Always');
+    });
+  });
 });
