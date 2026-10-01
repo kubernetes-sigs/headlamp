@@ -25,14 +25,20 @@ export class ApiError extends Error {
   public namespace?: string;
   /** Cluster name */
   public cluster?: string;
+  /**
+   * Whether the requested resource is namespaced. A forbidden list of one may only mean it
+   * was asked for across the whole cluster rather than in the namespaces the user can read.
+   */
+  public namespacedResource?: boolean;
 
   constructor(
     public message: string,
-    props?: { status?: number; namespace?: string; cluster?: string }
+    props?: { status?: number; namespace?: string; cluster?: string; namespacedResource?: boolean }
   ) {
     super(message);
     this.status = props?.status;
     this.namespace = props?.namespace;
     this.cluster = props?.cluster;
+    this.namespacedResource = props?.namespacedResource;
   }
 }

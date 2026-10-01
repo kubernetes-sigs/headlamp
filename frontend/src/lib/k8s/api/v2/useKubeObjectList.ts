@@ -176,6 +176,22 @@ function allowedNamespaceListQuery<K extends KubeObject>(
 }
 
 /**
+ * Whether any of the requests a list fanned out over answered.
+ *
+ * A list keeps a result for every cluster that responded, so an empty set of them means
+ * each request failed. An empty item list means something else: the requests that did
+ * answer found nothing, and a count of zero is then the answer rather than the lack of one.
+ *
+ * @param query - The list query to inspect.
+ * @returns Whether at least one request returned data.
+ */
+export function hasListResults(
+  query: Pick<QueryListResponse<any, any, any>, 'clusterResults'>
+): boolean {
+  return Object.keys(query.clusterResults ?? {}).length > 0;
+}
+
+/**
  * Query to list Kube objects from a cluster and namespace(optional)
  *
  * @param kubeObjectClass - Class to instantiate the object with
@@ -254,10 +270,12 @@ export function kubeObjectListQuery<K extends KubeObject>(
 
         return response;
       } catch (e) {
-        // Rethrow error with cluster and namespace information
+        // Rethrow error with cluster and namespace information, and with the scope of the
+        // resource, so that whoever shows the error knows how a forbidden list can be read.
         if (e instanceof ApiError) {
           e.cluster = cluster;
           e.namespace = namespace;
+          e.namespacedResource = kubeObjectClass.isNamespaced;
         }
         throw e;
       }
@@ -927,6 +945,7 @@ export function useKubeObjectList<K extends KubeObject>({
                 : new ApiError(e instanceof Error ? e.message : 'Failed to load more resources');
             error.cluster = cached.cluster;
             error.namespace = cached.namespace;
+            error.namespacedResource = kubeObjectClass.isNamespaced;
 
             if (error.status === 410) {
               queryClient.invalidateQueries({ queryKey: q.queryKey! });
