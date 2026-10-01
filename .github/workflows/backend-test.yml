@@ -16,6 +16,7 @@ permissions:
 
 env:
   HEADLAMP_RUN_INTEGRATION_TESTS: true
+  HEADLAMP_TEST_OIDC_ISSUER: http://127.0.0.1:5556/dex
 
 jobs:
   build:
@@ -44,7 +45,7 @@ jobs:
         run: |
           minikube status
           minikube addons enable headlamp
-          kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s    
+          kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s
 
       - name: setup and run golangci-lint
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
@@ -58,6 +59,30 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE
           make backend
+
+      # Started after lint and build so that a Dex/registry hiccup cannot take
+      # those down for backend PRs unrelated to OIDC. It still runs before the
+      # test step and fails hard, so the integration tests can never silently
+      # skip on CI.
+      - name: Start Dex for OIDC integration tests
+        run: |
+          docker run -d --name headlamp-dex \
+            -p 5556:5556 \
+            -v "$GITHUB_WORKSPACE/backend/cmd/headlamp_testdata/dex-integration.yaml:/etc/dex/config.yaml:ro" \
+            ghcr.io/dexidp/dex@sha256:5d0656fce7d453c0e3b2706abf40c0d0ce5b371fb0b73b3cf714d05f35fa5f86 \
+            dex serve /etc/dex/config.yaml # v2.44.0
+
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5556/dex/.well-known/openid-configuration >/dev/null; then
+              echo "dex is up"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "dex did not become ready" >&2
+          docker logs headlamp-dex >&2
+          exit 1
 
       - name: Run tests and calculate code coverage
         run: |
