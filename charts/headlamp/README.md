@@ -13,41 +13,47 @@ Headlamp is an easy-to-use and extensible Kubernetes web UI that provides:
 - Cluster admin access for initial setup
 
 ## Quick Start
-
-Add the Headlamp repository and install the chart:
-
+ 
+Add the Headlamp repository and install the chart into a dedicated namespace (recommended):
+ 
 ```console
 $ helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 $ helm repo update
-$ helm install my-headlamp headlamp/headlamp --namespace kube-system
+$ helm install my-headlamp headlamp/headlamp --namespace headlamp --create-namespace
 ```
-
+ 
 Access Headlamp:
 ```console
-$ kubectl port-forward -n kube-system svc/my-headlamp 8080:80
+$ kubectl port-forward -n headlamp svc/my-headlamp 8080:80
 ```
 Then open http://localhost:8080 in your browser.
-
+ 
 ## Installation
 
+### Namespace Choice
+
+Deploying Headlamp into its own dedicated namespace (e.g. `headlamp` via `--namespace headlamp --create-namespace`) is recommended for production environments for security isolation and clean lifecycle management. While default chart values create a `ClusterRoleBinding` to `cluster-admin`, a dedicated namespace isolates Headlamp's namespaced objects (ServiceAccount, ConfigMaps, Secrets, plugins) from system components. Installing into `kube-system` (e.g. `--namespace kube-system`) is also supported for simple test clusters or addon setups.
+ 
 ### Basic Installation
 ```console
-$ helm install my-headlamp headlamp/headlamp --namespace kube-system
+$ helm install my-headlamp headlamp/headlamp --namespace headlamp --create-namespace
 ```
-
+ 
 ### Installation with OIDC
 ```console
 $ helm install my-headlamp headlamp/headlamp \
-  --namespace kube-system \
+  --namespace headlamp \
+  --create-namespace \
   --set config.oidc.clientID=your-client-id \
   --set config.oidc.clientSecret=your-client-secret \
   --set config.oidc.issuerURL=https://your-issuer-url
 ```
-
+ 
 ### Installation with Ingress
 ```console
 $ helm install my-headlamp headlamp/headlamp \
-  --namespace kube-system \
+  --namespace headlamp \
+  --create-namespace \
   --set ingress.enabled=true \
   --set ingress.hosts[0].host=headlamp.example.com \
   --set ingress.hosts[0].paths[0].path=/
@@ -61,7 +67,7 @@ This means the release can show a newer chart/app version while still running an
 To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format.
 ```console
 $ helm upgrade my-headlamp headlamp/headlamp \
-  --namespace kube-system \
+  --namespace headlamp \
   --reuse-values \
   --set image.tag=v<appVersion>
 ```
@@ -75,7 +81,8 @@ $ helm upgrade my-headlamp headlamp/headlamp \
 
 ```console
 $ helm install my-headlamp headlamp/headlamp \
-  --namespace kube-system \
+  --namespace headlamp \
+  --create-namespace \
   --values cluster-inventory-values.yaml
 ```
 
