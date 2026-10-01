@@ -722,8 +722,7 @@ export function useKubeObjectList<K extends KubeObject>({
             )
           )
         : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams]
+    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams, refetchInterval]
   );
 
   const query = useQueries({
