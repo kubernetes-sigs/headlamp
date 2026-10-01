@@ -41,6 +41,8 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
   subresource?: string;
   /** The namespace for which we're checking the permission, if applied. This is mostly useful when checking "creation" using a resource class, instead of an instance. */
   namespace?: string;
+  /** The cluster to check when item is a resource class. Instances always use their own cluster. */
+  cluster?: string;
   /** Callback for when an error occurs.
    * @param err The error that occurred.
    */
@@ -55,7 +57,16 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
  * @param props The props for the component.
  */
 export default function AuthVisible(props: AuthVisibleProps) {
-  const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
+  const {
+    item,
+    authVerb,
+    subresource,
+    namespace,
+    cluster: clusterProp,
+    onError,
+    onAuthResult,
+    children,
+  } = props;
 
   const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
 
@@ -67,7 +78,9 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
-  const cluster = (item as KubeObject)?.cluster ?? getCluster();
+  const cluster = (item as KubeObject)?._class
+    ? (item as KubeObject).cluster ?? getCluster()
+    : clusterProp ?? getCluster();
 
   const { data } = useQuery<any>({
     enabled: !!item && isAuthVerbValid,
