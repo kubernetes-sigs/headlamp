@@ -721,6 +721,12 @@ export function ConditionsTable(props: ConditionsTableProps) {
 export interface EnvironmentVariablesProps {
   pod?: KubePod;
   container?: KubeContainer;
+  /**
+   * Cluster the pod belongs to. Referenced Secrets and ConfigMaps are resolved against
+   * it, so a pod shown from a cluster other than the one in the URL still reads its own
+   * cluster's values. Falls back to the current cluster when not given.
+   */
+  cluster?: string;
 }
 
 interface EnvVarReference {
@@ -829,10 +835,11 @@ export function extractEnvVarReferences(container: KubeContainer): EnvVarReferen
 function SecretFetcher(props: {
   name: string;
   namespace: string;
+  cluster?: string;
   onResult: (name: string, resource: KubeObject | null, error: ApiError | null) => void;
 }) {
-  const { name, namespace, onResult } = props;
-  const [secret, error] = Secret.useGet(name, namespace);
+  const { name, namespace, cluster, onResult } = props;
+  const [secret, error] = Secret.useGet(name, namespace, { cluster });
 
   React.useEffect(() => {
     // Only call onResult when we have a definitive result (either data or error)
@@ -851,10 +858,11 @@ function SecretFetcher(props: {
 function ConfigMapFetcher(props: {
   name: string;
   namespace: string;
+  cluster?: string;
   onResult: (name: string, resource: KubeObject | null, error: ApiError | null) => void;
 }) {
-  const { name, namespace, onResult } = props;
-  const [configMap, error] = ConfigMap.useGet(name, namespace);
+  const { name, namespace, cluster, onResult } = props;
+  const [configMap, error] = ConfigMap.useGet(name, namespace, { cluster });
 
   React.useEffect(() => {
     if (configMap || error) {
@@ -1120,7 +1128,22 @@ export function buildEnvironmentVariables(
  * Secrets and ConfigMaps as needed.
  */
 export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) {
-  const { pod, container } = props;
+  const { pod, cluster } = props;
+
+  // The fetched Secrets and ConfigMaps live in state and are only replaced once a lookup
+  // settles, so an instance reused for a pod in another cluster or namespace would keep
+  // showing the previous values while the new lookups are still pending. Keying on both
+  // remounts it with empty maps instead.
+  return (
+    <ContainerEnvironmentVariablesContent
+      key={`${cluster ?? ''}/${pod?.metadata?.namespace ?? ''}`}
+      {...props}
+    />
+  );
+}
+
+function ContainerEnvironmentVariablesContent(props: EnvironmentVariablesProps) {
+  const { pod, container, cluster } = props;
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -1314,6 +1337,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
                 name: data.from?.metadata?.name,
                 namespace: data.from?.metadata?.namespace,
               }}
+              activeCluster={cluster}
             >
               {`${data.from?.kind}: ${data.from?.metadata?.name}`}
             </Link>
@@ -1334,6 +1358,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
           key={`secret-${name}`}
           name={name}
           namespace={namespace}
+          cluster={cluster}
           onResult={handleSecretFetched}
         />
       ))}
@@ -1342,6 +1367,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
           key={`configmap-${name}`}
           name={name}
           namespace={namespace}
+          cluster={cluster}
           onResult={handleConfigMapFetched}
         />
       ))}
@@ -1683,7 +1709,13 @@ export function ContainerInfo(props: ContainerInfoProps) {
       },
       {
         name: t('glossary|Environment'),
-        value: <ContainerEnvironmentVariables pod={resource as KubePod} container={container} />,
+        value: (
+          <ContainerEnvironmentVariables
+            pod={resource as KubePod}
+            container={container}
+            cluster={(resource as KubeObject)?.cluster}
+          />
+        ),
         hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
       },
       {
