@@ -23,6 +23,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useReducer,
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
@@ -206,69 +207,155 @@ export interface GraphSourceManagerProps {
   relations: Relation[];
 }
 
+interface SelectionState {
+  overrides: Record<string, boolean>;
+  selectedSources: Set<string>;
+}
+
+type SelectionAction =
+  | { type: 'toggle'; source: GraphSource }
+  | { type: 'setSelected'; sources: Set<string> };
+
+function loadOverridesFromStorage(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem('headlamp_resource_map_source_overrides');
+    if (stored !== null) {
+      const parsed = JSON.parse(stored);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        const valid: Record<string, boolean> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v === 'boolean') {
+            valid[k] = v;
+          }
+        }
+        return valid;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading map source overrides from localStorage:', e);
+  }
+  return {};
+}
+
+function computeInitialSelection(
+  sources: GraphSource[],
+  overrides: Record<string, boolean>
+): Set<string> {
+  const selected = new Set<string>();
+  const step = (source: GraphSource, parentEnabled: boolean) => {
+    const isExplicitlyOverridden = typeof overrides[source.id] === 'boolean';
+    const isEnabled = isExplicitlyOverridden
+      ? overrides[source.id]
+      : source.isEnabledByDefault ?? parentEnabled;
+
+    if (isEnabled) {
+      selected.add(source.id);
+    }
+    if ('sources' in source) {
+      source.sources.forEach(child => step(child, isEnabled));
+    }
+  };
+  sources.forEach(source => step(source, true));
+  return selected;
+}
+
+function isSourceSelected(s: GraphSource, selected: Set<string>): boolean {
+  return 'sources' in s
+    ? s.sources.every(child => isSourceSelected(child, selected))
+    : selected.has(s.id);
+}
+
+function initSelectionState(sources: GraphSource[]): SelectionState {
+  const overrides = loadOverridesFromStorage();
+  const selectedSources = computeInitialSelection(sources, overrides);
+  return { overrides, selectedSources };
+}
+
+function selectionReducer(state: SelectionState, action: SelectionAction): SelectionState {
+  switch (action.type) {
+    case 'toggle': {
+      const { source } = action;
+      const nextSelected = new Set(state.selectedSources);
+      const changes: Record<string, boolean> = {};
+
+      const deselectAll = (s: GraphSource) => {
+        nextSelected.delete(s.id);
+        changes[s.id] = false;
+        if ('sources' in s) {
+          s.sources.forEach(deselectAll);
+        }
+      };
+
+      const selectAll = (s: GraphSource) => {
+        nextSelected.add(s.id);
+        changes[s.id] = true;
+        if ('sources' in s) {
+          s.sources.forEach(selectAll);
+        }
+      };
+
+      if (!('sources' in source)) {
+        if (state.selectedSources.has(source.id)) {
+          nextSelected.delete(source.id);
+          changes[source.id] = false;
+        } else {
+          nextSelected.add(source.id);
+          changes[source.id] = true;
+        }
+      } else {
+        if (source.sources.every(child => isSourceSelected(child, state.selectedSources))) {
+          source.sources.forEach(deselectAll);
+          nextSelected.delete(source.id);
+          changes[source.id] = false;
+        } else {
+          source.sources.forEach(selectAll);
+          nextSelected.add(source.id);
+          changes[source.id] = true;
+        }
+      }
+
+      return {
+        selectedSources: nextSelected,
+        overrides: { ...state.overrides, ...changes },
+      };
+    }
+    case 'setSelected': {
+      return {
+        ...state,
+        selectedSources: action.sources,
+      };
+    }
+    default:
+      return state;
+  }
+}
+
 /**
  * Loads data from all the sources
  */
 export function GraphSourceManager({ sources, children, relations }: GraphSourceManagerProps) {
   const [sourceData, setSourceData] = useState(new Map<string, MaybeNodesAndEdges>());
-  const [selectedSources, setSelectedSources] = useState(() => {
-    const _selectedSources = new Set<string>();
-
-    const step = (source: GraphSource) => {
-      if (source.isEnabledByDefault ?? true) {
-        _selectedSources.add(source.id);
-        if ('sources' in source) {
-          source.sources.forEach(step);
-        }
-      }
-    };
-    sources.map(step);
-    return _selectedSources;
-  });
-
-  const toggleSelection = useCallback(
-    (source: GraphSource) => {
-      setSelectedSources(selection => {
-        const isSelected = (source: GraphSource): boolean =>
-          'sources' in source ? source.sources.every(s => isSelected(s)) : selection.has(source.id);
-
-        const deselectAll = (source: GraphSource) => {
-          if ('sources' in source) {
-            source.sources.forEach(deselectAll);
-          } else {
-            selection.delete(source.id);
-          }
-        };
-
-        const selectAll = (source: GraphSource) => {
-          if ('sources' in source) {
-            source.sources.forEach(s => selectAll(s));
-          } else {
-            selection.add(source.id);
-          }
-        };
-
-        if (!('sources' in source)) {
-          // not a group, just toggle the selection
-          if (selection.has(source.id)) {
-            selection.delete(source.id);
-          } else {
-            selection.add(source.id);
-          }
-        } else {
-          // if all children are selected, deselect them
-          if (source.sources.every(isSelected)) {
-            source.sources.forEach(deselectAll);
-            selection.delete(source.id);
-          } else {
-            source.sources.forEach(selectAll);
-          }
-        }
-        return new Set(selection);
-      });
-    },
-    [setSelectedSources]
+  const [{ selectedSources, overrides }, dispatch] = useReducer(
+    selectionReducer,
+    sources,
+    initSelectionState
   );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('headlamp_resource_map_source_overrides', JSON.stringify(overrides));
+    } catch (e) {
+      console.error('Error saving map source overrides to localStorage:', e);
+    }
+  }, [overrides]);
+
+  const toggleSelection = useCallback((source: GraphSource) => {
+    dispatch({ type: 'toggle', source });
+  }, []);
+
+  const setSelectedSources = useCallback((sources: Set<string>) => {
+    dispatch({ type: 'setSelected', sources });
+  }, []);
 
   const onData = useCallback(
     (id: string, data: MaybeNodesAndEdges) => {
@@ -388,8 +475,11 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       });
 
       const isLoading =
-        sourceData.size === 0 ||
-        selectedSources?.values()?.some?.(source => sourceData.get(source) === null);
+        selectedSourceIds.length > 0 &&
+        (sourceData.size === 0 ||
+          selectedSourceIds.some(
+            source => !sourceData.has(source) || sourceData.get(source) === null
+          ));
 
       return {
         nodes,
