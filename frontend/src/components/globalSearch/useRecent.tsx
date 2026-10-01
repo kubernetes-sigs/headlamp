@@ -33,30 +33,40 @@ export function useRecent(
 ): [Record<string, number>, (id: string) => void] {
   const [recent, setRecent] = useLocalStorageState<Record<string, number>>(key, {});
 
-  const bump = useCallback((id: string) => {
-    setRecent(recent => {
-      const entries = Object.entries(recent);
-      const newRecent: Record<string, number> = { ...recent };
+  const bump = useCallback(
+    (id: string) => {
+      setRecent(recent => {
+        if (maxItems <= 0) return {};
 
-      if (entries.length + 1 > maxItems) {
-        // Find oldest entry
-        let oldestEntry = entries[0];
-        entries.forEach(entry => {
-          if (entry[1] < oldestEntry[1]) {
-            oldestEntry = entry;
-          }
-        });
+        const entries = Object.entries(recent);
+        const newRecent: Record<string, number> = Object.assign(Object.create(null), recent);
 
-        // Remove it
-        delete newRecent[oldestEntry[0]];
-      }
+        const isNewItem = !Object.prototype.hasOwnProperty.call(recent, id);
 
-      newRecent[id] = +new Date();
+        if (isNewItem && entries.length >= maxItems) {
+          // Find oldest entry
+          let oldestEntry = entries[0];
+          entries.forEach(entry => {
+            if (entry[1] < oldestEntry[1]) {
+              oldestEntry = entry;
+            }
+          });
 
-      return newRecent;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+          // Remove it
+          delete newRecent[oldestEntry[0]];
+        }
+
+        newRecent[id] = +new Date();
+
+        return newRecent;
+      });
+    },
+    [maxItems, setRecent]
+  );
+
+  if (maxItems <= 0) {
+    return [{}, () => {}] as const;
+  }
 
   return [recent, bump] as const;
 }
