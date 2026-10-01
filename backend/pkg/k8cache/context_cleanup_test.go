@@ -34,14 +34,15 @@ func TestCacheKeyBelongsToContext(t *testing.T) {
 		contextKey string
 		want       bool
 	}{
-		{"+pods+default+minikube", "minikube", true},
-		{"+pods+default+prod%2Bcluster", "prod+cluster", true},
-		{"+pods+default+prod%252Bcluster", "prod%2Bcluster", true},
-		{"+pods+default+prod%2Bcluster", "prod%2Bcluster", false},
-		{"apps+deployments+default+minikube", "minikube", true},
-		{"+pods+default+other", "minikube", false},
+		{"+pods+default+minikube++variant", "minikube", true},
+		{"+pods+default+prod%2Bcluster++variant", "prod+cluster", true},
+		{"+pods+default+prod%252Bcluster++variant", "prod%2Bcluster", true},
+		{"+pods+default+prod%2Bcluster++variant", "prod%2Bcluster", false},
+		{"apps+deployments+default+minikube+mypod+variant", "minikube", true},
+		{"+pods+default+other++variant", "minikube", false},
 		{"malformed", "minikube", false},
-		{"+pods+default+minikube", "", false},
+		{"+pods+default+minikube", "minikube", false},
+		{"+pods+default+minikube++variant", "", false},
 	}
 
 	for _, tt := range tests {
@@ -55,19 +56,19 @@ func TestPurgeCacheForContext(t *testing.T) {
 	k8scache := cache.New[string]()
 	ctx := context.Background()
 
-	require.NoError(t, k8scache.Set(ctx, "+pods+default+minikube", "pods-data"))
-	require.NoError(t, k8scache.Set(ctx, "apps+deployments+default+minikube", "deploy-data"))
-	require.NoError(t, k8scache.Set(ctx, "+pods+default+other-cluster", "other-data"))
+	require.NoError(t, k8scache.Set(ctx, "+pods+default+minikube++variant", "pods-data"))
+	require.NoError(t, k8scache.Set(ctx, "apps+deployments+default+minikube++variant", "deploy-data"))
+	require.NoError(t, k8scache.Set(ctx, "+pods+default+other-cluster++variant", "other-data"))
 
 	k8cache.PurgeCacheForContext(k8scache, "minikube")
 
-	_, err := k8scache.Get(ctx, "+pods+default+minikube")
+	_, err := k8scache.Get(ctx, "+pods+default+minikube++variant")
 	assert.Error(t, err)
 
-	_, err = k8scache.Get(ctx, "apps+deployments+default+minikube")
+	_, err = k8scache.Get(ctx, "apps+deployments+default+minikube++variant")
 	assert.Error(t, err)
 
-	val, err := k8scache.Get(ctx, "+pods+default+other-cluster")
+	val, err := k8scache.Get(ctx, "+pods+default+other-cluster++variant")
 	assert.NoError(t, err)
 	assert.Equal(t, "other-data", val)
 }
@@ -202,7 +203,7 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	const (
 		removedContextKey   = "removed-cluster\x00user1"
 		activeContextKey    = "active-cluster\x00user2"
-		removedCacheDataKey = "+pods+default+" + removedContextKey
+		removedCacheDataKey = "+pods+default+" + removedContextKey + "++variant"
 	)
 
 	k8cache.ResetRegistries()
@@ -248,7 +249,7 @@ func TestSyncWatchersPurgesCacheWithoutWatcher(t *testing.T) {
 	const (
 		removedContextKey   = "removed-cluster\x00user1"
 		activeContextKey    = "active-cluster\x00user2"
-		removedCacheDataKey = "+pods+default+" + removedContextKey
+		removedCacheDataKey = "+pods+default+" + removedContextKey + "++variant"
 	)
 
 	k8cache.ResetRegistries()
