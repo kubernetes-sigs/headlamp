@@ -151,6 +151,29 @@ var getTests = []struct {
 		wantBody:   nil,
 		wantErr:    true,
 	},
+	{
+		name:       "deep traversal within prefixed URI normalized",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "/../../status",
+		wantPath:   "/api/v1/proxy/status",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:       "multi-level relative traversal rejected",
+		uri:        "http://example.com/api/v1/proxy",
+		requestURI: "../../secret",
+		wantBody:   nil,
+		wantErr:    true,
+	},
+	{
+		name:       "dot-dot-slash within absolute path confined to base",
+		uri:        "http://example.com/api",
+		requestURI: "/../../../etc/passwd",
+		wantPath:   "/api/etc/passwd",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
 }
 
 func TestGet(t *testing.T) {
