@@ -100,6 +100,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
                   {children}
                 </Link>
               ),
+              h1: ({ children }) => <h2>{children}</h2>,
             }}
           >
             {notesMarkdown}
