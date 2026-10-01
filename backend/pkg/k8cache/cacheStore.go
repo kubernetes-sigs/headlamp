@@ -83,10 +83,18 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 
 		defer func() { _ = reader.Close() }()
 
-		decompressedBody, err := io.ReadAll(reader)
+		// Use LimitReader to prevent gzip bomb DoS (max 50MB)
+		decompressedBody, err := io.ReadAll(io.LimitReader(reader, 50*1024*1024+1))
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to decompress body")
 			return "", fmt.Errorf("failed to decompress body: %w", err)
+		}
+
+		if len(decompressedBody) > 50*1024*1024 {
+			err = fmt.Errorf("response body exceeds maximum allowed size (50MB)")
+			logger.Log(logger.LevelError, nil, err, "failed to decompress body")
+
+			return "", err
 		}
 
 		dcmpBody = decompressedBody
@@ -286,7 +294,8 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	rcw *ResponseCapture,
 	key string,
 ) error {
-	if rcw.StatusCode >= 500 {
+	// Do not cache any error responses (4xx or 5xx)
+	if rcw.StatusCode >= 400 {
 		return nil
 	}
 
@@ -302,13 +311,6 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
 
 	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
-		// Check the decompressed body for Kubernetes error status before
-		// marshalling the full CachedResponseData. This avoids allocating
-		// the JSON envelope for responses that will be discarded anyway.
-		if strings.Contains(dcmpBody, "Failure") {
-			return nil
-		}
-
 		cachedData := CachedResponseData{
 			StatusCode: rcw.StatusCode,
 			Headers:    headersToCache,
