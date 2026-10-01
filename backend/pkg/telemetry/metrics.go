@@ -192,3 +192,9 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 	return hijacker.Hijack()
 }
+
+// Unwrap returns the wrapped ResponseWriter so that http.ResponseController can
+// reach its optional interfaces, such as http.Flusher.
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
