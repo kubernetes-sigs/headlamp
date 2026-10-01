@@ -57,6 +57,9 @@ func buildUserAgent() string {
 // DefaultInClusterContextName is the default name used for the in-cluster context.
 const DefaultInClusterContextName = "main"
 
+// logFieldContext is the structured-log field name for context names.
+const logFieldContext = "context"
+
 const (
 	KubeConfig = 1 << iota
 	DynamicCluster
@@ -454,7 +457,7 @@ func (c *Context) SetupProxy() error {
 
 			if resp.StatusCode == http.StatusUnauthorized && strings.HasPrefix(authHeader, "Bearer ") {
 				warnOnce.Do(func() {
-					logger.Log(logger.LevelWarn, map[string]string{"context": c.Name}, nil,
+					logger.Log(logger.LevelWarn, map[string]string{logFieldContext: c.Name}, nil,
 						"API server rejected the forwarded bearer token (401); the token may be "+
 							"expired/invalid, or the API server may not trust the same OIDC issuer "+
 							"and client-id as Headlamp")
@@ -466,9 +469,29 @@ func (c *Context) SetupProxy() error {
 	}
 
 	restConf, err := c.RESTConfig()
-	if err == nil {
+	if err != nil {
+		// Keep the proxy working through the default transport, but make the
+		// failure visible instead of silently dropping the kubeconfig's
+		// credentials.
+		logger.Log(logger.LevelError, map[string]string{logFieldContext: c.Name},
+			err, "couldn't get REST config for proxy transport, proxying without kubeconfig credentials")
+	} else {
+		// client-go no longer ships the in-tree "oidc" auth provider, so
+		// building a transport fails when a legacy auth-provider: oidc is set.
+		// Headlamp injects the OIDC token itself, so drop only that provider and
+		// keep the TLS settings. Other auth-providers are left intact so their
+		// authentication isn't silently removed.
+		if restConf.AuthProvider != nil && restConf.AuthProvider.Name == "oidc" {
+			confCopy := *restConf
+			confCopy.AuthProvider = nil
+			restConf = &confCopy
+		}
+
 		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{logFieldContext: c.Name},
+				err, "couldn't create proxy transport, proxying without kubeconfig credentials")
+		} else {
 			// Wrap the round tripper to add Headlamp User-Agent
 			proxy.Transport = &userAgentRoundTripper{
 				base:      roundTripper,
@@ -479,7 +502,7 @@ func (c *Context) SetupProxy() error {
 
 	c.proxy = proxy
 
-	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
+	logger.Log(logger.LevelInfo, map[string]string{logFieldContext: c.Name, "clusterURL": c.Cluster.Server},
 		nil, "Proxy setup")
 
 	return nil
