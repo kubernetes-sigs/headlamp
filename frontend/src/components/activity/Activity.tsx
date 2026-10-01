@@ -90,6 +90,20 @@ export interface Activity {
   cluster?: string;
 }
 
+/**
+ * Base stacking level of the activity layer.
+ *
+ * Activities are rendered as siblings of the `#main` element, and `#main` is not a
+ * stacking context, so activities share a stacking context with the positioned page
+ * content inside it. The base therefore has to stay above that page content — most
+ * notably the sticky resource details header, which uses a z-index of 10 — otherwise
+ * the header paints over the activity and swallows clicks meant for its toolbar.
+ *
+ * It also has to stay well below the sidebar (1300) and the top bar (1400) so that
+ * navigation is never covered by an activity.
+ */
+export const ACTIVITY_BASE_Z_INDEX = 20;
+
 export const Activity = {
   /** Launches new Activity */
   launch(activity: Activity) {
@@ -381,7 +395,7 @@ export function SingleActivityRenderer({
             borderTop: 'none',
             borderBottom: 'none',
             willChange: 'top, left, width, height',
-            zIndex: zIndex ?? 3,
+            zIndex: zIndex ?? ACTIVITY_BASE_Z_INDEX,
             boxShadow:
               theme.palette.mode === 'light'
                 ? '0px 0px 15px rgba(0,0,0,0.15)'
@@ -1122,7 +1136,7 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
         <SingleActivityRenderer
           key={it.id}
           activity={it}
-          zIndex={4 + history.indexOf(it.id)}
+          zIndex={ACTIVITY_BASE_Z_INDEX + history.indexOf(it.id)}
           index={i}
           isOverview={isOverview}
           onClick={() => {
