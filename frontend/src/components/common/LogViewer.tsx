@@ -395,11 +395,11 @@ export function SearchPopover(props: SearchPopoverProps) {
     onClose();
   };
 
-  const onSearchTextChange = (event: any) => {
+  const onSearchTextChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(event.target.value);
   };
 
-  const handleInputKeyDown = (event: any) => {
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       if (event.shiftKey) {
         handleFindPrevious();
