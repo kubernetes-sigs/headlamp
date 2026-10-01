@@ -16,6 +16,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LegalDocumentResult, LegalDocumentSummary } from './legal-documents';
+import type { ClusterProxyTarget, StartProxyResult } from './proxies';
 
 // Keeps the mapping between a caller-provided listener and the wrapped one we
 // actually register with ipcRenderer, so removeListener can still unsubscribe
@@ -34,6 +35,12 @@ const wrappedListeners = new WeakMap<
 contextBridge.exposeInMainWorld('desktopApi', {
   isDevelopment: Boolean(process.env.ELECTRON_DEV),
   getDevelopmentPluginsEnabled: () => ipcRenderer.invoke('get-development-plugins'),
+  /** Starts a proxy only when the caller supplies its scoped plugin capability. */
+  startClusterProxy: (
+    target: ClusterProxyTarget,
+    capabilitySecret: string
+  ): Promise<StartProxyResult> =>
+    ipcRenderer.invoke('start-cluster-proxy', { ...target, capabilitySecret }),
   send: (channel: string, data: unknown) => {
     // allowed channels
     const validChannels = [

@@ -19,7 +19,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseRunCommandGrants, type RunCommandGrant } from '../electron/runCommandPolicy.ts';
-import type { ProductMetadata } from './product-metadata.ts';
 import { readProductMetadata } from './product-metadata.ts';
 
 export { readProductMetadata } from './product-metadata.ts';
@@ -30,6 +29,8 @@ type ManifestEnvironment = {
 };
 
 export type BuildManifest = {
+  /** Trusted app-owned CommonJS resource that configures the command environment. */
+  commandEnvironment?: string;
   /** URL glob patterns the packaged backend may proxy. */
   'proxy-urls'?: string[];
 
@@ -418,6 +419,19 @@ export function validateBuildManifest(value: unknown): BuildManifest {
     ) {
       throw new Error('Invalid build manifest external-tools');
     }
+  }
+
+  if (
+    manifest.commandEnvironment !== undefined &&
+    (typeof manifest.commandEnvironment !== 'string' ||
+      !manifest.commandEnvironment.endsWith('.cjs') ||
+      manifest.commandEnvironment.includes('\0') ||
+      path.posix.isAbsolute(manifest.commandEnvironment) ||
+      path.win32.isAbsolute(manifest.commandEnvironment))
+  ) {
+    throw new Error(
+      'Build manifest commandEnvironment must reference a resource-relative CommonJS module'
+    );
   }
   const proxyUrls = manifest['proxy-urls'];
   if (proxyUrls !== undefined) {
