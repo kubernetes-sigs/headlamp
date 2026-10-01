@@ -455,8 +455,9 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 
 // addPluginListRoute registers a GET endpoint handler at "/plugins" that serves the list of available plugins.
 // It handles Telemetry, metrics collection, and plugin list caching.
+// Requests must carry the desktop backend token when one is configured.
 func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
-	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
+	listPlugins := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		var span trace.Span
@@ -502,7 +503,9 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 				span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
 			}
 		}
-	}).Methods("GET")
+	})
+
+	r.Handle("/plugins", auth.NewBackendTokenMiddleware(config.UseInCluster)(listPlugins)).Methods("GET")
 }
 
 func readServiceAccountNamespace() (string, error) {
