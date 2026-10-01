@@ -16,6 +16,7 @@
 
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
+import { useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import type Event from '../lib/k8s/event';
 import type { KubeObject } from '../lib/k8s/KubeObject';
@@ -615,123 +616,129 @@ export function useEventCallback(
 export function useEventCallback(eventType?: HeadlampEventType | string) {
   const dispatch = useDispatch();
 
-  function dispatchDataEventFunc<T extends HeadlampEvent>(eventType: HeadlampEventType) {
-    return (data: EventDataType<T>) => {
-      dispatch(
-        eventAction({
-          type: eventType,
-          data,
-        })
-      );
-    };
-  }
-
-  switch (eventType) {
-    case HeadlampEventType.ERROR_BOUNDARY:
-      return (error: Error) => {
+  return useMemo(() => {
+    function dispatchDataEventFunc<T extends HeadlampEvent>(eventType: HeadlampEventType) {
+      return (data: EventDataType<T>) => {
         dispatch(
           eventAction({
-            type: HeadlampEventType.ERROR_BOUNDARY,
-            data: error,
+            type: eventType,
+            data,
           })
         );
       };
-    case HeadlampEventType.DELETE_RESOURCE:
-      return dispatchDataEventFunc<DeleteResourceEvent>(HeadlampEventType.DELETE_RESOURCE);
-    case HeadlampEventType.DELETE_RESOURCES:
-      return dispatchDataEventFunc<DeleteResourcesEvent>(HeadlampEventType.DELETE_RESOURCES);
-    case HeadlampEventType.EDIT_RESOURCE:
-      return dispatchDataEventFunc<EditResourceEvent>(HeadlampEventType.EDIT_RESOURCE);
-    case HeadlampEventType.SCALE_RESOURCE:
-      return dispatchDataEventFunc<ScaleResourceEvent>(HeadlampEventType.SCALE_RESOURCE);
-    case HeadlampEventType.SCALE_RESOURCES:
-      return dispatchDataEventFunc<ScaleResourcesEvent>(HeadlampEventType.SCALE_RESOURCES);
-    case HeadlampEventType.RESTART_RESOURCE:
-      return dispatchDataEventFunc<RestartResourceEvent>(HeadlampEventType.RESTART_RESOURCE);
-    case HeadlampEventType.RESTART_RESOURCES:
-      return dispatchDataEventFunc<RestartResourcesEvent>(HeadlampEventType.RESTART_RESOURCES);
-    case HeadlampEventType.ROLLBACK_RESOURCE:
-      return dispatchDataEventFunc<RollbackResourceEvent>(HeadlampEventType.ROLLBACK_RESOURCE);
-    case HeadlampEventType.LOGS:
-      return dispatchDataEventFunc<LogsEvent>(HeadlampEventType.LOGS);
-    case HeadlampEventType.TERMINAL:
-      return dispatchDataEventFunc<TerminalEvent>(HeadlampEventType.TERMINAL);
-    case HeadlampEventType.POD_ATTACH:
-      return dispatchDataEventFunc<PodAttachEvent>(HeadlampEventType.POD_ATTACH);
-    case HeadlampEventType.CREATE_RESOURCE:
-      return dispatchDataEventFunc<CreateResourceEvent>(HeadlampEventType.CREATE_RESOURCE);
-    case HeadlampEventType.PLUGIN_LOADING_ERROR:
-      return (plugin: Plugin) => {
-        dispatch(
-          eventAction({
-            type: HeadlampEventType.PLUGIN_LOADING_ERROR,
-            data: plugin,
-          })
-        );
-      };
-    case HeadlampEventType.PLUGINS_LOADED:
-      return (plugins: Plugin[]) => {
-        dispatch(
-          eventAction({
-            type: HeadlampEventType.PLUGINS_LOADED,
-            data: plugins,
-          })
-        );
-      };
-    case HeadlampEventType.DETAILS_VIEW:
-      return dispatchDataEventFunc<ResourceDetailsViewLoadedEvent>(HeadlampEventType.DETAILS_VIEW);
-    case HeadlampEventType.LIST_VIEW:
-      return dispatchDataEventFunc<ResourceListViewLoadedEvent>(HeadlampEventType.LIST_VIEW);
-    case HeadlampEventType.OBJECT_EVENTS:
-      return (events: Event[], resource?: KubeObject) => {
-        dispatch(
-          eventAction({
-            type: HeadlampEventType.OBJECT_EVENTS,
-            data: {
-              resource,
-              events,
-            },
-          })
-        );
-      };
-    case HeadlampEventType.PROJECT_LIST_VIEW:
-      return dispatchDataEventFunc<ProjectListViewLoadedEvent>(HeadlampEventType.PROJECT_LIST_VIEW);
-    case HeadlampEventType.PROJECT_DETAILS_VIEW:
-      return dispatchDataEventFunc<ProjectDetailsViewLoadedEvent>(
-        HeadlampEventType.PROJECT_DETAILS_VIEW
-      );
-    case HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE:
-      return dispatchDataEventFunc<ProjectDetailsTabChangeEvent>(
-        HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE
-      );
-    case HeadlampEventType.CREATE_PROJECT:
-      return dispatchDataEventFunc<CreateProjectEvent>(HeadlampEventType.CREATE_PROJECT);
-    case HeadlampEventType.DELETE_PROJECT:
-      return dispatchDataEventFunc<DeleteProjectEvent>(HeadlampEventType.DELETE_PROJECT);
-    case HeadlampEventType.SETTINGS_VIEW:
-      return dispatchDataEventFunc<SettingsViewLoadedEvent>(HeadlampEventType.SETTINGS_VIEW);
-    case HeadlampEventType.CLUSTER_SETTINGS_VIEW:
-      return dispatchDataEventFunc<ClusterSettingsViewLoadedEvent>(
-        HeadlampEventType.CLUSTER_SETTINGS_VIEW
-      );
-    case HeadlampEventType.PLUGIN_LIST_VIEW:
-      return dispatchDataEventFunc<PluginListViewLoadedEvent>(HeadlampEventType.PLUGIN_LIST_VIEW);
-    case HeadlampEventType.PLUGIN_DETAILS_VIEW:
-      return dispatchDataEventFunc<PluginDetailsViewLoadedEvent>(
-        HeadlampEventType.PLUGIN_DETAILS_VIEW
-      );
-    default:
-      break;
-  }
-
-  return (eventInfo: HeadlampEvent | HeadlampEvent['type']) => {
-    let event: HeadlampEvent;
-    if (typeof eventInfo === 'string') {
-      event = { type: eventInfo };
-    } else {
-      event = eventInfo;
     }
 
-    dispatch(eventAction(event));
-  };
+    switch (eventType) {
+      case HeadlampEventType.ERROR_BOUNDARY:
+        return (error: Error) => {
+          dispatch(
+            eventAction({
+              type: HeadlampEventType.ERROR_BOUNDARY,
+              data: error,
+            })
+          );
+        };
+      case HeadlampEventType.DELETE_RESOURCE:
+        return dispatchDataEventFunc<DeleteResourceEvent>(HeadlampEventType.DELETE_RESOURCE);
+      case HeadlampEventType.DELETE_RESOURCES:
+        return dispatchDataEventFunc<DeleteResourcesEvent>(HeadlampEventType.DELETE_RESOURCES);
+      case HeadlampEventType.EDIT_RESOURCE:
+        return dispatchDataEventFunc<EditResourceEvent>(HeadlampEventType.EDIT_RESOURCE);
+      case HeadlampEventType.SCALE_RESOURCE:
+        return dispatchDataEventFunc<ScaleResourceEvent>(HeadlampEventType.SCALE_RESOURCE);
+      case HeadlampEventType.SCALE_RESOURCES:
+        return dispatchDataEventFunc<ScaleResourcesEvent>(HeadlampEventType.SCALE_RESOURCES);
+      case HeadlampEventType.RESTART_RESOURCE:
+        return dispatchDataEventFunc<RestartResourceEvent>(HeadlampEventType.RESTART_RESOURCE);
+      case HeadlampEventType.RESTART_RESOURCES:
+        return dispatchDataEventFunc<RestartResourcesEvent>(HeadlampEventType.RESTART_RESOURCES);
+      case HeadlampEventType.ROLLBACK_RESOURCE:
+        return dispatchDataEventFunc<RollbackResourceEvent>(HeadlampEventType.ROLLBACK_RESOURCE);
+      case HeadlampEventType.LOGS:
+        return dispatchDataEventFunc<LogsEvent>(HeadlampEventType.LOGS);
+      case HeadlampEventType.TERMINAL:
+        return dispatchDataEventFunc<TerminalEvent>(HeadlampEventType.TERMINAL);
+      case HeadlampEventType.POD_ATTACH:
+        return dispatchDataEventFunc<PodAttachEvent>(HeadlampEventType.POD_ATTACH);
+      case HeadlampEventType.CREATE_RESOURCE:
+        return dispatchDataEventFunc<CreateResourceEvent>(HeadlampEventType.CREATE_RESOURCE);
+      case HeadlampEventType.PLUGIN_LOADING_ERROR:
+        return (plugin: Plugin) => {
+          dispatch(
+            eventAction({
+              type: HeadlampEventType.PLUGIN_LOADING_ERROR,
+              data: plugin,
+            })
+          );
+        };
+      case HeadlampEventType.PLUGINS_LOADED:
+        return (plugins: Plugin[]) => {
+          dispatch(
+            eventAction({
+              type: HeadlampEventType.PLUGINS_LOADED,
+              data: plugins,
+            })
+          );
+        };
+      case HeadlampEventType.DETAILS_VIEW:
+        return dispatchDataEventFunc<ResourceDetailsViewLoadedEvent>(
+          HeadlampEventType.DETAILS_VIEW
+        );
+      case HeadlampEventType.LIST_VIEW:
+        return dispatchDataEventFunc<ResourceListViewLoadedEvent>(HeadlampEventType.LIST_VIEW);
+      case HeadlampEventType.OBJECT_EVENTS:
+        return (events: Event[], resource?: KubeObject) => {
+          dispatch(
+            eventAction({
+              type: HeadlampEventType.OBJECT_EVENTS,
+              data: {
+                resource,
+                events,
+              },
+            })
+          );
+        };
+      case HeadlampEventType.PROJECT_LIST_VIEW:
+        return dispatchDataEventFunc<ProjectListViewLoadedEvent>(
+          HeadlampEventType.PROJECT_LIST_VIEW
+        );
+      case HeadlampEventType.PROJECT_DETAILS_VIEW:
+        return dispatchDataEventFunc<ProjectDetailsViewLoadedEvent>(
+          HeadlampEventType.PROJECT_DETAILS_VIEW
+        );
+      case HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE:
+        return dispatchDataEventFunc<ProjectDetailsTabChangeEvent>(
+          HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE
+        );
+      case HeadlampEventType.CREATE_PROJECT:
+        return dispatchDataEventFunc<CreateProjectEvent>(HeadlampEventType.CREATE_PROJECT);
+      case HeadlampEventType.DELETE_PROJECT:
+        return dispatchDataEventFunc<DeleteProjectEvent>(HeadlampEventType.DELETE_PROJECT);
+      case HeadlampEventType.SETTINGS_VIEW:
+        return dispatchDataEventFunc<SettingsViewLoadedEvent>(HeadlampEventType.SETTINGS_VIEW);
+      case HeadlampEventType.CLUSTER_SETTINGS_VIEW:
+        return dispatchDataEventFunc<ClusterSettingsViewLoadedEvent>(
+          HeadlampEventType.CLUSTER_SETTINGS_VIEW
+        );
+      case HeadlampEventType.PLUGIN_LIST_VIEW:
+        return dispatchDataEventFunc<PluginListViewLoadedEvent>(HeadlampEventType.PLUGIN_LIST_VIEW);
+      case HeadlampEventType.PLUGIN_DETAILS_VIEW:
+        return dispatchDataEventFunc<PluginDetailsViewLoadedEvent>(
+          HeadlampEventType.PLUGIN_DETAILS_VIEW
+        );
+      default:
+        break;
+    }
+
+    return (eventInfo: HeadlampEvent | HeadlampEvent['type']) => {
+      let event: HeadlampEvent;
+      if (typeof eventInfo === 'string') {
+        event = { type: eventInfo };
+      } else {
+        event = eventInfo;
+      }
+
+      dispatch(eventAction(event));
+    };
+  }, [dispatch, eventType]);
 }

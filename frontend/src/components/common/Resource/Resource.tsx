@@ -187,8 +187,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
         },
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, dispatchHeadlampEvent, error]);
 
   React.useEffect(() => {
     // We cannot call this callback more than once on each version of the item, in order to avoid
@@ -208,8 +207,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
       error,
     };
     onResourceUpdate?.(item as InstanceType<T>, error!);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, error]);
+  }, [item, error, onResourceUpdate]);
 
   const actualBackLink: string | Location | undefined = React.useMemo(() => {
     // No back link in side panels
@@ -249,8 +247,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     }
 
     return createRouteURL(route);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, isInPanel]);
+  }, [item, backLink, hasPreviousRoute, isInPanel, location.state?.backLink, resourceType]);
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
 
