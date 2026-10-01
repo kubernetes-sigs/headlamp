@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -45,9 +46,11 @@ func SanitizeClusterName(cluster string) string {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
 	sanitized := reg.ReplaceAllString(cluster, "")
 
-	// Limit length to prevent issues
+	// Limit length to prevent issues, appending a short hash slice for uniqueness when truncated.
 	if len(sanitized) > 50 {
-		sanitized = sanitized[:50]
+		hashBytes := sha256.Sum256([]byte(cluster))
+		hash := fmt.Sprintf("%x", hashBytes[:16])
+		sanitized = sanitized[:17] + "-" + hash
 	}
 
 	return sanitized
