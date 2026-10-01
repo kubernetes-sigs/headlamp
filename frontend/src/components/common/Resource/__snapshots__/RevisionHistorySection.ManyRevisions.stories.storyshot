@@ -1,0 +1,452 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-113m2lz"
+    >
+      <div
+        class="MuiBox-root css-j1fy4m"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-70qvj9"
+            >
+              <h2
+                class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+              >
+                Revision History
+              </h2>
+              <div
+                class="MuiBox-root css-ldp2l3"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="MuiBox-root css-1txv3mw"
+        >
+          <div
+            class="MuiTableContainer-root css-rorn0c-MuiTableContainer-root"
+          >
+            <table
+              class="MuiTable-root css-vzt8dn-MuiTable-root"
+            >
+              <thead
+                class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+              >
+                <tr
+                  class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                >
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-1e49d97-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Revision
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-1e49d97-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Created
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-1e49d97-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Images
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-1e49d97-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+              >
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      8
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-08T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.8
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorPrimary MuiChip-outlinedPrimary css-t4xq4n-MuiChip-root"
+                    >
+                      <span
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                      >
+                        Current
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      7
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-07T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.7
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      6
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-06T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.6
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      5
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-05T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.5
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      4
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-04T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.4
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      3
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-03T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.3
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      2
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-02T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.2
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                    >
+                      1
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      aria-label="2023-01-01T08:00:00.000Z"
+                      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      90d
+                    </p>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <div
+                      class="MuiBox-root css-1kkt86i"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-3czxqc-MuiTypography-root"
+                      >
+                        registry.k8s.io/nginx:1.25.1
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Previous
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
