@@ -1,0 +1,6 @@
+global:
+  foo: bar
+
+deploymentLabels:
+  bar: baz
+  foo: '{{ .Values.global.foo }}'
