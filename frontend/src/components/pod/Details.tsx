@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import Pod from '../../lib/k8s/pod';
 import { localeDate } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -830,7 +831,14 @@ export default function PodDetails(props: PodDetailsProps) {
         },
         {
           name: t('Node Selectors'),
-          value: <MetadataDictGrid dict={item.spec.nodeSelector ?? {}} />,
+          value: (
+            <MetadataDictGrid
+              activeCluster={item.cluster}
+              dict={item.spec.nodeSelector ?? {}}
+              labelFilterRoute="nodes"
+              labelSelector={labelSelectorToQuery({ matchLabels: item.spec.nodeSelector })}
+            />
+          ),
           hide: _.isEmpty(item.spec.nodeSelector),
         },
       ];

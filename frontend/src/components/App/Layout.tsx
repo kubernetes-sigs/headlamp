@@ -32,10 +32,10 @@ import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
-import { getSavedNamespaces } from '../../lib/storage';
+import { validateLabelSelector } from '../../lib/labelSelectorValidation';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
-import { setNamespaceFilter } from '../../redux/filterSlice';
+import { restoreFiltersForCluster, setLabelSelectorFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
@@ -236,15 +236,25 @@ export default function Layout({}: LayoutProps) {
   }, [dispatch, error, isThemeConfigReady]);
 
   const cluster = useCluster();
+  const { pathname, search } = useLocation();
+  const labelSelectorFromURL = new URLSearchParams(search).get('labelSelector');
   useEffect(() => {
     if (cluster) {
-      const saved = getSavedNamespaces(cluster);
-      dispatch(setNamespaceFilter(saved));
+      dispatch(restoreFiltersForCluster(cluster));
     }
   }, [cluster, dispatch]);
 
+  useEffect(() => {
+    if (cluster && labelSelectorFromURL !== null) {
+      dispatch(
+        setLabelSelectorFilter(
+          validateLabelSelector(labelSelectorFromURL) === null ? labelSelectorFromURL : ''
+        )
+      );
+    }
+  }, [cluster, dispatch, labelSelectorFromURL]);
+
   const selectedClusters = useSelectedClusters();
-  const { pathname } = useLocation();
   const configuredClusters = pathname.startsWith('/project/') ? Object.keys(allClusters || {}) : [];
   const clustersToResolve = [
     ...new Set([...configuredClusters, cluster || '', ...selectedClusters].filter(Boolean)),

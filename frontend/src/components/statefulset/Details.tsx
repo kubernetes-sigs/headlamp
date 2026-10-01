@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { StringDict } from '../../lib/k8s/cluster';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import StatefulSet from '../../lib/k8s/statefulSet';
 import {
   ContainersSection,
@@ -67,7 +68,15 @@ export default function StatefulSetDetails(props: {
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector.matchLabels as StringDict} />,
+            value: (
+              <MetadataDictGrid
+                activeCluster={item.cluster}
+                dict={item.spec.selector.matchLabels as StringDict}
+                labelFilterNamespace={item.metadata.namespace}
+                labelFilterRoute="pods"
+                labelSelector={labelSelectorToQuery(item.spec.selector)}
+              />
+            ),
           },
         ]
       }

@@ -17,6 +17,7 @@
 import { getCluster } from './cluster';
 
 const NAMESPACE_STORAGE_KEY = 'headlamp-selected-namespace';
+const LABEL_SELECTOR_STORAGE_KEY = 'headlamp-label-selector';
 
 export function getSavedNamespaces(cluster?: string): string[] {
   const activeCluster = cluster || getCluster();
@@ -59,5 +60,47 @@ export function saveNamespaces(namespaces: string[], cluster?: string) {
     localStorage.setItem(`${NAMESPACE_STORAGE_KEY}_${activeCluster}`, JSON.stringify(unique));
   } catch (e) {
     console.error('Failed to save namespaces in Local Storage:', e);
+  }
+}
+
+/**
+ * Gets the saved label selector for the specified cluster from localStorage.
+ *
+ * @param cluster - The cluster name. If not provided, uses the current cluster.
+ * @returns The saved label selector string, or empty string if not found.
+ */
+export function getSavedLabelSelector(cluster?: string): string {
+  const activeCluster = cluster || getCluster();
+  if (!activeCluster) {
+    return '';
+  }
+  try {
+    const saved = localStorage.getItem(`${LABEL_SELECTOR_STORAGE_KEY}_${activeCluster}`);
+    if (!saved) {
+      return '';
+    }
+    return typeof saved === 'string' ? saved.trim() : '';
+  } catch (e) {
+    console.error('Failed to load label selector from Local Storage', e);
+    return '';
+  }
+}
+
+/**
+ * Saves the label selector for the specified cluster to localStorage.
+ *
+ * @param labelSelector - The label selector string to save.
+ * @param cluster - The cluster name. If not provided, uses the current cluster.
+ */
+export function saveLabelSelector(labelSelector: string, cluster?: string) {
+  const activeCluster = cluster || getCluster();
+  if (!activeCluster) {
+    return;
+  }
+  try {
+    const sanitized = typeof labelSelector === 'string' ? labelSelector.trim() : '';
+    localStorage.setItem(`${LABEL_SELECTOR_STORAGE_KEY}_${activeCluster}`, sanitized);
+  } catch (e) {
+    console.error('Failed to save label selector in Local Storage:', e);
   }
 }

@@ -661,6 +661,7 @@ export function useKubeObjectList<K extends KubeObject>({
   requests,
   kubeObjectClass,
   queryParams,
+  fetchAllRequests = false,
   watch = true,
   refetchInterval,
   emptyWhenNoRequests = false,
@@ -669,6 +670,8 @@ export function useKubeObjectList<K extends KubeObject>({
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   queryParams?: QueryParameters;
+  /** Fetch every cluster/namespace request immediately, independently of the API page limit. */
+  fetchAllRequests?: boolean;
   /** Watch for updates @default true */
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
@@ -693,7 +696,7 @@ export function useKubeObjectList<K extends KubeObject>({
   const listRequests = useMemo(() => flattenListRequests(requests), [requests]);
   const limit = getPositiveLimit(cleanedUpQueryParams);
   const initialListRequestCount =
-    limit && listRequests.length > limit ? limit : listRequests.length;
+    !fetchAllRequests && limit && listRequests.length > limit ? limit : listRequests.length;
   const [activeListRequestCount, setActiveListRequestCount] = useState(initialListRequestCount);
   const listRequestInputKey = JSON.stringify([listRequests, cleanedUpQueryParams]);
 

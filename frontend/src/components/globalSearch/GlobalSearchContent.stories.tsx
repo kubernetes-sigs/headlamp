@@ -249,3 +249,26 @@ export const CombinedNamespaceQuery: Story = {
     },
   },
 };
+
+const setBasedSelector = 'environment in (production),tier in (frontend)';
+
+export const LabelSelectorQuery: Story = {
+  args: {
+    defaultValue: setBasedSelector,
+  },
+  parameters: {
+    msw: {
+      handlers: {
+        pod: [
+          http.get(`${sampleClusterApiBase}/api/v1/pods`, ({ request }) => {
+            const items =
+              new URL(request.url).searchParams.get('labelSelector') === setBasedSelector
+                ? phonyPods.map(pod => pod.jsonData)
+                : [];
+            return HttpResponse.json(makeKubeList('v1', 'Pod', items));
+          }),
+        ],
+      },
+    },
+  },
+};
