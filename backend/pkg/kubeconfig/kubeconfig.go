@@ -498,6 +498,11 @@ func (c *Context) AuthType() string {
 type ContextLoadError struct {
 	ContextName string
 	Error       error
+	// KubeConfigPath is the file the context was read from, when it came from one.
+	// With ContextName it identifies the context the same way Context.ClusterID
+	// does, which is what lets callers match a failure against a stored context
+	// whose name has since been replaced by a custom one.
+	KubeConfigPath string
 }
 
 // LoadContextsFromFile loads contexts from a kubeconfig file.
@@ -521,7 +526,13 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 	for i := range contexts {
 		contexts[i].KubeConfigPath = kubeConfigPath
 		// create the clusterID from the path and context name
-		contexts[i].ClusterID = fmt.Sprintf("%s+%s", kubeConfigPath, contexts[i].Name)
+		contexts[i].ClusterID = ContextClusterID(kubeConfigPath, contexts[i].Name)
+	}
+
+	// The failures need the same origin, so callers can identify which stored
+	// context each one refers to.
+	for i := range contextErrors {
+		contextErrors[i].KubeConfigPath = kubeConfigPath
 	}
 
 	return contexts, contextErrors, nil
@@ -1345,12 +1356,22 @@ func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shoul
 func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
 	ignoreFunc shouldBeSkippedFunc,
 ) error {
-	var errs []error
-
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
 	if err != nil {
 		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
+
+	return storeContexts(kubeConfigStore, kubeConfigContexts, contextErrors, ignoreFunc)
+}
+
+// storeContexts stores the given contexts in the store, skipping the ones the
+// ignoreFunc rejects. contextErrors are the load errors from the parse that
+// produced the contexts; they are returned joined with any error hit while
+// storing, so callers report them the same way regardless of which one failed.
+func storeContexts(kubeConfigStore ContextStore, contexts []Context,
+	contextErrors []ContextLoadError, ignoreFunc shouldBeSkippedFunc,
+) error {
+	var errs []error
 
 	// if pass the shouldBeSkippedFunc=nil, it works like before
 	_ignoreFunc := ignoreFunc
@@ -1358,7 +1379,7 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 		_ignoreFunc = AllowAllKubeContext
 	}
 
-	for _, kubeConfigContext := range kubeConfigContexts {
+	for _, kubeConfigContext := range contexts {
 		if _ignoreFunc(kubeConfigContext) {
 			continue
 		}
@@ -1376,6 +1397,13 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 	}
 
 	return errors.Join(errs...)
+}
+
+// ContextClusterID builds the identifier that ties a context to the file it was
+// read from. It stays stable when a context is stored under a custom name, so it
+// is the way to recognise a stored context from a fresh read of the kubeconfig.
+func ContextClusterID(kubeConfigPath, contextName string) string {
+	return fmt.Sprintf("%s+%s", kubeConfigPath, MakeDNSFriendly(contextName))
 }
 
 // MakeDNSFriendly converts a string to a DNS-friendly format.
