@@ -205,4 +205,81 @@ describe('diagnostics helpers', () => {
       ])
     );
   });
+  it('passes the unschedulable-pod count under i18next\'s reserved "count" key', () => {
+    const t = vi.fn((key: string) => key);
+    const unschedulablePod = makePod({
+      status: {
+        ...makePod().status,
+        phase: 'Pending',
+        conditions: [
+          {
+            type: 'PodScheduled',
+            status: 'False',
+            reason: 'Unschedulable',
+            message: 'no nodes available',
+          },
+        ],
+      },
+    });
+    const workload = {
+      kind: 'Deployment',
+      metadata: { name: 'web', namespace: 'default' },
+      spec: { replicas: 3 },
+      status: { readyReplicas: 0, availableReplicas: 0, unavailableReplicas: 3 },
+    } as any;
+
+    getWorkloadDiagnostics(workload, [unschedulablePod], t);
+
+    expect(t).toHaveBeenCalledWith(
+      '{{ count }} pod is unschedulable',
+      expect.objectContaining({ count: 1 })
+    );
+    // Regression guard: restoring `podCount` would silently pass if this
+    // assertion checked interpolated output text instead of the call itself.
+    expect(t).not.toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ podCount: expect.anything() })
+    );
+
+    const secondUnschedulablePod = makePod({
+      metadata: { name: 'web-1', namespace: 'default', uid: 'pod-2', resourceVersion: '1' },
+      status: unschedulablePod.status,
+    });
+    const t2 = vi.fn((key: string) => key);
+    getWorkloadDiagnostics(workload, [unschedulablePod, secondUnschedulablePod], t2);
+
+    expect(t2).toHaveBeenCalledWith(
+      '{{ count }} pods are unschedulable',
+      expect.objectContaining({ count: 2 })
+    );
+  });
+
+  it('passes the failing-reason pod count under the "count" key', () => {
+    const t = vi.fn((key: string) => key);
+    const crashLoopPod = makePod();
+    const workload = {
+      kind: 'Deployment',
+      metadata: { name: 'web', namespace: 'default' },
+      spec: { replicas: 3 },
+      status: { readyReplicas: 0, availableReplicas: 0, unavailableReplicas: 3 },
+    } as any;
+
+    getWorkloadDiagnostics(workload, [crashLoopPod], t);
+
+    expect(t).toHaveBeenCalledWith(
+      '{{ count }} pod is failing with {{ reason }}',
+      expect.objectContaining({ count: 1, reason: 'CrashLoopBackOff' })
+    );
+
+    const secondCrashLoopPod = makePod({
+      metadata: { name: 'web-1', namespace: 'default', uid: 'pod-2', resourceVersion: '1' },
+    });
+    const t2 = vi.fn((key: string) => key);
+    getWorkloadDiagnostics(workload, [crashLoopPod, secondCrashLoopPod], t2);
+
+    expect(t2).toHaveBeenCalledWith(
+      '{{ count }} pods are failing with {{ reason }}',
+      expect.objectContaining({ count: 2, reason: 'CrashLoopBackOff' })
+    );
+  });
 });
