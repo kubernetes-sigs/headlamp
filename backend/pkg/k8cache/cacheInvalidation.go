@@ -78,7 +78,12 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	DeleteKeys(key, k8scache)
 
+	// The cache key is built from the path and context only, so the refreshed body must not be
+	// narrowed by a query. A mutation carrying labelSelector would otherwise store a filtered
+	// collection under the key a queryless GET reads.
 	freshURL := *r.URL
+	freshURL.RawQuery = ""
+	freshURL.ForceQuery = false
 
 	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
 	if err != nil {

@@ -3249,6 +3249,93 @@ func TestCacheMiddleware_CachesResourceNamedVersion(t *testing.T) {
 	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE"))
 }
 
+// TestCacheMiddleware_QueryBearingRequests checks the gate that decides which requests the
+// cache may handle. Cache keys are built from the path and context only, so a GET narrowed by
+// a query must bypass the cache entirely, while a mutation carrying a query must still reach
+// invalidation. An unconditional query bypass would satisfy the first case and break the second.
+func TestCacheMiddleware_QueryBearingRequests(t *testing.T) {
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	fakeK8s := newFakeK8sServer(true)
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+
+		seen = append(seen, r.Method+" "+r.URL.RawQuery)
+
+		mu.Unlock()
+
+		w.WriteHeader(http.StatusOK)
+
+		_, err := w.Write([]byte(fakeK8sResourceListResponse))
+		assert.NoError(t, err)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps"
+
+	requireQueryGetsBypassCache(t, resourceURL)
+
+	mu.Lock()
+	afterGets := len(seen)
+	mu.Unlock()
+
+	assert.Equal(t, 2, afterGets, "both query-bearing GETs must reach the proxy")
+
+	// A mutation carrying a query must still go through invalidation, which forwards the
+	// mutation and then issues its own queryless refresh.
+	resp, err := httpRequestWithContext(
+		context.Background(), resourceURL+"?pretty=true", http.MethodDelete,
+	)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Len(t, seen, 4, "the mutation and its refresh must both reach the proxy")
+	assert.Equal(t, http.MethodDelete+" pretty=true", seen[2])
+	assert.Equal(t, http.MethodGet+" ", seen[3], "the refresh must be queryless")
+}
+
+// requireQueryGetsBypassCache issues the same query-narrowed GET twice and asserts neither
+// response came from the cache, so repeating it always reaches the proxy.
+func requireQueryGetsBypassCache(t *testing.T, resourceURL string) {
+	t.Helper()
+
+	for range 2 {
+		resp, err := httpRequestWithContext(
+			context.Background(), resourceURL+"?labelSelector=app%3Dweb", http.MethodGet,
+		)
+		require.NoError(t, err)
+
+		defer func() { _ = resp.Body.Close() }()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("X-HEADLAMP-CACHE"),
+			"a query-narrowed GET must not be served from the cache")
+	}
+}
+
 // TestCacheMiddleware_CacheHitAndCacheMiss test whether the k8s is storing into the cache
 // and returns the data if the data is present in the cache.
 func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
