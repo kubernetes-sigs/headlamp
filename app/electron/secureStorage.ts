@@ -168,6 +168,19 @@ function storedKey(namespace: string, key: string): string {
 }
 
 /**
+ * Identifies the one legacy token owned by the shipped AKS Desktop plugin.
+ *
+ * @param namespace - Namespace recovered from the caller's storage capability.
+ * @param key - Validated plugin-local storage key.
+ * @returns The legacy persisted key, or undefined for every other caller and key.
+ */
+function legacyGitHubKey(namespace: string, key: string): string | undefined {
+  return namespace === 'shipped--aks-desktop' && key === 'aks-desktop:github-auth'
+    ? key
+    : undefined;
+}
+
+/**
  * Checks whether a persisted key contains a valid namespace and local key.
  *
  * @param key - The persisted namespaced key to validate.
@@ -325,6 +338,8 @@ export class PluginSecureStorage {
     try {
       const data = readSecureStorageFile(this.storagePath);
       const entry = storedKey(namespace, key);
+      const legacy = legacyGitHubKey(namespace, key);
+      if (legacy) delete data[legacy];
       const namespacePrefix = `${namespace}:`;
       const storedKeys = Object.keys(data);
       const namespaceEntries = storedKeys.filter(item => item.startsWith(namespacePrefix));
@@ -370,19 +385,38 @@ export class PluginSecureStorage {
       return { success: false, error: 'Unable to load secure storage value' };
     }
     const entry = storedKey(namespace, key);
-    const encrypted = data[entry];
+    const legacy = legacyGitHubKey(namespace, key);
+    const encrypted = data[entry] ?? (legacy ? data[legacy] : undefined);
     if (!encrypted) {
       return { success: true, value: null };
     }
 
+    let value: string;
     try {
-      return {
-        success: true,
-        value: safeStorage.decryptString(Buffer.from(encrypted, 'base64')),
-      };
+      value = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
     } catch {
       return { success: false, error: 'Unable to decrypt secure storage value' };
     }
+    if (legacy && legacy in data) {
+      data[entry] = encrypted;
+      delete data[legacy];
+      const storedKeys = Object.keys(data);
+      if (
+        storedKeys.filter(item => item.startsWith(`${namespace}:`)).length >
+        MAX_ENTRIES_PER_NAMESPACE
+      ) {
+        return { success: false, error: 'Storage entry limit reached' };
+      }
+      if (new Set(storedKeys.map(item => item.slice(0, item.indexOf(':')))).size > MAX_NAMESPACES) {
+        return { success: false, error: 'Storage namespace limit reached' };
+      }
+      try {
+        writeSecureStorageFile(this.storagePath, data);
+      } catch {
+        return { success: false, error: 'Unable to migrate secure storage value' };
+      }
+    }
+    return { success: true, value };
   }
 
   /**
@@ -403,10 +437,12 @@ export class PluginSecureStorage {
     try {
       const data = readSecureStorageFile(this.storagePath);
       const entry = storedKey(namespace, key);
-      if (!(entry in data)) {
+      const legacy = legacyGitHubKey(namespace, key);
+      if (!(entry in data) && !(legacy && legacy in data)) {
         return { success: true };
       }
       delete data[entry];
+      if (legacy) delete data[legacy];
       writeSecureStorageFile(this.storagePath, data);
       return { success: true };
     } catch {
