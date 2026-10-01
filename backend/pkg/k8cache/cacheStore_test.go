@@ -925,6 +925,29 @@ func TestStoreK8sResponseInCache_FailureBodyNotCached(t *testing.T) {
 	assert.Error(t, getErr, "Failure responses should never be cached")
 }
 
+// TestStoreK8sResponseInCache_ValidResourceContainingFailureStringIsCached verifies that
+// valid Kubernetes resources (like ConfigMaps or Pods) containing the word "Failure" in their
+// data or spec are cached normally, rather than being discarded by a false-positive substring check.
+func TestStoreK8sResponseInCache_ValidResourceContainingFailureStringIsCached(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/api/v1/namespaces/default/configmaps"}
+
+	rw := httptest.NewRecorder()
+	rcw := k8cache.NewResponseCapture(rw)
+
+	validBody := `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"error-codes"},"data":{"reason":"Failure"}}`
+
+	rcw.WriteHeader(http.StatusOK)
+	_, _ = rcw.Write([]byte(validBody))
+
+	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, "valid-cm-key")
+	assert.NoError(t, err)
+
+	stored, getErr := mockCache.Get(context.Background(), "valid-cm-key")
+	assert.NoError(t, getErr, "Valid ConfigMap with data containing 'Failure' SHOULD be cached")
+	assert.NotEmpty(t, stored)
+}
+
 // TestExtractNamespace_QueryStringOnNamespacedURL verifies that query
 // parameters are stripped correctly even when a namespace is present.
 func TestExtractNamespace_QueryStringOnNamespacedURL(t *testing.T) {
