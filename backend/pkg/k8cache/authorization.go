@@ -20,12 +20,16 @@
 package k8cache
 
 import (
+	"container/list"
 	"fmt"
 	"net/http"
+	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
@@ -36,6 +40,7 @@ import (
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // clientsetTTL is how long an idle clientset stays in the cache before
@@ -59,12 +64,19 @@ type inFlightEntry struct {
 	err    error
 }
 
+type lruEntry struct {
+	key string
+	cs  *CachedClientSet
+}
+
 type blockedPrefixEntry struct {
 	blockedAt time.Time
 }
 
 var (
-	clientsetCache = make(map[string]*CachedClientSet)
+	clientsetCache   = make(map[string]*list.Element)
+	clientsetLRUList = list.New()
+
 	// blockedClientsetPrefixes holds context keys whose clientsets must not be
 	// re-cached after context removal. Entries are cleared when SyncWatchers sees
 	// the context active again, or by the janitor once clientsetTTL has elapsed
@@ -89,6 +101,80 @@ var (
 	}
 )
 
+func getMaxClientsetsLimit() int {
+	if limitStr := os.Getenv("HEADLAMP_MAX_CLIENTSETS"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
+			return limit
+		}
+	}
+
+	return 100 // default limit
+}
+
+func closeClientsetIdleConnections(cs *kubernetes.Clientset) {
+	if cs == nil {
+		return
+	}
+
+	closeRESTClientConnections(cs.CoreV1().RESTClient())
+}
+
+func closeRESTClientConnections(rc rest.Interface) {
+	if rc == nil {
+		return
+	}
+
+	restClient, ok := rc.(*rest.RESTClient)
+	if !ok || restClient == nil || restClient.Client == nil {
+		return
+	}
+
+	if restClient.Client.Transport != nil {
+		closeTransportIdleConnections(restClient.Client.Transport)
+	}
+}
+
+func closeTransportIdleConnections(tr http.RoundTripper) {
+	if tr == nil {
+		return
+	}
+
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+
+	if ci, ok := tr.(closeIdler); ok {
+		ci.CloseIdleConnections()
+
+		return
+	}
+
+	val := reflect.ValueOf(tr)
+	// govet inline sometimes flags reflect.Ptr here; this explicit check is intentional.
+	if val.Kind() != reflect.Ptr { //nolint:govet
+		return
+	}
+
+	elem := val.Elem()
+	if elem.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < elem.NumField(); i++ {
+		f := elem.Type().Field(i)
+		fieldVal := elem.Field(i)
+
+		if f.Type.String() == "http.RoundTripper" {
+			ptr := unsafe.Pointer(fieldVal.UnsafeAddr()) //nolint:gosec
+			rtPtr := (*http.RoundTripper)(ptr)
+
+			if rtPtr != nil && *rtPtr != nil {
+				closeTransportIdleConnections(*rtPtr)
+			}
+		}
+	}
+}
+
 // startJanitor launches a background goroutine (exactly once) that
 // periodically scans clientsetCache and removes entries whose lastUsed
 // timestamp exceeds clientsetTTL. This prevents unbounded memory growth
@@ -109,17 +195,31 @@ func startJanitor() {
 // evictExpiredClientsets walks the cache under the lock and deletes
 // every entry older than clientsetTTL.
 func evictExpiredClientsets() {
+	logger.Log(logger.LevelInfo, nil, nil, "telemetry: cache-janitor started sweep")
+
 	mu.Lock()
 
 	now := time.Now()
 	evicted := 0
 
-	for key, cs := range clientsetCache {
-		if now.Sub(cs.lastUsed) > clientsetTTL {
-			delete(clientsetCache, key)
+	for elem := clientsetLRUList.Back(); elem != nil; {
+		prev := elem.Prev()
+		entry := elem.Value.(*lruEntry)
+
+		if now.Sub(entry.cs.lastUsed) > clientsetTTL {
+			closeClientsetIdleConnections(entry.cs.clientset)
+			delete(clientsetCache, entry.key)
+			clientsetLRUList.Remove(elem)
 
 			evicted++
+
+			logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+				"telemetry: clientset cache eviction (expired/janitor) for key %s",
+				redactClientsetCacheKey(entry.key),
+			))
 		}
+
+		elem = prev
 	}
 
 	pruneBlockedClientsetPrefixesLocked(now)
@@ -127,6 +227,11 @@ func evictExpiredClientsets() {
 	remaining := len(clientsetCache)
 
 	mu.Unlock()
+
+	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+		"telemetry: cache-janitor completed sweep: evicted %d expired clientsets",
+		evicted,
+	))
 
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
@@ -188,12 +293,24 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 
 	evicted := 0
 
-	for key := range clientsetCache {
-		if strings.HasPrefix(key, prefix) {
-			delete(clientsetCache, key)
+	for elem := clientsetLRUList.Front(); elem != nil; {
+		next := elem.Next()
+		entry := elem.Value.(*lruEntry)
+
+		if strings.HasPrefix(entry.key, prefix) {
+			closeClientsetIdleConnections(entry.cs.clientset)
+			delete(clientsetCache, entry.key)
+			clientsetLRUList.Remove(elem)
 
 			evicted++
+
+			logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+				"telemetry: clientset cache eviction (context cleanup) for key %s",
+				redactClientsetCacheKey(entry.key),
+			))
 		}
+
+		elem = next
 	}
 
 	remaining := len(clientsetCache)
@@ -219,6 +336,16 @@ func clientsetCachePrefixFromCacheKey(cacheKey string) string {
 
 // clearBlockedClientsetPrefixesForActiveContexts allows clientset caching again for
 // contexts that are currently active (for example after a cluster is re-added).
+
+// redactClientsetCacheKey returns a redacted version of a clientset cache key.
+func redactClientsetCacheKey(cacheKey string) string {
+	if i := strings.LastIndex(cacheKey, "\x00"); i >= 0 {
+		return redactContextKey(cacheKey[:i]) + "\x00[redacted]"
+	}
+
+	return redactContextKey(cacheKey)
+}
+
 func clearBlockedClientsetPrefixesForActiveContexts(activeContexts []string) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -231,30 +358,68 @@ func clearBlockedClientsetPrefixesForActiveContexts(activeContexts []string) {
 // getCachedClientSet retrieves a clientset from the cache if it's valid and not expired.
 func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 	mu.Lock()
+	defer mu.Unlock()
 
-	cs, found := clientsetCache[cacheKey]
+	elem, found := clientsetCache[cacheKey]
 	if !found {
-		mu.Unlock()
+		logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+			"telemetry: clientset cache miss for key %s",
+			redactClientsetCacheKey(cacheKey),
+		))
+
 		return nil, false
 	}
 
+	entry := elem.Value.(*lruEntry)
 	now := time.Now()
 
-	if now.Sub(cs.lastUsed) > clientsetTTL {
+	if now.Sub(entry.cs.lastUsed) > clientsetTTL {
+		closeClientsetIdleConnections(entry.cs.clientset)
 		delete(clientsetCache, cacheKey)
-		redactedContext := redactContextKey(clientsetCachePrefixFromCacheKey(cacheKey))
-		mu.Unlock()
+		clientsetLRUList.Remove(elem)
 
+		redactedContext := redactContextKey(clientsetCachePrefixFromCacheKey(cacheKey))
 		logger.Log(logger.LevelInfo, nil, nil,
 			fmt.Sprintf("expired clientset for cluster %s was deleted", redactedContext))
 
+		logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+			"telemetry: clientset cache eviction (expired/access) for key %s",
+			redactClientsetCacheKey(cacheKey),
+		))
+
 		return nil, false
 	}
 
-	cs.lastUsed = now
-	mu.Unlock()
+	entry.cs.lastUsed = now
 
-	return cs.clientset, true
+	clientsetLRUList.MoveToFront(elem)
+
+	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+		"telemetry: clientset cache hit for key %s",
+		redactClientsetCacheKey(cacheKey),
+	))
+
+	return entry.cs.clientset, true
+}
+
+// enforceClientsetCapacityLimit evicts the least recently used clientset(s) if we are at/over capacity.
+// mu must be held.
+func enforceClientsetCapacityLimit() {
+	maxLimit := getMaxClientsetsLimit()
+	for len(clientsetCache) >= maxLimit && clientsetLRUList.Len() > 0 {
+		tailElem := clientsetLRUList.Back()
+		if tailElem != nil {
+			tailEntry := tailElem.Value.(*lruEntry)
+			closeClientsetIdleConnections(tailEntry.cs.clientset)
+			delete(clientsetCache, tailEntry.key)
+			clientsetLRUList.Remove(tailElem)
+
+			logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+				"telemetry: clientset cache eviction (LRU capacity) for key %s",
+				redactClientsetCacheKey(tailEntry.key),
+			))
+		}
+	}
 }
 
 // createAndCacheClientSet creates a new clientset and stores it in the cache.
@@ -277,16 +442,22 @@ func createAndCacheClientSet(
 	mu.Lock()
 	defer mu.Unlock()
 
-	// Double-check: another goroutine might have created a clientset for the same key
-	// while we were unlocked (though inFlight should prevent this for the same key,
-	// it's good practice for general double-checked locking).
-	if existing, found := clientsetCache[cacheKey]; found {
-		now := time.Now()
-		if now.Sub(existing.lastUsed) <= clientsetTTL {
-			// Reuse the existing one and discard ours.
-			existing.lastUsed = now
+	if existingElem, found := clientsetCache[cacheKey]; found {
+		existingEntry := existingElem.Value.(*lruEntry)
 
-			return existing.clientset, nil
+		if time.Since(existingEntry.cs.lastUsed) <= clientsetTTL {
+			existingEntry.cs.lastUsed = time.Now()
+
+			clientsetLRUList.MoveToFront(existingElem)
+
+			logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+				"telemetry: clientset cache hit (duplicate create) for key %s",
+				redactClientsetCacheKey(cacheKey),
+			))
+
+			closeClientsetIdleConnections(cs)
+
+			return existingEntry.cs.clientset, nil
 		}
 	}
 
@@ -295,10 +466,16 @@ func createAndCacheClientSet(
 		return cs, nil
 	}
 
-	clientsetCache[cacheKey] = &CachedClientSet{
-		clientset: cs,
-		lastUsed:  time.Now(),
-	}
+	enforceClientsetCapacityLimit()
+
+	cachedCS := &CachedClientSet{clientset: cs, lastUsed: time.Now()}
+	elem := clientsetLRUList.PushFront(&lruEntry{key: cacheKey, cs: cachedCS})
+	clientsetCache[cacheKey] = elem
+
+	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+		"telemetry: clientset cache miss (stored new clientset) for key %s",
+		redactClientsetCacheKey(cacheKey),
+	))
 
 	return cs, nil
 }
@@ -363,13 +540,23 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 	mu.Lock()
 
 	// Re-check cache under lock before deciding to create
-	if cs, found := clientsetCache[cacheKey]; found {
+	if elem, found := clientsetCache[cacheKey]; found {
+		entry := elem.Value.(*lruEntry)
 		now := time.Now()
-		if now.Sub(cs.lastUsed) <= clientsetTTL {
-			cs.lastUsed = now
+
+		if now.Sub(entry.cs.lastUsed) <= clientsetTTL {
+			entry.cs.lastUsed = now
+
+			clientsetLRUList.MoveToFront(elem)
+
 			mu.Unlock()
 
-			return cs.clientset, nil
+			logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
+				"telemetry: clientset cache hit (under lock) for key %s",
+				redactClientsetCacheKey(cacheKey),
+			))
+
+			return entry.cs.clientset, nil
 		}
 	}
 
