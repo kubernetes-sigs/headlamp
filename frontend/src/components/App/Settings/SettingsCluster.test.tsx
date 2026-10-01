@@ -15,9 +15,10 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '../../../i18n/config';
 import { createMuiTheme } from '../../../lib/themes';
 import { TestContext } from '../../../test';
 import SettingsCluster from './SettingsCluster';
@@ -207,6 +208,14 @@ describe('SettingsCluster states and namespaces', () => {
     };
   });
 
+  // Reset the app's shared i18n instance back to English in case a test
+  // below switched languages, so later tests aren't affected. Wrapped in
+  // act() since the still-mounted component from the test re-renders when
+  // the language changes.
+  afterEach(async () => {
+    await act(() => i18n.changeLanguage('en'));
+  });
+
   it('selects the first cluster when the query is missing', () => {
     renderSettings({}, { queryCluster: null });
     expect(
@@ -219,6 +228,16 @@ describe('SettingsCluster states and namespaces', () => {
     mockState.clustersConf = {};
     renderSettings({}, { dark: true });
     expect(screen.getByText(/no clusters configured/i)).toBeInTheDocument();
+  });
+
+  it('shows a translated loading indicator while there is no cluster in the URL', async () => {
+    mockState.activeCluster = null;
+    mockState.clustersConf = {};
+
+    await i18n.changeLanguage('fr');
+    renderSettings({}, { queryCluster: null });
+
+    expect(screen.getByRole('progressbar', { name: 'Chargement' })).toBeInTheDocument();
   });
 
   it('shows an invalid-cluster message', () => {
