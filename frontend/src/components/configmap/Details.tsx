@@ -15,6 +15,7 @@
  */
 
 import Button from '@mui/material/Button';
+import { Base64 } from 'js-base64';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +29,7 @@ import { DataField, DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
 
-function ConfigMapDataSection({ item }: { item: ConfigMap }) {
+export function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -50,7 +51,9 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
 
   const handleBinaryDataFieldChange = (key: string, newValue: string) => {
     setBinaryData(prev => {
-      const next = { ...prev, [key]: newValue };
+      // binaryData values are base64-encoded on the wire (K8s map[string][]byte),
+      // so re-encode the edited plaintext before storing it, mirroring Secret's data handling.
+      const next = { ...prev, [key]: Base64.encode(newValue) };
       setIsDirty(
         !_.isEqual(data, lastDataRef.current) || !_.isEqual(next, lastBinaryDataRef.current)
       );
@@ -112,7 +115,8 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
       <DataField
         label={key}
         disableLabel
-        value={value}
+        // Decode the base64-encoded binary data for display/editing; it is re-encoded on change.
+        value={Base64.decode(value)}
         onChange={(newValue: string) => handleBinaryDataFieldChange(key, newValue)}
       />
     ),
