@@ -77,6 +77,8 @@ import Link, { LinkProps } from '../Link';
 import { useObjectEvents } from '../ObjectEventList';
 import { metadataStyles } from '.';
 import A8RInfo from './A8RInfo';
+import { LAST_APPLIED_ANNOTATION } from './lastAppliedConfiguration';
+import LastAppliedDiff from './LastAppliedDiff';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
 import { MainInfoHeader } from './MainInfoSection/MainInfoSectionHeader';
 import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
@@ -361,6 +363,14 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   // Plugin appended details views
   if (!!detailViews) {
     sections.push(...detailViews);
+  }
+
+  // Last applied configuration diff, for resources applied with client-side kubectl apply
+  if (item?.metadata?.annotations?.[LAST_APPLIED_ANNOTATION]) {
+    sections.push({
+      id: DefaultDetailsViewSection.LAST_APPLIED_DIFF,
+      section: <LastAppliedDiff item={item.jsonData} />,
+    });
   }
 
   // Events
