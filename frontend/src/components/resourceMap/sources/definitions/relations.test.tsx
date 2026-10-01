@@ -19,9 +19,12 @@ import App from '../../../../App';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
+import Job from '../../../../lib/k8s/job';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import Role from '../../../../lib/k8s/role';
+import RoleBinding from '../../../../lib/k8s/roleBinding';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
@@ -82,6 +85,41 @@ const service = (
   selector: Record<string, string>,
   cluster = 'cluster-a'
 ) => new Service({ metadata, spec: { selector, ports: [] }, status: {} } as any, cluster);
+
+const job = (
+  metadata: Record<string, any>,
+  podSpec: Record<string, any> = {},
+  cluster = 'cluster-a'
+) =>
+  new Job(
+    {
+      metadata,
+      spec: {
+        template: {
+          spec: { containers: [], nodeName: '', ...podSpec },
+        },
+      },
+      status: {},
+    } as any,
+    cluster
+  );
+
+const role = (metadata: Record<string, any>, cluster = 'cluster-a') =>
+  new Role({ metadata, rules: [] } as any, cluster);
+
+const roleBinding = (
+  metadata: Record<string, any>,
+  roleRef: { apiGroup?: string; kind?: string; name: string },
+  cluster = 'cluster-a'
+) =>
+  new RoleBinding(
+    {
+      metadata,
+      roleRef: { apiGroup: 'rbac.authorization.k8s.io', kind: 'Role', ...roleRef },
+      subjects: [],
+    } as any,
+    cluster
+  );
 
 type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
 
@@ -387,8 +425,194 @@ describe('useGetAllRelations', () => {
     ).toBe(true);
     expect(
       secretRelation.predicate(
+        node(
+          pod(
+            { uid: 'pod-sec-vol', namespace: 'namespace-a' },
+            { volumes: [{ name: 'sec-vol', secret: { secretName: 'credentials' } }] }
+          )
+        ),
+        node(secret)
+      )
+    ).toBe(true);
+    expect(
+      configMapRelation.predicate(
+        node(
+          pod(
+            { uid: 'pod-config-env', namespace: 'namespace-a' },
+            {
+              containers: [{ env: [{ valueFrom: { configMapKeyRef: { name: 'settings' } } }] }],
+            }
+          )
+        ),
+        node(configMap)
+      )
+    ).toBe(true);
+    expect(
+      configMapRelation.predicate(
+        node(
+          pod(
+            { uid: 'pod-config-envfrom', namespace: 'namespace-a' },
+            {
+              containers: [{ envFrom: [{ configMapRef: { name: 'settings' } }] }],
+            }
+          )
+        ),
+        node(configMap)
+      )
+    ).toBe(true);
+    expect(
+      secretRelation.predicate(
+        node(
+          pod(
+            { uid: 'pod-secret-envfrom', namespace: 'namespace-a' },
+            {
+              containers: [{ envFrom: [{ secretRef: { name: 'credentials' } }] }],
+            }
+          )
+        ),
+        node(secret)
+      )
+    ).toBe(true);
+    expect(
+      secretRelation.predicate(
+        node(
+          pod(
+            { uid: 'pod-secret-init', namespace: 'namespace-a' },
+            {
+              initContainers: [{ envFrom: [{ secretRef: { name: 'credentials' } }] }],
+            }
+          )
+        ),
+        node(secret)
+      )
+    ).toBe(true);
+    expect(
+      secretRelation.predicate(
+        node(
+          pod(
+            { uid: 'pod-pull-secret', namespace: 'namespace-a' },
+            { imagePullSecrets: [{ name: 'credentials' }] }
+          )
+        ),
+        node(secret)
+      )
+    ).toBe(true);
+    expect(
+      secretRelation.predicate(
         node(pod({ uid: 'pod-empty', namespace: 'namespace-a' })),
         node(secret)
+      )
+    ).toBe(false);
+  });
+
+  it('exercises Job relations to ConfigMaps and Secrets across volumes, env, and envFrom', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: [] } as any);
+    const { result } = renderUseGetAllRelations();
+    const jobConfigMapRelation = relationFor(result.current, Job, ConfigMap);
+    const jobSecretRelation = relationFor(result.current, Job, Secret);
+
+    const configMap = new ConfigMap(
+      { metadata: { uid: 'config', name: 'settings', namespace: 'namespace-a' } } as any,
+      'cluster-a'
+    );
+    const secret = new Secret(
+      { metadata: { uid: 'secret', name: 'credentials', namespace: 'namespace-a' } } as any,
+      'cluster-a'
+    );
+
+    expect(
+      jobConfigMapRelation.predicate(
+        node(
+          job(
+            { uid: 'job-1', namespace: 'namespace-a' },
+            { volumes: [{ name: 'cfg', configMap: { name: 'settings' } }] }
+          )
+        ),
+        node(configMap)
+      )
+    ).toBe(true);
+    expect(
+      jobConfigMapRelation.predicate(
+        node(
+          job(
+            { uid: 'job-2', namespace: 'namespace-a' },
+            { containers: [{ envFrom: [{ configMapRef: { name: 'settings' } }] }] }
+          )
+        ),
+        node(configMap)
+      )
+    ).toBe(true);
+
+    expect(
+      jobSecretRelation.predicate(
+        node(
+          job(
+            { uid: 'job-3', namespace: 'namespace-a' },
+            { volumes: [{ name: 'sec', secret: { secretName: 'credentials' } }] }
+          )
+        ),
+        node(secret)
+      )
+    ).toBe(true);
+    expect(
+      jobSecretRelation.predicate(
+        node(
+          job(
+            { uid: 'job-4', namespace: 'namespace-a' },
+            { containers: [{ envFrom: [{ secretRef: { name: 'credentials' } }] }] }
+          )
+        ),
+        node(secret)
+      )
+    ).toBe(true);
+    expect(
+      jobSecretRelation.predicate(
+        node(job({ uid: 'job-5', namespace: 'namespace-a' }, {})),
+        node(secret)
+      )
+    ).toBe(false);
+  });
+
+  it('matches RoleBindings to Roles only when roleRef kind is Role', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: [] } as any);
+    const { result } = renderUseGetAllRelations();
+    const roleBindingRelation = relationFor(result.current, RoleBinding, Role);
+
+    const targetRole = role({ uid: 'role-1', name: 'pod-reader', namespace: 'namespace-a' });
+
+    expect(
+      roleBindingRelation.predicate(
+        node(
+          roleBinding(
+            { uid: 'rb-1', namespace: 'namespace-a' },
+            { kind: 'Role', name: 'pod-reader' }
+          )
+        ),
+        node(targetRole)
+      )
+    ).toBe(true);
+
+    expect(
+      roleBindingRelation.predicate(
+        node(
+          roleBinding(
+            { uid: 'rb-2', namespace: 'namespace-a' },
+            { kind: 'ClusterRole', name: 'pod-reader' }
+          )
+        ),
+        node(targetRole)
+      )
+    ).toBe(false);
+
+    expect(
+      roleBindingRelation.predicate(
+        node(
+          roleBinding(
+            { uid: 'rb-3', namespace: 'namespace-a' },
+            { kind: 'Role', name: 'different-role' }
+          )
+        ),
+        node(targetRole)
       )
     ).toBe(false);
   });

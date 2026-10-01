@@ -40,7 +40,7 @@ import LeaderWorkerSet, { LEADER_WORKER_SET_NAME_LABEL } from '../../../../lib/k
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
-import Pod from '../../../../lib/k8s/pod';
+import Pod, { type KubePodSpec } from '../../../../lib/k8s/pod';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
@@ -175,33 +175,78 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
   },
 });
 
+function podSpecUsesConfigMap(spec?: KubePodSpec, configMapName?: string): boolean {
+  if (!spec || !configMapName) {
+    return false;
+  }
+
+  const matchesVolume = spec.volumes?.some(
+    volume =>
+      volume.configMap?.name === configMapName ||
+      volume.projected?.sources?.some((source: any) => source.configMap?.name === configMapName)
+  );
+  if (matchesVolume) {
+    return true;
+  }
+
+  const allContainers = [
+    ...(spec.containers ?? []),
+    ...(spec.initContainers ?? []),
+    ...(spec.ephemeralContainers ?? []),
+  ];
+
+  return allContainers.some(
+    container =>
+      container.env?.some(env => env.valueFrom?.configMapKeyRef?.name === configMapName) ||
+      container.envFrom?.some(envFrom => envFrom.configMapRef?.name === configMapName)
+  );
+}
+
+function podSpecUsesSecret(spec?: KubePodSpec, secretName?: string): boolean {
+  if (!spec || !secretName) {
+    return false;
+  }
+
+  const matchesVolume = spec.volumes?.some(
+    volume =>
+      volume.secret?.secretName === secretName ||
+      volume.projected?.sources?.some((source: any) => source.secret?.name === secretName)
+  );
+  if (matchesVolume) {
+    return true;
+  }
+
+  if ((spec as any).imagePullSecrets?.some((s: any) => s?.name === secretName)) {
+    return true;
+  }
+
+  const allContainers = [
+    ...(spec.containers ?? []),
+    ...(spec.initContainers ?? []),
+    ...(spec.ephemeralContainers ?? []),
+  ];
+
+  return allContainers.some(
+    container =>
+      container.env?.some(env => env.valueFrom?.secretKeyRef?.name === secretName) ||
+      container.envFrom?.some(envFrom => envFrom.secretRef?.name === secretName)
+  );
+}
+
 const configMapUsedInPods = makeRelation('pod-configmap', Pod, ConfigMap, (pod, configMap) =>
-  pod.spec.volumes?.find(volume => volume.configMap?.name === configMap.metadata.name)
+  podSpecUsesConfigMap(pod.spec, configMap.metadata.name)
 );
 
 const configMapUsedInJobs = makeRelation('job-configmap', Job, ConfigMap, (job, configMap) =>
-  job.spec.template.spec.volumes?.find(
-    volume => volume?.configMap?.name === configMap.metadata.name
-  )
+  podSpecUsesConfigMap(job.spec?.template?.spec, configMap.metadata.name)
 );
 
-const secretsUsedInPods = makeRelation(
-  'pod-secret',
-  Pod,
-  Secret,
-  (pod, secret) =>
-    pod.spec.containers?.find(container =>
-      container.env?.find(env => secret.metadata.name === env.valueFrom?.secretKeyRef?.name)
-    ) ??
-    pod.spec.volumes?.find(volume =>
-      volume.projected?.sources?.find((source: any) => source.secret?.name === secret.metadata.name)
-    )
+const secretsUsedInPods = makeRelation('pod-secret', Pod, Secret, (pod, secret) =>
+  podSpecUsesSecret(pod.spec, secret.metadata.name)
 );
 
 const secretsUsedInJobs = makeRelation('job-secret', Job, Secret, (job, secret) =>
-  job.spec.template.spec.containers?.find(container =>
-    container.env?.find(env => secret.metadata.name === env.valueFrom?.secretKeyRef?.name)
-  )
+  podSpecUsesSecret(job.spec?.template?.spec, secret.metadata.name)
 );
 
 const hpaToDeployment = makeRelation(
@@ -276,7 +321,8 @@ const roleBindingsToRole = makeRelation(
   'rolebinding-role',
   RoleBinding,
   Role,
-  (binding, role) => role.metadata.name === binding.roleRef.name
+  (binding, role) =>
+    (binding.roleRef?.kind ?? 'Role') === 'Role' && role.metadata.name === binding.roleRef?.name
 );
 
 const roleBindingToServiceAccount = makeRelation(
