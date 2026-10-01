@@ -439,6 +439,13 @@ describe('platform metadata', () => {
     });
     expect(config.mac).toMatchObject({ appId: 'io.example.headlamp' });
     expect(config.win).toMatchObject({ icon: 'build/icons/example.ico' });
+    expect(config).toMatchObject({
+      beforePack: expect.any(Function),
+      afterPack: expect.any(Function),
+      afterSign: expect.any(Function),
+      artifactBuildStarted: expect.any(Function),
+      artifactBuildCompleted: expect.any(Function),
+    });
   });
 });
 

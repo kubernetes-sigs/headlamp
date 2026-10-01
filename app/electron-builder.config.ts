@@ -57,6 +57,51 @@ const manifestFile = resolveBuildManifestPath();
 const manifest = loadBuildManifest(manifestFile);
 const defaultManifest = path.resolve(DEFAULT_MANIFEST_FILE);
 const packageBuild = packageJson.build as ElectronBuilderConfiguration;
+const existingAfterPack = require('./scripts/after-pack.js').default as (
+  context: unknown
+) => Promise<void>;
+
+let assemblyStartedAt: number | undefined;
+let signingStartedAt: number | undefined;
+const beforePack = () => {
+  assemblyStartedAt = Date.now();
+  console.log(`[build-timing] Electron app assembly started at ${new Date().toISOString()}`);
+};
+const afterPack = async (context: unknown) => {
+  await existingAfterPack(context);
+  console.log(
+    `[build-timing] Electron app assembly completed${
+      assemblyStartedAt ? ` in ${((Date.now() - assemblyStartedAt) / 1000).toFixed(3)}s` : ''
+    }`
+  );
+  signingStartedAt = Date.now();
+  console.log(
+    `[build-timing] Electron signing started at ${new Date(signingStartedAt).toISOString()}`
+  );
+};
+const afterSign = () => {
+  console.log(
+    `[build-timing] Electron signing completed${
+      signingStartedAt ? ` in ${((Date.now() - signingStartedAt) / 1000).toFixed(3)}s` : ''
+    }`
+  );
+};
+
+const artifactStarts = new Map<string, { name: string; startedAt: number }>();
+const artifactBuildStarted = (context: { targetPresentableName: string; file: string }) => {
+  const name = context.targetPresentableName || path.basename(context.file);
+  artifactStarts.set(context.file, { name, startedAt: Date.now() });
+  console.log(`[build-timing] Electron artifact ${name} started at ${new Date().toISOString()}`);
+};
+const artifactBuildCompleted = (context: { file: string; target: { name: string } | null }) => {
+  const timing = artifactStarts.get(context.file);
+  const name = timing?.name || context.target?.name || path.basename(context.file);
+  console.log(
+    `[build-timing] Electron artifact ${name} completed${
+      timing ? ` in ${((Date.now() - timing.startedAt) / 1000).toFixed(3)}s` : ''
+    }`
+  );
+};
 
 const config: Configuration = applyBuildResources(
   applyBuildTargets(
@@ -64,6 +109,11 @@ const config: Configuration = applyBuildResources(
       applyProductMetadata(
         {
           ...packageBuild,
+          beforePack,
+          afterPack,
+          afterSign,
+          artifactBuildStarted,
+          artifactBuildCompleted,
           extraResources: packageBuild.extraResources.map(resource => {
             // Preserve every resource except the default manifest entry.
             if (
