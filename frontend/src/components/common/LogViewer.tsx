@@ -132,6 +132,7 @@ export function LogViewer(props: LogViewerProps) {
       window.removeEventListener('resize', pageResizeHandler);
       xtermRef.current?.dispose();
       searchAddonRef.current?.dispose();
+      fitAddonRef.current?.dispose?.();
       xtermRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
