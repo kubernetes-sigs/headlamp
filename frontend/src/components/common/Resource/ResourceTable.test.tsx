@@ -15,13 +15,29 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { act, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
 import { createMuiTheme } from '../../../lib/themes';
+import reducers from '../../../redux/reducers/reducers';
 import { TestContext } from '../../../test';
 import ResourceTable from './ResourceTable';
+
+function createStoreWithNamespaces(namespaces: string[]) {
+  return configureStore({
+    reducer: reducers,
+    preloadedState: {
+      filter: { namespaces: new Set(namespaces) },
+    },
+    middleware: getDefaultMiddleware =>
+      getDefaultMiddleware({
+        serializableCheck: false,
+        thunk: true,
+      }),
+  });
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
@@ -225,5 +241,89 @@ describe('ResourceTable Column Visibility', () => {
     );
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
+  });
+});
+
+describe('ResourceTable noNamespaceFilter row filtering', () => {
+  beforeEach(() => {
+    lastTablePropsHolder.current = null;
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation(query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // A pod from a namespace other than the one selected in the global filter.
+  const otherNamespacePod = {
+    kind: 'Pod',
+    apiVersion: 'v1',
+    metadata: { name: 'other-ns-pod', namespace: 'namespace-b', uid: 'uid-2' },
+  } as any;
+
+  it('ignores the stale global namespace filter when noNamespaceFilter is true', () => {
+    const store = createStoreWithNamespaces(['namespace-a']);
+
+    render(
+      <TestContext store={store}>
+        <ThemeProvider theme={theme}>
+          <ResourceTable
+            id="ns-scoped-table"
+            columns={[]}
+            data={[otherNamespacePod]}
+            noNamespaceFilter
+          />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(lastTablePropsHolder.current.filterFunction(otherNamespacePod)).toBe(true);
+  });
+
+  it('still applies the global namespace filter when noNamespaceFilter is false', () => {
+    const store = createStoreWithNamespaces(['namespace-a']);
+
+    render(
+      <TestContext store={store}>
+        <ThemeProvider theme={theme}>
+          <ResourceTable id="ns-filtered-table" columns={[]} data={[otherNamespacePod]} />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(lastTablePropsHolder.current.filterFunction(otherNamespacePod)).toBe(false);
+  });
+
+  it('does not mutate the global namespace filter when mounted with noNamespaceFilter', () => {
+    const store = createStoreWithNamespaces(['namespace-a']);
+
+    render(
+      <TestContext store={store}>
+        <ThemeProvider theme={theme}>
+          <ResourceTable
+            id="ns-scoped-table"
+            columns={[]}
+            data={[otherNamespacePod]}
+            noNamespaceFilter
+          />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect([...store.getState().filter.namespaces]).toEqual(['namespace-a']);
   });
 });
