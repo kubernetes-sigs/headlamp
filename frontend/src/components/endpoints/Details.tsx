@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { ResourceClasses } from '../../lib/k8s';
-import Endpoints, { KubeEndpoint } from '../../lib/k8s/endpoints';
+import Endpoints, { KubeEndpoint, KubeEndpointAddress } from '../../lib/k8s/endpoints';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
@@ -56,80 +56,94 @@ export default function EndpointDetails(props: {
                       <Empty>{t('translation|No data to be shown.')}</Empty>
                     </SectionBox>
                   ) : (
-                    item.subsets?.map((subset, i) => (
-                      <SectionBox key={`subsetDetails_${i}`} outterBoxProps={{ pb: 3 }}>
-                        <SectionHeader
-                          noPadding
-                          title={t('translation|Addresses')}
-                          headerStyle="label"
-                        />
-                        <SimpleTable
-                          data={subset?.addresses || []}
-                          columns={[
-                            {
-                              label: t('IP'),
-                              getter: address => address.ip,
-                            },
-                            {
-                              label: t('Hostname'),
-                              getter: address => address.hostname,
-                            },
-                            {
-                              label: t('Target'),
-                              getter: address => {
-                                const targetRefClass = !!address.targetRef?.kind
-                                  ? ResourceClasses[
-                                      address.targetRef?.kind as keyof typeof ResourceClasses
-                                    ]
-                                  : null;
-                                if (!!targetRefClass) {
-                                  return (
-                                    <Link
-                                      routeName={targetRefClass.detailsRoute}
-                                      params={{
-                                        name: address.targetRef.name,
-                                        namespace: address.targetRef.namespace,
-                                      }}
-                                      state={{
-                                        backLink: location,
-                                      }}
-                                    >
-                                      {address.targetRef.name}
-                                    </Link>
-                                  );
-                                } else {
-                                  return address.targetRef?.name || '';
-                                }
+                    item.subsets?.map((subset, i) => {
+                      const addressColumns = [
+                        {
+                          label: t('IP'),
+                          getter: (address: KubeEndpointAddress) => address.ip,
+                        },
+                        {
+                          label: t('Hostname'),
+                          getter: (address: KubeEndpointAddress) => address.hostname,
+                        },
+                        {
+                          label: t('Target'),
+                          getter: (address: KubeEndpointAddress) => {
+                            const targetRef = address.targetRef;
+                            if (!targetRef?.kind) {
+                              return targetRef?.name || '';
+                            }
+                            const targetRefClass =
+                              ResourceClasses[targetRef.kind as keyof typeof ResourceClasses];
+                            if (!targetRefClass) {
+                              return targetRef.name || '';
+                            }
+                            return (
+                              <Link
+                                routeName={targetRefClass.detailsRoute}
+                                params={{
+                                  name: targetRef.name,
+                                  namespace: targetRef.namespace,
+                                }}
+                                state={{
+                                  backLink: location,
+                                }}
+                              >
+                                {targetRef.name}
+                              </Link>
+                            );
+                          },
+                        },
+                      ];
+
+                      return (
+                        <SectionBox key={`subsetDetails_${i}`} outterBoxProps={{ pb: 3 }}>
+                          <SectionHeader
+                            noPadding
+                            title={t('translation|Addresses')}
+                            headerStyle="label"
+                          />
+                          <SimpleTable
+                            data={subset?.addresses || []}
+                            columns={addressColumns}
+                            reflectInURL={`addresses-${i}`}
+                          />
+                          <SectionHeader
+                            noPadding
+                            title={t('translation|Not Ready Addresses')}
+                            headerStyle="label"
+                          />
+                          <SimpleTable
+                            data={subset?.notReadyAddresses || []}
+                            columns={addressColumns}
+                            reflectInURL={`not-ready-addresses-${i}`}
+                          />
+                          <SectionHeader noPadding title={t('Ports')} headerStyle="label" />
+                          <SimpleTable
+                            data={subset?.ports || []}
+                            columns={[
+                              {
+                                label: t('translation|Name'),
+                                datum: 'name',
+                                sort: true,
                               },
-                            },
-                          ]}
-                          reflectInURL="addresses"
-                        />
-                        <SectionHeader noPadding title={t('Ports')} headerStyle="label" />
-                        <SimpleTable
-                          data={subset?.ports || []}
-                          columns={[
-                            {
-                              label: t('translation|Name'),
-                              datum: 'name',
-                              sort: true,
-                            },
-                            {
-                              label: t('Port'),
-                              datum: 'port',
-                              sort: true,
-                            },
-                            {
-                              label: t('Protocol'),
-                              datum: 'protocol',
-                              sort: true,
-                            },
-                          ]}
-                          defaultSortingColumn={1}
-                          reflectInURL="ports"
-                        />
-                      </SectionBox>
-                    ))
+                              {
+                                label: t('Port'),
+                                datum: 'port',
+                                sort: true,
+                              },
+                              {
+                                label: t('Protocol'),
+                                datum: 'protocol',
+                                sort: true,
+                              },
+                            ]}
+                            defaultSortingColumn={1}
+                            reflectInURL={`ports-${i}`}
+                          />
+                        </SectionBox>
+                      );
+                    })
                   )}
                 </>
               </>
