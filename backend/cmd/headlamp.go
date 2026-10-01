@@ -832,6 +832,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}),
 	)).Methods("GET")
 
+	// Export a standalone kubeconfig for a single cluster, regardless of how it was added.
+	r.Handle("/clusters/{clusterName}/kubeconfig", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.getClusterKubeconfig),
+	)).Methods("GET")
+
 	config.handleClusterRequests(r)
 
 	externalProxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2208,6 +2213,170 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 	return clusters
 }
 
+// flattenPathReferencedAuth reads a path-referenced file (CA, client certificate
+// or key, or token file) and returns its base64-encoded content. It returns an
+// empty slice when the file cannot be read, which leaves the original path
+// reference in place so the export still matches what Headlamp loaded.
+func flattenPathReferencedAuth(path string) []byte {
+	// The path comes from the kubeconfig Headlamp itself loaded (not from the
+	// HTTP request), and the content is only re-serialized into the export.
+	data, err := os.ReadFile(path) //nolint:gosec // path originates from the loaded kubeconfig, not request input
+	if err != nil {
+		return []byte{}
+	}
+
+	return data
+}
+
+// flattenClusterAuthData copies the cluster stanza and flattens its
+// certificate-authority field into certificate-authority-data when the
+// authority data is empty and the referenced file is readable on this host.
+//
+// Exported kubeconfigs are advertised as standalone, so host-absolute paths
+// (created by resolveKubeconfigPaths for file-backed contexts) must not
+// survive: they point at files that do not exist on the receiving machine.
+//
+// Only trusted origins are flattened. The kubeconfig file, supplied by the
+// operator running Headlamp, is trusted to reference readable files on this
+// host; a client-supplied stateless kubeconfig is not, since flattening it
+// would let a requester inline arbitrary host files (e.g. /etc/passwd) into
+// the export.
+func flattenClusterAuthData(cluster *api.Cluster, source int) *api.Cluster {
+	if cluster == nil {
+		return nil
+	}
+
+	flattened := cluster.DeepCopy()
+	if source == kubeconfig.KubeConfig && len(flattened.CertificateAuthorityData) == 0 &&
+		flattened.CertificateAuthority != "" {
+		if data := flattenPathReferencedAuth(flattened.CertificateAuthority); len(data) > 0 {
+			flattened.CertificateAuthorityData = data
+			flattened.CertificateAuthority = ""
+		}
+	}
+
+	return flattened
+}
+
+// flattenAuthInfoData copies the user stanza and flattens path-backed client
+// certificates, client keys, and token files into their inline -data fields
+// when those are empty and the referenced files are readable on this host.
+// As with clusters, only operator-provided (file-backed) contexts are trusted
+// with host file reads; client-supplied stateless configs are exported as-is.
+// Exec-based and other credential kinds are left untouched: they are not
+// path-referenced on this host, so the export keeps them verbatim and
+// continues to work wherever the exec plugin is installed.
+func flattenAuthInfoData(authInfo *api.AuthInfo, source int) *api.AuthInfo {
+	if authInfo == nil {
+		return nil
+	}
+
+	flattened := authInfo.DeepCopy()
+
+	if source != kubeconfig.KubeConfig {
+		return flattened
+	}
+
+	if len(flattened.ClientCertificateData) == 0 && flattened.ClientCertificate != "" {
+		if data := flattenPathReferencedAuth(flattened.ClientCertificate); len(data) > 0 {
+			flattened.ClientCertificateData = data
+			flattened.ClientCertificate = ""
+		}
+	}
+
+	if len(flattened.ClientKeyData) == 0 && flattened.ClientKey != "" {
+		if data := flattenPathReferencedAuth(flattened.ClientKey); len(data) > 0 {
+			flattened.ClientKeyData = data
+			flattened.ClientKey = ""
+		}
+	}
+
+	if flattened.Token == "" && flattened.TokenFile != "" {
+		if token, err := os.ReadFile(flattened.TokenFile); err == nil {
+			flattened.Token = strings.TrimSpace(string(token))
+			flattened.TokenFile = ""
+		}
+	}
+
+	return flattened
+}
+
+// getClusterKubeconfig returns a standalone, single-context kubeconfig YAML for the
+// named cluster, built from whatever this Headlamp instance already holds for it in
+// memory (works the same regardless of whether the cluster came from a kubeconfig
+// file, a dynamically-added/stateless cluster, or in-cluster config).
+//
+// Stateless (browser-imported) contexts are stored under a per-user cache key and
+// marked Internal, so we resolve the key with getContextKeyForRequest — the same
+// resolution the proxy uses — instead of the raw cluster name. The KUBECONFIG and
+// X-HEADLAMP-USER-ID headers sent by the frontend select (and re-register, with a
+// refreshed TTL) exactly the context the requesting user holds, so a user can only
+// ever export their own contexts.
+//
+// A nil AuthInfo is valid: manually added dynamic clusters are stored without a
+// user stanza, and in-cluster Headlamp authenticates with its service account
+// token rather than a kubeconfig credential. The export simply omits the user
+// stanza in that case. Path-referenced certificate and token files are flattened
+// into their inline data fields so the exported file works on other machines.
+func (c *HeadlampConfig) getClusterKubeconfig(w http.ResponseWriter, r *http.Request) {
+	clusterName := mux.Vars(r)["clusterName"]
+
+	contextKey, err := c.getContextKeyForRequest(r)
+	if err != nil {
+		http.Error(w, "cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	kubeContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err != nil || kubeContext == nil ||
+		kubeContext.KubeContext == nil || kubeContext.Cluster == nil {
+		http.Error(w, "cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	// Stateless contexts are keyed as "name\x00user" in the store; the exported
+	// kubeconfig must use the plain cluster name instead of that internal key.
+	exportName := kubeContext.Name
+	if kubeContext.Name != clusterName {
+		exportName = clusterName
+	}
+
+	cfg := api.NewConfig()
+	cfg.Clusters[kubeContext.KubeContext.Cluster] = flattenClusterAuthData(kubeContext.Cluster, kubeContext.Source)
+
+	if kubeContext.AuthInfo != nil {
+		cfg.AuthInfos[kubeContext.KubeContext.AuthInfo] = flattenAuthInfoData(
+			kubeContext.AuthInfo, kubeContext.Source)
+	} else if kubeContext.KubeContext.AuthInfo != "" {
+		// nil user stanza: leave the users section empty. Keeping the context's
+		// user reference would produce a kubeconfig pointing at a missing user,
+		// so clear it on a copy of the context.
+		contextCopy := kubeContext.KubeContext.DeepCopy()
+		contextCopy.AuthInfo = ""
+		cfg.Contexts[exportName] = contextCopy
+	}
+
+	if _, ok := cfg.Contexts[exportName]; !ok {
+		cfg.Contexts[exportName] = kubeContext.KubeContext.DeepCopy()
+	}
+
+	cfg.CurrentContext = exportName
+
+	kubeconfigBytes, err := clientcmd.Write(*cfg)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err,
+			"serializing kubeconfig")
+		http.Error(w, "failed to build kubeconfig", http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/yaml")
+	_, _ = w.Write(kubeconfigBytes)
+}
+
 // parseCustomNameClusters parses the custom name clusters from the kubeconfig.
 func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error) {
 	clusters := []Cluster{}
@@ -2215,6 +2384,11 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 	var setupErrors []error
 
 	for _, context := range contexts {
+		// The context name before any headlamp_info custom-name override is
+		// applied; exposed as meta_data.originalName so clients can map the
+		// display name back to the raw context in the source kubeconfig.
+		originalName := context.Name
+
 		info := context.KubeContext.Extensions["headlamp_info"]
 		if info != nil {
 			// Convert the runtime.Unknown object to a byte slice
@@ -2252,7 +2426,8 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
 			Metadata: map[string]interface{}{
-				"source": "dynamic_cluster",
+				"source":       "dynamic_cluster",
+				"originalName": originalName,
 			},
 		})
 	}

@@ -42,14 +42,20 @@ vi.mock('../../helpers/getProductInfo', () => ({
 }));
 vi.mock('../../lib/router/createRouteURL', () => ({ createRouteURL: vi.fn(() => '/') }));
 vi.mock('../../redux/hooks', () => ({ useTypedSelector: vi.fn(() => undefined) }));
-vi.mock('../../redux/uiSlice', () => ({ uiSlice: { actions: { setVersionDialogOpen: vi.fn() } } }));
+vi.mock('../../redux/uiSlice', () => ({
+  default: vi.fn(() => ({})),
+  uiSlice: { actions: { setVersionDialogOpen: vi.fn() } },
+}));
 vi.mock('../cluster/Chooser', () => ({
   ClusterTitle: () => null,
   useClusterTitleVisible: vi.fn(() => false),
 }));
 vi.mock('../globalSearch/GlobalSearch', () => ({ GlobalSearch: () => null }));
 vi.mock('../Sidebar/HeadlampButton', () => ({ default: () => null }));
-vi.mock('../Sidebar/sidebarSlice', () => ({ setWhetherSidebarOpen: vi.fn() }));
+vi.mock('../Sidebar/sidebarSlice', () => ({
+  default: vi.fn(() => ({})),
+  setWhetherSidebarOpen: vi.fn(),
+}));
 vi.mock('./AppLogo', () => ({ AppLogo: () => null }));
 vi.mock('../App/Settings', () => ({
   navigateToClusterSettings: vi.fn(),
