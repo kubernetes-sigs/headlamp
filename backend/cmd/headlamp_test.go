@@ -54,6 +54,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -437,6 +439,99 @@ func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	err := json.Unmarshal(recorder.Body.Bytes(), &config)
 	require.NoError(t, err)
 	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
+}
+
+// pluginLoadCount returns the total recorded for the plugin load counter.
+func pluginLoadCount(t *testing.T, reader *sdkmetric.ManualReader) int64 {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	var total int64
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if sum, ok := m.Data.(metricdata.Sum[int64]); ok && m.Name == "headlamp.plugin.load_count" {
+				for _, dp := range sum.DataPoints {
+					total += dp.Value
+				}
+			}
+		}
+	}
+
+	return total
+}
+
+// newPluginListTestConfig returns a config whose plugin load counter is recorded by the returned reader.
+func newPluginListTestConfig(t *testing.T) (*HeadlampConfig, *sdkmetric.ManualReader) {
+	t.Helper()
+
+	reader := sdkmetric.NewManualReader()
+	loadCount, err := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).
+		Meter("test").Int64Counter("headlamp.plugin.load_count")
+	require.NoError(t, err)
+
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				Telemetry: &telemetry.Telemetry{},
+				Metrics:   &telemetry.Metrics{PluginLoadCount: loadCount},
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}, reader
+}
+
+func TestPluginListRouteBackendToken(t *testing.T) {
+	const backendToken = "test-backend-token"
+
+	tests := []struct {
+		name          string
+		envToken      string
+		headerToken   string
+		wantStatus    int
+		wantLoadCount int64
+	}{
+		{name: "no backend token configured", wantStatus: http.StatusOK, wantLoadCount: 1},
+		{name: "missing token header", envToken: backendToken, wantStatus: http.StatusForbidden},
+		{
+			name:        "wrong token header",
+			envToken:    backendToken,
+			headerToken: "wrong-token",
+			wantStatus:  http.StatusForbidden,
+		},
+		{
+			name:          "correct token header",
+			envToken:      backendToken,
+			headerToken:   backendToken,
+			wantStatus:    http.StatusOK,
+			wantLoadCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HEADLAMP_BACKEND_TOKEN", tt.envToken)
+
+			cfg, reader := newPluginListTestConfig(t)
+
+			router := mux.NewRouter()
+			addPluginListRoute(cfg, router)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+			if tt.headerToken != "" {
+				req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", tt.headerToken)
+			}
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+
+			assert.Equal(t, tt.wantStatus, recorder.Code)
+			assert.Equal(t, tt.wantLoadCount, pluginLoadCount(t, reader))
+		})
+	}
 }
 
 //nolint:gocognit,funlen
