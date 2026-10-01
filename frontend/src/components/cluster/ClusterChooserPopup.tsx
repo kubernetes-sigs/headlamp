@@ -117,7 +117,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     const recentClustersNames = !!filter ? [] : getRecentClusters();
 
     const clustersToShow: Cluster[] = [];
-    const recentClusters: Cluster[] = [];
+    const recentByName = new Map<string, Cluster>();
 
     allClusters.forEach(c => {
       const cluster = { ...c };
@@ -126,21 +126,20 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       }
 
       if (recentClustersNames.includes(c.name)) {
-        recentClusters.push(cluster);
+        recentByName.set(cluster.name, cluster);
       } else {
         clustersToShow.push(cluster);
       }
     });
 
-    recentClusters.sort((a, b) => {
-      if (a.isCurrent) {
-        return -1;
-      } else if (b.isCurrent) {
-        return 1;
-      }
+    const recentlyUsed = Array.from(new Set(recentClustersNames))
+      .map(name => recentByName.get(name))
+      .filter((cluster): cluster is Cluster => !!cluster);
 
-      return 0;
-    });
+    const recentClusters = [
+      ...recentlyUsed.filter(cluster => cluster.isCurrent),
+      ...recentlyUsed.filter(cluster => !cluster.isCurrent),
+    ];
 
     clustersToShow.sort((a, b) => {
       if (a.isCurrent) {
