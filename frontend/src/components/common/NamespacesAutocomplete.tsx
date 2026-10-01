@@ -140,12 +140,14 @@ export function PureNamespacesAutocomplete({
         const joiner = ', ';
         const joinerLength = joiner.length;
         let joinnedNamespaces = 1;
-        const remainingTags = tags.slice(1);
+        const hiddenTags: string[] = [];
 
         tags.slice(1).forEach(tag => {
           if (namespacesToShow.length + tag.length + joinerLength <= maxNamespacesChars) {
             namespacesToShow += joiner + tag;
             joinnedNamespaces++;
+          } else {
+            hiddenTags.push(tag);
           }
         });
 
@@ -160,8 +162,8 @@ export function PureNamespacesAutocomplete({
                 <Tooltip
                   title={
                     <ul style={{ margin: 0, padding: 10, listStyle: 'none' }}>
-                      {remainingTags.map((tag, key) => (
-                        <li key={key}>{tag}</li>
+                      {hiddenTags.map(tag => (
+                        <li key={tag}>{tag}</li>
                       ))}
                     </ul>
                   }
