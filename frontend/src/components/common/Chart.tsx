@@ -47,6 +47,8 @@ export interface PercentageCircleProps {
   dataKey?: string;
   label?: string | null;
   title?: ReactNode;
+  /** Name used in the loader's accessible label. Defaults to the title. */
+  loaderTitle?: string;
   legend?: ReactNode;
   total?: number;
   totalProps?: {
@@ -63,6 +65,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
     dataKey = 'percentage',
     label = '',
     title = '',
+    loaderTitle,
     legend = null,
     total = 100,
     totalProps = {},
@@ -124,7 +127,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
         </Typography>
       )}
       {isLoading ? (
-        <Loader title={`Loading data for ${title}`} />
+        <Loader title={`Loading data for ${loaderTitle ?? title}`} />
       ) : (
         <PieChart
           cx={size / 2}
