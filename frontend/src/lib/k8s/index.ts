@@ -67,6 +67,8 @@ import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
 import TCPRoute from './tcpRoute';
 import UDPRoute from './udpRoute';
+import ValidatingAdmissionPolicy from './validatingAdmissionPolicy';
+import ValidatingAdmissionPolicyBinding from './validatingAdmissionPolicyBinding';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -117,6 +119,8 @@ export const ResourceClasses = {
   UDPRoute,
   // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
   Workload: SchedulingWorkload,
+  ValidatingAdmissionPolicy,
+  ValidatingAdmissionPolicyBinding,
 };
 
 /** Hook for getting or fetching the clusters configuration.
@@ -381,3 +385,5 @@ export * as serviceAccount from './serviceAccount';
 export * as statefulSet from './statefulSet';
 export * as storageClass from './storageClass';
 export * as volumeAttributesClass from './volumeAttributesClass';
+export * as validatingAdmissionPolicy from './validatingAdmissionPolicy';
+export * as validatingAdmissionPolicyBinding from './validatingAdmissionPolicyBinding';
