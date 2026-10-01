@@ -445,14 +445,18 @@ func TestGetAuthToken(t *testing.T) {
 
 //nolint:funlen
 func TestGetServiceFromCluster(t *testing.T) {
+	metricsPort := []corev1.ServicePort{{Name: "metrics", Port: 9090}}
 	tests := []struct {
 		name           string
 		namespace      string
 		serviceName    string
 		setupService   bool
+		ports          []corev1.ServicePort
+		portSelector   string
 		mockError      error
 		expectedStatus int
 		expectError    bool
+		expectedPort   int32
 	}{
 		{
 			name:           "service not found",
@@ -503,6 +507,36 @@ func TestGetServiceFromCluster(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectError:    true,
 		},
+		{
+			name:           "select metrics port by name",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          metricsPort,
+			portSelector:   "metrics",
+			expectedStatus: http.StatusOK,
+			expectedPort:   9090,
+		},
+		{
+			name:           "select metrics port by number",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          metricsPort,
+			portSelector:   "9090",
+			expectedStatus: http.StatusOK,
+			expectedPort:   9090,
+		},
+		{
+			name:           "unknown port selector returns not found",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          metricsPort,
+			portSelector:   "web",
+			expectedStatus: http.StatusNotFound,
+			expectError:    true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -517,15 +551,20 @@ func TestGetServiceFromCluster(t *testing.T) {
 					return true, nil, tt.mockError
 				})
 			case tt.setupService:
-				// Setup a mock service
 				service := createMockService(tt.namespace, tt.serviceName)
+				if tt.ports != nil {
+					service.Spec.Ports = tt.ports
+				}
+
 				cs = fake.NewClientset(service)
 			default:
 				// Empty clientset (service not found)
 				cs = fake.NewClientset()
 			}
 
-			ps, status, err := getServiceFromCluster(context.Background(), cs, tt.namespace, tt.serviceName)
+			ps, status, err := getServiceFromCluster(
+				context.Background(), cs, tt.namespace, tt.serviceName, tt.portSelector,
+			)
 
 			assert.Equal(t, tt.expectedStatus, status)
 
@@ -537,6 +576,10 @@ func TestGetServiceFromCluster(t *testing.T) {
 				assert.NotNil(t, ps)
 				assert.Equal(t, tt.serviceName, ps.Name)
 				assert.Equal(t, tt.namespace, ps.Namespace)
+
+				if tt.expectedPort != 0 {
+					assert.Equal(t, tt.expectedPort, ps.Port)
+				}
 			}
 		})
 	}
@@ -551,6 +594,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		expectedNamespace   string
 		expectedName        string
 		expectedRequestURI  string
+		expectedPort        string
 	}{
 		{
 			name: "standard case with all parameters",
@@ -692,16 +736,55 @@ func TestParseInfoFromRequest(t *testing.T) {
 			expectedName:        "search-service",
 			expectedRequestURI:  "/api/v2/search?q=test&limit=10&offset=0",
 		},
+		{
+			name: "optional port selector by name",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/metrics&port=metrics", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "cluster",
+					"namespace":   "monitoring",
+					"name":        "prometheus",
+				})
+
+				return req
+			},
+			expectedClusterName: "cluster",
+			expectedNamespace:   "monitoring",
+			expectedName:        "prometheus",
+			expectedRequestURI:  "/metrics",
+			expectedPort:        "metrics",
+		},
+		{
+			name: "optional port selector by number",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/&port=8080", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "cluster",
+					"namespace":   "default",
+					"name":        "web",
+				})
+
+				return req
+			},
+			expectedClusterName: "cluster",
+			expectedNamespace:   "default",
+			expectedName:        "web",
+			expectedRequestURI:  "/",
+			expectedPort:        "8080",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.setupRequest()
-			clusterName, namespace, name, requestURI := parseInfoFromRequest(req)
+			clusterName, namespace, name, requestURI, portSelector := parseInfoFromRequest(req)
 			assert.Equal(t, tt.expectedClusterName, clusterName)
 			assert.Equal(t, tt.expectedNamespace, namespace)
 			assert.Equal(t, tt.expectedName, name)
 			assert.Equal(t, tt.expectedRequestURI, requestURI)
+			assert.Equal(t, tt.expectedPort, portSelector)
 		})
 	}
 }
