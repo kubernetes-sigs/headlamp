@@ -120,6 +120,13 @@ var parseClusterAndTokenTests = []struct {
 	cookies     []*http.Cookie
 }{
 	{
+		name:        "base URL",
+		url:         "/headlamp/clusters/base-cluster/api",
+		authHeader:  "Bearer base-token",
+		wantCluster: "base-cluster",
+		wantToken:   "base-token",
+	},
+	{
 		name:        "standard case",
 		url:         "/clusters/test-cluster/api",
 		authHeader:  "Bearer test-token",
