@@ -26,12 +26,17 @@ import Loader from '../common/Loader';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { ApiResourcesView } from './ApiResourcePicker';
+import { ClusterScopeSelector } from './ClusterScopeSelector';
 import { EmptyResults } from './EmptyResults';
 import { ResourceSearch } from './ResourceSearch';
 import type { SavedAdvancedSearch } from './savedAdvancedSearches';
 import { SavedSearches } from './SavedSearches';
 import { SearchSettings } from './SearchSettings';
-import { getSelectedResourcesValue } from './selectedResources';
+import {
+  getSelectedResourcesValue,
+  reconcileSelectedResources,
+  serializeSelectedResources,
+} from './selectedResources';
 
 const emptyList: [] = [];
 
@@ -53,14 +58,6 @@ export function AdvancedSearch() {
     ''
   );
 
-  // Selected Resources is a set of selected API resource ID's
-  // undefined means that the selection wasn't initialized yet
-  const [selectedResources, setSelectedResources] = useState<Set<string> | undefined>(() =>
-    selectedResourcesState?.length && selectedResourcesState !== 'all'
-      ? new Set(selectedResourcesState.split('+'))
-      : undefined
-  );
-
   const [rawQuery, setRawQueryState] = useLocalStorageState<string>(ADVANCED_SEARCH_QUERY_KEY, '');
 
   const setRawQuery = useCallback(
@@ -75,21 +72,36 @@ export function AdvancedSearch() {
     queryKey: ['api-discovery', ...selectedClusters],
   });
 
-  // Select every resource
-  if (selectedResources === undefined && selectedResourcesState === 'all' && resources) {
-    setSelectedResources(new Set(resources.map(resource => apiResourceId(resource))));
-  }
+  const selectedResources = useMemo(() => {
+    if (!resources) return undefined;
 
-  // Sync selected resources query parameter
+    const resourceIds = resources.map(resource => apiResourceId(resource));
+    const selection =
+      selectedResourcesState === 'all'
+        ? new Set(resourceIds)
+        : new Set(selectedResourcesState ? selectedResourcesState.split('+') : []);
+
+    return reconcileSelectedResources(selection, resourceIds, selectedResourcesState === 'all');
+  }, [resources, selectedResourcesState]);
+
+  const updateSelectedResources = useCallback(
+    (selection: Set<string>) => {
+      setSelectedResourcesState(() => getSelectedResourcesValue(selection, resources?.length));
+    },
+    [resources?.length, setSelectedResourcesState]
+  );
+
+  // Remove resources that are no longer available in the selected cluster scope.
   useEffect(() => {
-    if (!selectedResources) return;
+    if (!selectedResources || selectedResourcesState === 'all') return;
 
-    setSelectedResourcesState(() =>
-      getSelectedResourcesValue(selectedResources, resources?.length)
-    );
+    const reconciledValue = serializeSelectedResources(selectedResources, false);
+    if (reconciledValue !== selectedResourcesState) {
+      setSelectedResourcesState(() => reconciledValue);
+    }
     // setSelectedResourcesState is not stable between renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedResources, resources]);
+  }, [selectedResources, selectedResourcesState]);
 
   const resourcesList = useMemo(
     () => resources?.filter(resource => selectedResources?.has(apiResourceId(resource))),
@@ -101,28 +113,29 @@ export function AdvancedSearch() {
       return selectedResourcesState || '';
     }
 
-    return getSelectedResourcesValue(selectedResources, resources?.length);
-  }, [resources, selectedResources, selectedResourcesState]);
+    return serializeSelectedResources(selectedResources, selectedResourcesState === 'all');
+  }, [selectedResources, selectedResourcesState]);
 
   const restoreSavedSearch = useCallback(
     (search: SavedAdvancedSearch) => {
       const availableResourceIds = new Set(resources?.map(resource => apiResourceId(resource)));
 
-      if (search.resources === 'all') {
-        setSelectedResources(availableResourceIds);
-      } else if (!search.resources) {
-        setSelectedResources(new Set());
-      } else {
-        setSelectedResources(
-          new Set(
-            search.resources.split('+').filter(resourceId => availableResourceIds.has(resourceId))
-          )
-        );
-      }
+      const restoredResources =
+        search.resources === 'all'
+          ? 'all'
+          : serializeSelectedResources(
+              new Set(
+                search.resources
+                  .split('+')
+                  .filter(resourceId => availableResourceIds.has(resourceId))
+              ),
+              false
+            );
+      setSelectedResourcesState(() => restoredResources);
 
       setRawQuery(search.query);
     },
-    [resources, setRawQuery]
+    [resources, setRawQuery, setSelectedResourcesState]
   );
 
   if (isLoading) {
@@ -149,12 +162,13 @@ export function AdvancedSearch() {
         sx={{
           display: 'flex',
           gap: 2,
+          flexWrap: 'wrap',
         }}
       >
         <ApiResourcesView
           resources={resources ?? emptyList}
           selectedResources={selectedResources}
-          setSelectedResources={setSelectedResources}
+          setSelectedResources={updateSelectedResources}
         />
 
         <SavedSearches
@@ -169,8 +183,11 @@ export function AdvancedSearch() {
           refetchIntervalMs={refetchIntervalMs}
           setRefetchIntervalMs={setRefetchIntervalMs}
         />
-        <Box sx={{ marginLeft: 'auto' }}>
-          <NamespacesAutocomplete />
+        <Box sx={{ marginLeft: { md: 'auto' }, width: { xs: '100%', md: 'auto' } }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            <ClusterScopeSelector />
+            <NamespacesAutocomplete />
+          </Box>
         </Box>
       </Box>
       {resources && (
@@ -191,7 +208,7 @@ export function AdvancedSearch() {
         <EmptyResults
           resources={resources}
           onQuerySelected={(resources, query) => {
-            setSelectedResources(new Set(resources.map(it => apiResourceId(it))));
+            updateSelectedResources(new Set(resources.map(it => apiResourceId(it))));
             setRawQuery(query);
           }}
         />
