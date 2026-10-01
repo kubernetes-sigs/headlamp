@@ -62,6 +62,10 @@ const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
 
 const maxResults = 1_000;
 
+/**
+ * ResourceSearch renders a Monaco-backed query editor and a results table for
+ * searching across Kubernetes resources with a JavaScript expression.
+ */
 export function ResourceSearch({
   resources,
   selectedClusters,
@@ -119,7 +123,7 @@ export function ResourceSearch({
 
   useEffect(() => {
     if (monaco) {
-      monaco.languages.typescript.javascriptDefaults.setExtraLibs([
+      monaco.typescript.javascriptDefaults.setExtraLibs([
         {
           content: fullTypeDefinition,
           filePath: 'globalTypes.d.ts',
@@ -137,8 +141,8 @@ export function ResourceSearch({
     (deferredResults.items.length === 0 && deferredResults.query !== rawQuery);
 
   function handleEditorWillMount(monaco: Monaco) {
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ESNext,
+    monaco.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.typescript.ScriptTarget.ESNext,
       noLib: false,
       allowNonTsExtensions: true,
       lib: ['esnext'],
@@ -303,6 +307,9 @@ export function ResourceSearch({
   );
 }
 
+/**
+ * ViewYaml renders a button that opens the given KubeObject's YAML in a full-screen editor activity.
+ */
 export function ViewYaml({ item }: { item: KubeObject }) {
   return (
     <>
