@@ -845,7 +845,7 @@ export function useKubeObjectList<K extends KubeObject>({
     setPaginationError(null);
   }, [paginationInputKey]);
 
-  const errors = [...query.errors.filter(it => it !== null), paginationError].filter(
+  const queryErrors = [...query.errors.filter(it => it !== null), paginationError].filter(
     it => it !== null
   );
 
@@ -992,22 +992,36 @@ export function useKubeObjectList<K extends KubeObject>({
     refetchInterval,
   ]);
 
-  // @ts-ignore - TS compiler gets confused with iterators
-  return {
-    items: endpointError ? [] : query.items,
-    errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
-    error: endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null,
+  // useEndpoints returns undefined endpoint (no error) while probing multiple API versions.
+  // With no list queries yet, useQueries would otherwise report success + empty data.
+  const isEndpointPending = !endpoint && !endpointError;
+  const items = endpointError ? [] : query.items;
+  const error = endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
+  const errors = endpointError ? [endpointError] : queryErrors.length > 0 ? queryErrors : null;
+  const isLoading = isEndpointPending || query.isLoading;
+  const isFetching = isEndpointPending || query.isFetching;
+  const isSuccess = !isEndpointPending && query.isSuccess && !endpointError;
+  const status: 'error' | 'pending' | 'success' =
+    endpointError || query.isError || !!paginationError
+      ? 'error'
+      : isLoading
+      ? 'pending'
+      : 'success';
+
+  // Object.assign creates a tuple+object intersection without @ts-ignore (same pattern as useKubeObject).
+  return Object.assign([items, error] as [Array<K> | null, ApiError | null], {
+    data: endpointError || isEndpointPending ? null : query.data,
+    items,
+    errors,
+    error,
     clusterResults: query.clusterResults,
-    isError: query.isError || !!paginationError,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isSuccess: query.isSuccess,
+    isError: query.isError || !!endpointError || !!paginationError,
+    isLoading,
+    isFetching,
+    isSuccess,
+    status,
     hasMore: query.hasMore,
     remainingItemCount: query.remainingItemCount,
     loadMore: query.hasMore ? loadMore : undefined,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
-      yield query.items;
-      yield endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
-    },
-  };
+  });
 }
