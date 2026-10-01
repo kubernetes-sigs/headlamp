@@ -414,11 +414,9 @@ class Pod extends KubeObject<KubePod> {
     }
 
     let restarts = 0;
-    let restartableInitContainerRestarts = 0;
     let readyContainers = 0;
     let message = '';
     let lastRestartDate = new Date(0);
-    let lastRestartableInitContainerRestartDate = new Date(0);
 
     let reason = this.status?.reason || this.status?.phase || 'Unknown';
 
@@ -431,10 +429,8 @@ class Pod extends KubeObject<KubePod> {
       }
     }
 
-    let initializing = false;
     const initContainerStatuses = this.status?.initContainerStatuses ?? [];
-    for (const i in initContainerStatuses) {
-      const container = initContainerStatuses[i];
+    for (const container of initContainerStatuses) {
       restarts += container.restartCount;
       lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
 
@@ -449,21 +445,11 @@ class Pod extends KubeObject<KubePod> {
           lastRestartDate = terminatedDate;
         }
       }
+    }
 
-      if (this.isRestartableInitContainer(initContainers[container.name])) {
-        restartableInitContainerRestarts += container.restartCount;
-        if (
-          container.lastState?.terminated !== null &&
-          container.lastState?.terminated !== undefined
-        ) {
-          const terminatedDate = container.lastState.terminated?.finishedAt
-            ? new Date(container.lastState.terminated?.finishedAt)
-            : undefined;
-          if (!!terminatedDate && lastRestartableInitContainerRestartDate < terminatedDate) {
-            lastRestartableInitContainerRestartDate = terminatedDate;
-          }
-        }
-      }
+    let initializing = false;
+    for (let i = 0; i < initContainerStatuses.length; i++) {
+      const container = initContainerStatuses[i];
 
       switch (true) {
         case container.state.terminated?.exitCode === 0:
@@ -500,8 +486,6 @@ class Pod extends KubeObject<KubePod> {
     }
 
     if (!initializing || this.isPodInitializedConditionTrue(this.status)) {
-      restarts = restartableInitContainerRestarts;
-      lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
         const container = this.status?.containerStatuses?.[i];
@@ -534,6 +518,24 @@ class Pod extends KubeObject<KubePod> {
           reason = 'Running';
         } else {
           reason = 'NotReady';
+        }
+      }
+    }
+
+    const ephemeralContainerStatuses = this.status?.ephemeralContainerStatuses ?? [];
+    for (const container of ephemeralContainerStatuses) {
+      restarts += container.restartCount;
+      lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
+
+      if (
+        container.lastState?.terminated !== null &&
+        container.lastState?.terminated !== undefined
+      ) {
+        const terminatedDate = container.lastState.terminated?.finishedAt
+          ? new Date(container.lastState.terminated?.finishedAt)
+          : undefined;
+        if (!!terminatedDate && lastRestartDate < terminatedDate) {
+          lastRestartDate = terminatedDate;
         }
       }
     }
