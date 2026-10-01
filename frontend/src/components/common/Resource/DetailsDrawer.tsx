@@ -17,10 +17,10 @@
 import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { setSelectedResource } from '../../../redux/drawerModeSlice';
+import { setDetailDrawerWidth, setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
 import { ActionButton } from '..';
@@ -32,8 +32,54 @@ export default function DetailsDrawer() {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
   const isDetailDrawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
+  const detailDrawerWidth = useTypedSelector(state => state?.drawerMode?.detailDrawerWidth);
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number | string>(detailDrawerWidth || '60vw');
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (detailDrawerWidth) {
+      setWidth(detailDrawerWidth);
+    }
+  }, [detailDrawerWidth]);
+
+  const startResizing = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+    if (typeof width === 'number') {
+      dispatch(setDetailDrawerWidth(width));
+    }
+  }, [dispatch, width]);
+
+  const resize = useCallback(
+    (mouseMoveEvent: MouseEvent) => {
+      if (isResizing) {
+        const newWidth = document.body.clientWidth - mouseMoveEvent.clientX;
+        const maxWidth = document.body.clientWidth * 0.9;
+        const minWidth = 400;
+
+        if (newWidth > minWidth && newWidth < maxWidth) {
+          setWidth(newWidth);
+        }
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
 
   const closeDrawer = useCallback(() => {
     dispatch(setSelectedResource(undefined));
@@ -68,7 +114,7 @@ export default function DetailsDrawer() {
       sx={{
         position: 'absolute',
         backgroundColor: 'background.paper',
-        width: '60vw',
+        width: width,
         right: 0,
         height: '100%',
         overflowY: 'auto',
@@ -85,6 +131,21 @@ export default function DetailsDrawer() {
       aria-modal="true"
       data-details-drawer="true"
     >
+      <Box
+        onMouseDown={startResizing}
+        sx={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '5px',
+          cursor: 'col-resize',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: theme.palette.primary.main,
+          },
+        }}
+      />
       <Box
         sx={{
           display: 'flex',
