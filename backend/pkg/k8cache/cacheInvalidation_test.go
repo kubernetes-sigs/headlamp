@@ -882,3 +882,119 @@ func TestSyncWatchers(t *testing.T) {
 	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
 	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }
+
+func TestCheckForChangesGoroutineRateLimiting(t *testing.T) {
+	key := t.Name()
+	k8cache.ResetRegistries(key)
+
+	defer k8cache.ResetRegistries(key)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	// Trigger runWatcher with an empty Context (which fails RESTConfig immediately)
+	k8cache.ExportedRunWatcher(ctx, nil, key, kubeconfig.Context{})
+
+	// Simulate 100 concurrent incoming HTTP requests during failure cooldown
+	var wg sync.WaitGroup
+
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			k8cache.CheckForChanges(nil, key, kubeconfig.Context{})
+		}()
+	}
+
+	wg.Wait()
+
+	running, loaded := k8cache.RegistryLoaded(key)
+	assert.True(t, loaded)
+	assert.False(t, running, "Watcher should remain in cooldown without spawning redundant goroutines")
+	assert.True(t, k8cache.ExportedWatcherInCooldown(key), "Watcher must remain in cooldown state")
+}
+
+func TestCheckForChanges_NoGoroutineSpamDuringCooldown(t *testing.T) {
+	key := t.Name()
+	k8cache.ResetRegistries(key)
+
+	defer k8cache.ResetRegistries(key)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	// Initial failing execution sets failureCount to 1 and places watcher in cooldown
+	k8cache.ExportedRunWatcher(ctx, nil, key, kubeconfig.Context{})
+
+	assert.Equal(t, 1, k8cache.ExportedWatcherFailureCount(key))
+	assert.True(t, k8cache.ExportedWatcherInCooldown(key))
+
+	// Perform 100 repeated CheckForChanges calls
+	for range 100 {
+		k8cache.CheckForChanges(nil, key, kubeconfig.Context{})
+	}
+
+	// failureCount must remain 1 because no new watchers were spawned during cooldown
+	assert.Equal(t, 1, k8cache.ExportedWatcherFailureCount(key), "failureCount should not increase during cooldown")
+	running, loaded := k8cache.RegistryLoaded(key)
+	assert.True(t, loaded)
+	assert.False(t, running, "watcher should not be running during cooldown")
+}
+
+func TestCheckForChanges_RestartsWatcherAfterCooldownExpiry(t *testing.T) {
+	key := t.Name()
+	k8cache.ResetRegistries(key)
+
+	defer k8cache.ResetRegistries(key)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	// First attempt fails and starts cooldown (failureCount = 1)
+	k8cache.ExportedRunWatcher(ctx, nil, key, kubeconfig.Context{})
+	assert.True(t, k8cache.ExportedWatcherInCooldown(key))
+	assert.Equal(t, 1, k8cache.ExportedWatcherFailureCount(key))
+
+	// Expire the cooldown period
+	k8cache.ExportedExpireWatcherCooldown(key)
+	assert.False(t, k8cache.ExportedWatcherInCooldown(key))
+
+	// Calling CheckForChanges now must allow a new watcher attempt to run
+	k8cache.CheckForChanges(nil, key, kubeconfig.Context{})
+
+	// Wait briefly for the goroutine to execute
+	assert.Eventually(t, func() bool {
+		return k8cache.ExportedWatcherFailureCount(key) == 2
+	}, 1*time.Second, 10*time.Millisecond, "failureCount should increment to 2 after second failed attempt post-cooldown")
+}
+
+func TestSyncWatchers_CleansUpWatcherStateOnContextRemoval(t *testing.T) {
+	activeKey := "ctx-active"
+	removedKey := "ctx-removed"
+
+	k8cache.ResetRegistries(activeKey, removedKey)
+
+	defer k8cache.ResetRegistries(activeKey, removedKey)
+
+	activeCanceled := false
+	removedCanceled := false
+
+	k8cache.StoreTestContextCancel(activeKey, func() { activeCanceled = true })
+	k8cache.StoreTestContextCancel(removedKey, func() { removedCanceled = true })
+
+	// SyncWatchers with only activeKey present
+	k8cache.SyncWatchers(nil, []string{activeKey})
+
+	// Active context state must be preserved; removed context state must be deleted
+	_, activeLoaded := k8cache.RegistryLoaded(activeKey)
+	_, removedLoaded := k8cache.RegistryLoaded(removedKey)
+
+	assert.True(t, activeLoaded, "active context state should remain in watcherRegistry")
+	assert.False(t, removedLoaded, "removed context state should be cleaned up from watcherRegistry")
+	assert.False(t, activeCanceled, "active context cancel should not be invoked")
+	assert.True(t, removedCanceled, "removed context cancel should be invoked")
+}
