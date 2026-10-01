@@ -691,8 +691,8 @@ func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod 
 
 // stopOrDeletePortForwardRequest is the payload for stop or delete port forward request handler.
 type stopOrDeletePortForwardRequest struct {
-	ID           string `json:"id"`
-	StopOrDelete bool   `json:"stopOrDelete"`
+	ID       string `json:"id"`
+	JustStop bool   `json:"justStop"`
 }
 
 func (r *stopOrDeletePortForwardRequest) Validate() error {
@@ -724,7 +724,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
-	err = stopOrDeletePortForward(cache, contextKey, p.ID, p.StopOrDelete)
+	err = stopOrDeletePortForward(cache, contextKey, p.ID, p.JustStop)
 	if err == nil {
 		if _, err := w.Write([]byte("stopped")); err != nil {
 			logger.Log(logger.LevelError, nil, err, "writing response")

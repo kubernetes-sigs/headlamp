@@ -183,7 +183,7 @@ test('stateless cluster can start a port forward', async ({ page }) => {
         await fetch(`/clusters/${cluster}/portforward`, {
           method: 'DELETE',
           headers,
-          body: JSON.stringify({ id, stopOrDelete: false }),
+          body: JSON.stringify({ id, justStop: false }),
         });
       }
 
