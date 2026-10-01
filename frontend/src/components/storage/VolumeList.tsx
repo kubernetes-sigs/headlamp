@@ -59,7 +59,7 @@ export default function VolumeList() {
         {
           id: 'capacity',
           label: t('Capacity'),
-          getValue: volume => volume.spec.capacity.storage,
+          getValue: volume => volume.spec?.capacity?.storage,
         },
         {
           id: 'accessModes',
