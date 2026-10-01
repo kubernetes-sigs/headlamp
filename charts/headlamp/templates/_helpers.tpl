@@ -75,7 +75,6 @@ Create the name of the service account to use
 {{- end }}
 {{- end }}
 
-
 {{/*
 Check if readOnlyRootFilesystem is enabled, returns string "true" if enabled, otherwise returns "false".
 */}}
@@ -116,4 +115,27 @@ Output (YAML dict, intended for use with fromYaml):
 {{- end -}}
 addMount: {{ and .readOnly (not $hasTmpMount) }}
 addVolume: {{ and .readOnly (not $hasTmpMount) (not $hasTmpVolume) }}
+{{- end }}
+
+{{/*
+Build the -kubeconfig argument value from the kubeconfigSecrets list
+Returns a colon-separated list of kubeconfig file paths
+*/}}
+{{- define "headlamp.kubeconfigPath" -}}
+{{- $paths := list }}
+{{- range $index, $secret := .Values.config.kubeconfigSecrets }}
+{{- $paths = append $paths (printf "/kubeconfigs/%d/%s" $index (default "config" $secret.key)) }}
+{{- end }}
+{{- join ":" $paths }}
+{{- end }}
+
+{{/*
+Check if kubeconfig secrets are configured
+*/}}
+{{- define "headlamp.hasKubeconfigSecrets" -}}
+{{- if .Values.config.kubeconfigSecrets }}
+{{- if gt (len .Values.config.kubeconfigSecrets) 0 }}
+true
+{{- end }}
+{{- end }}
 {{- end }}
