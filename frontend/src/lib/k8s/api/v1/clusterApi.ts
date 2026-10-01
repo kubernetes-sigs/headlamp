@@ -32,12 +32,12 @@ import { JSON_HEADERS } from './constants';
  * Test authentication for the given cluster.
  * Will throw an error if the user is not authenticated.
  */
-export async function testAuth(cluster = '', namespace = 'default') {
+export async function testAuth(cluster = '', namespace = 'default', timeout = 5 * 1000) {
   const spec = { namespace };
   const clusterName = cluster || getCluster();
 
   return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
-    timeout: 5 * 1000,
+    timeout,
     cluster: clusterName,
   });
 }
