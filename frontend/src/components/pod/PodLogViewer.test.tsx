@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { Terminal } from '@xterm/xterm';
 import React from 'react';
 import { TestContext } from '../../test';
 import { PodLogViewer } from './Details';
@@ -107,6 +108,90 @@ describe('PodLogViewer', () => {
       );
 
       expect(getLogs).toHaveBeenCalledWith('nginx', expect.any(Function), expect.any(Object));
+    });
+  });
+
+  describe('log streaming', () => {
+    function getTerminalInstance() {
+      const results = (Terminal as unknown as { mock: { results: Array<{ value: any }> } }).mock
+        .results;
+      return results[results.length - 1]?.value;
+    }
+
+    it('writes only newly-appended lines on successive callbacks', () => {
+      let logsCb: (arg: { logs: string[]; hasJsonLogs: boolean }) => void = () => {};
+      const getLogs = vi.fn((_container: string, cb: typeof logsCb) => {
+        logsCb = cb;
+        return () => {};
+      });
+
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      const term = getTerminalInstance();
+      expect(term).toBeTruthy();
+      term.write.mockClear();
+
+      act(() => logsCb({ logs: ['line-a\n'], hasJsonLogs: false }));
+      expect(term.write).toHaveBeenLastCalledWith('line-a\r\n');
+
+      act(() => logsCb({ logs: ['line-a\n', 'line-b\n'], hasJsonLogs: false }));
+      expect(term.write).toHaveBeenLastCalledWith('line-b\r\n');
+      expect(term.write).toHaveBeenCalledTimes(2);
+    });
+
+    it('repaints from scratch when the stream resets to the same length', () => {
+      let logsCb: (arg: { logs: string[]; hasJsonLogs: boolean }) => void = () => {};
+      const getLogs = vi.fn((_container: string, cb: typeof logsCb) => {
+        logsCb = cb;
+        return () => {};
+      });
+
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      const term = getTerminalInstance();
+      term.write.mockClear();
+      term.clear.mockClear();
+
+      act(() => logsCb({ logs: ['line-a\n'], hasJsonLogs: false }));
+      expect(term.write).toHaveBeenLastCalledWith('line-a\r\n');
+
+      act(() => logsCb({ logs: ['line-z\n'], hasJsonLogs: false }));
+      expect(term.clear).toHaveBeenCalled();
+      expect(term.write).toHaveBeenLastCalledWith('line-z\r\n');
+    });
+
+    it('clears the terminal on reconnect so old logs are not duplicated', () => {
+      let logsCb: (arg: { logs: string[]; hasJsonLogs: boolean }) => void = () => {};
+      let streamOpts: any = {};
+      const getLogs = vi.fn((_container: string, cb: typeof logsCb, opts: any) => {
+        logsCb = cb;
+        streamOpts = opts;
+        return () => {};
+      });
+
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      const term = getTerminalInstance();
+      act(() => logsCb({ logs: ['line-a\n', 'line-b\n'], hasJsonLogs: false }));
+
+      act(() => streamOpts.onReconnectStop?.());
+
+      term.clear.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: /reconnect/i }));
+      expect(term.clear).toHaveBeenCalled();
+      expect(getLogs).toHaveBeenCalledTimes(2);
     });
   });
 });
