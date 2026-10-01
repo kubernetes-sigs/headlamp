@@ -16,6 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import Table, { TableProps } from './Table';
@@ -86,6 +87,7 @@ vi.mock('material-react-table', () => ({
     const rows = options.data.map((item: Record<string, unknown>, index: number) => {
       const row: any = {
         id: String(index),
+        original: item,
         getCanSelect: () => true,
         getIsSelected: () => false,
       };
@@ -443,5 +445,95 @@ describe('Table states and options', () => {
     renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
 
     expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Table keyboard navigation', () => {
+  beforeEach(() => {
+    tableMocks.forceNoRows = false;
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  function renderRows(props: Partial<TableProps<TestRow>> = {}) {
+    return render(
+      <ThemeProvider theme={theme}>
+        <Table
+          columns={[{ accessorKey: 'selected', header: 'Selection' }]}
+          data={[{ selected: false }, { selected: false }, { selected: false }]}
+          {...props}
+        />
+      </ThemeProvider>
+    );
+  }
+
+  it('ignores Enter raised by a control inside a cell', async () => {
+    const onRowOpen = vi.fn();
+    renderRows({ onRowOpen });
+
+    // Focus the row first so a row-level Enter would otherwise activate it, then move into a
+    // control in one of its cells. Enter there belongs to the control, not to the row.
+    const row = screen.getAllByRole('row')[1];
+    act(() => row.focus());
+
+    const checkbox = screen.getAllByRole('checkbox')[0];
+    act(() => checkbox.focus());
+    await userEvent.keyboard('{Enter}');
+
+    expect(onRowOpen).not.toHaveBeenCalled();
+  });
+
+  it('opens the row when Enter is pressed on the row itself', async () => {
+    const onRowOpen = vi.fn();
+    renderRows({ onRowOpen });
+
+    const row = screen.getAllByRole('row')[1];
+    act(() => row.focus());
+    await userEvent.keyboard('{Enter}');
+
+    expect(onRowOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('seeds the focused row when the user tabs into the table', async () => {
+    const onRowOpen = vi.fn();
+    renderRows({ onRowOpen });
+
+    const rows = screen.getAllByRole('row').slice(1);
+    act(() => rows[0].focus());
+
+    expect(rows[0]).toHaveAttribute('data-focused', 'true');
+
+    await userEvent.keyboard('{ArrowDown}');
+
+    expect(rows[1]).toHaveAttribute('data-focused', 'true');
+    expect(rows[0]).not.toHaveAttribute('data-focused');
+  });
+
+  it('scrolls a cell of the focused row, since the row itself has no layout box', async () => {
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this.tagName);
+    });
+
+    renderRows({ onRowOpen: vi.fn() });
+
+    const rows = screen.getAllByRole('row').slice(1);
+    act(() => rows[0].focus());
+    await userEvent.keyboard('{ArrowDown}');
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+      block: 'nearest',
+      inline: 'nearest',
+    });
+    // StyledRow is display:contents, so scrolling the TR would be a no-op.
+    expect(scrolled).not.toContain('TR');
+    expect(scrolled).toContain('TD');
+  });
+
+  it('leaves rows untouched when keyboard navigation is not enabled', () => {
+    renderRows();
+
+    const row = screen.getAllByRole('row')[1];
+
+    expect(row).not.toHaveAttribute('tabindex');
   });
 });
