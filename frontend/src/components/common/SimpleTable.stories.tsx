@@ -428,7 +428,28 @@ NotFoundMessage.args = {
   search: 'somethingthatsnotapossiblematch123',
 };
 
-// emptyMessage
-// defaultSortingColumn
-// rowsPerPage
-// errorMessage
+export const Loading = Template.bind({});
+Loading.args = {
+  ...fixtureData,
+  data: null,
+};
+
+export const ErrorState = Template.bind({});
+ErrorState.args = {
+  ...fixtureData,
+  data: null,
+  errorMessage: 'Failed to retrieve cluster resources from the server.',
+};
+
+export const EmptyData = Template.bind({});
+EmptyData.args = {
+  ...fixtureData,
+  data: [],
+  emptyMessage: 'No Custom Resource Definitions found in this cluster.',
+};
+
+export const Headerless = Template.bind({});
+Headerless.args = {
+  ...fixtureData,
+  noTableHeader: true,
+};
