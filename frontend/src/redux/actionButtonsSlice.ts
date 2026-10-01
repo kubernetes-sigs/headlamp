@@ -18,9 +18,23 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
 import type { ReactElement, ReactNode } from 'react';
+import type { ActionButtonProps } from '../components/common/ActionButton/ActionButton';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
+/**
+ * @deprecated Use NewHeaderActionType instead.
+ */
 export type HeaderActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
+
+/**
+ * New plugin header action type that enforces returning a props object (`ActionButtonProps`),
+ * not a ReactElement. The renderer will construct the ReactElement safely.
+ */
+export type NewHeaderActionType = (props: { item: any }) => ActionButtonProps | null;
+
+/**
+ * @deprecated Use NewHeaderActionType instead.
+ */
 export type DetailsViewFunc = HeaderActionType;
 
 export type AppBarActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
@@ -28,7 +42,9 @@ export type RowActionType = ((item: any) => JSX.Element | null | ReactNode) | nu
 
 export type HeaderAction = {
   id: string;
-  action?: HeaderActionType;
+  action?: HeaderActionType | NewHeaderActionType;
+  /** @deprecated Used to differentiate legacy component-returning actions. New actions should use isLegacy: false (or be undefined and assume new if not exported via old API). */
+  isLegacy?: boolean;
 };
 
 export type RowAction = {
@@ -129,7 +145,10 @@ export const actionButtonsSlice = createSlice({
   name: 'actionButtons',
   initialState,
   reducers: {
-    setDetailsViewHeaderAction(state, action: PayloadAction<HeaderActionType | HeaderAction>) {
+    setDetailsViewHeaderAction(
+      state,
+      action: PayloadAction<HeaderActionType | NewHeaderActionType | HeaderAction>
+    ) {
       let headerAction = action.payload as HeaderAction;
 
       if (headerAction.id === undefined) {
@@ -141,7 +160,25 @@ export const actionButtonsSlice = createSlice({
       }
       headerAction.id = headerAction.id || `generated-id-${Date.now().toString(36)}`;
 
-      state.headerActions.push(headerAction);
+      const existingIndex = state.headerActions.findIndex(a => a.id === headerAction.id);
+
+      if (headerAction.action === null) {
+        if (existingIndex >= 0) {
+          state.headerActions.splice(existingIndex, 1);
+        }
+      } else {
+        if (existingIndex >= 0) {
+          state.headerActions[existingIndex] = headerAction;
+        } else {
+          state.headerActions.push(headerAction);
+        }
+      }
+    },
+    removeDetailsViewHeaderAction(state, action: PayloadAction<string>) {
+      const existingIndex = state.headerActions.findIndex(a => a.id === action.payload);
+      if (existingIndex >= 0) {
+        state.headerActions.splice(existingIndex, 1);
+      }
     },
     addDetailsViewHeaderActionsProcessor(
       state,
@@ -169,6 +206,7 @@ export const actionButtonsSlice = createSlice({
 
 export const {
   setDetailsViewHeaderAction,
+  removeDetailsViewHeaderAction,
   addDetailsViewHeaderActionsProcessor,
   setAppBarAction,
   setAppBarActionsProcessor,
