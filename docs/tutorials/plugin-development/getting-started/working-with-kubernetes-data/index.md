@@ -784,6 +784,6 @@ try {
 ### Useful Links
 
 - [ResourceClasses API Reference](https://headlamp.dev/docs/latest/development/api/lib/k8s/variables/ResourceClasses) — Full list of built-in resource classes
-- [K8s Module API Reference](https://headlamp.dev/docs/latest/development/api/modules/lib_k8s/)
-- [ApiProxy API Reference](https://headlamp.dev/docs/latest/development/api/classes/lib_k8s_apiProxy.ApiProxy/)
+- [K8s Module API Reference](https://headlamp.dev/docs/latest/development/api/lib/k8s/API)
+- [ApiProxy API Reference](https://headlamp.dev/docs/latest/development/api/lib/k8s/apiProxy/API)
 - [Kubernetes API Reference](https://kubernetes.io/docs/reference/kubernetes-api/)
