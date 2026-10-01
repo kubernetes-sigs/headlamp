@@ -47,7 +47,6 @@
       "aria-input-field-name"
     ],
     "DropZoneBox/Upload Files": ["aria-allowed-role"],
-    "common/Loader/With Empty Title": ["aria-progressbar-name"],
     "common/ReleaseNotes/ReleaseNotes/Default": ["heading-order"],
     "common/ReleaseNotes/ReleaseNotesModal/Show": ["heading-order", "scrollable-region-focusable"],
     "Resource/RestartMultipleButton/Menu Button Style": ["aria-required-parent"],
@@ -68,7 +67,6 @@
     "Settings/SettingsCluster/Multiple Allowed Namespaces": ["heading-order", "label-title-only"],
     "Sidebar/SidebarItem/Section Header": ["color-contrast"],
     "Sidebar/SidebarItem/Collapsed Section Header": ["list"],
-    "AdvancedSearch/ResourceSearch/Default": ["aria-progressbar-name"],
     "cluster/ClusterChooserPopup/No Recent Clusters": ["aria-input-field-name"],
     "cluster/ClusterChooserPopup/No Clusters But Recent": ["aria-input-field-name"],
     "cluster/KubeConfigLoader/File Upload": ["label"],
@@ -103,16 +101,13 @@
     "Deployments/CreateDeploymentForm/Empty": ["label"],
     "GlobalSearch/GlobalSearchContent/With Empty Input": [
       "aria-input-field-name",
-      "aria-progressbar-name",
       "aria-tooltip-name"
     ],
     "GlobalSearch/GlobalSearchContent/Loading Resources": [
-      "aria-progressbar-name",
       "aria-tooltip-name",
       "scrollable-region-focusable"
     ],
     "GlobalSearch/GlobalSearchContent/Found Some Results": [
-      "aria-progressbar-name",
       "aria-tooltip-name",
       "scrollable-region-focusable"
     ],
@@ -130,14 +125,11 @@
     "ReplicaSets/CreateReplicaSetForm/Pod Template Extras": ["label"],
     "ReplicaSets/CreateReplicaSetForm/Empty": ["label"],
     "Service/CreateServiceForm/Default": ["label"],
-    "home/ClusterTable/Connecting": ["aria-progressbar-name"],
     "GlobalSearch/GlobalSearchContent/Bare Namespace Query": [
-      "aria-progressbar-name",
       "aria-tooltip-name",
       "scrollable-region-focusable"
     ],
     "GlobalSearch/GlobalSearchContent/Combined Namespace Query": [
-      "aria-progressbar-name",
       "aria-tooltip-name",
       "scrollable-region-focusable"
     ],
