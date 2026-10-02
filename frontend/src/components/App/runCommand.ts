@@ -128,7 +128,7 @@ export function runCommand(
       const event = new CustomEvent('exit', { detail: code });
       exit.dispatchEvent(event);
     }
-  });
+  );
 
   // We use desktopApiReceive and desktopApiSend to communicate with the main process.
   // Because other plugins may change the global window.desktopApi functions
