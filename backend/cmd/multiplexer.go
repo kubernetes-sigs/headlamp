@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -32,6 +33,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/nsaccess"
 	"k8s.io/client-go/rest"
 )
 
@@ -136,6 +138,9 @@ type Multiplexer struct {
 	unsafeUseServiceAccountToken bool
 	// saTokenCache caches service account tokens keyed by file path; refreshed when mtime changes.
 	saTokenCache map[string]saTokenCacheEntry
+	// namespaceEventFilter, when set, decides which namespace watch events
+	// may be forwarded to the client.
+	namespaceEventFilter NamespaceEventFilter
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
 }
@@ -206,6 +211,49 @@ func (conn *WSConnLock) Close() error {
 	defer conn.writeMu.Unlock()
 
 	return conn.conn.Close()
+}
+
+// NamespaceEventFilter decides whether a namespace watch event read from the
+// cluster may be forwarded to the client that opened the watch.
+type NamespaceEventFilter func(
+	ctx context.Context,
+	kContext *kubeconfig.Context,
+	token string,
+	event []byte,
+) (bool, error)
+
+// SetNamespaceEventFilter installs the filter applied to namespace watches.
+func (m *Multiplexer) SetNamespaceEventFilter(filter NamespaceEventFilter) {
+	m.namespaceEventFilter = filter
+}
+
+// forwardNamespaceEvent reports whether a message read from a namespace
+// watch may be sent to the client. Messages of other watches, watches served
+// with the service account token and connections without a user token are
+// always forwarded. Filter errors drop the message (fail-closed).
+func (m *Multiplexer) forwardNamespaceEvent(conn *Connection, message []byte) bool {
+	if m.namespaceEventFilter == nil || !nsaccess.IsNamespaceListPath(conn.Path) ||
+		conn.Token == nil || conn.usesServiceAccountToken {
+		return true
+	}
+
+	kContext, err := m.getClusterContextWithFallback(conn.ClusterID, conn.UserID)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err,
+			"resolving context for namespace watch filter")
+
+		return false
+	}
+
+	allowed, err := m.namespaceEventFilter(context.Background(), kContext, *conn.Token, message)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err,
+			"filtering namespace watch event")
+
+		return false
+	}
+
+	return allowed
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
@@ -929,6 +977,10 @@ func (m *Multiplexer) processClusterMessage(
 		}
 
 		return err
+	}
+
+	if !m.forwardNamespaceEvent(conn, message) {
+		return nil
 	}
 
 	if err := m.sendIfNewResourceVersion(message, conn, clientConn, lastResourceVersion); err != nil {

@@ -244,10 +244,17 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+
+	if conf.RequireNamespaceGet {
+		headlampConfig.namespaceFilter = newNamespaceFilter()
+		multiplexer.SetNamespaceEventFilter(headlampConfig.namespaceEventFilter)
+	}
+
+	return headlampConfig
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.

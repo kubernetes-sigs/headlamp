@@ -49,6 +49,7 @@ type Config struct {
 	// It has no effect in in-cluster mode or when running without embedded frontend.
 	NoBrowser              bool   `koanf:"no-browser"`
 	CacheEnabled           bool   `koanf:"cache-enabled"`
+	RequireNamespaceGet    bool   `koanf:"require-namespace-get"`
 	EnableHelm             bool   `koanf:"enable-helm"`
 	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
 	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
@@ -666,6 +667,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Bool("require-namespace-get", false, "Only show namespaces the user can GET, even if they can LIST all")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
