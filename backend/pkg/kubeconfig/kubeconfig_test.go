@@ -451,6 +451,40 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 	}
 }
 
+func TestSetupProxyWebSocketUpgradeHTTP1Transport(t *testing.T) {
+	var capturedUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedUA = r.Header.Get("User-Agent")
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			w.WriteHeader(http.StatusSwitchingProtocols)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx := &kubeconfig.Context{
+		Name:    "test-upgrade-context",
+		Cluster: &api.Cluster{Server: server.URL},
+	}
+
+	// Regular request gets User-Agent added
+	req1, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
+	require.NoError(t, err)
+	rec1 := httptest.NewRecorder()
+	require.NoError(t, ctx.ProxyRequest(rec1, req1))
+	assert.NotEmpty(t, capturedUA)
+
+	// WebSocket request does not have User-Agent added
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/exec", nil)
+	require.NoError(t, err)
+	req2.Header.Set("Connection", "Upgrade")
+	req2.Header.Set("Upgrade", "websocket")
+	rec2 := httptest.NewRecorder()
+	require.NoError(t, ctx.ProxyRequest(rec2, req2))
+	assert.Empty(t, capturedUA)
+}
+
 func TestLoadContextsFromBase64String(t *testing.T) {
 	t.Run("valid_base64", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
