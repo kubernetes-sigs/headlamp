@@ -68,6 +68,7 @@
   "Driver": "Driver",
   "Device Classes": "Device Classes",
   "Drivers": "Drivers",
+  "Resource Claims": "Resource Claims",
   "Endpoint: {{ name }}": "Endpoint: {{ name }}",
   "Subsets": "Subsets",
   "IP": "IP",

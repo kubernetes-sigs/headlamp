@@ -488,6 +488,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'deviceClasses',
             label: t('glossary|Device Classes'),
           },
+          {
+            name: 'resourceClaims',
+            label: t('glossary|Resource Claims'),
+          },
+          {
+            name: 'resourceClaimTemplates',
+            label: t('glossary|Resource Claim Templates'),
+          },
         ],
       });
     }

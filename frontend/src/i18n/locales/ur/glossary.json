@@ -68,6 +68,7 @@
   "Driver": "",
   "Device Classes": "",
   "Drivers": "",
+  "Resource Claims": "",
   "Endpoint: {{ name }}": "اینڈپوائنٹ: {{ name }}",
   "Subsets": "سب سیٹس",
   "IP": "IP",

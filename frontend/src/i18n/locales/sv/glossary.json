@@ -68,6 +68,7 @@
   "Driver": "",
   "Device Classes": "",
   "Drivers": "",
+  "Resource Claims": "",
   "Endpoint: {{ name }}": "Slutpunkt: {{ name }}",
   "Subsets": "Delmängder",
   "IP": "IP",

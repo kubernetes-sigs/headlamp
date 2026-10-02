@@ -68,6 +68,7 @@
   "Driver": "",
   "Device Classes": "",
   "Drivers": "",
+  "Resource Claims": "",
   "Endpoint: {{ name }}": "Uç nokta: {{ name }}",
   "Subsets": "Alt Kümeler",
   "IP": "IP",

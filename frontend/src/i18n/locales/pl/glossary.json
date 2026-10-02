@@ -68,6 +68,7 @@
   "Driver": "",
   "Device Classes": "",
   "Drivers": "",
+  "Resource Claims": "",
   "Endpoint: {{ name }}": "Punkt końcowy: {{ name }}",
   "Subsets": "Podzbiory",
   "IP": "Adres IP",

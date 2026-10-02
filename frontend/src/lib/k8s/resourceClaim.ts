@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import type { DeviceSelector } from './deviceClass';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import { isResourceServed } from './resourceAvailability';
 
 /** How many devices a request asks for. */
 export type DeviceAllocationMode = 'ExactCount' | 'All';
@@ -24,6 +26,7 @@ export type DeviceAllocationMode = 'ExactCount' | 'All';
 export interface DeviceSubRequest {
   name: string;
   deviceClassName: string;
+  selectors?: DeviceSelector[];
   allocationMode?: DeviceAllocationMode;
   count?: number;
 }
@@ -31,6 +34,7 @@ export interface DeviceSubRequest {
 /** A request for devices of one class. */
 export interface ExactDeviceRequest {
   deviceClassName: string;
+  selectors?: DeviceSelector[];
   allocationMode?: DeviceAllocationMode;
   count?: number;
 }
@@ -143,6 +147,16 @@ class ResourceClaim extends KubeObject<KubeResourceClaim> {
   static apiName = 'resourceclaims';
   static apiVersion = 'resource.k8s.io/v1';
   static isNamespaced = true;
+
+  /**
+   * Whether the cluster serves the stable dynamic resource allocation API, which
+   * needs Kubernetes 1.34 or later.
+   * @param cluster - The cluster to check.
+   * @returns true when the ResourceClaim resource is served.
+   */
+  static isEnabled(cluster: string): Promise<boolean> {
+    return isResourceServed(cluster, ResourceClaim.apiVersion, ResourceClaim.apiName);
+  }
 
   get spec() {
     return this.jsonData.spec;

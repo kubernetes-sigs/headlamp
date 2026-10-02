@@ -68,6 +68,7 @@
   "Driver": "",
   "Device Classes": "",
   "Drivers": "",
+  "Resource Claims": "",
   "Endpoint: {{ name }}": "Ponto de extremidade: {{ name }}",
   "Subsets": "Subconjuntos",
   "IP": "IP",

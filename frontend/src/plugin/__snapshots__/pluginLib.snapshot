@@ -509,6 +509,7 @@
       "PodGroup": [Function],
       "PriorityClass": [Function],
       "ReplicaSet": [Function],
+      "ResourceClaim": [Function],
       "ResourceQuota": [Function],
       "Role": [Function],
       "RoleBinding": [Function],

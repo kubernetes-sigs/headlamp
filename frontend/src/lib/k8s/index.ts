@@ -56,6 +56,7 @@ import PodDisruptionBudget from './podDisruptionBudget';
 import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
 import ReplicaSet from './replicaSet';
+import ResourceClaim from './resourceClaim';
 import ResourceQuota from './resourceQuota';
 import Role from './role';
 import RoleBinding from './roleBinding';
@@ -102,6 +103,7 @@ export const ResourceClasses = {
   PersistentVolumeClaim,
   Pod,
   ReplicaSet,
+  ResourceClaim,
   Role,
   RoleBinding,
   RuntimeClass,
