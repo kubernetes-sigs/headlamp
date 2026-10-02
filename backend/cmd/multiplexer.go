@@ -405,16 +405,16 @@ func (m *Multiplexer) establishClusterConnection(
 		connection.usesServiceAccountToken = true
 	}
 
-	wsURL := createWebSocketURL(config.Host, path, query)
-
-	tlsConfig, err := rest.TLSConfigFor(config)
+	host, tlsConfig, err := clusterUpstream(clusterContext, config)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
-		return nil, fmt.Errorf("failed to get TLS config: %w", err)
+		return nil, err
 	}
 
-	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
+	wsURL := createWebSocketURL(host, path, query)
+
+	conn, err := m.dialWebSocket(wsURL, tlsConfig, host, authToken)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
@@ -432,6 +432,23 @@ func (m *Multiplexer) establishClusterConnection(
 	go m.monitorConnection(connection)
 
 	return connection, nil
+}
+
+// clusterUpstream returns the host and TLS configuration the multiplexer
+// must dial for the given context. When the context routes traffic through
+// an external API proxy, the proxy URL and its TLS settings are used instead
+// of the kube-apiserver ones, mirroring Context.SetupProxy().
+func clusterUpstream(clusterContext *kubeconfig.Context, config *rest.Config) (string, *tls.Config, error) {
+	if apiProxy := clusterContext.APIProxyURL(); apiProxy != "" {
+		return apiProxy, clusterContext.APIProxyTLSConfig(), nil
+	}
+
+	tlsConfig, err := rest.TLSConfigFor(config)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get TLS config: %w", err)
+	}
+
+	return config.Host, tlsConfig, nil
 }
 
 // getClusterConfigWithFallback attempts to get the cluster config,
