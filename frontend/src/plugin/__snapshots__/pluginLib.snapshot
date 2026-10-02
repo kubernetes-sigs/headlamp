@@ -483,6 +483,7 @@
       "CustomResourceDefinition": [Function],
       "DaemonSet": [Function],
       "Deployment": [Function],
+      "DeviceClass": [Function],
       "Endpoint": [Function],
       "EndpointSlice": [Function],
       "Endpoints": [Function],
@@ -508,6 +509,7 @@
       "PodGroup": [Function],
       "PriorityClass": [Function],
       "ReplicaSet": [Function],
+      "ResourceClaim": [Function],
       "ResourceQuota": [Function],
       "Role": [Function],
       "RoleBinding": [Function],
@@ -550,6 +552,9 @@
       "default": [Function],
     },
     "deployment": {
+      "default": [Function],
+    },
+    "deviceClass": {
       "default": [Function],
     },
     "event": {
@@ -630,6 +635,11 @@
     },
     "replicaSet": {
       "default": [Function],
+    },
+    "resourceClaim": {
+      "default": [Function],
+      "getRequestedDeviceClasses": [Function],
+      "getResourceClaimState": [Function],
     },
     "role": {
       "default": [Function],

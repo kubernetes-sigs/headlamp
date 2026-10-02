@@ -38,6 +38,12 @@ export interface ResourceListViewWithResourceClassProps<ItemClass extends KubeOb
   backLink?: BackLinkProps['to'] | boolean;
   headerProps?: Omit<SectionFilterHeaderProps, 'title'>;
   resourceClass: ItemClass;
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceListView<ItemClass extends KubeObjectClass>(
