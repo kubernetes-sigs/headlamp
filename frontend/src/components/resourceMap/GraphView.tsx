@@ -226,6 +226,12 @@ function GraphViewContent({
           if (filter.type === 'namespace') {
             return { type: 'namespace', namespaces: Array.from(filter.namespaces).sort() };
           }
+          if (filter.type === 'namespaceCluster') {
+            return {
+              type: 'namespaceCluster',
+              namespaceRefs: Array.from(filter.namespaceRefs).sort(),
+            };
+          }
           return filter;
         })
       ),

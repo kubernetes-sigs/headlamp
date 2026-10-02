@@ -403,13 +403,14 @@ export function ProjectResourcesTab({
   return (
     <>
       <Box
+        data-testid="project-resource-grid"
         sx={theme => ({
           display: 'flex',
           border: '1px solid',
           borderColor: theme.palette.divider,
           borderTop: 0,
           flexGrow: 1,
-          minHeight: 0,
+          minHeight: '18.75rem',
           flexBasis: 0,
           [theme.breakpoints.down('md')]: {
             flexDirection: 'column',
@@ -423,7 +424,7 @@ export function ProjectResourcesTab({
         />
         <Box sx={resourcePaneStyles}>
           {selectedCategory && (
-            <Box sx={{ minHeight: '400px' }}>
+            <Box>
               {selectedResources.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   {t('No {{category}} resources found for this project.', {

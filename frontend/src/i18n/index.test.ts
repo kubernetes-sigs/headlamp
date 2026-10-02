@@ -18,6 +18,8 @@ import { error } from 'console';
 import fs from 'fs';
 import * as filesFilter from '../filesFilter/filesFilter';
 import { supportedLanguages } from './config';
+import parserConfig from './i18next-parser.config';
+import sharedConfig, { type SharedI18nextConfig } from './i18nextSharedConfig.mjs';
 
 const path = require('node:path');
 const allowlist = require('./allowlist.json');
@@ -190,5 +192,31 @@ describe('The locales are not empty translations', () => {
     expect(app['About']).toBe(expectations.about);
     expect(app['Delete']).toBe(expectations.delete);
     expect(glossary['CPU']).toBe(expectations.cpu);
+  });
+});
+
+describe('i18next parser configuration', () => {
+  test('uses the shared locale configuration', () => {
+    expectTypeOf(sharedConfig).toEqualTypeOf<SharedI18nextConfig>();
+    expectTypeOf(sharedConfig.contextSeparator).toEqualTypeOf<string>();
+    expectTypeOf(sharedConfig.namespaces).toEqualTypeOf<string[]>();
+    expectTypeOf(sharedConfig.defaultNamespace).toEqualTypeOf<string>();
+    expectTypeOf(sharedConfig.localesPath).toEqualTypeOf<string>();
+
+    expect(parserConfig.contextSeparator).toBe(sharedConfig.contextSeparator);
+    expect(parserConfig.locales).toEqual(expect.arrayContaining(['en', 'fr']));
+    expect(parserConfig.output).toContain(
+      path.join(sharedConfig.localesPath, '$LOCALE', '$NAMESPACE.json')
+    );
+    expect(sharedConfig.namespaces).toEqual(['translation', 'glossary', 'app']);
+    expect(sharedConfig.defaultNamespace).toBe('translation');
+  });
+
+  test.each([
+    ['en', 'Pod', 'Pod'],
+    ['en', 'Pod//context:plural', 'Pod'],
+    ['fr', 'Pod', ''],
+  ])('returns the parser default for %s key %s', (locale, key, expected) => {
+    expect(parserConfig.defaultValue(locale, 'translation', key)).toBe(expected);
   });
 });

@@ -18,7 +18,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
 
-const { MockKubeObject, mockApply, mockHistoryPush } = vi.hoisted(() => {
+const { MockKubeObject, mockApply, mockHistoryPush, mockUseTypedSelector } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
     static kind = '';
@@ -34,7 +34,8 @@ const { MockKubeObject, mockApply, mockHistoryPush } = vi.hoisted(() => {
   }
   const mockApply = vi.fn().mockResolvedValue({});
   const mockHistoryPush = vi.fn();
-  return { MockKubeObject, mockApply, mockHistoryPush };
+  const mockUseTypedSelector = vi.fn().mockReturnValue({});
+  return { MockKubeObject, mockApply, mockHistoryPush, mockUseTypedSelector };
 });
 
 vi.mock('../../lib/k8s/KubeObject', () => ({ KubeObject: MockKubeObject }));
@@ -71,7 +72,7 @@ vi.mock('react-i18next', async () => {
   };
 });
 vi.mock('../../redux/hooks', () => ({
-  useTypedSelector: vi.fn().mockReturnValue({}),
+  useTypedSelector: mockUseTypedSelector,
 }));
 vi.mock('@iconify/react', () => ({
   Icon: () => <span />,
@@ -105,6 +106,7 @@ describe('NewProjectPopup', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseTypedSelector.mockReturnValue({});
     (MockKubeObject.useList as any).mockReturnValue({ items: [], errors: [], isLoading: false });
   });
 
@@ -189,6 +191,111 @@ describe('NewProjectPopup', () => {
     });
 
     expect(screen.getByText('A project with this name already exists')).toBeInTheDocument();
+  });
+
+  test('normalizes the project name when the field loses focus', () => {
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByText('New Project'));
+    const projectNameInput = screen.getByLabelText(/Project Name/i);
+    fireEvent.change(projectNameInput, { target: { value: 'My Project!' } });
+    fireEvent.blur(projectNameInput);
+
+    expect(projectNameInput).toHaveValue('my-project');
+  });
+
+  test('assigns an existing namespace without creating it again', async () => {
+    const existingNamespace = {
+      cluster: 'cluster-1',
+      metadata: { name: 'existing-ns', labels: {} },
+      patch: vi.fn().mockResolvedValue({}),
+    };
+    (MockKubeObject.useList as any).mockReturnValue({
+      items: [existingNamespace],
+      errors: [],
+      isLoading: false,
+    });
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), {
+      target: { value: 'existing-namespace-project' },
+    });
+    fireEvent.mouseDown(screen.getByLabelText('Clusters'));
+    fireEvent.click(screen.getByText('cluster-1'));
+    fireEvent.mouseDown(screen.getByLabelText('Namespace'));
+    fireEvent.click(screen.getByText('existing-ns'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => {
+      expect(existingNamespace.patch).toHaveBeenCalledWith({
+        metadata: { labels: { [PROJECT_ID_LABEL]: 'existing-namespace-project' } },
+      });
+    });
+    expect(mockApply).not.toHaveBeenCalled();
+  });
+
+  test('creates a namespace when namespace list data is unavailable', async () => {
+    (MockKubeObject.useList as any).mockReturnValue({
+      items: undefined,
+      errors: [],
+      isLoading: true,
+    });
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('new-project', 'new-ns');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalled());
+  });
+
+  test('opens a custom project creator', () => {
+    const CustomProject = ({ onBack }: { onBack: () => void }) => (
+      <button onClick={onBack}>Custom project content</button>
+    );
+    mockUseTypedSelector.mockReturnValue({
+      custom: {
+        id: 'custom',
+        name: 'Custom project',
+        description: 'Create a custom project',
+        icon: () => <span>Custom icon</span>,
+        component: CustomProject,
+      },
+      customWithStringIcon: {
+        id: 'custom-with-string-icon',
+        name: 'String icon project',
+        description: 'Create a project with a named icon',
+        icon: 'mdi:folder-star',
+        component: CustomProject,
+      },
+    });
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    expect(screen.getByText('Custom icon')).toBeInTheDocument();
+    expect(screen.getByText('String icon project')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Custom project'));
+    fireEvent.click(screen.getByText('Custom project content'));
+
+    expect(screen.getByText('Create a Project')).toBeInTheDocument();
   });
 
   test('successfully creates a new project', async () => {

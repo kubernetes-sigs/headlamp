@@ -83,6 +83,7 @@ type Config struct {
 	OidcScopes                   string `koanf:"oidc-scopes"`
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
+	OidcUseTokenBroadcast        bool   `koanf:"oidc-use-token-broadcast"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
 	MeUsernamePath               string `koanf:"me-username-path"`
@@ -592,7 +593,11 @@ func flagset(appName string) *flag.FlagSet {
 
 func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Bool("version", false, "Print version information and exit")
-	f.String("app-name", appName, "Application name used in version output and Kubernetes User-Agent headers")
+	f.String(
+		"app-name",
+		appName,
+		"Application name used in version output, the browser title, and Kubernetes User-Agent headers",
+	)
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.String("in-cluster-context-name", "",
 		"Name to use for the in-cluster Kubernetes context. "+
@@ -661,6 +666,11 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
+	f.Bool("oidc-use-token-broadcast", false,
+		"After a successful OIDC login, also set the auth cookie for other kubeconfig contexts "+
+			"whose OIDC auth-provider has the same idp-issuer-url and client-id. Disabled by "+
+			"default. Preconditions and caveats: "+
+			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")

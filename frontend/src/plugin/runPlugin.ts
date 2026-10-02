@@ -50,6 +50,18 @@ export type runPluginProps = [
   consoleError: typeof console.error
 ];
 
+// Capture the intrinsics before any plugin runs. Spread syntax in either
+// `new PrivateFunction(...args, source)` or `executePlugin(...values)` would look
+// up the array iterator at use time. An earlier plugin can replace that iterator
+// to rewrite a later plugin's formal parameters or observe its private values.
+// Reflect.construct and Reflect.apply consume indexed array-like objects without
+// invoking their iterators. Object.create builds that argument list without an
+// inherited prototype. These captured references cannot be replaced by a plugin
+// after module initialization.
+const privateApply = Reflect.apply;
+const privateConstruct = Reflect.construct;
+const privateCreate = Object.create;
+
 /**
  * Prepares the information needed to run a plugin with the `runPlugin` function.
  *
@@ -193,9 +205,20 @@ export function runPlugin(
   args: string[],
   values: unknown[]
 ): void {
-  // We use PrivateFunction here instead of global Function so people can't
-  //   override Function and snoop on it.
-  const executePlugin = new PrivateFunction(...args, adjustSourceMapOffsetForFunction(source));
+  // Build the Function constructor argument list by index. Iterating `args`
+  // would let an earlier plugin replace a parameter name with destructuring code
+  // that exports a private value while the generated function binds arguments.
+  // A null prototype prevents inherited numeric getters or setters from changing
+  // the parameter strings written to and read from this array-like object.
+  const constructorArgs = privateCreate(null) as Record<number, string> & { length: number };
+  constructorArgs.length = args.length + 1;
+  for (let index = 0; index < args.length; index += 1) {
+    constructorArgs[index] = args[index];
+  }
+  constructorArgs[args.length] = adjustSourceMapOffsetForFunction(source);
+
+  // Use the private Function reference and avoid the mutable array iterator.
+  const executePlugin = privateConstruct(PrivateFunction, constructorArgs) as Function;
 
   try {
     // This executes in the global scope,
@@ -203,7 +226,10 @@ export function runPlugin(
     // Meaning, it can NOT access "permissionSecrets".
     // Each plugin gets its own "pluginPermissionSecrets" which contains only the secrets
     //   that it is allowed to access.
-    executePlugin(...values);
+    // Avoid spread syntax here: it would expose values to a mutable global array
+    // iterator. `undefined` is the receiver because generated plugin functions do
+    // not use a privileged `this`; `values` becomes their positional arguments.
+    privateApply(executePlugin, undefined, values);
   } catch (e) {
     handleError(e, packageName, packageVersion);
   }

@@ -87,7 +87,11 @@ describe('startWindowsVMDetection', () => {
       })
     );
 
-    expect(waitForWindowsVMDetection(detection)).toBe(false);
+    // Wait generously for the worker's signal: bootstrapping a worker thread
+    // can take longer than the 1s production default on slow CI runners, and
+    // this assertion needs the signal itself, not the bounded-wait fallback.
+    // A failed detection must still not be reported as a virtual machine.
+    expect(waitForWindowsVMDetection(detection, 15_000)).toBe(false);
     expect(Atomics.load(detection!.state, 0)).not.toBe(0);
   });
 });

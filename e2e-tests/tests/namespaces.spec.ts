@@ -77,19 +77,23 @@ test('create a namespace with the minimal editor then delete it', async ({ page 
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 
-  // If there's no namespaces permission, then we return
   const content = await page.content();
-  if (!content.includes('Namespaces') || !content.includes('href="/c/test/namespaces')) {
-    return;
-  }
+  test.skip(
+    !content.includes('Namespaces') || !content.includes('href="/c/test/namespaces'),
+    'Namespace permissions are required for this test'
+  );
 
   const namespacesPage = new NamespacesPage(page);
   await namespacesPage.navigateToNamespaces();
   await namespacesPage.a11y();
 
-  await namespacesPage.createNamespace(name);
-  await namespacesPage.a11y();
-
-  await namespacesPage.deleteNamespace(name);
-  await namespacesPage.a11y();
+  const setupStatus = await namespacesPage.createNamespace(name);
+  try {
+    await namespacesPage.a11y();
+  } finally {
+    if (setupStatus === 'created') {
+      await namespacesPage.deleteNamespace(name);
+      await namespacesPage.a11y();
+    }
+  }
 });

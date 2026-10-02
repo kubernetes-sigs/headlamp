@@ -15,6 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
+import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
@@ -31,7 +32,6 @@ import ActionButton from '../../common/ActionButton';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
-import { theme } from '../../TestHelpers/theme';
 import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
@@ -41,6 +41,7 @@ import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
   const { t } = useTranslation(['translation']);
+  const theme = useTheme();
   const settingsObj = useSettings();
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
@@ -256,7 +257,7 @@ export default function Settings() {
         >
           <Typography
             variant="body1"
-            sx={theme => ({
+            sx={{
               textAlign: 'left',
               color: theme.palette.text.secondary,
               fontSize: '1rem',
@@ -264,7 +265,7 @@ export default function Settings() {
                 fontSize: '1.5rem',
                 color: theme.palette.text.primary,
               },
-            })}
+            }}
           >
             {t('translation|Theme')}
           </Typography>
@@ -279,12 +280,12 @@ export default function Settings() {
           {forceTheme && (
             <Typography
               variant="body2"
-              sx={theme => ({
+              sx={{
                 textAlign: 'center',
                 color: theme.palette.text.secondary,
                 fontStyle: 'italic',
                 mb: 2,
-              })}
+              }}
             >
               {t('translation|Theme has been forced by your administrator')}
             </Typography>

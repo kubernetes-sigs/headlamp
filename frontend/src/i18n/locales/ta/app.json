@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "பிளக்-இன் தகவலைப் பெறுவதில் தோல்வி",
   "An error occurred while fetching plugin info from {{  URL }}.": "{{  URL }} இலிருந்து பிளக்-இன் தகவலைப் பெறும்போது ஒரு பிழை ஏற்பட்டது.",
   "Yes": "ஆம்",
@@ -41,11 +46,6 @@
   "Help": "உதவி",
   "Documentation": "ஆவணப்படுத்தல்",
   "Open an Issue": "ஒரு இஷ்யூவைத் திற",
-  "Another process is running": "மற்றொரு ப்ராசஸ் இயங்குகிறது",
-  "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "மற்றொரு ப்ராசஸ் ஏற்கனவே இயங்குவது போல் தெரிகிறது. அந்த ப்ராசஸை தானாகவே முடிப்பதன் மூலம் தொடரவா, அல்லது வெளியேறவா?",
-  "Continue": "தொடர்க",
-  "Failed to quit the other running process": "மற்ற இயங்கும் ப்ராசஸிலிருந்து வெளியேற முடியவில்லை",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "மற்ற இயங்கும் ப்ராசஸிலிருந்து வெளியேற முடியவில்லை, PIDs: {{ process_list }}. தயவுசெய்து அந்த ப்ராசஸை நிறுத்தி பயன்பாட்டை மீண்டும் தொடங்கவும்.",
   "No available ports": "",
   "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "",
   "Terminate and Retry": "",
@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "தவறான URL",
-  "Application opened with an invalid URL: {{ url }}": "பயன்பாடு தவறான URL உடன் திறக்கப்பட்டது: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "பயன்பாடு தவறான URL உடன் திறக்கப்பட்டது: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

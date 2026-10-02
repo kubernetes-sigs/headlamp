@@ -3,7 +3,7 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = ["-dev", "-proxy-urls", "https://artifacthub.io/*", "-listen-addr=localhost"]
+  args_bin = ["-dev", "-proxy-urls", "https://artifacthub.io/*", "-listen-addr=127.0.0.1"]
   bin = "./tmp/main"
   cmd = "go build -o ./tmp/main ./cmd"
   delay = 1000

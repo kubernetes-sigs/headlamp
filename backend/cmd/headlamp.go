@@ -277,8 +277,8 @@ func makeBaseURLReplacements(data []byte, baseURL string) []byte {
 	return data
 }
 
-// make sure the base-url is updated in the index.html file.
-func baseURLReplace(staticDir string, baseURL string) {
+// rewriteIndexHTML updates server-owned values in the index.html file.
+func rewriteIndexHTML(staticDir string, baseURL string, productName string) {
 	indexBaseURL := path.Join(staticDir, "index.baseUrl.html")
 	index := path.Join(staticDir, "index.html")
 
@@ -291,6 +291,7 @@ func baseURLReplace(staticDir string, baseURL string) {
 	// replace baseURL starting from the original copy, incase we run this multiple times
 	data := mustReadFile(indexBaseURL)
 	output := makeBaseURLReplacements(data, baseURL)
+	output = spa.ReplaceProductName(output, productName)
 	mustWriteFile(index, output)
 }
 
@@ -722,7 +723,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}
 
 	if config.StaticDir != "" {
-		baseURLReplace(config.StaticDir, config.BaseURL)
+		rewriteIndexHTML(config.StaticDir, config.BaseURL, config.AppName)
 	}
 
 	// For when using a base-url, like "/headlamp" with a reverse proxy.
@@ -1243,6 +1244,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Set auth cookie
 		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
+		if config.OidcUseTokenBroadcast {
+			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+				Writer:          w,
+				Request:         r,
+				KubeConfigStore: config.KubeConfigStore,
+				SourceCluster:   oauthConfig.Cluster,
+				Token:           rawUserToken,
+				BaseURL:         config.BaseURL,
+				SessionTTL:      config.SessionTTL,
+			})
+		}
+
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
@@ -1250,7 +1263,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
-		r.PathPrefix("/").Handler(spa.NewEmbeddedHandler(spa.StaticFilesEmbed, "index.html", config.BaseURL))
+		r.PathPrefix("/").Handler(spa.NewEmbeddedHandlerWithProductName(
+			spa.StaticFilesEmbed,
+			"index.html",
+			config.BaseURL,
+			config.AppName,
+		))
 	} else if config.StaticDir != "" {
 		staticPath := config.StaticDir
 
@@ -1587,12 +1605,29 @@ func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.H
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
 
-	var err error
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		close(serverDone)
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
+
+		return
+	}
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	if _, err = fmt.Fprintln(os.Stdout, internalBackendReadyMessage); err != nil {
+		close(serverDone)
+		logger.Log(logger.LevelError, nil, err, "Failed to report server readiness")
+
+		return
+	}
 
 	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
+		err = server.ServeTLS(listener, config.TLSCertPath, config.TLSKeyPath)
 	} else {
-		err = server.ListenAndServe()
+		err = server.Serve(listener)
 	}
 
 	close(serverDone)
@@ -1677,15 +1712,8 @@ func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serve
 	}()
 }
 
-// Handle common server startup errors.
-func HandleServerStartError(err *error) {
-	// Check if the reason server failed because the address is already in use
-	// this might be because backend process is already running
-	if errors.Is(*err, syscall.EADDRINUSE) {
-		// Exit with 98 (address in use) exit code
-		os.Exit(int(syscall.EADDRINUSE))
-	}
-}
+// internalBackendReadyMessage tells the Electron parent that this child owns its listening port.
+const internalBackendReadyMessage = "HEADLAMP_BACKEND_READY"
 
 // Returns the helm.Handler given the config and request. Writes http.NotFound if clusterName is not there.
 func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (*helm.Handler, error) {

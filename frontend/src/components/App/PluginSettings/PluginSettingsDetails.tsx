@@ -314,19 +314,12 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
             spacing={2}
             justifyContent="flex-start"
             alignItems="center"
-            sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
+            sx={{ borderTop: '2px solid', borderColor: 'divider', padding: '10px' }}
           >
-            <Button
-              variant="contained"
-              disabled={!enableSaveButton}
-              style={{ backgroundColor: 'silver', color: 'black' }}
-              onClick={handleSave}
-            >
+            <Button variant="contained" disabled={!enableSaveButton} onClick={handleSave}>
               {t('translation|Save')}
             </Button>
-            <Button style={{ color: 'silver' }} onClick={handleCancel}>
-              {t('translation|Cancel')}
-            </Button>
+            <Button onClick={handleCancel}>{t('translation|Cancel')}</Button>
           </Stack>
         </Box>
       )}

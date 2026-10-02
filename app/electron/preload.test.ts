@@ -36,7 +36,14 @@ vi.mock('electron', () => ({
   },
 }));
 
+const originalElectronDev = process.env.ELECTRON_DEV;
+process.env.ELECTRON_DEV = 'true';
 await import('./preload');
+if (originalElectronDev === undefined) {
+  delete process.env.ELECTRON_DEV;
+} else {
+  process.env.ELECTRON_DEV = originalElectronDev;
+}
 
 const desktopApi = electronMocks.exposeInMainWorld.mock.calls[0][1];
 
@@ -50,6 +57,37 @@ describe('desktop preload API', () => {
 
   it('exposes the host platform', () => {
     expect(desktopApi.platform).toBe(process.platform);
+  });
+
+  it('registers an AKS cluster through a dedicated IPC request', async () => {
+    electronMocks.invoke.mockResolvedValue({ success: true, message: 'registered' });
+
+    await expect(
+      desktopApi.registerCluster(
+        'azure',
+        {
+          subscriptionId: 'subscription',
+          resourceGroup: 'resource-group',
+          clusterName: 'cluster',
+          isAzureRBACEnabled: false,
+        },
+        '0123456789abcdef0123456789abcdef'
+      )
+    ).resolves.toEqual({ success: true, message: 'registered' });
+    expect(electronMocks.invoke).toHaveBeenCalledWith('register-cluster', {
+      provider: 'azure',
+      options: {
+        subscriptionId: 'subscription',
+        resourceGroup: 'resource-group',
+        clusterName: 'cluster',
+        isAzureRBACEnabled: false,
+      },
+      capabilitySecret: '0123456789abcdef0123456789abcdef',
+    });
+  });
+
+  it('exposes Electron development mode to a built renderer', () => {
+    expect(desktopApi.isDevelopment).toBe(true);
   });
 
   it('sends messages only on allowed channels', () => {

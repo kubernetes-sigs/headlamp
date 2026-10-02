@@ -30,6 +30,20 @@ export function getProductName(): string | undefined {
   return import.meta.env.REACT_APP_HEADLAMP_PRODUCT_NAME;
 }
 
+/**
+ * @returns The version of the product distribution, or undefined when it is not set.
+ */
+export function getProductVersion(): string | undefined {
+  return import.meta.env.REACT_APP_HEADLAMP_PRODUCT_VERSION;
+}
+
+/**
+ * @returns The product distribution version when configured, otherwise the Headlamp version.
+ */
+export function getDisplayVersion(): string | undefined {
+  return getProductVersion()?.trim() || getVersion().VERSION;
+}
+
 /** A page that supports product-configured error content. */
 export type ProductErrorPage = 'error' | 'notFound';
 

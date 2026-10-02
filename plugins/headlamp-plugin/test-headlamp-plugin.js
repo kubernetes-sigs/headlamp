@@ -31,7 +31,10 @@ function testHeadlampPlugin() {
 
   // Make a package file of headlamp-plugin we can test
   run('npm', ['install']);
+  run('npm', ['run', 'test:storybook-mocks']);
   run('npm', ['run', 'build']);
+  checkFileContains(join('lib', 'index.js'), 'DefaultCreateProject');
+  checkFileContains(join('lib', 'index.d.ts'), 'DefaultCreateProject');
 
   // test that example and official plugins are bundled after build
   console.log('Testing that example and official plugins are bundled...');
@@ -287,6 +290,12 @@ function runAndCaptureOutput(cmd, args) {
 function checkFileExists(fname) {
   if (!fs.existsSync(fname)) {
     exit(`Error: ${fname} does not exist.`);
+  }
+}
+function checkFileContains(fname, expectedContent) {
+  checkFileExists(fname);
+  if (!fs.readFileSync(fname, 'utf8').includes(expectedContent)) {
+    exit(`Error: ${fname} does not export ${expectedContent}.`);
   }
 }
 function exit(message) {

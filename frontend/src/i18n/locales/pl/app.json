@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "Nie można pobrać informacji o wtyczce",
   "An error occurred while fetching plugin info from {{  URL }}.": "Wystąpił błąd podczas pobierania informacji o wtyczce z {{  URL }}.",
   "Yes": "Tak",
@@ -41,11 +46,6 @@
   "Help": "Pomoc",
   "Documentation": "Dokumentacja",
   "Open an Issue": "Otwórz problem",
-  "Another process is running": "Inny proces jest uruchomiony",
-  "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "Wygląda na to, że inny proces jest już uruchomiony. Czy kontynuować, automatycznie przerywając ten proces, czy zakończyć?",
-  "Continue": "Kontynuuj",
-  "Failed to quit the other running process": "Nie można zamknąć innego uruchomionego procesu",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "Nie można zamknąć innego uruchomionego procesu. Identyfikatory PIN: {{ process_list }}. Zatrzymaj ten proces i uruchom ponownie aplikację.",
   "No available ports": "Brak dostępnych portów",
   "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "Nie można odnaleźć dostępnego portu. Istnieją procesy uruchomione na portach {{startPort}}-{{endPort}}. Zakończyć te procesy i ponowić próbę?",
   "Terminate and Retry": "Zakończ i ponów próbę",
@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "Nie można uruchomić serwera nawet po zakończeniu istniejących procesów.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Nie można odnaleźć dostępnego portu w zakresie {{startPort}}-{{endPort}}. Zwolnij port i spróbuj ponownie.",
   "Invalid URL": "Nieprawidłowy adres URL",
-  "Application opened with an invalid URL: {{ url }}": "Aplikacja została otwarta z nieprawidłowym adresem URL: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "Aplikacja została otwarta z nieprawidłowym adresem URL: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

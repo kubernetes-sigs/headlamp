@@ -1,4 +1,9 @@
 {
+  "Enable": "",
+  "Cancel": "",
+  "Plugin Development Mode": "",
+  "Enable Plugin Development Mode?": "",
+  "Development plugins run local code and may request command access. Only enable this mode if you trust every plugin in the development plugins directory.": "",
   "Failed to fetch plugin info": "Kan de informatie over de invoegtoepassing niet ophalen",
   "An error occurred while fetching plugin info from {{  URL }}.": "Er is een fout opgetreden bij het ophalen van informatie over de invoegtoepassing van {{  URL }}.",
   "Yes": "Ja",
@@ -41,11 +46,6 @@
   "Help": "Help",
   "Documentation": "Documentatie",
   "Open an Issue": "Een probleem openen",
-  "Another process is running": "Er draait een ander proces",
-  "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "Het lijkt erop dat er al een ander proces wordt uitgevoerd. Wil je doorgaan door dat proces automatisch te beëindigen of afsluiten?",
-  "Continue": "Doorgaan",
-  "Failed to quit the other running process": "Kan het andere actieve proces niet afsluiten",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "Kan het andere actieve proces niet stoppen, PID's: {{ process_list }}. Stop dat proces en start de app opnieuw.",
   "No available ports": "Geen beschikbare poorten",
   "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "Kan geen beschikbare poort vinden. Er worden processen uitgevoerd op poorten {{startPort}}-{{endPort}}. Deze processen beëindigen en opnieuw proberen?",
   "Terminate and Retry": "Beëindigen en opnieuw proberen",
@@ -53,5 +53,7 @@
   "Could not start the server even after terminating existing processes.": "Kan de server niet starten, zelfs niet nadat bestaande processen zijn beëindigd.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Kan geen beschikbare poort vinden in het bereik {{startPort}}-{{endPort}}. Maak een poort vrij en probeer het opnieuw.",
   "Invalid URL": "Ongeldige URL",
-  "Application opened with an invalid URL: {{ url }}": "Toepassing geopend met een ongeldige URL: {{ url }}"
+  "Application opened with an invalid URL: {{ url }}": "Toepassing geopend met een ongeldige URL: {{ url }}",
+  "OAuth callback failed": "",
+  "The OAuth callback could not be completed. Please try again.": ""
 }

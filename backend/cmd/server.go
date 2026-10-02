@@ -82,6 +82,7 @@ func main() {
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
+		AppName:                conf.AppName,
 		UseInCluster:           conf.InCluster,
 		InClusterContextName:   conf.InClusterContextName,
 		KubeConfigPath:         conf.KubeConfigPath,
@@ -121,6 +122,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		NodeShellImage:                        conf.NodeShellImage,
 		NodeShellNamespace:                    conf.NodeShellNamespace,
 		OidcUseCookie:                         conf.OidcUseCookie,
+		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
 		DefaultLightTheme:                     conf.DefaultLightTheme,
 		DefaultDarkTheme:                      conf.DefaultDarkTheme,
 		ForceTheme:                            conf.ForceTheme,

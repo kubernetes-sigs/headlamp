@@ -28,6 +28,8 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  applyBuildResources,
+  applyBuildTargets,
   applyPlatformMetadata,
   applyProductMetadata,
   DEFAULT_MANIFEST_FILE,
@@ -56,24 +58,31 @@ const manifest = loadBuildManifest(manifestFile);
 const defaultManifest = path.resolve(DEFAULT_MANIFEST_FILE);
 const packageBuild = packageJson.build as ElectronBuilderConfiguration;
 
-const config: Configuration = applyPlatformMetadata(
-  applyProductMetadata(
-    {
-      ...packageBuild,
-      extraResources: packageBuild.extraResources.map(resource => {
-        // Preserve every resource except the default manifest entry.
-        if (
-          typeof resource === 'string' ||
-          path.resolve(configDirectory, resource.from) !== defaultManifest
-        ) {
-          return resource;
-        }
-        return { ...resource, from: manifestFile, to: 'app-build-manifest.json' };
-      }),
-    },
+const config: Configuration = applyBuildResources(
+  applyBuildTargets(
+    applyPlatformMetadata(
+      applyProductMetadata(
+        {
+          ...packageBuild,
+          extraResources: packageBuild.extraResources.map(resource => {
+            // Preserve every resource except the default manifest entry.
+            if (
+              typeof resource === 'string' ||
+              path.resolve(configDirectory, resource.from) !== defaultManifest
+            ) {
+              return resource;
+            }
+            return { ...resource, from: manifestFile, to: 'app-build-manifest.json' };
+          }),
+        },
+        manifest
+      ),
+      manifest
+    ),
     manifest
   ),
-  manifest
+  manifest,
+  manifestFile
 );
 
 export default config;

@@ -73,7 +73,7 @@ export function runCommand(
   ) => void,
   desktopApiReceive?: (
     channel: string,
-    listener: (cmdId: string, data: string | number | null) => void
+    listener: (cmdId: string, data: string | number) => void
   ) => (() => void) | void,
   capability?: string
 ): {
@@ -99,7 +99,7 @@ export function runCommand(
   const stdout = new EventTarget();
   const removeStdout = desktopApiReceive(
     'command-stdout',
-    (cmdId: string, data: string | number | null) => {
+    (cmdId: string, data: string | number) => {
       if (cmdId === id) {
         const event = new CustomEvent('data', { detail: data });
         stdout.dispatchEvent(event);
@@ -110,7 +110,7 @@ export function runCommand(
   const stderr = new EventTarget();
   const removeStderr = desktopApiReceive(
     'command-stderr',
-    (cmdId: string, data: string | number | null) => {
+    (cmdId: string, data: string | number) => {
       if (cmdId === id) {
         const event = new CustomEvent('data', { detail: data });
         stderr.dispatchEvent(event);
@@ -119,22 +119,14 @@ export function runCommand(
   );
 
   const exit = new EventTarget();
-  const removeExit = desktopApiReceive(
-    'command-exit',
-    (cmdId: string, code: string | number | null) => {
-      if (cmdId === id) {
-        removeStdout?.();
-        removeStderr?.();
-        removeExit?.();
+  const removeExit = desktopApiReceive('command-exit', (cmdId: string, code: string | number) => {
+    if (cmdId === id) {
+      removeStdout?.();
+      removeStderr?.();
+      removeExit?.();
 
-        // A command killed by a signal (rather than exiting normally) reports
-        // a non-numeric code; normalize anything that isn't a clean number to
-        // null rather than passing through a signal name as if it were an
-        // exit code.
-        const exitCode = typeof code === 'number' || code === null ? code : null;
-        const event = new CustomEvent('exit', { detail: exitCode });
-        exit.dispatchEvent(event);
-      }
+      const event = new CustomEvent('exit', { detail: code });
+      exit.dispatchEvent(event);
     }
   );
 

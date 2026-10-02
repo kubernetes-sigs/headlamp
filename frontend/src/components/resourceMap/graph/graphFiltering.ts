@@ -26,7 +26,22 @@ export type GraphFilter =
   | {
       type: 'namespace';
       namespaces: Set<string>;
+    }
+  | {
+      type: 'namespaceCluster';
+      namespaceRefs: Set<string>;
     };
+
+/**
+ * Creates a stable key for a Kubernetes namespace within one cluster.
+ *
+ * @param cluster - Headlamp cluster name.
+ * @param namespace - Kubernetes namespace name.
+ * @returns A key suitable for a namespace-cluster filter set.
+ */
+export function namespaceClusterKey(cluster: string, namespace: string): string {
+  return JSON.stringify([cluster, namespace]);
+}
 
 /**
  * Check if a node matches all of the provided filters (AND logic).
@@ -42,6 +57,15 @@ export function matchesAllFilters(node: GraphNode, filters: GraphFilter[]): bool
     if (filter.type === 'namespace' && filter.namespaces.size > 0) {
       const namespace = node.kubeObject?.metadata?.namespace;
       return !!namespace && filter.namespaces.has(namespace);
+    }
+    if (filter.type === 'namespaceCluster' && filter.namespaceRefs.size > 0) {
+      const namespace = node.kubeObject?.metadata?.namespace;
+      const cluster = node.kubeObject?.cluster;
+      return (
+        !!namespace &&
+        !!cluster &&
+        filter.namespaceRefs.has(namespaceClusterKey(cluster, namespace))
+      );
     }
     return true;
   });
@@ -62,6 +86,7 @@ export function matchesAllFilters(node: GraphNode, filters: GraphFilter[]): bool
  * The filters can be of the following types:
  * - `hasErrors`: Filters nodes that have a warning or error status based on their graph node status.
  * - `namespace`: Filters nodes by their namespace
+ * - `namespaceCluster`: Filters nodes by exact namespace and cluster pairs
  *
  * @param nodes - List of all the nodes in the graph
  * @param edges - List of all the edges in the graph

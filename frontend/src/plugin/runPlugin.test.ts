@@ -162,7 +162,7 @@ describe('runPlugin', () => {
     let theError: Error | null = null;
     const PrivateFunction = Function;
 
-    // First plugin: maliciously overrides Function to intercept pluginRunCommand
+    // First plugin replaces Function to observe later constructor arguments.
     const overrideFunctionSource = `
       const original = Function;
       Function = function(...args) {
@@ -190,7 +190,7 @@ describe('runPlugin', () => {
     const info = getInfoForRunningPlugins({
       source: overrideFunctionSource,
       pluginPath: '/path/to/plugin1',
-      packageName: 'evil-plugin',
+      packageName: 'function-observer-plugin',
       packageVersion: '1.0.0',
       permissionSecrets: {},
       handleError: (error, packageName, packageVersion) => {
@@ -245,7 +245,7 @@ describe('runPlugin', () => {
       runPluginInner(info2);
     }
 
-    // The malicious override should not have affected the second plugin's context
+    // The Function replacement should not affect the second plugin's context.
     // So the pluginRunCommand should not have been called
     expect(pluginRunCommandCalled).toBe(false);
     // The second plugin should not throw an error
@@ -270,12 +270,12 @@ describe('runPlugin', () => {
 
     let pluginRunCommandCalled = false;
     function pluginRunCommand(cmd: string, args: string[], opts: object) {
-      // This is only called if the malicious plugin works
+      // This is only called if the iterator replacement reaches the private value.
       console.log('pluginRunCommand called with, cmd:', cmd, 'args:', args, 'opts:', opts);
       pluginRunCommandCalled = true;
     }
 
-    // Malicious plugin tries to override Array.prototype[Symbol.iterator]
+    // First plugin replaces Array.prototype[Symbol.iterator].
     const overrideArrayIteratorSource = `
       const realArrayIterator = Array.prototype[Symbol.iterator];
       Array.prototype[Symbol.iterator] = function* () {
@@ -286,11 +286,11 @@ describe('runPlugin', () => {
       };
     `;
 
-    // Run the malicious plugin
+    // Run the plugin that replaces the iterator.
     const info = getInfoForRunningPlugins({
       source: overrideArrayIteratorSource,
-      pluginPath: '/path/to/plugin-malicious',
-      packageName: 'evil-plugin-array-iterator',
+      pluginPath: '/path/to/plugin-iterator',
+      packageName: 'iterator-plugin',
       packageVersion: '1.0.0',
       permissionSecrets: {},
       handleError: (error, packageName, packageVersion) => {
@@ -345,7 +345,7 @@ describe('runPlugin', () => {
       runPluginInner(info2);
     }
 
-    // The malicious plugin should not have been able to intercept pluginRunCommand
+    // The iterator replacement must not expose pluginRunCommand.
     expect((globalThis as any).iteratorRun).toBe(false);
     expect(pluginRunCommandCalled).toBe(false);
     expect(errorMessage).toBe('');
@@ -353,6 +353,142 @@ describe('runPlugin', () => {
 
     // restore Array.prototype[Symbol.iterator]
     (globalThis as any).Array.prototype[Symbol.iterator] = originalIterator;
+  });
+
+  test('preserves private arguments when the array iterator changes parameters', () => {
+    const originalIterator = Array.prototype[Symbol.iterator];
+    const PrivateFunction = Function;
+    const internalRunPlugin = runPlugin;
+    const consoleError = console.error;
+    const pluginSecureStorage = Object.freeze({
+      save: vi.fn(),
+      load: vi.fn(),
+      delete: vi.fn(),
+    });
+    const handleError = vi.fn();
+    (globalThis as any).capturedSave = undefined;
+
+    try {
+      const firstPlugin = getInfoForRunningPlugins({
+        source: `
+          const realIterator = Array.prototype[Symbol.iterator];
+          Array.prototype[Symbol.iterator] = function* () {
+            if (this[0] === 'pluginSecureStorage') {
+              yield '{save, missing = (globalThis.capturedSave = save)}';
+              for (let index = 1; index < this.length; index += 1) {
+                yield this[index];
+              }
+              return;
+            }
+            yield* realIterator.call(this);
+          };
+        `,
+        pluginPath: '/path/to/iterator-plugin',
+        packageName: 'iterator-plugin',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError,
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [[], []],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+      if (firstPlugin !== undefined) {
+        runPluginInner(firstPlugin);
+      }
+
+      const storagePlugin = getInfoForRunningPlugins({
+        source: '',
+        pluginPath: '/path/to/plugin-secure-storage',
+        packageName: 'secure-storage-plugin',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError,
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [['pluginSecureStorage'], [pluginSecureStorage]],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+      if (storagePlugin !== undefined) {
+        runPluginInner(storagePlugin);
+      }
+
+      expect(handleError).not.toHaveBeenCalled();
+      expect((globalThis as any).capturedSave).toBeUndefined();
+    } finally {
+      (globalThis as any).Array.prototype[Symbol.iterator] = originalIterator;
+      delete (globalThis as any).capturedSave;
+    }
+  });
+
+  test('preserves private arguments when Object.prototype has a numeric accessor', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, '0');
+    const PrivateFunction = Function;
+    const internalRunPlugin = runPlugin;
+    const consoleError = console.error;
+    const pluginSecureStorage = Object.freeze({
+      save: vi.fn(),
+      load: vi.fn(),
+      delete: vi.fn(),
+    });
+    const handleError = vi.fn();
+    (globalThis as any).capturedSave = undefined;
+
+    try {
+      const firstPlugin = getInfoForRunningPlugins({
+        source: `
+          Object.defineProperty(Object.prototype, '0', {
+            configurable: true,
+            get() {
+              return '{save, missing = (globalThis.capturedSave = save)}';
+            },
+            set() {},
+          });
+        `,
+        pluginPath: '/path/to/prototype-plugin',
+        packageName: 'prototype-plugin',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError,
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [[], []],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+      if (firstPlugin !== undefined) {
+        runPluginInner(firstPlugin);
+      }
+
+      const storagePlugin = getInfoForRunningPlugins({
+        source: '',
+        pluginPath: '/path/to/plugin-secure-storage',
+        packageName: 'secure-storage-plugin',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError,
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [['pluginSecureStorage'], [pluginSecureStorage]],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+      if (storagePlugin !== undefined) {
+        runPluginInner(storagePlugin);
+      }
+
+      expect(handleError).not.toHaveBeenCalled();
+      expect((globalThis as any).capturedSave).toBeUndefined();
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, '0', originalDescriptor);
+      } else {
+        delete (Object.prototype as any)[0];
+      }
+      delete (globalThis as any).capturedSave;
+    }
   });
 });
 
