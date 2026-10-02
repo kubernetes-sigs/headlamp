@@ -1230,3 +1230,128 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
 }
+
+type apiProxyValidateTest struct {
+	name          string
+	args          []string
+	verify        func(t *testing.T, conf *config.Config)
+	expectError   bool
+	errorContains string
+}
+
+func apiProxyValidateTests() []apiProxyValidateTest {
+	return append(apiProxyFlagValidateTests(), apiProxyCAValidateTests()...)
+}
+
+func apiProxyFlagValidateTests() []apiProxyValidateTest {
+	oidcArgs := []string{
+		"go run ./cmd", "--in-cluster",
+		"--oidc-client-id=cid", "--oidc-idp-issuer-url=https://idp.example.com",
+	}
+	withOIDC := func(extra ...string) []string {
+		return append(append([]string{}, oidcArgs...), extra...)
+	}
+
+	return []apiProxyValidateTest{
+		{
+			name: "api_proxy_url_parsed",
+			args: withOIDC("--oidc-api-proxy=https://proxy.example.com/kubernetes"),
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "https://proxy.example.com/kubernetes", conf.OidcAPIProxy)
+			},
+		},
+		{
+			name: "api_proxy_skip_tls_verify_parsed",
+			args: []string{"go run ./cmd", "--oidc-api-proxy-skip-tls-verify"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.True(t, conf.OidcAPIProxySkipTLSVerify)
+			},
+		},
+		{
+			name: "api_proxy_empty_no_error",
+			args: []string{"go run ./cmd"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Empty(t, conf.OidcAPIProxy)
+				assert.Empty(t, conf.OidcAPIProxyCAFile)
+				assert.False(t, conf.OidcAPIProxySkipTLSVerify)
+			},
+		},
+		{
+			name:          "api_proxy_invalid_url",
+			args:          withOIDC("--oidc-api-proxy=not-a-url"),
+			expectError:   true,
+			errorContains: "oidc-api-proxy must be a valid http(s) URL",
+		},
+		{
+			name:          "api_proxy_requires_oidc_client",
+			args:          []string{"go run ./cmd", "--in-cluster", "--oidc-api-proxy=https://proxy.example.com"},
+			expectError:   true,
+			errorContains: "oidc-api-proxy requires oidc-client-id and oidc-idp-issuer-url",
+		},
+		{
+			name: "api_proxy_incompatible_with_service_account_token",
+			args: withOIDC("--oidc-api-proxy=https://proxy.example.com",
+				"--unsafe-use-service-account-token"),
+			expectError:   true,
+			errorContains: "cannot be used together with unsafe-use-service-account-token",
+		},
+	}
+}
+
+func apiProxyCAValidateTests() []apiProxyValidateTest {
+	return []apiProxyValidateTest{
+		{
+			name: "api_proxy_ca_file_valid",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-api-proxy-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem"),
+			},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcAPIProxyCAFile)
+			},
+		},
+		{
+			name: "api_proxy_ca_file_invalid_pem",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-api-proxy-ca-file=" + filepath.Join(getTestDataPath(), "invalid_ca.pem"),
+			},
+			expectError:   true,
+			errorContains: "invalid oidc-api-proxy-ca-file",
+		},
+		{
+			name: "api_proxy_ca_file_not_found",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-api-proxy-ca-file=" + filepath.Join(getTestDataPath(), "nonexistent.pem"),
+			},
+			expectError:   true,
+			errorContains: "error reading oidc-api-proxy-ca-file",
+		},
+	}
+}
+
+// TestValidateAPIProxy verifies the oidc-api-proxy-* flag parsing and
+// validation logic in Config.Validate().
+func TestValidateAPIProxy(t *testing.T) {
+	for _, tt := range apiProxyValidateTests() {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			if tt.verify != nil {
+				tt.verify(t, conf)
+			}
+		})
+	}
+}

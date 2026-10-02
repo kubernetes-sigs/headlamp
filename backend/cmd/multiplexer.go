@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -32,6 +33,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/nsaccess"
 	"k8s.io/client-go/rest"
 )
 
@@ -136,6 +138,9 @@ type Multiplexer struct {
 	unsafeUseServiceAccountToken bool
 	// saTokenCache caches service account tokens keyed by file path; refreshed when mtime changes.
 	saTokenCache map[string]saTokenCacheEntry
+	// namespaceEventFilter, when set, decides which namespace watch events
+	// may be forwarded to the client.
+	namespaceEventFilter NamespaceEventFilter
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
 }
@@ -206,6 +211,49 @@ func (conn *WSConnLock) Close() error {
 	defer conn.writeMu.Unlock()
 
 	return conn.conn.Close()
+}
+
+// NamespaceEventFilter decides whether a namespace watch event read from the
+// cluster may be forwarded to the client that opened the watch.
+type NamespaceEventFilter func(
+	ctx context.Context,
+	kContext *kubeconfig.Context,
+	token string,
+	event []byte,
+) (bool, error)
+
+// SetNamespaceEventFilter installs the filter applied to namespace watches.
+func (m *Multiplexer) SetNamespaceEventFilter(filter NamespaceEventFilter) {
+	m.namespaceEventFilter = filter
+}
+
+// forwardNamespaceEvent reports whether a message read from a namespace
+// watch may be sent to the client. Messages of other watches, watches served
+// with the service account token and connections without a user token are
+// always forwarded. Filter errors drop the message (fail-closed).
+func (m *Multiplexer) forwardNamespaceEvent(conn *Connection, message []byte) bool {
+	if m.namespaceEventFilter == nil || !nsaccess.IsNamespaceListPath(conn.Path) ||
+		conn.Token == nil || conn.usesServiceAccountToken {
+		return true
+	}
+
+	kContext, err := m.getClusterContextWithFallback(conn.ClusterID, conn.UserID)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err,
+			"resolving context for namespace watch filter")
+
+		return false
+	}
+
+	allowed, err := m.namespaceEventFilter(context.Background(), kContext, *conn.Token, message)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err,
+			"filtering namespace watch event")
+
+		return false
+	}
+
+	return allowed
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
@@ -405,16 +453,16 @@ func (m *Multiplexer) establishClusterConnection(
 		connection.usesServiceAccountToken = true
 	}
 
-	wsURL := createWebSocketURL(config.Host, path, query)
-
-	tlsConfig, err := rest.TLSConfigFor(config)
+	host, tlsConfig, err := clusterUpstream(clusterContext, config)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
-		return nil, fmt.Errorf("failed to get TLS config: %w", err)
+		return nil, err
 	}
 
-	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
+	wsURL := createWebSocketURL(host, path, query)
+
+	conn, err := m.dialWebSocket(wsURL, tlsConfig, host, authToken)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
@@ -432,6 +480,23 @@ func (m *Multiplexer) establishClusterConnection(
 	go m.monitorConnection(connection)
 
 	return connection, nil
+}
+
+// clusterUpstream returns the host and TLS configuration the multiplexer
+// must dial for the given context. When the context routes traffic through
+// an external API proxy, the proxy URL and its TLS settings are used instead
+// of the kube-apiserver ones, mirroring Context.SetupProxy().
+func clusterUpstream(clusterContext *kubeconfig.Context, config *rest.Config) (string, *tls.Config, error) {
+	if apiProxy := clusterContext.APIProxyURL(); apiProxy != "" {
+		return apiProxy, clusterContext.APIProxyTLSConfig(), nil
+	}
+
+	tlsConfig, err := rest.TLSConfigFor(config)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get TLS config: %w", err)
+	}
+
+	return config.Host, tlsConfig, nil
 }
 
 // getClusterConfigWithFallback attempts to get the cluster config,
@@ -912,6 +977,10 @@ func (m *Multiplexer) processClusterMessage(
 		}
 
 		return err
+	}
+
+	if !m.forwardNamespaceEvent(conn, message) {
+		return nil
 	}
 
 	if err := m.sendIfNewResourceVersion(message, conn, clientConn, lastResourceVersion); err != nil {
