@@ -34,6 +34,7 @@ import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { ClusterDialog } from '../cluster/Chooser';
 import { DialogTitle } from '../common/Dialog';
 import HeadlampLink from '../common/Link';
+import PasswordForm from '../common/PasswordForm';
 
 export default function AuthToken() {
   const history = useHistory();
@@ -135,18 +136,20 @@ export function PureAuthToken({
           <DialogContentText>
             <Trans t={t}>Please paste your authentication token.</Trans>
           </DialogContentText>
-          <TextField
-            margin="dense"
-            id="token"
-            label={t('ID token')}
-            type="password"
-            size="small"
-            variant="outlined"
-            value={token}
-            onChange={onChangeToken}
-            fullWidth
-            inputRef={inputRef}
-          />
+          <PasswordForm>
+            <TextField
+              margin="dense"
+              id="token"
+              label={t('ID token')}
+              type="password"
+              size="small"
+              variant="outlined"
+              value={token}
+              onChange={onChangeToken}
+              fullWidth
+              inputRef={inputRef}
+            />
+          </PasswordForm>
         </DialogContent>
         <DialogActions>
           <Box ml={2}>
