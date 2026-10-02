@@ -75,6 +75,21 @@ cd frontend && npm run ci-lint
 
 You can run `ci-lint` locally before pushing to catch any react-hooks violations that CI would flag.
 
+## Resource details section builders
+
+`DetailsGrid` may receive a partially loaded resource, including an object with
+metadata but no `spec`. Section builders should check that the fields they need
+are available before using them.
+
+If a `headerSection`, `extraSections`, or legacy `sectionsFunc` callback throws
+while building the section list, `DetailsGrid` logs the error with the resource
+kind, namespace (when present), name, and cluster. It omits that callback's output
+for the current render while preserving the other sections. The callback runs
+again on subsequent renders, so its content can appear once the resource loads.
+When a section is a React element or component, its error boundary handles
+errors thrown during rendering. Direct ReactNode values, such as arrays returned
+by legacy `sectionsFunc`, are rendered without a per-section error boundary.
+
 ## API documentation
 
 API documentation for TypeScript is done with [typedoc](https://typedoc.org/) and [typedoc-plugin-markdown](https://github.com/tgreyuk/typedoc-plugin-markdown), and is configured in tsconfig.json.
