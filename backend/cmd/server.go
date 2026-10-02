@@ -259,10 +259,17 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+
+	if conf.RequireNamespaceGet {
+		headlampConfig.namespaceFilter = newNamespaceFilter()
+		multiplexer.SetNamespaceEventFilter(headlampConfig.namespaceEventFilter)
+	}
+
+	return headlampConfig
 }
 
 // loadAdminSettings reads and validates the admin settings JSON file.
