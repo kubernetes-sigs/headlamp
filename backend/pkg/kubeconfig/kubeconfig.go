@@ -75,6 +75,7 @@ type Context struct {
 	Source      int                    `json:"source"`
 	OidcConf    *OidcConfig            `json:"oidcConfig"`
 	proxy       *httputil.ReverseProxy `json:"-"`
+	proxyTarget *url.URL               `json:"-"`
 	Internal    bool                   `json:"internal"`
 	Error       string                 `json:"error"`
 	// KubeConfigPath is the file path for the kubeconfig file.
@@ -469,6 +470,50 @@ func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request
 	return nil
 }
 
+// ProxyRoundTrip sends req to the same upstream (kube-apiserver or API proxy)
+// through the same transport that ProxyRequest uses, but hands the response
+// back to the caller instead of writing it to a ResponseWriter. Only the
+// path, query, headers and body of req are used; scheme, host and the
+// upstream path prefix are set from the proxy target. The caller must close
+// the response body.
+func (c *Context) ProxyRoundTrip(req *http.Request) (*http.Response, error) {
+	if c.proxy == nil {
+		if err := c.SetupProxy(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Mirror what the single-host reverse proxy does to outgoing requests.
+	req.URL.Scheme = c.proxyTarget.Scheme
+	req.URL.Host = c.proxyTarget.Host
+	req.URL.Path = joinURLPath(c.proxyTarget.Path, req.URL.Path)
+	req.URL.RawPath = ""
+	req.Host = ""
+
+	transport := c.proxy.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+
+	return transport.RoundTrip(req)
+}
+
+// joinURLPath joins the upstream path prefix and a request path with exactly
+// one slash between them, like net/http/httputil does.
+func joinURLPath(prefix, path string) string {
+	aslash := strings.HasSuffix(prefix, "/")
+	bslash := strings.HasPrefix(path, "/")
+
+	switch {
+	case aslash && bslash:
+		return prefix + path[1:]
+	case !aslash && !bslash:
+		return prefix + "/" + path
+	}
+
+	return prefix + path
+}
+
 // ClientSetWithToken returns a kubernetes clientset for the context.
 func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error) {
 	restConf, err := c.RESTConfig()
@@ -633,6 +678,7 @@ func (c *Context) SetupProxy() error {
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 	c.setupProxyTransport(proxy)
 	c.proxy = proxy
+	c.proxyTarget = URL
 
 	return nil
 }
