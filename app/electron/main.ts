@@ -50,6 +50,7 @@ import { createCertificateSetup } from './certificates';
 import { setupClusterRegistrationHandler } from './cluster-registration';
 import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
+import { startHeadlessMode } from './headless';
 import i18n from './i18next.config';
 import {
   getLegalDocumentsResourcePath,
@@ -2122,14 +2123,20 @@ function attachServerEventHandlers(startedServerProcess: ChildProcessWithoutNull
 }
 
 if (isHeadlessMode) {
-  startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]).then(
-    serverProcess => {
+  // Keys extracted for headless error dialog
+  void i18n.t('Headlamp failed to start');
+  void i18n.t('The backend server could not be started:\n\n{{ error }}');
+
+  startHeadlessMode({
+    startServer: () =>
+      startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]),
+    onSuccess: serverProcess => {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
       setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
-    }
-  );
+    },
+  });
 } else {
   if (!isRunningScript) {
     startElectron();
