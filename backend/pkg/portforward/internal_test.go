@@ -193,6 +193,162 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestStopOrDeleteSetsRetired verifies that stop/delete sets the retired flag on
+// the shared pfState, marking the instance retired for all value copies.
+func TestStopOrDeleteSetsRetired(t *testing.T) {
+	cache := cache.New[interface{}]()
+
+	pf := &portForward{
+		state:     &pfState{},
+		ID:        "id-retired",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+	require.NoError(t, cache.Set(context.Background(), key, *pf))
+
+	err := stopOrDeletePortForward(cache, "cluster", "id-retired", false)
+	require.NoError(t, err)
+
+	pf.state.mu.Lock()
+	retired := pf.state.retired
+	pf.state.mu.Unlock()
+	assert.True(t, retired)
+
+	_, err = cache.Get(context.Background(), key)
+	assert.Error(t, err)
+}
+
+// TestTerminalWriteBlockedWhileDeleteInProgress verifies that while stop/delete
+// holds the state mutex, a concurrent status write waits, and once delete finishes,
+// the write is skipped because the instance was marked retired.
+func TestTerminalWriteBlockedWhileDeleteInProgress(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	pf := &portForward{
+		state:     &pfState{},
+		ID:        "id-race",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+	require.NoError(t, testCache.Set(context.Background(), key, *pf))
+
+	// Acquire the mutex to simulate stopOrDeletePortForward in progress
+	pf.state.mu.Lock()
+
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+
+		pf.updateAndStore(testCache, func(p *portForward) bool {
+			p.Status = STOPPED
+			p.Error = "late write"
+
+			return true
+		})
+	}()
+
+	// The write must be blocked for as long as state.mu is held
+	select {
+	case <-writeDone:
+		t.Fatal("terminal write completed while state mutex was held")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cached, err := getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cached.Status)
+
+	// Complete the delete: mark retired and delete from cache, then release lock
+	pf.state.retired = true
+
+	require.NoError(t, testCache.Delete(context.Background(), key))
+	pf.state.mu.Unlock()
+
+	<-writeDone
+
+	// The late write saw retired == true and skipped its store, keeping entry deleted
+	_, err = getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	assert.Error(t, err)
+}
+
+// TestSameIDRestartSurvivesOldGoroutine covers the restart case: a new forward
+// reusing the ID of one that is still shutting down. The old goroutine must
+// not overwrite the newly restarted cache entry with its stale snapshot.
+func TestSameIDRestartSurvivesOldGoroutine(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	oldPF := &portForward{
+		state:     &pfState{},
+		ID:        "id-restart",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*oldPF)
+	require.NoError(t, testCache.Set(context.Background(), key, *oldPF))
+
+	// Stop or delete the old forward
+	require.NoError(t, stopOrDeletePortForward(testCache, "cluster", oldPF.ID, false))
+
+	// The restart creates a new instance with its own state under the same key
+	newPF := &portForward{
+		state:     &pfState{},
+		ID:        oldPF.ID,
+		Cluster:   oldPF.Cluster,
+		cacheKey:  oldPF.cacheKey,
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	require.NoError(t, testCache.Set(context.Background(), key, *newPF))
+
+	// The old goroutine's terminal write must not clobber the restarted entry
+	oldPF.updateAndStore(testCache, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "stale snapshot"
+
+		return true
+	})
+
+	cached, err := getPortForwardByID(testCache, oldPF.cacheKey, oldPF.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cached.Status)
+	assert.Empty(t, cached.Error)
+}
+
+// TestDeleteThenLateWriteKeepsEntryDeleted runs the whole delete path and then
+// lets the forwarding goroutine finish, which is the sequence reported in the
+// issue: the entry must stay gone.
+func TestDeleteThenLateWriteKeepsEntryDeleted(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	pf := &portForward{
+		state:     &pfState{},
+		ID:        "id-late",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+	require.NoError(t, testCache.Set(context.Background(), key, *pf))
+
+	require.NoError(t, stopOrDeletePortForward(testCache, "cluster", pf.ID, false))
+
+	pf.updateAndStore(testCache, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "ForwardPorts() exited"
+
+		return true
+	})
+
+	_, err := getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	assert.Error(t, err)
+}
+
 // TestGetPortForwardList tests getPortForwardList function.
 func TestGetPortForwardList(t *testing.T) {
 	p1 := portForward{ID: "id1", Cluster: "cluster1"}
