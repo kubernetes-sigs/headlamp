@@ -2347,7 +2347,9 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			clearRequestAuthorization(r)
-		} else {
+		} else if strings.TrimSpace(r.Header.Get("Authorization")) == "" ||
+			(c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" &&
+				strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)) != "") {
 			var token string
 
 			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
