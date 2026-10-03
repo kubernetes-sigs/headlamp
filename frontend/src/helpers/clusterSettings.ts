@@ -88,6 +88,43 @@ export function loadClusterSettings(clusterName: string): ClusterSettings {
 }
 
 /**
+ * Moves a cluster's settings, and its cached allowed namespaces, to a new cluster name.
+ * They are stored under the cluster name, so without this a renamed cluster would lose
+ * them. Afterwards the new name holds exactly what the old name had: anything left under
+ * the new name by a cluster that used that name before is cleared.
+ *
+ * @param oldName - The cluster name before the rename.
+ * @param newName - The cluster name after the rename.
+ */
+export function renameClusterSettings(oldName: string, newName: string) {
+  if (!oldName || !newName || oldName === newName) {
+    return;
+  }
+
+  try {
+    if (localStorage.getItem(`cluster_settings.${oldName}`) !== null) {
+      const settings = { ...loadClusterSettings(oldName) };
+      // currentName is the name editor's record of the old name, so it stays behind.
+      delete settings.currentName;
+      storeClusterSettings(newName, settings);
+      localStorage.removeItem(`cluster_settings.${oldName}`);
+    } else {
+      localStorage.removeItem(`cluster_settings.${newName}`);
+    }
+
+    const resolved = localStorage.getItem(resolvedAllowedNamespacesKey(oldName));
+    if (resolved !== null) {
+      localStorage.setItem(resolvedAllowedNamespacesKey(newName), resolved);
+      localStorage.removeItem(resolvedAllowedNamespacesKey(oldName));
+    } else {
+      localStorage.removeItem(resolvedAllowedNamespacesKey(newName));
+    }
+  } catch (error) {
+    console.warn(`Failed to move cluster settings from ${oldName} to ${newName}:`, error);
+  }
+}
+
+/**
  * Namespaces resolved from a cluster's allowedNamespacesSelector, cached in
  * localStorage. This is derived data (the source of truth is the API server), so
  * it lives under its own key instead of inside the user's cluster settings blob

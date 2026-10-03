@@ -23,6 +23,7 @@ import {
   isResolvedAllowedNamespacesStale,
   loadClusterSettings,
   loadResolvedAllowedNamespaces,
+  renameClusterSettings,
   storeClusterSettings,
   storeResolvedAllowedNamespaces,
 } from './clusterSettings';
@@ -288,6 +289,55 @@ describe('clusterSettings', () => {
           resolvedAt + ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS + 1
         )
       ).toBe(true);
+    });
+  });
+
+  describe('renameClusterSettings', () => {
+    it('moves the settings and the resolved allowed namespaces to the new name', () => {
+      const settings: ClusterSettings = {
+        allowedNamespaces: ['watch-demo'],
+        defaultNamespace: 'watch-demo',
+        appearance: { accentColor: '#ff0000' },
+      };
+      storeClusterSettings('minikube', settings);
+      storeResolvedAllowedNamespaces('minikube', 'team=a', ['watch-demo']);
+
+      renameClusterSettings('minikube', 'mk-renamed');
+
+      expect(loadClusterSettings('mk-renamed')).toEqual(settings);
+      expect(loadResolvedAllowedNamespaces('mk-renamed')?.namespaces).toEqual(['watch-demo']);
+      expect(localStorage.getItem('cluster_settings.minikube')).toBeNull();
+      expect(loadResolvedAllowedNamespaces('minikube')).toBeNull();
+    });
+
+    it('does not carry the old currentName over to the new name', () => {
+      storeClusterSettings('minikube', { currentName: 'old-alias', defaultNamespace: 'demo' });
+
+      renameClusterSettings('minikube', 'mk-renamed');
+
+      expect(loadClusterSettings('mk-renamed')).toEqual({ defaultNamespace: 'demo' });
+    });
+
+    it('clears leftovers under the new name when nothing is stored for the old one', () => {
+      // Left behind by a different cluster that used the name "mk-renamed" before
+      storeClusterSettings('mk-renamed', { defaultNamespace: 'other', allowedNamespaces: ['x'] });
+      storeResolvedAllowedNamespaces('mk-renamed', 'team=x', ['x']);
+
+      renameClusterSettings('minikube', 'mk-renamed');
+
+      expect(localStorage.getItem('cluster_settings.mk-renamed')).toBeNull();
+      expect(loadResolvedAllowedNamespaces('mk-renamed')).toBeNull();
+    });
+
+    it('does nothing when the names are the same or empty', () => {
+      storeClusterSettings('minikube', { defaultNamespace: 'demo' });
+
+      renameClusterSettings('minikube', 'minikube');
+      renameClusterSettings('minikube', '');
+      renameClusterSettings('', 'mk-renamed');
+
+      expect(loadClusterSettings('minikube')).toEqual({ defaultNamespace: 'demo' });
+      expect(localStorage.getItem('cluster_settings.mk-renamed')).toBeNull();
     });
   });
 });
