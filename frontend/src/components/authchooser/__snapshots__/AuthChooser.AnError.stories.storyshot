@@ -26,7 +26,7 @@
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
-        <h2
+        <div
           class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-wlr4ab-MuiTypography-root-MuiDialogTitle-root"
           id="authchooser-dialog-title"
           style="display: flex;"
@@ -67,14 +67,14 @@
               </div>
             </div>
           </div>
-        </h2>
+        </div>
         <div
           class="MuiDialogContent-root MuiDialogContent-dividers css-gl9hfx-MuiDialogContent-root"
         >
           <main
             class="MuiBox-root css-dvxtzn"
           >
-            <h2
+            <div
               class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
               id="authchooser-dialog-title"
               style="display: flex;"
@@ -95,7 +95,7 @@
                   </h1>
                 </div>
               </div>
-            </h2>
+            </div>
             <div
               class="MuiBox-root css-164mdc"
             >
