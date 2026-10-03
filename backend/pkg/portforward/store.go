@@ -80,6 +80,13 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 	// This prevents orphaned goroutines and leaked ports.
 	safeCloseChan(portforward.closeChan)
 
+	if portforward.state != nil {
+		portforward.state.mu.Lock()
+		defer portforward.state.mu.Unlock()
+
+		portforward.state.retired = true
+	}
+
 	if isStopRequest {
 		portforward.Status = STOPPED
 		portforwardstore(cache, portforward)
