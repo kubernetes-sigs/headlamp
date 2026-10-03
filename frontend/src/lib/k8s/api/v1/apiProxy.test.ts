@@ -505,7 +505,7 @@ describe('apiProxy', () => {
     });
 
     it('Successfully handles error messages', async () => {
-      expect.assertions(2);
+      expect.assertions(3);
 
       apiProxy.streamResult(streamResultsUrl, mockConfigMap.metadata.name, cb, errCb, {
         watch: '1',
@@ -515,7 +515,17 @@ describe('apiProxy', () => {
       expect(cb).toHaveBeenNthCalledWith(1, mockConfigMap);
 
       mockServer.send(JSON.stringify(errorMessage));
-      expect(cb).toHaveBeenNthCalledWith(2, errorMessage.object);
+
+      // An ERROR event carries a Status object, not the watched resource, so it
+      // must reach errCb rather than being handed to cb as an update.
+      expect(cb).toHaveBeenCalledTimes(1);
+      expect(errCb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: errorMessage.object.reason,
+          message: errorMessage.object.message,
+        }),
+        expect.any(Function)
+      );
     });
 
     it('Successfully handles stream cancellation', () =>
