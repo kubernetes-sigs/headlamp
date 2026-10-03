@@ -71,6 +71,29 @@ export function resolveBackendToken(
   return isDevelopment && useExternalServer && configuredToken ? configuredToken : generateToken();
 }
 
+/**
+ * Configures the HEADLAMP_BACKEND_TOKEN environment variable for the spawned backend process.
+ *
+ * In standard Electron mode, the token is set so the backend requires desktop IPC credentials.
+ * In headless browser mode, token enforcement is disabled because external system browsers
+ * cannot receive the token via Electron IPC.
+ *
+ * @param env - Target environment variable dictionary.
+ * @param token - Resolved backend token.
+ * @param isHeadless - Whether Headlamp is running in headless mode.
+ */
+export function configureBackendTokenEnv(
+  env: Record<string, string | undefined>,
+  token: string,
+  isHeadless: boolean
+): void {
+  if (!isHeadless) {
+    env.HEADLAMP_BACKEND_TOKEN = token;
+  } else {
+    delete env.HEADLAMP_BACKEND_TOKEN;
+  }
+}
+
 interface ExternalBackendWaitOptions {
   /** Number of authenticated readiness attempts. */
   attempts?: number;
