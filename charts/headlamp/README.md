@@ -537,11 +537,11 @@ topologySpreadConstraints:
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget resource |
-| podDisruptionBudget.minAvailable | integer \| string \| null | `0` | Minimum pods that must be available. Rendered only when set to a positive integer or a percentage string (e.g. `"1"` or `"50%"`). Schema default is 0, but the chart skips rendering `0`. |
-| podDisruptionBudget.maxUnavailable | integer \| string \| null | `null` | Maximum pods allowed to be unavailable. Accepts integer >= 0 or percentage string. Mutually exclusive with `minAvailable`; the template renders this field when set. |
+| podDisruptionBudget.minAvailable | integer \| string \| null | `0` | Minimum pods that must be available. Accepts integer >= 0 or percentage string (e.g. `1` or `"50%"`). Rendered when not `null`, except that the default `0` is skipped when `maxUnavailable` is set. |
+| podDisruptionBudget.maxUnavailable | integer \| string \| null | `null` | Maximum pods allowed to be unavailable. Accepts integer >= 0 or percentage string. Mutually exclusive with `minAvailable`; the template renders this field when not `null`, including `0`. |
 | podDisruptionBudget.unhealthyPodEvictionPolicy | string \| null | `null` | Eviction policy: `"IfHealthyBudget"` or `"AlwaysAllow"`. Emitted only on clusters running Kubernetes >= 1.27 and when explicitly set in values. |
 
-Note: Ensure `minAvailable` and `maxUnavailable` are not both set (use `null` to disable one). To include `minAvailable` in the rendered PDB, set a positive integer or percentage; the template omits a `0` value.
+Note: Ensure `minAvailable` and `maxUnavailable` are not both set (use `null` to disable one). Do not set both to `null`: a PDB with neither field blocks all voluntary evictions, so `kubectl drain` cannot evict the Headlamp pod.
 
 Example, Require at least 1 pod available (ensure maxUnavailable is disabled):
 ```yaml
