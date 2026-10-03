@@ -4259,6 +4259,109 @@ func TestClusterRequestHandlerFallsBackToClusterContextForWebSocketCookie(t *tes
 	assert.Equal(t, "v4.channel.k8s.io", receivedProtocol)
 }
 
+func TestClusterRequestHandlerAuthorizationPrecedence(t *testing.T) { //nolint:funlen
+	const (
+		backendToken = "test-backend-token"
+		cluster      = "main"
+	)
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	websocketToken := base64.RawURLEncoding.EncodeToString([]byte("websocket-token"))
+	tests := []struct {
+		name              string
+		authorization     string
+		websocketProtocol string
+		cookieToken       string
+		expectedAuth      string
+	}{
+		{
+			name:              "WebSocket protocol token takes precedence over cookie",
+			websocketProtocol: "base64url.bearer.authorization.k8s.io." + websocketToken,
+			cookieToken:       "cookie-token",
+			expectedAuth:      "Bearer websocket-token",
+		},
+		{
+			name:          "existing Authorization header takes precedence over cookie",
+			authorization: "Bearer existing-token",
+			cookieToken:   "cookie-token",
+			expectedAuth:  "Bearer existing-token",
+		},
+		{
+			name:         "cookie is used when Authorization is absent",
+			cookieToken:  "cookie-token",
+			expectedAuth: "Bearer cookie-token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				"/clusters/main/api/v1/pods", nil)
+			req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+
+			if tt.authorization != "" {
+				req.Header.Set("Authorization", tt.authorization)
+			}
+
+			if tt.websocketProtocol != "" {
+				req.Header.Set("Upgrade", "websocket")
+				req.Header.Set("Sec-Websocket-Protocol", tt.websocketProtocol)
+			}
+
+			if tt.cookieToken != "" {
+				req.AddCookie(&http.Cookie{
+					Name:     "headlamp-auth-main.0",
+					Value:    tt.cookieToken,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
+				})
+			}
+
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tt.expectedAuth, receivedAuth)
+		})
+	}
+}
+
 func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	const backendToken = "test-backend-token"
 	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
@@ -4312,6 +4415,91 @@ func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "Bearer proxy-token", receivedAuth)
 	assert.Empty(t, receivedProxyAuthToken)
+}
+
+func TestClusterRequestHandlerProxyAuthPrecedenceOverAuthorizationHeader(t *testing.T) { //nolint:funlen
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	const cluster, proxyHeaderName = "main", "X-Proxy-Auth-Header"
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			ProxyAuthEnabled:     true,
+			ProxyAuthTokenHeader: proxyHeaderName,
+			Cache:                cache.New[interface{}](),
+			TelemetryConfig:      GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:     &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	tests := []struct {
+		name          string
+		authorization string
+		proxyValue    string
+		expectedAuth  string
+	}{
+		{
+			name:          "proxy token header overrides existing Authorization header",
+			authorization: "Bearer proxy-session-val",
+			proxyValue:    "k8s-id-val",
+			expectedAuth:  "Bearer k8s-id-val",
+		},
+		{
+			name:          "existing Authorization header is preserved when proxy token header is empty",
+			authorization: "Bearer websocket-bearer-val",
+			proxyValue:    "",
+			expectedAuth:  "Bearer websocket-bearer-val",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+			req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+
+			if tt.authorization != "" {
+				req.Header.Set("Authorization", tt.authorization)
+			}
+
+			if tt.proxyValue != "" {
+				req.Header.Set(proxyHeaderName, tt.proxyValue)
+			}
+
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tt.expectedAuth, receivedAuth)
+			assert.Empty(t, req.Header.Get(proxyHeaderName))
+		})
+	}
 }
 
 func TestAllowedHosts(t *testing.T) {
