@@ -197,6 +197,326 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestStopOrDeleteSetsRetired verifies that stop/delete sets the retired flag on
+// the shared pfState, marking the instance retired for all value copies.
+func TestStopOrDeleteSetsRetired(t *testing.T) {
+	cache := cache.New[interface{}]()
+
+	pf := &portForward{
+		state:     &pfState{},
+		ID:        "id-retired",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+	require.NoError(t, cache.Set(context.Background(), key, *pf))
+
+	err := stopOrDeletePortForward(cache, "cluster", "id-retired", false)
+	require.NoError(t, err)
+
+	pf.state.mu.Lock()
+	retired := pf.state.retired
+	pf.state.mu.Unlock()
+	assert.True(t, retired)
+
+	_, err = cache.Get(context.Background(), key)
+	assert.Error(t, err)
+}
+
+// TestTerminalWriteBlockedWhileDeleteInProgress verifies that while stop/delete
+// holds the state mutex, a concurrent status write waits, and once delete finishes,
+// the write is skipped because the instance was marked retired.
+func TestTerminalWriteBlockedWhileDeleteInProgress(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	pf := &portForward{
+		state:     &pfState{},
+		ID:        "id-race",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+	require.NoError(t, testCache.Set(context.Background(), key, *pf))
+
+	// Acquire the mutex to simulate stopOrDeletePortForward in progress
+	pf.state.mu.Lock()
+
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+
+		pf.updateAndStore(testCache, func(p *portForward) bool {
+			p.Status = STOPPED
+			p.Error = "late write"
+
+			return true
+		})
+	}()
+
+	// The write must be blocked for as long as state.mu is held
+	select {
+	case <-writeDone:
+		t.Fatal("terminal write completed while state mutex was held")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cached, err := getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cached.Status)
+
+	// Complete the delete: mark retired and delete from cache, then release lock
+	pf.state.retired = true
+
+	require.NoError(t, testCache.Delete(context.Background(), key))
+	pf.state.mu.Unlock()
+
+	<-writeDone
+
+	// The late write saw retired == true and skipped its store, keeping entry deleted
+	_, err = getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	assert.Error(t, err)
+}
+
+// TestSameIDRestartSurvivesOldGoroutine covers concurrent same-ID replacements:
+// a new forward reusing the ID of one that is being stopped or deleted.
+// A deterministic barrier pauses stop/delete after resolving the old instance, inserts
+// the replacement before cache mutation, and verifies that the replacement survives both
+// the old operation and any late terminal writes from the old instance.
+func TestSameIDRestartSurvivesOldGoroutine(t *testing.T) {
+	for _, isStopRequest := range []bool{false, true} {
+		name := "delete"
+		if isStopRequest {
+			name = "stop"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			testCache := cache.New[interface{}]()
+			oldPF := &portForward{
+				state:     &pfState{},
+				ID:        "id-restart",
+				Cluster:   "cluster",
+				cacheKey:  "cluster",
+				closeChan: make(chan struct{}, 1),
+				Status:    RUNNING,
+			}
+			portforwardstore(testCache, *oldPF)
+
+			newPF := &portForward{
+				state:     &pfState{},
+				ID:        oldPF.ID,
+				Cluster:   oldPF.Cluster,
+				cacheKey:  oldPF.cacheKey,
+				closeChan: make(chan struct{}, 1),
+				Status:    RUNNING,
+			}
+
+			barrierRan := false
+
+			stopOrDeleteBarrier = func() {
+				barrierRan = true
+				// Insert the replacement before the old operation's cache mutation
+				portforwardstore(testCache, *newPF)
+			}
+
+			defer func() {
+				stopOrDeleteBarrier = nil
+			}()
+
+			require.NoError(t, stopOrDeletePortForward(testCache, "cluster", oldPF.ID, isStopRequest))
+			assert.True(t, barrierRan, "barrier must be executed")
+
+			// The replacement must survive the old stop/delete operation
+			cached, err := getPortForwardByID(testCache, oldPF.cacheKey, oldPF.ID)
+			require.NoError(t, err)
+			assert.Equal(t, RUNNING, cached.Status)
+			assert.Equal(t, newPF.state, cached.state)
+
+			// The old goroutine's terminal write must not clobber the restarted entry
+			oldPF.updateAndStore(testCache, func(p *portForward) bool {
+				p.Status = STOPPED
+				p.Error = "stale snapshot"
+
+				return true
+			})
+
+			cachedAfterWrite, err := getPortForwardByID(testCache, oldPF.cacheKey, oldPF.ID)
+			require.NoError(t, err)
+			assert.Equal(t, RUNNING, cachedAfterWrite.Status)
+			assert.Empty(t, cachedAfterWrite.Error)
+			assert.Equal(t, newPF.state, cachedAfterWrite.state)
+		})
+	}
+}
+
+// TestRestartFromStoppedEntryUpdatesCache verifies that a same-ID restart
+// from a stopped entry replaces the stopped snapshot in the cache on its first write,
+// while stale writes from the previous forward cannot overwrite it.
+func TestRestartFromStoppedEntryUpdatesCache(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	oldPF := &portForward{
+		state:      &pfState{},
+		ID:         "same-id-restart",
+		Cluster:    "cluster",
+		cacheKey:   "cluster",
+		generation: 1,
+		Status:     STOPPED,
+	}
+	portforwardstore(testCache, *oldPF)
+
+	newPF := &portForward{
+		state:      &pfState{},
+		ID:         "same-id-restart",
+		Cluster:    "cluster",
+		cacheKey:   "cluster",
+		generation: 2,
+	}
+
+	// New instance's updateAndStore must successfully replace the stopped snapshot
+	newPF.updateAndStore(testCache, func(p *portForward) bool {
+		p.Status = RUNNING
+		return true
+	})
+
+	cached, err := getPortForwardByID(testCache, newPF.cacheKey, newPF.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cached.Status)
+	assert.Equal(t, uint64(2), cached.generation)
+	assert.Equal(t, newPF.state, cached.state)
+
+	// Old instance's late write must be rejected and not clobber the new instance
+	oldPF.updateAndStore(testCache, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "stale"
+
+		return true
+	})
+
+	cachedAfterOldWrite, err := getPortForwardByID(testCache, newPF.cacheKey, newPF.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cachedAfterOldWrite.Status)
+	assert.Equal(t, uint64(2), cachedAfterOldWrite.generation)
+	assert.Empty(t, cachedAfterOldWrite.Error)
+
+	// Delete the replacement entry
+	require.NoError(t, stopOrDeletePortForward(testCache, newPF.cacheKey, newPF.ID, false))
+
+	_, err = getPortForwardByID(testCache, newPF.cacheKey, newPF.ID)
+	assert.Error(t, err)
+
+	// Old instance's late write after deletion of the replacement must also be rejected
+	oldPF.updateAndStore(testCache, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "stale after delete"
+
+		return true
+	})
+
+	_, err = getPortForwardByID(testCache, newPF.cacheKey, newPF.ID)
+	assert.Error(t, err)
+}
+
+// TestReconnectStoppedDuringPause verifies that when a port forward is stopped/deleted
+// while reconnect is in progress, the reconnect operation is aborted, the new forwarder's
+// stop channel is closed, and the port forward remains absent in the cache.
+//
+//nolint:funlen
+func TestReconnectStoppedDuringPause(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	stopChan := make(chan struct{})
+
+	state := &pfState{
+		closeChan: stopChan,
+	}
+	pfDetails := &portForward{
+		state:            state,
+		ID:               "id-reconnect-pause",
+		Cluster:          "cluster",
+		cacheKey:         "cluster",
+		closeChan:        stopChan,
+		Service:          "test-svc",
+		ServiceNamespace: "default",
+		Port:             "8080",
+		TargetPort:       "8080",
+		Status:           RECONNECTING,
+		rConf:            &rest.Config{Host: "https://127.0.0.1:6443"},
+	}
+	portforwardstore(testCache, *pfDetails)
+
+	ready := true
+	slice := &discoveryv1.EndpointSlice{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "test-svc-slice",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "test-svc"},
+		},
+		Endpoints: []discoveryv1.Endpoint{
+			{
+				Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+				TargetRef: &corev1.ObjectReference{
+					Kind:      "Pod",
+					Name:      "pod-replacement",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+	clientset := fake.NewClientset(slice)
+
+	barrierRan := false
+	reconnectBarrier = func() {
+		barrierRan = true
+
+		require.NoError(t, stopOrDeletePortForward(testCache, pfDetails.cacheKey, pfDetails.ID, false))
+	}
+
+	defer func() {
+		reconnectBarrier = nil
+	}()
+
+	logParams := map[string]string{"id": pfDetails.ID}
+	ok, abort := tryReconnectOnce(clientset, testCache, pfDetails, logParams)
+
+	assert.True(t, barrierRan, "barrier must be executed")
+	assert.False(t, ok)
+	assert.True(t, abort)
+
+	// Cache must not have resurrected the entry
+	_, err := getPortForwardByID(testCache, pfDetails.cacheKey, pfDetails.ID)
+	assert.Error(t, err)
+}
+
+// TestDeleteThenLateWriteKeepsEntryDeleted runs the whole delete path and then
+// lets the forwarding goroutine finish, which is the sequence reported in the
+// issue: the entry must stay gone.
+func TestDeleteThenLateWriteKeepsEntryDeleted(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	pf := &portForward{
+		state:     &pfState{},
+		ID:        "id-late",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+	require.NoError(t, testCache.Set(context.Background(), key, *pf))
+
+	require.NoError(t, stopOrDeletePortForward(testCache, "cluster", pf.ID, false))
+
+	pf.updateAndStore(testCache, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "ForwardPorts() exited"
+
+		return true
+	})
+
+	_, err := getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	assert.Error(t, err)
+}
+
 // TestGetPortForwardList tests getPortForwardList function.
 func TestGetPortForwardList(t *testing.T) {
 	p1 := portForward{ID: "id1", Cluster: "cluster1"}
