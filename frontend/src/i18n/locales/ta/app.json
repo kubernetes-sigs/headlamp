@@ -52,6 +52,8 @@
   "Failed to start": "",
   "Could not start the server even after terminating existing processes.": "",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
+  "Headlamp failed to start": "",
+  "The backend server could not be started:\n\n{{ error }}": "",
   "Invalid URL": "தவறான URL",
   "Application opened with an invalid URL: {{ url }}": "பயன்பாடு தவறான URL உடன் திறக்கப்பட்டது: {{ url }}",
   "OAuth callback failed": "",
