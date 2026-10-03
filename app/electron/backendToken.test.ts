@@ -17,6 +17,7 @@
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  configureBackendTokenEnv,
   INTERNAL_BACKEND_READY_MESSAGE,
   observeInternalBackendReady,
   resolveBackendToken,
@@ -88,6 +89,20 @@ describe('resolveBackendToken', () => {
       expect(generateToken).toHaveBeenCalledOnce();
     }
   );
+});
+
+describe('configureBackendTokenEnv', () => {
+  it('sets HEADLAMP_BACKEND_TOKEN when not in headless mode', () => {
+    const env: Record<string, string | undefined> = {};
+    configureBackendTokenEnv(env, 'desktop-token', false);
+    expect(env.HEADLAMP_BACKEND_TOKEN).toBe('desktop-token');
+  });
+
+  it('removes HEADLAMP_BACKEND_TOKEN when in headless mode', () => {
+    const env: Record<string, string | undefined> = { HEADLAMP_BACKEND_TOKEN: 'existing-token' };
+    configureBackendTokenEnv(env, 'desktop-token', true);
+    expect(env.HEADLAMP_BACKEND_TOKEN).toBeUndefined();
+  });
 });
 
 describe('waitForExternalBackend', () => {

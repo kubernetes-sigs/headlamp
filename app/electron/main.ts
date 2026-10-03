@@ -42,6 +42,7 @@ import {
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
 import {
+  configureBackendTokenEnv,
   observeInternalBackendReady,
   resolveBackendToken,
   waitForExternalBackend,
@@ -901,7 +902,7 @@ async function startServer(
   process.env.HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES = 'true';
 
   // Pass a token to the backend that can be used for auth on some routes
-  process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
+  configureBackendTokenEnv(process.env, backendToken, isHeadlessMode);
 
   // Set the bundled plugins in addition to the user's plugins.
   try {
