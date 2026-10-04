@@ -802,6 +802,7 @@ func setupInClusterContext(config *HeadlampConfig) {
 		config.OidcAPIProxySkipTLSVerify,
 		config.UnsafeUseServiceAccountToken,
 		config.ServiceAccountTokenPath,
+		config.OidcUseImpersonation,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
