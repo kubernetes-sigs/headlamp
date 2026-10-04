@@ -175,33 +175,64 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
   },
 });
 
+/** The parts of a pod spec that can reference a ConfigMap or a Secret. */
+interface PodSpecRefs {
+  containers?: any[];
+  initContainers?: any[];
+  ephemeralContainers?: any[];
+  volumes?: any[];
+}
+
+const allContainers = (spec?: PodSpecRefs): any[] => [
+  ...(spec?.containers ?? []),
+  ...(spec?.initContainers ?? []),
+  ...(spec?.ephemeralContainers ?? []),
+];
+
+/** Whether a pod spec mounts or injects the ConfigMap with the given name. */
+const podSpecUsesConfigMap = (spec: PodSpecRefs | undefined, name: string) =>
+  Boolean(
+    spec?.volumes?.some(
+      volume =>
+        volume?.configMap?.name === name ||
+        volume?.projected?.sources?.some((source: any) => source?.configMap?.name === name)
+    ) ||
+      allContainers(spec).some(
+        container =>
+          container?.envFrom?.some((source: any) => source?.configMapRef?.name === name) ||
+          container?.env?.some((env: any) => env?.valueFrom?.configMapKeyRef?.name === name)
+      )
+  );
+
+/** Whether a pod spec mounts or injects the Secret with the given name. */
+const podSpecUsesSecret = (spec: PodSpecRefs | undefined, name: string) =>
+  Boolean(
+    spec?.volumes?.some(
+      volume =>
+        volume?.secret?.secretName === name ||
+        volume?.projected?.sources?.some((source: any) => source?.secret?.name === name)
+    ) ||
+      allContainers(spec).some(
+        container =>
+          container?.envFrom?.some((source: any) => source?.secretRef?.name === name) ||
+          container?.env?.some((env: any) => env?.valueFrom?.secretKeyRef?.name === name)
+      )
+  );
+
 const configMapUsedInPods = makeRelation('pod-configmap', Pod, ConfigMap, (pod, configMap) =>
-  pod.spec.volumes?.find(volume => volume.configMap?.name === configMap.metadata.name)
+  podSpecUsesConfigMap(pod.spec, configMap.metadata.name)
 );
 
 const configMapUsedInJobs = makeRelation('job-configmap', Job, ConfigMap, (job, configMap) =>
-  job.spec.template.spec.volumes?.find(
-    volume => volume?.configMap?.name === configMap.metadata.name
-  )
+  podSpecUsesConfigMap(job.spec?.template?.spec, configMap.metadata.name)
 );
 
-const secretsUsedInPods = makeRelation(
-  'pod-secret',
-  Pod,
-  Secret,
-  (pod, secret) =>
-    pod.spec.containers?.find(container =>
-      container.env?.find(env => secret.metadata.name === env.valueFrom?.secretKeyRef?.name)
-    ) ??
-    pod.spec.volumes?.find(volume =>
-      volume.projected?.sources?.find((source: any) => source.secret?.name === secret.metadata.name)
-    )
+const secretsUsedInPods = makeRelation('pod-secret', Pod, Secret, (pod, secret) =>
+  podSpecUsesSecret(pod.spec, secret.metadata.name)
 );
 
 const secretsUsedInJobs = makeRelation('job-secret', Job, Secret, (job, secret) =>
-  job.spec.template.spec.containers?.find(container =>
-    container.env?.find(env => secret.metadata.name === env.valueFrom?.secretKeyRef?.name)
-  )
+  podSpecUsesSecret(job.spec?.template?.spec, secret.metadata.name)
 );
 
 const hpaToDeployment = makeRelation(
