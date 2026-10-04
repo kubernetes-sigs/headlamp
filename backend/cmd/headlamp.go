@@ -82,6 +82,8 @@ type HeadlampConfig struct {
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	impersonationOnce sync.Once
+	impersonationCfg  *impersonationConfig
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -770,10 +772,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
+			impersonation, err := config.impersonationFor(w, r, mux.Vars(r)["clusterName"], contextKey)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+
 			portforward.StartPortForward(
 				config.KubeConfigStore,
 				config.Cache,
 				config.shouldUseUnsafeServiceAccountToken(),
+				impersonation,
 				contextKey,
 				w,
 				r,
@@ -888,6 +897,19 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		proxyReq.Header = make(http.Header)
 		for h, val := range r.Header {
 			proxyReq.Header[h] = val
+		}
+
+		// Headlamp's own auth cookies must never reach this target: they are scoped to the
+		// whole deployment (see auth.GetCookiePath), so a single request carries every
+		// cluster's auth token, and this handler forwards to an operator-configured but
+		// otherwise arbitrary external URL -- not one of our own cluster API servers. Only
+		// those cookies are stripped; a caller's own cookies for that external destination are
+		// still forwarded, since the caller put them there for a reason this handler does not
+		// own.
+		proxyReq.Header.Del("Cookie")
+
+		for _, cookie := range auth.FilterAuthCookies(r) {
+			proxyReq.AddCookie(cookie)
 		}
 
 		// Disable caching
@@ -1242,18 +1264,31 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			redirectURL += baseURL + "/"
 		}
 
+		// The cookie's path is only widened to the whole deployment when impersonation
+		// applies to this cluster (see auth.GetCookiePath); an unknown context does not.
+		callbackKContext, _ := config.KubeConfigStore.GetContext(oauthConfig.Cluster)
+		useDeploymentCookieScope := config.shouldUseImpersonationForContext(callbackKContext)
+
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+		if err := auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL,
+			config.SessionTTL, useDeploymentCookieScope); err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": oauthConfig.Cluster}, err,
+				"failed to set auth cookie after OIDC login")
+			http.Error(w, "failed to complete login", http.StatusInternalServerError)
+
+			return
+		}
 
 		if config.OidcUseTokenBroadcast {
 			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
-				Writer:          w,
-				Request:         r,
-				KubeConfigStore: config.KubeConfigStore,
-				SourceCluster:   oauthConfig.Cluster,
-				Token:           rawUserToken,
-				BaseURL:         config.BaseURL,
-				SessionTTL:      config.SessionTTL,
+				Writer:               w,
+				Request:              r,
+				KubeConfigStore:      config.KubeConfigStore,
+				SourceCluster:        oauthConfig.Cluster,
+				Token:                rawUserToken,
+				BaseURL:              config.BaseURL,
+				SessionTTL:           config.SessionTTL,
+				OidcUseImpersonation: config.OidcUseImpersonation,
 			})
 		}
 
@@ -1324,6 +1359,288 @@ func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
 
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *kubeconfig.Context) bool {
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
+}
+
+// shouldUseImpersonation reports whether Headlamp should authenticate to the API server
+// using its own in-cluster service account credential and impersonate the OIDC user,
+// instead of forwarding the user's raw OIDC token as the Bearer credential. This is for API
+// servers (e.g. most managed Kubernetes offerings) that do not trust Headlamp's OIDC issuer
+// directly, and would otherwise reject the forwarded token with 401 Unauthorized.
+func (c *HeadlampConfig) shouldUseImpersonation() bool {
+	return c != nil && c.UseInCluster && c.OidcUseImpersonation
+}
+
+// shouldUseImpersonationForContext reports whether impersonation should be used for the
+// given context: it requires --oidc-use-impersonation (see shouldUseImpersonation) and that
+// the context itself authenticates upstream via the mounted in-cluster service account token
+// (the credential that will actually be presented to the API server, with RBAC 'impersonate'
+// permission expected to be granted to it).
+func (c *HeadlampConfig) shouldUseImpersonationForContext(kContext *kubeconfig.Context) bool {
+	return c.shouldUseImpersonation() && kContext.UsesInClusterServiceAccountToken()
+}
+
+// impersonationConfig holds what verifying a request's identity needs. It is built once
+// because the verifier caches the provider's signing keys between requests.
+type impersonationConfig struct {
+	verifier      *auth.IDTokenVerifier
+	usernamePaths auth.CompiledPaths
+	groupsPaths   auth.CompiledPaths
+}
+
+func (c *HeadlampConfig) impersonationSettings() *impersonationConfig {
+	c.impersonationOnce.Do(func() {
+		clientID := c.OidcClientID
+		if c.OidcValidatorClientID != "" {
+			clientID = c.OidcValidatorClientID
+		}
+
+		c.impersonationCfg = &impersonationConfig{
+			verifier: auth.NewIDTokenVerifier(
+				c.OidcIdpIssuerURL, c.OidcValidatorIdpIssuerURL, clientID,
+				c.OidcSkipTLSVerify, c.OidcCACert),
+			usernamePaths: auth.CompileJMESPaths(c.MeUsernamePaths),
+			groupsPaths:   auth.CompileJMESPaths(c.MeGroupsPaths),
+		}
+	})
+
+	return c.impersonationCfg
+}
+
+// idTokenSource identifies which part of the request requestIDToken found a token in, so a
+// caller can tell a Headlamp-managed session cookie apart from a credential that merely passed
+// through this one request.
+type idTokenSource int
+
+const (
+	idTokenSourceNone idTokenSource = iota
+	// idTokenSourceProxyAuthHeader is the trusted identity-aware-proxy header: per
+	// docs/installation/in-cluster/identity-aware-proxy.md, "Backend does not maintain any
+	// persistent session, it relies on the headers injected", so a token from here must never
+	// be turned into a cookie.
+	idTokenSourceProxyAuthHeader
+	// idTokenSourceAuthorizationHeader is a raw bearer token a caller (pkg/serviceproxy,
+	// applyRequestTokenToContext's Helm routes) forwarded for this one request; it is not a
+	// Headlamp login either.
+	idTokenSourceAuthorizationHeader
+	// idTokenSourceCookie is a cookie this package itself issued, the only source a refreshed
+	// or scope-migrated token may be written back to.
+	idTokenSourceCookie
+)
+
+// requestIDToken returns the OIDC ID token the request was made with -- the proxy-auth token
+// header if configured, otherwise the Authorization bearer token, otherwise the cluster's auth
+// cookie -- and which of those it came from. The bearer fallback matters because other paths
+// that accept the user's token -- pkg/serviceproxy and applyRequestTokenToContext's Helm routes
+// -- accept it bearer-only, with no cookie; without this, enabling impersonation would reject
+// those same callers outright.
+func (c *HeadlampConfig) requestIDToken(r *http.Request, clusterName string) (string, idTokenSource) {
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
+			return token, idTokenSourceProxyAuthHeader
+		}
+	}
+
+	if token := auth.BearerTokenValue(r.Header.Get("Authorization")); token != "" {
+		return token, idTokenSourceAuthorizationHeader
+	}
+
+	if token, _ := auth.GetTokenFromCookie(r, clusterName); token != "" {
+		return token, idTokenSourceCookie
+	}
+
+	return "", idTokenSourceNone
+}
+
+// impersonationFor is impersonationForRequest for handlers that look the context up by key.
+// An unknown context returns no identity, letting the handler report the missing context.
+func (c *HeadlampConfig) impersonationFor(
+	w http.ResponseWriter,
+	r *http.Request,
+	clusterName, contextKey string,
+) (*kubeconfig.Impersonation, error) {
+	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err != nil {
+		// The handler reports the missing context, so no identity is resolved here.
+		return nil, nil
+	}
+
+	return c.impersonationForRequest(w, r, clusterName, kContext)
+}
+
+// impersonationForRequest returns the verified identity the request must act as on kContext,
+// or nil when impersonation does not apply to that context. A non-nil error means
+// impersonation applies but the identity could not be verified, so the request must be rejected.
+// w is the response to reissue a cookie on (see reissueDeploymentScopedCookie below); it is nil
+// for the WebSocket multiplexer, which calls this once per client message with no per-message
+// response of its own.
+//
+// A verification failure is retried once against a freshly refreshed token before giving up.
+// This matters beyond an ordinary request, which NewOIDCTokenRefreshMiddleware already keeps
+// fresh before it ever reaches here: the WebSocket multiplexer calls this once per client
+// message, for the lifetime of a connection, against the single *http.Request captured at the
+// initial upgrade -- its Cookie header can never change after that, no matter how many other
+// requests refresh the browser's actual cookie in the meantime. Without this fallback, a
+// long-lived multiplexer connection would reject every message from the moment its captured
+// token expires, needing a full reconnect (and even then, only succeeding if some unrelated
+// request happened to refresh the browser's cookie first) instead of healing itself in place.
+func (c *HeadlampConfig) impersonationForRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	clusterName string,
+	kContext *kubeconfig.Context,
+) (*kubeconfig.Impersonation, error) {
+	if !c.shouldUseImpersonationForContext(kContext) {
+		return nil, nil
+	}
+
+	settings := c.impersonationSettings()
+
+	token, source := c.requestIDToken(r, clusterName)
+	if token == "" {
+		return nil, errors.New("no OIDC token to resolve an identity for impersonation")
+	}
+
+	verifiedToken := token
+
+	claims, err := settings.verifier.Verify(r.Context(), token)
+	if err != nil {
+		refreshedToken, refreshErr := c.refreshedIDToken(r.Context(), kContext, token)
+		if refreshErr != nil {
+			return nil, err
+		}
+
+		claims, err = settings.verifier.Verify(r.Context(), refreshedToken)
+		if err != nil {
+			return nil, err
+		}
+
+		verifiedToken = refreshedToken
+		c.persistTokenOnRequest(r, refreshedToken)
+	}
+
+	// Only a token that came from Headlamp's own session cookie represents a session this
+	// package is responsible for keeping alive. A proxy-auth or raw bearer token is someone
+	// else's credential passing through for this one request: turning it into a persistent
+	// Headlamp cookie would establish a session the trusted-header-only proxy-auth model (see
+	// docs/installation/in-cluster/identity-aware-proxy.md -- "Backend does not maintain any
+	// persistent session, it relies on the headers injected") rules out, letting a caller
+	// authenticate from that cookie later even without the trusted header present at all.
+	//
+	// For a cookie-sourced token, this also migrates a session that logged in before
+	// --oidc-use-impersonation was enabled on this deployment: its only cookie is scoped to
+	// /clusters/<cluster>, which an ordinary cluster request still finds and verifies
+	// successfully (hence reaching this line at all), so nothing else would ever prompt a
+	// fresh login that would otherwise reissue it at the wider, deployment-scoped path the
+	// WebSocket multiplexer and node-drain routes depend on. Without this, those routes would
+	// silently never work for that session.
+	if source == idTokenSourceCookie {
+		c.reissueDeploymentScopedCookie(w, r, clusterName, verifiedToken)
+	}
+
+	identity, err := auth.IdentityFromClaims(claims, settings.usernamePaths, settings.groupsPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	return &identity, nil
+}
+
+// persistTokenOnRequest makes a freshly refreshed token visible to the rest of THIS request's
+// own handling, not just the response: requestIDToken checks ProxyAuthTokenHeader, then
+// Authorization, before falling back to the cookie, so without this a later call against the
+// same *http.Request -- as the WebSocket multiplexer makes, once per client message, against
+// the single request captured at the initial upgrade, which can never pick up a new Set-Cookie
+// -- would read the same expired token again and repeat the refresh exchange with the refresh
+// token this one just consumed. A provider that rotates refresh tokens would reject that second
+// exchange outright, and once the old token's short-lived cache grace period (see
+// CacheRefreshedToken) elapses, the lookup fails outright either way.
+func (c *HeadlampConfig) persistTokenOnRequest(r *http.Request, token string) {
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" &&
+		strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)) != "" {
+		// requestIDToken checks this header before Authorization, with no "Bearer " prefix:
+		// if this request's token came from it, updating Authorization instead would never
+		// be seen -- the stale proxy-auth header value would keep winning.
+		r.Header.Set(c.ProxyAuthTokenHeader, token)
+	} else {
+		r.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// reissueDeploymentScopedCookie keeps token's cookie at the deployment-wide scope, when a
+// response is available to write one to (w is nil for the WebSocket multiplexer). The caller
+// already confirmed impersonation -- and so the deployment-wide scope -- applies to this
+// context, so this always reissues rather than trying to detect whether the cookie the browser
+// just presented already was the wide one: a server only sees a Cookie header's name and value,
+// never which Path it was scoped under, so that cannot be told apart from here. SetTokenCookie's
+// own ClearTokenCookie step makes this idempotent, and shouldUseImpersonationForContext already
+// limits how many contexts this runs for -- typically the single in-cluster one -- so reissuing
+// on every impersonated request to it, not only a session's first one, is an acceptable cost for
+// closing the gap outright.
+func (c *HeadlampConfig) reissueDeploymentScopedCookie(
+	w http.ResponseWriter, r *http.Request, clusterName, token string,
+) {
+	if w == nil {
+		return
+	}
+
+	if err := auth.SetTokenCookie(w, r, clusterName, token, c.BaseURL, c.SessionTTL, true); err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err,
+			"failed to reissue auth cookie at deployment scope")
+	}
+}
+
+// refreshedIDToken exchanges token's cached refresh token for a fresh one, without writing any
+// cookie: it is impersonationForRequest's fallback for a token that failed verification only
+// because it is stale, where there may be no response left to attach a Set-Cookie to (see its
+// doc comment). It uses the same refresh-token exchange as auth.RefreshAndSetToken, which this
+// deliberately does not call, since that also writes the cookie this cannot provide a writer
+// for.
+func (c *HeadlampConfig) refreshedIDToken(
+	ctx context.Context, kContext *kubeconfig.Context, token string,
+) (string, error) {
+	oidcAuthConfig, err := kContext.OidcConfig()
+	if err != nil {
+		return "", err
+	}
+
+	tokenType := "id_token"
+	if c.OidcUseAccessToken {
+		tokenType = "access_token"
+	}
+
+	idpIssuerURL := c.OidcIdpIssuerURL
+	if idpIssuerURL == "" {
+		idpIssuerURL = oidcAuthConfig.IdpIssuerURL
+	}
+
+	newToken, err := auth.RefreshAndCacheNewToken(
+		ctx, oidcAuthConfig, c.Cache, tokenType, token, idpIssuerURL, c.OidcValidatorIdpIssuerURL,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	tokenField := "id_token"
+	if c.OidcUseAccessToken {
+		tokenField = "access_token"
+	}
+
+	newTokenString, ok := newToken.Extra(tokenField).(string)
+	if !ok || newTokenString == "" {
+		return "", errors.New("refreshed token missing expected field")
+	}
+
+	return newTokenString, nil
+}
+
+// stripImpersonationHeaders removes every Impersonate-* header a client sent. Headlamp sets
+// those itself from verified claims, so a client-supplied value must never reach the API server.
+func stripImpersonationHeaders(r *http.Request) {
+	for name := range r.Header {
+		if strings.HasPrefix(strings.ToLower(name), "impersonate-") {
+			r.Header.Del(name)
+		}
+	}
 }
 
 // getContextWithWebSocketFallback returns the requested context, falling back to the cluster
@@ -1414,6 +1731,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		SessionTTL:                   c.SessionTTL,
 		UseInCluster:                 c.UseInCluster,
 		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+		OidcUseImpersonation:         c.OidcUseImpersonation,
 	}
 
 	return auth.NewOIDCTokenRefreshMiddleware(config)(next)
@@ -1754,7 +2072,15 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
+			clusterName := mux.Vars(r)["clusterName"]
+
+			impersonation, err := c.impersonationFor(w, r, clusterName, clusterName)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+
+			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), impersonation, w, r)
 		}))).Queries("request", "{request}").
 		Methods("GET")
 }
@@ -1809,11 +2135,20 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	unsafeUseServiceAccountToken := c.shouldUseUnsafeServiceAccountTokenForContext(context)
+	impersonation, err := c.impersonationForRequest(w, r, clusterName, context)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
+		return
+	}
 
-	if unsafeUseServiceAccountToken {
+	switch {
+	case c.shouldUseUnsafeServiceAccountTokenForContext(context):
 		clearRequestAuthorization(r)
-	} else {
+	case impersonation != nil:
+		clearRequestAuthorization(r)
+
+		context = context.WithImpersonation(*impersonation)
+	default:
 		applyRequestTokenToContext(r, clusterName, context)
 	}
 
@@ -1833,18 +2168,27 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 		attribute.String("operation", operation))
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
-	unsafeUseServiceAccountToken := err == nil && c.shouldUseUnsafeServiceAccountTokenForContext(context)
+	kContext, getErr := c.KubeConfigStore.GetContext(clusterName)
+	unsafeUseServiceAccountToken := getErr == nil && c.shouldUseUnsafeServiceAccountTokenForContext(kContext)
 
-	if unsafeUseServiceAccountToken {
+	// kContext is nil when the lookup failed, which impersonation treats as not applicable.
+	impersonation, err := c.impersonationForRequest(w, r, clusterName, kContext)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
+		return
+	}
+
+	switch {
+	case unsafeUseServiceAccountToken, impersonation != nil:
+		// The identity is verified above, so the raw token is never forwarded.
 		clearRequestAuthorization(r)
-	} else {
+	default:
 		// fetch token from cookie
 		auth.SetTokenFromCookie(r, clusterName)
 	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
+	if c.UseInCluster && !unsafeUseServiceAccountToken && impersonation == nil && r.Header.Get("Authorization") == "" {
 		c.handleError(
 			w, ctx, span,
 			errors.New("no authentication token provided"),
@@ -2004,9 +2348,24 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		impersonation, err := c.impersonationForRequest(w, r, mux.Vars(r)["clusterName"], kContext)
+		if err != nil {
+			c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
+
+			return
+		}
+
+		switch {
+		case c.shouldUseUnsafeServiceAccountTokenForContext(kContext):
+			// The service account credential is used, so a client must not add its own identity.
+			stripImpersonationHeaders(r)
 			clearRequestAuthorization(r)
-		} else {
+		case impersonation != nil:
+			stripImpersonationHeaders(r)
+			clearRequestAuthorization(r)
+			// Carried via the request's context, not a header: see ContextWithImpersonation.
+			r = r.WithContext(kubeconfig.ContextWithImpersonation(r.Context(), *impersonation))
+		default:
 			var token string
 
 			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
@@ -2021,6 +2380,17 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 			}
 		}
+
+		// The Cookie header itself must never reach the upstream API server, in any of the
+		// three cases above. Cookies are scoped to the whole deployment (see
+		// auth.GetCookiePath), not per cluster, so the browser attaches every cluster's auth
+		// cookie to every cluster's request; left in place, the raw header would leak other
+		// clusters' tokens to this one's API server. This is unconditional, outside the
+		// switch, rather than relying on each case to remember it (clearRequestAuthorization
+		// happens to delete Cookie too, but that is not obvious from its name, and a case that
+		// forgot to call it -- or a future case added without it -- would silently reintroduce
+		// the leak).
+		r.Header.Del("Cookie")
 
 		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
 
@@ -2989,9 +3359,24 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+	impersonation, err := c.impersonationForRequest(w, r, drainPayload.Cluster, ctxtProxy)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
 
-	clientset, err := ctxtProxy.ClientSetWithToken(token)
+		return
+	}
+
+	kContext := ctxtProxy
+	token := ""
+
+	if impersonation != nil {
+		// The drain acts as the verified user, on Headlamp's service account credential.
+		kContext = ctxtProxy.WithImpersonation(*impersonation)
+	} else {
+		token = c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+	}
+
+	clientset, err := kContext.ClientSetWithToken(token)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "getting client", http.StatusInternalServerError)
 
@@ -3223,7 +3608,18 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	if req.Token == "" {
 		auth.ClearTokenCookie(w, r, cluster, c.BaseURL)
 	} else {
-		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL)
+		// The cookie's path is only widened to the whole deployment when impersonation
+		// applies to this cluster (see auth.GetCookiePath); an unknown context does not.
+		kContext, _ := c.KubeConfigStore.GetContext(cluster)
+		useDeploymentCookieScope := c.shouldUseImpersonationForContext(kContext)
+
+		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL,
+			useDeploymentCookieScope); err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to set auth cookie")
+			http.Error(w, "failed to set token", http.StatusInternalServerError)
+
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -47,6 +47,7 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
+	OidcUseImpersonation         bool
 }
 
 // oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
@@ -146,6 +147,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				UseDeploymentCookieScope:  config.shouldUseImpersonationForContext(kContext),
 			})
 
 			next.ServeHTTP(w, r)
@@ -166,6 +168,17 @@ func (c *OIDCTokenRefreshConfig) shouldUseUnsafeServiceAccountTokenForContext(
 	kContext *kubeconfig.Context,
 ) bool {
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
+}
+
+// shouldUseImpersonationForContext reports whether impersonation applies to the given context,
+// mirroring cmd.HeadlampConfig's method of the same name: it requires --oidc-use-impersonation
+// and that the context authenticates upstream via the mounted in-cluster service account token.
+// The refreshed cookie this package sets must use the same cookie path scope the rest of the
+// backend would use for this context (see auth.GetCookiePath), or the refreshed token would be
+// unreachable on the routes impersonation depends on, or would needlessly widen the Cookie
+// header for a context that never asked for impersonation.
+func (c *OIDCTokenRefreshConfig) shouldUseImpersonationForContext(kContext *kubeconfig.Context) bool {
+	return c.UseInCluster && c.OidcUseImpersonation && kContext.UsesInClusterServiceAccountToken()
 }
 
 // shouldSkipOIDCRefresh checks whether the request path is not a cluster

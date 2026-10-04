@@ -20,10 +20,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +100,9 @@ type Connection struct {
 	// usesServiceAccountToken is true when Token was loaded from the
 	// in-cluster service account token file.
 	usesServiceAccountToken bool
+	// impersonation is the verified identity the connection acts as, or nil when it
+	// authenticates with the caller's token.
+	impersonation *kubeconfig.Impersonation
 	// Authentication token.
 	Token *string
 	// closeOnce is used to ensure the connection is closed only once.
@@ -134,6 +139,11 @@ type Multiplexer struct {
 	kubeConfigStore kubeconfig.ContextStore
 	// unsafeUseServiceAccountToken forces in-cluster contexts to use their token file.
 	unsafeUseServiceAccountToken bool
+	// resolveImpersonation returns the verified identity a client request acts as on a context,
+	// or nil when impersonation does not apply. It is nil when impersonation is not configured.
+	resolveImpersonation func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error)
 	// saTokenCache caches service account tokens keyed by file path; refreshed when mtime changes.
 	saTokenCache map[string]saTokenCacheEntry
 	// saTokenMu guards saTokenCache.
@@ -376,6 +386,8 @@ func (c *Connection) safeClose() {
 }
 
 // establishClusterConnection creates a new WebSocket connection to a Kubernetes cluster.
+//
+//nolint:funlen
 func (m *Multiplexer) establishClusterConnection(
 	clusterID,
 	userID,
@@ -383,7 +395,17 @@ func (m *Multiplexer) establishClusterConnection(
 	query string,
 	clientConn *WSConnLock,
 	token *string,
+	impersonation *kubeconfig.Impersonation,
 ) (*Connection, error) {
+	if impersonation != nil && isImpersonationExpired(impersonation) {
+		// Reached by monitorConnection's automatic reconnect, which reuses the identity
+		// stored on the old connection with no client message to re-verify a fresh one
+		// against. Refusing here means the API server never authorizes a Kubernetes
+		// connection under a user whose verified token has since expired.
+		return nil, fmt.Errorf("impersonated identity for %q has expired; reconnect requires a fresh verified token",
+			impersonation.Username)
+	}
+
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: clusterID}, err, "getting cluster config")
@@ -395,13 +417,15 @@ func (m *Multiplexer) establishClusterConnection(
 		return nil, fmt.Errorf("getting REST config: %w", err)
 	}
 
-	authToken, err := m.clusterConnectionToken(clusterContext, token)
+	authToken, err := m.clusterConnectionToken(clusterContext, token, impersonation)
 	if err != nil {
 		return nil, err
 	}
 
 	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
-	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
+	connection.impersonation = impersonation
+
+	if impersonation != nil || (m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken()) {
 		connection.usesServiceAccountToken = true
 	}
 
@@ -414,7 +438,7 @@ func (m *Multiplexer) establishClusterConnection(
 		return nil, fmt.Errorf("failed to get TLS config: %w", err)
 	}
 
-	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
+	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken, impersonation)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
@@ -469,8 +493,15 @@ func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*
 func (m *Multiplexer) clusterConnectionToken(
 	clusterContext *kubeconfig.Context,
 	requestToken *string,
+	impersonation *kubeconfig.Impersonation,
 ) (*string, error) {
-	if !m.unsafeUseServiceAccountToken || !clusterContext.UsesInClusterServiceAccountToken() {
+	switch {
+	case impersonation != nil:
+		// Impersonation authenticates Headlamp's own service account, never the caller's token.
+		if !clusterContext.UsesInClusterServiceAccountToken() {
+			return nil, errors.New("impersonation requires the in-cluster service account token")
+		}
+	case !m.unsafeUseServiceAccountToken || !clusterContext.UsesInClusterServiceAccountToken():
 		return requestToken, nil
 	}
 
@@ -512,6 +543,7 @@ func (m *Multiplexer) dialWebSocket(
 	tlsConfig *tls.Config,
 	host string,
 	token *string,
+	impersonation *kubeconfig.Impersonation,
 ) (*websocket.Conn, error) {
 	dialer := websocket.Dialer{
 		TLSClientConfig:  tlsConfig,
@@ -524,6 +556,14 @@ func (m *Multiplexer) dialWebSocket(
 
 	if token != nil {
 		headers.Set("Authorization", "Bearer "+*token)
+	}
+
+	if impersonation != nil {
+		headers.Set("Impersonate-User", impersonation.Username)
+
+		for _, group := range impersonation.Groups {
+			headers.Add("Impersonate-Group", group)
+		}
 	}
 
 	conn, resp, err := dialer.Dial(
@@ -591,16 +631,32 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
+	// Snapshot under conn.mu rather than reading conn.Token/conn.impersonation directly: the
+	// message-processing goroutine writes both (refreshConnectionToken, checkConnectionIdentity)
+	// under the same lock, concurrently with this heartbeat goroutine, so an unsynchronized read
+	// here is a data race and could also observe a stale impersonation expiry.
+	conn.mu.RLock()
+	token := conn.Token
+	impersonation := conn.impersonation
+	conn.mu.RUnlock()
+
 	newConn, err := m.establishClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
 		conn.Query,
 		conn.Client,
-		conn.Token,
+		token,
+		impersonation,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+
+		// Remove the stale entry rather than leave it mapped to a connection whose WSConn is
+		// already closed; this also closes conn.Done, so monitorConnection's heartbeat loop for
+		// it stops instead of retrying forever. The client's next message establishes a fresh
+		// connection, verifying a new identity rather than reusing this one.
+		m.cleanupConnection(conn)
 
 		return nil, err
 	}
@@ -696,7 +752,25 @@ func (m *Multiplexer) processClientMessage(
 		tokenPtr = &token
 	}
 
-	conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr)
+	impersonation, err := m.impersonationForMessage(r, msg)
+	if err != nil {
+		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+
+		// r is the original /wsMultiplexer upgrade request: its cookie is fixed for the
+		// connection's lifetime and can never pick up a token the browser has since
+		// refreshed. Left open, every later message on this socket would keep failing the
+		// same way, for every cluster, forever. Closing it is what lets the frontend's
+		// existing reconnect logic open a fresh handshake, carrying the browser's current
+		// cookie.
+		logger.Log(logger.LevelInfo, map[string]string{logFieldClusterID: msg.ClusterID}, err,
+			"closing multiplexer connection: identity could not be re-verified")
+
+		_ = lockClientConn.Close()
+
+		return
+	}
+
+	conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr, impersonation)
 	if err != nil {
 		m.handleConnectionError(lockClientConn, msg, err)
 
@@ -766,7 +840,12 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
-func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
+func (m *Multiplexer) getOrCreateConnection(
+	msg Message,
+	clientConn *WSConnLock,
+	token *string,
+	impersonation *kubeconfig.Impersonation,
+) (*Connection, error) {
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
 
 	m.mutex.RLock()
@@ -776,7 +855,9 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	if !exists {
 		var err error
 
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+		conn, err = m.establishClusterConnection(
+			msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token, impersonation,
+		)
 		if err != nil {
 			logger.Log(
 				logger.LevelError,
@@ -789,11 +870,82 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 		}
 
 		go m.handleClusterMessages(conn, clientConn)
+	} else if err := checkConnectionIdentity(conn, impersonation); err != nil {
+		return nil, err
 	} else if err := m.refreshConnectionToken(conn, token); err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// impersonationForMessage returns the verified identity a client message acts as, or nil when
+// impersonation does not apply to the cluster.
+func (m *Multiplexer) impersonationForMessage(r *http.Request, msg Message) (*kubeconfig.Impersonation, error) {
+	if m.resolveImpersonation == nil {
+		// Impersonation is not configured, so the connection uses the caller's token.
+		return nil, nil
+	}
+
+	// A nil context is handled by the resolver, and establishing the connection reports an unknown cluster.
+	kContext, _ := m.getClusterContextWithFallback(msg.ClusterID, msg.UserID)
+
+	return m.resolveImpersonation(r, msg.ClusterID, kContext)
+}
+
+// checkConnectionIdentity rejects a request whose identity differs from the one the connection was
+// opened for, so a connection opened for one identity is never reused for another. When the
+// identity matches, it also updates the connection's stored impersonation to this freshly
+// verified one: a later automatic reconnect (see reconnect) reuses conn.impersonation with no
+// client message available to re-verify against, so its Expiry must be the latest one actually
+// verified for this connection, not whatever expiry happened to be on the token present when the
+// connection was first established -- otherwise a reconnect could be wrongly rejected as expired
+// even though a newer token had since been verified for the same identity.
+func checkConnectionIdentity(conn *Connection, impersonation *kubeconfig.Impersonation) error {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	if !sameImpersonation(conn.impersonation, impersonation) {
+		return errors.New("connection belongs to a different identity")
+	}
+
+	conn.impersonation = impersonation
+
+	return nil
+}
+
+func sameImpersonation(a, b *kubeconfig.Impersonation) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return a.Username == b.Username && sameGroups(a.Groups, b.Groups)
+}
+
+// sameGroups reports whether a and b contain the same group memberships, ignoring order: group
+// membership is a set, not a sequence, and a refreshed token's claims are not guaranteed to
+// repeat the same order as the token it replaces, even for the identical identity. Comparing
+// them as ordered slices would otherwise reject that refreshed token's connection as "a
+// different identity" purely because of reordering.
+func sameGroups(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	sortedA := slices.Clone(a)
+	sortedB := slices.Clone(b)
+
+	slices.Sort(sortedA)
+	slices.Sort(sortedB)
+
+	return slices.Equal(sortedA, sortedB)
+}
+
+// isImpersonationExpired reports whether imp's verified token has expired. A zero Expiry means
+// it is unknown -- which should not happen for a token the verifier accepted -- and is treated
+// as not expired rather than refusing silently.
+func isImpersonationExpired(imp *kubeconfig.Impersonation) bool {
+	return !imp.Expiry.IsZero() && time.Now().After(imp.Expiry)
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {

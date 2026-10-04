@@ -133,10 +133,59 @@ then you have to:
 
 **Note** If you already have another static client configured for Kubernetes for the [apiserver's OIDC](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server) (OpenID Connect) configuration, use a **single static client ID** i.e `-oidc-client-id` for both Dex and Headlamp. Additionally, the **redirectURIs** need to be specified for each client.
 
+### Impersonate the OIDC user instead of forwarding their token
+
+By default, `--in-cluster` Headlamp forwards the user's raw OIDC token to the Kubernetes API server as the `Authorization: Bearer` credential, and the **API server** is what authenticates it. If the API server does not trust Headlamp's OIDC issuer directly — common on managed offerings whose control plane cannot reach an issuer that is only resolvable inside the cluster's own network, or whose operator has not registered it — every request fails with `401 Unauthorized` even though the OIDC login itself succeeded (see the troubleshooting section below).
+
+`--oidc-use-impersonation` (or env var `HEADLAMP_CONFIG_OIDC_USE_IMPERSONATION`) is the opt-in alternative: Headlamp authenticates to the API server using its own in-cluster service account token (which the API server already trusts natively), verifies the caller's OIDC ID token itself, and sets `Impersonate-User` / `Impersonate-Group` from the verified claims instead of forwarding the token. This is the same mechanism `kubectl --as` and proxies like [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) rely on: a trusted identity re-presents a request on behalf of another identity, and the API server's RBAC runs against the impersonated identity, not the trusted one.
+
+**Requirements:**
+
+- `--in-cluster` must be set.
+- OIDC must be configured (`-oidc-client-id`, `-oidc-idp-issuer-url`, `-oidc-scopes`).
+- The pod's service account must be granted the `impersonate` verb on `users`, `groups` and `serviceaccounts`. For example:
+
+  ```yaml
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: headlamp-impersonator
+  rules:
+    - apiGroups: ['']
+      resources: ['users', 'groups', 'serviceaccounts']
+      verbs: ['impersonate']
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: headlamp-impersonator
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: headlamp-impersonator
+  subjects:
+    - kind: ServiceAccount
+      name: headlamp
+      namespace: headlamp
+  ```
+
+  This is a deliberate, explicit grant; nothing is escalated automatically. The impersonated user's own RBAC still governs what they can do.
+
+- The username and groups are resolved from the verified token's claims using the existing `-me-username-path` / `-me-groups-path` expressions (the same ones the `/me` endpoint uses); no new claim-mapping flags are introduced.
+
+**Incompatible flags.** `--oidc-use-impersonation` cannot be combined with:
+
+- `--unsafe-use-service-account-token`: that flag already authenticates every request as the service account without impersonating anyone, so combining the two would make `--oidc-use-impersonation` silently inert.
+- `-oidc-use-access-token`: the identity is verified from the ID token's signature, issuer, audience and expiry, which an access token does not carry in the same way.
+
+`--service-account-token-path` is still accepted with it: that file is the credential used to impersonate, the same as under `--unsafe-use-service-account-token`.
+
+**Cookie scope.** Headlamp's auth cookie is normally scoped to one cluster's routes. With impersonation it is scoped to the whole Headlamp deployment instead, because the WebSocket multiplexer and node drain endpoints are not cluster-scoped paths, and impersonation needs the verified identity there too. This only applies to clusters where impersonation is in effect; it does not change cookie behavior for other clusters or for deployments that do not set this flag.
+
 ### Troubleshooting: OIDC sign-in succeeds but the cluster rejects your token
 
 If you can sign in via OIDC but are returned to the "Sign in" screen with a message that the cluster rejected your token (and cannot load cluster resources), the cluster's **API server** is most likely not configured to trust the same OIDC provider as Headlamp. Headlamp only forwards the token to the API server, and the API server is what accepts or rejects it, so it must be OIDC-aware with a matching issuer, client ID, and audience.
 
 Make sure the API server is configured for the same OIDC provider (via its `--oidc-issuer-url` / `--oidc-client-id` flags or the equivalent [structured authentication configuration](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server)), so that `--oidc-issuer-url` matches Headlamp's `-oidc-idp-issuer-url` and `--oidc-client-id` matches Headlamp's `-oidc-client-id`.
 
-Managed control planes (e.g. AKS, EKS, GKE) may not accept arbitrary OIDC flags on the API server. If that is the case, use the provider's managed identity/OIDC integration instead. When the API server rejects the token, Headlamp logs a warning containing `API server rejected the forwarded bearer token (401)`.
+Managed control planes (e.g. AKS, EKS, GKE) may not accept arbitrary OIDC flags on the API server. If that is the case, use the provider's managed identity/OIDC integration instead, or see [Impersonate the OIDC user instead of forwarding their token](#impersonate-the-oidc-user-instead-of-forwarding-their-token) above for an alternative that keeps the token verification in Headlamp itself. When the API server rejects the token, Headlamp logs a warning containing `API server rejected the forwarded bearer token (401)`.

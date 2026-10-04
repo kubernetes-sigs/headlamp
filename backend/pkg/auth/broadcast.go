@@ -38,6 +38,10 @@ type BroadcastOIDCTokenParams struct {
 	Token           string
 	BaseURL         string
 	SessionTTL      int
+	// OidcUseImpersonation mirrors cmd.HeadlampConfig.OidcUseImpersonation. Each target's
+	// cookie is only given the wider, deployment-scoped path (see auth.GetCookiePath) when
+	// impersonation applies to that specific target, not unconditionally for every broadcast.
+	OidcUseImpersonation bool
 }
 
 // isOIDCAuthContext reports whether the kubeconfig context's auth-provider is
@@ -238,7 +242,17 @@ func broadcastToTarget(
 		return
 	}
 
-	SetTokenCookie(params.Writer, params.Request, kCtx.Name, params.Token, params.BaseURL, params.SessionTTL)
+	useDeploymentScope := params.OidcUseImpersonation && kCtx.UsesInClusterServiceAccountToken()
+
+	if err := SetTokenCookie(params.Writer, params.Request, kCtx.Name, params.Token, params.BaseURL,
+		params.SessionTTL, useDeploymentScope); err != nil {
+		logger.Log(logger.LevelError,
+			map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
+			err, "failed to broadcast OIDC token to cluster")
+
+		return
+	}
+
 	logger.Log(logger.LevelInfo,
 		map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
 		nil, "broadcasted OIDC token to cluster")

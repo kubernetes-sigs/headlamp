@@ -637,6 +637,10 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	// UseDeploymentCookieScope widens the refreshed cookie's path to the whole deployment
+	// instead of just Cluster; set it from the same impersonation-applicability check used
+	// when the cookie was first set (see auth.GetCookiePath), not unconditionally.
+	UseDeploymentCookieScope bool
 }
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
@@ -667,29 +671,59 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to refresh token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
-	} else if newToken != nil {
-		var newTokenString string
 
-		var ok bool
-
-		if params.OIDCUseAccessToken {
-			newTokenString, ok = newToken.Extra("access_token").(string)
-		} else {
-			newTokenString, ok = newToken.Extra("id_token").(string)
-		}
-
-		if !ok || newTokenString == "" {
-			logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
-				errors.New("refreshed token missing expected field"), "failed to extract token string")
-			params.TelemetryHandler.RecordError(params.Span,
-				errors.New("refreshed token missing expected field"), "Token extraction failed")
-
-			return
-		}
-
-		// Set refreshed token in cookie
-		SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
-
-		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+		return
 	}
+
+	if newToken == nil {
+		return
+	}
+
+	applyRefreshedToken(params, newToken)
+}
+
+// applyRefreshedToken extracts the refreshed token string from newToken, stores it in the auth
+// cookie, and makes it visible to the rest of this same request's handling.
+func applyRefreshedToken(params RefreshAndSetTokenParams, newToken *oauth2.Token) {
+	var newTokenString string
+
+	var ok bool
+
+	if params.OIDCUseAccessToken {
+		newTokenString, ok = newToken.Extra("access_token").(string)
+	} else {
+		newTokenString, ok = newToken.Extra("id_token").(string)
+	}
+
+	if !ok || newTokenString == "" {
+		err := errors.New("refreshed token missing expected field")
+		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+			err, "failed to extract token string")
+		params.TelemetryHandler.RecordError(params.Span, err, "Token extraction failed")
+
+		return
+	}
+
+	// Set refreshed token in cookie
+	if err := SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL,
+		params.SessionTTL, params.UseDeploymentCookieScope); err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+			err, "failed to set refreshed auth cookie")
+		params.TelemetryHandler.RecordError(params.Span, err, "Failed to set refreshed cookie")
+
+		return
+	}
+
+	// Make the refreshed token visible to the rest of THIS request's handling too, not just
+	// the response: SetTokenCookie only updates the response's Set-Cookie, so params.Request's
+	// own Cookie header -- what requestIDToken reads by default -- would otherwise still carry
+	// the token that was just replaced. Left unset, a later verification in the same request
+	// (for example impersonationForRequest's) would see that old token, fail if it had already
+	// expired, and attempt its own refresh using the same refresh token this one just consumed
+	// -- which a provider that rotates or invalidates refresh tokens after use would then
+	// reject, turning this refresh's success into a 401 anyway. requestIDToken checks the
+	// Authorization header before falling back to the cookie, so setting it here is enough.
+	params.Request.Header.Set("Authorization", "Bearer "+newTokenString)
+
+	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
 }
