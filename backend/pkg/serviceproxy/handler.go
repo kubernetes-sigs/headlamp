@@ -15,9 +15,13 @@ import (
 )
 
 // RequestHandler is an HTTP handler that proxies requests to a Kubernetes service.
+// RequestHandler proxies a request to a service. When impersonation is non-nil the service
+// lookup acts as that verified identity using Headlamp's service account, instead of the
+// caller's token.
 func RequestHandler(
 	kubeConfigStore kubeconfig.ContextStore,
 	unsafeUseServiceAccountToken bool,
+	impersonation *kubeconfig.Impersonation,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -37,7 +41,9 @@ func RequestHandler(
 
 	bearerToken := ""
 
-	if !shouldUseUnsafeServiceAccountToken(ctx, unsafeUseServiceAccountToken) {
+	if impersonation != nil {
+		ctx = ctx.WithImpersonation(*impersonation)
+	} else if !shouldUseUnsafeServiceAccountToken(ctx, unsafeUseServiceAccountToken) {
 		token, err := getAuthToken(r, clusterName)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to get auth token")

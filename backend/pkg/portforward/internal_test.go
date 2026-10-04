@@ -762,7 +762,7 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	r.Header.Set("X-HEADLAMP-USER-ID", "user")
 	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
 
-	StartPortForward(kubeConfigStore, c, false, contextKey, w, r)
+	StartPortForward(kubeConfigStore, c, false, nil, contextKey, w, r)
 
 	res := w.Result()
 
@@ -816,7 +816,7 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(body))
 		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
 
-		StartPortForward(store, c, false, "test-cluster", w, r)
+		StartPortForward(store, c, false, nil, "test-cluster", w, r)
 
 		return w
 	}
