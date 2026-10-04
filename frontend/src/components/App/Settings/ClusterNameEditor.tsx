@@ -19,9 +19,10 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { ClusterSettings } from '../../../helpers/clusterSettings';
+import { ClusterSettings, renameClusterSettings } from '../../../helpers/clusterSettings';
 import { parseKubeConfig, renameCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
+import { renameSavedNamespaces } from '../../../lib/storage';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import store from '../../../redux/stores/store';
 import { mergeStatelessConfigState } from '../../../stateless';
@@ -141,6 +142,10 @@ export function ClusterNameEditor({
             } else {
               dispatch(setConfig(config));
             }
+
+            // Cluster settings are stored under the cluster name, so move them to the new one.
+            renameClusterSettings(cluster, newClusterName);
+            renameSavedNamespaces(cluster, newClusterName);
           }
           history.push('/');
           window.location.reload();
