@@ -146,6 +146,26 @@ func (c *Context) UsesInClusterServiceAccountToken() bool {
 		c.AuthInfo.TokenFile != ""
 }
 
+// Impersonation is the identity a request acts as, sent as Impersonate-User and
+// Impersonate-Group. It must only be built from verified OIDC claims.
+type Impersonation struct {
+	Username string
+	Groups   []string
+}
+
+// WithImpersonation returns a copy of the context whose client configs act as imp.
+func (c *Context) WithImpersonation(imp Impersonation) *Context {
+	copied := c.Copy()
+	if copied.AuthInfo == nil {
+		copied.AuthInfo = &api.AuthInfo{}
+	}
+
+	copied.AuthInfo.Impersonate = imp.Username
+	copied.AuthInfo.ImpersonateGroups = imp.Groups
+
+	return copied
+}
+
 type OidcConfig struct {
 	// OIDC client ID.
 	ClientID string
@@ -1224,6 +1244,7 @@ func GetInClusterContext(
 	oidcCACert string,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
+	oidcUseImpersonation bool,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -1245,6 +1266,7 @@ func GetInClusterContext(
 		oidcCACert,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
+		oidcUseImpersonation,
 	), nil
 }
 
@@ -1259,6 +1281,7 @@ func newInClusterContextFromConfig(
 	oidcCACert string,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
+	oidcUseImpersonation bool,
 ) *Context {
 	cluster := &api.Cluster{
 		Server:                   clusterConfig.Host,
@@ -1278,7 +1301,11 @@ func newInClusterContextFromConfig(
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
-	if unsafeUseServiceAccountToken {
+	// Both modes need Headlamp's own in-cluster service account token file tracked on the
+	// context: unsafe mode uses it to authenticate every user's request directly, and
+	// impersonation mode uses it as the trusted credential it impersonates OIDC users
+	// through (see UsesInClusterServiceAccountToken and shouldUseImpersonationForContext).
+	if unsafeUseServiceAccountToken || oidcUseImpersonation {
 		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
 	}
 
