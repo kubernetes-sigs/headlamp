@@ -396,6 +396,35 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 	}
 }
 
+// CompiledPaths is a set of pre-compiled JMESPath expressions used to resolve a claim
+// from a decoded JWT payload, in priority order.
+type CompiledPaths []*jmespath.JMESPath
+
+// CompileJMESPaths parses and compiles a comma-separated list of JMESPath expressions
+// for repeated reuse (e.g. once per server startup, rather than once per request). It is
+// exported so callers outside this package (e.g. the in-cluster impersonation proxy path)
+// can reuse the same claim-resolution mechanism as the /me endpoint.
+func CompileJMESPaths(pathCSV string) CompiledPaths {
+	return compileJMESPaths(pathCSV)
+}
+
+// IdentityFromClaims resolves the user and groups to impersonate from ID token claims that
+// have already been verified by IDTokenVerifier. The claims must never come from an
+// unverified token: anyone can write a payload, only the provider's signature proves it.
+func IdentityFromClaims(
+	claims map[string]interface{}, usernamePaths, groupsPaths CompiledPaths,
+) (kubeconfig.Impersonation, error) {
+	username := stringValueFromJMESPaths(claims, usernamePaths)
+	if username == "" {
+		return kubeconfig.Impersonation{}, errors.New("could not resolve username claim")
+	}
+
+	return kubeconfig.Impersonation{
+		Username: username,
+		Groups:   stringSliceFromJMESPaths(claims, groupsPaths),
+	}, nil
+}
+
 // parseClaimsFromToken extracts the JWT claims from a token.
 func parseClaimsFromToken(token string) (map[string]interface{}, int, string) {
 	parts := strings.SplitN(token, ".", 3)
