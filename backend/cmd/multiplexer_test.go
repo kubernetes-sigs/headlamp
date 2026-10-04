@@ -171,7 +171,7 @@ func TestDialWebSocket(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil) //nolint:gosec
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil, nil) //nolint:gosec
 
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
@@ -204,7 +204,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	token := "my-test-token"
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token) //nolint:gosec
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token, nil) //nolint:gosec
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 
@@ -215,6 +215,62 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 	assert.Equal(t, "Bearer "+token, receivedAuth)
 }
 
+func TestDialWebSocket_SendsImpersonationHeaders(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	var receivedUser string
+
+	var receivedGroups []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("WebSocket upgrade failed: %v", err)
+		}
+
+		defer func() { _ = ws.Close() }()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	token := "service-account-token"
+	impersonation := &kubeconfig.Impersonation{Username: "alice@example.com", Groups: []string{"dev", "ops"}}
+
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	conn, err := m.dialWebSocket(wsURL, tlsConfig, server.URL, &token, impersonation)
+	require.NoError(t, err)
+
+	if conn != nil {
+		_ = conn.Close()
+	}
+
+	assert.Equal(t, "alice@example.com", receivedUser)
+	assert.Equal(t, []string{"dev", "ops"}, receivedGroups)
+}
+
+func TestCheckConnectionIdentity(t *testing.T) {
+	alice := &kubeconfig.Impersonation{Username: "alice", Groups: []string{"dev"}}
+	bob := &kubeconfig.Impersonation{Username: "bob", Groups: []string{"dev"}}
+
+	// A connection opened without impersonation is only reusable without impersonation.
+	conn := &Connection{}
+	require.NoError(t, checkConnectionIdentity(conn, nil))
+	require.Error(t, checkConnectionIdentity(conn, alice))
+
+	// A connection opened for one identity is reusable only for that identity.
+	conn = &Connection{impersonation: alice}
+	sameAlice := &kubeconfig.Impersonation{Username: "alice", Groups: []string{"dev"}}
+	require.NoError(t, checkConnectionIdentity(conn, sameAlice))
+	require.Error(t, checkConnectionIdentity(conn, bob))
+	require.Error(t, checkConnectionIdentity(conn, nil))
+}
+
 func TestDialWebSocket_Errors(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
 	m := NewMultiplexer(contextStore, false)
@@ -222,12 +278,12 @@ func TestDialWebSocket_Errors(t *testing.T) {
 	// Test invalid URL
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 
-	ws, err := m.dialWebSocket("invalid-url", tlsConfig, "", nil)
+	ws, err := m.dialWebSocket("invalid-url", tlsConfig, "", nil, nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
 
 	// Test unreachable URL
-	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil)
+	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil, nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
 }
@@ -263,7 +319,7 @@ func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 
 	// This should fail with a "bad handshake" error and log the response
-	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, ws)
@@ -721,7 +777,7 @@ func TestGetOrCreateConnection(t *testing.T) {
 
 	token := "token"
 
-	conn, err := m.getOrCreateConnection(msg, clientConn, &token)
+	conn, err := m.getOrCreateConnection(msg, clientConn, &token, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "test-cluster", conn.ClusterID)
@@ -730,13 +786,13 @@ func TestGetOrCreateConnection(t *testing.T) {
 	assert.Equal(t, "watch=true", conn.Query)
 
 	// Test getting an existing connection
-	conn2, err := m.getOrCreateConnection(msg, clientConn, &token)
+	conn2, err := m.getOrCreateConnection(msg, clientConn, &token, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
 	// Test with invalid cluster
 	msg.ClusterID = "non-existent-cluster"
-	conn3, err := m.getOrCreateConnection(msg, clientConn, &token)
+	conn3, err := m.getOrCreateConnection(msg, clientConn, &token, nil)
 	assert.Error(t, err)
 	assert.Nil(t, conn3)
 }
@@ -764,7 +820,9 @@ func TestEstablishClusterConnection(t *testing.T) {
 	defer clientServer.Close()
 
 	// Test successful connection establishment
-	conn, err := m.establishClusterConnection("test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+	conn, err := m.establishClusterConnection(
+		"test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn, nil, nil,
+	)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "test-cluster", conn.ClusterID)
@@ -773,7 +831,9 @@ func TestEstablishClusterConnection(t *testing.T) {
 	assert.Equal(t, "watch=true", conn.Query)
 
 	// Test with invalid cluster
-	conn, err = m.establishClusterConnection("non-existent", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+	conn, err = m.establishClusterConnection(
+		"non-existent", "test-user", "/api/v1/pods", "watch=true", clientConn, nil, nil,
+	)
 	assert.Error(t, err)
 	assert.Nil(t, conn)
 }
@@ -822,6 +882,7 @@ func TestEstablishClusterConnectionUsesServiceAccountToken(t *testing.T) {
 		"watch=true",
 		clientConn,
 		&requestToken,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
@@ -1377,7 +1438,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 		UserID:    "test-user",
 	}
 
-	conn, err := m.getOrCreateConnection(msg, clientConn, &originalToken)
+	conn, err := m.getOrCreateConnection(msg, clientConn, &originalToken, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, &originalToken, conn.Token)
@@ -1386,7 +1447,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 	newToken := "new-refreshed-token"
 
 	// Get the same connection, but with a new token
-	conn2, err := m.getOrCreateConnection(msg, clientConn, &newToken)
+	conn2, err := m.getOrCreateConnection(msg, clientConn, &newToken, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
@@ -1425,7 +1486,7 @@ func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) 
 		UserID:    conn.UserID,
 	}
 
-	refreshedConn, err := m.getOrCreateConnection(msg, clientConn, &requestToken)
+	refreshedConn, err := m.getOrCreateConnection(msg, clientConn, &requestToken, nil)
 	require.NoError(t, err)
 	assert.Equal(t, conn, refreshedConn)
 	require.NotNil(t, refreshedConn.Token)
@@ -1526,7 +1587,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 
-	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil, nil)
 	require.NoError(t, err)
 
 	conn.WSConn = ws

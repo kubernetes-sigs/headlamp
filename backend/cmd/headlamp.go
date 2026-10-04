@@ -82,6 +82,8 @@ type HeadlampConfig struct {
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	impersonationOnce sync.Once
+	impersonationCfg  *impersonationConfig
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -770,10 +772,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
+			impersonation, err := config.impersonationFor(r, mux.Vars(r)["clusterName"], contextKey)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+
 			portforward.StartPortForward(
 				config.KubeConfigStore,
 				config.Cache,
 				config.shouldUseUnsafeServiceAccountToken(),
+				impersonation,
 				contextKey,
 				w,
 				r,
@@ -1326,6 +1335,132 @@ func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
 }
 
+// shouldUseImpersonation reports whether Headlamp should authenticate to the API server
+// using its own in-cluster service account credential and impersonate the OIDC user,
+// instead of forwarding the user's raw OIDC token as the Bearer credential. This is for API
+// servers (e.g. most managed Kubernetes offerings) that do not trust Headlamp's OIDC issuer
+// directly, and would otherwise reject the forwarded token with 401 Unauthorized.
+func (c *HeadlampConfig) shouldUseImpersonation() bool {
+	return c != nil && c.UseInCluster && c.OidcUseImpersonation
+}
+
+// shouldUseImpersonationForContext reports whether impersonation should be used for the
+// given context: it requires --oidc-use-impersonation (see shouldUseImpersonation) and that
+// the context itself authenticates upstream via the mounted in-cluster service account token
+// (the credential that will actually be presented to the API server, with RBAC 'impersonate'
+// permission expected to be granted to it).
+func (c *HeadlampConfig) shouldUseImpersonationForContext(kContext *kubeconfig.Context) bool {
+	return c.shouldUseImpersonation() && kContext.UsesInClusterServiceAccountToken()
+}
+
+// impersonationConfig holds what verifying a request's identity needs. It is built once
+// because the verifier caches the provider's signing keys between requests.
+type impersonationConfig struct {
+	verifier      *auth.IDTokenVerifier
+	usernamePaths auth.CompiledPaths
+	groupsPaths   auth.CompiledPaths
+}
+
+func (c *HeadlampConfig) impersonationSettings() *impersonationConfig {
+	c.impersonationOnce.Do(func() {
+		clientID := c.OidcClientID
+		if c.OidcValidatorClientID != "" {
+			clientID = c.OidcValidatorClientID
+		}
+
+		c.impersonationCfg = &impersonationConfig{
+			verifier: auth.NewIDTokenVerifier(
+				c.OidcIdpIssuerURL, c.OidcValidatorIdpIssuerURL, clientID,
+				c.OidcSkipTLSVerify, c.OidcCACert),
+			usernamePaths: auth.CompileJMESPaths(c.MeUsernamePaths),
+			groupsPaths:   auth.CompileJMESPaths(c.MeGroupsPaths),
+		}
+	})
+
+	return c.impersonationCfg
+}
+
+// requestIDToken returns the OIDC ID token the request was made with: the proxy-auth
+// token header if configured, otherwise the cluster's auth cookie.
+func (c *HeadlampConfig) requestIDToken(r *http.Request, clusterName string) string {
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
+			return token
+		}
+	}
+
+	token, _ := auth.GetTokenFromCookie(r, clusterName)
+
+	return token
+}
+
+// impersonationFor is impersonationForRequest for handlers that look the context up by key.
+// An unknown context returns no identity, letting the handler report the missing context.
+func (c *HeadlampConfig) impersonationFor(
+	r *http.Request,
+	clusterName, contextKey string,
+) (*kubeconfig.Impersonation, error) {
+	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err != nil {
+		// The handler reports the missing context, so no identity is resolved here.
+		return nil, nil
+	}
+
+	return c.impersonationForRequest(r, clusterName, kContext)
+}
+
+// impersonationForRequest returns the verified identity the request must act as on kContext,
+// or nil when impersonation does not apply to that context. A non-nil error means
+// impersonation applies but the identity could not be verified, so the request must be rejected.
+func (c *HeadlampConfig) impersonationForRequest(
+	r *http.Request,
+	clusterName string,
+	kContext *kubeconfig.Context,
+) (*kubeconfig.Impersonation, error) {
+	if !c.shouldUseImpersonationForContext(kContext) {
+		return nil, nil
+	}
+
+	settings := c.impersonationSettings()
+
+	token := c.requestIDToken(r, clusterName)
+	if token == "" {
+		return nil, errors.New("no OIDC token to resolve an identity for impersonation")
+	}
+
+	claims, err := settings.verifier.Verify(r.Context(), token)
+	if err != nil {
+		return nil, err
+	}
+
+	identity, err := auth.IdentityFromClaims(claims, settings.usernamePaths, settings.groupsPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	return &identity, nil
+}
+
+// stripImpersonationHeaders removes every Impersonate-* header a client sent. Headlamp sets
+// those itself from verified claims, so a client-supplied value must never reach the API server.
+func stripImpersonationHeaders(r *http.Request) {
+	for name := range r.Header {
+		if strings.HasPrefix(strings.ToLower(name), "impersonate-") {
+			r.Header.Del(name)
+		}
+	}
+}
+
+// setImpersonationHeaders asks the API server to act as imp. The connection itself
+// authenticates as Headlamp's in-cluster service account, which must hold RBAC 'impersonate'.
+func setImpersonationHeaders(r *http.Request, imp kubeconfig.Impersonation) {
+	r.Header.Set("Impersonate-User", imp.Username)
+
+	for _, group := range imp.Groups {
+		r.Header.Add("Impersonate-Group", group)
+	}
+}
+
 // getContextWithWebSocketFallback returns the requested context, falling back to the cluster
 // context when a WebSocket request references a missing user-specific context.
 func (c *HeadlampConfig) getContextWithWebSocketFallback(
@@ -1754,7 +1889,15 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
+			clusterName := mux.Vars(r)["clusterName"]
+
+			impersonation, err := c.impersonationFor(r, clusterName, clusterName)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+
+			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), impersonation, w, r)
 		}))).Queries("request", "{request}").
 		Methods("GET")
 }
@@ -1809,11 +1952,20 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	unsafeUseServiceAccountToken := c.shouldUseUnsafeServiceAccountTokenForContext(context)
+	impersonation, err := c.impersonationForRequest(r, clusterName, context)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
+		return
+	}
 
-	if unsafeUseServiceAccountToken {
+	switch {
+	case c.shouldUseUnsafeServiceAccountTokenForContext(context):
 		clearRequestAuthorization(r)
-	} else {
+	case impersonation != nil:
+		clearRequestAuthorization(r)
+
+		context = context.WithImpersonation(*impersonation)
+	default:
 		applyRequestTokenToContext(r, clusterName, context)
 	}
 
@@ -1833,18 +1985,27 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 		attribute.String("operation", operation))
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
-	unsafeUseServiceAccountToken := err == nil && c.shouldUseUnsafeServiceAccountTokenForContext(context)
+	kContext, getErr := c.KubeConfigStore.GetContext(clusterName)
+	unsafeUseServiceAccountToken := getErr == nil && c.shouldUseUnsafeServiceAccountTokenForContext(kContext)
 
-	if unsafeUseServiceAccountToken {
+	// kContext is nil when the lookup failed, which impersonation treats as not applicable.
+	impersonation, err := c.impersonationForRequest(r, clusterName, kContext)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
+		return
+	}
+
+	switch {
+	case unsafeUseServiceAccountToken, impersonation != nil:
+		// The identity is verified above, so the raw token is never forwarded.
 		clearRequestAuthorization(r)
-	} else {
+	default:
 		// fetch token from cookie
 		auth.SetTokenFromCookie(r, clusterName)
 	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
+	if c.UseInCluster && !unsafeUseServiceAccountToken && impersonation == nil && r.Header.Get("Authorization") == "" {
 		c.handleError(
 			w, ctx, span,
 			errors.New("no authentication token provided"),
@@ -2004,9 +2165,23 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		impersonation, err := c.impersonationForRequest(r, mux.Vars(r)["clusterName"], kContext)
+		if err != nil {
+			c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
+
+			return
+		}
+
+		switch {
+		case c.shouldUseUnsafeServiceAccountTokenForContext(kContext):
+			// The service account credential is used, so a client must not add its own identity.
+			stripImpersonationHeaders(r)
 			clearRequestAuthorization(r)
-		} else {
+		case impersonation != nil:
+			stripImpersonationHeaders(r)
+			clearRequestAuthorization(r)
+			setImpersonationHeaders(r, *impersonation)
+		default:
 			var token string
 
 			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
@@ -2989,9 +3164,24 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+	impersonation, err := c.impersonationForRequest(r, drainPayload.Cluster, ctxtProxy)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify identity for impersonation", http.StatusUnauthorized)
 
-	clientset, err := ctxtProxy.ClientSetWithToken(token)
+		return
+	}
+
+	kContext := ctxtProxy
+	token := ""
+
+	if impersonation != nil {
+		// The drain acts as the verified user, on Headlamp's service account credential.
+		kContext = ctxtProxy.WithImpersonation(*impersonation)
+	} else {
+		token = c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+	}
+
+	clientset, err := kContext.ClientSetWithToken(token)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "getting client", http.StatusInternalServerError)
 
