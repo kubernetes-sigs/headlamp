@@ -51,6 +51,11 @@ type FakeOIDCIssuer struct {
 	// BeforeKeys is BeforeDiscovery's counterpart for the JWKS endpoint, so tests can also
 	// simulate a stalled or intermittently unresponsive signing-key fetch.
 	BeforeKeys func(r *http.Request)
+
+	// TokenHandler, if set, serves the token endpoint the discovery document advertises, so
+	// tests can exercise a refresh_token exchange end to end. Left nil, the endpoint responds
+	// 404, since most tests never need it.
+	TokenHandler http.HandlerFunc
 }
 
 // NewFakeOIDCIssuer starts a fake issuer that is shut down when the test finishes.
@@ -91,6 +96,14 @@ func NewFakeOIDCIssuer(t *testing.T) *FakeOIDCIssuer {
 				"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
 			}},
 		})
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		if issuer.TokenHandler != nil {
+			issuer.TokenHandler(w, r)
+			return
+		}
+
+		http.NotFound(w, r)
 	})
 
 	server := httptest.NewServer(mux)

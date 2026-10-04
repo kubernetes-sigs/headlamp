@@ -512,12 +512,25 @@ func (c *Context) SetupProxy() error {
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
 	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
-	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
+	// as it can indicate the API server does not trust the same OIDC provider as Headlamp. This
+	// does not apply to an impersonated request: its actual credential is the service account
+	// token, not the user's OIDC bearer token, so a 401 there means something else entirely (for
+	// example a missing RBAC grant for impersonation), and the hint would be actively misleading.
+	//
+	// Kubeconfig-native impersonation (c.AuthInfo.Impersonate) is static per context, so it could
+	// be checked once here. --oidc-use-impersonation's identity is not: it travels on each
+	// request's own context (see ContextWithImpersonation), set by the caller per request, not
+	// by this Context. So both are checked together inside ModifyResponse, per response, rather
+	// than only once when the proxy is set up.
 	if c.AuthType() == "oidc" {
 		// Log at most once per proxy to avoid flooding the logs on repeated 401s.
 		var warnOnce sync.Once
 
 		proxy.ModifyResponse = func(resp *http.Response) error {
+			if isImpersonatedRequest(c, resp.Request) {
+				return nil
+			}
+
 			authHeader := ""
 			if resp.Request != nil {
 				authHeader = resp.Request.Header.Get("Authorization")
@@ -555,6 +568,24 @@ func (c *Context) SetupProxy() error {
 		nil, "Proxy setup")
 
 	return nil
+}
+
+// isImpersonatedRequest reports whether req is proxied under an impersonated identity for c,
+// checking both kubeconfig-native impersonation (c.AuthInfo.Impersonate, static per context) and
+// --oidc-use-impersonation's (carried on req's own context -- see ContextWithImpersonation --
+// since that identity is set by the caller per request, not by c).
+func isImpersonatedRequest(c *Context, req *http.Request) bool {
+	if c.AuthInfo != nil && c.AuthInfo.Impersonate != "" {
+		return true
+	}
+
+	if req == nil {
+		return false
+	}
+
+	_, ok := impersonationFromContext(req.Context())
+
+	return ok
 }
 
 // AuthType returns the authentication type for the context.

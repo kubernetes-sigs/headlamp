@@ -680,15 +680,31 @@ func newOIDCProviderServer(t *testing.T, issuerURL string, tokenHandler http.Han
 	return srv
 }
 
+// findAuthCookie returns the final value a browser's cookie jar would hold for the named auth
+// cookie, after applying every Set-Cookie header on resp in order. SetTokenCookie's ClearTokenCookie
+// pre-step (see its doc comment) unconditionally emits its own clearing Set-Cookie headers before
+// the real value is written, so the first header matching the name is not necessarily the one
+// that ends up set; this takes the last one instead, and treats a clear (MaxAge < 0) as unsetting
+// it unless a later Set-Cookie re-adds it.
 func findAuthCookie(resp *http.Response, cluster string) (string, bool) {
 	want := fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName(cluster))
+
+	value, found := "", false
+
 	for _, cookie := range resp.Cookies() {
-		if cookie.Name == want {
-			return cookie.Value, true
+		if cookie.Name != want {
+			continue
 		}
+
+		if cookie.MaxAge < 0 {
+			value, found = "", false
+			continue
+		}
+
+		value, found = cookie.Value, true
 	}
 
-	return "", false
+	return value, found
 }
 
 var oauthSuccessBody = map[string]any{
@@ -838,7 +854,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, tok)
 	assert.Equal(t, refreshNew, tok.RefreshToken)
@@ -872,11 +888,13 @@ func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "did not match")
 
-	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, issuerURL)
+	tok, err := auth.RefreshAndCacheNewToken(
+		context.Background(), config, fc, "id_token", oldToken, srv.URL, issuerURL, nil,
+	)
 	require.NoError(t, err)
 	assert.NotNil(t, tok)
 	assert.Equal(t, refreshNew, tok.RefreshToken)
@@ -890,7 +908,7 @@ func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	_, err := auth.RefreshAndCacheNewToken(
-		context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL, "",
+		context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL, "", nil,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting provider")
@@ -907,7 +925,7 @@ func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refreshing token")
 	assert.Len(t, fc.setCalls, 0)
@@ -1006,6 +1024,104 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 	cookieVal, ok := findAuthCookie(resp, cluster)
 	require.True(t, ok, "expected auth cookie to be set")
 	assert.Equal(t, "ACCESS_NEW", cookieVal)
+}
+
+// TestRefreshAndSetToken_UpdatesRequestAuthorizationHeader locks in the fix for a race this
+// package's own call sites can hit: NewOIDCTokenRefreshMiddleware refreshes and writes a new
+// Set-Cookie on the response, then calls next.ServeHTTP with the SAME *http.Request -- whose
+// Cookie header was never touched. A handler further down that chain (for example
+// impersonationForRequest) reading that request's token would otherwise still see the one this
+// refresh just replaced, fail verification if it had already expired, and attempt its own
+// refresh using the same now-consumed refresh token -- which a provider that rotates or
+// invalidates refresh tokens after use would reject, turning this refresh's success into a 401
+// anyway. Setting the Authorization header here, which requestIDToken checks before falling
+// back to the cookie, is what breaks that chain.
+func TestRefreshAndSetToken_UpdatesRequestAuthorizationHeader(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "test"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		BaseURL:          "",
+	})
+
+	assert.Equal(t, "Bearer NEW", req.Header.Get("Authorization"),
+		"the same request's Authorization header must carry the refreshed token, "+
+			"not just the response's Set-Cookie")
+}
+
+// TestRefreshAndSetToken_RecordsLatestKnownGoodToken locks in the write side of the fix behind
+// auth.LatestIDTokenCacheKey: a caller with no response of its own to write a fresh cookie to --
+// the WebSocket multiplexer's reactive refresh -- checks this cache entry before performing its
+// own refresh-token exchange, so it can reuse an already-fresh token instead of consuming
+// (and for a provider that rotates refresh tokens, permanently invalidating) the shared refresh
+// token a second time. That only works if a proactive refresh like this one actually records it.
+func TestRefreshAndSetToken_RecordsLatestKnownGoodToken(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "test"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		BaseURL:          "",
+	})
+
+	var recorded bool
+
+	for _, call := range fc.setWithTTLCalls {
+		if call.key == auth.LatestIDTokenCacheKey(oldToken) {
+			recorded = true
+
+			assert.Equal(t, "NEW", call.val)
+			assert.Equal(t, auth.LatestIDTokenTTL, call.ttl,
+				"the latest-known-good-token entry must expire, not be kept forever")
+		}
+	}
+
+	assert.True(t, recorded, "expected the refreshed token to be recorded under LatestIDTokenCacheKey")
 }
 
 func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
@@ -1367,7 +1483,20 @@ func TestIdentityFromClaims_Success(t *testing.T) {
 	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
 	require.NoError(t, err)
 	assert.Equal(t, "alice@example.com", identity.Username)
-	assert.Equal(t, []string{"dev", "ops"}, identity.Groups)
+	assert.Equal(t, []string{"dev", "ops", "system:authenticated"}, identity.Groups)
+}
+
+func TestIdentityFromClaims_DeduplicatesAuthenticatedGroup(t *testing.T) {
+	t.Parallel()
+
+	claims := map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"system:authenticated", "dev", "system:authenticated"},
+	}
+
+	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"system:authenticated", "dev"}, identity.Groups)
 }
 
 func TestIdentityFromClaims_MissingUsernameClaim(t *testing.T) {
