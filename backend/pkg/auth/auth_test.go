@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/internal/testutil"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -175,7 +176,7 @@ var parseClusterAndTokenTests = []struct {
 		wantToken:   "cookie-token",
 		cookies: []*http.Cookie{
 			{
-				Name:  "headlamp-auth-cookie-cluster.0",
+				Name:  "headlamp-auth-" + auth.SanitizeClusterName("cookie-cluster") + ".0",
 				Value: "cookie-token",
 			},
 		},
@@ -1157,20 +1158,6 @@ func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
 	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
 }
 
-func makeTestToken(t *testing.T, claims map[string]interface{}) string {
-	// helper to build unsigned JWT-like string for tests
-	header := map[string]string{"alg": "none", "typ": "JWT"}
-	headerJSON, err := json.Marshal(header)
-	require.NoError(t, err)
-	claimsJSON, err := json.Marshal(claims)
-	require.NoError(t, err)
-
-	return fmt.Sprintf("%s.%s.signature",
-		base64.RawURLEncoding.EncodeToString(headerJSON),
-		base64.RawURLEncoding.EncodeToString(claimsJSON),
-	)
-}
-
 func TestHandleMe_Success(t *testing.T) {
 	t.Parallel()
 
@@ -1182,7 +1169,7 @@ func TestHandleMe_Success(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1233,7 +1220,7 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1309,7 +1296,7 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1367,4 +1354,35 @@ func TestHandleMe_MissingCookie(t *testing.T) {
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
+}
+
+func TestIdentityFromClaims_Success(t *testing.T) {
+	t.Parallel()
+
+	claims := map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev", "ops"},
+	}
+
+	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
+	require.NoError(t, err)
+	assert.Equal(t, "alice@example.com", identity.Username)
+	assert.Equal(t, []string{"dev", "ops"}, identity.Groups)
+}
+
+func TestIdentityFromClaims_MissingUsernameClaim(t *testing.T) {
+	t.Parallel()
+
+	// Default me-username-path claims are absent; only "email" is present, so resolution must
+	// fail unless the operator configured --me-username-path=email to match the IdP's claims.
+	claims := map[string]interface{}{
+		"email": "alice@example.com",
+	}
+
+	_, err := auth.IdentityFromClaims(
+		claims,
+		auth.CompileJMESPaths("preferred_username,upn,username,name"),
+		auth.CompileJMESPaths("groups"),
+	)
+	require.Error(t, err)
 }

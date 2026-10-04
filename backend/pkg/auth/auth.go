@@ -223,6 +223,14 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	return newToken, nil
 }
 
+// oidcHTTPClientTimeout bounds every client this package installs for an OIDC provider or
+// verifier. Without it, a stalled issuer can hang discovery, token exchange, or a signing-key
+// fetch indefinitely: go-oidc keeps this client for its own later requests (for example a
+// verifier's key-set refresh), which run on contexts of their own that a caller has no way to
+// bound, so the client's own Timeout is the only lever that reaches every one of them. It is a
+// var, not a const, so tests can shorten it rather than waiting out a real-sized timeout.
+var oidcHTTPClientTimeout = 30 * time.Second
+
 // ConfigureTLSContext configures TLS settings for the HTTP client in the context.
 // When skipTLSVerify is true, a client that skips verification is installed.
 // When caCert is provided, a client with that CA pool is installed and takes precedence,
@@ -247,7 +255,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		}
 
 		tlsSkipTransport.TLSClientConfig = tlsCfg
-		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport, Timeout: oidcHTTPClientTimeout})
 	}
 
 	if caCert != nil && *caCert != "" {
@@ -279,7 +287,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		tlsCfg.InsecureSkipVerify = false
 
 		customTransport.TLSClientConfig = tlsCfg
-		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport, Timeout: oidcHTTPClientTimeout})
 	}
 
 	return ctx
@@ -394,6 +402,41 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 
 		writeMeResponse(w, username, email, groups, userInfoURL)
 	}
+}
+
+// CompiledPaths is a set of pre-compiled JMESPath expressions used to resolve a claim
+// from a decoded JWT payload, in priority order.
+type CompiledPaths []*jmespath.JMESPath
+
+// CompileJMESPaths parses and compiles a comma-separated list of JMESPath expressions
+// for repeated reuse (e.g. once per server startup, rather than once per request). It is
+// exported so callers outside this package (e.g. the in-cluster impersonation proxy path)
+// can reuse the same claim-resolution mechanism as the /me endpoint.
+func CompileJMESPaths(pathCSV string) CompiledPaths {
+	return compileJMESPaths(pathCSV)
+}
+
+// IdentityFromClaims resolves the user and groups to impersonate from ID token claims that
+// have already been verified by IDTokenVerifier. The claims must never come from an
+// unverified token: anyone can write a payload, only the provider's signature proves it.
+func IdentityFromClaims(
+	claims map[string]interface{}, usernamePaths, groupsPaths CompiledPaths,
+) (kubeconfig.Impersonation, error) {
+	username := stringValueFromJMESPaths(claims, usernamePaths)
+	if username == "" {
+		return kubeconfig.Impersonation{}, errors.New("could not resolve username claim")
+	}
+
+	// The verifier already rejected an expired token, so this is recorded only for later use:
+	// refusing to reuse this identity on a connection an automatic reconnect re-establishes
+	// after that token would have expired, without a fresh token to re-verify.
+	expiry, _ := GetExpiryUnixTimeUTC(claims)
+
+	return kubeconfig.Impersonation{
+		Username: username,
+		Groups:   stringSliceFromJMESPaths(claims, groupsPaths),
+		Expiry:   expiry,
+	}, nil
 }
 
 // parseClaimsFromToken extracts the JWT claims from a token.
