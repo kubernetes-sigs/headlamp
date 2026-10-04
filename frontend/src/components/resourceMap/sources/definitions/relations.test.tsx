@@ -23,6 +23,8 @@ import Job from '../../../../lib/k8s/job';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import Role from '../../../../lib/k8s/role';
+import RoleBinding from '../../../../lib/k8s/roleBinding';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
@@ -484,6 +486,30 @@ describe('useGetAllRelations', () => {
       )
     ).toBe(true);
     expect(jobConfigMapRelation.predicate(node(job({})), node(configMap))).toBe(false);
+  });
+
+  it('only links a RoleBinding to a Role when roleRef.kind is Role', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({
+      items: [],
+    } as unknown as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'rolebinding-role');
+    const role = new Role(
+      { metadata: { uid: 'role', name: 'admin', namespace: 'namespace-a' } } as any,
+      'cluster-a'
+    );
+    const binding = (kind: string) =>
+      new RoleBinding(
+        {
+          metadata: { uid: 'rb', name: 'rb', namespace: 'namespace-a' },
+          roleRef: { kind, name: 'admin', apiGroup: 'rbac.authorization.k8s.io' },
+          subjects: [],
+        } as any,
+        'cluster-a'
+      );
+
+    expect(relation.predicate(node(binding('Role')), node(role))).toBe(true);
+    expect(relation.predicate(node(binding('ClusterRole')), node(role))).toBe(false);
   });
 
   it('matches and rejects Kubernetes owner references', () => {

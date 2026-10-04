@@ -307,7 +307,7 @@ const roleBindingsToRole = makeRelation(
   'rolebinding-role',
   RoleBinding,
   Role,
-  (binding, role) => role.metadata.name === binding.roleRef.name
+  (binding, role) => binding.roleRef?.kind === 'Role' && role.metadata.name === binding.roleRef.name
 );
 
 const roleBindingToServiceAccount = makeRelation(
