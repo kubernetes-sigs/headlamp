@@ -89,6 +89,7 @@ type HeadlampCFG struct {
 	ForceTheme                   string
 	UnsafeUseServiceAccountToken bool
 	ServiceAccountTokenPath      string
+	OidcUseImpersonation         bool
 
 	EnableClusterInventory                bool
 	ClusterInventoryProviderFile          string
