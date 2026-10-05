@@ -109,6 +109,12 @@ If you are interested in the direction of the project, we maintain a
 [Roadmap](https://github.com/orgs/headlamp-k8s/projects/1/views/1). It has the
 biggest changes planned so far, as well as a [board](https://github.com/orgs/headlamp-k8s/projects/1/) tracking each release.
 
+## Security
+
+See the [Security](https://headlamp.dev/docs/latest/security/) documentation for
+what to expect from Headlamp security-wise and how to deploy it securely. To report
+a vulnerability, see [SECURITY.md](./SECURITY.md).
+
 ## License
 
 Headlamp is released under the terms of the [Apache 2.0](./LICENSE) license.

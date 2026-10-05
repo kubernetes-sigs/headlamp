@@ -16,6 +16,14 @@ Instructions for reporting a vulnerability can be found on the
 Information about supported Kubernetes versions can be found on the
 [Kubernetes version and version skew support policy] page on the Kubernetes website.
 
+## Security Documentation
+
+- [Security requirements](https://headlamp.dev/docs/latest/security/):
+  what you can and cannot expect from Headlamp in terms of security, and how to
+  deploy it securely.
+- [Security assurance case](https://headlamp.dev/docs/latest/development/assurance-case/):
+  threat model, trust boundaries, and how secure design principles are applied.
+
 [kubernetes-security-announce]: https://groups.google.com/forum/#!forum/kubernetes-security-announce
 [kubernetes-security-announce-rss]: https://groups.google.com/forum/feed/kubernetes-security-announce/msgs/rss_v2_0.xml?num=50
 [Kubernetes version and version skew support policy]: https://kubernetes.io/docs/setup/release/version-skew-policy/#supported-versions
