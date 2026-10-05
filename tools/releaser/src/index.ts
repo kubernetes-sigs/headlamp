@@ -42,13 +42,15 @@ program.command('start')
   .action(startRelease);
 
 program.command('tag')
-  .description('Create a git tag for the release')
+  .description('Create a signed git tag for the release (uses your git signing configuration)')
+  .option('--no-sign', 'Create an unsigned annotated tag instead')
   .action(tagRelease);
 
 program.command('publish')
   .description('Push tag, assign to release draft, and publish the release')
   .argument('<release-version>', 'Version to publish (e.g., 0.30.0)')
   .option('--force', 'Skip confirmation prompt')
+  .option('--allow-unsigned', 'Publish even if the release tag is not signed')
   .action(publishRelease);
 
 // CI command with subcommands

@@ -143,7 +143,7 @@ export function startRelease(
       console.log(chalk.blue(`Branch: ${branchName}`));
     }
     console.log(
-      `You can now create a tag with 'releaser tag' and publish with 'releaser publish ${version}'`,
+      `You can now create a signed tag with 'releaser tag' and publish with 'releaser publish ${version}'`,
     );
   } catch (error) {
     console.error(chalk.red('Error starting release:'));

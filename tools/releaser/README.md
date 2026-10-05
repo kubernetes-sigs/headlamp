@@ -44,7 +44,7 @@ releaser start 0.42.0
 #    via the GitHub Actions UI with releaseName: 0.42.0
 
 # 3. Create the release tag (reads version from app/package.json,
-#    creates annotated git tag v0.42.0)
+#    creates a signed, annotated git tag v0.42.0)
 releaser tag
 
 # 4. Verify the draft release and its required artifacts before publishing
@@ -104,15 +104,21 @@ releaser start 0.42.0 --no-branch
 
 ### `tag` — Create a release tag
 
-Create an annotated git tag (`v<version>`) for the current version read from `app/package.json`.
+Create a signed, annotated git tag (`v<version>`) for the current version read from `app/package.json`. The tag is signed with your configured git signing key (`git tag -s`, GPG or SSH). Make sure your signing key is [added to your GitHub account](https://docs.github.com/en/authentication/managing-commit-signature-verification) as a signing key, so the tag shows as **Verified**.
 
 ```bash
 releaser tag
 ```
 
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--no-sign` | Create an unsigned annotated tag instead. `releaser publish` refuses unsigned tags unless `--allow-unsigned` is passed |
+
 ### `publish` — Publish a release
 
-Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used.
+Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used. The release tag must exist locally and be signed (see `releaser tag`). After pushing the tag, it warns if GitHub does not show the tag as verified, for example because your signing key is not registered on your GitHub account.
 
 ```bash
 releaser publish <release-version> [options]
@@ -123,6 +129,7 @@ releaser publish <release-version> [options]
 | Option | Description |
 |---|---|
 | `--force` | Skip the confirmation prompt |
+| `--allow-unsigned` | Publish even if the release tag is not signed |
 
 **Example:**
 

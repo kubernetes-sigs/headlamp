@@ -56,20 +56,45 @@ export function commitVersionChange(version: string): void {
   }
 }
 
-export function createReleaseTag(version: string): void {
+export function createReleaseTag(version: string, sign = true): void {
   if (!isValidVersion(version)) {
     console.error(`Error: Invalid semantic version format "${version}".`);
     process.exit(1);
   }
 
   try {
-    execFileSync('git', ['tag', '-a', `v${version}`, '-m', `Release ${version}`], {
+    execFileSync('git', ['tag', sign ? '-s' : '-a', `v${version}`, '-m', `Release ${version}`], {
       stdio: 'inherit',
     });
   } catch (error) {
     console.error(`Error: Failed to create tag v${version}`);
-    console.error(error);
+    if (sign) {
+      console.error(
+        'Signing requires a GPG or SSH signing key configured for git (user.signingkey, ' +
+          'and gpg.format=ssh for SSH keys). See ' +
+          'https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key'
+      );
+    }
     process.exit(1);
+  }
+}
+
+/**
+ * Returns whether the local release tag is an annotated tag carrying a GPG,
+ * SSH, or X.509 signature. Lightweight and unsigned annotated tags return false.
+ */
+export function isReleaseTagSigned(version: string): boolean {
+  const ref = `refs/tags/v${version}`;
+  try {
+    const output = execFileSync(
+      'git',
+      ['for-each-ref', '--format=%(objecttype)%00%(contents:signature)', ref],
+      { encoding: 'utf-8' }
+    );
+    const [objectType, signature = ''] = output.split('\0');
+    return objectType === 'tag' && signature.trim() !== '';
+  } catch {
+    return false;
   }
 }
 

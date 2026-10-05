@@ -173,6 +173,48 @@ export async function associateTagWithRelease(releaseId: number, version: string
   }
 }
 
+/** GitHub's signature verification status for a release tag. */
+export interface TagVerification {
+  /** Whether GitHub matched the tag's signature to a key on the tagger's account. */
+  verified: boolean;
+  /**
+   * Why the tag is or isn't verified, as reported by GitHub (e.g. `valid`,
+   * `unsigned`, `unknown_key`), or `lightweight` for tags that have no tag
+   * object and so cannot be signed.
+   */
+  reason: string;
+}
+
+/**
+ * Returns GitHub's signature verification status for the pushed release tag.
+ * Lightweight tags cannot be signed, so they are reported as unverified.
+ *
+ * @param version The version of the tag (without 'v' prefix)
+ */
+export async function getTagVerification(version: string): Promise<TagVerification> {
+  const octokit = getOctokit();
+  const { data: ref } = await octokit.git.getRef({
+    owner: OWNER,
+    repo: REPO,
+    ref: `tags/v${version}`
+  });
+
+  if (ref.object.type !== 'tag') {
+    return { verified: false, reason: 'lightweight' };
+  }
+
+  const { data: tag } = await octokit.git.getTag({
+    owner: OWNER,
+    repo: REPO,
+    tag_sha: ref.object.sha
+  });
+
+  return {
+    verified: Boolean(tag.verification?.verified),
+    reason: tag.verification?.reason ?? 'unknown'
+  };
+}
+
 /**
  * Check if container image exists for the version
  */
