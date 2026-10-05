@@ -51,15 +51,36 @@ Headlamp was created to blend the traditional feature set of other web UIs/dashb
 
 ## Quickstart
 
-If you want to deploy Headlamp in your cluster, check out the instructions on running it [in-cluster](https://headlamp.dev/docs/latest/installation/in-cluster/).
-
 If you have a kubeconfig already, you can quickly try Headlamp locally as a
-[desktop application](https://headlamp.dev/docs/latest/installation/desktop/)
-for [Linux](https://headlamp.dev/docs/latest/installation/desktop/linux-installation),
-[Mac](https://headlamp.dev/docs/latest/installation/desktop/mac-installation),
-or [Windows](https://headlamp.dev/docs/latest/installation/desktop/win-installation).
+[desktop application](https://headlamp.dev/docs/latest/installation/desktop/).
 **Make sure** you have a kubeconfig file set up with your favorite clusters and
 in the default path so Headlamp can use it.
+
+```bash
+# macOS
+brew install --cask headlamp
+# Windows
+winget install headlamp
+# Linux
+flatpak install io.kinvolk.Headlamp
+```
+
+See the full instructions for
+[Linux](https://headlamp.dev/docs/latest/installation/desktop/linux-installation),
+[Mac](https://headlamp.dev/docs/latest/installation/desktop/mac-installation),
+or [Windows](https://headlamp.dev/docs/latest/installation/desktop/win-installation).
+
+To deploy Headlamp in your cluster with Helm, then open it with a port-forward:
+
+```bash
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
+helm install my-headlamp headlamp/headlamp --namespace kube-system
+kubectl port-forward -n kube-system service/my-headlamp 8080:80
+```
+
+Then open http://localhost:8080 and log in with a token (see below). For more
+options, check out the instructions on running it
+[in-cluster](https://headlamp.dev/docs/latest/installation/in-cluster/).
 
 ### Accessing
 
