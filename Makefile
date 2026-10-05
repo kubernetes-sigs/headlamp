@@ -35,10 +35,22 @@ EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
 APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
+# Set DBG=1 to build the backend with debug information (symbol table and
+# DWARF), full source paths, and optimizations disabled, for debuggers such as
+# Delve, e.g. `make backend DBG=1`. By default, release binaries are stripped
+# and built with -trimpath.
+DBG ?= 0
+ifeq ($(DBG),1)
+    GO_BUILD_MODE_FLAGS := -gcflags="all=-N -l"
+    GO_STRIP_LDFLAGS :=
+else
+    GO_BUILD_MODE_FLAGS := -trimpath
+    GO_STRIP_LDFLAGS := -s -w
+endif
 # Build flags with version and app name
-BUILD_VERSION_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
+BUILD_VERSION_FLAGS := $(GO_BUILD_MODE_FLAGS) -ldflags="$(GO_STRIP_LDFLAGS) -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
 # embed build flags
-EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
+EMBED_BUILD_FLAGS := $(GO_BUILD_MODE_FLAGS) -ldflags="$(GO_STRIP_LDFLAGS) -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
