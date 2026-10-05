@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: write # needed for publishing the container image
+      id-token: write # needed for cosign keyless signing via GitHub OIDC
     steps:
     - name: Check out the repo
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -44,8 +45,8 @@ jobs:
             CONTAINER_TAGS=$BUILD_TAG
           fi
         else
-          # on push to a tag, use the latest tag starting with v and latest as the build tag
-          BUILD_TAG="$(git tag --list --sort=version:refname 'v*' | tail -1)"
+          # on push to a tag, build the tag that triggered this run (and tag it latest)
+          BUILD_TAG="$GITHUB_REF_NAME"
           if [ -z $CONTAINER_TAGS ]; then
             CONTAINER_TAGS="$BUILD_TAG,latest"
           fi
@@ -78,6 +79,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GHCR_IMAGES }}
     - name: Build and push Docker image
+      id: build
       uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9 # v4.2.1
       with:
         context: .
@@ -91,3 +93,18 @@ jobs:
         provenance: true
         cache-from: type=gha
         cache-to: type=gha,mode=max
+    # Only sign images built by a release tag push. Manual (workflow_dispatch)
+    # runs can be launched from a tag while building any buildTag, so they must
+    # not produce an image that passes the documented verification.
+    - name: Install Cosign
+      if: github.event_name == 'push' && github.ref_type == 'tag'
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+    - name: Check Cosign install
+      if: github.event_name == 'push' && github.ref_type == 'tag'
+      run: cosign version
+    - name: Sign the container image with cosign (keyless)
+      if: github.event_name == 'push' && github.ref_type == 'tag'
+      env:
+        DIGEST: ${{ steps.build.outputs.digest }}
+      run: |
+        cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
