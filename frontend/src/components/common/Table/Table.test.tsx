@@ -34,7 +34,12 @@ const { tableMocks } = vi.hoisted(() => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+  useTranslation: () => ({
+    // Keys stand in for their translation, with the interpolation i18next would do.
+    t: (key: string, values?: Record<string, unknown>) =>
+      key.replace(/{{(\w+)}}/g, (_match, name) => String(values?.[name])),
+    i18n: { language: 'en' },
+  }),
 }));
 
 vi.mock('../../../lib/useShortcut', () => ({ useShortcut: vi.fn() }));
@@ -460,7 +465,12 @@ describe('Table select filter faceted values', () => {
         getUniqueValues: () => [columnDef.accessorFn(original)],
       })),
     };
-    return { columnDef, getFacetedRowModel: () => rowModel, getIsFiltered: () => false };
+    return {
+      columnDef,
+      getFacetedRowModel: () => rowModel,
+      getIsFiltered: () => false,
+      getFilterValue: () => undefined,
+    };
   }
 
   /** Minimal TanStack table slice; the filter UI is visible unless stated otherwise. */
@@ -499,26 +509,29 @@ describe('Table select filter faceted values', () => {
   );
 
   it.each([
-    ['keeps the options of a column at the cap', 1000, 1000],
-    ['drops the options of a column above the cap', 1001, 0],
-  ])('%s', (_description: string, distinctValues: number, expectedSize: number) => {
+    ['serves every option of a column at the cap', 1000],
+    ['serves the cap worth of options for a column above it', 1001],
+  ])('%s', (_description: string, distinctValues: number) => {
     const rows = Array.from({ length: distinctValues }, (_, index) => ({ status: `s${index}` }));
     renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
 
-    expect(facetedUniqueValues('status', rows).size).toBe(expectedSize);
+    expect(facetedUniqueValues('status', rows).size).toBe(1000);
   });
 
-  it('stops walking the rows once a column is above the cap', () => {
-    const rows = Array.from({ length: 5000 }, (_, index) => ({ status: `s${index}` }));
+  it('keeps the most common values when it has to shorten the list', () => {
+    // The common value comes last, so keeping it proves the list is cut by frequency and
+    // not simply by insertion order.
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ status: `rare-${index}` })),
+      ...Array.from({ length: 5 }, () => ({ status: 'common' })),
+    ];
     renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
 
-    const accessorFn = vi.fn((row: any) => row.status);
-    const columnDef = { ...tableMocks.options.columns[0], accessorFn };
-    const table = makeFacetedTable(makeFacetedColumn(columnDef, rows));
+    const values = facetedUniqueValues('status', rows);
 
-    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().size).toBe(0);
-    // Walking all 5000 rows is what the cap avoids.
-    expect(accessorFn.mock.calls.length).toBeLessThanOrEqual(1001);
+    expect(values.size).toBe(1000);
+    expect(values.get('common')).toBe(5);
+    expect(values.has('rare-999')).toBe(false);
   });
 
   /**
@@ -538,6 +551,7 @@ describe('Table select filter faceted values', () => {
         columnDef,
         getFacetedRowModel: () => rowModel,
         getIsFiltered: () => false,
+        getFilterValue: () => undefined,
       };
       return tableMocks.options.getFacetedUniqueValues(makeFacetedTable(column), 'status')();
     };
@@ -563,14 +577,152 @@ describe('Table select filter faceted values', () => {
     return tableMocks.options.muiFilterTextFieldProps({ column, table });
   }
 
-  it('replaces the options of a capped column with a disabled notice', () => {
+  it('keeps a filtered-for value that the cap would drop', () => {
+    // The rare value is what the column is filtered by, so it has to stay offered even
+    // though its count puts it far outside the most common ones.
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ status: `common-${index}` })),
+      { status: 'rare' },
+    ];
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const column = {
+      ...makeFacetedColumn(columnDef, rows),
+      getFilterValue: () => ['rare'],
+    };
+    const values = tableMocks.options.getFacetedUniqueValues(makeFacetedTable(column), 'status')();
+
+    expect(values.has('rare')).toBe(true);
+    // The least common unselected value makes room for it, the cap itself holds.
+    expect(values.size).toBe(1000);
+  });
+
+  it('walks again when the filter moved to a value the cached set does not carry', () => {
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ status: `common-${index}` })),
+      { status: 'rare' },
+    ];
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const faceted = makeFacetedColumn(columnDef, rows);
+    const filter: { value: unknown } = { value: undefined };
+    const column = { ...faceted, getFilterValue: () => filter.value };
+    const table = makeFacetedTable(column);
+
+    // Same row model, first read without a filter, then with one on the dropped value.
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().has('rare')).toBe(false);
+    filter.value = ['rare'];
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().has('rare')).toBe(true);
+  });
+
+  it('serves the cache while the filter stands, even for a value the rows do not carry', () => {
+    // The namespace selector can filter the rows away under an active column filter. Looking
+    // for that value in the result would then miss the cache on every single render.
     const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
     renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
 
-    const { children } = filterTextFieldProps(rows);
+    const accessorFn = vi.fn((row: any) => row.status);
+    const columnDef = { ...tableMocks.options.columns[0], accessorFn };
+    const column = {
+      ...makeFacetedColumn(columnDef, rows),
+      getFilterValue: () => ['gone-from-the-rows'],
+    };
+    const table = makeFacetedTable(column);
 
-    expect(children.props.disabled).toBe(true);
-    expect(children.props.children).toBe('Too many values to filter');
+    tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    const afterFirstWalk = accessorFn.mock.calls.length;
+    tableMocks.options.getFacetedUniqueValues(table, 'status')();
+
+    expect(afterFirstWalk).toBe(rows.length);
+    expect(accessorFn.mock.calls.length).toBe(afterFirstWalk);
+  });
+
+  it('does not walk the rows again when only the filter moved', () => {
+    // The walk reads the pre-filtered rows, which the column's own filter does not touch,
+    // so a filter change may reshape the offered options but must not repeat the walk.
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const accessorFn = vi.fn((row: any) => row.status);
+    const columnDef = { ...tableMocks.options.columns[0], accessorFn };
+    const filter: { value: unknown } = { value: undefined };
+    const column = {
+      ...makeFacetedColumn(columnDef, rows),
+      getFilterValue: () => filter.value,
+    };
+    const table = makeFacetedTable(column);
+
+    const first = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    const afterFirstWalk = accessorFn.mock.calls.length;
+
+    filter.value = ['s1000'];
+    const second = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+
+    expect(afterFirstWalk).toBe(rows.length);
+    expect(accessorFn.mock.calls.length).toBe(afterFirstWalk);
+    // The shortened view is rebuilt around the new filter, the values behind it are not.
+    expect(second.has('s1000')).toBe(true);
+    expect(first.has('s1000')).toBe(false);
+  });
+
+  it('keeps serving the same shortened map while the filter stands', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const column = makeFacetedColumn(columnDef, rows);
+    const table = makeFacetedTable(column);
+
+    // MRT memoizes its dropdown options on this identity, so it has to hold still.
+    const first = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')()).toBe(first);
+  });
+
+  it.each([
+    ['an object', { color: 'error.main' }],
+    // An sx may also be a callback or an array, which spreading would have thrown away.
+    ['a callback', () => ({ color: 'error.main' })],
+    ['an array', [{ color: 'error.main' }]],
+  ])('keeps caller styling given as %s on the note it adds', (_description, sx) => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({
+      columns: [statusColumn('multi-select')],
+      data: rows as any,
+      muiFilterTextFieldProps: { FormHelperTextProps: { sx } } as any,
+    });
+
+    const props = filterTextFieldProps(rows);
+
+    expect(props.helperText).toBe('Showing 1000 values, some less common ones are not listed');
+    // The note's own styling comes first, the caller's on top of it, in whatever shape.
+    expect(props.FormHelperTextProps.sx[0]).toMatchObject({ whiteSpace: 'normal' });
+    expect(props.FormHelperTextProps.sx.slice(1)).toEqual(Array.isArray(sx) ? sx : [sx]);
+  });
+
+  it('holds the cap even when more values are selected than it allows', () => {
+    const rows = Array.from({ length: 1200 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const column = {
+      ...makeFacetedColumn(columnDef, rows),
+      getFilterValue: () => rows.map(row => row.status),
+    };
+
+    const values = tableMocks.options.getFacetedUniqueValues(makeFacetedTable(column), 'status')();
+
+    expect(values.size).toBe(1000);
+  });
+
+  it('notes under the input that a shortened list is shown', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    expect(filterTextFieldProps(rows).helperText).toBe(
+      'Showing 1000 values, some less common ones are not listed'
+    );
   });
 
   it('drops the notice when the column definition gains caller filter options', () => {
@@ -580,18 +732,18 @@ describe('Table select filter faceted values', () => {
     const { column, table } = makeFilterColumn(rows);
     const props = () => tableMocks.options.muiFilterTextFieldProps({ column, table });
 
-    expect(props().children.props.disabled).toBe(true);
+    expect(props().helperText).toBe('Showing 1000 values, some less common ones are not listed');
 
     // Same column instance, definition swapped in place: the verdict must not survive.
     column.columnDef = { ...column.columnDef, filterSelectOptions: ['Custom'] };
-    expect(props().children).toBeUndefined();
+    expect(props().helperText).toBeUndefined();
 
     column.columnDef = {
       ...column.columnDef,
       filterSelectOptions: undefined,
       filterVariant: 'text',
     };
-    expect(props().children).toBeUndefined();
+    expect(props().helperText).toBeUndefined();
   });
 
   it('adds no notice when the caller replaces getFacetedUniqueValues', () => {
@@ -605,13 +757,15 @@ describe('Table select filter faceted values', () => {
     const { column, table } = makeFilterColumn(rows);
     column.getFacetedUniqueValues = () => new Map();
 
-    expect(tableMocks.options.muiFilterTextFieldProps({ column, table }).children).toBeUndefined();
+    expect(
+      tableMocks.options.muiFilterTextFieldProps({ column, table }).helperText
+    ).toBeUndefined();
   });
 
   it('adds no notice while a column stays below the cap', () => {
     renderTable({ columns: [statusColumn('multi-select')], data: statusRows as any });
 
-    expect(filterTextFieldProps(statusRows).children).toBeUndefined();
+    expect(filterTextFieldProps(statusRows).helperText).toBeUndefined();
   });
 
   it.each([
@@ -628,7 +782,7 @@ describe('Table select filter faceted values', () => {
     const props = filterTextFieldProps(rows);
 
     expect(props.placeholder).toBe('caller');
-    expect(props.children.props.disabled).toBe(true);
+    expect(props.helperText).toBe('Showing 1000 values, some less common ones are not listed');
   });
 
   it('skips the computation when the caller provides filter options', () => {
@@ -710,28 +864,28 @@ describe('Table select filter faceted values', () => {
     // MRT reads the table-level flag, a column can only opt out of it.
     [
       'adds',
-      'the hint when only the column asks for modes',
+      'the note when only the column asks for modes',
       {},
       { enableColumnFilterModes: true },
-      'Too many values to filter',
+      'Showing 1000 values, some less common ones are not listed',
     ],
     [
       'adds',
-      'the hint when the column opts out of modes',
+      'the note when the column opts out of modes',
       { enableColumnFilterModes: true },
       { enableColumnFilterModes: false },
-      'Too many values to filter',
+      'Showing 1000 values, some less common ones are not listed',
     ],
     // MRT renders no mode button, and no label, without options to switch between.
     [
       'adds',
-      'the hint when no filter mode is left to pick',
+      'the note when no filter mode is left to pick',
       { enableColumnFilterModes: true, columnFilterModeOptions: [] },
       {},
-      'Too many values to filter',
+      'Showing 1000 values, some less common ones are not listed',
     ],
   ])(
-    '%s %s on a capped autocomplete column',
+    '%s %s on a truncated autocomplete column',
     (_verb, _case, tableSettings: object, columnSettings: object, expected) => {
       const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
       renderTable({
@@ -750,7 +904,7 @@ describe('Table select filter faceted values', () => {
 
     // MRT sorts the options with localeCompare, so non-strings would throw on render.
     expect(facetedUniqueValues('status', rows).size).toBe(0);
-    expect(filterTextFieldProps(rows).children).toBeUndefined();
+    expect(filterTextFieldProps(rows).helperText).toBeUndefined();
   });
 
   it.each([

@@ -16,7 +16,6 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
-import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import MuiTable from '@mui/material/Table';
@@ -177,8 +176,9 @@ const DEFAULT_MIN_COLUMN_WIDTH = 100;
 
 /**
  * Upper bound for the options of a single select filter. MRT renders one unvirtualized menu
- * item per option, so a high-cardinality column (Node on a large cluster) keeps the empty
- * dropdown it had before instead of freezing the tab on every open.
+ * item per option, so a high-cardinality column (Node on a large cluster) is served its most
+ * common values. This bounds what the menu has to render, it does not make a thousand items
+ * cheap to open.
  */
 const MAX_FILTER_OPTIONS = 1000;
 
@@ -186,11 +186,11 @@ const MAX_FILTER_OPTIONS = 1000;
 const NO_FACETED_VALUES = new Map<any, number>();
 
 /**
- * Served instead of NO_FACETED_VALUES when MAX_FILTER_OPTIONS dropped the options, so the
- * dropdown can say why it is empty. A distinct instance keeps the two cases apart without
- * remembering a verdict that a column definition change could leave stale.
+ * The maps MAX_FILTER_OPTIONS truncated, so the dropdown can say that it lists only part of
+ * the values. Marked by identity rather than remembered per column, so a column definition
+ * that changes at runtime cannot leave a stale verdict behind.
  */
-const CAPPED_FACETED_VALUES = new Map<any, number>();
+const truncatedFacetedValues = new WeakSet<Map<any, number>>();
 
 /**
  * Faceted values per row model and column. MRT rebuilds its column array on every render
@@ -200,11 +200,70 @@ const CAPPED_FACETED_VALUES = new Map<any, number>();
  * yields: TanStack freezes row.getUniqueValues per row and column for the model's lifetime,
  * so recomputing any sooner could not even observe a changed accessor.
  */
-const facetedValuesByRows = new WeakMap<object, Map<string, Map<any, number>>>();
+type FacetedEntry = {
+  /** Every value the rows carry, independent of what the column is filtered by. */
+  values: Map<any, number>;
+  /** The shortened view of those values, kept per filter it was built for. */
+  view?: Map<any, number>;
+  viewFor?: string;
+};
 
-/** Whether a column's options were dropped by MAX_FILTER_OPTIONS rather than never existing. */
-function isOverOptionCap<RowItem extends Record<string, any>>(column: MRT_Column<RowItem>) {
-  return column.getFacetedUniqueValues() === CAPPED_FACETED_VALUES;
+const facetedValuesByRows = new WeakMap<object, Map<string, FacetedEntry>>();
+
+/**
+ * The options a column offers: all of its values, or the most common ones plus whatever is
+ * filtered for once there are more than MRT can render. The walk behind `entry.values` does
+ * not depend on the filter, so only this last step is redone when the filter moves, and the
+ * shortened map keeps its identity meanwhile, which is what MRT memoizes its dropdown on.
+ */
+function facetedView(entry: FacetedEntry, column: { getFilterValue: () => unknown }) {
+  if (entry.values.size <= MAX_FILTER_OPTIONS) {
+    return entry.values;
+  }
+  const viewFor = filterSignature(column);
+  if (entry.view && entry.viewFor === viewFor) {
+    return entry.view;
+  }
+  // MRT renders one unvirtualized menu item per option, so keep the most common values,
+  // which are the ones worth offering as a filter. What is filtered for right now comes
+  // along whatever its count, because MRT reads the label of a selected value back from
+  // these options and would render it blank once the value is gone.
+  const byCount = [...entry.values].sort(([, a], [, b]) => b - a);
+  const active = new Set(activeFilterValues(column));
+  // Selected values come first, but they are capped too: the limit exists to bound what
+  // MRT renders, and it cannot be raised by selecting more.
+  const kept = byCount.filter(([value]) => active.has(value)).slice(0, MAX_FILTER_OPTIONS);
+  for (const candidate of byCount) {
+    if (kept.length >= MAX_FILTER_OPTIONS) {
+      break;
+    }
+    if (!active.has(candidate[0])) {
+      kept.push(candidate);
+    }
+  }
+  entry.view = new Map(kept);
+  entry.viewFor = viewFor;
+  truncatedFacetedValues.add(entry.view);
+  return entry.view;
+}
+
+/** Whether a column's options were truncated by MAX_FILTER_OPTIONS. */
+function isTruncated<RowItem extends Record<string, any>>(column: MRT_Column<RowItem>) {
+  return truncatedFacetedValues.has(column.getFacetedUniqueValues());
+}
+
+/** A stable key for the values a column is filtered by, to tell one walk's basis from another. */
+function filterSignature(column: { getFilterValue: () => unknown }) {
+  return JSON.stringify(activeFilterValues(column).map(String).sort());
+}
+
+/** The values a column is filtered by right now, one for select, several for multi-select. */
+function activeFilterValues(column: { getFilterValue: () => unknown }) {
+  const value = column.getFilterValue();
+  if (Array.isArray(value)) {
+    return value.filter(entry => entry !== null && entry !== undefined && entry !== '');
+  }
+  return value === null || value === undefined || value === '' ? [] : [value];
 }
 
 /**
@@ -245,16 +304,16 @@ const getDropdownFacetedUniqueValues: NonNullable<
     const cachedColumns = facetedValuesByRows.get(flatRows);
     const cached = cachedColumns?.get(columnId);
     if (cached) {
-      return cached;
+      return facetedView(cached, column);
     }
     // Nobody can see the options while the filter UI is hidden and no filter is active,
     // so do not walk the rows for them. Showing the UI re-renders the headers and lands
     // here again with the walk allowed. From there every data update walks again, which
     // measured around 8 ms per dropdown column per 10k rows.
-    // Only the subheader mode ties the filter UI to showColumnFilters, the popover and
-    // custom modes render it on their own terms — there the walk also runs while no popover
-    // is open, since opening one does not re-render the headers, so empty options would
-    // stick. The cap and the per-row-model cache bound that idle cost.
+    // Only the subheader mode ties the filter UI to showColumnFilters. The popover and custom
+    // modes render it on their own terms, and the popover's open state lives inside MRT's
+    // filter label, which asks for these values on every header render either way, so there is
+    // nothing here to gate on. The cap and the per-row-model cache bound that idle cost.
     const optionsAreVisible =
       mrtTable.getState().showColumnFilters ||
       (mrtTable.options.columnFilterDisplayMode ?? 'subheader') !== 'subheader' ||
@@ -266,7 +325,6 @@ const getDropdownFacetedUniqueValues: NonNullable<
     // MRT sorts the options with localeCompare, so anything but a string throws during
     // the header render. Such a column keeps the empty dropdown it had before.
     let sortable = true;
-    let capped = false;
     for (const row of flatRows) {
       for (const value of row.getUniqueValues(columnId) ?? []) {
         // MRT drops these before rendering the options, so they must not count either.
@@ -279,17 +337,15 @@ const getDropdownFacetedUniqueValues: NonNullable<
         }
         values.set(value, (values.get(value) ?? 0) + 1);
       }
-      // Past the cap MRT would render thousands of unvirtualized menu items.
-      capped = values.size > MAX_FILTER_OPTIONS;
-      if (!sortable || capped) {
+      if (!sortable) {
         break;
       }
     }
-    const result = !sortable ? NO_FACETED_VALUES : capped ? CAPPED_FACETED_VALUES : values;
+    const entry: FacetedEntry = { values: sortable ? values : NO_FACETED_VALUES };
     const perColumn = cachedColumns ?? new Map();
-    perColumn.set(columnId, result);
+    perColumn.set(columnId, entry);
     facetedValuesByRows.set(flatRows, perColumn);
-    return result;
+    return facetedView(entry, column);
   };
 };
 
@@ -494,49 +550,48 @@ export default function Table<RowItem extends Record<string, any>>({
             getDropdownFacetedUniqueValues as MaterialTableOptions<RowItem>['getFacetedUniqueValues'],
         }
       : {}),
-    // Tell the user why a capped dropdown has no options. MRT renders `children` instead of
-    // the option list, so the entry cannot be picked as a filter value.
+    // Say so when the dropdown lists only part of the values. MRT renders this text field
+    // for every filter variant, so all three dropdowns carry the note in the same place.
     muiFilterTextFieldProps: args => {
       const callerProps =
         (typeof tableProps.muiFilterTextFieldProps === 'function'
           ? tableProps.muiFilterTextFieldProps(args)
           : tableProps.muiFilterTextFieldProps) ?? {};
-      // Only the implementation above signals the cap by serving an empty map.
-      if (!ownFacetedValues || !isOverOptionCap(args.column)) {
+      // Only the implementation above marks a map as truncated.
+      if (!ownFacetedValues || !isTruncated(args.column)) {
         return callerProps;
       }
-      const notice = t('Too many values to filter');
+      // That spot already carries MRT's filter-mode label where modes are enabled, and saying
+      // which mode is active beats saying that the list is shortened. MRT decides that from
+      // the table-level flag, with the column able to opt out only. A caller-provided
+      // helperText keeps precedence too, as it did before the note existed.
       const columnDef = args.column.columnDef as TableColumn<RowItem>;
-      // MRT reads `children` in its select branches only. The autocomplete variant renders a
-      // MUI Autocomplete, which never shows its no-options popup while `freeSolo` is set, so
-      // the reason goes under the input there. Both branches share this text field.
-      if (columnDef.filterVariant === 'autocomplete') {
-        // That spot already carries MRT's filter-mode label where modes are enabled, and
-        // saying which mode is active beats saying why the options are missing. MRT decides
-        // that from the table-level flag, with the column able to opt out only.
-        const filterModeOptions =
-          columnDef.columnFilterModeOptions ?? tableProps.columnFilterModeOptions;
-        const showsFilterMode =
-          tableProps.enableColumnFilterModes &&
-          columnDef.enableColumnFilterModes !== false &&
-          (filterModeOptions === undefined || !!filterModeOptions?.length);
-        // A caller-provided helperText keeps precedence, as it did before the notice existed.
-        return showsFilterMode || callerProps.helperText !== undefined
-          ? callerProps
-          : { ...callerProps, helperText: notice };
-      }
-      // Same for caller-provided children: whoever replaces the menu owns it.
-      if (callerProps.children !== undefined) {
+      const filterModeOptions =
+        columnDef.columnFilterModeOptions ?? tableProps.columnFilterModeOptions;
+      const showsFilterMode =
+        tableProps.enableColumnFilterModes &&
+        columnDef.enableColumnFilterModes !== false &&
+        (filterModeOptions === undefined || !!filterModeOptions?.length);
+      if (showsFilterMode || callerProps.helperText !== undefined) {
         return callerProps;
       }
+      const callerSx = callerProps.FormHelperTextProps?.sx;
       return {
         ...callerProps,
-        // MRT renders this into an array next to its placeholder item, hence the key.
-        children: (
-          <MenuItem disabled key="too-many-values">
-            {notice}
-          </MenuItem>
-        ),
+        // MRT keeps its helper text on one line, which this note is too long for in a column
+        // that starts at 120px, so it may wrap here.
+        FormHelperTextProps: {
+          ...callerProps.FormHelperTextProps,
+          // An sx can be an object, a callback or an array of those, so the caller's goes on
+          // top as another entry rather than being spread into this one.
+          sx: [
+            { fontSize: '0.75rem', lineHeight: '1rem', whiteSpace: 'normal' },
+            ...(Array.isArray(callerSx) ? callerSx : [callerSx]),
+          ],
+        },
+        helperText: t('Showing {{max}} values, some less common ones are not listed', {
+          max: MAX_FILTER_OPTIONS,
+        }),
       };
     },
     enablePagination: tableData.length > rowsPerPageOptions[0],

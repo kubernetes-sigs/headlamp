@@ -585,7 +585,7 @@
   "Loading table data": "Загрузка данных таблицы",
   "Refresh": "Обновить",
   "No data matching the filter criteria.": "Нет данных, соответствующих критериям фильтра.",
-  "Too many values to filter": "",
+  "Showing {{max}} values, some less common ones are not listed": "",
   "No results found": "Результаты не найдены",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Любой новый результат процесса этого контейнера должен быть показан ниже. Если он не появился, нажмите Enter…",
   "Failed to run \"{{command}}\"…": "Не удалось запустить «{{command}}»…",
