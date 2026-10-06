@@ -97,7 +97,13 @@ class Event extends KubeObject<KubeEvent> {
       return series.count;
     }
 
-    return this.getValue('count');
+    const count = this.getValue('count');
+    // events.k8s.io singletons carry no series or legacy count; they occurred once
+    if (!count && this.getValue('eventTime')) {
+      return 1;
+    }
+
+    return count;
   }
 
   get lastOccurrence() {
