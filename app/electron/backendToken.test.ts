@@ -17,6 +17,7 @@
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  configureBackendTokenEnv,
   INTERNAL_BACKEND_READY_MESSAGE,
   observeInternalBackendReady,
   resolveBackendToken,
@@ -88,6 +89,32 @@ describe('resolveBackendToken', () => {
       expect(generateToken).toHaveBeenCalledOnce();
     }
   );
+});
+
+describe('configureBackendTokenEnv', () => {
+  it('sets HEADLAMP_BACKEND_TOKEN in standard Electron mode', () => {
+    const env: Record<string, string | undefined> = {};
+    configureBackendTokenEnv(env, 'desktop-token');
+    expect(env.HEADLAMP_BACKEND_TOKEN).toBe('desktop-token');
+  });
+
+  it('sets HEADLAMP_BACKEND_TOKEN in headless mode, keeping auth enabled', () => {
+    // The external browser receives the token via a #backendToken= URL fragment
+    // instead of IPC, but the backend must still enforce authentication on all routes.
+    const env: Record<string, string | undefined> = {};
+    configureBackendTokenEnv(env, 'headless-token');
+    expect(env.HEADLAMP_BACKEND_TOKEN).toBe('headless-token');
+  });
+
+  it('overwrites any existing HEADLAMP_BACKEND_TOKEN from the environment', () => {
+    // Simulates the shell-env restoration scenario: getShellEnv() may return a
+    // stale HEADLAMP_BACKEND_TOKEN from the user's shell profile. Calling
+    // configureBackendTokenEnv on the resolved env replaces it with the correct
+    // per-launch token, ensuring the backend and the client share the same value.
+    const env: Record<string, string | undefined> = { HEADLAMP_BACKEND_TOKEN: 'stale-shell-token' };
+    configureBackendTokenEnv(env, 'fresh-launch-token');
+    expect(env.HEADLAMP_BACKEND_TOKEN).toBe('fresh-launch-token');
+  });
 });
 
 describe('waitForExternalBackend', () => {

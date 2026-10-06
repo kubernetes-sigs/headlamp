@@ -28,6 +28,7 @@ import {
   shell,
 } from 'electron';
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
+import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
 import { platform } from 'os';
@@ -43,6 +44,7 @@ import {
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
 import {
+  configureBackendTokenEnv,
   observeInternalBackendReady,
   resolveBackendToken,
   waitForExternalBackend,
@@ -902,9 +904,6 @@ async function startServer(
   // the same single-user security context.
   process.env.HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES = 'true';
 
-  // Pass a token to the backend that can be used for auth on some routes
-  process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
-
   // Set the bundled plugins in addition to the user's plugins.
   try {
     const stat = await fsPromises.stat(bundledPlugins);
@@ -937,6 +936,11 @@ async function startServer(
     console.error('Failed to get shell environment, using default:', error);
     extendedEnv = process.env;
   }
+
+  // Apply per-launch backend token to the FINAL environment after getShellEnv()
+  // resolves. This ensures a user's shell profile cannot accidentally restore a
+  // stale HEADLAMP_BACKEND_TOKEN value over our configured token.
+  configureBackendTokenEnv(extendedEnv, backendToken);
 
   const options = {
     detached: true,
@@ -2125,14 +2129,34 @@ function attachServerEventHandlers(startedServerProcess: ChildProcessWithoutNull
 }
 
 if (isHeadlessMode) {
-  startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]).then(
-    serverProcess => {
-      attachServerEventHandlers(serverProcess);
+  const staticFrontendDir = isDev
+    ? path.resolve('..', 'frontend', 'build')
+    : path.join(process.resourcesPath, './frontend');
+  startServer(['-html-static-dir', staticFrontendDir]).then(serverProcess => {
+    attachServerEventHandlers(serverProcess);
 
-      // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
+    // In headless mode the external browser cannot receive the per-launch
+    // backend token via Electron IPC. Pass it as a one-time URL fragment
+    // (#backendToken=<token>) so the frontend can authenticate its first
+    // request and immediately strip the fragment from the visible URL without
+    // exposing the token in HTTP request lines, server logs, or referrer headers.
+    // Use 127.0.0.1 so requests match createBackendTokenFetch's loopback origin
+    // and remain same-origin in production mode.
+    const headlessUrl = `http://127.0.0.1:${actualPort}/#backendToken=${encodeURIComponent(
+      backendToken
+    )}`;
+
+    if (isDev && process.env.HEADLAMP_E2E_HEADLESS_URL_PATH) {
+      try {
+        fs.writeFileSync(process.env.HEADLAMP_E2E_HEADLESS_URL_PATH, headlessUrl);
+      } catch {
+        // Ignore E2E hook failures
+      }
     }
-  );
+
+    // Give 1s for backend to start
+    setTimeout(() => shell.openExternal(headlessUrl), 1000);
+  });
 } else {
   if (!isRunningScript) {
     startElectron();
