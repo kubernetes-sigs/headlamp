@@ -47,6 +47,7 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
+	OnTokenRefreshed             func(cluster, oldToken, newToken string) func()
 }
 
 // oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
@@ -131,7 +132,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			RefreshAndSetToken(RefreshAndSetTokenParams{
+			afterResponse := RefreshAndSetToken(RefreshAndSetTokenParams{
 				Ctx:                       ctx,
 				OIDCAuthConfig:            oidcAuthConfig,
 				Cache:                     config.Cache,
@@ -146,7 +147,12 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				OnTokenRefreshed:          config.OnTokenRefreshed,
 			})
+			if afterResponse != nil {
+				serveTokenRefreshResponse(next, w, r, afterResponse)
+				return
+			}
 
 			next.ServeHTTP(w, r)
 		})
