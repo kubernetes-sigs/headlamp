@@ -494,6 +494,7 @@ describe('cluster registration providers', () => {
       },
     });
     let temporaryDirectory = '';
+    const enforcePrivateDirectoryPermissions = vi.fn();
     const cleanup = vi.fn((directoryPath: string) => {
       temporaryDirectory = directoryPath;
       throw new Error('cleanup failed');
@@ -513,6 +514,8 @@ describe('cluster registration providers', () => {
         cleanup
       )
     ).resolves.toMatchObject({ success: true });
+
+    expect(enforcePrivateDirectoryPermissions).toHaveBeenCalledOnce();
     expect(cleanup).toHaveBeenCalledOnce();
     expect(consoleError).toHaveBeenCalledWith(
       '[AKS] Temporary credential cleanup failed after registration committed'
