@@ -18,7 +18,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { ActivitiesRenderer, Activity } from './Activity';
+import { ActivitiesRenderer, Activity, ACTIVITY_BASE_Z_INDEX } from './Activity';
 import { activitySlice, ActivityState } from './activitySlice';
 
 const { reducer, actions } = activitySlice;
@@ -378,5 +378,101 @@ describe('Activity pointer-down capture', () => {
 
     expect(store.getState().activity.activities['target'].minimized).toBe(true);
     expect(store.getState().activity.history).toEqual(['other']);
+  });
+});
+
+describe('ActivitiesRenderer stacking order', () => {
+  /**
+   * z-index of the sticky resource details header, see the header Box in
+   * components/common/Resource/Resource.tsx. It is the highest stacking level used by
+   * page content inside `#main`, and `#main` is not a stacking context, so the activity
+   * layer has to stay above it.
+   */
+  const PAGE_CONTENT_STICKY_HEADER_Z_INDEX = 10;
+
+  /** Renders the activity layer in the same DOM shape the app layout uses. */
+  function renderActivityLayer(activities: Activity[]) {
+    const result = render(
+      <TestContext>
+        <div style={{ display: 'grid', position: 'relative' }}>
+          <div id="main" style={{ position: 'relative' }}>
+            <div
+              data-testid="sticky-details-header"
+              style={{ position: 'sticky', top: 0, zIndex: PAGE_CONTENT_STICKY_HEADER_Z_INDEX }}
+            >
+              Pod: some-pod
+            </div>
+          </div>
+          <ActivitiesRenderer />
+        </div>
+      </TestContext>
+    );
+
+    // Launching an activity also schedules a resize event so its content can adjust.
+    act(() => {
+      activities.forEach(activity => Activity.launch(activity));
+      vi.advanceTimersByTime(500);
+    });
+
+    return result;
+  }
+
+  /** z-index of the styled container of a named activity. */
+  const zIndexOf = (name: string) =>
+    Number(
+      getComputedStyle(screen.getByRole('complementary', { name }).firstElementChild as Element)
+        .zIndex
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 });
+  });
+
+  afterEach(() => {
+    act(() => {
+      Activity.reset();
+    });
+    vi.useRealTimers();
+  });
+
+  it('keeps the base stacking level above the sticky details header', () => {
+    expect(ACTIVITY_BASE_Z_INDEX).toBeGreaterThan(PAGE_CONTENT_STICKY_HEADER_Z_INDEX);
+  });
+
+  it('renders a fullscreen activity above the sticky details header', () => {
+    renderActivityLayer([
+      { id: 'logs-1', title: 'Logs', location: 'full', content: 'Log content' },
+    ]);
+
+    const headerZIndex = Number(
+      getComputedStyle(screen.getByTestId('sticky-details-header')).zIndex
+    );
+
+    expect(headerZIndex).toBe(PAGE_CONTENT_STICKY_HEADER_Z_INDEX);
+    expect(zIndexOf('Logs')).toBeGreaterThan(headerZIndex);
+  });
+
+  it('stacks later activities above earlier ones, all above page content', () => {
+    renderActivityLayer([
+      { id: 'logs-1', title: 'First', location: 'full', content: 'First' },
+      { id: 'logs-2', title: 'Second', location: 'full', content: 'Second' },
+    ]);
+
+    expect(zIndexOf('First')).toBeGreaterThan(PAGE_CONTENT_STICKY_HEADER_Z_INDEX);
+    expect(zIndexOf('Second')).toBeGreaterThan(zIndexOf('First'));
+  });
+
+  it('keeps the taskbar stacked above overlapping window-medium activities', () => {
+    renderActivityLayer([
+      { id: 'yaml-1', title: 'View YAML', location: 'window-medium', content: 'YAML content' },
+    ]);
+
+    const activityZIndex = zIndexOf('View YAML');
+    const taskbar = screen.getByTestId('activity-bar');
+    const taskbarZIndex = Number(getComputedStyle(taskbar).zIndex);
+
+    expect(activityZIndex).toBeGreaterThan(PAGE_CONTENT_STICKY_HEADER_Z_INDEX);
+    expect(taskbarZIndex).toBeGreaterThan(activityZIndex);
   });
 });
