@@ -64,3 +64,71 @@ describe('Event involvedObjectInstance', () => {
     expect(event.involvedObjectInstance).toBeNull();
   });
 });
+
+const baseEvent = {
+  apiVersion: 'v1',
+  kind: 'Event',
+  metadata: {
+    name: 'test-event',
+    namespace: 'default',
+    uid: 'uid-1',
+    creationTimestamp: '2026-10-06T10:00:00Z',
+  },
+  involvedObject: { kind: 'Deployment', name: 'dep', namespace: 'default' },
+  reason: 'Testing',
+  message: 'test',
+  type: 'Warning',
+};
+
+describe('Event count', () => {
+  it('prefers the series count when present', () => {
+    const event = new Event({
+      ...baseEvent,
+      count: 5,
+      series: { count: 9, lastObservedTime: '2026-10-06T10:05:00Z' },
+    } as any);
+    expect(event.count).toBe(9);
+  });
+
+  it('uses the legacy count without a series', () => {
+    const event = new Event({ ...baseEvent, count: 5 } as any);
+    expect(event.count).toBe(5);
+  });
+
+  it('falls back past a series that lacks a count', () => {
+    const event = new Event({
+      ...baseEvent,
+      count: 5,
+      series: { lastObservedTime: '2026-10-06T10:05:00Z' },
+    } as any);
+    expect(event.count).toBe(5);
+  });
+
+  it('counts a singleton once when its series lacks a count', () => {
+    const event = new Event({
+      ...baseEvent,
+      eventTime: '2026-10-06T10:00:00Z',
+      series: { lastObservedTime: '2026-10-06T10:05:00Z' },
+    } as any);
+    expect(event.count).toBe(1);
+  });
+
+  it('keeps an explicit zero count', () => {
+    const event = new Event({
+      ...baseEvent,
+      count: 0,
+      eventTime: '2026-10-06T10:00:00Z',
+    } as any);
+    expect(event.count).toBe(0);
+  });
+
+  it('counts an events.k8s.io singleton once', () => {
+    const event = new Event({ ...baseEvent, eventTime: '2026-10-06T10:00:00Z' } as any);
+    expect(event.count).toBe(1);
+  });
+
+  it('leaves the count empty without any occurrence data', () => {
+    const event = new Event({ ...baseEvent } as any);
+    expect(event.count).toBeUndefined();
+  });
+});
