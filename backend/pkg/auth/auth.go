@@ -262,6 +262,12 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		}
 	}
 
+if caCertPool == nil && (skipTLSVerify == nil || !*skipTLSVerify) {
+		if _, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+			return ctx
+		}
+	}
+
 	customTransport := base.Clone()
 
 	tlsCfg := &tls.Config{}
