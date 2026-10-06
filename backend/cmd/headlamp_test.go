@@ -1970,17 +1970,45 @@ func TestCheckUniqueName(t *testing.T) {
 		newName      string
 		expectUnique bool
 	}{
-		{"default name usage", "random-cluster-x", false},
+		{"default name usage", "random-cluster-y", false},
 		{"custom name usage", "superfly-name", false},
-		{"another default name usage", "random-cluster-y", false},
 		{"unique name usage", "amazing-name", true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
-			got := CheckUniqueName(kubeConfig.Contexts, "random-cluster-y", tc.newName)
+			got := CheckUniqueName(kubeConfig.Contexts, "random-cluster-x", tc.newName)
 			if got != tc.expectUnique {
 				t.Fatalf("CheckUniqueName(%q) = %v; want %v", tc.newName, got, tc.expectUnique)
+			}
+		})
+	}
+}
+
+// TestCheckUniqueNameOwnContext checks that the context being renamed does not
+// count as taken, so it can go back to its original name.
+func TestCheckUniqueNameOwnContext(t *testing.T) {
+	kubeConfig, err := clientcmd.LoadFromFile("./headlamp_testdata/name_validation_test")
+	require.NoError(t, err)
+
+	cases := []struct {
+		label        string
+		currentName  string
+		newName      string
+		expectUnique bool
+	}{
+		{"back to the original name", "superfly-name", "random-cluster-y", true},
+		{"original name by context name", "random-cluster-y", "random-cluster-y", true},
+		{"keep the current custom name", "superfly-name", "superfly-name", true},
+		{"original name of another context", "superfly-name", "random-cluster-x", false},
+		{"unique name for a renamed context", "superfly-name", "amazing-name", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			got := CheckUniqueName(kubeConfig.Contexts, tc.currentName, tc.newName)
+			if got != tc.expectUnique {
+				t.Fatalf("CheckUniqueName(%q, %q) = %v; want %v", tc.currentName, tc.newName, got, tc.expectUnique)
 			}
 		})
 	}
