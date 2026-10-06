@@ -934,6 +934,8 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
 	rr := httptest.NewRecorder()
 
+	var replacedCluster, replacedOldToken, replacedNewToken string
+
 	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
 		Ctx:              context.Background(),
 		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
@@ -945,6 +947,11 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 		TelemetryHandler: &telemetry.RequestHandler{},
 		OIDCIdpIssuerURL: "",
 		BaseURL:          "",
+		OnTokenRefreshed: func(cluster, oldToken, newToken string) {
+			replacedCluster = cluster
+			replacedOldToken = oldToken
+			replacedNewToken = newToken
+		},
 	})
 
 	resp := rr.Result()
@@ -954,6 +961,9 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 	cookieVal, ok := findAuthCookie(resp, cluster)
 	require.True(t, ok, "expected auth cookie to be set")
 	assert.Equal(t, "NEW", cookieVal)
+	assert.Equal(t, oldToken, replacedOldToken)
+	assert.Equal(t, "NEW", replacedNewToken)
+	assert.Equal(t, cluster, replacedCluster)
 }
 
 func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
