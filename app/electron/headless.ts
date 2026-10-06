@@ -20,9 +20,9 @@ import i18n from './i18next.config';
 
 export interface HeadlessOptions {
   /** Function that starts the backend server process. */
-  startServer: () => Promise<ChildProcessWithoutNullStreams | any>;
+  startServer: () => Promise<ChildProcessWithoutNullStreams>;
   /** Callback invoked when the server process starts successfully. */
-  onSuccess?: (serverProcess: ChildProcessWithoutNullStreams | any) => void;
+  onSuccess?: (serverProcess: ChildProcessWithoutNullStreams) => void;
 }
 
 /**
