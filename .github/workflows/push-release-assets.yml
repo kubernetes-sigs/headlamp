@@ -26,6 +26,14 @@ jobs:
       contents: write # need to write to releases and download artifacts
       id-token: write # needed for cosign keyless signing via GitHub OIDC
     steps:
+      # Users verify the checksums signature against this workflow on main, so
+      # a signature made from any other branch would fail verification.
+      - name: Check that the workflow runs from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this workflow from the main branch, not ${GITHUB_REF}."
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
@@ -84,34 +92,6 @@ jobs:
             exit 0
           fi
 
-      - name: Prepare GPG key
-        run: |
-          gpg_dir=.cr-gpg
-          mkdir "$gpg_dir"
-
-          # referring keyring to private key of gpg
-          keyring="$gpg_dir/secring.gpg"
-
-          # storing base64 GPG key into keyring
-          base64 -d <<< "$GPG_KEYRING_BASE64" > "$keyring"
-
-          # Import the GPG key for signing
-          gpg --batch --import "$keyring"
-
-          passphrase_file="$gpg_dir/passphrase"
-
-          # storing passphrase data into a file
-          echo "$GPG_PASSPHRASE" > "$passphrase_file"
-
-          # saving passphrase into github-environment
-          echo "CR_PASSPHRASE_FILE=$passphrase_file" >> "$GITHUB_ENV"
-
-          # saving private key into github-environemnt
-          echo "CR_KEYRING=$keyring" >> "$GITHUB_ENV"
-        env:
-          GPG_KEYRING_BASE64: "${{ secrets.GPG_KEYRING_BASE64 }}" #Referring secrets of github above
-          GPG_PASSPHRASE: "${{ secrets.GPG_PASSPHRASE }}"
-
       - name: Install script dependencies
         working-directory: ./app/scripts/push-release-assets
         run: npm ci
@@ -139,29 +119,41 @@ jobs:
           echo "Executing: $CMD"
           eval $CMD
 
-      - name: Create and sign checksums signature
+      # The release is still a draft at this point and is not attached to its
+      # vX.Y.Z tag yet, so `gh release download/upload <name>` cannot find it.
+      # Look it up by name instead, like push-release-assets.js does.
+      - name: Download checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          RELEASE_NAME: ${{ inputs.release_name }}
         run: |
           # Wait a moment for the checksums.txt to be available
           sleep 5
 
-          # Create temporary directory for checksums
           mkdir -p ./temp-checksums
 
-          # Download the checksums.txt file that was just uploaded
-          gh release download ${{ inputs.release_name }} --pattern "checksums.txt" --dir ./temp-checksums --clobber
+          release_id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+            --jq '.[] | select(.name == env.RELEASE_NAME) | .id' | head -n 1)
+          if [ -z "$release_id" ]; then
+            echo "Release ${RELEASE_NAME} not found"
+            exit 1
+          fi
 
-          # Create detached signature for checksums.txt
-          gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
+          asset_id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets" \
+            --jq '.[] | select(.name == "checksums.txt") | .id' | head -n 1)
+          if [ -z "$asset_id" ]; then
+            echo "checksums.txt not found in release ${RELEASE_NAME}"
+            exit 1
+          fi
 
-          # Upload the signature file
-          gh release upload ${{ inputs.release_name }} ./temp-checksums/checksums.txt.asc --clobber
-
-          echo "Checksums signature created and uploaded successfully"
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          gh api -H "Accept: application/octet-stream" \
+            "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > ./temp-checksums/checksums.txt
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Check Cosign install
+        run: cosign version
 
       - name: Sign checksums.txt with cosign (keyless)
         run: |
@@ -169,10 +161,33 @@ jobs:
             --bundle ./temp-checksums/checksums.txt.sigstore.json \
             ./temp-checksums/checksums.txt
 
-          gh release upload ${{ inputs.release_name }} \
-            ./temp-checksums/checksums.txt.sigstore.json \
-            --clobber
-
-          echo "Cosign bundle uploaded successfully"
+      - name: Upload signature to release
+        working-directory: ./app/scripts/push-release-assets
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          FORCE_FLAG=""
+          if [ "$FORCE" == "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+
+          # --skip-checksums so the signature is not added to checksums.txt,
+          # which would invalidate it.
+          node push-release-assets.js $FORCE_FLAG --skip-checksums "$RELEASE_NAME" \
+            ../../../temp-checksums/checksums.txt.sigstore.json
+
+      - name: Install releaser
+        working-directory: ./tools/releaser
+        run: npm ci && npm run build
+
+      # push-release-assets.js logs upload errors but still exits successfully,
+      # so check that the signature was actually attached.
+      - name: Verify signature was attached
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+        run: |
+          node ./tools/releaser/dist/index.js ci verify-assets "$RELEASE_NAME" \
+            ./temp-checksums/checksums.txt.sigstore.json
