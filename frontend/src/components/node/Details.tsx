@@ -123,7 +123,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
 
   function getAddresses(item: Node) {
     return (
-      item.status.addresses?.map(({ type, address }) => {
+      item.status?.addresses?.map(({ type, address }) => {
         return {
           name: type,
           value: address,
@@ -445,7 +445,7 @@ function ChartsSection(props: ChartsSectionProps) {
       return '…';
     }
 
-    const readyInfo = node.status.conditions?.find(({ type }) => type === 'Ready');
+    const readyInfo = node.status?.conditions?.find(({ type }) => type === 'Ready');
     if (readyInfo) {
       return timeAgo(readyInfo.lastTransitionTime as string);
     }
@@ -511,10 +511,10 @@ function AllocatedResourcesSection(props: { node: Node; pods: KubePod[] | null }
   const { t } = useTranslation('glossary');
 
   const cpuCapacity = units.parseCpu(
-    node?.status.allocatable?.cpu || node?.status.capacity?.cpu || '0'
+    node?.status?.allocatable?.cpu || node?.status?.capacity?.cpu || '0'
   );
   const memoryCapacity = units.parseRam(
-    node?.status.allocatable?.memory || node?.status.capacity?.memory || '0'
+    node?.status?.allocatable?.memory || node?.status?.capacity?.memory || '0'
   );
 
   const { cpuRequests, cpuLimits, memoryRequests, memoryLimits } = React.useMemo(() => {
@@ -666,9 +666,11 @@ function SystemInfoSection(props: SystemInfoSectionProps) {
     );
   }
 
-  if (!node || !node.status.nodeInfo) {
+  if (!node || !node.status?.nodeInfo) {
     return null;
   }
+
+  const { nodeInfo } = node.status;
 
   return (
     <SectionBox title={t('System Info')}>
@@ -676,43 +678,43 @@ function SystemInfoSection(props: SystemInfoSectionProps) {
         rows={[
           {
             name: t('Architecture'),
-            value: node.status.nodeInfo.architecture,
+            value: nodeInfo.architecture,
           },
           {
             name: t('Boot ID'),
-            value: node.status.nodeInfo.bootID,
+            value: nodeInfo.bootID,
           },
           {
             name: t('System UUID'),
-            value: node.status.nodeInfo.systemUUID,
+            value: nodeInfo.systemUUID,
           },
           {
             name: t('OS'),
-            value: getOSComponent(node.status.nodeInfo.operatingSystem),
+            value: getOSComponent(nodeInfo.operatingSystem),
           },
           {
             name: t('Image'),
-            value: node.status.nodeInfo.osImage,
+            value: nodeInfo.osImage,
           },
           {
             name: t('Kernel Version'),
-            value: node.status.nodeInfo.kernelVersion,
+            value: nodeInfo.kernelVersion,
           },
           {
             name: t('Machine ID'),
-            value: node.status.nodeInfo.machineID,
+            value: nodeInfo.machineID,
           },
           {
             name: t('Kube Proxy Version'),
-            value: node.status.nodeInfo.kubeProxyVersion,
+            value: nodeInfo.kubeProxyVersion,
           },
           {
             name: t('Kubelet Version'),
-            value: node.status.nodeInfo.kubeletVersion,
+            value: nodeInfo.kubeletVersion,
           },
           {
             name: t('Container Runtime Version'),
-            value: node.status.nodeInfo.containerRuntimeVersion,
+            value: nodeInfo.containerRuntimeVersion,
           },
         ]}
       />
@@ -726,7 +728,7 @@ interface NodeReadyLabelProps {
 
 export function NodeReadyLabel(props: NodeReadyLabelProps) {
   const { node } = props;
-  const isReady = !!node.status.conditions?.find(
+  const isReady = !!node.status?.conditions?.find(
     condition => condition.type === 'Ready' && condition.status === 'True'
   );
   const { t } = useTranslation();
