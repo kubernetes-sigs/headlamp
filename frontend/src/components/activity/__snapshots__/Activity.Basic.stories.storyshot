@@ -16,7 +16,7 @@
         role="complementary"
       >
         <div
-          class="MuiBox-root css-eyh8nb"
+          class="MuiBox-root css-18sl0ya"
         >
           <div
             class="MuiBox-root css-ha4r1w"
@@ -79,7 +79,7 @@
         role="complementary"
       >
         <div
-          class="MuiBox-root css-1u6as83"
+          class="MuiBox-root css-1pdmtyx"
         >
           <div
             class="MuiBox-root css-ha4r1w"
@@ -146,7 +146,8 @@
         </div>
       </div>
       <div
-        class="MuiBox-root css-124lm9m"
+        class="MuiBox-root css-ni0zs2"
+        data-testid="activity-bar"
       >
         <div
           class="MuiBox-root css-1mw5uhz"
