@@ -174,6 +174,45 @@ export async function associateTagWithRelease(releaseId: number, version: string
   }
 }
 
+/** The result of comparing a local file with the copy attached to a release. */
+export type AssetCheck = 'ok' | 'missing' | 'mismatch';
+
+/**
+ * Compares a local file with the copy attached to a release.
+ *
+ * @param local The contents of the local file
+ * @param attached The contents of the release asset, or null if it isn't attached
+ */
+export function compareAsset(local: Buffer, attached: Buffer | null): AssetCheck {
+  if (!attached) {
+    return 'missing';
+  }
+  return local.equals(attached) ? 'ok' : 'mismatch';
+}
+
+/**
+ * Downloads the release asset with the given name, or returns null if the
+ * release has no such asset.
+ *
+ * @param release The release to download the asset from
+ * @param name The name of the asset
+ */
+export async function downloadReleaseAsset(release: GitHubRelease, name: string): Promise<Buffer | null> {
+  const asset = release.assets.find(a => a.name === name);
+  if (!asset) {
+    return null;
+  }
+
+  const octokit = getOctokit();
+  const { data } = await octokit.repos.getReleaseAsset({
+    owner: OWNER,
+    repo: REPO,
+    asset_id: asset.id,
+    headers: { accept: 'application/octet-stream' }
+  });
+  return Buffer.from(data as unknown as ArrayBuffer);
+}
+
 /** GitHub's signature verification status for a release tag. */
 export interface TagVerification {
   /** Whether GitHub matched the tag's signature to a key on the tagger's account. */

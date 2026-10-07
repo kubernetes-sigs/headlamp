@@ -11,6 +11,7 @@ import { publishRelease } from './commands/publish.js';
 import { buildArtifacts } from './commands/build.js';
 import { getAppRuns } from './commands/get-app-runs.js';
 import { securityCheck } from './commands/security-check.js';
+import { verifyAssets } from './commands/verify-assets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -56,6 +57,12 @@ program.command('publish')
 // CI command with subcommands
 const ci = program.command('ci')
   .description('CI-related commands');
+
+ci.command('verify-assets')
+  .description('Check that files are attached to a release and match the local copies')
+  .argument('<release-version>', 'Release to check (e.g., 0.30.0)')
+  .argument('<files...>', 'Local files to compare with the release assets')
+  .action(verifyAssets);
 
 ci.command('app')
   .description('Manage app build workflows')

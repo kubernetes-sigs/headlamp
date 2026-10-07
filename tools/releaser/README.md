@@ -177,6 +177,20 @@ releaser ci app --list
 releaser ci app --list --platform mac --latest 3 --output json
 ```
 
+### `ci verify-assets` — Check files attached to a release
+
+Check that each file is attached to the release under the same name, and that the attached copy matches the local file. Exits non-zero if any file is missing or different. The Upload Release Assets workflow uses this to check that the `checksums.txt` signature was attached.
+
+```bash
+releaser ci verify-assets <release-version> <files...>
+```
+
+**Example:**
+
+```bash
+releaser ci verify-assets 0.42.0 ./checksums.txt.sigstore.json
+```
+
 ### `security-check` — Scan the backend and Dockerfiles for security issues
 
 Runs [`govulncheck`](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) against the Go backend module to catch known vulnerabilities, and [`hadolint`](https://github.com/hadolint/hadolint) against `Dockerfile`, `Dockerfile.plugins`, and `docker-extension/Dockerfile` to catch Dockerfile security issues (e.g. unpinned packages, missing pipefail on piped `RUN` commands). Exits non-zero if any check reports a real problem.
@@ -192,7 +206,7 @@ releaser security-check
 Source code is in `src/` and is organized as follows:
 
 - `src/index.ts` — CLI entry point and command definitions
-- `src/commands/` — Individual command implementations (`check`, `start`, `tag`, `publish`, `build`, `get-app-runs`, `security-check`)
+- `src/commands/` — Individual command implementations (`check`, `start`, `tag`, `publish`, `build`, `get-app-runs`, `security-check`, `verify-assets`)
 - `src/utils/` — Shared utilities (`git`, `github`, `version`, `security`)
 
 To rebuild after making changes:
