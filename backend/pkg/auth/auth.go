@@ -93,11 +93,16 @@ func BearerTokenValue(token string) string {
 // the Bearer token from the Authorization header of the HTTP request, falling
 // back to the cluster cookie when the header is missing.
 func ParseClusterAndToken(r *http.Request) (string, string) {
-	cluster := ""
-
-	matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
-	if len(matches) > 1 {
-		cluster = matches[1]
+	// The route's own clusterName variable is trusted and already accounts for any base URL
+	// prefix. Only fall back to scanning the raw path when there is no route match (e.g. in
+	// unit tests that build a request directly), so a base URL that itself contains a
+	// "clusters/" segment can no longer be mistaken for the real cluster.
+	cluster := mux.Vars(r)["clusterName"]
+	if cluster == "" {
+		matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
+		if len(matches) > 1 {
+			cluster = matches[1]
+		}
 	}
 
 	// Try Authorization header first (for backward compatibility)
