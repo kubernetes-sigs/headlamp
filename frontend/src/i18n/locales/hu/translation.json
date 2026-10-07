@@ -1044,5 +1044,9 @@
   "Toggle Table Filters": "Táblázatszűrők be- és kikapcsolása",
   "Toggle column filters in tables": "Oszlopszűrők be- és kikapcsolása a táblázatokban",
   "Log Viewer Search": "Naplómegjelenítő keresése",
-  "Toggle search in log viewer": "Keresés be- és kikapcsolása a naplómegjelenítőben"
+  "Toggle search in log viewer": "Keresés be- és kikapcsolása a naplómegjelenítőben",
+  "Go to Pods": "",
+  "Navigate to the Pods list": "",
+  "Go to Deployments": "",
+  "Navigate to the Deployments list": ""
 }

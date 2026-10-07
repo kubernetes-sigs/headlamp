@@ -47,6 +47,7 @@ import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
+import ResourceShortcuts from './ResourceShortcuts';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
 import { applyBackendThemeConfig } from './themeSlice';
@@ -322,6 +323,7 @@ export default function Layout({}: LayoutProps) {
       </Link>
       <VersionDialog />
       <ShortcutsSettings />
+      <ResourceShortcuts />
       <CssBaseline enableColorScheme />
       <ActionsNotifier />
       <Box sx={{ display: 'flex', height: '100dvh' }}>

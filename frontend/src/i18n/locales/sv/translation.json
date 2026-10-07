@@ -1044,5 +1044,9 @@
   "Toggle Table Filters": "Växla tabellfilter",
   "Toggle column filters in tables": "Växla kolumnfilter i tabeller",
   "Log Viewer Search": "Sök i loggvisningsprogram",
-  "Toggle search in log viewer": "Växla sökning i loggvisningsprogram"
+  "Toggle search in log viewer": "Växla sökning i loggvisningsprogram",
+  "Go to Pods": "",
+  "Navigate to the Pods list": "",
+  "Go to Deployments": "",
+  "Navigate to the Deployments list": ""
 }
