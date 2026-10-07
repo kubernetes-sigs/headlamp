@@ -64,7 +64,7 @@ releaser check 0.42.0
 
 ### `check` — Verify a release
 
-Check whether a release exists on GitHub and verify that all required artifacts (Mac, Linux, Windows) are present.
+Check whether a release exists on GitHub and verify that all required artifacts (Mac, Linux, Windows) and the `checksums.txt` cosign signature (`checksums.txt.sigstore.json`) are present. Once the `v<version>` tag is on GitHub, it also checks that the tag is signed (failing for unsigned or lightweight tags and invalid signatures, such as ones made with an expired key) and warns if GitHub can't match the signing key to the tagger's GitHub account or couldn't check the signature at the moment. Run it before and after publishing a release.
 
 ```bash
 releaser check <release-version>
@@ -118,7 +118,7 @@ releaser tag
 
 ### `publish` — Publish a release
 
-Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used. The release tag must exist locally and be signed (see `releaser tag`). After pushing the tag, it warns if GitHub does not show the tag as verified, for example because your signing key is not registered on your GitHub account.
+Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used. The release tag must exist locally and be signed (see `releaser tag`). After pushing the tag, it stops without publishing if GitHub reports the tag as missing, unsigned, or with an invalid signature (for example one made with an expired key), unless `--allow-unsigned` is passed; it only warns if GitHub can't attribute the signature to your account, for example because your signing key is not registered on your GitHub account, or couldn't check it right now.
 
 ```bash
 releaser publish <release-version> [options]
@@ -129,7 +129,7 @@ releaser publish <release-version> [options]
 | Option | Description |
 |---|---|
 | `--force` | Skip the confirmation prompt |
-| `--allow-unsigned` | Publish even if the release tag is not signed |
+| `--allow-unsigned` | Publish even if the release tag is not signed or GitHub can't verify its signature |
 
 **Example:**
 

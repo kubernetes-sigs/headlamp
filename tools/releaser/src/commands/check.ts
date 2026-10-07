@@ -1,5 +1,11 @@
 import chalk from 'chalk';
-import { getRelease, checkArtifactsForRelease, checkExtendedAssets } from '../utils/github.js';
+import {
+  getRelease,
+  checkArtifactsForRelease,
+  checkExtendedAssets,
+  getTagVerification,
+  evaluateReleaseTag,
+} from '../utils/github.js';
 import { sanitizeVersion, isValidVersion } from '../utils/version.js';
 
 export async function checkRelease(releaseVersion: string): Promise<void> {
@@ -38,9 +44,17 @@ export async function checkRelease(releaseVersion: string): Promise<void> {
     const artifactsComplete = await checkArtifactsForRelease(release);
 
     if (artifactsComplete) {
-      console.log(chalk.green('✅ All required artifacts (Mac, Linux, Windows) are present'));
+      console.log(chalk.green('✅ All required artifacts (Mac, Linux, Windows, and the checksums signature) are present'));
     } else {
       console.error(chalk.red('❌ Some required artifacts are missing from the release'));
+    }
+
+    const tagCheck = evaluateReleaseTag(version, await getTagVerification(version), release.draft);
+    const tagColors = { ok: chalk.green, info: chalk.blue, warn: chalk.yellow, error: chalk.red };
+    const tagIcons = { ok: '✅', info: 'ℹ️ ', warn: '⚠️ ', error: '❌' };
+    console.log(tagColors[tagCheck.level](`${tagIcons[tagCheck.level]} ${tagCheck.message}`));
+
+    if (!artifactsComplete || tagCheck.level === 'error') {
       process.exit(1);
     }
 

@@ -50,7 +50,7 @@ program.command('publish')
   .description('Push tag, assign to release draft, and publish the release')
   .argument('<release-version>', 'Version to publish (e.g., 0.30.0)')
   .option('--force', 'Skip confirmation prompt')
-  .option('--allow-unsigned', 'Publish even if the release tag is not signed')
+  .option('--allow-unsigned', 'Publish even if the release tag is not signed or GitHub can\'t verify its signature')
   .action(publishRelease);
 
 // CI command with subcommands
