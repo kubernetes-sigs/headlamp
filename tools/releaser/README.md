@@ -116,6 +116,11 @@ releaser tag
 |---|---|
 | `--no-sign` | Create an unsigned annotated tag instead. `releaser publish` refuses unsigned tags unless `--allow-unsigned` is passed |
 
+To check the signature of a tag:
+
+- **Locally**: `git tag -v v<version>`. For GPG-signed tags this works once the signer's public key is in your keyring, which your own key already is. For SSH-signed tags, git first needs an allowed signers file listing the signer's key; see [Verifying Releases](../../docs/installation/verify-releases.md#source-code) for the commands.
+- **On GitHub**, after pushing it: open the tag on the [tags page](https://github.com/kubernetes-sigs/headlamp/tags) and look for the **Verified** label. `releaser check` and `releaser publish` check this too.
+
 ### `publish` — Publish a release
 
 Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used. The release tag must exist locally and be signed (see `releaser tag`). After pushing the tag, it stops without publishing if GitHub reports the tag as missing, unsigned, or with an invalid signature (for example one made with an expired key), unless `--allow-unsigned` is passed; it only warns if GitHub can't attribute the signature to your account, for example because your signing key is not registered on your GitHub account, or couldn't check it right now.
