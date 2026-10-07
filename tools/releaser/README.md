@@ -214,3 +214,9 @@ To rebuild after making changes:
 ```bash
 npm run build
 ```
+
+To run the unit tests (`src/**/*.test.ts`, using Node's built-in test runner):
+
+```bash
+npm test
+```
