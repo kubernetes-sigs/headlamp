@@ -50,7 +50,10 @@ export default function CustomResourceDefinitionList() {
       columns={[
         {
           label: t('glossary|Resource'),
-          getValue: (crd: CRD) => crd.spec.names.kind,
+          // A partially-populated CRD can arrive with `spec.names` missing
+          // during a watch update. Fall back to `metadata.name` so the row
+          // renders instead of crashing the whole table (#4824).
+          getValue: (crd: CRD) => crd.spec?.names?.kind ?? crd.metadata.name,
           render: crd => (
             <Link
               routeName="customresources"
@@ -59,7 +62,7 @@ export default function CustomResourceDefinitionList() {
               }}
               activeCluster={crd.cluster}
             >
-              {crd.spec.names.kind}
+              {crd.spec?.names?.kind ?? crd.metadata.name}
             </Link>
           ),
         },

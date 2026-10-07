@@ -26,7 +26,7 @@ import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
-import { queryClient } from '../../lib/queryClient';
+import { invalidateClusterUserInfo } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
@@ -71,6 +71,17 @@ function AuthChooser({ children }: AuthChooserProps) {
   let clusterAuthType = '';
   if (clusters && clusters[clusterName]) {
     clusterAuthType = clusters[clusterName].auth_type;
+  }
+
+  // Whether the last OIDC sign-in was rejected by the cluster's API server.
+  // Set in handleOidcAuth, & cleared once auth succeeds in AuthRoute. See Issue #2848.
+  let oidcTokenRejected = false;
+  if (clusterAuthType === 'oidc' && clusterName) {
+    try {
+      oidcTokenRejected = sessionStorage.getItem(`oidc-login-attempted.${clusterName}`) === 'true';
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing with strict settings).
+    }
   }
 
   const numClusters = Object.keys(clusters || {}).length;
@@ -206,9 +217,19 @@ function AuthChooser({ children }: AuthChooserProps) {
       error={error}
       oauthUrl={`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`}
       clusterAuthType={clusterAuthType}
+      oidcTokenRejected={oidcTokenRejected}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
-        queryClient.invalidateQueries({ queryKey: ['clusterMe', clusterName], exact: true });
+        if (clusterName) {
+          try {
+            sessionStorage.setItem(`oidc-login-attempted.${clusterName}`, 'true');
+          } catch {
+            // sessionStorage unavailable (e.g. private browsing with strict settings).
+          }
+        }
+        // Invalidate every cluster's cached identity, not just this one: the
+        // backend may have broadcast the new token to sibling clusters.
+        invalidateClusterUserInfo();
         history.replace(from);
       }}
       handleBackButtonPress={() => {
@@ -239,6 +260,7 @@ export interface PureAuthChooserProps {
   error: Error | null;
   oauthUrl: string;
   clusterAuthType: string;
+  oidcTokenRejected?: boolean;
   handleOidcAuth: () => void;
   handleTokenAuth: () => void;
   handleTryAgain: () => void;
@@ -254,6 +276,7 @@ export function PureAuthChooser({
   error,
   oauthUrl,
   clusterAuthType,
+  oidcTokenRejected,
   handleOidcAuth,
   handleTokenAuth,
   handleTryAgain,
@@ -282,7 +305,16 @@ export function PureAuthChooser({
             {title}
           </DialogTitle>
           {!error ? (
-            <Box>
+            <Box display="flex" flexDirection="column" alignItems="center">
+              {clusterAuthType === 'oidc' && oidcTokenRejected ? (
+                <Box m={2}>
+                  <Empty>
+                    {t(
+                      'The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.'
+                    )}
+                  </Empty>
+                </Box>
+              ) : null}
               {clusterAuthType === 'oidc' ? (
                 <Box m={2}>
                   <OauthPopup

@@ -102,7 +102,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
-    [...ALL_SEVERITIES]
+    ALL_SEVERITIES
   );
   const selectedSeveritiesRef = React.useRef(selectedSeverities);
 
@@ -774,6 +774,24 @@ export default function PodDetails(props: PodDetailsProps) {
             ''
           ),
           hide: !item.spec.priorityClassName,
+        },
+        {
+          name: t('Pod Group'),
+          value: item.spec.schedulingGroup?.podGroupName ? (
+            <Link
+              routeName="PodGroup"
+              params={{
+                namespace: item.metadata.namespace,
+                name: item.spec.schedulingGroup.podGroupName,
+              }}
+              activeCluster={item.cluster}
+            >
+              {item.spec.schedulingGroup.podGroupName}
+            </Link>
+          ) : (
+            ''
+          ),
+          hide: !item.spec.schedulingGroup?.podGroupName,
         },
         {
           name: t('Runtime Class'),

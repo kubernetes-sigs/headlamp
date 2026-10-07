@@ -28,20 +28,27 @@ import { useTypedSelector } from '../redux/hooks';
 export function useShortcut(
   shortcutId: string,
   callback: (event: KeyboardEvent) => void,
-  options?: Options,
+  options?: Omit<Options, 'preventDefault'>,
   deps?: any[]
 ) {
   const shortcut = useTypedSelector(state => state.shortcuts.shortcuts[shortcutId]);
   const key = shortcut?.key || '';
 
+  // preventDefault must never reach useHotkeys: as an option there, Chrome treats it as
+  // blanket key interception and drops paste events on password inputs. It is called on
+  // the event instead, so it only applies once a shortcut has actually matched.
+  const restOptions: Options = { ...options };
+  delete restOptions.preventDefault;
+
   return useHotkeys(
     key,
     (event: KeyboardEvent) => {
       if (key) {
+        event.preventDefault();
         callback(event);
       }
     },
-    { preventDefault: true, ...options },
+    restOptions,
     deps
   );
 }

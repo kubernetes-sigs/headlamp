@@ -9,6 +9,7 @@ DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty)
+HEADLAMP_SOURCE_COMMIT ?= $(shell git rev-parse HEAD)
 DOCKER_IMAGE_EXTRA_TAG ?=
 # Detect platform (Windows, macOS, Linux)
 ifeq ($(OS),Windows_NT)
@@ -35,7 +36,7 @@ EMBED_BINARY_NAME := headlamp_app
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
 APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
 # Build flags with version and app name
-BUILD_VERSION_FLAGS := -ldflags="-X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
+BUILD_VERSION_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
 # embed build flags
 EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
 
@@ -82,26 +83,28 @@ frontend/build:
 	make frontend
 
 .PHONY: app
-app-build: frontend/build
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run build
-app: app-build
+app-prepare: frontend/build
+	cd app && npm ci && node --experimental-strip-types ./scripts/setup-plugins.ts
+app-build: app-prepare
+	cd app && npm run build
+app: app-prepare
 	cd app && npm run package -- --win --linux --mac
-app-win: app-build
+app-win: app-prepare
 	cd app && npm run package -- --win --x64 --arm64
-app-win-x64: app-build
+app-win-x64: app-prepare
 	cd app && npm run package -- --win --x64
-app-win-arm64: app-build
+app-win-arm64: app-prepare
 	cd app && npm run package -- --win --arm64
 app-win-msi: app-win-msi-x64
-app-win-msi-x64: app-build
+app-win-msi-x64: app-prepare
 	cd app && npm run package -- --win --x64
 	cd app && MSI_ARCH="x64" node windows/msi/build.js
-app-win-msi-arm64: app-build
+app-win-msi-arm64: app-prepare
 	cd app && npm run package -- --win --arm64
 	cd app && MSI_ARCH="arm64" node windows/msi/build.js
-app-linux: app-build
+app-linux: app-prepare
 	cd app && npm run package -- --linux
-app-mac: app-build
+app-mac: app-prepare
 	cd app && npm run package -- --mac
 app-test:
 	cd app && npm install
@@ -286,10 +289,10 @@ run-backend:
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
-	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-dev:
@@ -304,10 +307,10 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
     HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
-    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-backend-with-traces:
@@ -318,10 +321,10 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
     HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
-    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-frontend:
@@ -332,10 +335,10 @@ else
 endif
 
 run-app:
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run start
+	cd app && npm install && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run start
 
 run-only-app:
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run dev-only-app
+	cd app && npm install && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run dev-only-app
 
 frontend-lint:
 	cd frontend && npm run lint && npm run format-check
@@ -355,18 +358,29 @@ frontend-i18n-check:
 frontend-test:
 	cd frontend && npm run test -- --coverage
 
+frontend-test-a11y:
+	cd frontend && npm run test:a11y
+
+# Runs the browser-level Playwright checks for the global Storybook MSW mocks.
+# The Playwright config boots `storybook dev` itself, so frontend deps must be
+# installed before this target runs.
+.PHONY: e2e-test-storybook
+e2e-test-storybook:
+	cd e2e-tests && npm run test:storybook
+
 .PHONY: lint
 lint: backend-lint frontend-lint
 
 .PHONY: lint-fix
 lint-fix: backend-lint-fix frontend-lint-fix
 
+.PHONY: plugins-test
 plugins-test:
-	cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js
+	cd plugins/headlamp-plugin && ./test-headlamp-plugin.js
 	cd plugins/headlamp-plugin && ./test-plugins-examples.sh
-	cd plugins/pluginctl/src && npm install && node ./plugin-management.e2e.js
-	cd plugins/pluginctl && npx jest src/multi-plugin-management.test.js
-	cd plugins/pluginctl && npx jest src/plugin-management.test.js
+	cd plugins/pluginctl && npm ci
+	cd plugins/pluginctl/src && node ./plugin-management.e2e.js
+	cd plugins/pluginctl && npx jest --runInBand src/multi-plugin-management.test.js src/plugin-management.test.js
 	cd plugins/pluginctl && npm run test
 
 # IMAGE_BASE can be used to specify a base final image.
@@ -385,6 +399,7 @@ image:
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=$(DOCKER_PLATFORM) \
+	--build-arg HEADLAMP_SOURCE_COMMIT=$(HEADLAMP_SOURCE_COMMIT) \
 	$$BUILD_ARG \
 	--push=$(DOCKER_PUSH) \
 	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) \

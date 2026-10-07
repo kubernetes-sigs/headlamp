@@ -159,7 +159,7 @@ export function GraphRenderer({
             transform: 'translate(-50%, -50%)',
           }}
         >
-          <Loader title="Loading" />
+          <Loader title={t('Loading')} />
         </Box>
       )}
       {!isLoading && nodes.length === 0 && (

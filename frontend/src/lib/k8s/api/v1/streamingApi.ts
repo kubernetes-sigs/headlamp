@@ -16,6 +16,7 @@
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
@@ -264,7 +265,7 @@ export function streamResultsForCluster(
         // Reverse sort, so we have the most recent resources at the beginning of the array.
         return 0 - (aTime - bTime);
       });
-      values.splice(0, values.length - maxResources);
+      values.splice(maxResources);
     }
 
     if (isDebugVerbose('k8s/apiProxy@push cb(values)')) {
@@ -441,6 +442,10 @@ export async function connectStreamWithParams<T>(
   const userID = getUserIdFromLocalStorage();
 
   const protocols = ['base64.binary.k8s.io', ...additionalProtocols];
+  const backendTokenProtocol = getHeadlampWebSocketProtocol();
+  if (backendTokenProtocol !== null) {
+    protocols.push(backendTokenProtocol);
+  }
 
   let fullPath = path;
   let url = '';

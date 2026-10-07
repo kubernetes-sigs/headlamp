@@ -17,6 +17,7 @@
 import { green, grey, orange, pink, red } from '@mui/material/colors';
 import { createTheme, getContrastRatio, useTheme } from '@mui/material/styles';
 import React from 'react';
+import { darkTheme, lightTheme } from '../components/App/defaultAppThemes';
 import type { AppTheme } from './AppTheme';
 
 export interface HeadlampChartStyles {
@@ -223,7 +224,10 @@ export function createMuiTheme(currentTheme: AppTheme) {
         main: currentTheme.primary ?? '#0078d4',
       },
       secondary: currentTheme.secondary
-        ? { main: currentTheme.secondary, contrastText: '#000' }
+        ? {
+            main: currentTheme.secondary,
+            contrastText: currentTheme.secondaryContrastText ?? '#000',
+          }
         : {
             light: pink.A200,
             main: pink.A400,
@@ -431,9 +435,6 @@ export function createMuiTheme(currentTheme: AppTheme) {
         primary: {
           main: currentTheme.primary ?? '#4B99EE',
         },
-        secondary: {
-          main: currentTheme.secondary ?? commonRules.palette.secondary.main,
-        },
         squareButton: {
           background: '#424242',
         },
@@ -534,6 +535,17 @@ export function createMuiTheme(currentTheme: AppTheme) {
             underline: 'hover' as 'always' | 'hover' | 'none',
           },
         },
+        MuiAlert: {
+          styleOverrides: {
+            standardWarning: {
+              backgroundColor: 'rgba(255, 152, 0, 0.12)',
+              color: orange[50],
+              '& .MuiAlert-icon': {
+                color: orange[300],
+              },
+            },
+          },
+        },
         MuiSwitch: {
           styleOverrides: {
             root: {
@@ -631,7 +643,7 @@ export function getThemeName(backendConfig?: {
 
   // Detect OS preference
   if (typeof window.matchMedia !== 'function') {
-    return backendConfig?.defaultLightTheme || 'Light';
+    return backendConfig?.defaultLightTheme || lightTheme.name;
   }
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -645,13 +657,11 @@ export function getThemeName(backendConfig?: {
   }
 
   // Fallback to OS preference
-  if (prefersLight) {
-    return 'Light';
-  } else if (prefersDark) {
-    return 'Dark';
+  if (prefersDark) {
+    return darkTheme.name;
   }
 
-  return 'Light';
+  return lightTheme.name;
 }
 
 export function setTheme(themeName: string) {

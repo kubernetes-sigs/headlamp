@@ -16,6 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { applyBackendThemeConfig } from '../components/App/themeSlice';
 import reducers from '../redux/reducers/reducers';
 
 let activeStore: any;
@@ -34,7 +35,11 @@ vi.mock('../components/resourceMap/sources/definitions/relationIds', () => ({
   BUILT_IN_RELATION_IDS: ['owner', 'owner-reversed', 'pod-configmap'],
 }));
 
-import { registerResourceRelationProvider } from './registry';
+import {
+  registerAppTheme,
+  registerClusterEmptyState,
+  registerResourceRelationProvider,
+} from './registry';
 
 describe('registerResourceRelationProvider', () => {
   let warnSpy: any;
@@ -210,5 +215,113 @@ describe('registerResourceRelationProvider', () => {
     // Try to register the same relation again (duplicate check)
     registerResourceRelationProvider(validRelation);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('already exists. Skipping'));
+  });
+
+  it('registers a custom cluster empty state', () => {
+    const emptyState = vi.fn(() => null);
+
+    registerClusterEmptyState(emptyState);
+
+    expect(activeStore.getState().clusterProvider.clusterEmptyState).toBe(emptyState);
+  });
+});
+
+describe('registerAppTheme', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    delete (localStorage as any).headlampThemePreference;
+    activeStore = configureStore({ reducer: reducers });
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    delete (localStorage as any).headlampThemePreference;
+  });
+
+  it.each([undefined, { default: false }])(
+    'registers without selecting when options are %j',
+    options => {
+      const currentTheme = activeStore.getState().theme.name;
+
+      registerAppTheme({ name: 'Product Theme', base: 'light' }, options);
+
+      expect(activeStore.getState().theme.name).toBe(currentTheme);
+      expect(localStorage.headlampThemePreference).toBeUndefined();
+    }
+  );
+
+  it('selects a registered first-run default after backend config loads', () => {
+    registerAppTheme({ name: 'Product Theme', base: 'light' }, { default: true });
+
+    expect(activeStore.getState().theme.name).not.toBe('Product Theme');
+    expect(localStorage.headlampThemePreference).toBeUndefined();
+
+    activeStore.dispatch(applyBackendThemeConfig({}));
+
+    expect(activeStore.getState().theme.name).toBe('Product Theme');
+    expect(localStorage.headlampThemePreference).toBe('Product Theme');
+  });
+
+  it.each(['before', 'after'])(
+    'keeps the first default when config loads %s registration',
+    order => {
+      if (order === 'before') {
+        activeStore.dispatch(applyBackendThemeConfig({}));
+      }
+
+      registerAppTheme({ name: 'First Theme', base: 'light' }, { default: true });
+      registerAppTheme({ name: 'Second Theme', base: 'dark' }, { default: true });
+
+      if (order === 'after') {
+        activeStore.dispatch(applyBackendThemeConfig({}));
+      }
+
+      expect(activeStore.getState().theme.name).toBe('First Theme');
+      expect(activeStore.getState().theme.pluginDefault).toBe('First Theme');
+      expect(localStorage.headlampThemePreference).toBe('First Theme');
+    }
+  );
+
+  it('does not replace a forced theme when registered after config loads', () => {
+    activeStore.dispatch(applyBackendThemeConfig({ forceTheme: 'Corporate Theme' }));
+
+    registerAppTheme({ name: 'Product Theme', base: 'light' }, { default: true });
+
+    expect(activeStore.getState().theme.name).toBe('Corporate Theme');
+    expect(localStorage.headlampThemePreference).toBeUndefined();
+  });
+
+  it('preserves an existing user theme preference', () => {
+    localStorage.setItem('headlampThemePreference', 'Dark');
+    const currentTheme = activeStore.getState().theme.name;
+
+    registerAppTheme({ name: 'Product Theme', base: 'light' }, { default: true });
+
+    expect(activeStore.getState().theme.name).toBe(currentTheme);
+    expect(localStorage.getItem('headlampThemePreference')).toBe('Dark');
+  });
+
+  it('overrides a backend default applied before plugin registration', () => {
+    (window as any).matchMedia = vi.fn((query: string) => ({
+      matches: query === '(prefers-color-scheme: light)',
+    }));
+    activeStore.dispatch(applyBackendThemeConfig({ defaultLightTheme: 'Backend Theme' }));
+
+    registerAppTheme({ name: 'Product Theme', base: 'light' }, { default: true });
+
+    expect(activeStore.getState().theme.name).toBe('Product Theme');
+    expect(localStorage.headlampThemePreference).toBe('Product Theme');
+  });
+
+  it('survives a backend default applied after plugin registration', () => {
+    (window as any).matchMedia = vi.fn((query: string) => ({
+      matches: query === '(prefers-color-scheme: light)',
+    }));
+    registerAppTheme({ name: 'Product Theme', base: 'light' }, { default: true });
+
+    activeStore.dispatch(applyBackendThemeConfig({ defaultLightTheme: 'Backend Theme' }));
+
+    expect(activeStore.getState().theme.name).toBe('Product Theme');
+    expect(localStorage.headlampThemePreference).toBe('Product Theme');
   });
 });

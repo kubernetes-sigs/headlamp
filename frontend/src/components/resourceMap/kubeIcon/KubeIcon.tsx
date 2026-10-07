@@ -81,6 +81,9 @@ const kindToIcon: Record<string, React.FC<any>> = {
   // jobset
   'jobset.x-k8s.io/JobSet': JobIcon,
 
+  // leaderworkerset
+  'leaderworkerset.x-k8s.io/LeaderWorkerSet': StsIcon,
+
   // rbac
   'rbac.authorization.k8s.io/Role': RoleIcon,
   'rbac.authorization.k8s.io/RoleBinding': RbIcon,
@@ -112,6 +115,7 @@ const kindGroups = {
     'Job',
     'CronJob',
     'JobSet',
+    'LeaderWorkerSet',
   ]),
   storage: new Set(['PersistentVolumeClaim']),
   network: new Set([

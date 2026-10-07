@@ -15,6 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { PluginInfo } from '../../../plugin/pluginsSlice';
 import { TestContext } from '../../../test';
 import { PluginSettingsPure, PluginSettingsPureProps } from './PluginSettings';
@@ -36,6 +37,29 @@ const Template: StoryFn<PluginSettingsPureProps> = args => (
     <PluginSettingsPure {...args} />
   </TestContext>
 );
+
+const setDevelopmentPlugins = fn();
+
+export const PackagedDesktopDevelopmentMode = Template.bind({});
+PackagedDesktopDevelopmentMode.args = {
+  plugins: [],
+  onSave: fn(),
+  showDevelopmentPluginsSetting: true,
+  developmentPluginsEnabled: false,
+  onDevelopmentPluginsChange: setDevelopmentPlugins,
+};
+PackagedDesktopDevelopmentMode.parameters = {
+  storyshots: { disable: true },
+};
+PackagedDesktopDevelopmentMode.play = async ({ canvasElement }) => {
+  setDevelopmentPlugins.mockClear();
+  const pluginDevelopmentMode = await within(canvasElement).findByRole('checkbox', {
+    name: 'Load development plugins',
+  });
+  expect(pluginDevelopmentMode).not.toBeChecked();
+  await userEvent.click(pluginDevelopmentMode);
+  await waitFor(() => expect(setDevelopmentPlugins).toHaveBeenCalledWith(true));
+};
 
 /**
  * createDemoData function will create example data objects to act as plugin data.

@@ -56,8 +56,11 @@ export const activitySlice = createSlice({
         state.activities[action.payload.id].minimized = false;
       }
 
-      // Make it fullscreen on small windows
-      if (window.innerWidth < 1280) {
+      // Keep explicit medium windows floating; all other activities retain the existing behavior.
+      if (
+        window.innerWidth < 600 ||
+        (window.innerWidth < 1280 && action.payload.location !== 'window-medium')
+      ) {
         state.activities[action.payload.id] = {
           ...state.activities[action.payload.id],
           location: 'full',

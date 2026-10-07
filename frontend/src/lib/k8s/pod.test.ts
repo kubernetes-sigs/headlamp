@@ -14,13 +14,28 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { post } from './api/v1/clusterRequests';
 import Pod from './pod';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
+
+// Module-level capture array for addEphemeralContainer patch tests
+const capturedPatchBodies: any[] = [];
+
+vi.mock('./api/v1/clusterRequests', async importOriginal => {
+  const actual = await importOriginal<typeof import('./api/v1/clusterRequests')>();
+  return {
+    ...actual,
+    post: vi.fn().mockResolvedValue({}),
+    patch: vi.fn(async (_url: string, body: any) => {
+      capturedPatchBodies.push(body);
+    }),
+  };
+});
 
 describe('Pod class', () => {
   const mockPodData = {
@@ -94,6 +109,20 @@ describe('Pod class', () => {
     };
     const pod = new Pod(dataMissingBoth as any);
     expect(() => pod.getDetailedStatus()).not.toThrow();
+  });
+
+  it("sends the eviction request to the pod's own cluster", () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    const pod = new Pod(data, 'other-cluster');
+
+    pod.evict();
+
+    expect(post).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ cluster: 'other-cluster' })
+    );
   });
 
   it('returns ExitCode when a container terminated with empty reason and no signal', () => {
@@ -188,5 +217,43 @@ describe('Pod class', () => {
       const pod = makePod({ phase: 'Succeeded' });
       expect(pod.getHealth()).toBe('healthy');
     });
+  });
+});
+
+describe('Pod.addEphemeralContainer targetContainerName', () => {
+  beforeEach(() => {
+    capturedPatchBodies.length = 0;
+  });
+
+  it('includes targetContainerName in PATCH body when provided', async () => {
+    const pod = new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default', uid: 'uid-1' },
+      spec: { containers: [{ name: 'main', image: 'nginx' }], ephemeralContainers: [] },
+      status: {},
+    } as any);
+
+    await pod.addEphemeralContainer('headlamp-debug-1', 'busybox', ['sh'], 'main');
+
+    const ephemeralContainers = capturedPatchBodies[0]?.spec?.ephemeralContainers;
+    expect(ephemeralContainers).toBeDefined();
+    expect(ephemeralContainers[0].targetContainerName).toBe('main');
+  });
+
+  it('omits targetContainerName from PATCH body when not provided', async () => {
+    const pod = new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default', uid: 'uid-2' },
+      spec: { containers: [{ name: 'main', image: 'nginx' }], ephemeralContainers: [] },
+      status: {},
+    } as any);
+
+    await pod.addEphemeralContainer('headlamp-debug-2', 'busybox', ['sh']);
+
+    const ephemeralContainers = capturedPatchBodies[0]?.spec?.ephemeralContainers;
+    expect(ephemeralContainers).toBeDefined();
+    expect(ephemeralContainers[0].targetContainerName).toBeUndefined();
   });
 });

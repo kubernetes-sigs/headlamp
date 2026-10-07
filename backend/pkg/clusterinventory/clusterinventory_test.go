@@ -55,32 +55,22 @@ const (
 	clusterInventoryTestEventuallyTick    = 20 * time.Millisecond
 )
 
-func writeProviderFile(t *testing.T, providers ...string) string {
+func writeProviderFile(t *testing.T) string {
 	t.Helper()
 
-	if len(providers) == 0 {
-		providers = []string{"static-token"}
-	}
-
-	providerJSON := ""
-
-	for i, provider := range providers {
-		if i > 0 {
-			providerJSON += ","
-		}
-
-		providerJSON += `{
-			"name": "` + provider + `",
+	providerJSON := `{
+		"providers": [{
+			"name": "static-token",
 			"execConfig": {
 				"apiVersion": "client.authentication.k8s.io/v1",
 				"command": "/bin/echo",
 				"provideClusterInfo": true
 			}
-		}`
-	}
+		}]
+	}`
 
 	path := filepath.Join(t.TempDir(), "providers.json")
-	err := os.WriteFile(path, []byte(`{"providers":[`+providerJSON+`]}`), 0o600)
+	err := os.WriteFile(path, []byte(providerJSON), 0o600)
 	require.NoError(t, err)
 
 	return path
@@ -153,6 +143,16 @@ func listErrorClient(err error) *ciafake.Clientset {
 	return client
 }
 
+func namespacedProfileClient() *ciafake.Clientset {
+	fromDefault := clusterProfile("from-default", "static-token", "https://default.example.com")
+	fromA := clusterProfile("from-a", "static-token", "https://a.example.com")
+	fromA.Namespace = "team-a"
+	fromB := clusterProfile("from-b", "static-token", "https://b.example.com")
+	fromB.Namespace = "team-b"
+
+	return ciafake.NewSimpleClientset(fromDefault, fromA, fromB)
+}
+
 func getProfileContext(store kubeconfig.ContextStore, profileKey string) (*kubeconfig.Context, error) {
 	return store.GetContext(contextNameFromProfileKey(profileKey))
 }
@@ -196,7 +196,17 @@ func waitForRootSync(t *testing.T, runner *Runner, rootID string) {
 		state := runner.roots[rootID]
 		runner.mu.Unlock()
 
-		return state != nil && state.informer.HasSynced()
+		if state == nil {
+			return false
+		}
+
+		for _, watch := range state.watches {
+			if !watch.informer.HasSynced() {
+				return false
+			}
+		}
+
+		return true
 	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 }
 
@@ -280,6 +290,71 @@ func TestNewRunnerValidatesProviderFile(t *testing.T) {
 		LabelSelector: "headlamp.dev/ignore in (",
 	})
 	require.ErrorContains(t, err, "invalid cluster-inventory-label-selector")
+
+	_, err = NewRunner(Options{
+		Store:        store,
+		ProviderFile: writeProviderFile(t),
+		Namespaces:   "team-a,Team B",
+	})
+	require.ErrorContains(t, err, "invalid cluster-inventory-namespaces")
+
+	_, err = NewRunner(Options{
+		Store:        store,
+		ProviderFile: writeProviderFile(t),
+		Namespaces:   "team-a,*",
+	})
+	require.ErrorContains(t, err, `"*" must be used on its own`)
+}
+
+func TestNormalizeNamespaces(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    []string
+		wantErr string
+	}{
+		{name: "unset", value: "  "},
+		{
+			name:  "trimmed, sorted and deduplicated",
+			value: " team-b,team-a, team-b ",
+			want:  []string{"team-a", "team-b"},
+		},
+		{name: "all namespaces", value: "*", want: []string{metav1.NamespaceAll}},
+		{
+			name:    "repeated all namespaces are rejected",
+			value:   "*,*",
+			wantErr: `"*" must be used on its own`,
+		},
+		{
+			name:    "all namespaces cannot be combined with a listed namespace",
+			value:   "team-a,*",
+			wantErr: `"*" must be used on its own`,
+		},
+		{
+			name:    "empty entries are rejected",
+			value:   "team-a,,team-b",
+			wantErr: "namespace must not be empty",
+		},
+		{
+			name:    "invalid namespaces are rejected",
+			value:   "Team-A",
+			wantErr: "invalid cluster-inventory-namespaces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeNamespaces(tt.value)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestRestConfigToContextPreservesConfig(t *testing.T) {
@@ -388,7 +463,7 @@ func TestClusterProfileDeletePrunesContextOutsideRunnerLock(t *testing.T) {
 
 	runner.mu.Lock()
 	runner.roots[state.rootID] = state
-	runner.profileKeysByRoot[state.rootID] = map[string]struct{}{profileKey: {}}
+	runner.profileKeysByRoot[state.rootID] = map[string]string{profileKey: "default"}
 	runner.profiles[profileKey] = profileState{contextName: contextName}
 	runner.mu.Unlock()
 
@@ -459,6 +534,64 @@ func TestInformerInitialSyncUsesAccessProviders(t *testing.T) {
 
 	requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
 	requireNoProfileContextEventually(t, store, "in-cluster/default/no-access")
+}
+
+func TestInformerWatchesNamespaces(t *testing.T) {
+	tests := []struct {
+		name         string
+		hubNamespace string
+		namespaces   string
+		want         []string
+		wantAbsent   []string
+	}{
+		{
+			name:         "defaults to the hub namespace",
+			hubNamespace: "team-a",
+			want:         []string{"in-cluster/team-a/from-a"},
+			wantAbsent:   []string{"in-cluster/default/from-default", "in-cluster/team-b/from-b"},
+		},
+		{
+			name:       "watches the configured namespaces",
+			namespaces: "team-a,team-b",
+			want:       []string{"in-cluster/team-a/from-a", "in-cluster/team-b/from-b"},
+			wantAbsent: []string{"in-cluster/default/from-default"},
+		},
+		{
+			name:       "watches all namespaces",
+			namespaces: "*",
+			want: []string{
+				"in-cluster/default/from-default",
+				"in-cluster/team-a/from-a",
+				"in-cluster/team-b/from-b",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			runner := newTestRunner(t, Options{
+				Store:        store,
+				HubConfig:    &rest.Config{Host: "https://hub.example.com"},
+				HubNamespace: tt.hubNamespace,
+				Namespaces:   tt.namespaces,
+			})
+			runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
+				return namespacedProfileClient(), nil
+			}
+
+			ctx := testRunnerContext(t, runner)
+			reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+
+			for _, profileKey := range tt.want {
+				requireProfileContextEventually(t, store, profileKey)
+			}
+
+			for _, profileKey := range tt.wantAbsent {
+				requireNoProfileContextEventually(t, store, profileKey)
+			}
+		})
+	}
 }
 
 func TestInformerInitialSyncIgnoresLabelSelectedProfiles(t *testing.T) {
@@ -535,6 +668,61 @@ func TestInitialSyncFailureDoesNotPrunePreviousContexts(t *testing.T) {
 	runner.reconcileRoots(ctx)
 
 	requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+}
+
+func TestNamespaceSyncFailureOnlyPreservesFailedNamespace(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	runner := newTestRunner(t, Options{
+		Store:      store,
+		HubConfig:  &rest.Config{Host: "https://hub.example.com"},
+		Namespaces: "team-a,team-b",
+	})
+
+	runner.clientForConfig = func(config *rest.Config) (ciaclient.Interface, error) {
+		if config.Host != "https://partial-outage.example.com" {
+			return namespacedProfileClient(), nil
+		}
+
+		client := ciafake.NewSimpleClientset()
+		client.PrependReactor("list", "clusterprofiles", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+			if action.GetNamespace() == "team-b" {
+				return true, nil, errors.New("team-b is unavailable")
+			}
+
+			return false, nil, nil
+		})
+
+		return client, nil
+	}
+
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+	requireProfileContextEventually(t, store, "in-cluster/team-a/from-a")
+	requireProfileContextEventually(t, store, "in-cluster/team-b/from-b")
+
+	runner.hubConfig = &rest.Config{Host: "https://partial-outage.example.com"}
+	runner.reconcileRoots(ctx)
+
+	require.Eventually(t, func() bool {
+		runner.mu.Lock()
+		defer runner.mu.Unlock()
+
+		state := runner.roots[inClusterRootID]
+		if state == nil || state.serverURL != "https://partial-outage.example.com" {
+			return false
+		}
+
+		for _, watch := range state.watches {
+			if watch.namespace == "team-a" {
+				return watch.informer.HasSynced()
+			}
+		}
+
+		return false
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
+
+	requireNoProfileContextEventually(t, store, "in-cluster/team-a/from-a")
+	requireProfileContextEventually(t, store, "in-cluster/team-b/from-b")
 }
 
 func TestProviderFailureDoesNotPrunePreviousContext(t *testing.T) {
@@ -771,7 +959,38 @@ func TestStoreSeedConfigChangeRestartsWatcher(t *testing.T) {
 	requireProfileContextEventually(t, store, "store/seed-a/default/from-b")
 }
 
-func TestRestConfigFingerprintIncludesExecConfig(t *testing.T) {
+func TestStoreSeedNamespaceChangeRestartsWatcher(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	seed := testStoreContext("seed-a", kubeconfig.KubeConfig, "https://seed.example.com", "token", false)
+	seed.KubeContext.Namespace = "team-a"
+	require.NoError(t, store.AddContext(seed))
+
+	runner := newTestRunner(t, Options{
+		Store:             store,
+		DiscoverFromStore: true,
+	})
+
+	client := namespacedProfileClient()
+	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
+		return client, nil
+	}
+
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, "store/seed-a")
+	requireProfileContextEventually(t, store, "store/seed-a/team-a/from-a")
+	requireNoProfileContextEventually(t, store, "store/seed-a/team-b/from-b")
+
+	seed = testStoreContext("seed-a", kubeconfig.KubeConfig, "https://seed.example.com", "token", false)
+	seed.KubeContext.Namespace = "team-b"
+	require.NoError(t, store.AddContext(seed))
+
+	reconcileAndWaitForRoot(t, ctx, runner, "store/seed-a")
+
+	requireNoProfileContextEventually(t, store, "store/seed-a/team-a/from-a")
+	requireProfileContextEventually(t, store, "store/seed-a/team-b/from-b")
+}
+
+func TestRootFingerprintIncludesExecConfig(t *testing.T) {
 	execConfig := func(raw string) *clientcmdapi.ExecConfig {
 		return &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1",
@@ -793,8 +1012,20 @@ func TestRestConfigFingerprintIncludesExecConfig(t *testing.T) {
 		ExecProvider: execConfig(`{"audience":"b"}`),
 	}
 
-	assert.Equal(t, restConfigFingerprint(configA), restConfigFingerprint(configAAgain))
-	assert.NotEqual(t, restConfigFingerprint(configA), restConfigFingerprint(configB))
+	fingerprint := func(config *rest.Config) string {
+		return rootFingerprint(rootConfig{restConfig: config})
+	}
+
+	assert.Equal(t, fingerprint(configA), fingerprint(configAAgain))
+	assert.NotEqual(t, fingerprint(configA), fingerprint(configB))
+}
+
+func TestRootFingerprintIncludesNamespaces(t *testing.T) {
+	config := &rest.Config{Host: "https://seed.example.com"}
+
+	assert.NotEqual(t,
+		rootFingerprint(rootConfig{restConfig: config, namespaces: []string{"team-a"}}),
+		rootFingerprint(rootConfig{restConfig: config, namespaces: []string{"team-b"}}))
 }
 
 func TestSelfReferencingProfileDoesNotTriggerChildWatcher(t *testing.T) {

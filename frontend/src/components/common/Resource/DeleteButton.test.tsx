@@ -84,12 +84,27 @@ vi.mock('../../../lib/k8s/pod', () => ({
   default: class Pod extends MockKubeObject {},
 }));
 
-// Render the children unconditionally so we don't depend on the async authorization query.
+// Reports "allowed" for both delete and evict by default, so we don't depend on the
+// async authorization query. Tests that care about RBAC gating override this per-verb.
+const authState = vi.hoisted(() => ({ canDelete: true, canEvict: true }));
+
+function MockAuthVisible({ subresource, onAuthResult }: any) {
+  React.useEffect(() => {
+    onAuthResult?.({
+      allowed: subresource === 'eviction' ? authState.canEvict : authState.canDelete,
+      reason: '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 vi.mock('./AuthVisible', () => ({
   __esModule: true,
-  default: ({ children }: any) => <>{children}</>,
+  default: MockAuthVisible,
 }));
 
+import Pod from '../../../lib/k8s/pod';
 import { TestContext } from '../../../test';
 import DeleteButton from './DeleteButton';
 
@@ -99,6 +114,14 @@ function makeNamespace(metadata: Record<string, any>) {
     apiVersion: 'v1',
     metadata: { uid: `uid-${metadata.name}`, ...metadata },
     status: { phase: 'Active' },
+  });
+}
+
+function makePod(metadata: Record<string, any>) {
+  return new (Pod as any)({
+    kind: 'Pod',
+    apiVersion: 'v1',
+    metadata: { uid: `uid-${metadata.name}`, ...metadata },
   });
 }
 
@@ -117,9 +140,103 @@ async function openDialog() {
 }
 
 describe('DeleteButton', () => {
+  beforeEach(() => {
+    authState.canDelete = true;
+    authState.canEvict = true;
+  });
+
   it('renders nothing when no item is provided', () => {
     const { container } = renderButton(undefined);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows evict as the primary action and only delete in the dropdown for a pod', async () => {
+    renderButton(makePod({ name: 'my-pod' }));
+
+    // useEvict defaults to true, so evict is the primary (default) action.
+    expect(await screen.findByLabelText('translation|Evict')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('translation|More delete options'));
+
+    expect(await screen.findByRole('menuitem', { name: 'translation|Delete' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'translation|Evict' })).not.toBeInTheDocument();
+  });
+
+  it('opens the evict confirmation when the primary action is chosen for a pod', async () => {
+    renderButton(makePod({ name: 'my-pod' }));
+
+    fireEvent.click(await screen.findByLabelText('translation|Evict'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('translation|Evict Pod')).toBeInTheDocument();
+  });
+
+  it('opens the delete confirmation when the dropdown option is chosen for a pod', async () => {
+    renderButton(makePod({ name: 'my-pod' }));
+
+    fireEvent.click(await screen.findByLabelText('translation|More delete options'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'translation|Delete' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('translation|Delete item')).toBeInTheDocument();
+  });
+
+  it('marks the dropdown trigger with aria attributes linking it to the menu', async () => {
+    renderButton(makePod({ name: 'my-pod' }));
+
+    const trigger = await screen.findByLabelText('translation|More delete options');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'true');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).not.toHaveAttribute('aria-controls');
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(trigger.getAttribute('aria-controls')).toBeTruthy();
+  });
+
+  it('offers delete and evict as separate menu items for a pod in menu buttonStyle', async () => {
+    render(
+      <TestContext>
+        <DeleteButton item={makePod({ name: 'my-pod' })} buttonStyle="menu" />
+      </TestContext>
+    );
+
+    expect(await screen.findByRole('menuitem', { name: 'translation|Delete' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'translation|Evict' })).toBeInTheDocument();
+  });
+
+  it('only offers delete for a pod when the user lacks eviction permission', async () => {
+    authState.canEvict = false;
+    renderButton(makePod({ name: 'my-pod' }));
+
+    expect(await screen.findByLabelText('translation|Delete')).toBeInTheDocument();
+    expect(screen.queryByLabelText('translation|Evict')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('translation|More delete options')).not.toBeInTheDocument();
+  });
+
+  it('only offers evict for a pod when the user lacks delete permission', async () => {
+    authState.canDelete = false;
+    renderButton(makePod({ name: 'my-pod' }));
+
+    expect(await screen.findByLabelText('translation|Evict')).toBeInTheDocument();
+    expect(screen.queryByLabelText('translation|Delete')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('translation|More delete options')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing for a pod when the user has neither permission', async () => {
+    authState.canDelete = false;
+    authState.canEvict = false;
+    const { container } = renderButton(makePod({ name: 'my-pod' }));
+
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
+  it('renders nothing for a non-pod resource when the user lacks delete permission', async () => {
+    authState.canDelete = false;
+    const { container } = renderButton(makeNamespace({ name: 'my-app' }));
+
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   it('shows the warning and type-to-confirm field for a protected namespace', async () => {

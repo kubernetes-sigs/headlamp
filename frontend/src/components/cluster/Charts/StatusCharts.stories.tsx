@@ -163,7 +163,7 @@ PodsStatusLoading.args = {
 };
 
 // Node Stories
-type NodeStatusProps = { items: Node[] | null };
+type NodeStatusProps = { items: Node[] | null; pods?: Pod[] | null; podsLoaded?: boolean };
 const NodeTemplate: StoryFn<NodeStatusProps> = args => <NodesStatusCircleChart {...args} />;
 
 export const NodesStatusWithMixedStates = NodeTemplate.bind({});
@@ -216,4 +216,33 @@ NodesStatusEmpty.args = {
 export const NodesStatusLoading = NodeTemplate.bind({});
 NodesStatusLoading.args = {
   items: null,
+};
+
+// A cordoned node keeps a workload pod, and a drained node has none left behind.
+export const NodesStatusCordonedAndDrained = NodeTemplate.bind({});
+NodesStatusCordonedAndDrained.args = {
+  items: [
+    new Node({
+      ...baseNodeData,
+      metadata: { ...baseNodeData.metadata, name: 'node-schedulable' },
+    }),
+    new Node({
+      ...baseNodeData,
+      metadata: { ...baseNodeData.metadata, name: 'node-cordoned', uid: '2' },
+      spec: { ...baseNodeData.spec, unschedulable: true },
+    }),
+    new Node({
+      ...baseNodeData,
+      metadata: { ...baseNodeData.metadata, name: 'node-drained', uid: '3' },
+      spec: { ...baseNodeData.spec, unschedulable: true },
+    }),
+  ],
+  pods: [
+    new Pod({
+      ...basePodData,
+      metadata: { ...basePodData.metadata, name: 'workload-pod' },
+      spec: { ...basePodData.spec, nodeName: 'node-cordoned' },
+    }),
+  ],
+  podsLoaded: true,
 };

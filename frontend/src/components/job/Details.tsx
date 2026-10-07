@@ -20,6 +20,7 @@ import { useLocation, useParams } from 'react-router-dom';
 import Job from '../../lib/k8s/job';
 import { formatDuration } from '../../lib/util';
 import { useEventCallback } from '../../redux/headlampEventSlice';
+import Link from '../common/Link';
 import {
   ConditionsSection,
   ContainersSection,
@@ -82,6 +83,26 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
             name: t('translation|Status'),
             value: statusLabel,
             hide: !statusLabel,
+          },
+          {
+            name: t('Service Account'),
+            value: (
+              <Link
+                routeName="serviceAccount"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name:
+                    item.spec?.template?.spec?.serviceAccountName ||
+                    item.spec?.template?.spec?.serviceAccount ||
+                    'default',
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.spec?.template?.spec?.serviceAccountName ||
+                  item.spec?.template?.spec?.serviceAccount ||
+                  'default'}
+              </Link>
+            ),
           },
           {
             name: t('glossary|Completions'),

@@ -75,6 +75,24 @@ describe('activitySlice', () => {
       expect(nextState.history).not.toContain('2');
       expect(nextState.activities['1']).toBeDefined();
     });
+
+    it('should preserve a centered window on medium screens', () => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
+      const mediumActivity = { ...newActivity, location: 'window-medium' as const };
+
+      const nextState = reducer(initialState, launchActivity(mediumActivity));
+
+      expect(nextState.activities['1'].location).toBe('window-medium');
+    });
+
+    it('should make a centered window fullscreen on phones', () => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+      const mediumActivity = { ...newActivity, location: 'window-medium' as const };
+
+      const nextState = reducer(initialState, launchActivity(mediumActivity));
+
+      expect(nextState.activities['1'].location).toBe('full');
+    });
   });
 
   describe('close', () => {

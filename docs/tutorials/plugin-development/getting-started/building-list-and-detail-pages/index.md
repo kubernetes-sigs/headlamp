@@ -81,6 +81,7 @@ function MyPodsPage() {
   return (
     <ResourceListView
       title="My Pods"
+      id="my-plugin-pods"
       resourceClass={MyPod}
       columns={[
         'name',
@@ -166,6 +167,10 @@ Now that you've seen it in action, let's look at what `ResourceListView` gave yo
 | `resourceClass={MyPod}` | Let the component fetch data — the standard approach |
 | `data={items}` | Pass pre-fetched or transformed data yourself |
 
+### The `id` prop
+
+Plugins target tables by `id`, which is how the column processors in [Tutorial 7](../extending-existing-resource-views/) find the table they want. Always pass one with your own prefix: without it, `ResourceListView` derives `headlamp-<pluralName>` from the resource class — the same ID Headlamp's own table for that resource uses — so processors aimed at the built-in table would hit yours too.
+
 ### Built-in column shortcuts
 
 `'name'`, `'namespace'`, `'age'`, and `'cluster'` can be passed as plain strings. They are fully configured columns (including `getValue`, `render`, and sorting) — and `'name'` renders a link to Headlamp's native detail page for that resource. You can always replace a shortcut with a full column object to override its behaviour.
@@ -225,10 +230,7 @@ Add a new component to your `src/index.tsx`:
 
 ```tsx
 import { useParams } from 'react-router-dom';
-import {
-  registerRoute,
-  registerSidebarEntry,
-} from '@kinvolk/headlamp-plugin/lib';
+import { registerRoute, registerSidebarEntry } from '@kinvolk/headlamp-plugin/lib';
 import { getCluster } from '@kinvolk/headlamp-plugin/lib/Utils';
 import {
   DetailsGrid,
@@ -239,75 +241,75 @@ import { Chip } from '@mui/material';
 import { MyPod } from './resources/pod';
 
 function MyPodDetailPage() {
-    const params = useParams<{ name: string; namespace?: string }>();
-    const { name, namespace } = params;
-    const cluster = getCluster();
+  const params = useParams<{ name: string; namespace?: string }>();
+  const { name, namespace } = params;
+  const cluster = getCluster();
 
-    return (
-        <DetailsGrid
-            resourceType={MyPod}
-            name={name}
-            namespace={namespace}
-            backLink={`/c/${cluster}/my-plugin/pods`}
-            extraInfo={pod => {
-                if (!pod) return [];
+  return (
+    <DetailsGrid
+      resourceType={MyPod}
+      name={name}
+      namespace={namespace}
+      backLink={`/c/${cluster}/my-plugin/pods`}
+      extraInfo={pod => {
+        if (!pod) return [];
 
-                return [
-                    {
-                        name: 'Phase',
-                        value: (
-                            <Chip
-                                label={pod.jsonData.status?.phase || 'Unknown'}
-                                color={
-                                    pod.jsonData.status?.phase === 'Running'
-                                        ? 'success'
-                                        : pod.jsonData.status?.phase === 'Failed'
-                                            ? 'error'
-                                            : pod.jsonData.status?.phase === 'Pending'
-                                                ? 'warning'
-                                                : 'default'
-                                }
-                                size="small"
-                            />
-                        ),
-                    },
-                    {
-                        name: 'Node',
-                        value: pod.jsonData.spec.nodeName || 'Not assigned',
-                    },
-                    {
-                        name: 'Pod IP',
-                        value: pod.jsonData.status?.podIP || 'Not assigned',
-                    },
-                ];
-            }}
-            extraSections={pod => {
-                if (!pod) return [];
+        return [
+          {
+            name: 'Phase',
+            value: (
+              <Chip
+                label={pod.jsonData.status?.phase || 'Unknown'}
+                color={
+                  pod.jsonData.status?.phase === 'Running'
+                    ? 'success'
+                    : pod.jsonData.status?.phase === 'Failed'
+                    ? 'error'
+                    : pod.jsonData.status?.phase === 'Pending'
+                    ? 'warning'
+                    : 'default'
+                }
+                size="small"
+              />
+            ),
+          },
+          {
+            name: 'Node',
+            value: pod.jsonData.spec.nodeName || 'Not assigned',
+          },
+          {
+            name: 'Pod IP',
+            value: pod.jsonData.status?.podIP || 'Not assigned',
+          },
+        ];
+      }}
+      extraSections={pod => {
+        if (!pod) return [];
 
-                return [
+        return [
+          {
+            id: 'my-plugin-pod-containers',
+            section: (
+              <SectionBox title="Containers">
+                <SimpleTable
+                  data={pod.jsonData.spec.containers}
+                  columns={[
+                    { label: 'Name', getter: container => container.name },
+                    { label: 'Image', getter: container => container.image },
                     {
-                        id: 'my-plugin-pod-containers',
-                        section: (
-                            <SectionBox title="Containers">
-                                <SimpleTable
-                                    data={pod.jsonData.spec.containers}
-                                    columns={[
-                                        { label: 'Name', getter: container => container.name },
-                                        { label: 'Image', getter: container => container.image },
-                                        {
-                                            label: 'Ports',
-                                            getter: container =>
-                                                container.ports?.map(p => p.containerPort).join(', ') || '-',
-                                        },
-                                    ]}
-                                />
-                            </SectionBox>
-                        ),
+                      label: 'Ports',
+                      getter: container =>
+                        container.ports?.map(p => p.containerPort).join(', ') || '-',
                     },
-                ];
-            }}
-        />
-    );
+                  ]}
+                />
+              </SectionBox>
+            ),
+          },
+        ];
+      }}
+    />
+  );
 }
 ```
 
@@ -325,15 +327,18 @@ registerRoute({
 
 ### Step 3: Test It
 
+Nothing links to your detail page yet, so open it directly in the browser.
+
 1. Save the file
-2. Navigate to the Pods list page
-3. Click on a pod name (or use the context menu → View)
-4. You should see the detail page with:
+2. Append `/c/<cluster>/my-plugin/<namespace>/pods/<pod-name>` to your Headlamp URL
+3. You should see the detail page with:
    - Standard metadata (name, namespace, labels, etc.)
    - Your custom fields (Phase, Node, Pod IP)
    - Your custom Containers section
 
 ![Screenshot of the pod detail page showing DetailsGrid with standard metadata, custom Phase, Node, and Pod IP fields, and the Containers section](./pod-detail-page.png)
+
+> **Note:** Registering a route only tells Headlamp which component to render for a URL — it doesn't create a link to it. Your list page still uses the `'name'` column shortcut, which points at Headlamp's built-in Pod details (shown in a drawer by default), not at your page. You'll point it at your own detail page in [Navigation Between List and Detail](#navigation-between-list-and-detail).
 
 ---
 
@@ -686,6 +691,7 @@ function MyPodsPage() {
   return (
     <ResourceListView
       title="My Pods"
+      id="my-plugin-pods"
       resourceClass={MyPod}
       columns={[
         {
@@ -835,6 +841,7 @@ function MyPodsPage() {
   return (
     <ResourceListView
       title="My Pods"
+      id="my-plugin-pods"
       resourceClass={MyPod}
       columns={[
         {
@@ -1097,6 +1104,7 @@ You've learned how to build professional list and detail pages:
   title="My Resources"              // Page title (required)
   resourceClass={MyResource}        // Resource class — required unless using `data`
   columns={[...]}                   // Column definitions (required)
+  id="my-plugin-resources"          // Table ID for plugin processors — use your own prefix (optional)
   hideColumns={['column-id']}       // Columns to hide (optional)
   actions={[...]}                   // Row context-menu actions — plain array, not a function (optional)
   data={items}                      // Pre-fetched data — use instead of resourceClass (optional)

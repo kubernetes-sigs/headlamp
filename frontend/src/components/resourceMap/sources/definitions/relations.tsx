@@ -26,12 +26,17 @@ import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
 import GatewayClass from '../../../../lib/k8s/gatewayClass';
+import {
+  resolveGatewayBackendReference,
+  resolveGatewayParentReference,
+} from '../../../../lib/k8s/gatewayReferences';
 import HPA from '../../../../lib/k8s/hpa';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import Job from '../../../../lib/k8s/job';
 import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import LeaderWorkerSet, { LEADER_WORKER_SET_NAME_LABEL } from '../../../../lib/k8s/leaderWorkerSet';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
@@ -43,6 +48,8 @@ import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
+import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
@@ -65,7 +72,11 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
   id: string,
   from: From,
   to: To,
-  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown
+  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown,
+  edgeAttributes?: (
+    a: InstanceType<From>,
+    b: InstanceType<To>
+  ) => Partial<Omit<GraphEdge, 'id' | 'source' | 'target'>>
 ): Relation => ({
   id,
   fromSource: makeKubeSourceId(from),
@@ -85,6 +96,13 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
       Boolean(selector(fromObject, toObject))
     );
   },
+  edgeAttributes: edgeAttributes
+    ? (fromNode, toNode) =>
+        edgeAttributes(
+          fromNode.kubeObject as InstanceType<From>,
+          toNode.kubeObject as InstanceType<To>
+        )
+    : undefined,
 });
 
 const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
@@ -289,8 +307,18 @@ const serviceAccountToDaemonSets = makeRelation(
     ds.metadata.namespace === sa.metadata.namespace
 );
 
-const pvcToPods = makeRelation('pvc-pod', PersistentVolumeClaim, Pod, (pvc, pod) =>
-  pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name)
+const pvcToPods = makeRelation(
+  'pvc-pod',
+  PersistentVolumeClaim,
+  Pod,
+  (pvc, pod) =>
+    pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name),
+  // A ReadWriteMany PVC can be mounted by many otherwise-unrelated Pods; don't let
+  // it bridge their components into one giant group (see #4310). 'source' names the
+  // PVC (this relation's `from`), not the Pod, as the one allowed to be shared/split.
+  // eslint-disable-next-line no-unused-vars
+  (pvc, _pod) =>
+    pvc.spec?.accessModes?.includes('ReadWriteMany') ? { nonGroupingSide: 'source' } : {}
 );
 
 const podToOwner = makeOwnerRelation(Pod);
@@ -303,9 +331,13 @@ const useGetCRToOwnerRelations = () => {
   return useMemo(() => {
     if (!crds) return [];
 
-    return crds.map(crd => {
-      const CRClass = crd.makeCRClass(); // or makeCRClass(crd)
-      return makeOwnerRelationReversed(CRClass);
+    return crds.flatMap(crd => {
+      const CRClass = crd.makeCRClassOrNull();
+      if (!CRClass) {
+        // CRD with incomplete spec; skip it (#4824).
+        return [];
+      }
+      return [makeOwnerRelationReversed(CRClass)];
     });
   }, [crds]);
 };
@@ -316,6 +348,21 @@ const jobToCronJob = makeRelation('job-cronjob', Job, CronJob, (job, cronJob) =>
 
 const jobToJobSet = makeRelation('job-jobset', Job, JobSet, (job, jobSet) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === jobSet.metadata.uid)
+);
+
+// A leader worker set has a stateful set per group, and the pods hang off those
+// stateful sets, so the chain in the map is LWS -> StatefulSet -> Pod. Only the
+// leader stateful set is owned by the leader worker set itself; each group's
+// worker stateful set is owned by that group's leader pod. Matching on owner
+// references would therefore leave every worker group detached from its leader
+// worker set, so the controller's label is used instead. makeRelation already
+// scopes the match to the same cluster and namespace.
+const statefulSetToLeaderWorkerSet = makeRelation(
+  'statefulset-leaderworkerset',
+  StatefulSet,
+  LeaderWorkerSet,
+  (statefulSet, leaderWorkerSet) =>
+    statefulSet.metadata.labels?.[LEADER_WORKER_SET_NAME_LABEL] === leaderWorkerSet.metadata.name
 );
 
 const gatewayToGatewayClass = makeRelation(
@@ -341,6 +388,66 @@ const httpRouteToService = makeRelation(
       rule.backendRefs?.find(backend => backend.name === service.metadata.name)
     )
 );
+
+type L4Route = TCPRoute | UDPRoute;
+type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
+
+const makeL4RouteToGatewayRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(Gateway),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as L4Route;
+    const gateway = toNode.kubeObject as Gateway;
+
+    return (
+      route.cluster === gateway.cluster &&
+      Boolean(
+        route.spec.parentRefs?.some(parentRef => {
+          const reference = resolveGatewayParentReference(parentRef, route.metadata.namespace);
+          return (
+            reference.group === Gateway.apiGroupName &&
+            reference.kind === Gateway.kind &&
+            reference.name === gateway.metadata.name &&
+            reference.namespace === gateway.metadata.namespace
+          );
+        })
+      )
+    );
+  },
+});
+
+const makeL4RouteToServiceRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(Service),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as L4Route;
+    const service = toNode.kubeObject as Service;
+
+    return (
+      route.cluster === service.cluster &&
+      Boolean(
+        route.spec.rules?.some(rule =>
+          rule.backendRefs?.some(backendRef => {
+            const reference = resolveGatewayBackendReference(backendRef, route.metadata.namespace);
+            return (
+              reference.group === (Service.apiGroupName ?? '') &&
+              reference.kind === Service.kind &&
+              reference.name === service.metadata.name &&
+              reference.namespace === service.metadata.namespace
+            );
+          })
+        )
+      )
+    );
+  },
+});
+
+const tcpRouteToGateway = makeL4RouteToGatewayRelation('tcproute-gateway', TCPRoute);
+const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRoute);
+const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
+const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
 
 const backendTLSPolicyToService = makeRelation(
   'backendtlspolicy-service',
@@ -384,9 +491,14 @@ const staticRelations = [
   replicaSetToOwner,
   jobToCronJob,
   jobToJobSet,
+  statefulSetToLeaderWorkerSet,
   gatewayToGatewayClass,
   httpRouteToGateway,
   httpRouteToService,
+  tcpRouteToGateway,
+  tcpRouteToService,
+  udpRouteToGateway,
+  udpRouteToService,
   backendTLSPolicyToService,
   backendTrafficPolicyToService,
 ];

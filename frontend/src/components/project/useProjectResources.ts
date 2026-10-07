@@ -15,11 +15,12 @@
  */
 
 import { uniqBy } from 'lodash';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
 import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { useKubeLists } from '../advancedSearch/utils/useKubeLists';
+import { projectListRequests } from './projectGrouping';
 import { defaultApiResources } from './projectUtils';
 
 const MAX_RESOURCES_TO_WATCH = 30;
@@ -38,13 +39,15 @@ export function useProjectItems(
   const [resources] = useState(() =>
     uniqBy([...defaultApiResources, ...pluginApiResources], r => apiResourceId(r))
   );
+  const requests = useMemo(() => projectListRequests(project), [project]);
 
   const { items, errors, isLoading } = useKubeLists(
     resources,
     project.clusters,
     MAX_ITEMS,
     disableWatch || resources.length > MAX_RESOURCES_TO_WATCH ? REFETCH_INTERVAL_MS : undefined,
-    project.namespaces
+    project.namespaces,
+    requests
   );
 
   return { items, errors, isLoading };
