@@ -43,7 +43,7 @@ export type RowActionType = ((item: any) => JSX.Element | null | ReactNode) | nu
 export type HeaderAction = {
   id: string;
   action?: HeaderActionType | NewHeaderActionType;
-  /** @deprecated Used to differentiate legacy component-returning actions. New actions should use isLegacy: false (or be undefined and assume new if not exported via old API). */
+  /** @deprecated Used to differentiate legacy component-returning actions. `false` selects the new props-based renderer; `true` or `undefined` uses legacy component rendering. */
   isLegacy?: boolean;
 };
 
@@ -155,10 +155,24 @@ export const actionButtonsSlice = createSlice({
         if (headerAction.action === undefined) {
           headerAction = { id: '', action: headerAction as unknown as HeaderActionType };
         } else {
-          headerAction = { id: '', action: headerAction.action };
+          headerAction = { id: '', action: headerAction.action, isLegacy: headerAction.isLegacy };
         }
       }
-      headerAction.id = headerAction.id || `generated-id-${Date.now().toString(36)}`;
+      if (!headerAction.id) {
+        // Legacy registrations arrive without an ID. Date.now() alone can
+        // collide for registrations in the same millisecond, and the
+        // deduplication below would then treat the second one as an update.
+        // So generate an ID that is unique within the current state before
+        // looking up an existing action.
+        const baseId = `generated-id-${Date.now().toString(36)}`;
+        let uniqueId = baseId;
+        let counter = 0;
+        while (state.headerActions.some(a => a.id === uniqueId)) {
+          counter += 1;
+          uniqueId = `${baseId}-${counter}`;
+        }
+        headerAction.id = uniqueId;
+      }
 
       const existingIndex = state.headerActions.findIndex(a => a.id === headerAction.id);
 
