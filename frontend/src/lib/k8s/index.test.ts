@@ -67,7 +67,13 @@ describe('Class tests', () => {
   describe('CustomResourceDefinition.makeCRClass', () => {
     test('orders the storage endpoint first and retains served fallbacks', () => {
       const crd = new ResourceClasses.CustomResourceDefinition({
-        metadata: { name: 'widgets.example.com' },
+        apiVersion: 'apiextensions.k8s.io/v1',
+        kind: 'CustomResourceDefinition',
+        metadata: {
+          name: 'widgets.example.com',
+          creationTimestamp: '2020-01-01T00:00:00Z',
+          uid: 'widgets-example-com',
+        },
         spec: {
           group: 'example.com',
           version: '',
