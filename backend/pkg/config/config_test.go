@@ -919,13 +919,20 @@ func TestOIDCSecretFilesEnvironmentVariables(t *testing.T) {
 	require.NoError(t, os.WriteFile(idFile, []byte("env-id-value\n"), 0o600))
 	require.NoError(t, os.WriteFile(secretFile, []byte("env-secret-value\n"), 0o600))
 
-	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_IN_CLUSTER", "true"))
-	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE", idFile))
-	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE", secretFile))
+	env := map[string]string{
+		"HEADLAMP_CONFIG_IN_CLUSTER":              "true",
+		"HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE":     idFile,
+		"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE": secretFile,
+	}
+
+	for k, v := range env {
+		require.NoError(t, os.Setenv(k, v))
+	}
+
 	defer func() {
-		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_IN_CLUSTER"))
-		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE"))
-		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE"))
+		for k := range env {
+			require.NoError(t, os.Unsetenv(k))
+		}
 	}()
 
 	t.Run("ambient file env variables are loaded", func(t *testing.T) {

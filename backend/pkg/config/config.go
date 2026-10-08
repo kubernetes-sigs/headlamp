@@ -223,7 +223,7 @@ func (c *Config) validateOIDCCAFile() error {
 }
 
 func readSecretFromFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path)) //nolint:gosec
 	if err != nil {
 		return "", err
 	}
