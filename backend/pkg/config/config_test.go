@@ -891,6 +891,24 @@ func TestOIDCSecretFiles(t *testing.T) {
 		require.Nil(t, conf)
 		assert.Contains(t, err.Error(), "error reading oidc-client-secret-file")
 	})
+	t.Run("explicit flags override file-backed values", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-client-id=explicit-id",
+			"--oidc-client-secret=explicit-secret",
+			"--oidc-client-id-file=" + idFile,
+			"--oidc-client-secret-file=" + secretFile,
+		}
+
+		conf, err := config.Parse(args)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, idFile, conf.OidcClientIDFile)
+		assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+		assert.Equal(t, "explicit-id", conf.OidcClientID)
+		assert.Equal(t, "explicit-secret", conf.OidcClientSecret)
+	})
 }
 
 func TestOIDCSecretFilesEnvironmentVariables(t *testing.T) {
@@ -910,13 +928,29 @@ func TestOIDCSecretFilesEnvironmentVariables(t *testing.T) {
 		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE"))
 	}()
 
-	conf, err := config.Parse([]string{"go run ./cmd"})
-	require.NoError(t, err)
-	require.NotNil(t, conf)
-	assert.Equal(t, idFile, conf.OidcClientIDFile)
-	assert.Equal(t, secretFile, conf.OidcClientSecretFile)
-	assert.Equal(t, "env-id-value", conf.OidcClientID)
-	assert.Equal(t, "env-secret-value", conf.OidcClientSecret)
+	t.Run("ambient file env variables are loaded", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, idFile, conf.OidcClientIDFile)
+		assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+		assert.Equal(t, "env-id-value", conf.OidcClientID)
+		assert.Equal(t, "env-secret-value", conf.OidcClientSecret)
+	})
+
+	t.Run("explicit direct flags override ambient file env variables", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--oidc-client-id=flag-id",
+			"--oidc-client-secret=flag-secret",
+		}
+
+		conf, err := config.Parse(args)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, "flag-id", conf.OidcClientID)
+		assert.Equal(t, "flag-secret", conf.OidcClientSecret)
+	})
 }
 
 var applyMeDefaultsTests = []struct {

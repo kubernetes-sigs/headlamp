@@ -231,14 +231,16 @@ func readSecretFromFile(path string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func (c *Config) loadOIDCSecretFiles() error {
+func (c *Config) loadOIDCSecretFiles(explicitFlags map[string]bool) error {
 	if c.OidcClientIDFile != "" {
 		clientID, err := readSecretFromFile(c.OidcClientIDFile)
 		if err != nil {
 			return fmt.Errorf("error reading oidc-client-id-file: %w", err)
 		}
 
-		c.OidcClientID = clientID
+		if !explicitFlags["oidc-client-id"] {
+			c.OidcClientID = clientID
+		}
 	}
 
 	if c.OidcClientSecretFile != "" {
@@ -247,7 +249,9 @@ func (c *Config) loadOIDCSecretFiles() error {
 			return fmt.Errorf("error reading oidc-client-secret-file: %w", err)
 		}
 
-		c.OidcClientSecret = clientSecret
+		if !explicitFlags["oidc-client-secret"] {
+			c.OidcClientSecret = clientSecret
+		}
 	}
 
 	return nil
@@ -513,7 +517,7 @@ func ParseWithAppNameDefault(args []string, appName string) (*Config, error) {
 		return nil, err
 	}
 
-	if err := config.loadOIDCSecretFiles(); err != nil {
+	if err := config.loadOIDCSecretFiles(explicitFlags); err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading OIDC secret files")
 		return nil, err
 	}
