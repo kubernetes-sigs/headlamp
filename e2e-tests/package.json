@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "test:base-url": "playwright test --config playwright.base-url.config.ts --project=chromium",
     "test:unit": "vitest run",
     "test:unit:coverage": "vitest run --coverage",
     "test:storybook": "playwright test --config playwright.storybook.config.ts"
