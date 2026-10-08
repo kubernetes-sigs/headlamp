@@ -44,7 +44,19 @@ var (
 
 type Handler struct {
 	*cli.EnvSettings
-	Cache cache.Cache[interface{}]
+	Cache            cache.Cache[interface{}]
+	actionConfigFunc func(clientConfig clientcmd.ClientConfig, namespace string) (*action.Configuration, error)
+}
+
+func (h *Handler) newActionConfig(
+	clientConfig clientcmd.ClientConfig,
+	namespace string,
+) (*action.Configuration, error) {
+	if h.actionConfigFunc != nil {
+		return h.actionConfigFunc(clientConfig, namespace)
+	}
+
+	return NewActionConfig(clientConfig, namespace)
 }
 
 func NewActionConfig(clientConfig clientcmd.ClientConfig, namespace string) (*action.Configuration, error) {
