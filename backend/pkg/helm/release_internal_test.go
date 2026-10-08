@@ -13,7 +13,35 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
+
+// unauthorizedRESTGetter mirrors the staticRESTGetter fake used by TestVerifyUser
+// in release_test.go: its empty host makes the whoami check performed by
+// VerifyUser fail, simulating an unauthorized/anonymous user.
+type unauthorizedRESTGetter struct{}
+
+var _ genericclioptions.RESTClientGetter = (*unauthorizedRESTGetter)(nil)
+
+func (u *unauthorizedRESTGetter) ToRESTConfig() (*rest.Config, error) {
+	return &rest.Config{Host: ""}, nil
+}
+
+func (u *unauthorizedRESTGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, nil
+}
+
+func (u *unauthorizedRESTGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, nil
+}
+
+func (u *unauthorizedRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return nil
+}
 
 func TestGetActionStatus_NilErr(t *testing.T) {
 	h := &Handler{
@@ -73,4 +101,48 @@ func TestGetChart_InvalidType(t *testing.T) {
 	assert.Equal(t, "failed", statusMap.Status)
 	assert.NotNil(t, statusMap.Err)
 	assert.Contains(t, *statusMap.Err, "chart type \"library\" is not installable")
+}
+
+// TestUpgradeRelease_UnauthorizedUser_DoesNotFetchChart verifies that upgradeRelease
+// performs the same VerifyUser authorization check as installRelease, rejecting an
+// unauthorized user before getChart is ever invoked.
+func TestUpgradeRelease_UnauthorizedUser_DoesNotFetchChart(t *testing.T) {
+	h := &Handler{
+		Cache:       cache.New[interface{}](),
+		EnvSettings: cli.New(),
+	}
+
+	// A valid, loadable chart on disk: if getChart were reached, it would
+	// succeed, so any observable failure below can only come from code that
+	// runs after getChart.
+	chartDir := t.TempDir()
+	chartYaml := filepath.Join(chartDir, "Chart.yaml")
+	chartContent := []byte("apiVersion: v2\nname: test-chart\nversion: 1.0.0\ntype: application\n")
+	require.NoError(t, os.WriteFile(chartYaml, chartContent, 0o600))
+
+	// RESTClientGetter with an empty host: the whoami check inside VerifyUser
+	// fails against it, simulating an unauthorized/anonymous user.
+	actionConfig := &action.Configuration{
+		RESTClientGetter: &unauthorizedRESTGetter{},
+	}
+
+	req := UpgradeReleaseRequest{
+		CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+			Name:        "test-upgrade-release",
+			Namespace:   "default",
+			Description: "upgrade",
+			Chart:       chartDir,
+			// Invalid base64: if getChart were called and upgradeRelease
+			// continued past it, decoding this would fail and record a
+			// "failed" status. Its absence proves getChart was never reached.
+			Values:  "not-valid-base64!!!",
+			Version: "1.0.0",
+		},
+	}
+
+	h.upgradeRelease(req, actionConfig)
+
+	_, err := h.Cache.Get(context.Background(), "helm_upgrade_test-upgrade-release")
+	assert.ErrorIs(t, err, cache.ErrNotFound,
+		"no status should be recorded: upgradeRelease must return before getChart or any later step runs")
 }
