@@ -40,34 +40,38 @@ const defaultOauthPopupProps = {
 const OauthPopup: React.FC<OauthPopupProps> = props => {
   const externalWindowRef = React.useRef<Window | null>(null);
   const storageListenerRef = React.useRef<(() => void) | null>(null);
-  const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanupPopup = React.useCallback(
     (closeWindow = false) => {
       const popupWindow = externalWindowRef.current;
+
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
 
       if (storageListenerRef.current) {
         window.removeEventListener('storage', storageListenerRef.current);
         storageListenerRef.current = null;
       }
 
-      if (popupWindow && beforeUnloadListenerRef.current) {
-        try {
-          popupWindow.removeEventListener('beforeunload', beforeUnloadListenerRef.current);
-        } catch (e) {
-          console.error('Error occurred while removing beforeunload event listener', e);
-        }
-        beforeUnloadListenerRef.current = null;
-      }
-
       if (closeWindow && popupWindow) {
-        popupWindow.close();
+        try {
+          popupWindow.close();
+        } catch (e) {
+          // Ignore error if popup cannot be closed (e.g. cross-origin/COOP context)
+        }
         externalWindowRef.current = null;
         return;
       }
 
-      if (popupWindow?.closed) {
-        externalWindowRef.current = null;
+      try {
+        if (popupWindow?.closed) {
+          externalWindowRef.current = null;
+        }
+      } catch (e) {
+        // Ignore cross-origin access errors
       }
     },
     [externalWindowRef]
@@ -107,20 +111,26 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
     window.addEventListener('storage', storageListener);
 
     if (externalWindowRef.current) {
-      try {
-        const beforeUnloadListener = () => {
-          cleanupPopup();
-          externalWindowRef.current = null;
+      intervalRef.current = setInterval(() => {
+        let isClosed = false;
+        try {
+          isClosed = !!externalWindowRef.current?.closed;
+        } catch (e) {
+          // In some browsers, accessing externalWindowRef.current.closed across origins
+          // or with Cross-Origin-Opener-Policy can throw a SecurityError.
+          // In that case, ignore the error and leave the completion storage listener intact.
+        }
+
+        if (isClosed) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
           if (!!props.onClose) {
             props.onClose();
           }
-        };
-
-        externalWindowRef.current.addEventListener('beforeunload', beforeUnloadListener, false);
-        beforeUnloadListenerRef.current = beforeUnloadListener;
-      } catch (e) {
-        console.error('Error occurred while adding beforeunload event listener');
-      }
+        }
+      }, 500);
     }
   };
 

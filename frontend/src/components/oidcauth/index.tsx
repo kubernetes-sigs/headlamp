@@ -29,6 +29,11 @@ function OIDCAuth() {
   useEffect(() => {
     if (cluster) {
       localStorage.setItem(AUTH_STATUS_KEY, 'success');
+      try {
+        window.close();
+      } catch (e) {
+        console.error('Error occurred while closing window', e);
+      }
     }
   }, [cluster]);
 
