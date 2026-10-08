@@ -15,16 +15,20 @@
  */
 
 import { Box, TextField, Typography } from '@mui/material';
+import * as jsyaml from 'js-yaml';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { ClusterSettings } from '../../../helpers/clusterSettings';
+import { decodeBase64 } from '../../../helpers/base64';
+import { ClusterSettings, renameClusterSettings } from '../../../helpers/clusterSettings';
 import { parseKubeConfig, renameCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
+import { KubeconfigObject } from '../../../lib/k8s/kubeconfig';
+import { renameSavedNamespaces } from '../../../lib/storage';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import store from '../../../redux/stores/store';
-import { mergeStatelessConfigState } from '../../../stateless';
+import { findMatchingContexts, mergeStatelessConfigState } from '../../../stateless';
 import { enqueueConfigOperation } from '../../../stateless/configOperationQueue';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { updateStatelessClusterKubeconfig } from '../../../stateless/updateStatelessClusterKubeconfig';
@@ -37,14 +41,53 @@ interface ClusterNameEditorProps {
     [clusterName: string]: Cluster;
   } | null;
   clusterSettings: ClusterSettings;
-  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings>>;
+}
+
+/**
+ * Finds the name a cluster from a kubeconfig file goes back to when its custom name is removed.
+ * The backend builds the cluster ID as `<kubeconfig path>+<context name>`, and that context
+ * name is the original name.
+ *
+ * @param clusterInfo - The cluster as the backend reported it before the rename.
+ * @returns The original name, or '' if it can't be found.
+ */
+function getOriginalName(clusterInfo: Cluster | null): string {
+  const clusterID: string = clusterInfo?.meta_data?.clusterID || '';
+  const kubeconfigPath: string = clusterInfo?.meta_data?.origin?.kubeconfig || '';
+  if (!kubeconfigPath || !clusterID.startsWith(`${kubeconfigPath}+`)) {
+    return '';
+  }
+  return clusterID.slice(kubeconfigPath.length + 1);
+}
+
+/**
+ * Finds the context name of a cluster in a kubeconfig stored in the browser. That is the name
+ * the cluster goes back to when its custom name is removed.
+ *
+ * @param kubeconfig - The base64 encoded kubeconfig the cluster was loaded from.
+ * @param cluster - The current name of the cluster.
+ * @param clusterID - The ID of the cluster, if it has one.
+ * @returns The context name, or '' if it can't be found.
+ */
+function getContextName(kubeconfig: string, cluster: string, clusterID: string): string {
+  try {
+    const parsed = jsyaml.load(decodeBase64(kubeconfig)) as KubeconfigObject;
+    const { matchingKubeconfig, matchingContext } = findMatchingContexts(
+      cluster,
+      parsed,
+      clusterID
+    );
+    return (matchingContext ?? matchingKubeconfig)?.name || '';
+  } catch (err) {
+    console.error('Error getting the cluster name after a rename:', err);
+    return '';
+  }
 }
 
 export function ClusterNameEditor({
   cluster,
   clusterConf,
   clusterSettings,
-  setClusterSettings,
 }: ClusterNameEditorProps) {
   const { t } = useTranslation(['translation']);
   const [customNameInUse, setCustomNameInUse] = React.useState(false);
@@ -97,49 +140,74 @@ export function ClusterNameEditor({
     const nameInUse = allNames.includes(name);
 
     setCustomNameInUse(nameInUse);
+    return nameInUse;
   }
 
   // Display the original name of the cluster if it was loaded from a kubeconfig file.
 
-  function storeNewClusterName(name: string) {
-    let actualName = name;
-    if (name === cluster) {
-      actualName = '';
-      setNewClusterName(actualName);
-    }
-
-    setClusterSettings(settings => ({
-      ...settings,
-      ...(isValidClusterNameFormat(name) ? { currentName: actualName } : {}),
-    }));
-  }
-
   const handleUpdateClusterName = (source: string) => {
+    if (
+      !isValidClusterNameFormat(newClusterName) ||
+      (newClusterName && checkNameInUse(newClusterName))
+    ) {
+      return;
+    }
     try {
-      enqueueConfigOperation(() =>
-        renameCluster(cluster || '', newClusterName, source, clusterID).then(async config => {
-          if (cluster) {
-            const kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
-            if (kubeconfig !== null) {
-              await updateStatelessClusterKubeconfig(kubeconfig, newClusterName, cluster);
-              // Make another request for updated kubeconfig
-              const updatedKubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
-              if (updatedKubeconfig !== null) {
-                const parsedConfig = await parseKubeConfig({ kubeconfig: updatedKubeconfig });
-                storeNewClusterName(newClusterName);
-                const currentStatelessClusters = store.getState().config.statelessClusters;
-                dispatch(
-                  setStatelessConfig(
-                    mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
-                  )
-                );
-              }
-            } else {
-              dispatch(setConfig(config));
-            }
+      enqueueConfigOperation(async () => {
+        if (cluster) {
+          const kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
+          // Cluster settings are stored under the cluster name, so move them to the new one.
+          // An empty name puts the cluster back to its original name, which is its context
+          // name in the browser kubeconfig or in the cluster ID.
+          const contextName =
+            !newClusterName && kubeconfig !== null
+              ? getContextName(kubeconfig, cluster, clusterID)
+              : '';
+          const renamedTo =
+            newClusterName ||
+            (kubeconfig !== null
+              ? contextName.replace(/\//g, '--').replace(/ /g, '__')
+              : getOriginalName(clusterInfo));
+
+          if (
+            !newClusterName &&
+            renamedTo &&
+            Object.values(clusterConf || {}).some(
+              other =>
+                other.name !== cluster &&
+                (other.name === renamedTo || other.meta_data?.originalName === renamedTo)
+            )
+          ) {
+            throw new Error(
+              t('translation|This custom name is already in use, please choose a different name.')
+            );
           }
-        })
-      )
+          const config = await renameCluster(cluster, newClusterName, source, clusterID);
+          if (kubeconfig !== null) {
+            await updateStatelessClusterKubeconfig(kubeconfig, newClusterName, cluster);
+            renameClusterSettings(cluster, renamedTo);
+            renameSavedNamespaces(cluster, renamedTo);
+            // Make another request for updated kubeconfig
+            const updatedKubeconfig = await findKubeconfigByClusterName(
+              newClusterName || contextName,
+              clusterID
+            );
+            if (updatedKubeconfig !== null) {
+              const parsedConfig = await parseKubeConfig({ kubeconfig: updatedKubeconfig });
+              const currentStatelessClusters = store.getState().config.statelessClusters;
+              dispatch(
+                setStatelessConfig(
+                  mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
+                )
+              );
+            }
+          } else {
+            renameClusterSettings(cluster, renamedTo);
+            renameSavedNamespaces(cluster, renamedTo);
+            dispatch(setConfig(config));
+          }
+        }
+      })
         .then(() => {
           history.push('/');
           window.location.reload();

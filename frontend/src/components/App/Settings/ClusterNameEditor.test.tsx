@@ -34,7 +34,7 @@ afterEach(() => localStorage.clear());
 const theme = createMuiTheme({ base: 'light', name: 'light' });
 
 function Editor({ cluster = 'test' }: { cluster?: string }) {
-  const [settings, setSettings] = useClusterSettings(cluster);
+  const [settings] = useClusterSettings(cluster);
   return (
     <ThemeProvider theme={theme}>
       <ClusterNameEditor
@@ -43,7 +43,6 @@ function Editor({ cluster = 'test' }: { cluster?: string }) {
           [cluster]: { name: cluster, auth_type: '', meta_data: { source: 'kubeconfig' } },
         }}
         clusterSettings={settings}
-        setClusterSettings={setSettings}
       />
       <output data-testid="tags">{JSON.stringify(settings.tags)}</output>
     </ThemeProvider>

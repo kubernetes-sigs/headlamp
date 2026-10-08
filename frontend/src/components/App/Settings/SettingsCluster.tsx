@@ -308,7 +308,6 @@ export default function SettingsCluster() {
             cluster={cluster}
             clusterConf={clusterConf}
             clusterSettings={clusterSettings}
-            setClusterSettings={setClusterSettings}
           />
         )}
         <NameValueTable
