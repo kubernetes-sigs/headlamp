@@ -92,7 +92,8 @@ export function parseRunCommandGrants(value: unknown): RunCommandGrant[] {
     }
     if (
       !Array.isArray(record.args) ||
-      record.args.length === 0 ||
+      (record.args.length === 0 &&
+        (record.allowTrailingArgs === true || record.tool === 'scriptjs')) ||
       record.args.length > MAX_ARGUMENTS ||
       record.args.some(
         argument =>
@@ -113,7 +114,11 @@ export function parseRunCommandGrants(value: unknown): RunCommandGrant[] {
       args: [...record.args],
       ...(record.allowTrailingArgs === true && { allowTrailingArgs: true }),
     };
-    const key = JSON.stringify(grant);
+    // JSON Schema treats an omitted property and an explicit false as distinct items.
+    const key = JSON.stringify({
+      ...grant,
+      ...(record.allowTrailingArgs === false && { allowTrailingArgs: false }),
+    });
     if (seen.has(key)) {
       throw new Error(`Duplicate runCommands[${index}]`);
     }
