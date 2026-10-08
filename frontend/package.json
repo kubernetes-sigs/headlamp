@@ -210,6 +210,13 @@
       "react-hooks/static-components": "off",
       "react-hooks/unsupported-syntax": "off",
       "react-hooks/use-memo": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "JSXAttribute[name.name='type'][value.value='password']:not(JSXElement[openingElement.name.name='PasswordForm'] JSXAttribute)",
+          "message": "Wrap password inputs in <PasswordForm> (components/common/PasswordForm) so browser password managers do not attach to unrelated inputs."
+        }
+      ],
       "license-header/header": [
         "error",
         [
