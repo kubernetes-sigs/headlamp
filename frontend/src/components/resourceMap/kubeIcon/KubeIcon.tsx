@@ -137,6 +137,7 @@ const kindGroups = {
     'PriorityClass',
     'RuntimeClass',
     'DeviceClass',
+    'ResourceClaim',
     'Lease',
     'ResourceQuota',
     'LimitRange',

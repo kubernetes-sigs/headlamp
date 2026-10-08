@@ -519,6 +519,7 @@
       "PodGroup": [Function],
       "PriorityClass": [Function],
       "ReplicaSet": [Function],
+      "ResourceClaim": [Function],
       "ResourceQuota": [Function],
       "Role": [Function],
       "RoleBinding": [Function],
@@ -647,6 +648,7 @@
     },
     "resourceClaim": {
       "default": [Function],
+      "getAllocatedDeviceId": [Function],
       "getRequestedDeviceClasses": [Function],
       "getResourceClaimState": [Function],
     },

@@ -17,7 +17,11 @@
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
 import type { AllocationResult, KubeResourceClaim, ResourceClaimStatus } from './resourceClaim';
-import ResourceClaim, { getRequestedDeviceClasses, getResourceClaimState } from './resourceClaim';
+import ResourceClaim, {
+  getAllocatedDeviceId,
+  getRequestedDeviceClasses,
+  getResourceClaimState,
+} from './resourceClaim';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -93,6 +97,19 @@ describe('getRequestedDeviceClasses', () => {
 
   it('has nothing to report for a request of an unknown kind', () => {
     expect(getRequestedDeviceClasses({ name: 'gpu' })).toEqual([]);
+  });
+});
+
+describe('getAllocatedDeviceId', () => {
+  it('names the driver and pool along with the device', () => {
+    expect(
+      getAllocatedDeviceId({
+        request: 'gpu',
+        driver: 'gpu.example.com',
+        pool: 'worker-0',
+        device: 'gpu-0',
+      })
+    ).toBe('gpu.example.com/worker-0/gpu-0');
   });
 });
 

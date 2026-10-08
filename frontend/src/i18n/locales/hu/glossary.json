@@ -68,6 +68,7 @@
   "Driver": "",
   "Device Classes": "",
   "Drivers": "",
+  "Resource Claims": "",
   "Subsets": "Részhalmazok",
   "Endpoint: {{ name }}": "Végpont: {{ name }}",
   "IP": "IP-cím",
