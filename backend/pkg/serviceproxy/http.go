@@ -19,12 +19,12 @@ func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	resp, err := cli.Do(req) //nolint:gosec
+	resp, err := cli.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed HTTP GET: %w", err)
 	}
