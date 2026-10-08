@@ -43,14 +43,15 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
   const externalWindowRef = React.useRef<Window | null>(null);
   const storageListenerRef = React.useRef<(() => void) | null>(null);
   const popupTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanupPopup = React.useCallback(
     (closeWindow = false) => {
       const popupWindow = externalWindowRef.current;
 
-      if (storageListenerRef.current) {
-        window.removeEventListener('storage', storageListenerRef.current);
-        storageListenerRef.current = null;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
 
       if (popupTimeoutRef.current !== null) {
@@ -58,14 +59,27 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
         popupTimeoutRef.current = null;
       }
 
+      if (storageListenerRef.current) {
+        window.removeEventListener('storage', storageListenerRef.current);
+        storageListenerRef.current = null;
+      }
+
       if (closeWindow && popupWindow) {
-        popupWindow.close();
+        try {
+          popupWindow.close();
+        } catch (e) {
+          // Ignore error if popup cannot be closed (e.g. cross-origin/COOP context)
+        }
         externalWindowRef.current = null;
         return;
       }
 
-      if (popupWindow?.closed) {
-        externalWindowRef.current = null;
+      try {
+        if (popupWindow?.closed) {
+          externalWindowRef.current = null;
+        }
+      } catch (e) {
+        // Ignore cross-origin access errors
       }
     },
     [externalWindowRef]
@@ -111,9 +125,36 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
       return;
     }
 
+    let hasNotifiedClose = false;
+
+    intervalRef.current = setInterval(() => {
+      let isClosed = false;
+      try {
+        isClosed = !!externalWindowRef.current?.closed;
+      } catch (e) {
+        // In some browsers, accessing externalWindowRef.current.closed across origins
+        // or with Cross-Origin-Opener-Policy can throw a SecurityError.
+        // In that case, ignore the error and leave the completion storage listener intact.
+      }
+
+      if (isClosed) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        if (!hasNotifiedClose) {
+          hasNotifiedClose = true;
+          props.onClose?.();
+        }
+      }
+    }, 500);
+
     popupTimeoutRef.current = setTimeout(() => {
       cleanupPopup(true);
-      props.onClose?.();
+      if (!hasNotifiedClose) {
+        hasNotifiedClose = true;
+        props.onClose?.();
+      }
     }, OAUTH_POPUP_TIMEOUT_MS);
   };
 
