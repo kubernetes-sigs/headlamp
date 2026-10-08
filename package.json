@@ -17,6 +17,7 @@
     "install:frontend": "npm run frontend:install",
     "install:backend": "npm run backend:build",
     "install:app": "npm run app:install",
+    "env:check": "node ./tools/check-contributor-env.js",
     "build": "npm run backend:build && npm run frontend:build",
     "dev": "npm run start",
     "start": "concurrently \"npm run backend:start\" \"npm run frontend:start\" --names \"backend,frontend\" --prefix-colors \"blue,green\"",
