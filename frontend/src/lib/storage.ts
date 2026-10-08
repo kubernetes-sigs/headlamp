@@ -61,3 +61,28 @@ export function saveNamespaces(namespaces: string[], cluster?: string) {
     console.error('Failed to save namespaces in Local Storage:', e);
   }
 }
+
+/**
+ * Moves the namespaces saved for a cluster to its new name when the cluster is renamed.
+ * Afterwards the new name holds exactly what the old name had, so namespaces left under
+ * the new name by a cluster that used that name before are cleared.
+ *
+ * @param oldName - The cluster name before the rename.
+ * @param newName - The cluster name after the rename.
+ */
+export function renameSavedNamespaces(oldName: string, newName: string) {
+  if (!oldName || !newName || oldName === newName) {
+    return;
+  }
+  try {
+    const saved = localStorage.getItem(`${NAMESPACE_STORAGE_KEY}_${oldName}`);
+    if (saved === null) {
+      localStorage.removeItem(`${NAMESPACE_STORAGE_KEY}_${newName}`);
+      return;
+    }
+    localStorage.setItem(`${NAMESPACE_STORAGE_KEY}_${newName}`, saved);
+    localStorage.removeItem(`${NAMESPACE_STORAGE_KEY}_${oldName}`);
+  } catch (e) {
+    console.error('Failed to move saved namespaces in Local Storage:', e);
+  }
+}

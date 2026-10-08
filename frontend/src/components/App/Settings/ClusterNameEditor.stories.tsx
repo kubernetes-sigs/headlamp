@@ -58,7 +58,6 @@ export const Default = Template.bind({});
 Default.args = {
   cluster: 'my-cluster',
   clusterSettings: {},
-  setClusterSettings: () => {},
 };
 
 export const WithInvalidName = Template.bind({});
