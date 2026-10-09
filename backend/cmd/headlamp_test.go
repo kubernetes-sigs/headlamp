@@ -1970,17 +1970,45 @@ func TestCheckUniqueName(t *testing.T) {
 		newName      string
 		expectUnique bool
 	}{
-		{"default name usage", "random-cluster-x", false},
+		{"default name usage", "random-cluster-y", false},
 		{"custom name usage", "superfly-name", false},
-		{"another default name usage", "random-cluster-y", false},
 		{"unique name usage", "amazing-name", true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
-			got := CheckUniqueName(kubeConfig.Contexts, "random-cluster-y", tc.newName)
+			got := CheckUniqueName(kubeConfig.Contexts, "random-cluster-x", tc.newName)
 			if got != tc.expectUnique {
 				t.Fatalf("CheckUniqueName(%q) = %v; want %v", tc.newName, got, tc.expectUnique)
+			}
+		})
+	}
+}
+
+// TestCheckUniqueNameOwnContext checks that the context being renamed does not
+// count as taken, so it can go back to its original name.
+func TestCheckUniqueNameOwnContext(t *testing.T) {
+	kubeConfig, err := clientcmd.LoadFromFile("./headlamp_testdata/name_validation_test")
+	require.NoError(t, err)
+
+	cases := []struct {
+		label        string
+		currentName  string
+		newName      string
+		expectUnique bool
+	}{
+		{"back to the original name", "superfly-name", "random-cluster-y", true},
+		{"original name by context name", "random-cluster-y", "random-cluster-y", true},
+		{"keep the current custom name", "superfly-name", "superfly-name", true},
+		{"original name of another context", "superfly-name", "random-cluster-x", false},
+		{"unique name for a renamed context", "superfly-name", "amazing-name", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			got := CheckUniqueName(kubeConfig.Contexts, tc.currentName, tc.newName)
+			if got != tc.expectUnique {
+				t.Fatalf("CheckUniqueName(%q, %q) = %v; want %v", tc.currentName, tc.newName, got, tc.expectUnique)
 			}
 		})
 	}
@@ -2277,6 +2305,69 @@ func TestHandleClusterRename_NameCollision(t *testing.T) {
 
 	require.Error(t, err, "a name collision must return a non-nil error")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleClusterRename_BackToOriginalName renames a cluster and then renames
+// it back to its original context name. The second rename must succeed and
+// clear the custom name instead of saving one that matches the original.
+func TestHandleClusterRename_BackToOriginalName(t *testing.T) {
+	kubeConfigData, err := os.ReadFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, os.WriteFile(kubeConfigPath, kubeConfigData, 0o600))
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        kubeConfigPath,
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleClusterRename_BackToOriginalName")
+	defer span.End()
+
+	rename := func(currentName, newName string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/cluster/"+currentName, nil)
+
+		renameErr := c.handleClusterRename(w, r, currentName, RenameClusterRequest{
+			NewClusterName: newName,
+			Source:         "kubeconfig",
+		}, ctx, span)
+		require.NoError(t, renameErr)
+
+		return w
+	}
+
+	customNameOf := func() string {
+		config, loadErr := clientcmd.LoadFromFile(kubeConfigPath)
+		require.NoError(t, loadErr)
+
+		info := config.Contexts["minikube"].Extensions["headlamp_info"]
+		if info == nil {
+			return ""
+		}
+
+		customObj, marshalErr := MarshalCustomObject(info, "minikube")
+		require.NoError(t, marshalErr)
+
+		return customObj.CustomName
+	}
+
+	assert.Equal(t, http.StatusCreated, rename("minikube", "mk-renamed").Code)
+	assert.Equal(t, "mk-renamed", customNameOf())
+
+	// Back to the original name: allowed, and no custom name is kept.
+	assert.Equal(t, http.StatusCreated, rename("mk-renamed", "minikube").Code)
+	assert.Empty(t, customNameOf())
 }
 
 // TestHandleError_NilError ensures handleError does not panic when a caller
