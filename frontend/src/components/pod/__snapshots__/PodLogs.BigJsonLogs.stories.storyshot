@@ -498,7 +498,6 @@
                       autocorrect="off"
                       class="xterm-helper-textarea"
                       spellcheck="false"
-                      style="left: 0px; top: 0px; width: 0px; height: 0px; line-height: 0px; z-index: -5;"
                       tabindex="0"
                     />
                     <span
@@ -551,215 +550,96 @@
                       style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
                     >
                       <span>
-                        "2024-02-15T00:00:03.000Z","data":"Additional data point 3"},{"event":"sub-event
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        -4","timestamp":"2024-02-15T00:00:04.000Z","data":"Additional data point 4"}]}20
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        24-02-15T00:00:00.000Z {"level":"debug","message":"Complex operation #98 from ma
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        in-container","timestamp":"2024-02-15T00:00:00.000Z","metadata":{"requestId":"re
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        q-98","traceId":"trace-98","spanId":"span-98","userAgent":"Mozilla/5.0 (Windows 
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        NT 10.0; Win64; x64) Chrome/91.0.4472.124","clientIp":"192.168.1.98","duration":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "500.0ms"},"context":{"service":{"name":"main-container","version":"1.0.0","envi
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ronment":"production"},"request":{"method":"POST","path":"/api/v2/complex/98","h
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        eaders":{"Content-Type":"application/json","Authorization":"Bearer token123"}},"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        response":{"status":200,"body":"Success"}},"logs":[{"event":"sub-event-0","times
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        tamp":"2024-02-15T00:00:00.000Z","data":"Additional data point 0"},{"event":"sub
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        -event-1","timestamp":"2024-02-15T00:00:01.000Z","data":"Additional data point 1
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "},{"event":"sub-event-2","timestamp":"2024-02-15T00:00:02.000Z","data":"Additio
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        nal data point 2"},{"event":"sub-event-3","timestamp":"2024-02-15T00:00:03.000Z"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ,"data":"Additional data point 3"},{"event":"sub-event-4","timestamp":"2024-02-1
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        5T00:00:04.000Z","data":"Additional data point 4"}]}2024-02-15T00:00:00.000Z {"l
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        evel":"debug","message":"Complex operation #99 from main-container","timestamp":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "2024-02-15T00:00:00.000Z","metadata":{"requestId":"req-99","traceId":"trace-99"
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ,"spanId":"span-99","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrom
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        e/91.0.4472.124","clientIp":"192.168.1.99","duration":"500.0ms"},"context":{"ser
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        vice":{"name":"main-container","version":"1.0.0","environment":"production"},"re
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        quest":{"method":"POST","path":"/api/v2/complex/99","headers":{"Content-Type":"a
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        pplication/json","Authorization":"Bearer token123"}},"response":{"status":500,"b
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        ody":"Internal Server Error"}},"logs":[{"event":"sub-event-0","timestamp":"2024-
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        02-15T00:00:00.000Z","data":"Additional data point 0"},{"event":"sub-event-1","t
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        imestamp":"2024-02-15T00:00:01.000Z","data":"Additional data point 1"},{"event":
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        "sub-event-2","timestamp":"2024-02-15T00:00:02.000Z","data":"Additional data poi
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        nt 2"},{"event":"sub-event-3","timestamp":"2024-02-15T00:00:03.000Z","data":"Add
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        itional data point 3"},{"event":"sub-event-4","timestamp":"2024-02-15T00:00:04.0
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        00Z","data":"Additional data point 4"}]}
-                      </span>
-                      <span>
                          
                       </span>
                     </div>
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
                   </div>
                   <div
                     aria-hidden="true"
