@@ -82,15 +82,12 @@ func isOIDCAuthContext(kCtx *kubeconfig.Context) bool {
 //     issuer+client-id therefore does not by itself guarantee the access token
 //     is accepted by the target apiserver; align token audiences fleet-wide.
 //
-// Refresh-path caveat: this runs only at initial OIDC login. The token-refresh
-// middleware (OIDCTokenRefreshMiddleware, backed by RefreshAndSetToken)
-// refreshes each cluster's cookie independently and is not yet broadcast-aware.
-// Because refresh happens per-cluster, sibling cookies diverge as soon as any
-// one cluster refreshes its token; with short token lifetimes (e.g., EKS'
-// default ~1h expiry) siblings then fall back to per-cluster re-login.
-// Whichever token the flag broadcasts (id_token, or access_token when
-// --oidc-use-access-token is set) is the same one SetTokenCookie stores.
-// Broadcast-on-refresh is tracked as a follow-up PR.
+// Lifecycle: invoked from the initial OIDC login handler and, when enabled via
+// RefreshAndSetTokenParams, from the token-refresh path (RefreshAndSetToken),
+// so sibling cookies stay in sync with the source cluster's token across the
+// whole session. Whichever token is in use (id_token, or access_token when
+// --oidc-use-access-token is set) is the one SetTokenCookie stores and this
+// function broadcasts.
 //
 // Cookie-path caveat (pre-existing, general): SetTokenCookie's chunk-clear
 // pre-step reads existing chunk cookies via r.Cookie(), which only sees cookies

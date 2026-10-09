@@ -1407,6 +1407,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		TelemetryHandler:             c.TelemetryHandler,
 		Metrics:                      c.Metrics,
 		OidcUseAccessToken:           c.OidcUseAccessToken,
+		OidcUseTokenBroadcast:        c.OidcUseTokenBroadcast,
 		OidcIdpIssuerURL:             c.OidcIdpIssuerURL,
 		OidcValidatorIdpIssuerURL:    c.OidcValidatorIdpIssuerURL,
 		BaseURL:                      c.BaseURL,
