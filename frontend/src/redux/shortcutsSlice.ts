@@ -46,6 +46,10 @@ export interface ShortcutConfig {
 // t('Toggle column filters in tables')
 // t('Log Viewer Search')
 // t('Toggle search in log viewer')
+// t('Go to Pods')
+// t('Navigate to the Pods list')
+// t('Go to Deployments')
+// t('Navigate to the Deployments list')
 export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
   GLOBAL_SEARCH: {
     id: 'GLOBAL_SEARCH',
@@ -78,6 +82,22 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
     key: 'ctrl+shift+f',
     defaultKey: 'ctrl+shift+f',
     category: 'search',
+  },
+  NAVIGATE_TO_PODS: {
+    id: 'NAVIGATE_TO_PODS',
+    labelKey: 'Go to Pods',
+    descriptionKey: 'Navigate to the Pods list',
+    key: 'alt+shift+p',
+    defaultKey: 'alt+shift+p',
+    category: 'navigation',
+  },
+  NAVIGATE_TO_DEPLOYMENTS: {
+    id: 'NAVIGATE_TO_DEPLOYMENTS',
+    labelKey: 'Go to Deployments',
+    descriptionKey: 'Navigate to the Deployments list',
+    key: 'alt+shift+d',
+    defaultKey: 'alt+shift+d',
+    category: 'navigation',
   },
 };
 

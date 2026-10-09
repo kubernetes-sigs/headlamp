@@ -1081,5 +1081,9 @@
   "Toggle Table Filters": "Přepnout filtry tabulky",
   "Toggle column filters in tables": "Přepnout filtry sloupců v tabulkách",
   "Log Viewer Search": "Hledání v prohlížeči protokolů",
-  "Toggle search in log viewer": "Přepnout hledání v prohlížeči protokolů"
+  "Toggle search in log viewer": "Přepnout hledání v prohlížeči protokolů",
+  "Go to Pods": "",
+  "Navigate to the Pods list": "",
+  "Go to Deployments": "",
+  "Navigate to the Deployments list": ""
 }

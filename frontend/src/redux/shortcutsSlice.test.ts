@@ -131,5 +131,10 @@ describe('shortcutsSlice', () => {
         expect(shortcut.category).toBeDefined();
       });
     });
+
+    it('has unique keys across shortcuts', () => {
+      const keys = Object.values(DEFAULT_SHORTCUTS).map(shortcut => shortcut.key.toLowerCase());
+      expect(new Set(keys).size).toBe(keys.length);
+    });
   });
 });

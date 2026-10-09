@@ -1071,5 +1071,9 @@
   "Toggle Table Filters": "",
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
-  "Toggle search in log viewer": ""
+  "Toggle search in log viewer": "",
+  "Go to Pods": "",
+  "Navigate to the Pods list": "",
+  "Go to Deployments": "",
+  "Navigate to the Deployments list": ""
 }

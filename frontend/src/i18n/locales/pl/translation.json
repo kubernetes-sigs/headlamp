@@ -1081,5 +1081,9 @@
   "Toggle Table Filters": "Przełącz filtry tabeli",
   "Toggle column filters in tables": "Przełącz filtry kolumn w tabelach",
   "Log Viewer Search": "Przeszukiwanie podglądu dzienników",
-  "Toggle search in log viewer": "Przełącz wyszukiwanie w przeglądarce dzienników"
+  "Toggle search in log viewer": "Przełącz wyszukiwanie w przeglądarce dzienników",
+  "Go to Pods": "",
+  "Navigate to the Pods list": "",
+  "Go to Deployments": "",
+  "Navigate to the Deployments list": ""
 }

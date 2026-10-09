@@ -1051,5 +1051,9 @@
   "Toggle Table Filters": "Hidupkan/Matikan Filter Tabel",
   "Toggle column filters in tables": "Hidupkan/matikan filter kolom dalam tabel",
   "Log Viewer Search": "Pencarian Penampil Log",
-  "Toggle search in log viewer": "Hidupkan/matikan pencarian di penampil log"
+  "Toggle search in log viewer": "Hidupkan/matikan pencarian di penampil log",
+  "Go to Pods": "",
+  "Navigate to the Pods list": "",
+  "Go to Deployments": "",
+  "Navigate to the Deployments list": ""
 }
