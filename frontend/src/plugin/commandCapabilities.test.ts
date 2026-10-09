@@ -20,6 +20,7 @@ import {
   commandCapabilityRegistration,
   createPluginRunCommand,
   findCommandCapability,
+  getPluginClusterRegistrationArgValues,
   pluginSourceDigest,
   preparePluginCommandCapabilities,
 } from './commandCapabilities';
@@ -72,12 +73,14 @@ describe('findCommandCapability', () => {
     {
       bundleName: 'example-plugin',
       packageName: '@example/plugin',
-      capability: 'secret',
+      source: 'shipped' as const,
+      capability: 'a'.repeat(64),
+      clusterRegistrationProviders: ['example'],
     },
   ];
 
   it('matches both package and bundle identity', () => {
-    expect(findCommandCapability(capabilities, plugin)).toBe('secret');
+    expect(findCommandCapability(capabilities, plugin)).toBe('a'.repeat(64));
   });
 
   it('does not match a spoofed package or bundle', () => {
@@ -87,6 +90,21 @@ describe('findCommandCapability', () => {
     expect(
       findCommandCapability(capabilities, { ...plugin, folderName: 'attacker' })
     ).toBeUndefined();
+  });
+
+  it('withholds registration from a same-identity plugin in another inventory', () => {
+    const bridge = vi.fn();
+    expect(getPluginClusterRegistrationArgValues(capabilities, plugin, bridge)).toEqual([
+      ['registerCluster'],
+      [expect.any(Function)],
+    ]);
+    expect(
+      getPluginClusterRegistrationArgValues(
+        capabilities,
+        { ...plugin, source: 'user', type: 'user' },
+        bridge
+      )
+    ).toEqual([[], []]);
   });
 });
 
@@ -108,7 +126,13 @@ describe('preparePluginCommandCapabilities', () => {
 
   it('registers source-bound claims through the Electron bridge', async () => {
     const capabilities = [
-      { bundleName: 'example-plugin', packageName: '@example/plugin', capability: 'secret' },
+      {
+        bundleName: 'example-plugin',
+        packageName: '@example/plugin',
+        source: 'shipped',
+        capability: 'secret',
+        clusterRegistrationProviders: ['example'],
+      },
     ];
     const bridge = { register: vi.fn().mockResolvedValue(capabilities) };
 

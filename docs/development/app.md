@@ -150,6 +150,10 @@ macOS copyright attribution, and Linux vendor. Set `platforms.linux.maintainer`
 separately to a package contact in `Name <email>` form. Missing or empty fields
 retain the values from `app/package.json`.
 
+`product.trayIcon` optionally selects a system tray icon using a path relative
+to the packaged resources directory. Declare the same file in `resources` so
+Electron Builder copies it into the package.
+
 For example:
 
 ```json
@@ -158,7 +162,11 @@ For example:
     "name": "example-desktop",
     "productName": "Example Desktop",
     "companyName": "Example Company",
-    "version": "1.2.3"
+    "version": "1.2.3",
+    "trayIcon": "assets/example-tray.png"
+  },
+  "resources": {
+    "common": [{ "from": "./example-tray.png", "to": "assets/example-tray.png" }]
   },
   "platforms": {
     "linux": {

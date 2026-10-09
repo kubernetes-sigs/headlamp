@@ -18,7 +18,46 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getClusterStatuses, isTrayIconEnabled, setTrayIconEnabled } from './tray';
+import {
+  cleanupHeadlampTray,
+  createHeadlampTray,
+  getClusterStatuses,
+  isTrayIconEnabled,
+  resolveTrayIconPath,
+  setTrayIconEnabled,
+} from './tray';
+
+const electronMocks = vi.hoisted(() => {
+  const image = {
+    isEmpty: vi.fn(() => false),
+    resize: vi.fn(),
+    setTemplateImage: vi.fn(),
+  };
+  image.resize.mockReturnValue(image);
+  const tray = {
+    destroy: vi.fn(),
+    isDestroyed: vi.fn(() => false),
+    setContextMenu: vi.fn(),
+    setToolTip: vi.fn(),
+  };
+  return {
+    buildFromTemplate: vi.fn(() => ({})),
+    createFromPath: vi.fn(() => image),
+    image,
+    tray,
+    Tray: vi.fn(function () {
+      return tray;
+    }),
+  };
+});
+
+vi.mock('electron', () => ({
+  app: { getPath: vi.fn(() => '/tmp'), name: 'Headlamp' },
+  BrowserWindow: vi.fn(),
+  Menu: { buildFromTemplate: electronMocks.buildFromTemplate },
+  nativeImage: { createFromPath: electronMocks.createFromPath },
+  Tray: electronMocks.Tray,
+}));
 
 function tmpPath(): string {
   return path.join(os.tmpdir(), `tray-test-${Date.now()}-${Math.random()}.json`);
@@ -89,6 +128,115 @@ describe('tray icon setting', () => {
     const unwritable = path.join(os.tmpdir(), `tray-test-${Date.now()}`, 'nope', 'settings.json');
     expect(() => setTrayIconEnabled(false, unwritable)).not.toThrow();
     expect(fs.existsSync(unwritable)).toBe(false);
+  });
+});
+
+describe('tray icon path', () => {
+  let resourcesPath: string;
+  let outsideIconPath: string;
+
+  beforeEach(() => {
+    resourcesPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tray-resources-'));
+    fs.mkdirSync(path.join(resourcesPath, 'assets'));
+    fs.writeFileSync(path.join(resourcesPath, 'assets', 'example-tray.png'), 'icon');
+    outsideIconPath = path.join(path.dirname(resourcesPath), 'outside.png');
+    fs.writeFileSync(outsideIconPath, 'outside');
+  });
+
+  afterEach(() => {
+    fs.rmSync(resourcesPath, { force: true, recursive: true });
+    fs.rmSync(outsideIconPath, { force: true });
+    vi.restoreAllMocks();
+  });
+
+  it('uses a product icon from packaged resources', () => {
+    expect(
+      resolveTrayIconPath({ isDev: false, trayIcon: 'assets/example-tray.png' }, resourcesPath)
+    ).toEqual({
+      path: fs.realpathSync(path.join(resourcesPath, 'assets', 'example-tray.png')),
+      isCustom: true,
+    });
+  });
+
+  it('rejects product icons outside packaged resources', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(
+      resolveTrayIconPath({ isDev: false, trayIcon: '../outside.png' }, resourcesPath)
+    ).toEqual({
+      path: path.join(
+        resourcesPath,
+        'assets',
+        process.platform === 'darwin' ? 'tray-iconTemplate.png' : 'tray-icon.png'
+      ),
+      isCustom: false,
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      'Ignoring tray icon outside packaged resources: "../outside.png"'
+    );
+  });
+
+  it('falls back when a product icon is unavailable', () => {
+    expect(
+      resolveTrayIconPath({ isDev: false, trayIcon: 'assets/missing.png' }, resourcesPath)
+    ).toMatchObject({ isCustom: false });
+  });
+
+  it.runIf(process.platform !== 'win32')('rejects symlinks outside packaged resources', () => {
+    fs.symlinkSync(outsideIconPath, path.join(resourcesPath, 'assets', 'linked.png'));
+
+    expect(
+      resolveTrayIconPath({ isDev: false, trayIcon: 'assets/linked.png' }, resourcesPath)
+    ).toMatchObject({ isCustom: false });
+  });
+});
+
+describe('tray icon creation', () => {
+  const options = {
+    backendToken: 'token',
+    createWindow: vi.fn(),
+    getBackendPort: () => 4466,
+    getMainWindow: () => null,
+    isBackendAvailable: () => true,
+    isDev: false,
+    quit: vi.fn(),
+  };
+
+  beforeEach(() => {
+    electronMocks.createFromPath.mockReset();
+    electronMocks.createFromPath.mockReturnValue(electronMocks.image);
+    electronMocks.image.isEmpty.mockReset();
+    electronMocks.image.isEmpty.mockReturnValue(false);
+    electronMocks.image.resize.mockReset();
+    electronMocks.image.resize.mockReturnValue(electronMocks.image);
+  });
+
+  afterEach(() => cleanupHeadlampTray());
+
+  it('resizes an accepted custom macOS icon', () => {
+    const resourcesPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tray-create-'));
+    fs.writeFileSync(path.join(resourcesPath, 'custom.png'), 'icon');
+    vi.stubGlobal('process', { ...process, platform: 'darwin', resourcesPath });
+
+    expect(createHeadlampTray({ ...options, trayIcon: 'custom.png' })).toBe(true);
+    expect(electronMocks.image.resize).toHaveBeenCalledWith({ width: 22, height: 22 });
+
+    vi.unstubAllGlobals();
+    fs.rmSync(resourcesPath, { force: true, recursive: true });
+  });
+
+  it('uses the default icon when a custom image cannot be decoded', () => {
+    const resourcesPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tray-create-'));
+    fs.writeFileSync(path.join(resourcesPath, 'custom.png'), 'invalid icon');
+    vi.stubGlobal('process', { ...process, resourcesPath });
+    electronMocks.image.isEmpty.mockReturnValueOnce(true).mockReturnValue(false);
+
+    expect(createHeadlampTray({ ...options, trayIcon: 'custom.png' })).toBe(true);
+    expect(electronMocks.createFromPath).toHaveBeenCalledTimes(2);
+    expect(electronMocks.image.resize).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+    fs.rmSync(resourcesPath, { force: true, recursive: true });
   });
 });
 

@@ -1,5 +1,5 @@
 # Build the plugin
-FROM node:22@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d as builder
+FROM node:22@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c2805cfc69c2d2fad7 as builder
 
 # Set the working directory
 WORKDIR /headlamp-plugins
@@ -25,12 +25,7 @@ RUN find /headlamp-plugins -mindepth 1 -maxdepth 1 -type d ! -name "headlamp-plu
 RUN find /headlamp-plugins -mindepth 1 -maxdepth 1 -type d ! -name "headlamp-plugin" -exec ./headlamp-plugin/bin/headlamp-plugin.js extract {} /headlamp-plugins/build \;
 
 # Create the final image
-FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-
-# Install OpenSSL runtime packages
-RUN apk add --no-cache \
-	'libcrypto3>=3.5.8-r0' \
-	'libssl3>=3.5.8-r0'
+FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
 # Copy the built plugin files from the first stage to /plugins directory
 COPY --from=builder /headlamp-plugins/build/ /plugins/

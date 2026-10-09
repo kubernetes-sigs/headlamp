@@ -371,6 +371,7 @@ export * as persistentVolume from './persistentVolume';
 export * as persistentVolumeClaim from './persistentVolumeClaim';
 export * as pod from './pod';
 export * as podGroup from './podGroup';
+export * as resourceClaim from './resourceClaim';
 export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';
 export * as role from './role';

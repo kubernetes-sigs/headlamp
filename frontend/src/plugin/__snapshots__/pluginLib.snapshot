@@ -54,6 +54,7 @@
     "CreateButton": [Function],
     "CreateDaemonSetForm": [Function],
     "CreateDeploymentForm": [Function],
+    "CreateEndpointsForm": [Function],
     "CreateJobForm": [Function],
     "CreatePodForm": [Function],
     "CreateReplicaSetForm": [Function],
@@ -134,6 +135,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "Endpoints": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Job": {
         "class": [Function],
         "form": [Function],
@@ -173,6 +178,7 @@
       "CreateButton": [Function],
       "CreateDaemonSetForm": [Function],
       "CreateDeploymentForm": [Function],
+      "CreateEndpointsForm": [Function],
       "CreateJobForm": [Function],
       "CreatePodForm": [Function],
       "CreateReplicaSetForm": [Function],
@@ -227,6 +233,10 @@
           "form": [Function],
         },
         "Deployment": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "Endpoints": {
           "class": [Function],
           "form": [Function],
         },
@@ -630,6 +640,11 @@
     },
     "replicaSet": {
       "default": [Function],
+    },
+    "resourceClaim": {
+      "default": [Function],
+      "getRequestedDeviceClasses": [Function],
+      "getResourceClaimState": [Function],
     },
     "role": {
       "default": [Function],

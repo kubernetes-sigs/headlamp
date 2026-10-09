@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # Final container image
-ARG IMAGE_BASE=alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+ARG IMAGE_BASE=alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 FROM ${IMAGE_BASE} AS image-base
 
-FROM --platform=${BUILDPLATFORM} golang:1.26.8@sha256:3c3e25a4da13fd0478eed2df1eb35a0e667094a7124d3993a6a1d30f71c17e79 AS backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.26.8@sha256:0f063af2d465d8dcae54cce04278ada488b96f77b42449c8d071e47d016cc65a AS backend-build
 WORKDIR /headlamp
 
 ARG TARGETOS
@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go build -o ./headlamp-server ./cmd/
 
-FROM --platform=${BUILDPLATFORM} node:22@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d AS frontend-build
+FROM --platform=${BUILDPLATFORM} node:22@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c2805cfc69c2d2fad7 AS frontend-build
 
 # Keep npm install separated so source changes don't trigger install
 COPY frontend/package*.json /headlamp/frontend/
@@ -74,7 +74,7 @@ RUN ./fetch-plugins.sh /plugins/
 
 FROM image-base AS final
 
-# Install runtime dependencies and create the non-root user
+# Create the non-root user
 RUN if command -v apt-get > /dev/null; then \
     apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -82,10 +82,7 @@ RUN if command -v apt-get > /dev/null; then \
     && adduser --system --ingroup headlamp headlamp \
     && rm -rf /var/lib/apt/lists/*; \
     else \
-    apk add --no-cache \
-    'libcrypto3>=3.5.8-r0' \
-    'libssl3>=3.5.8-r0' \
-    && addgroup -S headlamp \
+    addgroup -S headlamp \
     && adduser -S headlamp -G headlamp; \
     fi
 

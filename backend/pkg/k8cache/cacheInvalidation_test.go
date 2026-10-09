@@ -36,7 +36,7 @@ import (
 	api "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func TestDeleteKeys(t *testing.T) { //nolint:funlen
+func TestDeleteKeys(t *testing.T) { //nolint:funlen // Table-driven test function covering cache key deletion scenarios.
 	tests := []struct {
 		name            string
 		beforemockCache *MockCache
@@ -88,43 +88,43 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 				},
 			},
 		},
-		{ //nolint:exhaustruct
+		{
 			name: "empty key does not panic",
-			beforemockCache: &MockCache{ //nolint:exhaustruct
+			beforemockCache: &MockCache{
 				store: map[string]string{
 					"+pods+default+test-context": "value-1",
 				},
 			},
 			key: "",
-			aftermockCache: &MockCache{ //nolint:exhaustruct
+			aftermockCache: &MockCache{
 				store: map[string]string{
 					"+pods+default+test-context": "value-1",
 				},
 			},
 		},
-		{ //nolint:exhaustruct
+		{
 			name: "malformed key with fewer than 4 parts does not panic",
-			beforemockCache: &MockCache{ //nolint:exhaustruct
+			beforemockCache: &MockCache{
 				store: map[string]string{
 					"+pods+default+test-context": "value-1",
 				},
 			},
 			key: "partial+key",
-			aftermockCache: &MockCache{ //nolint:exhaustruct
+			aftermockCache: &MockCache{
 				store: map[string]string{
 					"+pods+default+test-context": "value-1",
 				},
 			},
 		},
-		{ //nolint:exhaustruct
+		{
 			name: "exactly 3-part key is treated as malformed",
-			beforemockCache: &MockCache{ //nolint:exhaustruct
+			beforemockCache: &MockCache{
 				store: map[string]string{
 					"+pods+default+test-context": "value-1",
 				},
 			},
 			key: "group+kind+ns",
-			aftermockCache: &MockCache{ //nolint:exhaustruct
+			aftermockCache: &MockCache{
 				store: map[string]string{
 					"+pods+default+test-context": "value-1",
 				},
@@ -189,7 +189,8 @@ func TestSkipWebSocket(t *testing.T) {
 	}
 }
 
-func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
+//nolint:funlen // Long test function covering dynamic informer cache watch events.
+func TestRunInformerToWatch(t *testing.T) {
 	gvrList := []schema.GroupVersionResource{
 		{Group: "", Version: "v1", Resource: "pods"},
 		{Group: "apps", Version: "v1", Resource: "deployments"},

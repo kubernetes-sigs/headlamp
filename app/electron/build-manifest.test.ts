@@ -517,7 +517,7 @@ describe('product metadata', () => {
     });
   });
 
-  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName'])(
+  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName', 'trayIcon'])(
     'rejects a non-string product.%s',
     field => {
       expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
@@ -537,6 +537,17 @@ describe('product metadata', () => {
     });
     expect(validate({ product: { companyName: 'Example Company' } })).toBe(true);
     expect(validate({ product: { companyName: 1 } })).toBe(false);
+  });
+
+  it('requires a non-empty product tray icon in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+
+    expect(validate({ product: { trayIcon: 'assets/tray.png' } })).toBe(true);
+    expect(validate({ product: { trayIcon: '' } })).toBe(false);
+    expect(validate({ product: { trayIcon: 1 } })).toBe(false);
   });
 
   it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
@@ -921,6 +932,67 @@ describe('build manifest selection', () => {
     expect(argumentPattern.test('list\0all')).toBe(false);
   });
 
+  it('validates explicit approval lists consistently in the schema and runtime', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    for (const pluginLocation of ['development', 'shipped', 'user']) {
+      const approval = { tool: 'examplectl', args: ['project', 'list'], allowTrailingArgs: true };
+      const exactApproval = { tool: 'examplectl', args: ['project', 'list'] };
+      const equivalentApprovals = [exactApproval, { ...exactApproval, allowTrailingArgs: false }];
+      for (const [approvedCommands, valid] of [
+        [undefined, true],
+        [[], true],
+        [[approval], true],
+        [[{ tool: 'examplectl', args: [] }], true],
+        [[{ tool: 'examplectl', args: [], allowTrailingArgs: true }], false],
+        [[approval, approval], false],
+        [equivalentApprovals, true],
+        [Array(65).fill(approval), false],
+        [[{ ...approval, executable: { source: 'plugin', path: 'bin/examplectl' } }], false],
+        [[{ ...approval, args: [' '] }], false],
+        [[{ ...approval, tool: '/bin/sh' }], false],
+        [null, false],
+        [true, false],
+        ['all', false],
+      ] as const) {
+        const policy = {
+          environment: 'development',
+          pluginLocation,
+          ...(approvedCommands !== undefined && { approvedCommands }),
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands:
+            Array.isArray(approvedCommands) &&
+            approvedCommands.some(
+              command =>
+                typeof command === 'object' &&
+                command !== null &&
+                'args' in command &&
+                Array.isArray(command.args) &&
+                command.args.length === 0
+            )
+              ? [{ tool: 'examplectl', args: [] }]
+              : [{ tool: 'examplectl', args: ['project', 'list'] }],
+        };
+        const allowed = valid && (approvedCommands === undefined || pluginLocation !== 'user');
+        const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+        expect(validate(manifest)).toBe(allowed);
+        if (allowed) {
+          const [parsed] = productPluginCommandPolicies(manifest, 'development');
+          expect(parsed.approvedCommands).toEqual(
+            approvedCommands === equivalentApprovals
+              ? [exactApproval, exactApproval]
+              : approvedCommands
+          );
+          expect(parsed.source).toBe(pluginLocation);
+        } else {
+          expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+        }
+      }
+    }
+  });
+
   it('rejects duplicate command grants in the schema', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
@@ -944,6 +1016,32 @@ describe('build manifest selection', () => {
       expect.arrayContaining([expect.objectContaining({ keyword: 'uniqueItems' })])
     );
   });
+
+  it.each(['commands', 'approvedCommands'] as const)(
+    'rejects no-argument scriptjs %s in the schema and runtime',
+    field => {
+      const schema = JSON.parse(
+        fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+      );
+      const validate = addFormats(new Ajv()).compile(schema);
+      const policy = {
+        environment: 'development',
+        pluginLocation: 'development',
+        plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+        commands:
+          field === 'commands'
+            ? [{ tool: 'scriptjs', args: [] }]
+            : [{ tool: 'examplectl', args: ['list'] }],
+        ...(field === 'approvedCommands' && {
+          approvedCommands: [{ tool: 'scriptjs', args: [] }],
+        }),
+      };
+      const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+
+      expect(validate(manifest)).toBe(false);
+      expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+    }
+  );
 
   it('matches production identity and plugin executable runtime requirements', () => {
     const schema = JSON.parse(
@@ -1209,6 +1307,7 @@ describe('build manifest selection', () => {
         packageName: '@example/plugin',
         source: 'development',
         grants: commands,
+        clusterRegistrationProviders: [],
       },
     ]);
     expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
@@ -1221,8 +1320,132 @@ describe('build manifest selection', () => {
           package: 'example-plugin',
         },
         grants: [{ tool: 'examplectl', args: ['production'] }],
+        clusterRegistrationProviders: [],
       },
     ]);
+  });
+
+  it('loads consumer-owned cluster registration providers', () => {
+    const provider = {
+      id: 'azure',
+      type: 'azure',
+      tools: { cli: 'az', python: 'az-python', kubelogin: 'az-kubelogin' },
+    };
+    const manifest = validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [provider],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      expect.objectContaining({ clusterRegistrationProviders: [provider] }),
+    ]);
+  });
+
+  it('allows cluster registration providers without external tools', () => {
+    const provider = { id: 'cluster-api', type: 'cluster-api', tools: {} };
+    const manifest = validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [provider],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      expect.objectContaining({ clusterRegistrationProviders: [provider] }),
+    ]);
+  });
+
+  it('rejects cluster registration grants for user-installed plugins', () => {
+    const manifest = {
+      runCommands: [
+        {
+          environment: 'development',
+          pluginLocation: 'user',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [{ id: 'example', type: 'example', tools: {} }],
+        },
+      ],
+    };
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+
+    expect(addFormats(new Ajv()).compile(schema)(manifest)).toBe(false);
+    expect(() => validateBuildManifest(manifest)).toThrow(
+      'cannot grant cluster registration to user plugins'
+    );
+  });
+
+  it('validates external-tool platform paths and digests', () => {
+    const tool = {
+      id: 'examplectl',
+      platforms: {
+        linux: { path: 'external-tools/examplectl', sha256: 'a'.repeat(64) },
+        darwin: { path: 'external-tools/examplectl', sha256: 'b'.repeat(64) },
+        win32: { path: 'external-tools/examplectl.exe', sha256: 'c'.repeat(64) },
+      },
+    };
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validateSchema = addFormats(new Ajv()).compile(schema);
+
+    expect(validateBuildManifest({ 'external-tools': [tool] })['external-tools']).toEqual([tool]);
+    expect(validateSchema({ 'external-tools': [tool] })).toBe(true);
+    for (const invalid of [
+      { ...tool, id: '../examplectl' },
+      { ...tool, platforms: {} },
+      { ...tool, platforms: { linux: { path: '../examplectl', sha256: 'a'.repeat(64) } } },
+      { ...tool, platforms: { win32: { path: '\\examplectl.exe', sha256: 'a'.repeat(64) } } },
+      {
+        ...tool,
+        platforms: { win32: { path: '\\\\server\\share\\examplectl.exe', sha256: 'a'.repeat(64) } },
+      },
+      { ...tool, platforms: { linux: { path: 'examplectl', sha256: 'A'.repeat(64) } } },
+      { ...tool, platforms: { linux: { path: 'examplectl', sha256: 'invalid' } } },
+    ]) {
+      expect(() => validateBuildManifest({ 'external-tools': [invalid] })).toThrow(
+        'Invalid build manifest external-tools'
+      );
+    }
+    expect(() => validateBuildManifest({ 'external-tools': [tool, tool] })).toThrow(
+      'Invalid build manifest external-tools'
+    );
+  });
+
+  it('rejects malformed cluster registration providers', () => {
+    expect(() =>
+      validateBuildManifest({
+        runCommands: [
+          {
+            environment: 'production',
+            pluginLocation: 'shipped',
+            plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+            commands: [{ tool: 'examplectl', args: ['list'] }],
+            clusterRegistrationProviders: [
+              {
+                id: '../azure',
+                type: 'azure',
+                tools: { cli: 'az', python: 'az-python', kubelogin: 'az-kubelogin' },
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow('runCommands[0].clusterRegistrationProviders');
   });
 
   it('composes reusable command sets in declaration order', () => {
