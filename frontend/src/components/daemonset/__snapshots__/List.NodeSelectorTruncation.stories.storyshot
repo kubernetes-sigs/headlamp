@@ -942,7 +942,7 @@
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
-                      gadget
+                      gadget-node-selector-truncation
                     </a>
                   </td>
                   <td
@@ -995,11 +995,21 @@
                             <p
                               class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                             >
-                              kubernetes…
+                              app.kubern…
+                            </p>
+                            <p
+                              class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                            >
+                              extra-long…
                             </p>
                           </div>
                         </div>
                       </div>
+                      <span
+                        class="MuiTypography-root MuiTypography-body2 MuiTypography-noWrap css-136r4ah-MuiTypography-root"
+                      >
+                        +2 more...
+                      </span>
                     </div>
                   </td>
                   <td

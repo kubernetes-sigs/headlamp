@@ -273,3 +273,39 @@ ReplicaSets.parameters = {
     },
   },
 };
+
+export const SelectorTruncation = Template.bind({});
+SelectorTruncation.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/apps/v1/replicasets`, () =>
+          HttpResponse.json({
+            kind: 'ReplicaSetList',
+            items: [
+              {
+                ...items[1],
+                metadata: {
+                  ...items[1].metadata,
+                  name: 'headlamp-release-b123456-truncation',
+                },
+                spec: {
+                  ...items[1].spec,
+                  selector: {
+                    matchLabels: {
+                      'app.kubernetes.io/instance': 'headlamp-release-very-long-value',
+                      'app.kubernetes.io/name': 'headlamp-very-long-name',
+                      'pod-template-hash': 'b1234567890abcdef',
+                      'extra-long-label-key-for-testing': 'extra-long-value-for-testing',
+                    },
+                  },
+                },
+              },
+            ],
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
