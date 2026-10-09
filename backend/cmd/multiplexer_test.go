@@ -837,6 +837,78 @@ func TestEstablishClusterConnectionUsesServiceAccountToken(t *testing.T) {
 	assert.Equal(t, testServiceAccountToken, *conn.Token)
 }
 
+// newWebSocketUpgradeServer returns a TLS server that upgrades every request
+// to a WebSocket and records the Authorization header and path it received.
+func newWebSocketUpgradeServer(receivedAuth, receivedPath *string) *httptest.Server {
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*receivedAuth = r.Header.Get("Authorization")
+		*receivedPath = r.URL.Path
+
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+	}))
+}
+
+func TestEstablishClusterConnectionUsesAPIProxy(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	var receivedAuth, receivedPath string
+
+	// The proxy is a TLS server with a self-signed certificate; the context
+	// opts into api-proxy-skip-tls-verify so the dial succeeds.
+	proxyServer := newWebSocketUpgradeServer(&receivedAuth, &receivedPath)
+	defer proxyServer.Close()
+
+	skipTLS := true
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			// Unroutable on purpose: the dial must go to the proxy instead.
+			Server: "https://kube-apiserver.invalid:6443",
+		},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{
+			APIProxy:              proxyServer.URL + "/kubernetes",
+			APIProxySkipTLSVerify: &skipTLS,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	oidcBearer := "user-oidc"
+	conn, err := m.establishClusterConnection(
+		"test-cluster",
+		"test-user",
+		"/api/v1/pods",
+		"watch=true",
+		clientConn,
+		&oidcBearer,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+
+	if conn.WSConn != nil {
+		_ = conn.WSConn.Close()
+	}
+
+	close(conn.Done)
+
+	assert.Equal(t, "Bearer "+oidcBearer, receivedAuth)
+	assert.Equal(t, "/kubernetes/api/v1/pods", receivedPath, "proxy path prefix must be preserved")
+}
+
 func TestReconnect(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	m := NewMultiplexer(store, false)

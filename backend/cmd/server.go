@@ -219,6 +219,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcAPIProxy:              conf.OidcAPIProxy,
+		OidcAPIProxySkipTLSVerify: conf.OidcAPIProxySkipTLSVerify,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,
@@ -227,6 +229,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
+		OidcAPIProxyCACert:        loadOidcCACert(conf.OidcAPIProxyCAFile),
 	}
 
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
@@ -241,10 +244,17 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+
+	if conf.RequireNamespaceGet {
+		headlampConfig.namespaceFilter = newNamespaceFilter()
+		multiplexer.SetNamespaceEventFilter(headlampConfig.namespaceEventFilter)
+	}
+
+	return headlampConfig
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
