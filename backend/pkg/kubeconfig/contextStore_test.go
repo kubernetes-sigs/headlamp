@@ -122,7 +122,7 @@ func TestContextStoreGetContextKeys(t *testing.T) {
 
 	keys, err := store.GetContextKeys()
 	require.NoError(t, err)
-	require.Empty(t, keys)
+	require.Nil(t, keys)
 
 	err = store.AddContext(&kubeconfig.Context{Name: "test-key-1"})
 	require.NoError(t, err)
