@@ -56,6 +56,11 @@ export interface FormField {
   type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace' | 'ports';
   /** Whether the field is required. */
   required?: boolean;
+  /** Optional custom validity check for this (required) field. When provided,
+   *  it fully replaces the built-in type-based check in {@link isFieldValid},
+   *  receiving the current value at `path` and the full resource object. Use
+   *  for nested/structured values that the generic checks can't express. */
+  validate?: (value: any, resource: Record<string, any>) => boolean;
   /** For 'number' fields: minimum allowed value. */
   min?: number;
   /** For 'number' fields: render the label inline to the left of a compact input. */
@@ -134,7 +139,11 @@ export function metadataSection(t: (key: string) => string): FormSection {
 }
 
 /** Check whether a required field's current value is valid for its type. */
-function isFieldValid(field: FormField, value: any): boolean {
+function isFieldValid(field: FormField, value: any, resource: Record<string, any>): boolean {
+  // A field-supplied validator fully overrides the generic type-based checks.
+  if (field.validate) {
+    return field.validate(value, resource);
+  }
   switch (field.type) {
     case 'containers':
       return (
@@ -186,7 +195,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
     return sections
       .flatMap(s => s.fields)
       .filter(f => f.required)
-      .every(f => isFieldValid(f, _.get(resource, f.path)));
+      .every(f => isFieldValid(f, _.get(resource, f.path), resource));
   }, [sections, resource]);
 
   // Report validity to parent whenever it changes.
@@ -274,6 +283,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
               value={value ?? ''}
               onChange={ns => handleFieldChange(field.path, ns)}
               required={field.required}
+              label={field.label}
             />
           </FieldWrapper>
         );
@@ -554,7 +564,7 @@ export interface NamespaceTextFieldProps {
 
 /** Autocomplete namespace selector that fetches existing namespaces from the cluster. */
 export function NamespaceTextField(props: NamespaceTextFieldProps) {
-  const { value, onChange, required } = props;
+  const { value, onChange, required, label } = props;
   const [namespaces] = Namespace.useList();
   const options = React.useMemo(
     () => (namespaces ?? []).map(ns => ns.metadata.name).sort(),
@@ -584,6 +594,10 @@ export function NamespaceTextField(props: NamespaceTextFieldProps) {
           InputProps={{
             ...params.InputProps,
             sx: theme => ({ background: theme.palette.background.default }),
+          }}
+          inputProps={{
+            ...params.inputProps,
+            ...(label ? { 'aria-label': label } : {}),
           }}
         />
       )}
@@ -658,10 +672,9 @@ export function ServicePortsTextField(props: ServicePortsTextFieldProps) {
   }
 
   function addPort() {
+    // nodePort is left out so Kubernetes picks a free one. A fixed default would clash with
+    // any other Service already using it, including another port on this one.
     const nextPort: ServicePortDraft = { name: '', port: 80, protocol: 'TCP', targetPort: 80 };
-    if (showNodePort) {
-      nextPort.nodePort = 30000;
-    }
     onChange([...ports, nextPort]);
   }
 

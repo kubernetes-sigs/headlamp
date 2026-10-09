@@ -127,10 +127,11 @@ those defaults.
 Each grant has these fields:
 
 - `tool` is the executable identifier, without a path.
-- `args` is a non-empty exact argument sequence or prefix. Every argument must
-  contain at least one non-whitespace character.
+- `args` is an exact argument sequence or prefix. An empty sequence authorizes
+  only a no-argument invocation. Every argument must contain at least one
+  non-whitespace character.
 - `allowTrailingArgs` defaults to `false`. Set it to `true` only when the tool
-  may receive additional arguments after the reviewed prefix.
+  may receive additional arguments after a non-empty reviewed prefix.
 
 When several policies share grants, define each grant array once in the
 top-level `commandSets` object. A policy can use `commandSets` instead of inline
@@ -200,6 +201,29 @@ Authorization and user consent are separate decisions. Consent is requested only
 after product authorization succeeds and is scoped to the plugin identity,
 canonical tool, and reviewed argument prefix. Commands are executed directly
 with `shell: false`.
+
+For verified `shipped` or operator-controlled `development` plugins, a product
+policy may declare a separate `approvedCommands` list using `tool`, `args`, and
+optional `allowTrailingArgs`, for example:
+
+```json
+"approvedCommands": [
+  { "tool": "examplectl", "args": ["project", "list"], "allowTrailingArgs": true }
+]
+```
+
+A request must match both an authorization grant and an approval entry to skip
+the first-use prompt. Authorized requests outside the approval list still ask
+for consent; an approval never grants permission to execute a command. Omitted
+or empty lists retain normal consent behavior. Empty `args` approves only the
+no-argument invocation and cannot use `allowTrailingArgs: true`; the matching
+authorization grant must use the same exact empty `args`.
+
+Existing saved denials, including legacy denials when no newer applicable
+decision exists, still block execution. Product defaults are not written as user
+consent. The `user` inventory cannot declare approval lists, and renderer requests
+or plugin metadata cannot supply them. Approval entries remain scoped to the
+policy's environment, exact plugin identity, and inventory.
 
 For a managed plugin installation, Electron writes an app-owned installation
 receipt outside plugin-controlled inventory. It records the canonical inventory
@@ -285,10 +309,11 @@ This trust assumption does not bypass command policy. Electron still requires
 the product manifest to name the exact environment, development location,
 bundle directory, package name, executable origin, command, and argument
 prefix. It independently checks path containment, rejects symbolic links,
-confirms `package.json.name`, applies user consent, and confines plugin-owned
-executables before process creation. Products that do not trust the development
-inventory must omit production policies for that location or ensure the
-directory is protected according to their deployment model.
+confirms `package.json.name`, applies user consent unless the request matches
+the policy's `approvedCommands`, and confines plugin-owned executables before
+process creation. Products that do not trust the development inventory must
+omit production policies for that location or ensure the directory is protected
+according to their deployment model.
 
 This mechanism controls local command execution. It is not a JavaScript sandbox
 for plugins running in the shared renderer.

@@ -19,7 +19,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseRunCommandGrants, type RunCommandGrant } from '../electron/runCommandPolicy.ts';
-import type { ProductMetadata } from './product-metadata.ts';
 import { readProductMetadata } from './product-metadata.ts';
 
 export { readProductMetadata } from './product-metadata.ts';
@@ -106,6 +105,8 @@ export interface ProductPluginRunCommands {
   environment: 'development' | 'production';
   /** Inventory containing the plugin bundle. */
   pluginLocation: 'development' | 'user' | 'shipped';
+  /** Explicit default approvals, still restricted by command grants and saved user denials. */
+  approvedCommands?: RunCommandGrant[];
   /** Exact bundle and package identities sharing these grants. */
   plugins: Array<{
     /** Bundle directory name reported by plugin discovery. */
@@ -137,6 +138,8 @@ export interface ProductPluginCommandPolicy {
   packageName: string;
   /** Inventory containing the authorized plugin. */
   source: 'development' | 'user' | 'shipped';
+  /** Explicit approvals carried only in the trusted main-process policy. */
+  approvedCommands?: RunCommandGrant[];
   /** App-owned installation provenance required for managed plugin inventories. */
   artifactHub?: {
     /** Artifact Hub repository name recorded by the installer. */
@@ -544,6 +547,7 @@ export function productPluginCommandPolicies(
           ![
             'environment',
             'pluginLocation',
+            'approvedCommands',
             'plugins',
             'pluginExecutables',
             'commands',
@@ -560,6 +564,13 @@ export function productPluginCommandPolicies(
     if (!['development', 'user', 'shipped'].includes(policy.pluginLocation)) {
       throw new Error(`Invalid build manifest runCommands[${index}].pluginLocation`);
     }
+    if (policy.approvedCommands !== undefined && policy.pluginLocation === 'user') {
+      throw new Error(`User plugins cannot declare runCommands[${index}].approvedCommands`);
+    }
+    const approvedCommands =
+      policy.approvedCommands === undefined
+        ? undefined
+        : parseRunCommandGrants(policy.approvedCommands);
     if (
       !Array.isArray(policy.plugins) ||
       policy.plugins.length === 0 ||
@@ -746,6 +757,7 @@ export function productPluginCommandPolicies(
           bundleName: plugin.bundleName,
           packageName: plugin.packageName,
           source: policy.pluginLocation,
+          ...(approvedCommands !== undefined && { approvedCommands }),
           ...(artifactHubPackage && {
             artifactHub: {
               repository: artifactHubPackage[1],

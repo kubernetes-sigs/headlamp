@@ -135,12 +135,12 @@ describe('ServicePortsTextField partial-input tolerance', () => {
     ]);
   });
 
-  it('adds a new port row with nodePort when showNodePort is enabled', () => {
+  it('leaves nodePort empty on a new port row so Kubernetes assigns one', () => {
     const handleChange = vi.fn();
     const { getByLabelText } = renderPorts([], handleChange, true);
     fireEvent.click(getByLabelText('Add port'));
     expect(handleChange).toHaveBeenCalledWith([
-      { name: '', nodePort: 30000, port: 80, protocol: 'TCP', targetPort: 80 },
+      { name: '', port: 80, protocol: 'TCP', targetPort: 80 },
     ]);
   });
 

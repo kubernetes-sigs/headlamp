@@ -932,6 +932,67 @@ describe('build manifest selection', () => {
     expect(argumentPattern.test('list\0all')).toBe(false);
   });
 
+  it('validates explicit approval lists consistently in the schema and runtime', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    for (const pluginLocation of ['development', 'shipped', 'user']) {
+      const approval = { tool: 'examplectl', args: ['project', 'list'], allowTrailingArgs: true };
+      const exactApproval = { tool: 'examplectl', args: ['project', 'list'] };
+      const equivalentApprovals = [exactApproval, { ...exactApproval, allowTrailingArgs: false }];
+      for (const [approvedCommands, valid] of [
+        [undefined, true],
+        [[], true],
+        [[approval], true],
+        [[{ tool: 'examplectl', args: [] }], true],
+        [[{ tool: 'examplectl', args: [], allowTrailingArgs: true }], false],
+        [[approval, approval], false],
+        [equivalentApprovals, true],
+        [Array(65).fill(approval), false],
+        [[{ ...approval, executable: { source: 'plugin', path: 'bin/examplectl' } }], false],
+        [[{ ...approval, args: [' '] }], false],
+        [[{ ...approval, tool: '/bin/sh' }], false],
+        [null, false],
+        [true, false],
+        ['all', false],
+      ] as const) {
+        const policy = {
+          environment: 'development',
+          pluginLocation,
+          ...(approvedCommands !== undefined && { approvedCommands }),
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands:
+            Array.isArray(approvedCommands) &&
+            approvedCommands.some(
+              command =>
+                typeof command === 'object' &&
+                command !== null &&
+                'args' in command &&
+                Array.isArray(command.args) &&
+                command.args.length === 0
+            )
+              ? [{ tool: 'examplectl', args: [] }]
+              : [{ tool: 'examplectl', args: ['project', 'list'] }],
+        };
+        const allowed = valid && (approvedCommands === undefined || pluginLocation !== 'user');
+        const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+        expect(validate(manifest)).toBe(allowed);
+        if (allowed) {
+          const [parsed] = productPluginCommandPolicies(manifest, 'development');
+          expect(parsed.approvedCommands).toEqual(
+            approvedCommands === equivalentApprovals
+              ? [exactApproval, exactApproval]
+              : approvedCommands
+          );
+          expect(parsed.source).toBe(pluginLocation);
+        } else {
+          expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+        }
+      }
+    }
+  });
+
   it('rejects duplicate command grants in the schema', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
@@ -955,6 +1016,32 @@ describe('build manifest selection', () => {
       expect.arrayContaining([expect.objectContaining({ keyword: 'uniqueItems' })])
     );
   });
+
+  it.each(['commands', 'approvedCommands'] as const)(
+    'rejects no-argument scriptjs %s in the schema and runtime',
+    field => {
+      const schema = JSON.parse(
+        fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+      );
+      const validate = addFormats(new Ajv()).compile(schema);
+      const policy = {
+        environment: 'development',
+        pluginLocation: 'development',
+        plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+        commands:
+          field === 'commands'
+            ? [{ tool: 'scriptjs', args: [] }]
+            : [{ tool: 'examplectl', args: ['list'] }],
+        ...(field === 'approvedCommands' && {
+          approvedCommands: [{ tool: 'scriptjs', args: [] }],
+        }),
+      };
+      const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+
+      expect(validate(manifest)).toBe(false);
+      expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+    }
+  );
 
   it('matches production identity and plugin executable runtime requirements', () => {
     const schema = JSON.parse(

@@ -52,7 +52,7 @@ func getDefaultKubeConfigPath(t *testing.T) string {
 	return filepath.Join(homeDirectory, ".kube", "config")
 }
 
-//nolint:funlen
+//nolint:funlen // Long test function covering port forwarding setup scenarios.
 func TestStartPortForward(t *testing.T) {
 	t.Parallel()
 
