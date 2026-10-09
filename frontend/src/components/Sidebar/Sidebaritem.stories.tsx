@@ -106,6 +106,9 @@ SectionHeader.args = {
   label: 'Plugin Section',
   entryType: 'subheader',
   fullWidth: true,
+  sx: {
+    color: '#ffffff',
+  },
 };
 
 export const CollapsedSectionHeader = Template.bind({});
@@ -123,7 +126,7 @@ StyledSectionHeader.args = {
   entryType: 'subheader',
   fullWidth: true,
   sx: {
-    color: '#90caf9',
+    color: '#ffffff',
     fontSize: '1.1rem',
     fontWeight: 800,
     textTransform: 'none',
