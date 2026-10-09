@@ -73,4 +73,12 @@ describe('makeUrl', () => {
       'http://example.com/some/path?watch=1'
     );
   });
+
+  it('should omit undefined and null query parameters but keep valid ones', () => {
+    const urlParts = ['http://example.com', 'path'];
+    const query = { valid: '1', empty: '', isNull: null, isUndefined: undefined, numeric: 0 };
+    // @ts-ignore - testing nullish values passing through
+    const result = makeUrl(urlParts, query);
+    expect(result).toBe('http://example.com/path?valid=1&empty=&numeric=0');
+  });
 });
