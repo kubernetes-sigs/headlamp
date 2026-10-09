@@ -136,6 +136,8 @@ const kindGroups = {
     'PodDisruptionBudget',
     'PriorityClass',
     'RuntimeClass',
+    'DeviceClass',
+    'ResourceClaim',
     'Lease',
     'ResourceQuota',
     'LimitRange',

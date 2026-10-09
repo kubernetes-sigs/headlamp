@@ -38,6 +38,10 @@ import CustomResourceDefinitionDetails from '../../components/crd/Details';
 import CustomResourceDefinitionList from '../../components/crd/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
+import DeviceClassDetails from '../../components/device/DeviceClassDetails';
+import DeviceClassList from '../../components/device/DeviceClassList';
+import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
+import ResourceClaimList from '../../components/device/ResourceClaimList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -776,6 +780,34 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Workload',
     sidebar: 'schedulingWorkloads',
     component: () => <SchedulingWorkloadDetails />,
+  },
+  deviceclasses: {
+    path: '/deviceclasses',
+    exact: true,
+    name: 'Device Classes',
+    sidebar: 'deviceClasses',
+    component: () => <DeviceClassList />,
+  },
+  deviceClass: {
+    path: '/deviceclasses/:name',
+    exact: true,
+    name: 'Device Class',
+    sidebar: 'deviceClasses',
+    component: () => <DeviceClassDetails />,
+  },
+  resourceclaims: {
+    path: '/resourceclaims',
+    exact: true,
+    name: 'Resource Claims',
+    sidebar: 'resourceClaims',
+    component: () => <ResourceClaimList />,
+  },
+  resourceClaim: {
+    path: '/resourceclaims/:namespace/:name',
+    exact: true,
+    name: 'Resource Claim',
+    sidebar: 'resourceClaims',
+    component: () => <ResourceClaimDetails />,
   },
   priorityclasses: {
     path: '/priorityclasses',
