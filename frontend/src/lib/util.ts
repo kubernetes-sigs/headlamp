@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import merge from 'lodash/merge';
 import React from 'react';
 import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
@@ -379,7 +378,12 @@ export function combineClusterListErrors(
     return Object.fromEntries(Object.entries(clusterErrors).filter(([, error]) => error !== null));
   });
 
-  const errors = merge({}, ...filteredArgs);
+  // Object.fromEntries + flatMap is __proto__-safe: Object.entries only returns
+  // own enumerable string-keyed properties, so a cluster named "__proto__" cannot
+  // trigger prototype pollution (unlike Object.assign which treats it as a setter).
+  const errors = Object.fromEntries(
+    filteredArgs.flatMap(clusterErrors => Object.entries(clusterErrors))
+  );
   const hasErrors = Object.values(errors).some(error => error !== null);
 
   return hasErrors ? errors : null;
