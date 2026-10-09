@@ -66,6 +66,89 @@ export type WebSocketConnectionRequest<T> = {
  */
 const sockets = new Map<string, WebSocket | symbol>();
 const listeners = new Map<string, Array<(update: any) => void>>();
+/** Arguments of the last open attempt per connection, used to reconnect */
+const lastOpenArgs = new Map<string, { url: string; options: OpenWebSocketOptions }>();
+/** Pending reconnect timers per connection */
+const reconnectTimers = new Map<string, NodeJS.Timeout>();
+/** Consecutive failed reconnect attempts per connection, for backoff */
+const reconnectAttempts = new Map<string, number>();
+
+type OpenWebSocketOptions = {
+  protocols?: string | string[];
+  type: 'json' | 'binary';
+  cluster?: string;
+};
+
+/**
+ * Schedules a reconnect for a dropped legacy WebSocket connection, with
+ * exponential backoff. Only reconnects while something still listens.
+ */
+function scheduleLegacyReconnect(connectionKey: string): void {
+  if (reconnectTimers.has(connectionKey)) {
+    return;
+  }
+
+  const attempts = reconnectAttempts.get(connectionKey) ?? 0;
+  reconnectAttempts.set(connectionKey, attempts + 1);
+
+  const delay = Math.min(30_000, 1000 * 2 ** attempts);
+  const timer = setTimeout(() => {
+    reconnectTimers.delete(connectionKey);
+
+    // Everyone unsubscribed while we were waiting.
+    if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
+      return;
+    }
+
+    const args = lastOpenArgs.get(connectionKey);
+    if (!args || sockets.has(connectionKey)) {
+      return;
+    }
+
+    // Mark as pending so concurrent opens don't duplicate, mirroring useWebSockets.
+    const pendingSocket = Symbol('pendingWebSocket');
+    sockets.set(connectionKey, pendingSocket);
+
+    // Message dispatch fans out to the registered listeners; the per-call
+    // onMessage is only a fallback, so a no-op is safe here.
+    openWebSocket(args.url, { ...args.options, onMessage: () => {} })
+      .then(socket => {
+        // A newer connection took over this key, or everyone unsubscribed
+        // while the socket was opening. Either way this one is unwanted, and
+        // leaving the marker in place would hide the socket from the close
+        // handler and from cleanup, leaking the backend watch.
+        if (
+          sockets.get(connectionKey) !== pendingSocket ||
+          (listeners.get(connectionKey)?.length ?? 0) === 0
+        ) {
+          socket.close();
+
+          if (sockets.get(connectionKey) === pendingSocket) {
+            sockets.delete(connectionKey);
+          }
+
+          return;
+        }
+
+        // Replace the marker with the live socket so its own close handler can
+        // evict it and schedule the next reconnect.
+        sockets.set(connectionKey, socket);
+      })
+      .catch(err => {
+        if (sockets.get(connectionKey) === pendingSocket) {
+          sockets.delete(connectionKey);
+        }
+
+        console.error('WebSocket reconnect failed:', err);
+
+        if ((listeners.get(connectionKey)?.length ?? 0) > 0) {
+          scheduleLegacyReconnect(connectionKey);
+        }
+      });
+  }, delay);
+
+  reconnectTimers.set(connectionKey, timer);
+}
 
 /**
  * Create new WebSocket connection to the backend
@@ -82,19 +165,7 @@ export async function openWebSocket<T>(
     type = 'binary',
     cluster = getCluster() ?? '',
     onMessage,
-  }: {
-    /**
-     * Any additional protocols to include in WebSocket connection
-     */
-    protocols?: string | string[];
-    /**
-     *
-     */
-    type: 'json' | 'binary';
-    /**
-     * Cluster name
-     */
-    cluster?: string;
+  }: OpenWebSocketOptions & {
     /**
      * Message callback
      */
@@ -126,6 +197,31 @@ export async function openWebSocket<T>(
 
   const socket = new WebSocket(makeUrl([getBaseWsUrl(), ...path], {}), protocols);
   socket.binaryType = 'arraybuffer';
+
+  // Remember how this connection was opened so it can be re-established
+  // after a drop (see the close handler below).
+  lastOpenArgs.set(connectionKey, {
+    url,
+    options: { protocols: moreProtocols, type, cluster },
+  });
+
+  socket.addEventListener('open', () => {
+    reconnectAttempts.delete(connectionKey);
+  });
+
+  socket.addEventListener('close', () => {
+    // Evict the dead socket so it's never handed out again.
+    if (sockets.get(connectionKey) === socket) {
+      sockets.delete(connectionKey);
+    }
+
+    // Re-establish the watch while something still listens and no other
+    // connection took over for this key in the meantime.
+    if (!sockets.has(connectionKey) && (listeners.get(connectionKey)?.length ?? 0) > 0) {
+      scheduleLegacyReconnect(connectionKey);
+    }
+  });
+
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
     const callbacks = listeners.get(connectionKey) ?? [onMessage];
@@ -226,6 +322,15 @@ export function useWebSockets<T>({
             }
             sockets.delete(connectionKey);
           }
+
+          // Also cancel any pending reconnect and forget the connection.
+          const pendingReconnect = reconnectTimers.get(connectionKey);
+          if (pendingReconnect) {
+            clearTimeout(pendingReconnect);
+            reconnectTimers.delete(connectionKey);
+          }
+          reconnectAttempts.delete(connectionKey);
+          lastOpenArgs.delete(connectionKey);
         }
       };
     }
