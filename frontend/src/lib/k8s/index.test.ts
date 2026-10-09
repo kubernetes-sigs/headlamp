@@ -64,6 +64,44 @@ describe('Class tests', () => {
     });
   });
 
+  describe('CustomResourceDefinition.makeCRClass', () => {
+    test('orders the storage endpoint first and retains served fallbacks', () => {
+      const crd = new ResourceClasses.CustomResourceDefinition({
+        apiVersion: 'apiextensions.k8s.io/v1',
+        kind: 'CustomResourceDefinition',
+        metadata: {
+          name: 'widgets.example.com',
+          creationTimestamp: '2020-01-01T00:00:00Z',
+          uid: 'widgets-example-com',
+        },
+        spec: {
+          group: 'example.com',
+          version: '',
+          names: {
+            plural: 'testwidgets',
+            singular: 'testwidget',
+            kind: 'TestWidget',
+            listKind: 'TestWidgetList',
+          },
+          versions: [
+            { name: 'v1alpha1', served: true, storage: false, additionalPrinterColumns: [] },
+            { name: 'v1', served: true, storage: true, additionalPrinterColumns: [] },
+            { name: 'v1beta1', served: true, storage: false, additionalPrinterColumns: [] },
+          ],
+          scope: 'Namespaced',
+        },
+      });
+
+      const crClass = crd.makeCRClass();
+
+      expect(crClass.apiEndpoint.apiInfo).toEqual([
+        { group: 'example.com', version: 'v1', resource: 'testwidgets' },
+        { group: 'example.com', version: 'v1alpha1', resource: 'testwidgets' },
+        { group: 'example.com', version: 'v1beta1', resource: 'testwidgets' },
+      ]);
+    });
+  });
+
   k8sClassesToTest.forEach((cls: KubeObjectClass) => {
     const instance = new cls(mockK8sObject(cls.className));
 
