@@ -15,6 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeMetrics } from '../../../lib/k8s/cluster';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
@@ -196,6 +197,18 @@ MemoryChartPod.args = {
   resource: 'memory',
 };
 
+// Metrics not loaded yet (items present, metrics null, no error): should show a
+// loading state rather than a misleading 0%.
+export const MemoryChartLoading = Template1.bind({});
+MemoryChartLoading.args = {
+  chart_props: {
+    items: [mockNode],
+    itemsMetrics: null,
+    noMetrics: false,
+  },
+  resource: 'memory',
+};
+
 // CPU Chart Stories
 export const CpuChartWithMetrics = Template1.bind({});
 CpuChartWithMetrics.args = {
@@ -223,6 +236,31 @@ CpuChartPod.args = {
     items: [mockPod],
     itemsMetrics: [mockPodMetrics],
     noMetrics: false,
+  },
+  resource: 'cpu',
+};
+
+// Metrics not loaded yet (items present, metrics null, no error): should show a
+// loading state rather than a misleading 0%.
+export const CpuChartLoading = Template1.bind({});
+CpuChartLoading.args = {
+  chart_props: {
+    items: [mockNode],
+    itemsMetrics: null,
+    noMetrics: false,
+  },
+  resource: 'cpu',
+};
+
+// Metrics request failed with an error other than "not installed" (e.g. 403):
+// should not be stuck in the loading state.
+export const CpuChartMetricsError = Template1.bind({});
+CpuChartMetricsError.args = {
+  chart_props: {
+    items: [mockNode],
+    itemsMetrics: null,
+    noMetrics: false,
+    metricsError: new ApiError('Forbidden', { status: 403 }),
   },
   resource: 'cpu',
 };
