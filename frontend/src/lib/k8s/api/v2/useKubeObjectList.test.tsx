@@ -396,6 +396,80 @@ describe('useWatchKubeObjectLists', () => {
   });
 });
 
+describe.each(['false', 'true'])('watch recovery (multiplexer=%s)', multiplexer => {
+  beforeEach(() => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', multiplexer);
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  function latestWatch() {
+    if (multiplexer === 'true') {
+      const call = mockSubscribe.mock.calls.at(-1)!;
+      return { url: `${call[1]}?${call[2]}`, onMessage: call[3] };
+    }
+    return mockUseWebSockets.mock.calls.at(-1)![0].connections[0];
+  }
+
+  it.each([{ code: 410 }, { reason: 'Expired' }])(
+    'relists and resumes updates after an expired watch: %j',
+    async status => {
+      const freshList = deferred<Response>();
+      mockClusterFetch
+        .mockResolvedValueOnce({
+          json: async () => makeListResponse({ resourceVersion: '7' }),
+        } as Response)
+        .mockReturnValueOnce(freshList.promise);
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const { result, unmount } = renderHook(
+        () => useKubeObjectList({ kubeObjectClass: mockClass, requests: [{ cluster: 'default' }] }),
+        { wrapper: queryClientWrapper(queryClient) }
+      );
+      await waitFor(() => expect(latestWatch()?.url).toContain('resourceVersion=7'));
+      act(() => latestWatch().onMessage({ type: 'ERROR', object: { kind: 'Status', ...status } }));
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      await act(async () => {
+        freshList.resolve({
+          json: async () => makeListResponse({ resourceVersion: '20' }),
+        } as Response);
+      });
+      await waitFor(() => expect(latestWatch()?.url).toContain('resourceVersion=20'));
+      const pod = makePod('after-expiry', '21');
+      act(() => latestWatch().onMessage({ type: 'ADDED', object: pod }));
+      await waitFor(() => expect(result.current.items?.[0]?.jsonData).toEqual(pod));
+      unmount();
+      queryClient.clear();
+    }
+  );
+
+  it('preserves the cached response identity for a non-expired error', () => {
+    // Disable structural sharing so React Query cannot hide a new wrapper allocation.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { structuralSharing: false } },
+    });
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const key = kubeObjectListQuery(mockClass, endpoint, undefined, 'default', {}).queryKey;
+    const response = { list: makeListResponse({ resourceVersion: '7' }), cluster: 'default' };
+    queryClient.setQueryData(key, response);
+    const { unmount } = renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint,
+          lists: [{ cluster: 'default', resourceVersion: '7' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    act(() => latestWatch().onMessage({ type: 'ERROR', object: { metadata: {}, code: 500 } }));
+    expect(queryClient.getQueryData(key)).toBe(response);
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+    unmount();
+    queryClient.clear();
+  });
+});
+
 describe('useKubeObjectList', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
