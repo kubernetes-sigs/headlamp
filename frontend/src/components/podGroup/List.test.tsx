@@ -27,6 +27,14 @@ vi.mock('../../lib/k8s/podGroup', () => ({
   default: { kind: 'PodGroup' },
 }));
 
+// Render the severity where a test can read it, as the real label only turns it into colors.
+vi.mock('../common/Label', async importOriginal => ({
+  ...(await importOriginal<typeof import('../common/Label')>()),
+  StatusLabel: ({ status, children }: { status: string; children: React.ReactNode }) => (
+    <span data-status={status}>{children}</span>
+  ),
+}));
+
 vi.mock('../common/Resource/ResourceListView', () => ({
   default: (props: any) => {
     mockListView(props);
@@ -109,6 +117,23 @@ describe('PodGroupList', () => {
 
     expect(status.getValue(scheduled)).toBe('translation|Scheduled');
     expect(status.getValue(pending)).toBe('translation|Pending');
+  });
+
+  // The API reports Unknown while it has not decided, which is neither scheduled nor failed,
+  // so it must not read as a pending group that is waiting on something.
+  it('shows a condition the API has not decided as a neutral unknown', () => {
+    const props = renderList();
+    const status = column(props, 'status');
+    const undecided = { schedulingCondition: { type: 'PodGroupScheduled', status: 'Unknown' } };
+    const pending = { schedulingCondition: { type: 'PodGroupScheduled', status: 'False' } };
+
+    expect(status.getValue(undecided)).toBe('translation|Unknown');
+
+    render(<TestContext>{status.render(undecided)}</TestContext>);
+    expect(screen.getByText('translation|Unknown')).toHaveAttribute('data-status', '');
+
+    render(<TestContext>{status.render(pending)}</TestContext>);
+    expect(screen.getByText('translation|Pending')).toHaveAttribute('data-status', 'warning');
   });
 
   it('shows an unknown status while the group has no conditions yet', () => {
