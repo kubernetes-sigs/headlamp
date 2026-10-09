@@ -30,6 +30,8 @@ import {
   MetadataDictGrid,
   OwnedPodsSection,
 } from '../common/Resource';
+import JobSuspendButton from './JobSuspendButton';
+import { jobSuspendKey } from './jobSuspendState';
 import { makeJobStatusLabel } from './List';
 
 export default function JobDetails(props: { name?: string; namespace?: string; cluster?: string }) {
@@ -68,6 +70,10 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
       actions={item =>
         item
           ? [
+              {
+                id: 'suspend',
+                action: <JobSuspendButton key={jobSuspendKey(item)} item={item} />,
+              },
               {
                 id: 'logs',
                 action: <LogsButton key="logs" item={item} />,
