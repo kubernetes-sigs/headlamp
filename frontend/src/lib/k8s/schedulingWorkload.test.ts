@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
 import type { KubeSchedulingWorkload } from './schedulingWorkload';
-import Workload, { getCompositeDisruptionMode } from './schedulingWorkload';
+import Workload from './schedulingWorkload';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -35,18 +35,6 @@ const makeWorkload = (spec: Partial<KubeSchedulingWorkload['spec']>) =>
     },
     spec: { podGroupTemplates: [], ...spec },
   } as KubeSchedulingWorkload);
-
-describe('getCompositeDisruptionMode', () => {
-  it('reads whichever mode the composite template sets', () => {
-    expect(getCompositeDisruptionMode({ single: {} })).toBe('Single');
-    expect(getCompositeDisruptionMode({ all: {} })).toBe('All');
-  });
-
-  it('returns undefined when no mode is set', () => {
-    expect(getCompositeDisruptionMode(undefined)).toBeUndefined();
-    expect(getCompositeDisruptionMode({})).toBeUndefined();
-  });
-});
 
 describe('Workload', () => {
   it('uses its own list route because workloads is taken by the overview page', () => {

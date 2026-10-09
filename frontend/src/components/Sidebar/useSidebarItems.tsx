@@ -15,7 +15,6 @@
  */
 
 import { useTheme } from '@mui/material/styles';
-import { useQuery } from '@tanstack/react-query';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +23,10 @@ import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
-import PodGroup from '../../lib/k8s/podGroup';
+import {
+  useCompositePodGroupClusters,
+  useSchedulingApisEnabled,
+} from '../../lib/k8s/schedulingApis';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
@@ -78,18 +80,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     console.error('Failed to fetch CRDs:', error);
   }
 
-  // The workload aware scheduling APIs are alpha and are only served when the cluster
-  // enables the GenericWorkload feature gate, so only show them when they are available.
-  const { data: schedulingWorkloadsEnabled = false } = useQuery({
-    queryKey: ['schedulingWorkloadsEnabled', ...selectedClusters],
-    queryFn: async () => {
-      const enabledPerCluster = await Promise.all(
-        selectedClusters.map(cluster => PodGroup.isEnabled(cluster))
-      );
-      return enabledPerCluster.some(Boolean);
-    },
-    enabled: selectedClusters.length > 0,
-  });
+  const schedulingWorkloadsEnabled = useSchedulingApisEnabled();
+
+  // CompositePodGroup needs its own feature gate on top, and unlike the flat resources
+  // it is only ever served by v1alpha3, so ask for the resource itself.
+  const compositePodGroupsEnabled = useCompositePodGroupClusters().length > 0;
 
   const crdsSidebarEntries = useMemo(() => {
     const crdsSidebarEntries: SidebarItemProps[] = [];
@@ -482,6 +477,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'podGroups',
             label: t('glossary|Pod Groups'),
           },
+          ...(compositePodGroupsEnabled
+            ? [
+                {
+                  name: 'compositePodGroups',
+                  label: t('glossary|Composite Pod Groups'),
+                },
+              ]
+            : []),
           {
             name: 'schedulingWorkloads',
             label: t('glossary|Workloads'),
@@ -617,6 +620,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     crdsSidebarEntries,
     gatewayKinds,
     schedulingWorkloadsEnabled,
+    compositePodGroupsEnabled,
     t,
   ]);
 

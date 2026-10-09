@@ -15,11 +15,15 @@
  */
 
 import { KubeObject, Workload } from '../../../lib/k8s/cluster';
+import type CompositePodGroup from '../../../lib/k8s/compositePodGroup';
 import Pod from '../../../lib/k8s/pod';
+import type PodGroup from '../../../lib/k8s/podGroup';
 import { getReadyReplicas, getTotalReplicas } from '../../../lib/util';
 import type { GraphNode } from '../graph/graphModel';
 
 export type KubeObjectStatus = 'error' | 'success' | 'warning';
+
+const POD_GROUP_API_GROUP = 'scheduling.k8s.io';
 
 /**
  * Returns a generic status for the given Pod
@@ -44,11 +48,50 @@ function getPodStatus(pod: Pod): KubeObjectStatus {
 }
 
 /**
+ * Narrows a resource to a PodGroup of the scheduling API
+ * The group is checked as well as the kind, so that a custom resource of the same kind,
+ * such as the Volcano PodGroup, is not mistaken for one
+ */
+function isPodGroup(w: KubeObject): w is PodGroup {
+  return w.kind === 'PodGroup' && w._class().apiGroupName === POD_GROUP_API_GROUP;
+}
+
+/**
+ * Returns a generic status for the given PodGroup
+ * A group that is not scheduled yet is a warning, so that it stands out on the map
+ * without being opened
+ */
+function getPodGroupStatus(podGroup: PodGroup): KubeObjectStatus {
+  return podGroup.schedulingCondition?.status === 'True' ? 'success' : 'warning';
+}
+
+/** Narrows a resource to a CompositePodGroup of the scheduling API */
+function isCompositePodGroup(w: KubeObject): w is CompositePodGroup {
+  return w.kind === 'CompositePodGroup' && w._class().apiGroupName === POD_GROUP_API_GROUP;
+}
+
+/**
+ * Returns a generic status for the given CompositePodGroup
+ * The condition is terminal and is not set by every controller, so only an explicit
+ * False is a warning; a missing condition says nothing about the subtree below. An
+ * invalid layout is reported as Invalid with a True status, so it is read as a warning
+ * rather than as a group that scheduled
+ */
+function getCompositePodGroupStatus(group: CompositePodGroup): KubeObjectStatus {
+  const condition = group.schedulingCondition;
+  return condition?.status === 'False' || condition?.reason === 'Invalid' ? 'warning' : 'success';
+}
+
+/**
  * Returns status for a given Kube resource
  * Not all kinds of resources have a status and/or supported
  */
 export function getStatus(w: KubeObject): KubeObjectStatus {
   if (Pod.isClassOf(w)) return getPodStatus(w);
+
+  if (isPodGroup(w)) return getPodGroupStatus(w);
+
+  if (isCompositePodGroup(w)) return getCompositePodGroupStatus(w);
 
   if (['DaemonSet', 'ReplicaSet', 'StatefulSet', 'Deployment'].includes(w.kind)) {
     const workload = w as Workload;
