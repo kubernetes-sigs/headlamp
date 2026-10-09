@@ -319,6 +319,7 @@ export interface StreamArgs {
  */
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
   let connection: StreamConnection | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let isCancelled = false;
   const { failCb, cluster = '' } = args;
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
@@ -337,14 +338,28 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   }
 
   function cancel() {
+    // Stop a pending reconnect, otherwise it fires after cancellation and
+    // opens a WebSocket nothing will ever close.
+    if (reconnectTimer !== undefined) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+    }
     if (connection) connection.close();
     isCancelled = true;
   }
 
   async function connect() {
+    if (isCancelled) return;
     if (connectCb) connectCb();
     try {
       connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+      // The stream may have been cancelled while connecting.
+      if (isCancelled) {
+        connection.close();
+        connection = null;
+
+        return;
+      }
     } catch (error) {
       console.error('Error connecting stream:', error);
       onFail();
@@ -359,7 +374,7 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
         console.debug('k8s/apiProxy@stream retryOnFail', 'Reconnecting in 3 seconds', { url });
       }
 
-      setTimeout(connect, 3000);
+      reconnectTimer = setTimeout(connect, 3000);
     }
   }
 
