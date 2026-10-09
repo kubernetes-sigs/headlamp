@@ -246,7 +246,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
         />
       </TestContext>
     );
@@ -274,7 +274,7 @@ describe('EditorDialog', () => {
               metadata: { name: 'my-config', resourceVersion: '2' },
             }}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
           />
         </TestContext>
       );
@@ -309,7 +309,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
         />
       </TestContext>
     );
@@ -332,7 +332,7 @@ describe('EditorDialog', () => {
               data: { key1: 'updated-value' },
             }}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
           />
         </TestContext>
       );
@@ -363,7 +363,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
           onBaselineAccepted={onBaselineAccepted}
         />
       </TestContext>
@@ -392,7 +392,7 @@ describe('EditorDialog', () => {
             noDialog
             item={externallyModifiedItem}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
             onBaselineAccepted={onBaselineAccepted}
           />
         </TestContext>
@@ -421,7 +421,7 @@ describe('EditorDialog', () => {
 
   it('does not call onBaselineAccepted when Undo discards a plain edit with no external conflict', () => {
     const onBaselineAccepted = vi.fn();
-    renderEditorDialog({ onSave: vi.fn(), onBaselineAccepted });
+    renderEditorDialog({ onSave: vi.fn<(...args: any[]) => void>(), onBaselineAccepted });
 
     const editor = screen.getByRole('textbox', { name: /code$/i });
     fireEvent.change(editor, { target: { value: 'just my own edit, no conflict involved' } });
@@ -451,7 +451,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
         />
       </TestContext>
     );
@@ -481,7 +481,7 @@ describe('EditorDialog', () => {
             noDialog
             item={newItem}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
           />
         </TestContext>
       );

@@ -256,6 +256,7 @@ describe('useClustersVersion', () => {
 
   afterEach(() => {
     queryClient.clear();
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
