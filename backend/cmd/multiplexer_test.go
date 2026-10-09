@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -502,10 +503,15 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 
 	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
 	m.connections[connKey] = conn
+	token := "token"
+	conn.Token = &token
+	rememberClientTokenScope(m, conn, clientConn)
+	assert.Len(t, m.clientTokens, 1)
 
 	m.closeClientConnections(clientConn)
 
 	assert.Empty(t, m.connections)
+	assert.Empty(t, m.clientTokens)
 	assert.Nil(t, conn.Client)
 	assert.Equal(t, StateClosed, conn.Status.State)
 	assert.True(t, conn.closed)
@@ -1430,6 +1436,549 @@ func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) 
 	assert.Equal(t, conn, refreshedConn)
 	require.NotNil(t, refreshedConn.Token)
 	assert.Equal(t, serviceAccountToken, *refreshedConn.Token)
+}
+
+func TestReplaceTokenUpdatesActiveUserConnections(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	originalToken := "original-token"
+	otherToken := "other-token"
+	refreshedToken := "refreshed-token"
+	userConnection := m.createConnection("cluster", "user", "/api/v1/pods", "watch=true", nil, &originalToken)
+	otherConnection := m.createConnection("cluster", "other", "/api/v1/services", "watch=true", nil, &otherToken)
+	serviceAccountConnection := m.createConnection("cluster", "system", "/api/v1/nodes", "watch=true", nil, &originalToken)
+	serviceAccountConnection.usesServiceAccountToken = true
+	m.connections["user"] = userConnection
+	m.connections["other"] = otherConnection
+	m.connections["system"] = serviceAccountConnection
+
+	m.ReplaceToken("cluster", originalToken, refreshedToken)
+
+	require.NotNil(t, userConnection.Token)
+	assert.Equal(t, refreshedToken, *userConnection.Token)
+	require.NotNil(t, otherConnection.Token)
+	assert.Equal(t, otherToken, *otherConnection.Token)
+	require.NotNil(t, serviceAccountConnection.Token)
+	assert.Equal(t, originalToken, *serviceAccountConnection.Token)
+}
+
+func TestReplaceTokenOnlyUpdatesRefreshedCluster(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	sharedToken := "shared-token"
+	firstClient := &WSConnLock{}
+	secondClient := &WSConnLock{}
+	first := m.createConnection("cluster-a", "user", "/api/v1/pods", "watch=true", firstClient, &sharedToken)
+	second := m.createConnection("cluster-b", "user", "/api/v1/pods", "watch=true", secondClient, &sharedToken)
+	m.connections["first"] = first
+	m.connections["second"] = second
+	m.resolveClientToken(firstClient, "cluster-a", &sharedToken)
+	m.resolveClientToken(secondClient, "cluster-b", &sharedToken)
+
+	m.ReplaceToken("cluster-a", sharedToken, "refreshed-token")
+
+	require.NotNil(t, first.Token)
+	assert.Equal(t, "refreshed-token", *first.Token)
+	require.NotNil(t, second.Token)
+	assert.Equal(t, sharedToken, *second.Token)
+	assert.Equal(t, "refreshed-token", m.clientTokens[firstClient]["cluster-a"].token)
+	assert.Equal(t, sharedToken, m.clientTokens[secondClient]["cluster-b"].token)
+}
+
+func TestReplaceTokenTracksConcurrentRefreshChain(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	originalToken := "original-token"
+	connection := m.createConnection("cluster", "user", "/api/v1/pods", "watch=true", nil, &originalToken)
+	m.connections["user"] = connection
+
+	start := make(chan struct{})
+	refreshedTokens := []string{"refreshed-a", "refreshed-b"}
+
+	var refreshes sync.WaitGroup
+	for _, refreshedToken := range refreshedTokens {
+		refreshes.Add(1)
+
+		go func(token string) {
+			defer refreshes.Done()
+
+			<-start
+
+			m.ReplaceToken("cluster", originalToken, token)
+		}(refreshedToken)
+	}
+
+	close(start)
+	refreshes.Wait()
+
+	// Both refreshes started from the original token. Whichever callback
+	// completed last controls the connection, but both results remain valid
+	// links for a subsequent refresh callback.
+	m.ReplaceToken("cluster", "refreshed-a", "after-a")
+	m.ReplaceToken("cluster", "refreshed-b", "after-b")
+
+	require.NotNil(t, connection.Token)
+	assert.Equal(t, "after-b", *connection.Token)
+}
+
+func TestReplaceTokenRetainsConcurrentRefreshAfterCurrentTokenAges(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn := &WSConnLock{}
+	originalToken := "original-token"
+	connection := m.createConnection("cluster", "user", "/api/v1/pods", "watch=true", clientConn, &originalToken)
+	m.connections["user"] = connection
+	m.resolveClientToken(clientConn, "cluster", &originalToken)
+
+	originalHash := sha256.Sum256([]byte(originalToken))
+	expiredAt := time.Now().Add(-TokenRefreshHistoryTTL - time.Second)
+	connection.acceptedTokenHashes[originalHash] = expiredAt
+	m.clientTokens[clientConn]["cluster"].acceptedTokenHashes[originalHash] = expiredAt
+
+	m.ReplaceToken("cluster", originalToken, "refreshed-a")
+	m.ReplaceToken("cluster", originalToken, "refreshed-b")
+
+	require.NotNil(t, connection.Token)
+	assert.Equal(t, "refreshed-b", *connection.Token)
+	assert.Equal(t, "refreshed-b", m.clientTokens[clientConn]["cluster"].token)
+}
+
+func TestReplaceTokenBoundsRefreshHistory(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn := &WSConnLock{}
+	originalToken := "original-token"
+	connection := m.createConnection("cluster", "user", "/api/v1/pods", "watch=true", clientConn, &originalToken)
+	m.connections["user"] = connection
+	m.resolveClientToken(clientConn, "cluster", &originalToken)
+
+	currentToken := originalToken
+
+	for generation := range 100 {
+		nextToken := fmt.Sprintf("refreshed-%d", generation)
+		m.ReplaceToken("cluster", currentToken, nextToken)
+		currentToken = nextToken
+	}
+
+	assert.LessOrEqual(t, len(connection.acceptedTokenHashes), MaxTokenRefreshHistory+1)
+	assert.LessOrEqual(t, len(m.clientTokens[clientConn]["cluster"].acceptedTokenHashes), MaxTokenRefreshHistory+1)
+
+	// The immutable browser handshake still sends the initial token, while an
+	// old intermediate refresh result must no longer replace the latest token.
+	resolved := m.resolveClientToken(clientConn, "cluster", &originalToken)
+	require.NotNil(t, resolved)
+	assert.Equal(t, currentToken, *resolved)
+	m.ReplaceToken("cluster", "refreshed-0", "late-token")
+	assert.Equal(t, currentToken, *connection.Token)
+
+	initialHash := sha256.Sum256([]byte(originalToken))
+	expiredAt := time.Now().Add(-TokenRefreshHistoryTTL - time.Second)
+	connection.acceptedTokenHashes[initialHash] = expiredAt
+	m.clientTokens[clientConn]["cluster"].acceptedTokenHashes[initialHash] = expiredAt
+	m.ReplaceToken("cluster", originalToken, "expired-callback")
+	assert.Equal(t, currentToken, *connection.Token)
+
+	resolved = m.resolveClientToken(clientConn, "cluster", &originalToken)
+	assert.Equal(t, currentToken, *resolved)
+}
+
+type reconnectRaceFixture struct {
+	m              *Multiplexer
+	connection     *Connection
+	connectionKey  string
+	dialStarted    chan string
+	allowUpgrade   chan struct{}
+	upgradeErr     chan error
+	serverDone     chan struct{}
+	allowOnce      sync.Once
+	serverDoneOnce sync.Once
+}
+
+func newReconnectRaceFixture(t *testing.T) *reconnectRaceFixture {
+	t.Helper()
+
+	fixture := &reconnectRaceFixture{
+		dialStarted:  make(chan string, 1),
+		allowUpgrade: make(chan struct{}),
+		upgradeErr:   make(chan error, 1),
+		serverDone:   make(chan struct{}),
+	}
+	server := httptest.NewServer(http.HandlerFunc(fixture.handleWebSocketDial))
+
+	t.Cleanup(func() {
+		fixture.allowOnce.Do(func() { close(fixture.allowUpgrade) })
+		fixture.serverDoneOnce.Do(func() { close(fixture.serverDone) })
+		server.Close()
+	})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                server.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	}))
+
+	fixture.m = NewMultiplexer(store, false)
+	originalToken := "original-token"
+	fixture.connection = fixture.m.createConnection(
+		"test-cluster", "test-user", "/api/v1/pods", "watch=true", nil, &originalToken,
+	)
+	fixture.connectionKey = fixture.m.createConnectionKey(
+		fixture.connection.ClusterID, fixture.connection.Path, fixture.connection.UserID,
+	)
+	fixture.m.connections[fixture.connectionKey] = fixture.connection
+
+	return fixture
+}
+
+func (f *reconnectRaceFixture) handleWebSocketDial(w http.ResponseWriter, r *http.Request) {
+	f.dialStarted <- r.Header.Get("Authorization")
+
+	<-f.allowUpgrade
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	f.upgradeErr <- err
+
+	if err != nil {
+		return
+	}
+
+	defer func() { _ = ws.Close() }()
+
+	<-f.serverDone
+}
+
+func (f *reconnectRaceFixture) releaseDial() {
+	f.allowOnce.Do(func() { close(f.allowUpgrade) })
+}
+
+type reconnectResult struct {
+	connection *Connection
+	err        error
+}
+
+func rememberClientTokenScope(m *Multiplexer, connection *Connection, clientConn *WSConnLock) {
+	connection.Client = clientConn
+
+	m.mutex.Lock()
+	m.applyClientTokenScopeLocked(connection, clientConn, connection.ClusterID)
+	m.mutex.Unlock()
+}
+
+func awaitReconnectResult(t *testing.T, result <-chan reconnectResult) reconnectResult {
+	t.Helper()
+
+	select {
+	case reconnect := <-result:
+		return reconnect
+	case <-time.After(5 * time.Second):
+		t.Fatal("connection operation did not finish")
+
+		return reconnectResult{}
+	}
+}
+
+func TestReconnectPublishesLatestRefreshedToken(t *testing.T) {
+	fixture := newReconnectRaceFixture(t)
+	refreshedToken := "refreshed-token"
+
+	result := make(chan reconnectResult, 1)
+
+	go func() {
+		newConnection, err := fixture.m.reconnect(fixture.connection)
+		result <- reconnectResult{connection: newConnection, err: err}
+	}()
+
+	select {
+	case authorization := <-fixture.dialStarted:
+		assert.Equal(t, "Bearer original-token", authorization)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not begin dialing")
+	}
+
+	fixture.m.ReplaceToken("test-cluster", "original-token", refreshedToken)
+	fixture.releaseDial()
+
+	select {
+	case err := <-fixture.upgradeErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not complete WebSocket upgrade")
+	}
+
+	var reconnected reconnectResult
+	select {
+	case reconnected = <-result:
+		require.NoError(t, reconnected.err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not finish")
+	}
+
+	require.NotNil(t, reconnected.connection.Token)
+	assert.Equal(t, refreshedToken, *reconnected.connection.Token)
+	assert.Equal(t, reconnected.connection, fixture.m.connections[fixture.connectionKey])
+}
+
+func TestReconnectKeepsRefreshedTokenAfterRequestWithHandshakeToken(t *testing.T) {
+	fixture := newReconnectRaceFixture(t)
+	originalToken := "original-token"
+	refreshedToken := "refreshed-token"
+
+	fixture.m.ReplaceToken("test-cluster", originalToken, refreshedToken)
+
+	msg := Message{
+		ClusterID: fixture.connection.ClusterID,
+		Path:      fixture.connection.Path,
+		Query:     fixture.connection.Query,
+		UserID:    fixture.connection.UserID,
+	}
+
+	connection, err := fixture.m.getOrCreateConnection(msg, nil, &originalToken)
+	require.NoError(t, err)
+	require.NotNil(t, connection.Token)
+	assert.Equal(t, refreshedToken, *connection.Token)
+
+	result := make(chan reconnectResult, 1)
+
+	go func() {
+		newConnection, err := fixture.m.reconnect(connection)
+		result <- reconnectResult{connection: newConnection, err: err}
+	}()
+
+	select {
+	case authorization := <-fixture.dialStarted:
+		assert.Equal(t, "Bearer "+refreshedToken, authorization)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not begin dialing")
+	}
+
+	fixture.releaseDial()
+
+	select {
+	case err := <-fixture.upgradeErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not complete WebSocket upgrade")
+	}
+
+	select {
+	case reconnected := <-result:
+		require.NoError(t, reconnected.err)
+		require.NotNil(t, reconnected.connection.Token)
+		assert.Equal(t, refreshedToken, *reconnected.connection.Token)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not finish")
+	}
+}
+
+func TestReconnectUsesRefreshedTokenForNewSubscriptionOnClientWebSocket(t *testing.T) {
+	fixture := newReconnectRaceFixture(t)
+	originalToken := "original-token"
+	refreshedToken := "refreshed-token"
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	rememberClientTokenScope(fixture.m, fixture.connection, clientConn)
+
+	fixture.m.ReplaceToken("test-cluster", originalToken, refreshedToken)
+
+	newSubscriptionToken := fixture.m.resolveClientToken(
+		clientConn,
+		fixture.connection.ClusterID,
+		&originalToken,
+	)
+	require.NotNil(t, newSubscriptionToken)
+
+	newSubscription := fixture.m.createConnection(
+		fixture.connection.ClusterID,
+		fixture.connection.UserID,
+		"/api/v1/services",
+		"watch=true",
+		clientConn,
+		newSubscriptionToken,
+	)
+	newSubscriptionKey := fixture.m.createConnectionKey(
+		newSubscription.ClusterID,
+		newSubscription.Path,
+		newSubscription.UserID,
+	)
+	fixture.m.connections[newSubscriptionKey] = newSubscription
+
+	result := make(chan reconnectResult, 1)
+
+	go func() {
+		newConnection, err := fixture.m.reconnect(newSubscription)
+		result <- reconnectResult{connection: newConnection, err: err}
+	}()
+
+	select {
+	case authorization := <-fixture.dialStarted:
+		assert.Equal(t, "Bearer "+refreshedToken, authorization)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not begin dialing")
+	}
+
+	fixture.releaseDial()
+
+	select {
+	case err := <-fixture.upgradeErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not complete WebSocket upgrade")
+	}
+
+	reconnected := awaitReconnectResult(t, result)
+	require.NoError(t, reconnected.err)
+	require.NotNil(t, reconnected.connection.Token)
+	assert.Equal(t, refreshedToken, *reconnected.connection.Token)
+}
+
+func TestNewSubscriptionPublishesRefreshCompletedDuringDial(t *testing.T) {
+	fixture := newReconnectRaceFixture(t)
+	originalToken := "original-token"
+	refreshedToken := "refreshed-token"
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	rememberClientTokenScope(fixture.m, fixture.connection, clientConn)
+
+	requestToken := fixture.m.resolveClientToken(clientConn, fixture.connection.ClusterID, &originalToken)
+	result := make(chan reconnectResult, 1)
+
+	go func() {
+		connection, err := fixture.m.establishClusterConnection(
+			fixture.connection.ClusterID,
+			fixture.connection.UserID,
+			"/api/v1/services",
+			"watch=true",
+			clientConn,
+			requestToken,
+		)
+		result <- reconnectResult{connection: connection, err: err}
+	}()
+
+	select {
+	case authorization := <-fixture.dialStarted:
+		assert.Equal(t, "Bearer "+originalToken, authorization)
+	case <-time.After(5 * time.Second):
+		t.Fatal("new subscription did not begin dialing")
+	}
+
+	fixture.m.ReplaceToken("test-cluster", originalToken, refreshedToken)
+	fixture.releaseDial()
+
+	select {
+	case err := <-fixture.upgradeErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("new subscription did not complete WebSocket upgrade")
+	}
+
+	select {
+	case established := <-result:
+		require.NoError(t, established.err)
+		require.NotNil(t, established.connection.Token)
+		assert.Equal(t, refreshedToken, *established.connection.Token)
+		established.connection.safeClose()
+	case <-time.After(5 * time.Second):
+		t.Fatal("new subscription did not finish")
+	}
+}
+
+func TestFirstSubscriptionRetainsRefreshCompletedDuringDial(t *testing.T) {
+	fixture := newReconnectRaceFixture(t)
+	delete(fixture.m.connections, fixture.connectionKey)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	originalToken := "original-token"
+	refreshedToken := "refreshed-token"
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+	result := make(chan reconnectResult, 1)
+
+	go func() {
+		connection, err := fixture.m.getOrCreateConnection(msg, clientConn, &originalToken)
+		result <- reconnectResult{connection: connection, err: err}
+	}()
+
+	select {
+	case authorization := <-fixture.dialStarted:
+		assert.Equal(t, "Bearer "+originalToken, authorization)
+	case <-time.After(5 * time.Second):
+		t.Fatal("first subscription did not begin dialing")
+	}
+
+	fixture.m.ReplaceToken("test-cluster", originalToken, refreshedToken)
+	fixture.releaseDial()
+
+	select {
+	case err := <-fixture.upgradeErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("first subscription did not complete WebSocket upgrade")
+	}
+
+	established := awaitReconnectResult(t, result)
+	require.NoError(t, established.err)
+	require.NotNil(t, established.connection.Token)
+	assert.Equal(t, refreshedToken, *established.connection.Token)
+
+	reconnectedResult := make(chan reconnectResult, 1)
+
+	go func() {
+		connection, err := fixture.m.reconnect(established.connection)
+		reconnectedResult <- reconnectResult{connection: connection, err: err}
+	}()
+
+	select {
+	case authorization := <-fixture.dialStarted:
+		assert.Equal(t, "Bearer "+refreshedToken, authorization)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not begin dialing")
+	}
+
+	reconnected := awaitReconnectResult(t, reconnectedResult)
+	require.NoError(t, reconnected.err)
+	reconnected.connection.safeClose()
+	fixture.m.closeClientConnections(clientConn)
+	assert.Empty(t, fixture.m.clientTokens)
+}
+
+func TestFailedFirstSubscriptionKeepsSessionTokenUntilClientCloses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "upgrade unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server: server.URL,
+		},
+	}))
+	m := NewMultiplexer(store, false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	originalToken := "original-token"
+	msg := Message{ClusterID: "test-cluster", UserID: "test-user", Path: "/api/v1/pods"}
+	_, err := m.getOrCreateConnection(msg, clientConn, &originalToken)
+	require.Error(t, err)
+
+	m.ReplaceToken("test-cluster", originalToken, "refreshed-token")
+	resolvedToken := m.resolveClientToken(clientConn, msg.ClusterID, &originalToken)
+	require.NotNil(t, resolvedToken)
+	assert.Equal(t, "refreshed-token", *resolvedToken)
+
+	m.closeClientConnections(clientConn)
+	assert.Empty(t, m.clientTokens)
 }
 
 func TestReconnect_WithToken(t *testing.T) {
