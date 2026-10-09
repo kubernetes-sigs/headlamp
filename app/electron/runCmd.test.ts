@@ -19,12 +19,13 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 const {
   defaultPluginsDirMock,
   defaultUserPluginsDirMock,
   getShellEnvironmentMock,
+  pluginManagementPaths,
   preparePluginExecutableMock,
   preparePluginScriptMock,
   removePreparedPluginExecutableMock,
@@ -36,6 +37,7 @@ const {
   defaultPluginsDirMock: vi.fn(() => '/plugins/default'),
   defaultUserPluginsDirMock: vi.fn(() => '/plugins/user'),
   getShellEnvironmentMock: vi.fn(),
+  pluginManagementPaths: { prepared: '/plugins/prepared' },
   preparePluginExecutableMock: vi.fn(),
   preparePluginScriptMock: vi.fn(),
   removePreparedPluginExecutableMock: vi.fn(),
@@ -57,7 +59,9 @@ vi.mock('cross-spawn', () => ({
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: defaultPluginsDirMock,
   defaultUserPluginsDir: defaultUserPluginsDirMock,
-  PREPARED_PLUGIN_SCRIPTS_PATH: '/plugins/prepared',
+  get PREPARED_PLUGIN_SCRIPTS_PATH() {
+    return pluginManagementPaths.prepared;
+  },
   preparePluginExecutable: preparePluginExecutableMock,
   preparePluginScript: preparePluginScriptMock,
   removePreparedPluginExecutable: removePreparedPluginExecutableMock,
@@ -2119,10 +2123,23 @@ describe('runScript', () => {
 
   let exitMock: Mock;
   let consoleErrorMock: Mock;
+  // Real files: vitest 4 can't mock dynamic imports of paths that don't exist.
+  let tmpRoot: string;
+  beforeAll(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'runscript-'));
+  });
+
+  afterAll(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
   beforeEach(() => {
     vi.resetModules();
+    defaultPluginsDirMock.mockReturnValue(path.join(tmpRoot, 'plugins/default'));
+    defaultUserPluginsDirMock.mockReturnValue(path.join(tmpRoot, 'plugins/user'));
+    pluginManagementPaths.prepared = path.join(tmpRoot, 'plugins/prepared');
     // @ts-ignore this is fine for tests
-    process.resourcesPath = '/resources';
+    process.resourcesPath = path.join(tmpRoot, 'resources');
 
     exitMock = vi.fn() as any;
     // @ts-expect-error overriding for test
@@ -2137,37 +2154,55 @@ describe('runScript', () => {
     console.error = originalConsoleError;
     // @ts-ignore
     process.resourcesPath = originalResourcesPath;
+    defaultPluginsDirMock.mockReturnValue('/plugins/default');
+    defaultUserPluginsDirMock.mockReturnValue('/plugins/user');
+    pluginManagementPaths.prepared = '/plugins/prepared';
     vi.restoreAllMocks();
   });
 
-  const testScriptImport = async (scriptPath: string) => {
-    const resolvedPath = path.resolve(scriptPath);
-    process.argv = ['node', resolvedPath];
-    vi.doMock(resolvedPath, () => ({}));
+  const writeScript = (relativePath: string) => {
+    const scriptPath = path.join(tmpRoot, relativePath);
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+    fs.writeFileSync(
+      scriptPath,
+      `globalThis.__runScriptImports?.push(${JSON.stringify(relativePath)});\n`
+    );
+    return scriptPath;
+  };
+
+  const testScriptImport = async (relativePath: string) => {
+    const imports: string[] = [];
+    (globalThis as any).__runScriptImports = imports;
+    process.argv = ['node', writeScript(relativePath)];
     const runCmdModule = await import('./runCmd');
     runCmdModule.runScript();
     expect(exitMock).not.toHaveBeenCalled();
+    // runScript() doesn't await its import; wait so it can't outlive the temp dir.
+    await vi.waitFor(() => expect(imports).toContain(relativePath));
+    delete (globalThis as any).__runScriptImports;
   };
 
   it('imports the script when path is inside defaultPluginsDir', () =>
-    testScriptImport('/plugins/default/my-script.js'));
+    testScriptImport('plugins/default/my-script.js'));
 
   it('imports the script when path is inside defaultUserPluginsDir', () =>
-    testScriptImport('/plugins/user/my-script.js'));
+    testScriptImport('plugins/user/my-script.js'));
 
   it('imports the script when path is inside static .plugins dir', () =>
-    testScriptImport('/resources/.plugins/my-script.js'));
+    testScriptImport('resources/.plugins/my-script.js'));
 
   it('imports the script when path is inside the app-owned prepared directory', () =>
-    testScriptImport('/plugins/prepared/run-id/my-script.js'));
+    testScriptImport('plugins/prepared/run-id/my-script.js'));
 
   it('exits with error when script is outside allowed directories', async () => {
-    const scriptPath = path.resolve('/not-allowed/my-script.js');
-    process.argv = ['node', scriptPath];
-    vi.doMock(scriptPath, () => ({}));
+    process.argv = ['node', path.join(tmpRoot, 'not-allowed/my-script.js')];
+    // Stop execution like a real exit so the disallowed script is never imported.
+    exitMock.mockImplementation(() => {
+      throw new Error('process.exit');
+    });
 
     const runCmdModule = await import('./runCmd');
-    runCmdModule.runScript();
+    expect(() => runCmdModule.runScript()).toThrow('process.exit');
 
     expect(consoleErrorMock).toHaveBeenCalledTimes(1);
     expect(exitMock).toHaveBeenCalledWith(1);

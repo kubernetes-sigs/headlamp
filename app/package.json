@@ -198,7 +198,7 @@
     "@types/node": "^22.14.0",
     "@types/semver": "^7.7.0",
     "@types/yargs": "^17.0.35",
-    "@vitest/coverage-istanbul": "3.2.7",
+    "@vitest/coverage-istanbul": "4.1.11",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "electron": "^38.8.6",
@@ -206,7 +206,8 @@
     "esbuild": "^0.25.0",
     "i18next-parser": "^9.0.0",
     "typescript": "5.5.4",
-    "vitest": "^3.2.7"
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "typescript": "5.5.4",
