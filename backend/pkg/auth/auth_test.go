@@ -120,6 +120,25 @@ var parseClusterAndTokenTests = []struct {
 	cookies     []*http.Cookie
 }{
 	{
+		name:        "base URL",
+		url:         "/headlamp/clusters/base-cluster/api",
+		authHeader:  "Bearer base-token",
+		wantCluster: "base-cluster",
+		wantToken:   "base-token",
+	},
+	{
+		name:        "base URL cookie fallback",
+		url:         "/headlamp/clusters/base-cluster/me",
+		wantCluster: "base-cluster",
+		wantToken:   "base-token",
+		cookies: []*http.Cookie{
+			{
+				Name:  "headlamp-auth-base-cluster.0",
+				Value: "base-token",
+			},
+		},
+	},
+	{
 		name:        "standard case",
 		url:         "/clusters/test-cluster/api",
 		authHeader:  "Bearer test-token",
@@ -267,6 +286,30 @@ func TestParseClusterAndToken(t *testing.T) {
 				t.Errorf("ParseClusterAndToken() got token = %q, want %q", token, tt.wantToken)
 			}
 		})
+	}
+}
+
+// TestParseClusterAndTokenPrefersRouteVariable covers the case from #7797: a base URL that
+// itself contains a "clusters/" segment (e.g. "/clusters/headlamp") made the leftmost-match
+// regex pick the base URL's own segment instead of the real cluster. The route's own
+// clusterName variable, set by mux once a route matches, must win over the regex.
+func TestParseClusterAndTokenPrefersRouteVariable(t *testing.T) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET",
+		"/clusters/headlamp/clusters/base-cluster/me", nil)
+	if err != nil {
+		t.Fatalf("ParseClusterAndToken() error = %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer base-token")
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "base-cluster"})
+
+	cluster, token := auth.ParseClusterAndToken(req)
+	if cluster != "base-cluster" {
+		t.Errorf("ParseClusterAndToken() got cluster %q, want %q", cluster, "base-cluster")
+	}
+
+	if token != "base-token" {
+		t.Errorf("ParseClusterAndToken() got token = %q, want %q", token, "base-token")
 	}
 }
 
