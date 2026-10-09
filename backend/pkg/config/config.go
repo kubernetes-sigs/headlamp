@@ -54,6 +54,8 @@ type Config struct {
 	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr             string `koanf:"listen-addr"`
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
+	EnablePluginManager    bool   `koanf:"enable-plugin-manager"`
+	PluginManagerConfigMap string `koanf:"plugin-manager-configmap"`
 	Port                   uint   `koanf:"port"`
 	KubeConfigPath         string `koanf:"kubeconfig"`
 	KubeConfigDir          string `koanf:"kubeconfig-dir"`
@@ -354,8 +356,10 @@ func unmarshalConfig(k *koanf.Koanf, config *Config) error {
 }
 
 // patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag or env var.
+// The plugin manager relies on watching to hot-reload installed plugins, so it keeps the default on.
 func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool, watchPluginsChangesEnvSet bool) {
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet &&
+		!config.EnablePluginManager {
 		config.WatchPluginsChanges = false
 	}
 }
@@ -583,6 +587,7 @@ func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	addGeneralFlags(f, appName)
+	addPluginManagerFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -652,6 +657,13 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+}
+
+func addPluginManagerFlags(f *flag.FlagSet) {
+	f.Bool("enable-plugin-manager", false,
+		"Enable the in-cluster plugin manager, which installs plugins from a ConfigMap-defined desired state")
+	f.String("plugin-manager-configmap", "headlamp-plugin-manager",
+		"Name of the ConfigMap (in Headlamp's own namespace) holding the plugin manager state")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
