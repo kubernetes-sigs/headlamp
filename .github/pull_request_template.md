@@ -24,3 +24,7 @@ Fixes #ISSUE_NUMBER
 ## Notes for the Reviewer
 
 - [e.g., This touches the i18n layer, so please check language consistency.]
+
+## Checklist
+
+- [ ] I added tests for new functionality, or a regression test for this bug fix (see the [testing policy](https://headlamp.dev/docs/latest/contributing/#testing-policy)), or explained above why no test is needed.

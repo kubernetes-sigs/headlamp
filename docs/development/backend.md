@@ -27,6 +27,74 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+### Debugging the backend
+
+By default, the backend is built with `-trimpath -ldflags="-s -w"`, which strips
+the symbol table and DWARF debug information to make the binary smaller. Set
+`DBG=1` when building with `make` to keep the debug information and full source
+paths, and to disable compiler optimizations so that variables and line numbers
+match the source. This also works for the embedded builds (`backend-embed*`
+targets):
+
+```bash
+make backend DBG=1
+```
+
+You can then debug the backend with [Delve](https://github.com/go-delve/delve),
+the Go debugger. Install it with:
+
+```bash
+go install github.com/go-delve/delve/cmd/dlv@latest
+```
+
+This puts `dlv` in `$(go env GOPATH)/bin` (or `$GOBIN` if set); make sure that
+directory is on your `PATH`. On macOS, Delve also needs the Xcode Command Line
+Tools (`xcode-select --install`).
+
+From the repository root, start the backend under Delve with the same settings
+as `npm run backend:start`:
+
+```bash
+HEADLAMP_BACKEND_TOKEN=headlamp \
+HEADLAMP_CONFIG_ENABLE_HELM=true \
+HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
+dlv exec ./backend/headlamp-server -- \
+  -dev -proxy-urls 'https://artifacthub.io/*' -listen-addr=127.0.0.1
+```
+
+Everything after `--` is passed to the backend. Delve starts with the backend
+paused, so at the `(dlv)` prompt, set a breakpoint and then `continue` to start
+the server. For example, to stop in the handler for the `/config` endpoint:
+
+```
+(dlv) break main.(*HeadlampConfig).getConfig
+(dlv) continue
+```
+
+To use the UI against the debugged backend, start the frontend in another
+terminal with `npm run frontend:start`. When a request reaches the breakpoint,
+Delve stops and shows the source. Useful commands are:
+
+- `args` and `locals` to show the function's arguments and local variables
+- `print <expression>` to evaluate an expression, e.g. `print r.URL.Path`
+- `next` and `step` to step over or into the next line
+- `stack` to show the call stack
+- `continue` to resume, and `clear <n>` or `clearall` to remove breakpoints
+- `exit` to stop the debugger and the backend. While the backend is running,
+  press Ctrl+C first to get the `(dlv)` prompt back.
+
+While Delve is stopped, the whole backend is paused, so the UI stops loading
+until you `continue`. The UI requests `/config` every 10 seconds, so a
+breakpoint there is hit repeatedly. If the backend stays paused for more than
+about 30 seconds, the UI may show "Failed to load plugins"; reload the page
+once you resume.
+
+Breakpoints can also be set by file and line, for example
+`break cmd/headlamp.go:2301`. Line numbers change as the code changes; use
+`list main.(*HeadlampConfig).getConfig` to find the current one. See the
+[Delve documentation](https://github.com/go-delve/delve/tree/master/Documentation/cli)
+for all commands, and for using Delve from editors such as VS Code and GoLand.
+
 ## Backend token protection
 
 `HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend
