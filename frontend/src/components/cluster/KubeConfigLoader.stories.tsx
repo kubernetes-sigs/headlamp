@@ -158,6 +158,7 @@ SuccessfulImport.args = {
   step: Step.Success,
   fileContent: mockFileContent,
   selectedClusters: ['production', 'staging'],
+  successfullyLoadedClusters: ['production', 'staging'],
 };
 
 /**
