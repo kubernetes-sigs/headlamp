@@ -841,6 +841,125 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	}
 }
 
+func TestOIDCSecretFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	idFile := filepath.Join(tempDir, "client-id")
+	secretFile := filepath.Join(tempDir, "client-secret")
+
+	require.NoError(t, os.WriteFile(idFile, []byte("  my-file-client-id \n"), 0o600))
+	require.NoError(t, os.WriteFile(secretFile, []byte(" my-file-secret\r\n"), 0o600))
+
+	t.Run("flags load client ID and secret from file", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-client-id-file=" + idFile,
+			"--oidc-client-secret-file=" + secretFile,
+		}
+
+		conf, err := config.Parse(args)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, idFile, conf.OidcClientIDFile)
+		assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+		assert.Equal(t, "my-file-client-id", conf.OidcClientID)
+		assert.Equal(t, "my-file-secret", conf.OidcClientSecret)
+	})
+
+	t.Run("non-existent client-id-file returns error", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-client-id-file=" + filepath.Join(tempDir, "nonexistent-id"),
+		}
+
+		conf, err := config.Parse(args)
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "error reading oidc-client-id-file")
+	})
+
+	t.Run("non-existent client-secret-file returns error", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-client-secret-file=" + filepath.Join(tempDir, "nonexistent-secret"),
+		}
+
+		conf, err := config.Parse(args)
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "error reading oidc-client-secret-file")
+	})
+	t.Run("explicit flags override file-backed values", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-client-id=explicit-id",
+			"--oidc-client-secret=explicit-secret",
+			"--oidc-client-id-file=" + idFile,
+			"--oidc-client-secret-file=" + secretFile,
+		}
+
+		conf, err := config.Parse(args)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, idFile, conf.OidcClientIDFile)
+		assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+		assert.Equal(t, "explicit-id", conf.OidcClientID)
+		assert.Equal(t, "explicit-secret", conf.OidcClientSecret)
+	})
+}
+
+func TestOIDCSecretFilesEnvironmentVariables(t *testing.T) {
+	tempDir := t.TempDir()
+	idFile := filepath.Join(tempDir, "env-client-id")
+	secretFile := filepath.Join(tempDir, "env-client-secret")
+
+	require.NoError(t, os.WriteFile(idFile, []byte("env-id-value\n"), 0o600))
+	require.NoError(t, os.WriteFile(secretFile, []byte("env-secret-value\n"), 0o600))
+
+	env := map[string]string{
+		"HEADLAMP_CONFIG_IN_CLUSTER":              "true",
+		"HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE":     idFile,
+		"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE": secretFile,
+	}
+
+	for k, v := range env {
+		require.NoError(t, os.Setenv(k, v))
+	}
+
+	defer func() {
+		for k := range env {
+			require.NoError(t, os.Unsetenv(k))
+		}
+	}()
+
+	t.Run("ambient file env variables are loaded", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, idFile, conf.OidcClientIDFile)
+		assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+		assert.Equal(t, "env-id-value", conf.OidcClientID)
+		assert.Equal(t, "env-secret-value", conf.OidcClientSecret)
+	})
+
+	t.Run("explicit direct flags override ambient file env variables", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--oidc-client-id=flag-id",
+			"--oidc-client-secret=flag-secret",
+		}
+
+		conf, err := config.Parse(args)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, "flag-id", conf.OidcClientID)
+		assert.Equal(t, "flag-secret", conf.OidcClientSecret)
+	})
+}
+
 var applyMeDefaultsTests = []struct {
 	name             string
 	usernamePath     string
