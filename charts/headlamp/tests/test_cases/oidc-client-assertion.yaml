@@ -1,0 +1,28 @@
+# This is a test case for JWT bearer client authentication (RFC 7523), where
+# Headlamp authenticates at the OIDC token endpoint with a client assertion
+# instead of a client secret.
+# The oidc.clientAssertionFile field is the path Headlamp reads the assertion
+# from on every token request, here a projected service account token mounted
+# through .volumes and .volumeMounts.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "testClientId"
+    issuerURL: "testIssuerURL"
+    scopes: "testScope"
+    clientAssertionFile: "/var/run/secrets/headlamp/oidc-client-assertion/token"
+
+volumeMounts:
+  - name: oidc-client-assertion
+    mountPath: /var/run/secrets/headlamp/oidc-client-assertion
+    readOnly: true
+
+volumes:
+  - name: oidc-client-assertion
+    projected:
+      sources:
+        - serviceAccountToken:
+            path: token
+            audience: testIssuerURL
+            expirationSeconds: 3600
