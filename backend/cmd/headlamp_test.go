@@ -439,6 +439,79 @@ func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
 }
 
+func newHeadlampConfigWithCluster(serverURL string) *HeadlampConfig {
+	store := kubeconfig.NewContextStore()
+
+	_ = store.AddContext(&kubeconfig.Context{
+		Name:        "test-cluster",
+		KubeContext: &api.Context{Cluster: "test-cluster"},
+		Cluster:     &api.Cluster{Server: serverURL},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.InCluster,
+	})
+
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: store,
+			},
+		},
+	}
+}
+
+func newHeadlampConfigWithClusterForHandler(serverURL string) *HeadlampConfig {
+	c := newHeadlampConfigWithCluster(serverURL)
+	c.HeadlampConfig.Cache = cache.New[interface{}]()
+	c.HeadlampConfig.TelemetryConfig = GetDefaultTestTelemetryConfig()
+	c.HeadlampConfig.TelemetryHandler = &telemetry.RequestHandler{}
+
+	return c
+}
+
+func TestPluginsListUnauthenticatedReturns401(t *testing.T) {
+	c := newHeadlampConfigWithClusterForHandler("https://internal-k8s-api.example.com")
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestPluginsListAuthenticatedWithBearerTokenReturns200(t *testing.T) {
+	c := newHeadlampConfigWithClusterForHandler("https://internal-k8s-api.example.com")
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+	req.Header.Set("Authorization", "Bearer some-valid-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestPluginsListAuthenticatedWithCookieReturns200(t *testing.T) {
+	c := newHeadlampConfigWithClusterForHandler("https://internal-k8s-api.example.com")
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/plugins", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "headlamp-auth-test-cluster.0",
+		Value: "some-valid-token",
+	})
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
 //nolint:gocognit,funlen
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
