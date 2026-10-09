@@ -39,7 +39,10 @@ const object = (uid: string, ownerReferences?: { uid: string }[]) =>
 const source = (
   id: string,
   data: { nodes?: GraphNode[]; edges?: GraphEdge[] } | null,
-  options: { enabled?: boolean; hook?: ReturnType<typeof vi.fn> } = {}
+  options: {
+    enabled?: boolean;
+    hook?: () => { nodes?: GraphNode[]; edges?: GraphEdge[] } | null;
+  } = {}
 ): GraphSource => ({
   id,
   label: id.toUpperCase(),

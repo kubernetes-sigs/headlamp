@@ -80,7 +80,12 @@ const dependenciesToNotCopy = [
 ];
 
 // Dependencies that can have different versions
-const differentlyVersionedDependencies = ['eslint-plugin-react-hooks'];
+// vitest 4 crashes npm 10 on fresh installs, so plugin authors stay on vitest 3 for now.
+const differentlyVersionedDependencies = [
+  'eslint-plugin-react-hooks',
+  'vitest',
+  '@vitest/coverage-istanbul',
+];
 
 const yargs = require('yargs/yargs');
 const fs = require('fs-extra');

@@ -135,7 +135,7 @@ describe('getEndpointIPIssue', () => {
 });
 
 describe('CreateEndpointsForm', () => {
-  function renderForm(resource: any, onValidChange: ReturnType<typeof vi.fn>) {
+  function renderForm(resource: any, onValidChange: (valid: boolean) => void) {
     return render(
       <CreateEndpointsForm resource={resource} onChange={() => {}} onValidChange={onValidChange} />
     );
