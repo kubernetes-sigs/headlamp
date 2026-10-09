@@ -25,7 +25,7 @@ import type { ApiError } from './k8s/api/v2/ApiError';
 import type { KubeMetrics } from './k8s/cluster';
 import type { KubeEvent } from './k8s/event';
 import type { KubeObjectInterface } from './k8s/KubeObject';
-import Node from './k8s/node';
+import type Node from './k8s/node';
 import type { Workload } from './k8s/Workload';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 
@@ -236,7 +236,6 @@ export function localeDate(date: DateParam) {
   const options: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
   let locale: string | undefined = undefined;
 
-  // Force the same conditions under test, so snapshots are the same.
   if (import.meta.env.UNDER_TEST) {
     options.timeZone = 'UTC';
     options.hour12 = true;

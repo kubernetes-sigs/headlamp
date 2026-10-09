@@ -78,6 +78,7 @@ vi.mock('@iconify/react', () => ({
   Icon: () => <span />,
 }));
 
+import '../../lib/router';
 import { EventStatus, HeadlampEventType } from '../../redux/headlampEventSlice';
 import { recordHeadlampEvents, TestContext } from '../../test';
 import { NewProjectPopup } from './NewProjectPopup';

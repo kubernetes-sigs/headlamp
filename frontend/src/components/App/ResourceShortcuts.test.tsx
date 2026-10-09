@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import '../../lib/router';
 import { configureStore } from '@reduxjs/toolkit';
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';

@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { useErrorState } from '../util';
-import { useConnectApi } from '.';
+import { useConnectApi } from './api/v1/hooks';
 import { metrics } from './api/v1/metricsApi';
 import type { ApiError } from './api/v2/ApiError';
 import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi';
