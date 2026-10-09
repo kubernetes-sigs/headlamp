@@ -55,7 +55,7 @@ import {
 } from './ClusterInventory';
 import { canSelectCluster } from './clusterStatus';
 import { CONNECT_ON_CLUSTER_LINK, MULTI_HOME_ENABLED } from './config';
-import { getCustomClusterNames } from './customClusterNames';
+import { getClusterDisplayLabel, getCustomClusterNames } from './customClusterNames';
 import RegisteredClusterEmptyState from './RegisteredClusterEmptyState';
 
 /**
@@ -271,7 +271,9 @@ export default function ClusterTable({
     return <Loader title={t('Loading...')} />;
   }
 
-  const clustersList = Object.values(customNameClusters);
+  // Selection rows follow data order, so keep IDs in canonical order while
+  // the name column controls their display sorting.
+  const clustersList = [...customNameClusters].sort((a, b) => a.name.localeCompare(b.name));
   if (clustersList.length === 0) {
     const defaultContent = (
       <Box
@@ -314,12 +316,16 @@ export default function ClusterTable({
         {
           id: 'name',
           header: t('Name'),
-          accessorKey: 'name',
+          // Sort/filter by the rendered display label, not the real (possibly
+          // generated) context name, so Cluster Inventory clusters order the
+          // way they read on screen.
+          accessorFn: cluster => getClusterDisplayLabel(cluster),
           gridTemplate: 2,
           Cell: ({ row: { original } }) => {
             const appearance = getClusterAppearanceFromMeta(original.name);
+            const label = getClusterDisplayLabel(original);
             return (
-              <LightTooltip title={original.name}>
+              <LightTooltip title={label}>
                 {/* Record as recently-used on open so it auto-connects on return.
                     onClickCapture on the wrapper keeps the Link's native
                     navigation (and works for keyboard activation) while the Link
@@ -334,7 +340,7 @@ export default function ClusterTable({
                 >
                   <Link routeName="cluster" params={{ cluster: original.name }}>
                     <ClusterBadge
-                      name={original.name}
+                      name={label}
                       icon={appearance.icon}
                       accentColor={appearance.accentColor}
                     />
@@ -400,6 +406,7 @@ export default function ClusterTable({
         },
       ]}
       data={clustersList}
+      getRowId={cluster => cluster.name}
       enableRowSelection={
         MULTI_HOME_ENABLED
           ? row => {

@@ -18,7 +18,7 @@
             class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-firstButton css-1j4gaun-MuiButtonBase-root-MuiToggleButton-root"
             tabindex="0"
             type="button"
-            value="[object Object]"
+            value="cluster0"
           >
             cluster0
             <span
@@ -30,7 +30,7 @@
             class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-lastButton css-1j4gaun-MuiButtonBase-root-MuiToggleButton-root"
             tabindex="0"
             type="button"
-            value="[object Object]"
+            value="cluster1"
           >
             cluster1
             <span

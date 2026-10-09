@@ -17,7 +17,7 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
-import { ComponentType, ReactNode } from 'react';
+import { ComponentType, ReactNode, useState } from 'react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
@@ -25,6 +25,7 @@ import { Cluster } from '../../../lib/k8s/cluster';
 import { createMuiTheme } from '../../../lib/themes';
 import ClusterContextMenu from './ClusterContextMenu';
 import ClusterTable from './ClusterTable';
+import { getCustomClusterNames } from './customClusterNames';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
@@ -83,24 +84,63 @@ vi.mock('../../common', () => ({
 }));
 
 vi.mock('../../common/Table', () => ({
-  default: ({ columns, data }: { columns: any[]; data: Cluster[] }) => {
+  default: function MockTable({
+    columns,
+    data,
+    getRowId,
+    renderToolbarAlertBannerContent,
+  }: {
+    columns: any[];
+    data: Cluster[];
+    getRowId?: (cluster: Cluster) => string;
+    renderToolbarAlertBannerContent?: (props: any) => ReactNode;
+  }) {
+    const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
     const originColumn = columns.find(column => column.id === 'origin');
     const statusColumn = columns.find(column => column.id === 'status');
+    const selectedClusters = data.filter((cluster, index) =>
+      selectedRowIds.includes(getRowId?.(cluster) ?? String(index))
+    );
     return (
-      <table>
-        <tbody>
-          {data.map(cluster => (
-            <tr
-              key={cluster.name}
-              data-testid={`cluster-row-${cluster.name}`}
-              data-status-accessor={statusColumn.accessorFn(cluster) ?? ''}
-            >
-              <td>{originColumn.Cell({ row: { original: cluster } })}</td>
-              <td>{statusColumn.Cell({ row: { original: cluster } })}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <>
+        <table>
+          <tbody>
+            {data.map((cluster, index) => (
+              <tr
+                key={cluster.name}
+                data-testid={`cluster-row-${cluster.name}`}
+                data-status-accessor={statusColumn.accessorFn(cluster) ?? ''}
+              >
+                <td>{originColumn.Cell({ row: { original: cluster } })}</td>
+                <td>{statusColumn.Cell({ row: { original: cluster } })}</td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rowId = getRowId?.(cluster) ?? String(index);
+                      setSelectedRowIds(current =>
+                        current.includes(rowId)
+                          ? current.filter(selectedId => selectedId !== rowId)
+                          : [...current, rowId]
+                      );
+                    }}
+                  >
+                    Select {cluster.name}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {selectedClusters.length > 0 &&
+          renderToolbarAlertBannerContent?.({
+            table: {
+              getSelectedRowModel: () => ({
+                rows: selectedClusters.map(cluster => ({ original: cluster })),
+              }),
+            },
+          })}
+      </>
     );
   },
 }));
@@ -427,6 +467,47 @@ describe('ClusterTable', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument();
+  });
+
+  it('keeps selected cluster identities and route order after a display-name update', () => {
+    const cluster = (name: string, displayName: string) =>
+      ({
+        name,
+        auth_type: '',
+        meta_data: {
+          source: 'cluster_inventory',
+          clusterInventory: {
+            profile: { namespace: 'default', name, key: name, displayName },
+          },
+        },
+      } as Cluster);
+    const first = cluster('cluster-a', 'Alpha');
+    const second = cluster('cluster-b', 'Beta');
+    const original = { [first.name]: first, [second.name]: second };
+    const updatedFirst = cluster('cluster-a', 'Zulu');
+    const updated = { [updatedFirst.name]: updatedFirst, [second.name]: second };
+    const renderTable = (clusters: typeof original) => (
+      <ThemeProvider theme={theme}>
+        <MemoryRouter>
+          <ClusterTable
+            customNameClusters={getCustomClusterNames(clusters)}
+            clusters={clusters}
+            versions={{}}
+            errors={{ 'cluster-a': null, 'cluster-b': null }}
+            warningLabels={{}}
+          />
+          <LocationDisplay />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    const { rerender } = render(renderTable(original));
+    fireEvent.click(screen.getByRole('button', { name: 'Select cluster-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select cluster-b' }));
+    rerender(renderTable(updated));
+    fireEvent.click(screen.getByRole('button', { name: 'View Clusters' }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/c/cluster-a+cluster-b');
   });
 });
 
