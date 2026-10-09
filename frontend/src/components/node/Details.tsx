@@ -29,7 +29,7 @@ import { apply } from '../../lib/k8s/api/v1/apply';
 import { drainNode, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeNodeSummaryStats } from '../../lib/k8s/api/v2/nodeSummaryApi';
-import { KubeContainer, KubeMetrics } from '../../lib/k8s/cluster';
+import { KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
 import type { KubePod } from '../../lib/k8s/pod';
 import Pod from '../../lib/k8s/pod';
@@ -58,7 +58,7 @@ import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
 import { NodeShellAction } from './NodeShellAction';
-import { isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
+import { getNodeResourceTotals, isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
 
 function NodeConditionsLabel(props: { node: Node; pods?: Pod[] | null; podsLoaded?: boolean }) {
   const { node, pods, podsLoaded } = props;
@@ -517,50 +517,10 @@ function AllocatedResourcesSection(props: { node: Node; pods: KubePod[] | null }
     node?.status.allocatable?.memory || node?.status.capacity?.memory || '0'
   );
 
-  const { cpuRequests, cpuLimits, memoryRequests, memoryLimits } = React.useMemo(() => {
-    let reqCpu = 0;
-    let limCpu = 0;
-    let reqMem = 0;
-    let limMem = 0;
-
-    pods?.forEach((pod: KubePod) => {
-      let podCpuRequests = 0;
-      let podCpuLimits = 0;
-      let podMemoryRequests = 0;
-      let podMemoryLimits = 0;
-
-      pod.spec.containers.forEach((container: KubeContainer) => {
-        podCpuRequests += units.parseCpu(container.resources?.requests?.cpu || '0');
-        podCpuLimits += units.parseCpu(container.resources?.limits?.cpu || '0');
-        podMemoryRequests += units.parseRam(container.resources?.requests?.memory || '0');
-        podMemoryLimits += units.parseRam(container.resources?.limits?.memory || '0');
-      });
-
-      pod.spec.initContainers?.forEach((container: KubeContainer) => {
-        const initCpuReq = units.parseCpu(container.resources?.requests?.cpu || '0');
-        const initCpuLimit = units.parseCpu(container.resources?.limits?.cpu || '0');
-        const initMemReq = units.parseRam(container.resources?.requests?.memory || '0');
-        const initMemLimit = units.parseRam(container.resources?.limits?.memory || '0');
-
-        podCpuRequests = Math.max(podCpuRequests, initCpuReq);
-        podCpuLimits = Math.max(podCpuLimits, initCpuLimit);
-        podMemoryRequests = Math.max(podMemoryRequests, initMemReq);
-        podMemoryLimits = Math.max(podMemoryLimits, initMemLimit);
-      });
-
-      reqCpu += podCpuRequests;
-      limCpu += podCpuLimits;
-      reqMem += podMemoryRequests;
-      limMem += podMemoryLimits;
-    });
-
-    return {
-      cpuRequests: reqCpu,
-      cpuLimits: limCpu,
-      memoryRequests: reqMem,
-      memoryLimits: limMem,
-    };
-  }, [pods]);
+  const { cpuRequests, cpuLimits, memoryRequests, memoryLimits } = React.useMemo(
+    () => getNodeResourceTotals(pods),
+    [pods]
+  );
 
   return (
     <SectionBox title={t('Resource Allocation')}>
