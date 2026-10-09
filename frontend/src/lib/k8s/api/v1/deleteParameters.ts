@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-// @todo: QueryParamaters should be specific to different resources.
-//        Because some only support some paramaters.
+// @todo: QueryParameters should be specific to different resources.
+//        Because some only support some parameters.
 
 /**
- * DeleteParamaters is a map of delete parameters for the Kubernetes API.
+ * DeleteParameters is a map of delete parameters for the Kubernetes API.
  */
 export interface DeleteParameters {
   gracePeriodSeconds?: number;
