@@ -90,4 +90,25 @@ describe('ThemeProviderNexti18n', () => {
     unmount();
     expect(mockI18n.off).toHaveBeenCalledWith('languageChanged', languageChanged);
   });
+
+  it('applies Czech and Swedish language locales correctly', () => {
+    const { unmount } = render(
+      <ThemeProviderNexti18n theme={createTheme()}>
+        <div>content</div>
+      </ThemeProviderNexti18n>
+    );
+    const languageChanged = mockI18n.on.mock.calls.find(
+      ([eventName]) => eventName === 'languageChanged'
+    )?.[1];
+
+    act(() => languageChanged('cs'));
+    expect(document.documentElement).toHaveAttribute('lang', 'cs');
+    expect(document.documentElement).toHaveAttribute('dir', 'ltr');
+
+    act(() => languageChanged('sv'));
+    expect(document.documentElement).toHaveAttribute('lang', 'sv');
+    expect(document.documentElement).toHaveAttribute('dir', 'ltr');
+
+    unmount();
+  });
 });

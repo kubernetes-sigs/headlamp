@@ -16,6 +16,7 @@
 
 import {
   arSA,
+  csCZ,
   deDE,
   enUS,
   esES,
@@ -32,6 +33,7 @@ import {
   ptBR,
   ptPT,
   ruRU,
+  svSE,
   trTR,
   urPK,
   zhCN,
@@ -53,7 +55,7 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   const LOCALES = {
     en: enUS,
-    cs: enUS, // @todo: material ui needs a translation for this.
+    cs: csCZ,
     hu: huHU,
     id: idID,
     nl: nlNL,
@@ -62,7 +64,7 @@ function getLocale(locale: string | undefined): typeof enUS {
     'pt-br': ptBR,
     ru: ruRU,
     es: esES,
-    sv: enUS, // @todo: material ui needs a translation for this.
+    sv: svSE,
     tr: trTR,
     de: deDE,
     ta: enUS, // @todo: material ui needs a translation for this.
