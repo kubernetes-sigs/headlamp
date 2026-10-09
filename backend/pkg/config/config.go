@@ -91,6 +91,7 @@ type Config struct {
 	MeGroupsPath                 string `koanf:"me-groups-path"`
 	MeUserInfoURL                string `koanf:"me-user-info-url"`
 	OidcUsePKCE                  bool   `koanf:"oidc-use-pkce"`
+	OidcAuthURLParameters        string `koanf:"oidc-auth-url-param"`
 	ProxyAuthEnabled             bool   `koanf:"proxy-auth"`
 	ProxyAuthUsernameHeader      string `koanf:"proxy-auth-username-header"`
 	ProxyAuthGroupHeader         string `koanf:"proxy-auth-group-header"`
@@ -672,6 +673,8 @@ func addOIDCFlags(f *flag.FlagSet) {
 			"default. Preconditions and caveats: "+
 			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.String("oidc-auth-url-param", "",
+		"Comma separated list of extra query parameters to send with the OIDC authorization request (format: key=value,key2=value2)")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
