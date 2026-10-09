@@ -98,6 +98,7 @@ const kindComponentMap: Record<
   PriorityClass: PriorityClassDetails,
   ResourceQuota: ResourceQuotaDetails,
   ClusterRole: RoleDetails,
+  ClusterRoleBinding: RoleBindingDetails,
   Role: RoleDetails,
   RoleBinding: RoleBindingDetails,
   RuntimeClass: RuntimeClassDetails,

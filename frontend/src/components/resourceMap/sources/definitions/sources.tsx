@@ -22,6 +22,8 @@ import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import ClusterRole from '../../../../lib/k8s/clusterRole';
+import ClusterRoleBinding from '../../../../lib/k8s/clusterRoleBinding';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -261,6 +263,8 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(ServiceAccount),
           makeKubeSource(Role),
           makeKubeSource(RoleBinding),
+          makeKubeSource(ClusterRole),
+          makeKubeSource(ClusterRoleBinding),
         ],
       },
       {
