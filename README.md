@@ -103,6 +103,11 @@ Check out our:
 - [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack 
 - [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
 
+## Governance
+
+Headlamp is a subproject of Kubernetes SIG UI. See [GOVERNANCE.md](./GOVERNANCE.md)
+for how decisions are made and the roles and responsibilities in the project.
+
 ## Roadmap / Release Planning
 
 If you are interested in the direction of the project, we maintain a
