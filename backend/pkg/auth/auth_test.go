@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -911,6 +912,125 @@ func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	assert.Contains(t, err.Error(), "refreshing token")
 	assert.Len(t, fc.setCalls, 0)
 	assert.Len(t, fc.setWithTTLCalls, 0)
+}
+
+// newDiscoveryTrackingServer returns an OIDC-like server that fails and counts any
+// request to the discovery endpoint, while serving the token endpoint from
+// tokenHandler. It is used to assert that static endpoint configuration bypasses
+// discovery entirely.
+func newDiscoveryTrackingServer(t *testing.T, discoveryHits *int32, tokenHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(discoveryHits, 1)
+		http.Error(w, "discovery endpoint must not be called in static mode", http.StatusInternalServerError)
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := w.Write([]byte(`{"keys":[]}`)); err != nil {
+			t.Fatalf("write jwks: %v", err)
+		}
+	})
+
+	if tokenHandler != nil {
+		mux.HandleFunc("/token", tokenHandler)
+	}
+
+	return srv
+}
+
+func TestBuildProvider_StaticEndpointsSkipDiscovery(t *testing.T) {
+	var discoveryHits int32
+
+	srv := newDiscoveryTrackingServer(t, &discoveryHits, nil)
+
+	config := &kubeconfig.OidcConfig{
+		AuthURL:     srv.URL + "/authorize",
+		TokenURL:    srv.URL + "/token",
+		JWKSURL:     srv.URL + "/jwks",
+		UserInfoURL: srv.URL + "/userinfo",
+	}
+
+	provider, err := auth.BuildProvider(context.Background(), config, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	assert.Equal(t, srv.URL+"/authorize", provider.Endpoint().AuthURL)
+	assert.Equal(t, srv.URL+"/token", provider.Endpoint().TokenURL)
+	assert.Equal(t, srv.URL+"/userinfo", provider.UserInfoEndpoint())
+	assert.Equal(t, int32(0), atomic.LoadInt32(&discoveryHits),
+		"static endpoint configuration must not trigger OIDC discovery")
+}
+
+func TestBuildProvider_FallsBackToDiscovery(t *testing.T) {
+	srv := newOIDCProviderServer(t, "", nil)
+
+	provider, err := auth.BuildProvider(context.Background(), &kubeconfig.OidcConfig{}, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	// The token endpoint is sourced from the discovery document.
+	assert.Equal(t, srv.URL+"/token", provider.Endpoint().TokenURL)
+}
+
+func TestBuildProvider_PartialStaticFallsBackToDiscovery(t *testing.T) {
+	srv := newOIDCProviderServer(t, "", nil)
+
+	// Only auth and token URLs set (JWKS missing) must not enable static mode.
+	// staticBase is concatenated (not a bare literal) so the endpoints stay distinct
+	// from the discovery server's without tripping the gosec credential heuristic.
+	staticBase := "https://static.example.com"
+	config := &kubeconfig.OidcConfig{
+		AuthURL:  staticBase + "/authorize",
+		TokenURL: staticBase + "/token",
+	}
+
+	provider, err := auth.BuildProvider(context.Background(), config, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	// The endpoint comes from discovery, not the incomplete static config.
+	assert.Equal(t, srv.URL+"/token", provider.Endpoint().TokenURL)
+}
+
+func TestRefreshAndCacheNewToken_StaticEndpointsSkipDiscovery(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		oldKey   = "oidc-token-" + oldToken
+	)
+
+	var discoveryHits int32
+
+	srv := newDiscoveryTrackingServer(t, &discoveryHits, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
+	config := &kubeconfig.OidcConfig{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		AuthURL:      srv.URL + "/authorize",
+		TokenURL:     srv.URL + "/token",
+		JWKSURL:      srv.URL + "/jwks",
+	}
+
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, tok)
+	assert.Equal(t, refreshNew, tok.RefreshToken)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&discoveryHits),
+		"token refresh with static endpoints must not trigger OIDC discovery")
 }
 
 func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
