@@ -83,8 +83,8 @@ RUN if command -v apt-get > /dev/null; then \
     && rm -rf /var/lib/apt/lists/*; \
     else \
     apk add --no-cache \
-    'libcrypto3=3.5.8-r0' \
-    'libssl3=3.5.8-r0' \
+    'libcrypto3>=3.5.8-r0' \
+    'libssl3>=3.5.8-r0' \
     && addgroup -S headlamp \
     && adduser -S headlamp -G headlamp; \
     fi
