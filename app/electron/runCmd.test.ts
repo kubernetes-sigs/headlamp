@@ -85,6 +85,7 @@ vi.mock('./main', () => ({
 
 import {
   addRunCmdConsent,
+  applyCommandEnvironment,
   checkPermissionSecret,
   createProductCommandCapabilities,
   environmentOverrides,
@@ -503,6 +504,22 @@ it('removes plugin-controlled directories from the system command PATH', () => {
   ).toEqual({ PATH: '/usr/local/bin' });
 });
 
+it('normalizes duplicate case-insensitive PATH keys before filtering', () => {
+  expect(
+    systemCommandEnvironment(
+      {
+        Path: '/windows/system32',
+        PATH: ['/plugins/user/attacker/bin', '/usr/local/bin'].join(path.delimiter),
+      },
+      {
+        development: '/plugins/development',
+        user: '/plugins/user',
+        shipped: '/plugins/shipped',
+      }
+    )
+  ).toEqual({ PATH: '/usr/local/bin' });
+});
+
 describe('checkPermissionSecret', () => {
   const baseCommandData = {
     id: '1',
@@ -638,6 +655,25 @@ describe('validateCommandData', () => {
         permissionSecrets: {},
       })[0]
     ).toBe(false);
+  });
+
+  it('rejects spawn options when a command capability is provided', () => {
+    const commandData = {
+      id: 'test-id',
+      command: 'examplectl',
+      args: [],
+      permissionSecrets: {},
+      capability: 'a'.repeat(64),
+    };
+
+    expect(validateCommandData({ ...commandData, options: { cwd: '/tmp' } })[0]).toBe(false);
+    expect(
+      validateCommandData({
+        ...commandData,
+        options: Object.create(null) as Record<string, never>,
+      })[0]
+    ).toBe(false);
+    expect(validateCommandData({ ...commandData, options: {} })[0]).toBe(true);
   });
 
   it('returns false if permissionSecrets is not an object', () => {
@@ -812,6 +848,40 @@ describe('handleRunCommand', () => {
     consoleError.mockRestore();
   });
 
+  it('removes plugin directories from legacy command PATH lookup', async () => {
+    getShellEnvironmentMock.mockResolvedValueOnce({
+      PATH: ['/plugins/user/attacker/bin', '/usr/local/bin', '/plugins/default/tool/bin'].join(
+        path.delimiter
+      ),
+    });
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'legacy-command-id',
+        command: 'gh',
+        args: ['auth', 'token'],
+        options: {},
+        permissionSecrets: { 'runCmd-gh': 99 },
+      },
+      { id: 1 } as any,
+      { 'runCmd-gh': 99 },
+      new Map(),
+      undefined,
+      {
+        development: '/plugins/default',
+        user: '/plugins/user',
+        shipped: '/plugins/shipped',
+      }
+    );
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({ env: { PATH: '/usr/local/bin' } })
+    );
+  });
+
   it('reports exit only after stdout and stderr close', async () => {
     const eventData = {
       id: 'test-id',
@@ -912,9 +982,8 @@ describe('handleRunCommand', () => {
     consoleError.mockRestore();
   });
 
-  it('falls back to process.env when shell environment resolution fails', async () => {
-    getShellEnvironmentMock.mockRejectedValue(new Error('shell unavailable'));
-    vi.stubEnv('HEADLAMP_TEST_ENV', 'current');
+  it('rejects commands when the app-owned command environment is unavailable', async () => {
+    getShellEnvironmentMock.mockRejectedValue(new Error('App-owned command environment failed'));
     const eventData = {
       id: 'test-id',
       command: 'gh',
@@ -926,13 +995,8 @@ describe('handleRunCommand', () => {
     await expect(
       handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 })
     ).resolves.toBeUndefined();
-    expect(spawnMock).toHaveBeenCalledWith(
-      'gh',
-      ['auth', 'token'],
-      expect.objectContaining({
-        env: expect.objectContaining({ HEADLAMP_TEST_ENV: 'current' }),
-      })
-    );
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
   });
 
   it('runs plugin scripts with the Electron executable', async () => {
@@ -2196,19 +2260,17 @@ describe('addRunCmdConsent', () => {
     }
   });
 
-  it('pre-populates the Azure AKS script command', async () => {
+  it('does not pre-populate the obsolete AKS Desktop script command', async () => {
     const { loadSettings, saveSettings } = await import('./settings');
     vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
     vi.mocked(saveSettings).mockClear();
 
-    addRunCmdConsent({ name: 'azure-aks' });
+    addRunCmdConsent({ name: 'aks-desktop' });
 
     expect(saveSettings).toHaveBeenCalledWith(
       '/fake/settings.json',
       expect.objectContaining({
-        confirmedCommands: {
-          'scriptjs azure-aks/azure-api.js': true,
-        },
+        confirmedCommands: {},
       })
     );
   });
@@ -2317,7 +2379,7 @@ describe('setupRunCmdHandlers', () => {
     expect(ipcMain.on).not.toHaveBeenCalled();
   });
 
-  it('sends permission secrets once per trusted main-frame navigation', () => {
+  it('sends permission secrets once per trusted main-frame navigation', async () => {
     const ipcHandlers = new Map<string, (...args: any[]) => void>();
     const webContentsHandlers = new Map<string, (...args: any[]) => void>();
     const send = vi.fn();
@@ -2333,29 +2395,56 @@ describe('setupRunCmdHandlers', () => {
       },
       on: vi.fn(),
     } as any;
+    const trustedEvent = {
+      sender: mainWindow.webContents,
+      senderFrame: mainFrame,
+    } as any;
     const ipcMain = {
       on: vi.fn((channel: string, handler: (...args: any[]) => void) => {
         ipcHandlers.set(channel, handler);
       }),
-      handle: vi.fn(),
+      handle: vi.fn((channel: string, handler: (...args: any[]) => void) => {
+        ipcHandlers.set(channel, handler);
+      }),
+      off: vi.fn(),
       removeAllListeners: vi.fn(),
-      removeHandler: vi.fn(),
+      removeHandler: vi.fn((channel: string) => {
+        ipcHandlers.delete(channel);
+      }),
     } as any;
 
     setupRunCmdHandlers(mainWindow, ipcMain, [], 'https://headlamp.test/');
     webContentsHandlers.get('did-frame-navigate')!({}, 'https://headlamp.test/', 200, 'OK', true);
     const requestSecrets = ipcHandlers.get('request-plugin-permission-secrets')!;
-    requestSecrets();
-    requestSecrets();
+    requestSecrets({ sender: { id: 8 }, senderFrame: mainFrame });
+    expect(send).not.toHaveBeenCalled();
+    requestSecrets(trustedEvent);
+    requestSecrets(trustedEvent);
     webContentsHandlers.get('did-frame-navigate')!({}, 'https://headlamp.test/', 200, 'OK', false);
-    requestSecrets();
+    requestSecrets(trustedEvent);
     webContentsHandlers.get('did-start-navigation')!({}, 'https://headlamp.test/', false, true);
-    requestSecrets();
+    requestSecrets(trustedEvent);
     webContentsHandlers.get('did-frame-navigate')!({}, 'https://headlamp.test/', 200, 'OK', true);
-    requestSecrets();
+    requestSecrets(trustedEvent);
 
     expect(send).toHaveBeenCalledTimes(2);
     expect(ipcHandlers.has('run-command')).toBe(true);
+    const permissionSecrets = send.mock.calls[0][1];
+    const replacementSecrets = send.mock.calls[1][1];
+    expect(permissionSecrets.startClusterProxy).toMatch(/^[0-9a-f]{32}$/);
+    expect(replacementSecrets.startClusterProxy).toMatch(/^[0-9a-f]{32}$/);
+    expect(replacementSecrets.startClusterProxy).not.toBe(permissionSecrets.startClusterProxy);
+    expect(permissionSecrets).not.toHaveProperty('runCmd-scriptjs-azure-aks/azure-api.js');
+    const startProxy = ipcHandlers.get('start-cluster-proxy')!;
+    await expect(
+      startProxy(
+        { sender: { id: 8 }, senderFrame: mainFrame },
+        { capabilitySecret: replacementSecrets.startClusterProxy }
+      )
+    ).resolves.toEqual({ success: false, error: 'Cluster proxy caller is invalid.' });
+    await expect(
+      startProxy(trustedEvent, { capabilitySecret: replacementSecrets.startClusterProxy })
+    ).resolves.toEqual({ success: false, error: 'Cluster proxy target is incomplete.' });
     expect(ipcMain.handle).toHaveBeenCalledWith(
       'register-plugin-command-capabilities',
       expect.any(Function)
@@ -2595,6 +2684,79 @@ describe('setupRunCmdHandlers', () => {
     expect(ipcMain.off).toHaveBeenCalledWith('run-command', expect.any(Function));
     expect(ipcMain.removeAllListeners).not.toHaveBeenCalled();
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('register-plugin-command-capabilities');
+  });
+});
+
+describe('app-owned command environment', () => {
+  it('uses a resource callback after shell setup without mutating its input', () => {
+    const directory = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'command environment-'))
+    );
+    try {
+      fs.writeFileSync(
+        path.join(directory, 'environment.cjs'),
+        'exports.configureEnvironment = (env, manifest, root) => { env.PATH = root + ":" + env.PATH; return env; };'
+      );
+      const environment = { PATH: '/shell', HOME: '/home' };
+      expect(
+        applyCommandEnvironment(environment, { commandEnvironment: 'environment.cjs' }, directory)
+      ).toEqual({ PATH: `${directory}:/shell`, HOME: '/home' });
+      expect(environment.PATH).toBe('/shell');
+      fs.writeFileSync(
+        path.join(directory, 'null-prototype.cjs'),
+        'exports.configureEnvironment = env => Object.assign(Object.create(null), env);'
+      );
+      expect(
+        applyCommandEnvironment(
+          environment,
+          { commandEnvironment: 'null-prototype.cjs' },
+          directory
+        )
+      ).toEqual(environment);
+      expect(applyCommandEnvironment(environment, {}, '/absent')).toEqual(environment);
+      for (const modulePath of [
+        '../outside.cjs',
+        '/tmp/outside.cjs',
+        'C:\\outside.cjs',
+        'file.js',
+      ]) {
+        expect(() =>
+          applyCommandEnvironment(environment, { commandEnvironment: modulePath }, directory)
+        ).toThrow();
+      }
+      fs.mkdirSync(path.join(directory, '.plugins'));
+      fs.copyFileSync(
+        path.join(directory, 'environment.cjs'),
+        path.join(directory, '.plugins', 'plugin.cjs')
+      );
+      expect(() =>
+        applyCommandEnvironment(
+          environment,
+          { commandEnvironment: '.plugins/plugin.cjs' },
+          directory
+        )
+      ).toThrow('app-owned resource');
+      for (const [index, source] of [
+        'exports.configureEnvironment = () => { throw new Error("unavailable"); };',
+        'exports.configureEnvironment = () => ({ PATH: 1 });',
+        'exports.configureEnvironment = () => ({ PATH: undefined });',
+        'exports.configureEnvironment = async () => ({});',
+        'exports.configureEnvironment = () => new Date();',
+        'exports.configureEnvironment = () => new (class Environment {})();',
+        'module.exports = {};',
+      ].entries()) {
+        fs.writeFileSync(path.join(directory, `invalid-${index}.cjs`), source);
+        expect(() =>
+          applyCommandEnvironment(
+            environment,
+            { commandEnvironment: `invalid-${index}.cjs` },
+            directory
+          )
+        ).toThrow();
+      }
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

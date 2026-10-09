@@ -26,6 +26,11 @@
       "description": "Plugins downloaded and bundled into the desktop package.",
       "items": { "$ref": "#/definitions/plugin" }
     },
+    "commandEnvironment": {
+      "type": "string",
+      "description": "Optional app-owned CommonJS resource exporting configureEnvironment(environment, manifest, resourcesDirectory). Called after login-shell setup for commands and managed proxies. This is trusted application code, not a plugin entry point. The module must stay within resources and outside .plugins.",
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])[^\\u0000]+\\.cjs$"
+    },
     "commandSets": {
       "type": "object",
       "description": "Reusable named command grant arrays. A runCommands policy composes one or more with commandSets instead of repeating commands.",
