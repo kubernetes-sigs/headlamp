@@ -1,0 +1,264 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1fvfakn"
+    >
+      <div
+        class="MuiBox-root css-1hdbc19"
+      >
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Description
+              :
+            </strong>
+             
+            Frontend service serving the public website.
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Owner
+              :
+            </strong>
+             
+            team-frontend
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Dependencies
+              :
+            </strong>
+             
+            database, redis, auth-service
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Chat
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://example.slack.com/archives/frontend"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://example.slack.com/archives/frontend
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Documentation
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://docs.example.com/frontend"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://docs.example.com/frontend
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Repository
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://github.com/example/frontend"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://github.com/example/frontend
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Logs
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://kibana.example.com/app/logs"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://kibana.example.com/app/logs
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Bugs
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://github.com/example/frontend/issues"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://github.com/example/frontend/issues
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Support
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://support.example.com"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://support.example.com
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Runbook
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://runbooks.example.com/frontend"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://runbooks.example.com/frontend
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Incidents
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://status.example.com"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://status.example.com
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Uptime
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://status.example.com/uptime"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://status.example.com/uptime
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Performance
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://grafana.example.com/d/frontend"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://grafana.example.com/d/frontend
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
