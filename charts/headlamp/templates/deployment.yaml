@@ -32,6 +32,7 @@
 {{- $readOnlyRootFsPlugins := and .Values.pluginsManager.enabled (eq (include "headlamp.readOnlyRootFilesystem" (dict "securityContext" $pluginManagerSecurityContext)) "true") }}
 {{- $tmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFs "mountName" "headlamp-tmp") | fromYaml }}
 {{- $pluginsTmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.pluginsManager.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFsPlugins "mountName" "headlamp-plugins-tmp") | fromYaml }}
+{{- $oidcAutoLogin := "" }}
 
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
@@ -65,6 +66,9 @@
   {{- end }}
   {{- if eq .name "ME_USER_INFO_URL" }}
     {{- $meUserInfoURL = .value | toString }}
+  {{- end }}
+  {{- if eq .name "OIDC_AUTO_LOGIN" }}
+    {{- $oidcAutoLogin = .value | toString }}
   {{- end }}
 {{- end }}
 
@@ -209,6 +213,10 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: meUserInfoURL
             {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
+            {{- end }}
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
@@ -249,6 +257,10 @@ spec:
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
               value: {{ $oidc.meUserInfoURL }}
+            {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
             {{- end }}
             {{- end }}
             {{- if .Values.env }}
@@ -353,6 +365,9 @@ spec:
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
             {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $oidcAutoLogin "true") }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
+            {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
@@ -381,6 +396,13 @@ spec:
             {{- end }}
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
+            {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $oidcAutoLogin "true") }}
+            {{- if eq ($oidc.autoLogin | toString) "true" }}
+            - "-oidc-auto-login=true"
+            {{- else if eq $oidcAutoLogin "true" }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- with .Values.config.baseURL }}
