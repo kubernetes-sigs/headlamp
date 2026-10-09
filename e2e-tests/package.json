@@ -16,9 +16,9 @@
     "@axe-core/playwright": "^4.10.1",
     "@playwright/test": "^1.42.1",
     "@types/node": "^20.12.2",
-    "@vitest/coverage-istanbul": "3.2.6",
+    "@vitest/coverage-istanbul": "4.1.11",
     "vite": "6.4.3",
-    "vitest": "3.2.6"
+    "vitest": "4.1.11"
   },
   "dependencies": {
     "yaml": "^2.3.4"
