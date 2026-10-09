@@ -72,7 +72,7 @@ jobs:
     - name: Test desktop OAuth callbacks
       run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
     - name: Test external backend token
-      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/externalBackendToken.spec.ts
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/externalBackendToken.spec.ts tests/headlessBackendToken.spec.ts
     - name: Verify Linux build
       run: npm run app:verify-build-linux
     - name: Start Minikube
@@ -129,7 +129,7 @@ jobs:
     - name: Install desktop e2e dependencies
       run: npm --prefix app/e2e-tests ci
     - name: Test external backend token
-      run: npm run app:test:e2e -- tests/externalBackendToken.spec.ts
+      run: npm run app:test:e2e -- tests/externalBackendToken.spec.ts tests/headlessBackendToken.spec.ts
     - name: Test desktop cluster registration
       if: matrix.arch == 'x64'
       run: npm run app:test:e2e -- tests/clusterRegistration.spec.ts
