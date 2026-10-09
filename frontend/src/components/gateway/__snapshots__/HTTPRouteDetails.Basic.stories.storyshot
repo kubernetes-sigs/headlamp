@@ -341,7 +341,7 @@
                     tabindex="0"
                   >
                     <table
-                      class="MuiTable-root css-4d0x9t-MuiTable-root"
+                      class="MuiTable-root css-1itiqyv-MuiTable-root"
                     >
                       <thead
                         class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -355,6 +355,12 @@
                           >
                             Filter Type
                           </th>
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            Configuration
+                          </th>
                         </tr>
                       </thead>
                       <tbody
@@ -367,6 +373,68 @@
                             class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                           >
                             RequestRedirect
+                          </td>
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          >
+                            <div
+                              class="MuiBox-root css-v48760"
+                            >
+                              <div
+                                class="MuiBox-root css-1obf64m"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-caption css-vwwb7l-MuiTypography-root"
+                                >
+                                  port
+                                </span>
+                                <div
+                                  class="MuiBox-root css-31l7gp"
+                                >
+                                  <span
+                                    class="MuiTypography-root MuiTypography-body2 css-1nzswjv-MuiTypography-root"
+                                  >
+                                    443
+                                  </span>
+                                </div>
+                              </div>
+                              <div
+                                class="MuiBox-root css-1obf64m"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-caption css-vwwb7l-MuiTypography-root"
+                                >
+                                  scheme
+                                </span>
+                                <div
+                                  class="MuiBox-root css-31l7gp"
+                                >
+                                  <span
+                                    class="MuiTypography-root MuiTypography-body2 css-1nzswjv-MuiTypography-root"
+                                  >
+                                    https
+                                  </span>
+                                </div>
+                              </div>
+                              <div
+                                class="MuiBox-root css-1obf64m"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-caption css-vwwb7l-MuiTypography-root"
+                                >
+                                  statusCode
+                                </span>
+                                <div
+                                  class="MuiBox-root css-31l7gp"
+                                >
+                                  <span
+                                    class="MuiTypography-root MuiTypography-body2 css-1nzswjv-MuiTypography-root"
+                                  >
+                                    302
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       </tbody>
