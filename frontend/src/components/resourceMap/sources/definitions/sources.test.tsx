@@ -16,12 +16,18 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import App from '../../../../App';
 import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../../../lib/k8s/gatewayL4RouteAvailability';
 import Pod from '../../../../lib/k8s/pod';
+import PodGroup from '../../../../lib/k8s/podGroup';
+import {
+  usePodGroupClustersByVersion,
+  useSchedulingWorkloadClustersByVersion,
+} from '../../../../lib/k8s/schedulingApis';
 import VPA from '../../../../lib/k8s/vpa';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { GraphSource } from '../../graph/graphModel';
@@ -43,10 +49,26 @@ vi.mock('../../../../redux/filterSlice', async importOriginal => ({
 vi.mock('../../../../lib/k8s/gatewayL4RouteAvailability', () => ({
   useGatewayL4RouteAvailability: vi.fn(),
 }));
+vi.mock('../../../../lib/k8s/schedulingApis', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../lib/k8s/schedulingApis')>()),
+  usePodGroupClustersByVersion: vi.fn(),
+  useSchedulingWorkloadClustersByVersion: vi.fn(),
+}));
 
 // Initialize the complete Kubernetes class registry before loading source definitions.
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
+
+const V1BETA1 = 'scheduling.k8s.io/v1beta1';
+const V1ALPHA3 = 'scheduling.k8s.io/v1alpha3';
+const V1ALPHA2 = 'scheduling.k8s.io/v1alpha2';
+
+/** The version each list call was made for, and the clusters it was asked of. */
+const askedVersions = (useList: { mock: { calls: any[][]; contexts: any[] } }) =>
+  useList.mock.calls.map((call, index) => [
+    useList.mock.contexts[index].apiVersion,
+    call[0].clusters,
+  ]);
 
 const findGroup = (sources: GraphSource[], id: string) =>
   sources.find(source => source.id === id && 'sources' in source) as Extract<
@@ -101,6 +123,8 @@ describe('useGetAllSources', () => {
       typeof useGatewayL4RouteAvailability
     >);
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    vi.mocked(usePodGroupClustersByVersion).mockReturnValue({});
+    vi.mocked(useSchedulingWorkloadClustersByVersion).mockReturnValue({});
     vi.spyOn(VPA, 'isEnabled').mockResolvedValue(false);
   });
 
@@ -140,6 +164,55 @@ describe('useGetAllSources', () => {
     rerender();
 
     expect(result.current).toEqual({ nodes: [{ id: 'pod-1', kubeObject: pod }] });
+  });
+
+  it('adds the scheduling group only when the alpha APIs are served', () => {
+    const { result: withoutApis } = renderHook(() => useGetAllSources());
+
+    expect(findGroup(withoutApis.current, 'scheduling')).toBeUndefined();
+
+    vi.mocked(usePodGroupClustersByVersion).mockReturnValue({ [V1BETA1]: ['cluster-a'] });
+    const { result } = renderHook(() => useGetAllSources());
+    const scheduling = findGroup(result.current, 'scheduling');
+
+    expect(scheduling.isEnabledByDefault).toBe(false);
+    expect(scheduling.sources.map(source => source.id)).toEqual([
+      'scheduling.k8s.io/Workload',
+      'scheduling.k8s.io/PodGroup',
+    ]);
+  });
+
+  it('asks each cluster for the PodGroup version it serves', () => {
+    // A list resolves one endpoint for all the clusters it is given, so a cluster that
+    // lacks the API, or serves another version of it, must not share a list.
+    vi.mocked(useSelectedClusters).mockReturnValue(['legacy', 'beta', 'older']);
+    vi.mocked(usePodGroupClustersByVersion).mockReturnValue({
+      [V1BETA1]: ['beta'],
+      [V1ALPHA2]: ['older'],
+    });
+    const useList = vi.spyOn(PodGroup, 'useList').mockReturnValue([null] as any);
+
+    const { result: sources } = renderHook(() => useGetAllSources());
+    const podGroupSource = findLeaf(sources.current, 'scheduling.k8s.io/PodGroup')!;
+    renderHook(() => podGroupSource.useData());
+
+    expect(askedVersions(useList)).toEqual([
+      [V1BETA1, ['beta']],
+      [V1ALPHA3, []],
+      [V1ALPHA2, ['older']],
+    ]);
+  });
+
+  it('shows the scheduling kinds with their own icons in the source picker', () => {
+    vi.mocked(usePodGroupClustersByVersion).mockReturnValue({ [V1BETA1]: ['cluster-a'] });
+
+    const { result } = renderHook(() => useGetAllSources());
+    const podGroupSource = findLeaf(result.current, 'scheduling.k8s.io/PodGroup')!;
+
+    // The icons are mapped per group, so without it every kind falls back to the Pod icon.
+    expect((podGroupSource.icon as ReactElement<{ apiGroup?: string }>).props.apiGroup).toBe(
+      'scheduling.k8s.io'
+    );
   });
 
   it('keeps Gateway sources group-gated without adding undiscovered L4 kinds', () => {

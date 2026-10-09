@@ -84,6 +84,10 @@ const kindToIcon: Record<string, React.FC<any>> = {
   // leaderworkerset
   'leaderworkerset.x-k8s.io/LeaderWorkerSet': StsIcon,
 
+  // workload aware scheduling
+  'scheduling.k8s.io/Workload': DeployIcon,
+  'scheduling.k8s.io/PodGroup': RsIcon,
+
   // rbac
   'rbac.authorization.k8s.io/Role': RoleIcon,
   'rbac.authorization.k8s.io/RoleBinding': RbIcon,
@@ -116,6 +120,8 @@ const kindGroups = {
     'CronJob',
     'JobSet',
     'LeaderWorkerSet',
+    'Workload',
+    'PodGroup',
   ]),
   storage: new Set(['PersistentVolumeClaim']),
   network: new Set([
