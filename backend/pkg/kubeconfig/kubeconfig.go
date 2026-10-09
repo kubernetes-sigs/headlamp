@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -47,6 +48,51 @@ func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	newReq.Header.Set("User-Agent", rt.userAgent)
 
 	return rt.base.RoundTrip(newReq)
+}
+
+// execCredentialRetryRoundTripper retries safe requests once after client-go
+// refreshes an exec credential in response to a 401. client-go refreshes the
+// credential before returning the 401, but only uses it on the next request.
+type execCredentialRetryRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (rt *execCredentialRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Authorization") != "" || !isSafeRetryRequest(req) {
+		return rt.base.RoundTrip(req)
+	}
+
+	firstReq := req.Clone(req.Context())
+
+	resp, err := rt.base.RoundTrip(firstReq)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized {
+		return resp, err
+	}
+
+	if resp.Body != nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+
+	retryReq := req.Clone(req.Context())
+	// The exec transport adds Authorization to the original request. Remove it
+	// so the retry uses the credential client-go refreshed after the first 401.
+	retryReq.Header.Del("Authorization")
+
+	return rt.base.RoundTrip(retryReq)
+}
+
+func isSafeRetryRequest(req *http.Request) bool {
+	if req.Body != nil && req.Body != http.NoBody {
+		return false
+	}
+
+	switch req.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
 }
 
 // buildUserAgent creates a User-Agent string for Headlamp.
@@ -469,6 +515,10 @@ func (c *Context) SetupProxy() error {
 	if err == nil {
 		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
+			if restConf.ExecProvider != nil {
+				roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
+			}
+
 			// Wrap the round tripper to add Headlamp User-Agent
 			proxy.Transport = &userAgentRoundTripper{
 				base:      roundTripper,
