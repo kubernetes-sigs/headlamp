@@ -122,14 +122,31 @@ func (h embeddedSpaHandler) rewriteIndexContent(content []byte, isServingIndex b
 
 	content = ReplaceProductName(content, h.productName)
 
+	runtimeBaseURL := h.baseURL + "/"
+	if h.baseURL == "" || h.baseURL == "/" {
+		runtimeBaseURL = "/"
+	}
+
+	content = bytes.ReplaceAll(
+		content,
+		[]byte(`<base href="./">`),
+		[]byte(`<base href="`+runtimeBaseURL+`">`),
+	)
+
 	if h.baseURL == "" {
 		return content
 	}
 
-	// Replace the __baseUrl__ assignment to use the baseURL instead of './'.
-	oldPattern := "__baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');"
+	// Replace the __baseUrl__ assignment emitted by either frontend builder.
+	oldPatterns := []string{
+		"__baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');",
+		"__baseUrl__ = '%BASE_URL%./'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');",
+	}
+
 	newPattern := "__baseUrl__ = '" + h.baseURL + "';"
-	content = bytes.ReplaceAll(content, []byte(oldPattern), []byte(newPattern))
+	for _, oldPattern := range oldPatterns {
+		content = bytes.ReplaceAll(content, []byte(oldPattern), []byte(newPattern))
+	}
 
 	// Replace any remaining './' patterns in the content.
 	content = bytes.ReplaceAll(content, []byte("'./'"), []byte(h.baseURL+"/"))

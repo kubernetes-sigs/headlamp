@@ -37,9 +37,11 @@ for dir in */; do
   names="${names:+$names,}$dir"
   # `npm ci` from the lockfile, then overlay the locally built tarball so we
   # test repo changes the published version may not have. `npm ci` can't do
-  # the overlay itself (it ignores positional package args); `--no-save
-  # --no-package-lock` keeps the example's package.json / lockfile clean.
-  set -- "$@" "cd '$dir' && npm ci && npm install --no-save --no-package-lock \"\$TARBALL\" && npm run lint && npm run format && npm run build && npm run tsc"
+  # the overlay itself (it ignores positional package args); `--no-save`
+  # keeps the local tarball out of the example's dependency declarations.
+  # Keep package-lock enabled so npm does not re-resolve pinned transitive
+  # dependencies while installing the tarball.
+  set -- "$@" "cd '$dir' && npm ci && npm install --no-save \"\$TARBALL\" && npm run lint && npm run format && npm run build && npm run tsc"
 done
 
 [ -n "$names" ] || { echo "Error: no example directories found in $(pwd)" >&2; exit 1; }
