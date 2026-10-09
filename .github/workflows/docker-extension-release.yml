@@ -15,7 +15,14 @@ env:
 jobs:
   build_and_push_docker_extension:
     name: Build docker extension
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # needed for cosign keyless signing via GitHub OIDC
+    outputs:
+      tag: ${{ steps.update.outputs.tag }}
+      digest: ${{ steps.update.outputs.digest }}
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@dd4fa0671be5250ee6f50aedf4cb05514abda2c7 # v1.14.1
@@ -27,14 +34,15 @@ jobs:
         with:
           fetch-depth: 0
       - name: Update docker image tags and digest
+        id: update
         run: |
           latestTag=$(git tag --list --sort=version:refname 'v*' | tail -1)
           if [ -z "$latestTag" ]; then
             echo "No tags found"
             exit 1
           fi
-          echo "Replacing tags with ${latestTag}"
-          sed -i -E "s/v[0-9]+(\.[0-9]+)*/${latestTag}/g" ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
+          # Build from the release tag, not whatever main is at when this runs.
+          git checkout "$latestTag"
 
           echo "Fetching digest for ghcr.io/headlamp-k8s/headlamp:${latestTag}"
           docker pull ghcr.io/headlamp-k8s/headlamp:${latestTag}
@@ -46,31 +54,77 @@ jobs:
             echo "Could not determine digest for ghcr.io/headlamp-k8s/headlamp:${latestTag}"
             exit 1
           fi
-          echo "Updating digest to ${newDigest}"
-          sed -i -E "s/v[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?/${latestTag}/g" ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
-      - name: Bump headlamp version and push the docker image
+          echo "Updating image to ${latestTag}@${newDigest}"
+          sed -i -E "s|ghcr.io/headlamp-k8s/headlamp:v[^@[:space:]]+(@sha256:[0-9a-f]{64})?|ghcr.io/headlamp-k8s/headlamp:${latestTag}@${newDigest}|g" ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
+          grep -q "ghcr.io/headlamp-k8s/headlamp:${latestTag}@${newDigest}" ./docker-extension/Dockerfile
+          grep -q "ghcr.io/headlamp-k8s/headlamp:${latestTag}@${newDigest}" ./docker-extension/docker-compose.yml
+          git diff
+
+          echo "tag=${latestTag}" >> "$GITHUB_OUTPUT"
+          echo "digest=${newDigest}" >> "$GITHUB_OUTPUT"
+      - name: Build and Publish extension to DockerHub
+        run: |
+          docker buildx create --use
+          make docker-ext
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign extension image with cosign (keyless)
+        env:
+          TAG: ${{ steps.update.outputs.tag }}
+        run: |
+          image=${REGISTRY}/${IMAGE_NAME}
+          imageDigest=$(docker buildx imagetools inspect "${image}:${TAG#v}" --format '{{json .Manifest}}' | jq -r '.digest')
+          if [ -z "$imageDigest" ] || [ "$imageDigest" == "null" ]; then
+            echo "Could not determine digest for ${image}:${TAG#v}"
+            exit 1
+          fi
+          cosign sign --yes "${image}@${imageDigest}"
+
+  # Prow manages main, so the version bump goes through a pull request instead of a push.
+  create_pr_to_bump_docker_extension:
+    name: Create PR to update Headlamp's version in the docker extension
+    needs: build_and_push_docker_extension
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to push a branch
+      pull-requests: write # needed to open a pull request
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Configure Git
         run: |
           user=${{github.actor}}
           if [ -z $user ]; then
             user=yolossn
           fi
-          if [ "${{github.event_name}}" == "workflow_dispatch" ]; then  
-              echo "Manual trigger so skipping git push"
-          else
-            git config --global user.name "$user"
-            git config --global user.email "$user@users.noreply.github.com"
-            git diff
-            git add ./docker-extension/Dockerfile
-            git add ./docker-extension/docker-compose.yml
-            git status
-            lastTag=$(git tag --list --sort=version:refname 'v*' | tail -2 | head -1)
-            latestTag=$(git tag --list --sort=version:refname 'v*' | tail -1)
-            git commit --signoff -m "docker-ext: Bump Headlamp version from $lastTag to $latestTag"
-            git log -1
-            git push origin main
+          git config --global user.name "$user"
+          git config --global user.email "$user@users.noreply.github.com"
+      - name: Bump Headlamp version and open a PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build_and_push_docker_extension.outputs.tag }}
+          DIGEST: ${{ needs.build_and_push_docker_extension.outputs.digest }}
+        run: |
+          sed -i -E "s|ghcr.io/headlamp-k8s/headlamp:v[^@[:space:]]+(@sha256:[0-9a-f]{64})?|ghcr.io/headlamp-k8s/headlamp:${TAG}@${DIGEST}|g" ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
+          if git diff --quiet; then
+            echo "Docker extension already uses ${TAG}, nothing to bump"
+            exit 0
           fi
-      - name: Build and Publish extension to DockerHub
-        run: | 
-          docker buildx create --use
-          make docker-ext
-          
+
+          BRANCH=hl-ci-update_docker_extension_headlamp_$TAG
+          git checkout -b $BRANCH
+          git add ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
+          git commit --signoff -m "docker-ext: Bump Headlamp version to $TAG"
+          git log -1
+          git push origin $BRANCH -f
+          # Creating the PR fails while the repository does not allow GitHub
+          # Actions to create pull requests. The extension is already published
+          # at this point, so leave the pushed branch for a maintainer to open.
+          if ! gh pr create \
+          --title "docker-ext: Bump Headlamp version to $TAG" \
+          --base "main" \
+          --body "Automatically opened by CI."; then
+            compareUrl="https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
+            echo "::warning::Could not open the version bump PR. Open it from ${compareUrl}"
+            echo "Could not open the version bump PR. Open it from ${compareUrl}" >> "$GITHUB_STEP_SUMMARY"
+          fi
