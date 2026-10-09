@@ -18,9 +18,23 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
 import type { ReactElement, ReactNode } from 'react';
+import type { ActionButtonProps } from '../components/common/ActionButton/ActionButton';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
+/**
+ * @deprecated Use NewHeaderActionType instead.
+ */
 export type HeaderActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
+
+/**
+ * New plugin header action type that enforces returning a props object (`ActionButtonProps`),
+ * not a ReactElement. The renderer will construct the ReactElement safely.
+ */
+export type NewHeaderActionType = (props: { item: any }) => ActionButtonProps | null;
+
+/**
+ * @deprecated Use NewHeaderActionType instead.
+ */
 export type DetailsViewFunc = HeaderActionType;
 
 export type AppBarActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
@@ -28,7 +42,9 @@ export type RowActionType = ((item: any) => JSX.Element | null | ReactNode) | nu
 
 export type HeaderAction = {
   id: string;
-  action?: HeaderActionType;
+  action?: HeaderActionType | NewHeaderActionType;
+  /** @deprecated Used to differentiate legacy component-returning actions. `false` selects the new props-based renderer; `true` or `undefined` uses legacy component rendering. */
+  isLegacy?: boolean;
 };
 
 export type RowAction = {
@@ -129,19 +145,54 @@ export const actionButtonsSlice = createSlice({
   name: 'actionButtons',
   initialState,
   reducers: {
-    setDetailsViewHeaderAction(state, action: PayloadAction<HeaderActionType | HeaderAction>) {
+    setDetailsViewHeaderAction(
+      state,
+      action: PayloadAction<HeaderActionType | NewHeaderActionType | HeaderAction>
+    ) {
       let headerAction = action.payload as HeaderAction;
 
       if (headerAction.id === undefined) {
         if (headerAction.action === undefined) {
           headerAction = { id: '', action: headerAction as unknown as HeaderActionType };
         } else {
-          headerAction = { id: '', action: headerAction.action };
+          headerAction = { id: '', action: headerAction.action, isLegacy: headerAction.isLegacy };
         }
       }
-      headerAction.id = headerAction.id || `generated-id-${Date.now().toString(36)}`;
+      if (!headerAction.id) {
+        // Legacy registrations arrive without an ID. Date.now() alone can
+        // collide for registrations in the same millisecond, and the
+        // deduplication below would then treat the second one as an update.
+        // So generate an ID that is unique within the current state before
+        // looking up an existing action.
+        const baseId = `generated-id-${Date.now().toString(36)}`;
+        let uniqueId = baseId;
+        let counter = 0;
+        while (state.headerActions.some(a => a.id === uniqueId)) {
+          counter += 1;
+          uniqueId = `${baseId}-${counter}`;
+        }
+        headerAction.id = uniqueId;
+      }
 
-      state.headerActions.push(headerAction);
+      const existingIndex = state.headerActions.findIndex(a => a.id === headerAction.id);
+
+      if (headerAction.action === null) {
+        if (existingIndex >= 0) {
+          state.headerActions.splice(existingIndex, 1);
+        }
+      } else {
+        if (existingIndex >= 0) {
+          state.headerActions[existingIndex] = headerAction;
+        } else {
+          state.headerActions.push(headerAction);
+        }
+      }
+    },
+    removeDetailsViewHeaderAction(state, action: PayloadAction<string>) {
+      const existingIndex = state.headerActions.findIndex(a => a.id === action.payload);
+      if (existingIndex >= 0) {
+        state.headerActions.splice(existingIndex, 1);
+      }
     },
     addDetailsViewHeaderActionsProcessor(
       state,
@@ -169,6 +220,7 @@ export const actionButtonsSlice = createSlice({
 
 export const {
   setDetailsViewHeaderAction,
+  removeDetailsViewHeaderAction,
   addDetailsViewHeaderActionsProcessor,
   setAppBarAction,
   setAppBarActionsProcessor,
