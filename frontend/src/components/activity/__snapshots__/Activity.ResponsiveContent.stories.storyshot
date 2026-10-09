@@ -240,6 +240,7 @@
       </div>
       <div
         class="MuiBox-root css-124lm9m"
+        data-activity-bar="true"
       >
         <div
           class="MuiBox-root css-1mw5uhz"
@@ -272,6 +273,17 @@
                 Pod
               </div>
             </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Pin"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
@@ -323,6 +335,17 @@
             />
           </button>
           <button
+            aria-label="Pin"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
             aria-label="Close"
             class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
             tabindex="0"
@@ -364,6 +387,17 @@
                 Pod metrics collector for a very long deployment name in the activity view
               </div>
             </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Pin"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
