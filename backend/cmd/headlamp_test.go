@@ -2307,6 +2307,69 @@ func TestHandleClusterRename_NameCollision(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+// TestHandleClusterRename_BackToOriginalName renames a cluster and then renames
+// it back to its original context name. The second rename must succeed and
+// clear the custom name instead of saving one that matches the original.
+func TestHandleClusterRename_BackToOriginalName(t *testing.T) {
+	kubeConfigData, err := os.ReadFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, os.WriteFile(kubeConfigPath, kubeConfigData, 0o600))
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        kubeConfigPath,
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleClusterRename_BackToOriginalName")
+	defer span.End()
+
+	rename := func(currentName, newName string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/cluster/"+currentName, nil)
+
+		renameErr := c.handleClusterRename(w, r, currentName, RenameClusterRequest{
+			NewClusterName: newName,
+			Source:         "kubeconfig",
+		}, ctx, span)
+		require.NoError(t, renameErr)
+
+		return w
+	}
+
+	customNameOf := func() string {
+		config, loadErr := clientcmd.LoadFromFile(kubeConfigPath)
+		require.NoError(t, loadErr)
+
+		info := config.Contexts["minikube"].Extensions["headlamp_info"]
+		if info == nil {
+			return ""
+		}
+
+		customObj, marshalErr := MarshalCustomObject(info, "minikube")
+		require.NoError(t, marshalErr)
+
+		return customObj.CustomName
+	}
+
+	assert.Equal(t, http.StatusCreated, rename("minikube", "mk-renamed").Code)
+	assert.Equal(t, "mk-renamed", customNameOf())
+
+	// Back to the original name: allowed, and no custom name is kept.
+	assert.Equal(t, http.StatusCreated, rename("mk-renamed", "minikube").Code)
+	assert.Empty(t, customNameOf())
+}
+
 // TestHandleError_NilError ensures handleError does not panic when a caller
 // passes a nil error. Calling err.Error() on a nil error would otherwise crash
 // the request handler; handleError falls back to the message instead.

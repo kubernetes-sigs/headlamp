@@ -2804,7 +2804,14 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	// Renaming a cluster to its own context name goes back to the original, so
+	// clear the custom name instead of saving one that matches the original.
+	newClusterName := reqBody.NewClusterName
+	if newClusterName == contextName {
+		newClusterName = ""
+	}
+
+	if err := customNameToExtensions(config, contextName, newClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
