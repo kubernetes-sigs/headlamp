@@ -737,24 +737,50 @@ export function useKubeObjectList<K extends KubeObject>({
           result.data.list.metadata.remainingItemCount === undefined
       );
 
+      // A cluster gets one request per allowed namespace, so group the results by cluster and
+      // combine them, instead of letting the last namespace replace the others. Every request
+      // counts, also the ones still loading or failed. A request still loading shows its
+      // placeholder data, which React Query reports as a success, so isPlaceholderData is what
+      // marks it as loading.
+      const resultsByCluster: Record<string, typeof results> = {};
+      results.forEach((result, index) => {
+        const cluster = activeListRequests[index]?.cluster;
+        if (cluster) {
+          (resultsByCluster[cluster] ??= []).push(result);
+        }
+      });
+      const clusterResults: Record<string, QueryListResponse<any, K, ApiError>> = {};
+      Object.entries(resultsByCluster).forEach(([cluster, clusterQueryResults]) => {
+        const withData = clusterQueryResults.filter(result => result.data);
+        // A cluster only gets an entry once one of its namespaces has data, as before.
+        if (withData.length === 0) {
+          return;
+        }
+        const errors = clusterQueryResults
+          .map(result => result.error)
+          .filter((error): error is ApiError => !!error);
+        const isError = clusterQueryResults.some(result => result.isError);
+        const isSuccess = clusterQueryResults.every(
+          result => result.isSuccess && !result.isPlaceholderData
+        );
+        clusterResults[cluster] = {
+          data: withData[0].data,
+          error: errors[0] ?? null,
+          errors: errors.length > 0 ? errors : null,
+          isError,
+          isFetching: clusterQueryResults.some(result => result.isFetching),
+          isLoading: clusterQueryResults.some(
+            result => result.isLoading || result.isPlaceholderData
+          ),
+          isSuccess,
+          items: withData.flatMap(result => result.data?.list?.items ?? []),
+          status: isError ? 'error' : isSuccess ? 'success' : 'pending',
+        };
+      });
+
       return {
         data: results.map(result => result.data),
-        clusterResults: results.reduce((acc, result) => {
-          if (result.data && result.data.cluster) {
-            acc[result.data.cluster] = {
-              data: result.data,
-              error: result.error,
-              errors: result.error ? [result.error] : null,
-              isError: result.isError,
-              isFetching: result.isFetching,
-              isLoading: result.isLoading,
-              isSuccess: result.isSuccess,
-              items: result?.data?.list?.items ?? null,
-              status: result.status,
-            };
-          }
-          return acc;
-        }, {} as Record<string, QueryListResponse<any, K, ApiError>>),
+        clusterResults,
         items:
           emptyWhenNoRequests && results.length === 0
             ? []
