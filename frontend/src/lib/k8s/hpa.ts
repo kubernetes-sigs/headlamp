@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ResourceClasses } from '.';
 import type { KubeMetadata } from './KubeMetadata';
 import { KubeObject, type KubeObjectClass, type KubeObjectInterface } from './KubeObject';
+import { ResourceClasses } from './resourceClasses';
 export interface CrossVersionObjectReference {
   apiVersion: string;
   kind: string;

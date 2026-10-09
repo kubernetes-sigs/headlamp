@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { ResourceClasses } from '.';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import {
   describeMissingField,
@@ -24,6 +23,7 @@ import {
 } from './crdSpec';
 import type { KubeObjectClass, KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import { ResourceClasses } from './resourceClasses';
 
 export interface KubeCRD extends KubeObjectInterface {
   spec: {

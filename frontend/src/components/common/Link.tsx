@@ -16,7 +16,7 @@
 
 import MuiLink from '@mui/material/Link';
 import { useQueryClient } from '@tanstack/react-query';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
 import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
@@ -25,9 +25,38 @@ import type { RouteURLProps } from '../../lib/router/createRouteURL';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { Activity } from '../activity/Activity';
-import { canRenderDetails, KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
+import { canRenderDetails } from '../resourceMap/details/supportedKinds';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { LightTooltip } from './Tooltip';
+
+type KubeObjectDetailsProps = {
+  resource: {
+    kind: string;
+    cluster?: string;
+    metadata: { name: string; namespace?: string };
+  };
+  customResourceDefinition?: string;
+};
+
+function KubeObjectDetailsLoader(props: KubeObjectDetailsProps) {
+  const [Details, setDetails] = useState<React.ElementType<KubeObjectDetailsProps> | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void import('../resourceMap/details/KubeNodeDetails').then(({ KubeObjectDetails }) => {
+      if (mounted) {
+        setDetails(() => KubeObjectDetails);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return Details ? <Details {...props} /> : null;
+}
 
 export interface LinkBaseProps {
   /** The tooltip to display on hover. If true, the tooltip will be the link's text. */
@@ -201,7 +230,7 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
             cluster: selectedResource.cluster,
             temporary: true,
             content: (
-              <KubeObjectDetails
+              <KubeObjectDetailsLoader
                 resource={{
                   kind: selectedResource.kind,
                   metadata: {
