@@ -103,6 +103,14 @@ export const baseMocks = [
   http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
     HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
   ),
+  http.post('http://localhost:4466/*/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
+    HttpResponse.json({
+      status: {
+        resourceRules: [{ verbs: ['*'], apiGroups: ['*'], resources: ['*'] }],
+        incomplete: false,
+      },
+    })
+  ),
   http.get('http://localhost:4466/api/v1/namespaces', () =>
     HttpResponse.json({
       kind: 'NamespacesList',
