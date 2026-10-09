@@ -105,7 +105,10 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
           {addClusterProviders.length > 0 && (
             <Grid item xs={12}>
               {addClusterProviders.map(addClusterProviderInfo => (
-                <AddClusterProvider {...addClusterProviderInfo} />
+                <AddClusterProvider
+                  key={addClusterProviderInfo.url || addClusterProviderInfo.title}
+                  {...addClusterProviderInfo}
+                />
               ))}
             </Grid>
           )}
