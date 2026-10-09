@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import '../../../i18n/config';
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
