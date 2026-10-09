@@ -140,6 +140,9 @@ const DEFAULT_SORT_COLUMN_ID = 'age';
  */
 const MAX_TABLE_ID_LENGTH = 50;
 
+/** What a table asked to list from no cluster shows, kept stable across renders. */
+const NOTHING_LISTED = { items: [], errors: null };
+
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
   columns: (ResourceTableColumn<RowItem> | ColumnType)[];
@@ -179,6 +182,12 @@ export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjec
   extends Omit<ResourceTableProps<InstanceType<KubeClass>>, 'data'> {
   resourceClass: KubeClass;
   namespaces?: string[];
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried. An empty list queries no cluster and shows an empty table.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceTable<KubeClass extends KubeObjectClass>(
@@ -198,11 +207,13 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, ...otherProps } = props;
+  const { resourceClass, id, clusters, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
-  const { items, errors } = resourceClass.useList({
+  const listed = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
+    clusters,
   });
+  const { items, errors } = clusters?.length === 0 ? NOTHING_LISTED : listed;
 
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);

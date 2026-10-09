@@ -226,4 +226,41 @@ describe('ResourceTable Column Visibility', () => {
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
   });
+
+  it('shows an empty table instead of loading when asked to list from no cluster', () => {
+    const useList = vi.fn(() => ({ items: null, errors: null }));
+    const resourceClass = { pluralName: 'deviceclasses', className: 'DeviceClass', useList };
+
+    renderTable({ resourceClass, columns: ['name'], clusters: [] });
+
+    expect(useList).toHaveBeenCalledWith(expect.objectContaining({ clusters: [] }));
+    expect(lastTablePropsHolder.current.loading).toBe(false);
+    expect(lastTablePropsHolder.current.data).toEqual([]);
+  });
+
+  it('settles when asked to list from no cluster instead of updating again', () => {
+    vi.useFakeTimers();
+    try {
+      const useList = vi.fn(() => ({ items: null, errors: null }));
+      const resourceClass = { pluralName: 'deviceclasses', className: 'DeviceClass', useList };
+
+      const props = { resourceClass, columns: ['name'], clusters: [] };
+      const result = renderTable(props);
+      result.rerender(
+        <TestContext>
+          <ThemeProvider theme={theme}>
+            <ResourceTable {...(props as any)} />
+          </ThemeProvider>
+        </TestContext>
+      );
+      const rendersSoFar = useList.mock.calls.length;
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(useList).toHaveBeenCalledTimes(rendersSoFar);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
