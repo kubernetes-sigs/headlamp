@@ -22,7 +22,7 @@ import { Base64 } from 'js-base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
-import { queryClient } from './queryClient';
+import { queryClient, removeClusterResourceQueries } from './queryClient';
 
 /**
  * Retrieves the authentication token for a given cluster.
@@ -115,6 +115,10 @@ async function setCookieToken(cluster: string, token: string | null) {
  * @throws {Error} When cluster name is invalid or backend request fails
  */
 export function setToken(cluster: string, token: string | null) {
+  // Resource query keys are not user-scoped. Clear them before changing the
+  // cookie so active requests or a failed refresh cannot expose prior data.
+  removeClusterResourceQueries(cluster);
+
   const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
   if (setTokenMethodToUse) {
     return Promise.resolve(setTokenMethodToUse(cluster, token));
