@@ -659,6 +659,8 @@
   "Operator": "Operator",
   "Effect": "Effect",
   "Desired//context:pods": "Gewenst",
+  "more_count_one": "",
+  "more_count_other": "",
   "Replicas": "",
   "Desired number of pod replicas": "",
   "Selects which pods belong to this Deployment. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "",
