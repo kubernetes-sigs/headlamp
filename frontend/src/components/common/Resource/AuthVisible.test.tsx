@@ -184,6 +184,59 @@ describe('AuthVisible', () => {
     expect(clusterBItem.getAuthorization).toHaveBeenCalledTimes(1);
   });
 
+  it('checks a resource class against the explicit cluster', async () => {
+    // A class (e.g. Job) carries no cluster, so without the prop the check would
+    // fall back to the URL cluster.
+    const getAuthorization = vi.fn().mockResolvedValue({ status: { allowed: true } });
+    const mockClass = {
+      apiName: 'jobs',
+      apiVersion: 'batch/v1',
+      getAuthorization,
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={mockClass as any} authVerb="create" namespace="default" cluster="beta">
+          <div>Spawn</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Spawn')).toBeInTheDocument();
+    });
+
+    expect(getAuthorization).toHaveBeenCalledWith(
+      'create',
+      { subresource: undefined, namespace: 'default' },
+      'beta'
+    );
+  });
+
+  it('prefers the explicit cluster over the item cluster', async () => {
+    const getAuthorization = vi.fn().mockResolvedValue({ status: { allowed: true } });
+    const mockItem = {
+      _class: () => ({ apiName: 'pods', apiVersion: 'v1' }),
+      cluster: 'alpha',
+      getName: () => 'test-pod',
+      getAuthorization,
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={mockItem as any} authVerb="get" cluster="beta">
+          <div>Content</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Content')).toBeInTheDocument();
+    });
+
+    expect(getAuthorization).toHaveBeenCalledWith('get', expect.anything(), 'beta');
+  });
+
   it('warns and returns null if authVerb is invalid', () => {
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mockItem = {
