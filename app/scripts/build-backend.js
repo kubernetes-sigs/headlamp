@@ -35,6 +35,10 @@ function mapElectronArchToGoArch(electronArch) {
 exports.mapElectronArchToGoArch = mapElectronArchToGoArch;
 
 exports.default = async context => {
+  const startedAt = Date.now();
+  console.log(
+    `[build-timing] Electron backend hook started at ${new Date(startedAt).toISOString()}`
+  );
   const arch = mapElectronArchToGoArch(context.arch);
 
   let osName = '';
@@ -57,4 +61,9 @@ exports.default = async context => {
     },
     cwd: '..',
   });
+  console.log(
+    `[build-timing] Electron backend hook completed in ${((Date.now() - startedAt) / 1000).toFixed(
+      3
+    )}s`
+  );
 };
