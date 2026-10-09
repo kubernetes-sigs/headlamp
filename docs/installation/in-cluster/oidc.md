@@ -78,6 +78,65 @@ By default, headlamp leverages the `id_token` provided back from the OIDC Provid
 
 - `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
 
+### Extra Authorization Request Parameters
+
+Some providers need parameters on the authorization request that are not
+part of the standard flow, for example Auth0's `audience` or Google's
+`access_type=offline`. Add them with:
+
+- `-oidc-auth-url-param=<key>=<value>` or env var `HEADLAMP_CONFIG_OIDC_AUTH_URL_PARAM`
+
+Repeat the flag for several parameters, or join the pairs with `&` in a
+single value, the way a URL query string is written. The env var always
+uses the `&` form. Headlamp URL-encodes the values, so write them as they
+are; only `&`, `+` and `%` inside a value need percent-encoding (`%26`,
+`%2B`, `%25`).
+
+Headlamp exits at startup if a parameter it sets itself, or that its
+callback depends on, is given: `client_id`, `redirect_uri`,
+`response_type`, `response_mode`, `scope` (use `-oidc-scopes`), `state`,
+`nonce`, `code_challenge` and `code_challenge_method` (use
+`-oidc-use-pkce`). A parameter that is empty or given twice is also
+rejected.
+
+The parameters go on every authorization request Headlamp starts, for
+in-cluster OIDC and for kubeconfig contexts with an `oidc` auth-provider.
+They are not sent on token refresh, which uses the token endpoint; the
+provider keeps the audience and offline access granted at login.
+
+With the Helm chart, pass the flag through `config.extraArgs`:
+
+```yaml
+config:
+  extraArgs:
+    - "-oidc-auth-url-param=audience=https://api.example.com"
+```
+
+#### Example: Auth0 access token for a Kubernetes API audience
+
+Auth0 issues a JWT access token only when the authorization request names
+an API with `audience`. To send that access token to a cluster whose API
+server accepts the audience `https://api.example.com`:
+
+```
+-oidc-auth-url-param=audience=https://api.example.com
+-oidc-use-access-token=true
+-oidc-validator-client-id=https://api.example.com
+```
+
+The access token's `aud` is the API identifier, not the client ID, so
+`-oidc-validator-client-id` tells Headlamp which audience to verify.
+
+#### Example: Google refresh tokens
+
+Google returns a refresh token only for `access_type=offline`, and on
+later logins only together with `prompt=consent`:
+
+```
+-oidc-auth-url-param=access_type=offline
+-oidc-auth-url-param=prompt=consent
+```
+
 ### Multi-cluster: broadcast the OIDC token across sibling clusters
 
 When a single Headlamp instance serves several Kubernetes clusters that all trust the **same** OIDC application (same issuer URL and client ID), an operator can opt in to broadcasting the auth cookie to every matching sibling cluster after a successful login. This eliminates per-cluster re-authentication for the common deployment shape where one OIDC app (Okta, Keycloak, Dex, Entra ID, etc.) is registered with every `kube-apiserver` in the fleet.
