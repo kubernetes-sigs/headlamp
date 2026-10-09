@@ -13,6 +13,12 @@ var DeriveInClusterName = deriveInClusterName
 // ResolveKubeconfigPaths is exported for testing.
 var ResolveKubeconfigPaths = resolveKubeconfigPaths
 
+// SyncContexts is exported for testing.
+var SyncContexts = syncContexts
+
+// ReAddMissingFiles is exported for testing.
+var ReAddMissingFiles = reAddMissingFiles
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface
