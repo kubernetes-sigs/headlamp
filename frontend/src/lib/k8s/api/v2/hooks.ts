@@ -150,7 +150,6 @@ export function useKubeObject<K extends KubeObject>({
   const [seededInitialData, setSeededInitialData] = useState<K | null>(null);
   const query = useQuery<Instance | null, ApiError>({
     enabled: !!endpoint,
-    placeholderData: null,
     staleTime: 5000,
     retry: kubeRequestRetry,
     queryKey,
@@ -180,11 +179,13 @@ export function useKubeObject<K extends KubeObject>({
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
-      if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+      if (update.type === 'DELETED') {
+        client.setQueryData(queryKey, null);
+      } else if (update.type === 'ADDED' || update.type === 'MODIFIED') {
+        client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
       }
     },
-    [client, queryKey, kubeObjectClass]
+    [client, queryKey, kubeObjectClass, cluster]
   );
 
   const connectionsRequests = useMemo(() => {
@@ -204,6 +205,8 @@ export function useKubeObject<K extends KubeObject>({
   }, [endpoint, namespace, name, cleanedUpQueryParams, cluster, handleMessage]);
 
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  const isWatchEnabled =
+    !!endpoint && ((query.isSuccess && !query.isPlaceholderData) || !!initialData);
 
   useWebSocket<KubeListUpdateEvent<K>>({
     url: useCallback(
@@ -215,13 +218,13 @@ export function useKubeObject<K extends KubeObject>({
         }),
       [endpoint, namespace, cleanedUpQueryParams, name]
     ),
-    enabled: multiplexerEnabled && !!endpoint && !!data,
+    enabled: multiplexerEnabled && isWatchEnabled,
     cluster,
     onMessage: handleMessage,
   });
 
   useWebSockets({
-    enabled: !multiplexerEnabled && !!endpoint && !!data,
+    enabled: !multiplexerEnabled && isWatchEnabled,
     connections: connectionsRequests,
   });
 
