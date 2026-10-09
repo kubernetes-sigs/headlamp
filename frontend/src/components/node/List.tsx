@@ -27,11 +27,12 @@ import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
 import { formatTaint, isNodeCordoned, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
-  const [nodeMetrics, metricsError] = Node.useMetrics();
+  const [nodeMetrics, metricsErrors] = Node.useMetrics();
   const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
-  const noMetrics = metricsError?.status === 404;
+  const noMetrics = (node: Node) =>
+    metricsErrors.some(error => error.cluster === node.cluster && error.status === 404);
 
   const hasNodePools = useMemo(() => {
     if (!items || items.length === 0) return false;
@@ -63,7 +64,7 @@ export default function NodeList() {
                 node={node}
                 nodeMetrics={nodeMetrics}
                 resourceType="cpu"
-                noMetrics={noMetrics}
+                noMetrics={noMetrics(node)}
               />
             ),
           },
@@ -80,7 +81,7 @@ export default function NodeList() {
                 node={node}
                 nodeMetrics={nodeMetrics}
                 resourceType="memory"
-                noMetrics={noMetrics}
+                noMetrics={noMetrics(node)}
               />
             ),
           },

@@ -54,11 +54,11 @@ export default function Overview() {
   const podsQuery = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
   const [pods] = podsQuery;
   const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
-  const [nodeMetrics, metricsError] = Node.useMetrics();
+  const [nodeMetrics, metricsErrors] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
-  const noPermissions = metricsError?.status === 403;
-  const noMetrics = metricsError !== null && !noPermissions;
+  const noPermissions = metricsErrors.some(error => error.status === 403);
+  const noMetrics = metricsErrors.length > 0 && !noPermissions;
 
   // Process the default charts through any registered processors
   const defaultCharts: OverviewChart[] = [
@@ -94,7 +94,7 @@ export default function Overview() {
     <PageGrid>
       <SectionBox title={t('translation|Overview')} py={2} mt={[4, 0, 0]}>
         {noPermissions ? (
-          <ClusterGroupErrorMessage errors={[metricsError]} />
+          <ClusterGroupErrorMessage errors={metricsErrors} />
         ) : (
           <Grid container justifyContent="flex-start" alignItems="stretch" spacing={4}>
             {charts.map(chart => (

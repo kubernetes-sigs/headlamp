@@ -302,7 +302,11 @@ export function getResourceMetrics(
   };
 
   const parser = resourceParsers[resourceType];
-  const itemMetrics = metrics.find(itemMetrics => itemMetrics.metadata.name === item.getName());
+  const itemMetrics = metrics.find(
+    itemMetrics =>
+      itemMetrics.metadata.name === item.getName() &&
+      (itemMetrics.cluster === undefined || itemMetrics.cluster === item.cluster)
+  );
 
   const used = parser(itemMetrics ? itemMetrics.usage[resourceType] : '0');
   const capacity = parser(item.status.capacity[resourceType]);
