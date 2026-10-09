@@ -56,6 +56,14 @@
       "type": "string",
       "description": "Override the deployment namespace; defaults to .Release.Namespace"
     },
+    "deploymentLabels": {
+      "type": "object",
+      "description": "Labels to add to the deployment"
+    },
+    "deploymentAnnotations": {
+      "type": "object",
+      "description": "Annotations to add to the deployment"
+    },
     "initContainers": {
       "type": "array",
       "description": "Init containers",
