@@ -23,10 +23,10 @@ import SectionFilterHeader, { SectionFilterHeaderProps } from './SectionFilterHe
 
 // A fresh store per story so the namespace filter state never leaks between
 // stories (the component dispatches setNamespaceFilter and reads it back).
-function makeStore(namespaces: string[] = []) {
+function makeStore(namespaces: string[] = [], labelSelector = '') {
   return configureStore({
     reducer: reducers,
-    preloadedState: { filter: { namespaces: new Set(namespaces), search: '' } } as any,
+    preloadedState: { filter: { namespaces: new Set(namespaces), labelSelector } } as any,
     middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
   });
 }
@@ -36,12 +36,11 @@ export default {
   component: SectionFilterHeader,
 } as Meta;
 
-const Template: StoryFn<SectionFilterHeaderProps & { namespaces?: string[] }> = ({
-  namespaces,
-  ...args
-}) => (
-  <TestContext store={makeStore(namespaces)}>
-    <SectionFilterHeader {...args} />
+const Template: StoryFn<
+  SectionFilterHeaderProps & { namespaces?: string[]; labelSelector?: string }
+> = ({ namespaces, labelSelector, ...args }) => (
+  <TestContext store={makeStore(namespaces, labelSelector)}>
+    <SectionFilterHeader noLabelFilter={false} {...args} />
   </TestContext>
 );
 
@@ -54,6 +53,39 @@ export const WithNamespaceFilter = Template.bind({});
 WithNamespaceFilter.args = {
   title: 'Pods',
   namespaces: ['default'],
+};
+
+export const WithFilterSubtitles = Template.bind({});
+WithFilterSubtitles.args = {
+  title: 'Pods',
+  filtersAsLinks: true,
+  globalFilterIndicator: 'tooltip',
+  namespaces: ['payments-production', 'checkout-production', 'platform-observability'],
+  labelSelector: 'app.kubernetes.io/name=checkout-api,environment=production,tier!=backend',
+};
+
+export const WithFilterSubtitleLabels = Template.bind({});
+WithFilterSubtitleLabels.args = {
+  ...WithFilterSubtitles.args,
+  showFilterSummaryLabels: true,
+};
+
+export const WithFilterInputs = Template.bind({});
+WithFilterInputs.args = {
+  ...WithFilterSubtitles.args,
+  filtersAsLinks: false,
+};
+
+export const WithGlobalFilterTooltip = Template.bind({});
+WithGlobalFilterTooltip.args = {
+  ...WithFilterSubtitles.args,
+  globalFilterIndicator: 'tooltip',
+};
+
+export const WithGlobalFilterLabel = Template.bind({});
+WithGlobalFilterLabel.args = {
+  ...WithFilterSubtitles.args,
+  globalFilterIndicator: 'label',
 };
 
 export const NoNamespaceFilter = Template.bind({});

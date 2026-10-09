@@ -233,6 +233,14 @@ export const BareNamespaceQuery: Story = {
     },
   },
 };
+
+export const AddNamespaceToGlobalFilters: Story = {
+  ...BareNamespaceQuery,
+  args: {
+    ...BareNamespaceQuery.args,
+    addToGlobalFilters: true,
+  },
+};
 export const CombinedNamespaceQuery: Story = {
   args: {
     defaultValue: 'coredns kube-system',
@@ -247,5 +255,36 @@ export const CombinedNamespaceQuery: Story = {
         ],
       },
     },
+  },
+};
+
+const setBasedSelector = 'environment in (production),tier in (frontend)';
+
+export const LabelSelectorQuery: Story = {
+  args: {
+    defaultValue: setBasedSelector,
+  },
+  parameters: {
+    msw: {
+      handlers: {
+        pod: [
+          http.get(`${sampleClusterApiBase}/api/v1/pods`, ({ request }) => {
+            const items =
+              new URL(request.url).searchParams.get('labelSelector') === setBasedSelector
+                ? phonyPods.map(pod => pod.jsonData)
+                : [];
+            return HttpResponse.json(makeKubeList('v1', 'Pod', items));
+          }),
+        ],
+      },
+    },
+  },
+};
+
+export const AddLabelSelectorToGlobalFilters: Story = {
+  ...LabelSelectorQuery,
+  args: {
+    ...LabelSelectorQuery.args,
+    addToGlobalFilters: true,
   },
 };

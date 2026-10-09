@@ -17,6 +17,7 @@
 import { ResourceClasses } from '.';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import {
+  customResourceDefinitionName,
   describeMissingField,
   resolveCRDApiGroup,
   selectMainAPIGroup,
@@ -75,6 +76,7 @@ class CustomResourceDefinition extends KubeObject<KubeCRD> {
   static apiName = 'customresourcedefinitions';
   static apiVersion = ['apiextensions.k8s.io/v1'];
   static isNamespaced = false;
+  static supportsLabelSelectorList = false;
 
   static readOnlyFields = ['metadata.managedFields'];
 
@@ -257,6 +259,22 @@ export function makeCustomResourceClass(
     static isNamespaced = objArgs.isNamespaced;
     static apiEndpoint = apiFunc(...apiInfoArgs);
     static customResourceDefinition = crClassArgs.customResourceDefinition;
+
+    /**
+     * Returns the parameterized custom-resource list route.
+     *
+     * @returns The custom-resource route and backing CRD name.
+     */
+    getListRouteDescriptor() {
+      const crdName = customResourceDefinitionName(
+        crClassArgs.customResourceDefinition?.metadata.name,
+        apiInfoArgs[0]
+      );
+      return {
+        routeName: 'customresources',
+        params: { crd: crdName },
+      };
+    }
 
     static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
       metadata: Partial<import('./KubeMetadata').KubeMetadata>;

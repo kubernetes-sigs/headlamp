@@ -21,6 +21,7 @@ import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
+import { matchesLabelSelector } from '../../../labelSelectorValidation';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -154,7 +155,12 @@ function allowedNamespaceListQuery<K extends KubeObject>(
         kubeObject.cluster = cluster;
         return kubeObject;
       });
-      const items = [...manualItems, ...selectorItems].filter(
+      const filteredManualItems = requestedSelector
+        ? manualItems.filter(item =>
+            matchesLabelSelector(item.jsonData.metadata.labels, requestedSelector)
+          )
+        : manualItems;
+      const items = [...filteredManualItems, ...selectorItems].filter(
         (item, index, allItems) =>
           allItems.findIndex(
             candidate => candidate.jsonData.metadata.name === item.jsonData.metadata.name
@@ -661,6 +667,7 @@ export function useKubeObjectList<K extends KubeObject>({
   requests,
   kubeObjectClass,
   queryParams,
+  fetchAllRequests = false,
   watch = true,
   refetchInterval,
   emptyWhenNoRequests = false,
@@ -669,6 +676,8 @@ export function useKubeObjectList<K extends KubeObject>({
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   queryParams?: QueryParameters;
+  /** Automatically fetch every cluster/namespace request in bounded batches. */
+  fetchAllRequests?: boolean;
   /** Watch for updates @default true */
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
@@ -692,8 +701,11 @@ export function useKubeObjectList<K extends KubeObject>({
   );
   const listRequests = useMemo(() => flattenListRequests(requests), [requests]);
   const limit = getPositiveLimit(cleanedUpQueryParams);
-  const initialListRequestCount =
-    limit && listRequests.length > limit ? limit : listRequests.length;
+  const initialListRequestCount = fetchAllRequests
+    ? Math.min(1, listRequests.length)
+    : limit && listRequests.length > limit
+    ? limit
+    : listRequests.length;
   const [activeListRequestCount, setActiveListRequestCount] = useState(initialListRequestCount);
   const listRequestInputKey = JSON.stringify([listRequests, cleanedUpQueryParams]);
 
@@ -778,6 +790,14 @@ export function useKubeObjectList<K extends KubeObject>({
       };
     },
   });
+
+  useEffect(() => {
+    if (!fetchAllRequests || query.isFetching || !hasPendingListRequests) {
+      return;
+    }
+
+    setActiveListRequestCount(currentCount => Math.min(currentCount + 1, listRequests.length));
+  }, [fetchAllRequests, hasPendingListRequests, listRequests.length, query.isFetching]);
 
   // Don't watch when results are paginated — the watch stream would deliver events
   // for resources outside our fetched page, causing the list to grow unboundedly.

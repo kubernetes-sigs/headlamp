@@ -136,6 +136,43 @@ test.describe('multi-cluster setup', () => {
     await headlampPage.hasTitleContaining(/Choose a cluster/);
   });
 
+  test('switching clusters restores each saved label selector', async ({ page }) => {
+    test.skip(!testToken || !test2Token, 'Both cluster tokens are required');
+
+    await page.evaluate(() => {
+      localStorage.setItem('headlamp-label-selector_test', 'cluster=test');
+      localStorage.setItem('headlamp-label-selector_test2', 'cluster=test2');
+    });
+
+    for (const [clusterName, token] of [
+      ['test', testToken],
+      ['test2', test2Token],
+    ] as const) {
+      const response = await page.request.post(`/clusters/${clusterName}/set-token`, {
+        data: { token },
+      });
+      expect(response.ok()).toBe(true);
+    }
+
+    await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+    await expect(page.getByRole('button', { name: 'Edit Label Selector' })).toContainText(
+      'cluster=test'
+    );
+
+    await page.getByRole('button', { name: /Our Cluster Chooser button\. Cluster: test/ }).click();
+    await page.getByRole('option', { name: 'test2', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/c\/test2/);
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/c/test2/pods');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page).toHaveURL(/\/c\/test2\/pods/);
+    await expect(page.getByRole('button', { name: 'Edit Label Selector' })).toContainText(
+      'cluster=test2'
+    );
+  });
+
   // This is commented out because the CI e2e test job loads the plugins
   // Which interferes with the test. It replaces the cluster chooser,
   // so this test does not work.

@@ -142,6 +142,41 @@ describe('WorkloadDetails ?view=logs deep-link', () => {
 
     expect(mockLaunchWorkloadLogs).not.toHaveBeenCalled();
   });
+
+  it('links workload selectors to filtered Pod and Node lists', () => {
+    render(
+      <TestContext>
+        <WorkloadDetails workloadKind={fakeWorkloadKind} name="nginx" namespace="default" />
+      </TestContext>
+    );
+
+    const extraInfo = mockDetailsGrid.mock.calls.at(-1)?.[0]?.extraInfo;
+    const rows = extraInfo({
+      ...fakeDeployment,
+      cluster: 'main',
+      spec: {
+        selector: {
+          matchLabels: { app: 'nginx' },
+          matchExpressions: [{ key: 'track', operator: 'In', values: ['stable', 'canary'] }],
+        },
+        template: { spec: { nodeSelector: { 'kubernetes.io/os': 'linux' } } },
+      },
+    });
+
+    expect(rows.find((row: any) => row.name === 'Selector').value.props).toMatchObject({
+      activeCluster: 'main',
+      dict: { app: 'nginx' },
+      labelFilterNamespace: 'default',
+      labelFilterRoute: 'pods',
+      labelSelector: 'app=nginx,track in (canary,stable)',
+    });
+    expect(rows.find((row: any) => row.name === 'Node Selector').value.props).toMatchObject({
+      activeCluster: 'main',
+      dict: { 'kubernetes.io/os': 'linux' },
+      labelFilterRoute: 'nodes',
+      labelSelector: 'kubernetes.io/os=linux',
+    });
+  });
 });
 
 describe('WorkloadDetails owned-pods diagnostics wiring', () => {

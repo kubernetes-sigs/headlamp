@@ -136,6 +136,9 @@
       "aria-tooltip-name",
       "scrollable-region-focusable"
     ],
+    "GlobalSearch/GlobalSearchContent/Add Namespace To Global Filters": [
+      "scrollable-region-focusable"
+    ],
     "GlobalSearch/GlobalSearchContent/Combined Namespace Query": [
       "aria-progressbar-name",
       "aria-tooltip-name",

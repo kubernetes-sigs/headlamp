@@ -1,0 +1,76 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <h1
+            class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+          >
+            Pods
+          </h1>
+          <div
+            class="MuiBox-root css-ldp2l3"
+          >
+            <button
+              aria-label="Filter resources"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
+              tabindex="0"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                data-testid="FilterAltOutlinedIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M7 6h10l-5.01 6.3zm-2.75-.39C6.27 8.2 10 13 10 13v6c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-6s3.72-4.8 5.74-7.39c.51-.66.04-1.61-.79-1.61H5.04c-.83 0-1.3.95-.79 1.61"
+                />
+              </svg>
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      aria-label="Resource filter summary"
+      class="MuiBox-root css-3fgd2a"
+    >
+      <button
+        aria-label="Edit Namespaces"
+        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone MuiLink-button css-mijv9z-MuiTypography-root-MuiLink-root"
+        data-mui-internal-clone-element="true"
+        type="button"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-h2 css-1hqqb5-MuiTypography-root"
+        >
+          payments-production, checkout-production, platform-observability
+        </span>
+      </button>
+      <button
+        aria-label="Edit Label Selector"
+        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone MuiLink-button css-mijv9z-MuiTypography-root-MuiLink-root"
+        data-mui-internal-clone-element="true"
+        type="button"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-h2 css-1hqqb5-MuiTypography-root"
+        >
+          app.kubernetes.io/name=checkout-api,environment=production,tier!=backend
+        </span>
+      </button>
+    </div>
+  </div>
+</body>

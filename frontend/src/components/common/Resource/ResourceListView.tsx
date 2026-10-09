@@ -49,6 +49,21 @@ export default function ResourceListView<Item extends KubeObject<any>>(
 export default function ResourceListView(
   props: ResourceListViewProps<any> | ResourceListViewWithResourceClassProps<any>
 ) {
+  const dataLabelKeys =
+    'data' in props
+      ? [
+          ...new Set(props.data?.flatMap(item => Object.keys(item.metadata.labels ?? {})) ?? []),
+        ].sort()
+      : [];
+  const [reportedLabelKeys, setReportedLabelKeys] = React.useState<string[]>([]);
+  const updateLabelKeys = React.useCallback((nextLabelKeys: string[]) => {
+    setReportedLabelKeys(currentLabelKeys =>
+      currentLabelKeys.length === nextLabelKeys.length &&
+      currentLabelKeys.every((key, index) => key === nextLabelKeys[index])
+        ? currentLabelKeys
+        : nextLabelKeys
+    );
+  }, []);
   const { title, children, backLink, headerProps, ...tableProps } = props;
   const withNamespaceFilter = 'resourceClass' in props && props.resourceClass?.isNamespaced;
   const resourceClass = (props as ResourceListViewWithResourceClassProps<any>)
@@ -61,6 +76,8 @@ export default function ResourceListView(
         typeof title === 'string' ? (
           <SectionFilterHeader
             title={title}
+            labelKeys={resourceClass ? reportedLabelKeys : dataLabelKeys}
+            noLabelFilter={!resourceClass}
             noNamespaceFilter={!withNamespaceFilter}
             titleSideActions={
               headerProps?.titleSideActions ||
@@ -77,6 +94,7 @@ export default function ResourceListView(
         {...tableProps}
         enableRowActions={tableProps.enableRowActions ?? true}
         enableRowSelection={tableProps.enableRowSelection ?? true}
+        onLabelKeysChange={resourceClass ? updateLabelKeys : undefined}
       />
       {children}
     </SectionBox>
