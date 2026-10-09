@@ -207,18 +207,20 @@ export default function SimpleTable(props: SimpleTableProps) {
     setPage(newPage);
   }
 
-  // Protect against invalid page values
+  // Protect against invalid page values when data or page size changes
   React.useEffect(() => {
     if (page < 0) {
       setPage(0);
       return;
     }
 
-    if (displayData && page * rowsPerPage > displayData.length) {
-      setPage(Math.floor(displayData.length / rowsPerPage));
+    if (displayData) {
+      const maxPage = Math.max(0, Math.ceil(displayData.length / rowsPerPage) - 1);
+      if (page > maxPage) {
+        setPage(maxPage);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, displayData, rowsPerPage]);
+  }, [page, displayData, rowsPerPage, setPage]);
 
   function handleChangeRowsPerPage(
     event: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>
