@@ -875,3 +875,167 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 	assert.Contains(t, statusCodes, http.StatusInternalServerError,
 		"expected the winning request to return 500 for missing context")
 }
+
+func TestUpdatePortForwardStatus_DoesNotResurrectDeleted(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-resurrect"
+	stopChan := make(chan struct{})
+
+	pf := portForward{
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChan,
+		Status:    RUNNING,
+	}
+
+	portforwardstore(c, pf)
+
+	// Verify it exists in cache
+	stored, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, stored.Status)
+
+	// Delete the port-forward
+	err = stopOrDeletePortForward(c, cluster, id, false)
+	require.NoError(t, err)
+
+	// Verify deleted
+	_, err = getPortForwardByID(c, cluster, id)
+	assert.ErrorIs(t, err, cache.ErrNotFound)
+
+	// Simulate background shutdown routine attempting to update status to STOPPED
+	pfStopped := pf
+	pfStopped.Status = STOPPED
+	updatePortForwardStatus(c, pfStopped)
+
+	// Must NOT be resurrected
+	_, err = getPortForwardByID(c, cluster, id)
+	assert.ErrorIs(t, err, cache.ErrNotFound)
+}
+
+func TestUpdatePortForwardStatus_DoesNotOverwriteNewLifecycle(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-lifecycle"
+
+	stopChanA := make(chan struct{})
+	pfA := portForward{
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChanA,
+		Status:    RUNNING,
+	}
+
+	// Old lifecycle A stored
+	portforwardstore(c, pfA)
+
+	// Replace with new lifecycle B (reusing same ID)
+	stopChanB := make(chan struct{})
+	pfB := portForward{
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChanB,
+		Status:    RUNNING,
+	}
+	portforwardstore(c, pfB)
+
+	// Old lifecycle A attempts to save STOPPED
+	pfAStopped := pfA
+	pfAStopped.Status = STOPPED
+	updatePortForwardStatus(c, pfAStopped)
+
+	// Must retain lifecycle B with RUNNING status
+	current, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, current.Status)
+	assert.Equal(t, stopChanB, current.closeChan)
+}
+
+func TestUpdatePortForwardStatus_UpdatesExistingLifecycle(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-update"
+	stopChan := make(chan struct{})
+
+	pf := portForward{
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChan,
+		Status:    RUNNING,
+	}
+
+	portforwardstore(c, pf)
+
+	// Update status of active lifecycle to STOPPED
+	pfStopped := pf
+	pfStopped.Status = STOPPED
+	pfStopped.Error = "Stopped by test"
+	updatePortForwardStatus(c, pfStopped)
+
+	current, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, STOPPED, current.Status)
+	assert.Equal(t, "Stopped by test", current.Error)
+}
+
+func TestUpdatePortForwardStatus_ConcurrentStopOrDeleteRace(t *testing.T) {
+	const iterations = 50
+
+	for i := 0; i < iterations; i++ {
+		c := cache.New[interface{}]()
+		cluster := "test-cluster"
+		id := fmt.Sprintf("test-id-race-%d", i)
+		stopChan := make(chan struct{})
+
+		pf := portForward{
+			ID:        id,
+			Cluster:   cluster,
+			cacheKey:  cluster,
+			closeChan: stopChan,
+			Status:    RUNNING,
+		}
+		portforwardstore(c, pf)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// Goroutine 1: simulates background worker updating to STOPPED on shutdown
+		go func() {
+			defer wg.Done()
+
+			pfStopped := pf
+			pfStopped.Status = STOPPED
+			updatePortForwardStatus(c, pfStopped)
+		}()
+
+		// Goroutine 2: simulates HTTP request deleting the port-forward
+		go func() {
+			defer wg.Done()
+
+			_ = stopOrDeletePortForward(c, cluster, id, false)
+		}()
+
+		wg.Wait()
+
+		// Once delete has finished, the entry must NEVER remain in cache as STOPPED.
+		// If stopOrDeletePortForward executed, it deleted it.
+		// If updatePortForwardStatus executed before stopOrDeletePortForward,
+		// stopOrDeletePortForward subsequently deleted it.
+		// If stopOrDeletePortForward executed first, updatePortForwardStatus skipped it.
+		_, err := getPortForwardByID(c, cluster, id)
+		assert.ErrorIs(t, err, cache.ErrNotFound, "deleted port-forward must not exist in cache")
+
+		_ = c.Close()
+	}
+}
