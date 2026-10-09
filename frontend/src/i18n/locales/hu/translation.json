@@ -162,6 +162,8 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "A névterek csak kisbetűs alfanumerikus karaktereket tartalmazhat, valamint alfanumerikus karakterrel kell kezdődnie és végződnie.",
   "Node Shell Settings": "Node-felület beállításai",
   "Enable Node Shell": "",
+  "Chroot to host": "",
+  "Start the Node Shell with chroot /host.": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "Az alapértelmezett rendszerkép egy felület csomópontba való bedobására szolgál (amikor nincs megadva közvetlenül).",
   "Linux image": "Linux rendszerkép",
   "The default namespace is {{ namespace }}.": "",

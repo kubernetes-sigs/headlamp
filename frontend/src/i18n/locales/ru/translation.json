@@ -162,6 +162,8 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Пространства имён должны содержать только строчные буквенно-цифровые символы или «-» и должны начинаться и заканчиваться буквенно-цифровыми символами.",
   "Node Shell Settings": "Настройки оболочки узла",
   "Enable Node Shell": "",
+  "Chroot to host": "",
+  "Start the Node Shell with chroot /host.": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "Образ по умолчанию используется для размещения оболочки в узле (если не указано напрямую).",
   "Linux image": "Образ Linux",
   "The default namespace is {{ namespace }}.": "Пространство имён по умолчанию — {{ namespace }}.",

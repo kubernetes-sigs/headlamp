@@ -162,6 +162,8 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Namespace hanya boleh berisi karakter alfanumerik huruf kecil atau '-', dan harus dimulai dan diakhiri dengan karakter alfanumerik.",
   "Node Shell Settings": "Pengaturan Shell Node",
   "Enable Node Shell": "",
+  "Chroot to host": "",
+  "Start the Node Shell with chroot /host.": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "Citra default digunakan untuk meletakkan shell ke node (jika tidak ditentukan secara langsung).",
   "Linux image": "Citra Linux",
   "The default namespace is {{ namespace }}.": "",
