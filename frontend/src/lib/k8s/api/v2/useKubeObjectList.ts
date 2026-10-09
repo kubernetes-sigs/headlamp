@@ -191,7 +191,8 @@ export function kubeObjectListQuery<K extends KubeObject>(
   namespace: string | undefined = '',
   cluster: string,
   queryParams: QueryParameters,
-  refetchInterval?: number
+  refetchInterval?: number,
+  asTable = false
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
   const configuredSelector =
     loadClusterSettings(cluster).allowedNamespacesSelector?.trim() || undefined;
@@ -218,18 +219,64 @@ export function kubeObjectListQuery<K extends KubeObject>(
       cluster,
       namespace,
       queryParams,
+      ...(asTable ? ['Table'] : []),
     ],
     queryFn: async () => {
       // If no valid endpoint is passed, don't make the request
       if (!endpoint) return;
 
       try {
-        const list: KubeList<any> = await clusterFetch(
+        const requestTable =
+          asTable && kubeObjectClass.kind === 'Secret' && endpoint.resource === 'secrets';
+        const fetchResponse = await clusterFetch(
           makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], queryParams),
           {
             cluster,
+            ...(requestTable && {
+              headers: {
+                Accept: 'application/json;as=Table;g=meta.k8s.io;v=v1,application/json;q=0.9',
+              },
+            }),
           }
-        ).then(it => it.json());
+        );
+        const result: any = await fetchResponse.json();
+        let list: KubeList<any> = result;
+        if (requestTable && result.kind === 'Table') {
+          // Table rows carry metadata and printable Type/Data cells, not secret values.
+          // The Accept header lets servers without Table support return an ordinary SecretList.
+          const typeIndex =
+            result.columnDefinitions?.findIndex((col: { name: string }) => col.name === 'Type') ??
+            -1;
+          const dataIndex =
+            result.columnDefinitions?.findIndex((col: { name: string }) => col.name === 'Data') ??
+            -1;
+          if (
+            typeIndex < 0 ||
+            dataIndex < 0 ||
+            !Array.isArray(result.rows) ||
+            result.rows.some(
+              (row: any) =>
+                !row.object?.metadata ||
+                typeof row.cells?.[typeIndex] !== 'string' ||
+                !Number.isInteger(Number(row.cells?.[dataIndex]))
+            )
+          ) {
+            throw new ApiError('Secret Table response lacks expected columns or metadata');
+          }
+          list = {
+            kind: 'SecretList',
+            apiVersion: 'v1',
+            metadata: result.metadata,
+            items: result.rows.map((row: any) => ({
+              apiVersion: 'v1',
+              kind: 'Secret',
+              metadata: row.object.metadata,
+              type: row.cells[typeIndex],
+              dataCount: Number(row.cells[dataIndex]),
+              data: {},
+            })),
+          };
+        }
         const kind = list.kind.replace(/List$/, '');
         const apiVersion = list.apiVersion;
         list.items = list.items.map(item => {
@@ -663,6 +710,7 @@ export function useKubeObjectList<K extends KubeObject>({
   queryParams,
   watch = true,
   refetchInterval,
+  asTable = false,
   emptyWhenNoRequests = false,
 }: {
   requests: Array<{ cluster: string; namespaces?: string[] }>;
@@ -673,6 +721,8 @@ export function useKubeObjectList<K extends KubeObject>({
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
   refetchInterval?: number;
+  /** Request a compact Kubernetes Table for this list only. */
+  asTable?: boolean;
   /** Return an empty list instead of a loading state when requests were intentionally suppressed. */
   emptyWhenNoRequests?: boolean;
 }): [Array<K> | null, ApiError | null] &
@@ -718,12 +768,13 @@ export function useKubeObjectList<K extends KubeObject>({
               namespace,
               cluster,
               perRequestQueryParams,
-              refetchInterval
+              refetchInterval,
+              asTable
             )
           )
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams]
+    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams, refetchInterval, asTable]
   );
 
   const query = useQueries({
@@ -781,7 +832,7 @@ export function useKubeObjectList<K extends KubeObject>({
 
   // Don't watch when results are paginated — the watch stream would deliver events
   // for resources outside our fetched page, causing the list to grow unboundedly.
-  const shouldWatch = watch && !refetchInterval && !query.isLoading && !query.hasMore;
+  const shouldWatch = watch && !asTable && !refetchInterval && !query.isLoading && !query.hasMore;
 
   const [listsToWatch, setListsToWatch] = useState<
     { cluster: string; namespace?: string; resourceVersion: string }[]
@@ -875,7 +926,8 @@ export function useKubeObjectList<K extends KubeObject>({
             namespace,
             cluster,
             perRequestQueryParams,
-            refetchInterval
+            refetchInterval,
+            asTable
           )
         );
 
@@ -914,12 +966,22 @@ export function useKubeObjectList<K extends KubeObject>({
             ...perRequestQueryParams,
             continue: continueToken,
           };
-          let raw: KubeList<any>;
+          let page: ListResponse<K>;
           try {
-            raw = await clusterFetch(
-              makeUrl([KubeObjectEndpoint.toUrl(endpoint, cached.namespace)], fetchParams),
-              { cluster: cached.cluster }
-            ).then(r => r.json());
+            // Reuse the first-page query's Table conversion for paginated Secret lists.
+            const pageQueryFn = kubeObjectListQuery<K>(
+              kubeObjectClass,
+              endpoint,
+              cached.namespace,
+              cached.cluster,
+              fetchParams,
+              refetchInterval,
+              asTable
+            ).queryFn;
+            if (typeof pageQueryFn !== 'function') {
+              throw new ApiError('Cannot load another page without a list query');
+            }
+            page = (await pageQueryFn({} as any))!;
           } catch (e) {
             const error =
               e instanceof ApiError
@@ -935,16 +997,8 @@ export function useKubeObjectList<K extends KubeObject>({
             throw error;
           }
 
-          const kind = raw.kind.replace(/List$/, '');
-          const apiVersion = raw.apiVersion;
-          const newItems: K[] = raw.items.map((item: any) => {
-            if (item.metadata?.managedFields) delete item.metadata.managedFields;
-            item.kind = kind;
-            item.apiVersion = apiVersion;
-            const obj = new kubeObjectClass(item) as K;
-            obj.cluster = cached.cluster;
-            return obj;
-          });
+          const { list: raw } = page;
+          const newItems = raw.items;
 
           queryClient.setQueryData<ListResponse<K>>(q.queryKey!, old => {
             if (!old) return old;
@@ -990,6 +1044,7 @@ export function useKubeObjectList<K extends KubeObject>({
     kubeObjectClass,
     perRequestQueryParams,
     refetchInterval,
+    asTable,
   ]);
 
   // @ts-ignore - TS compiler gets confused with iterators
