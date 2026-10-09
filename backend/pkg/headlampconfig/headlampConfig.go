@@ -3,6 +3,7 @@ package headlampconfig
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -29,6 +30,7 @@ type HeadlampConfig struct {
 	OidcSkipTLSVerify         bool
 	OidcCACert                string
 	OidcUsePKCE               bool
+	OidcAuthURLParams         url.Values
 	OidcScopes                []string
 	Cache                     cache.Cache[interface{}]
 	Multiplexer               WebSocketMultiplexer

@@ -207,6 +207,9 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
+	// config.Parse has already rejected an invalid value.
+	oidcAuthURLParams, _ := config.ParseOIDCAuthURLParams(conf.OidcAuthURLParameters)
+
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
 		OidcClientID:              conf.OidcClientID,
@@ -219,6 +222,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcAuthURLParams:         oidcAuthURLParams,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,

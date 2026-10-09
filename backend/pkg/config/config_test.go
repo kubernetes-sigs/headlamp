@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1229,4 +1230,97 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	path, err := config.GetDefaultKubeConfigPath()
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
+}
+
+func TestParseOIDCAuthURLParams(t *testing.T) {
+	tests := []struct {
+		name          string
+		raw           string
+		want          url.Values
+		errorContains string
+	}{
+		{name: "empty", raw: "", want: nil},
+		{
+			name: "single",
+			raw:  "audience=https://api.example.com",
+			want: url.Values{"audience": {"https://api.example.com"}},
+		},
+		{
+			name: "several",
+			raw:  "access_type=offline&prompt=consent",
+			want: url.Values{"access_type": {"offline"}, "prompt": {"consent"}},
+		},
+		{
+			name: "value_with_comma_and_encoded_ampersand",
+			raw:  "claims=%7B%22a%22%3A1%2C%22b%22%3A2%7D&login_hint=a%26b,c",
+			want: url.Values{"claims": {`{"a":1,"b":2}`}, "login_hint": {"a&b,c"}},
+		},
+		{name: "reserved_scope", raw: "scope=openid", errorContains: `"scope" is reserved`},
+		{
+			name:          "reserved_redirect_uri",
+			raw:           "redirect_uri=https://evil.example.com",
+			errorContains: `"redirect_uri" is reserved`,
+		},
+		{name: "reserved_state", raw: "prompt=consent&state=x", errorContains: `"state" is reserved`},
+		{name: "reserved_code_challenge", raw: "code_challenge=x", errorContains: `"code_challenge" is reserved`},
+		{name: "reserved_response_mode", raw: "response_mode=form_post", errorContains: `"response_mode" is reserved`},
+		{name: "duplicate_key", raw: "prompt=consent&prompt=login", errorContains: `"prompt" is set more than once`},
+		{name: "missing_value", raw: "prompt", errorContains: `"prompt" has no value`},
+		{name: "empty_value", raw: "prompt=", errorContains: `"prompt" has no value`},
+		{name: "empty_key", raw: "=consent", errorContains: "empty parameter name"},
+		{name: "bad_escape", raw: "audience=%zz", errorContains: "invalid oidc-auth-url-param"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.ParseOIDCAuthURLParams(tt.raw)
+			if tt.errorContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorContains)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestOIDCAuthURLParamFlag(t *testing.T) {
+	t.Run("repeated_flag", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--oidc-auth-url-param=audience=https://api.example.com",
+			"--oidc-auth-url-param", "prompt=consent",
+		})
+		require.NoError(t, err)
+
+		params, err := config.ParseOIDCAuthURLParams(conf.OidcAuthURLParameters)
+		require.NoError(t, err)
+		assert.Equal(t, url.Values{"audience": {"https://api.example.com"}, "prompt": {"consent"}}, params)
+	})
+
+	t.Run("from_env", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_OIDC_AUTH_URL_PARAM", "access_type=offline&prompt=consent")
+
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		assert.Equal(t, "access_type=offline&prompt=consent", conf.OidcAuthURLParameters)
+	})
+
+	t.Run("flag_overrides_env", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_OIDC_AUTH_URL_PARAM", "prompt=login")
+
+		conf, err := config.Parse([]string{"go run ./cmd", "--oidc-auth-url-param=prompt=consent"})
+		require.NoError(t, err)
+		assert.Equal(t, "prompt=consent", conf.OidcAuthURLParameters)
+	})
+
+	t.Run("reserved_param_fails_startup", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd", "--oidc-auth-url-param=client_id=other"})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), `"client_id" is reserved`)
+	})
 }

@@ -48,6 +48,8 @@ limitations under the License.
 //   8. With OidcUsePKCE set, /oidc adds an S256 code_challenge to the
 //      redirect and /oidc-callback sends the matching code_verifier on the
 //      token exchange; without it, neither parameter is sent.
+//   9. With OidcAuthURLParams set, /oidc adds each parameter to the redirect,
+//      URL-encoded once, next to the standard and PKCE parameters.
 //
 // Mocking strategy: each test spins up a small httptest.Server that
 // implements the OIDC discovery + JWKS + token endpoints. The /token
@@ -152,6 +154,11 @@ type oidcTestOption func(*HeadlampConfig)
 // withPKCE enables the OidcUsePKCE code path on the handler under test.
 func withPKCE() oidcTestOption {
 	return func(c *HeadlampConfig) { c.OidcUsePKCE = true }
+}
+
+// withAuthURLParams sets extra authorization request parameters.
+func withAuthURLParams(params url.Values) oidcTestOption {
+	return func(c *HeadlampConfig) { c.OidcAuthURLParams = params }
 }
 
 // withStateReader replaces the reader backing OIDC state generation, so a
@@ -527,4 +534,31 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 		assert.Empty(t, form.Get("code_verifier"),
 			"no code_verifier should be sent when PKCE is off")
 	})
+}
+
+// TestOIDCStart_ExtraAuthURLParams covers target #9: configured parameters
+// reach the IdP redirect with their exact values, coexist with PKCE and do
+// not displace the parameters Headlamp sets itself.
+func TestOIDCStart_ExtraAuthURLParams(t *testing.T) {
+	oidcSrv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, oidcSrv, withPKCE(), withAuthURLParams(url.Values{
+		"audience": {"https://api.example.com"},
+		"claims":   {`{"id_token":{"a":null,"b":null}}`},
+	}))
+
+	loc := driveOIDCStart(t, handler, cluster)
+	q := loc.Query()
+
+	assert.Equal(t, "https://api.example.com", q.Get("audience"))
+	assert.Equal(t, `{"id_token":{"a":null,"b":null}}`, q.Get("claims"),
+		"a value with commas must arrive unchanged")
+	assert.Contains(t, loc.RawQuery, "audience=https%3A%2F%2Fapi.example.com",
+		"values are encoded exactly once")
+
+	assert.Equal(t, "test-client-id", q.Get("client_id"))
+	assert.Equal(t, "code", q.Get("response_type"))
+	assert.Equal(t, "openid profile email", q.Get("scope"))
+	assert.NotEmpty(t, q.Get("state"))
+	assert.Equal(t, "S256", q.Get("code_challenge_method"))
+	assert.NotEmpty(t, q.Get("code_challenge"))
 }

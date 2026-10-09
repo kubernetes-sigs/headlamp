@@ -6,9 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -91,6 +94,7 @@ type Config struct {
 	MeGroupsPath                 string `koanf:"me-groups-path"`
 	MeUserInfoURL                string `koanf:"me-user-info-url"`
 	OidcUsePKCE                  bool   `koanf:"oidc-use-pkce"`
+	OidcAuthURLParameters        string `koanf:"oidc-auth-url-param"`
 	ProxyAuthEnabled             bool   `koanf:"proxy-auth"`
 	ProxyAuthUsernameHeader      string `koanf:"proxy-auth-username-header"`
 	ProxyAuthGroupHeader         string `koanf:"proxy-auth-group-header"`
@@ -149,7 +153,7 @@ func (c *Config) Validate() error {
 		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
 	}
 
-	if err := c.validateOIDCCAFile(); err != nil {
+	if err := c.validateOIDC(); err != nil {
 		return err
 	}
 
@@ -202,6 +206,16 @@ func (c *Config) validateAppName() error {
 	return nil
 }
 
+func (c *Config) validateOIDC() error {
+	if err := c.validateOIDCCAFile(); err != nil {
+		return err
+	}
+
+	_, err := ParseOIDCAuthURLParams(c.OidcAuthURLParameters)
+
+	return err
+}
+
 func (c *Config) validateOIDCCAFile() error {
 	if c.OidcCAFile == "" {
 		return nil
@@ -218,6 +232,71 @@ func (c *Config) validateOIDCCAFile() error {
 	}
 
 	return nil
+}
+
+// reservedOIDCAuthURLParams are set by Headlamp or the oauth2 library, or the
+// callback depends on them. Overriding any of them breaks the login flow or
+// weakens it: response_mode=form_post would deliver the code in a POST body
+// that /oidc-callback never reads, and a fixed nonce is never verified.
+var reservedOIDCAuthURLParams = map[string]bool{
+	"client_id":             true,
+	"code_challenge":        true,
+	"code_challenge_method": true,
+	"nonce":                 true,
+	"redirect_uri":          true,
+	"response_mode":         true,
+	"response_type":         true,
+	"scope":                 true,
+	"state":                 true,
+}
+
+// authURLParamFlag lets -oidc-auth-url-param be repeated. String() joins the
+// occurrences with '&' so koanf stores one query string, the same format the
+// HEADLAMP_CONFIG_OIDC_AUTH_URL_PARAM env var uses.
+type authURLParamFlag []string
+
+func (a *authURLParamFlag) String() string {
+	if a == nil {
+		return ""
+	}
+
+	return strings.Join(*a, "&")
+}
+
+func (a *authURLParamFlag) Set(value string) error {
+	*a = append(*a, value)
+
+	return nil
+}
+
+// ParseOIDCAuthURLParams parses the oidc-auth-url-param value, a URL query
+// string such as "audience=https://api.example.com&prompt=consent". Values
+// are decoded here and encoded again when the authorization URL is built, so
+// any value can be passed; '&', '+' and '%' in a value must be percent-encoded.
+func ParseOIDCAuthURLParams(raw string) (url.Values, error) {
+	if raw == "" {
+		return nil, nil
+	}
+
+	params, err := url.ParseQuery(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid oidc-auth-url-param: %w", err)
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(params)) {
+		switch {
+		case key == "":
+			return nil, errors.New("invalid oidc-auth-url-param: empty parameter name")
+		case reservedOIDCAuthURLParams[key]:
+			return nil, fmt.Errorf("invalid oidc-auth-url-param: %q is reserved and cannot be overridden", key)
+		case len(params[key]) > 1:
+			return nil, fmt.Errorf("invalid oidc-auth-url-param: %q is set more than once", key)
+		case params[key][0] == "":
+			return nil, fmt.Errorf("invalid oidc-auth-url-param: %q has no value", key)
+		}
+	}
+
+	return params, nil
 }
 
 func (c *Config) validateClusterInventory() error {
@@ -672,6 +751,9 @@ func addOIDCFlags(f *flag.FlagSet) {
 			"default. Preconditions and caveats: "+
 			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Var(&authURLParamFlag{}, "oidc-auth-url-param",
+		"Extra query parameter for the OIDC authorization request, as URL-encoded key=value. "+
+			"Repeat the flag or join pairs with '&' for several parameters")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
