@@ -293,7 +293,8 @@ export function getResourceMetrics(
   metrics: KubeMetrics[],
   resourceType: 'cpu' | 'memory'
 ) {
-  if (item.status.capacity === undefined) {
+  const capacityMap = item.status?.capacity;
+  if (!capacityMap) {
     return [0, 0];
   }
   const resourceParsers: any = {
@@ -305,7 +306,7 @@ export function getResourceMetrics(
   const itemMetrics = metrics.find(itemMetrics => itemMetrics.metadata.name === item.getName());
 
   const used = parser(itemMetrics ? itemMetrics.usage[resourceType] : '0');
-  const capacity = parser(item.status.capacity[resourceType]);
+  const capacity = parser(capacityMap[resourceType] || '0');
 
   return [used, capacity];
 }

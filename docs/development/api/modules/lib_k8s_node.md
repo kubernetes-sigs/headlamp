@@ -9,3 +9,4 @@
 ## Interfaces
 
 - [KubeNode](../interfaces/lib_k8s_node.KubeNode.md)
+- [KubeNodeStatus](../interfaces/lib_k8s_node.KubeNodeStatus.md)
