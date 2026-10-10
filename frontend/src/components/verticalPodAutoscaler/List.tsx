@@ -69,7 +69,11 @@ export default function VpaList() {
             {
               id: 'provided',
               label: t('translation|Provided'),
-              getValue: item => item?.status?.conditions?.[0]?.status ?? null,
+              // conditions are sorted by type, not by relevance, so find it instead of using [0]
+              getValue: item =>
+                item?.status?.conditions?.find(
+                  condition => condition.type === 'RecommendationProvided'
+                )?.status ?? null,
             },
             'labels',
             'age',
