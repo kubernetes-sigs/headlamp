@@ -1,0 +1,49 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: headlamp-oidc-repro
+nodes:
+  - role: control-plane
+    # The apiserver's own OIDC flags are intentionally NOT set.
+    #
+    # These reproductions exercise Headlamp's OIDC *client* — the browser
+    # login round-trip, the callback, and Headlamp's own auth checks. The
+    # apiserver never has to validate a Dex-issued token for any of them.
+    #
+    # Setting --oidc-issuer-url also breaks cluster creation: kubeadm's
+    # wait-control-plane blocks until the apiserver is healthy, and an apiserver
+    # told to trust an issuer whose JWKS it cannot fetch never gets there.
+    #
+    # If you do need apiserver-side OIDC (for example to test impersonation or
+    # token-based RBAC), the issuer has to live OUTSIDE this cluster and already
+    # be serving JWKS before `kind create cluster` runs. There is no ordering
+    # that makes this harness's own Dex work for that: it is an in-cluster
+    # Deployment, so it cannot exist before the control plane it is supposed to
+    # unblock, and recreating the cluster to add the flags deletes it again.
+    # Stand up a separate issuer reachable from inside the node's network
+    # namespace, then patch the flags in below.
+    #
+    # This must go through a kubeadm ClusterConfiguration patch -- kind's node
+    # spec has no `extraArgs` field, so putting these directly under the node
+    # makes kind reject the config.
+    #
+    # NOTE the shape of extraArgs depends on the kubeadm API version the node
+    # image uses. v1beta4 (Kubernetes 1.31+, which is what kind's default node
+    # image is now) takes a LIST of name/value pairs, as written here. On older
+    # v1beta3 images it is a MAP (`oidc-issuer-url: "..."`). Using the wrong one
+    # fails during bootstrap, not at config-parse time.
+    #
+    # kubeadmConfigPatches:
+    #   - |
+    #     kind: ClusterConfiguration
+    #     apiServer:
+    #       extraArgs:
+    #         - name: oidc-issuer-url
+    #           value: "http://<issuer-reachable-from-node>:5556/dex"
+    #         - name: oidc-client-id
+    #           value: "headlamp-test"
+    #         - name: oidc-username-claim
+    #           value: "email"
+    #         - name: oidc-groups-claim
+    #           value: "groups"
+networking:
+  apiServerAddress: "127.0.0.1"
