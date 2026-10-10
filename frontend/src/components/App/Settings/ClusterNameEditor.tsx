@@ -28,7 +28,7 @@ import { mergeStatelessConfigState } from '../../../stateless';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { updateStatelessClusterKubeconfig } from '../../../stateless/updateStatelessClusterKubeconfig';
 import { ConfirmButton, ConfirmDialog, NameValueTable } from '../../common';
-import { isValidClusterNameFormat } from './util';
+import { isClusterNameInUse, isValidClusterNameFormat } from './util';
 
 interface ClusterNameEditorProps {
   cluster: string;
@@ -80,22 +80,7 @@ export function ClusterNameEditor({
    * @returns bool of if the name is in use.
    */
   function checkNameInUse(name: string) {
-    if (!clusterConf) {
-      return false;
-    }
-    /** These are the display names of the clusters, renamed clusters have their display name as the custom name */
-    const clusterNames = Object.values(clusterConf).map(cluster => cluster.name);
-
-    /** The original name of the cluster is the name used in the kubeconfig file. */
-    const originalNames = Object.values(clusterConf)
-      .map(cluster => cluster.meta_data?.originalName)
-      .filter(originalName => originalName !== undefined);
-
-    const allNames = [...clusterNames, ...originalNames];
-
-    const nameInUse = allNames.includes(name);
-
-    setCustomNameInUse(nameInUse);
+    setCustomNameInUse(isClusterNameInUse(name, cluster, clusterConf));
   }
 
   // Display the original name of the cluster if it was loaded from a kubeconfig file.
