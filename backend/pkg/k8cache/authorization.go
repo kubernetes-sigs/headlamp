@@ -48,6 +48,10 @@ const unknownVerb = "unknown"
 // cache for expired entries.
 const janitorInterval = 5 * time.Minute
 
+// ssarTTL is how long a cached SelfSubjectAccessReview result is
+// considered valid before a fresh API call is required.
+const ssarTTL = 30 * time.Second
+
 type CachedClientSet struct {
 	clientset *kubernetes.Clientset
 	lastUsed  time.Time
@@ -61,6 +65,12 @@ type inFlightEntry struct {
 
 type blockedPrefixEntry struct {
 	blockedAt time.Time
+}
+
+// ssarCacheEntry holds a cached SelfSubjectAccessReview result.
+type ssarCacheEntry struct {
+	allowed   bool
+	expiresAt time.Time
 }
 
 var (
@@ -89,6 +99,13 @@ var (
 	}
 )
 
+// ssarCache holds cached SelfSubjectAccessReview results to avoid
+// redundant authorization API calls for the same user/resource/verb.
+var (
+	ssarCache = make(map[string]*ssarCacheEntry)
+	ssarMu    sync.RWMutex
+)
+
 // startJanitor launches a background goroutine (exactly once) that
 // periodically scans clientsetCache and removes entries whose lastUsed
 // timestamp exceeds clientsetTTL. This prevents unbounded memory growth
@@ -107,7 +124,8 @@ func startJanitor() {
 }
 
 // evictExpiredClientsets walks the cache under the lock and deletes
-// every entry older than clientsetTTL.
+// every entry older than clientsetTTL. It also sweeps expired SSAR
+// cache entries.
 func evictExpiredClientsets() {
 	mu.Lock()
 
@@ -132,6 +150,8 @@ func evictExpiredClientsets() {
 		logger.Log(logger.LevelInfo, nil, nil,
 			fmt.Sprintf("janitor: evicted %d expired clientset(s), %d remaining", evicted, remaining))
 	}
+
+	evictExpiredSSARResults(now)
 }
 
 // hasClientsetActivityForPrefix reports whether any clientset or in-flight entry
@@ -173,6 +193,7 @@ func pruneBlockedClientsetPrefixesLocked(now time.Time) {
 // the given prefix immediately when a kube context is removed, instead of waiting for
 // TTL expiry. The prefix is the Headlamp context store key (the part before the token
 // separator in clientset cache keys), which includes the user ID for stateless contexts.
+// It also evicts any cached SSAR results for the same prefix.
 func EvictClientsetsForCluster(clientsetCachePrefix string) {
 	if clientsetCachePrefix == "" {
 		return
@@ -205,6 +226,8 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 			fmt.Sprintf("evicted %d clientset(s) for removed clientset cache prefix %s, %d remaining",
 				evicted, redactContextKey(clientsetCachePrefix), remaining))
 	}
+
+	evictSSARCacheForPrefix(clientsetCachePrefix)
 }
 
 // clientsetCachePrefixFromCacheKey returns the Headlamp context store key prefix
@@ -525,6 +548,9 @@ func getResourceAttributes(r *http.Request) (*authorizationv1.ResourceAttributes
 // IsAllowed checks the user's permission to access the resource.
 // If the user is authorized and has permission to view the resources, it returns true.
 // Otherwise, it returns false if authorization fails.
+//
+// Results are cached for ssarTTL (30 s) to avoid redundant
+// SelfSubjectAccessReview API calls for the same user/resource/verb.
 func IsAllowed(
 	headlampContextKey string,
 	k *kubeconfig.Context,
@@ -532,12 +558,25 @@ func IsAllowed(
 ) (bool, error) {
 	token := auth.BearerTokenValue(r.Header.Get("Authorization"))
 
-	clientset, err := GetClientSet(headlampContextKey, k, token)
+	resourceAttributes, err := getResourceAttributes(r)
 	if err != nil {
 		return false, err
 	}
 
-	resourceAttributes, err := getResourceAttributes(r)
+	// Only cache SSAR results for read verbs (get, list, watch).
+	// Non-GET requests produce verb="unknown" which is meaningless to cache.
+	cacheable := isSSARCacheable(resourceAttributes.Verb)
+
+	// Check the SSAR result cache before making an API call.
+	ssarKey := buildSSARCacheKey(headlampContextKey, token, resourceAttributes)
+
+	if cacheable {
+		if allowed, found := getSSARCacheResult(ssarKey); found {
+			return allowed, nil
+		}
+	}
+
+	clientset, err := GetClientSet(headlampContextKey, k, token)
 	if err != nil {
 		return false, err
 	}
@@ -561,7 +600,121 @@ func IsAllowed(
 		return false, fmt.Errorf("nil SelfSubjectAccessReview result")
 	}
 
-	return result.Status.Allowed, err
+	if cacheable {
+		storeSSARCacheResult(ssarKey, result.Status.Allowed)
+	}
+
+	return result.Status.Allowed, nil
+}
+
+// isSSARCacheable reports whether an SSAR result for the given verb
+// should be cached. Only read verbs (get, list, watch) produce stable,
+// meaningful results worth caching. Non-GET HTTP methods map to
+// verb="unknown" which is not useful to cache.
+func isSSARCacheable(verb string) bool {
+	switch verb {
+	case "get", "list", "watch":
+		return true
+	default:
+		return false
+	}
+}
+
+// buildSSARCacheKey produces a unique cache key for an SSAR result
+// based on the cluster context, user token, and resource attributes.
+// All fields that affect the authorization outcome are included so
+// that name-scoped or subresource-scoped RBAC rules produce distinct
+// cache entries.
+func buildSSARCacheKey(
+	headlampContextKey, token string,
+	attrs *authorizationv1.ResourceAttributes,
+) string {
+	return headlampContextKey + "\x00" + token + "\x00" +
+		attrs.Group + "/" + attrs.Resource + "/" + attrs.Subresource + "/" +
+		attrs.Verb + "/" + attrs.Namespace + "/" + attrs.Name
+}
+
+// getSSARCacheResult returns the cached SSAR result for the given key.
+// The second return value is false if no valid (non-expired) entry exists.
+func getSSARCacheResult(key string) (bool, bool) {
+	ssarMu.RLock()
+
+	entry, found := ssarCache[key]
+
+	ssarMu.RUnlock()
+
+	if !found {
+		return false, false
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		return false, false
+	}
+
+	return entry.allowed, true
+}
+
+// storeSSARCacheResult stores an SSAR result in the cache with the
+// configured TTL.
+func storeSSARCacheResult(key string, allowed bool) {
+	ssarMu.Lock()
+	ssarCache[key] = &ssarCacheEntry{
+		allowed:   allowed,
+		expiresAt: time.Now().Add(ssarTTL),
+	}
+	ssarMu.Unlock()
+}
+
+// evictSSARCacheForPrefix removes all cached SSAR results whose keys
+// start with the given context prefix. Called when a cluster context is
+// removed so stale authorization decisions are not served.
+func evictSSARCacheForPrefix(prefix string) {
+	ssarPrefix := prefix + "\x00"
+
+	ssarMu.Lock()
+
+	evicted := 0
+
+	for key := range ssarCache {
+		if strings.HasPrefix(key, ssarPrefix) {
+			delete(ssarCache, key)
+
+			evicted++
+		}
+	}
+
+	ssarMu.Unlock()
+
+	if evicted > 0 {
+		logger.Log(logger.LevelInfo, nil, nil,
+			fmt.Sprintf("evicted %d cached SSAR result(s) for prefix %s",
+				evicted, redactContextKey(prefix)))
+	}
+}
+
+// evictExpiredSSARResults removes all SSAR cache entries that have
+// passed their expiration time. Called by the janitor.
+func evictExpiredSSARResults(now time.Time) {
+	ssarMu.Lock()
+
+	evicted := 0
+
+	for key, entry := range ssarCache {
+		if now.After(entry.expiresAt) {
+			delete(ssarCache, key)
+
+			evicted++
+		}
+	}
+
+	remaining := len(ssarCache)
+
+	ssarMu.Unlock()
+
+	if evicted > 0 {
+		logger.Log(logger.LevelInfo, nil, nil,
+			fmt.Sprintf("janitor: evicted %d expired SSAR result(s), %d remaining", evicted, remaining))
+	}
 }
 
 // ServeFromCacheOrForwardToK8s attempts to serve a Kubernetes resource from cache.
