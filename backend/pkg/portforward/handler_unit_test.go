@@ -178,9 +178,9 @@ func TestGetPortForwardByID_NotFound(t *testing.T) {
 	assert.Contains(t, string(body), "no portforward running with id")
 }
 
-// --- StopOrDeletePortForward handler tests ---
+// --- HandlePortForwardAction handler tests ---
 
-func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
+func TestHandlePortForwardAction_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	ch := cache.New[interface{}]()
@@ -191,7 +191,7 @@ func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
 		"clusterName": "test-cluster",
 	})
 
-	portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
+	portforward.HandlePortForwardAction(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -200,30 +200,46 @@ func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 }
 
-func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
-	t.Parallel()
+// portForwardActionErrorCase is a bad request to HandlePortForwardAction and the
+// response it is expected to produce.
+type portForwardActionErrorCase struct {
+	name           string
+	id             string
+	action         string
+	wantStatusCode int
+	wantBody       string
+}
 
-	tests := []struct {
-		name           string
-		id             string
-		wantStatusCode int
-		wantBody       string
-	}{
+func portForwardActionErrorCases() []portForwardActionErrorCase {
+	return []portForwardActionErrorCase{
 		{
 			name:           "missing id",
 			id:             "",
+			action:         "stop",
 			wantStatusCode: http.StatusBadRequest,
 			wantBody:       "id is required",
 		},
 		{
+			name:           "invalid action",
+			id:             "some-id",
+			action:         "bogus",
+			wantStatusCode: http.StatusBadRequest,
+			wantBody:       "action must be",
+		},
+		{
 			name:           "id not found in cache",
 			id:             "does-not-exist",
+			action:         "delete",
 			wantStatusCode: http.StatusInternalServerError,
 			wantBody:       "failed to delete port forward",
 		},
 	}
+}
 
-	for _, tt := range tests {
+func TestHandlePortForwardAction_ErrorCases(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range portForwardActionErrorCases() {
 		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
@@ -233,8 +249,8 @@ func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			payload := map[string]interface{}{
-				"id":           tt.id,
-				"stopOrDelete": true,
+				"id":     tt.id,
+				"action": tt.action,
 			}
 
 			jsonPayload, err := json.Marshal(payload)
@@ -245,7 +261,7 @@ func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 				"clusterName": "test-cluster",
 			})
 
-			portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
+			portforward.HandlePortForwardAction(ch, "test-cluster", w, r)
 
 			res := w.Result()
 
