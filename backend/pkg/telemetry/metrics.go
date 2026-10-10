@@ -31,6 +31,12 @@ type Metrics struct {
 	ErrorCounter metric.Int64Counter
 	// KubeconfigRefreshCounter tracks the number of kubeconfig refresh operations
 	KubeconfigRefreshCounter metric.Int64Counter
+	// CacheHitCount tracks the number of K8s API response cache hits
+	CacheHitCount metric.Int64Counter
+	// CacheMissCount tracks the number of K8s API response cache misses
+	CacheMissCount metric.Int64Counter
+	// SSARDuration measures the duration of SelfSubjectAccessReview API calls
+	SSARDuration metric.Float64Histogram
 }
 
 // NewMetrics creates and registers a set of common application metrics.
@@ -116,6 +122,43 @@ func initApplicationMetrics(meter metric.Meter, metrics *Metrics) error {
 	metrics.ErrorCounter, err = meter.Int64Counter(
 		"headlamp.errors",
 		metric.WithDescription("Count of errors"),
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := initCacheMetrics(meter, metrics); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// initCacheMetrics initializes metrics for the K8s API response cache and
+// SelfSubjectAccessReview authorization calls.
+func initCacheMetrics(meter metric.Meter, metrics *Metrics) error {
+	var err error
+
+	metrics.CacheHitCount, err = meter.Int64Counter(
+		"headlamp.k8scache.hits",
+		metric.WithDescription("Total number of K8s API response cache hits"),
+	)
+	if err != nil {
+		return err
+	}
+
+	metrics.CacheMissCount, err = meter.Int64Counter(
+		"headlamp.k8scache.misses",
+		metric.WithDescription("Total number of K8s API response cache misses"),
+	)
+	if err != nil {
+		return err
+	}
+
+	metrics.SSARDuration, err = meter.Float64Histogram(
+		"headlamp.ssar.duration",
+		metric.WithDescription("Duration of SelfSubjectAccessReview API calls"),
+		metric.WithUnit("s"),
 	)
 	if err != nil {
 		return err
