@@ -156,6 +156,25 @@ describe('CustomResourceDetails', () => {
     expect(statusRow.querySelector('.info-value')).toHaveTextContent('Running');
   });
 
+  it('does not show "Invalid Date" for a date printer column whose field is missing', async () => {
+    const mockCrd = setupMocks('v1');
+    mockCrd.jsonData.spec.versions[0].additionalPrinterColumns.push({
+      name: 'Finished',
+      jsonPath: '.status.completionTime',
+      type: 'date',
+    });
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+      </TestContext>
+    );
+
+    const finishedRow = await screen.findByTestId('extra-info-Finished');
+    expect(finishedRow.querySelector('.info-value')?.textContent).toBe('');
+    expect(screen.queryByText('Invalid Date')).not.toBeInTheDocument();
+  });
+
   it('renders an empty state when makeCRClassOrNull() returns null (incomplete CRD spec, #4824)', async () => {
     const mockCrd = {
       metadata: { name: 'my-crd' },
