@@ -2177,6 +2177,9 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 		}
 
 		kubeconfigPath := context.KubeConfigPath
+		if kubeconfigPath != "" {
+			kubeconfigPath = filepath.Base(kubeconfigPath)
+		}
 
 		source := context.SourceStr()
 

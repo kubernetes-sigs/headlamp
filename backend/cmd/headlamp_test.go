@@ -439,6 +439,57 @@ func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
 }
 
+func TestGetConfigOriginKubeconfigIsBaseName(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:           "test-cluster",
+		KubeContext:    &api.Context{Cluster: "test-cluster"},
+		Cluster:        &api.Cluster{Server: "https://k8s.example.com"},
+		AuthInfo:       &api.AuthInfo{},
+		Source:         kubeconfig.KubeConfig,
+		KubeConfigPath: "/home/user/.kube/config",
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+		},
+	}
+
+	clusters := c.getClusters()
+	require.Len(t, clusters, 1)
+
+	origin, ok := clusters[0].Metadata["origin"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "config", origin["kubeconfig"], "origin.kubeconfig must be the base name only, not the full path")
+}
+
+func TestGetConfigOriginKubeconfigEmptyForInCluster(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:        "test-cluster",
+		KubeContext: &api.Context{Cluster: "test-cluster"},
+		Cluster:     &api.Cluster{Server: "https://kubernetes.default.svc"},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.InCluster,
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+		},
+	}
+
+	clusters := c.getClusters()
+	require.Len(t, clusters, 1)
+
+	origin, ok := clusters[0].Metadata["origin"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, origin["kubeconfig"], "origin.kubeconfig must be empty for in-cluster contexts")
+}
+
 //nolint:gocognit,funlen
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
@@ -659,6 +710,10 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	if minikubeCluster, ok := clustersByName[minikubeName]; ok {
 		assert.Equal(t, minikubeName, minikubeCluster.Name)
 		assert.Equal(t, "default", minikubeCluster.Metadata["namespace"])
+
+		origin, ok := minikubeCluster.Metadata["origin"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Empty(t, origin["kubeconfig"], "origin.kubeconfig must be empty for base64-loaded clusters")
 	}
 }
 
@@ -686,6 +741,10 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	require.NotNil(t, inventory.Version)
 	assert.Equal(t, "v1.35.0", inventory.Version.Kubernetes)
 	assert.Equal(t, []inventorymetadata.Property{{Name: "region", Value: "us-west1"}}, inventory.Properties)
+
+	origin, ok := clusters[0].Metadata["origin"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, origin["kubeconfig"], "origin.kubeconfig must be empty for cluster inventory contexts")
 
 	recorder := httptest.NewRecorder()
 	c.getConfig(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil))
