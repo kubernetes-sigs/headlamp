@@ -70,3 +70,7 @@
   cursor: pointer;
   user-select: none;
 }
+
+.react-flow__minimap-node {
+  vector-effect: non-scaling-stroke;
+}

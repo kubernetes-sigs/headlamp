@@ -81,10 +81,10 @@
         style="flex: 1 1 0%;"
       >
         <div
-          class="MuiBox-root css-g0s7c9"
+          class="MuiBox-root css-1kvhw7q"
         >
           <div
-            class="MuiBox-root css-2gjmrx"
+            class="MuiBox-root css-105kj6"
           >
             <div
               class="MuiBox-root css-pb8oes"
@@ -253,7 +253,7 @@
               </div>
             </div>
             <div
-              style="flex-grow: 1;"
+              style="flex-grow: 1; min-width: 0; width: 100%;"
             >
               <div
                 class="react-flow light"
@@ -373,6 +373,16 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <button
+                      class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      title="Toggle map overview"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
                   </div>
                 </div>
                 <p
@@ -380,9 +390,6 @@
                 >
                   No data to be shown. Try to change filters or select a different namespace.
                 </p>
-                <div
-                  class="react-flow__panel top left"
-                />
                 <div
                   class="react-flow__panel react-flow__attribution bottom right"
                   data-message="Please only hide this attribution when you are subscribed to React Flow Pro: https://pro.reactflow.dev"

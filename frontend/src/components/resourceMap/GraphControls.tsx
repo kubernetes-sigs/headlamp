@@ -27,11 +27,13 @@ export function GraphControlButton({
   onClick,
   title,
   disabled,
+  'aria-pressed': ariaPressed,
 }: {
   children?: ReactNode;
   title: string;
   onClick: () => void;
   disabled?: boolean;
+  'aria-pressed'?: boolean | 'true' | 'false' | 'mixed';
 }) {
   const sx = {
     width: '32px',
@@ -54,6 +56,7 @@ export function GraphControlButton({
       variant="contained"
       title={title}
       onClick={onClick}
+      aria-pressed={ariaPressed}
     >
       {children}
     </Button>
