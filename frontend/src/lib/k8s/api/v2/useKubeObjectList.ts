@@ -389,11 +389,6 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
       const key = `${cluster}:${namespace || ''}`;
 
-      // Update resource version from incoming message
-      if (update.object?.metadata?.resourceVersion) {
-        latestResourceVersions.current[key] = update.object.metadata.resourceVersion;
-      }
-
       // Create query key for React Query cache
       const queryKey = kubeObjectListQuery<K>(
         kubeObjectClass,
@@ -402,6 +397,27 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         cluster,
         stableQueryParams ?? {}
       ).queryKey;
+
+      if (update.type === 'ERROR') {
+        console.error('Error in update', update);
+        const status = update.object as { reason?: string; code?: number } | undefined;
+        if (status?.reason === 'Expired' || status?.code === 410) {
+          delete latestResourceVersions.current[key];
+          client.invalidateQueries({ queryKey });
+        }
+        return;
+      }
+
+      const incomingResourceVersion = update.object?.metadata?.resourceVersion;
+      if (incomingResourceVersion) {
+        const currentResourceVersion = latestResourceVersions.current[key];
+        if (
+          !currentResourceVersion ||
+          parseInt(incomingResourceVersion) > parseInt(currentResourceVersion)
+        ) {
+          latestResourceVersions.current[key] = incomingResourceVersion;
+        }
+      }
 
       // Update React Query cache with new data
       client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
@@ -525,6 +541,18 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             stableQueryParams ?? {}
           ).queryKey;
+
+          if (update.type === 'ERROR') {
+            console.error('Error in update', update);
+            const status = update.object as unknown as
+              | { reason?: string; code?: number }
+              | undefined;
+            if (status?.reason === 'Expired' || status?.code === 410) {
+              client.invalidateQueries({ queryKey: key });
+            }
+            return;
+          }
+
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
 
