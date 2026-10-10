@@ -64,9 +64,9 @@ func portforwardstore(cache cache.Cache[interface{}], p portForward) {
 
 // stopOrDeletePortForward stops or deletes a port forward by its cluster and id.
 // It takes three parameters: cluster is the name of the cluster, id is the unique identifier of the port forward,
-// isStopRequest is a boolean value indicating whether to stop or delete the port forward.
+// justStop is a boolean value indicating whether to stop or delete the port forward.
 // It returns an error value indicating whether the operation is successful or not.
-func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id string, isStopRequest bool) error {
+func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id string, justStop bool) error {
 	portforward, err := getPortForwardByID(cache, cluster, id)
 	if err != nil {
 		//nolint:goconst
@@ -80,7 +80,7 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 	// This prevents orphaned goroutines and leaked ports.
 	safeCloseChan(portforward.closeChan)
 
-	if isStopRequest {
+	if justStop {
 		portforward.Status = STOPPED
 		portforwardstore(cache, portforward)
 	} else {
