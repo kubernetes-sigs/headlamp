@@ -71,6 +71,12 @@ type ConnectionStatus struct {
 	LastMsg time.Time `json:"lastMsg"`
 }
 
+// BufferedMessage represents a message buffered during client disconnection.
+type BufferedMessage struct {
+	Type int
+	Data []byte
+}
+
 // Connection represents a WebSocket connection to a Kubernetes cluster.
 type Connection struct {
 	// ClusterID is the ID of the cluster.
@@ -102,6 +108,16 @@ type Connection struct {
 	Token *string
 	// closeOnce is used to ensure the connection is closed only once.
 	closeOnce sync.Once
+	// Buffer for messages when client is disconnected.
+	Buffer []BufferedMessage
+	// BufferBytes is the total size in bytes of the messages in Buffer.
+	BufferBytes int
+	// isFlushing is true when the connection is flushing its buffer during reconnect.
+	isFlushing bool
+	// cleanupTimer is a timer that cleans up the connection if the client does not reconnect.
+	cleanupTimer *time.Timer
+	// upstreamClosed is true when the backend cluster connection has closed.
+	upstreamClosed bool
 }
 
 // Message represents a WebSocket message structure.
@@ -425,7 +441,7 @@ func (m *Multiplexer) establishClusterConnection(
 	connection.updateStatus(StateConnected, nil)
 
 	m.mutex.Lock()
-	connKey := m.createConnectionKey(clusterID, path, userID)
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
 	m.connections[connKey] = connection
 	m.mutex.Unlock()
 
@@ -606,7 +622,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	}
 
 	m.mutex.Lock()
-	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = newConn
+	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)] = newConn
 	m.mutex.Unlock()
 
 	return newConn, nil
@@ -665,7 +681,7 @@ func (m *Multiplexer) processClientMessage(
 ) {
 	// Check if it's a close message
 	if msg.Type == "CLOSE" {
-		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
+		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
 
 		return
 	}
@@ -708,6 +724,14 @@ func (m *Multiplexer) processClientMessage(
 	}
 }
 
+// isTerminalPath reports whether the given connection path represents an interactive
+// terminal session (exec or attach). The check uses path suffix matching to avoid
+// false-positives for resource names that happen to contain "exec" or "attach"
+// (e.g. /api/v1/namespaces/default/pods/exec-runner/log).
+func isTerminalPath(path string) bool {
+	return strings.HasSuffix(path, "/exec") || strings.HasSuffix(path, "/attach")
+}
+
 // closeClientConnections closes all connections associated with a specific client.
 func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 	var connsToClose []*Connection
@@ -721,22 +745,37 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 		if isClient {
 			connsToClose = append(connsToClose, conn)
 
-			delete(m.connections, key)
+			isTerm := isTerminalPath(conn.Path)
+			if !isTerm {
+				delete(m.connections, key)
+			}
 		}
 	}
 	m.mutex.Unlock()
 
 	for _, conn := range connsToClose {
+		disconnectedAt := time.Now()
+
+		isTerm := isTerminalPath(conn.Path)
+
 		conn.mu.Lock()
-		if conn.Client == clientConn {
+
+		detached := conn.Client == clientConn
+		if detached {
 			conn.Client = nil
 			conn.Status.State = StateClosed
-			conn.Status.LastMsg = time.Now()
+			conn.Status.LastMsg = disconnectedAt
+
 			conn.Status.Error = ""
+			if isTerm {
+				m.startCleanupTimer(conn)
+			}
 		}
 		conn.mu.Unlock()
 
-		conn.safeClose()
+		if !isTerm && detached {
+			conn.safeClose()
+		}
 	}
 }
 
@@ -764,36 +803,172 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 	return msg, false, nil
 }
 
+// handleNewConnection establishes a new cluster connection and starts handling its messages.
+func (m *Multiplexer) handleNewConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
+	conn, err := m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+	if err != nil {
+		logger.Log(
+			logger.LevelError,
+			map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
+			err,
+			"establishing cluster connection",
+		)
+
+		return nil, err
+	}
+
+	go m.handleClusterMessages(conn)
+
+	return conn, nil
+}
+
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
 
 	m.mutex.RLock()
 	conn, exists := m.connections[connKey]
 	m.mutex.RUnlock()
 
 	if !exists {
-		var err error
+		return m.handleNewConnection(msg, clientConn, token)
+	}
 
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
-		if err != nil {
-			logger.Log(
-				logger.LevelError,
-				map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
-				err,
-				"establishing cluster connection",
-			)
-
-			return nil, err
+	isTerm := isTerminalPath(conn.Path)
+	if isTerm {
+		if !m.handleTerminalReconnect(conn, clientConn) {
+			return nil, fmt.Errorf("terminal session could not be reattached (busy or flush failed)")
 		}
+	}
 
-		go m.handleClusterMessages(conn, clientConn)
-	} else if err := m.refreshConnectionToken(conn, token); err != nil {
+	if err := m.refreshConnectionToken(conn, token); err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// handleTerminalReconnect handles client reconnection to an existing terminal session,
+// flushing any buffered terminal frames and starting a new cleanup timer if the client drops.
+// It returns true if the connection was reserved/flushing successfully, or false if it was already busy.
+func (m *Multiplexer) handleTerminalReconnect(conn *Connection, clientConn *WSConnLock) bool {
+	conn.mu.Lock()
+	// Fast path: if the same client is already attached, don't enter flush mode on every REQUEST.
+	if conn.Client == clientConn && !conn.isFlushing {
+		conn.mu.Unlock()
+		return true
+	}
+
+	var bufferToFlush []BufferedMessage
+
+	alreadyConnected := (conn.Client != nil || conn.isFlushing) && conn.Client != clientConn
+
+	if !alreadyConnected {
+		conn.isFlushing = true
+		if conn.cleanupTimer != nil {
+			conn.cleanupTimer.Stop()
+			conn.cleanupTimer = nil
+		}
+
+		bufferToFlush = conn.Buffer
+		conn.Buffer = nil
+		conn.BufferBytes = 0
+	}
+	conn.mu.Unlock()
+
+	if alreadyConnected {
+		return false
+	}
+
+	flushFailed := false
+	// Flush buffered messages to the newly connected client outside the lock
+	for i, bm := range bufferToFlush {
+		if err := m.sendDataMessage(conn, clientConn, bm.Type, bm.Data); err != nil {
+			// Client dropped again during flush: re-buffer remaining messages and allow a future reconnect to retry.
+			flushFailed = true
+
+			remaining := append([]BufferedMessage(nil), bufferToFlush[i:]...)
+			m.handleTerminalFlushFailure(conn, remaining, time.Now())
+
+			break
+		}
+	}
+
+	if !flushFailed {
+		return m.drainBufferedMessages(conn, clientConn)
+	}
+
+	return false
+}
+
+func (m *Multiplexer) handleTerminalFlushFailure(
+	conn *Connection,
+	remaining []BufferedMessage,
+	disconnectedAt time.Time,
+) {
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.isFlushing = false
+	conn.Status.State = StateClosed
+	conn.Status.LastMsg = disconnectedAt
+	conn.Status.Error = ""
+
+	conn.enforceBufferCaps(remaining, true)
+
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+}
+
+// drainBufferedMessages drains any new messages that arrived and got buffered while we were flushing outside the lock.
+// It returns true if the drain was successful and the client attached, or false if it failed.
+func (m *Multiplexer) drainBufferedMessages(conn *Connection, clientConn *WSConnLock) bool {
+	for {
+		conn.mu.Lock()
+		if len(conn.Buffer) == 0 {
+			conn.Buffer = nil
+			conn.Client = clientConn
+			conn.isFlushing = false
+			conn.Status.State = StateConnected
+			conn.Status.LastMsg = time.Now()
+			isUpstreamClosed := conn.upstreamClosed
+			conn.mu.Unlock()
+
+			if isUpstreamClosed {
+				_ = m.sendCompleteMessage(conn, clientConn)
+				m.cleanupConnection(conn)
+			}
+
+			return true
+		}
+
+		bufferToFlush := conn.Buffer
+		conn.Buffer = nil
+		conn.BufferBytes = 0
+		conn.mu.Unlock()
+
+		for i, bm := range bufferToFlush {
+			if err := m.sendDataMessage(conn, clientConn, bm.Type, bm.Data); err != nil {
+				disconnectedAt := time.Now()
+
+				conn.mu.Lock()
+				conn.Client = nil
+				conn.isFlushing = false
+				conn.Status.State = StateClosed
+				conn.Status.LastMsg = disconnectedAt
+				conn.Status.Error = ""
+
+				// Re-buffer the message that failed plus any subsequent ones
+				remaining := append([]BufferedMessage(nil), bufferToFlush[i:]...)
+				conn.enforceBufferCaps(remaining, true)
+
+				m.startCleanupTimer(conn)
+				conn.mu.Unlock()
+
+				return false
+			}
+		}
+	}
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {
@@ -875,8 +1050,30 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 }
 
 // handleClusterMessages handles messages from a cluster connection.
-func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
-	defer m.cleanupConnection(conn)
+func (m *Multiplexer) handleClusterMessages(conn *Connection) {
+	defer func() {
+		isTerm := isTerminalPath(conn.Path)
+
+		conn.mu.Lock()
+		conn.upstreamClosed = true
+		clientDisconnected := (conn.Client == nil || conn.Status.State == StateClosed)
+		conn.mu.Unlock()
+
+		if isTerm && clientDisconnected {
+			conn.mu.Lock()
+			m.startCleanupTimer(conn)
+			conn.mu.Unlock()
+
+			logger.Log(logger.LevelInfo, map[string]string{
+				logFieldClusterID: conn.ClusterID,
+				"Path":            conn.Path,
+			}, nil, "upstream terminal stream ended while client was disconnected; preserving buffered output for grace period")
+
+			return
+		}
+
+		m.cleanupConnection(conn)
+	}()
 
 	var lastResourceVersion string
 
@@ -885,17 +1082,46 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 		case <-conn.Done:
 			return
 		default:
-			if err := m.processClusterMessage(conn, clientConn, &lastResourceVersion); err != nil {
+			if err := m.processClusterMessage(conn, &lastResourceVersion); err != nil {
 				return
 			}
 		}
 	}
 }
 
+func (m *Multiplexer) handleTerminalSendError(conn *Connection,
+	failedClient *WSConnLock, sendErr error, messageType int, message []byte,
+) {
+	disconnectedAt := time.Now()
+
+	conn.mu.Lock()
+	// Only clear the client if it has not been replaced by a reconnect.
+	if conn.Client != failedClient {
+		conn.mu.Unlock()
+		return
+	}
+
+	conn.Client = nil
+	conn.Status.State = StateClosed
+
+	conn.Status.LastMsg = disconnectedAt
+
+	conn.Status.Error = ""
+
+	conn.enforceBufferCaps([]BufferedMessage{{Type: messageType, Data: message}}, false)
+
+	logger.Log(logger.LevelInfo, map[string]string{
+		logFieldClusterID: conn.ClusterID,
+		"Path":            conn.Path,
+	}, sendErr, "client connection lost; buffering terminal output")
+
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+}
+
 // processClusterMessage processes a single message from the cluster.
 func (m *Multiplexer) processClusterMessage(
 	conn *Connection,
-	clientConn *WSConnLock,
 	lastResourceVersion *string,
 ) error {
 	messageType, message, err := conn.WSConn.ReadMessage()
@@ -914,11 +1140,38 @@ func (m *Multiplexer) processClusterMessage(
 		return err
 	}
 
-	if err := m.sendIfNewResourceVersion(message, conn, clientConn, lastResourceVersion); err != nil {
-		return err
+	conn.mu.RLock()
+	currentClient := conn.Client
+	isFlushing := conn.isFlushing
+	conn.mu.RUnlock()
+
+	isTerm := isTerminalPath(conn.Path)
+
+	if isTerm && (currentClient == nil || isFlushing) {
+		conn.mu.Lock()
+		conn.enforceBufferCaps([]BufferedMessage{{Type: messageType, Data: message}}, false)
+		conn.mu.Unlock()
+
+		return nil
 	}
 
-	return m.sendDataMessage(conn, clientConn, messageType, message)
+	var sendErr error
+	if currentClient != nil {
+		if sendErr = m.sendIfNewResourceVersion(message, conn, currentClient, lastResourceVersion); sendErr == nil {
+			sendErr = m.sendDataMessage(conn, currentClient, messageType, message)
+		}
+	}
+
+	if sendErr != nil {
+		if isTerm {
+			m.handleTerminalSendError(conn, currentClient, sendErr, messageType, message)
+			return nil
+		}
+
+		return sendErr
+	}
+
+	return nil
 }
 
 // sendIfNewResourceVersion checks the version of a resource from an incoming message
@@ -1059,12 +1312,56 @@ func (m *Multiplexer) sendDataMessage(
 
 // cleanupConnection performs cleanup for a connection.
 func (m *Multiplexer) cleanupConnection(conn *Connection) {
-	conn.safeClose()
-
 	m.mutex.Lock()
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
+	if existing, ok := m.connections[connKey]; ok && existing == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
+
+	conn.mu.Lock()
+	if conn.cleanupTimer != nil {
+		conn.cleanupTimer.Stop()
+		conn.cleanupTimer = nil
+	}
+	conn.mu.Unlock()
+
+	conn.safeClose()
+}
+
+// startCleanupTimer starts the 30-second grace period cleanup timer for a disconnected terminal connection.
+// The caller must hold conn.mu.Lock().
+func (m *Multiplexer) startCleanupTimer(conn *Connection) {
+	if conn.cleanupTimer != nil {
+		conn.cleanupTimer.Stop()
+		conn.cleanupTimer = nil
+	}
+
+	var timer *time.Timer
+
+	timer = time.AfterFunc(30*time.Second, func() {
+		conn.mu.Lock()
+		if conn.cleanupTimer != timer {
+			conn.mu.Unlock()
+			return
+		}
+
+		stillDisconnected := conn.Client == nil && conn.Status.State == StateClosed && !conn.isFlushing
+		if !stillDisconnected {
+			conn.mu.Unlock()
+			return
+		}
+
+		// Claim the timer slot before cleaning up to reduce races with reconnect.
+		// Prevent a concurrent reconnect from attaching after we've decided to clean up.
+		conn.isFlushing = true
+		conn.cleanupTimer = nil
+		conn.mu.Unlock()
+
+		m.cleanupConnection(conn)
+	})
+	conn.cleanupTimer = timer
 }
 
 // createWrapperMessage creates a wrapper message for a cluster connection.
@@ -1109,8 +1406,8 @@ func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, 
 }
 
 // CloseConnection closes a specific connection based on its identifier.
-func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
-	connKey := m.createConnectionKey(clusterID, path, userID)
+func (m *Multiplexer) CloseConnection(clusterID, path, userID string, query ...string) {
+	connKey := m.createConnectionKey(clusterID, path, userID, query...)
 
 	m.mutex.Lock()
 
@@ -1127,10 +1424,16 @@ func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
 	conn.safeClose()
 }
 
-// createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
-// Uses string concatenation instead of fmt.Sprintf to avoid allocation overhead
-// on this hot path (called on every WebSocket message routing).
-func (m *Multiplexer) createConnectionKey(clusterID, path, userID string) string {
+func (m *Multiplexer) createConnectionKey(clusterID, path, userID string, query ...string) string {
+	q := ""
+	if len(query) > 0 {
+		q = query[0]
+	}
+
+	if isTerminalPath(path) && q != "" {
+		return clusterID + ":" + path + "?" + q + ":" + userID
+	}
+
 	return clusterID + ":" + path + ":" + userID
 }
 
@@ -1187,4 +1490,39 @@ func singleJoiningSlash(a, b string) string {
 	}
 
 	return a + b
+}
+
+// enforceBufferCaps enforces the maximum frame count limit (1000) and byte size limit (5MB) on the buffer.
+// It drops the oldest messages if limits are exceeded.
+func (c *Connection) enforceBufferCaps(newMessages []BufferedMessage, prepend bool) {
+	for _, bm := range newMessages {
+		c.BufferBytes += len(bm.Data)
+	}
+
+	if prepend {
+		c.Buffer = append(newMessages, c.Buffer...)
+	} else {
+		c.Buffer = append(c.Buffer, newMessages...)
+	}
+
+	if len(c.Buffer) > 1000 {
+		droppedCount := len(c.Buffer) - 1000
+		for i := 0; i < droppedCount; i++ {
+			c.BufferBytes -= len(c.Buffer[i].Data)
+		}
+
+		c.Buffer = c.Buffer[droppedCount:]
+	}
+
+	const maxBytes = 5 * 1024 * 1024
+
+	startIndex := 0
+	for startIndex < len(c.Buffer) && c.BufferBytes > maxBytes {
+		c.BufferBytes -= len(c.Buffer[startIndex].Data)
+		startIndex++
+	}
+
+	if startIndex > 0 {
+		c.Buffer = c.Buffer[startIndex:]
+	}
 }
