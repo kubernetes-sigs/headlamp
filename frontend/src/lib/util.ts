@@ -266,14 +266,14 @@ export function getPercentStr(value: number, total: number) {
 }
 
 export function getReadyReplicas(item: Workload) {
-  return item.status.readyReplicas || item.status.numberReady || 0;
+  return item.status?.readyReplicas || item.status?.numberReady || 0;
 }
 
 export function getTotalReplicas(item: Workload) {
   return (
     item.spec.replicas ||
-    item.status.currentNumberScheduled ||
-    item.status.desiredNumberScheduled ||
+    item.status?.currentNumberScheduled ||
+    item.status?.desiredNumberScheduled ||
     0
   );
 }

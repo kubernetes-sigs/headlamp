@@ -20,6 +20,8 @@ import {
   flattenClusterListItems,
   formatDuration,
   getPercentStr,
+  getReadyReplicas,
+  getTotalReplicas,
   isValidTimezone,
   normalizeUnit,
   timeAgo,
@@ -84,6 +86,20 @@ describe('getPercentStr', () => {
     expect(getPercentStr(1, 8)).toBe('12.5 %');
     expect(getPercentStr(2, 3)).toBe('66.7 %');
     expect(getPercentStr(1, 3)).toBe('33.3 %');
+  });
+});
+
+describe('getReadyReplicas / getTotalReplicas', () => {
+  it('reads ready and total replicas from the workload', () => {
+    const deployment = { spec: { replicas: 3 }, status: { readyReplicas: 2 } } as any;
+    expect(getReadyReplicas(deployment)).toBe(2);
+    expect(getTotalReplicas(deployment)).toBe(3);
+  });
+
+  it('returns 0 for a workload with no status yet', () => {
+    const jobSet = { kind: 'JobSet', spec: { replicatedJobs: [] } } as any;
+    expect(getReadyReplicas(jobSet)).toBe(0);
+    expect(getTotalReplicas(jobSet)).toBe(0);
   });
 });
 
