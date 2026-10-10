@@ -662,6 +662,38 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	}
 }
 
+// TestGetClustersOriginalNameAfterRename checks that a renamed context still reports the
+// context name from the kubeconfig as originalName. Deleting a renamed cluster from the
+// kubeconfig file uses it to find the context there.
+func TestGetClustersOriginalNameAfterRename(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "minikube",
+		KubeContext: &api.Context{
+			Cluster:  "minikube",
+			AuthInfo: "minikube",
+			Extensions: map[string]k8sruntime.Object{
+				"headlamp_info": &kubeconfig.CustomObject{CustomName: "mk-renamed"},
+			},
+		},
+		Cluster:   &api.Cluster{Server: "https://minikube.example.com"},
+		AuthInfo:  &api.AuthInfo{},
+		Source:    kubeconfig.KubeConfig,
+		ClusterID: "/home/me/.kube/config+minikube",
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+		},
+	}
+
+	clusters := c.getClusters()
+	require.Len(t, clusters, 1)
+	assert.Equal(t, "mk-renamed", clusters[0].Name)
+	assert.Equal(t, "minikube", clusters[0].Metadata["originalName"])
+}
+
 func TestGetClustersClusterInventorySource(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	require.NoError(t, kubeConfigStore.AddContext(clusterInventoryConfigContext()))

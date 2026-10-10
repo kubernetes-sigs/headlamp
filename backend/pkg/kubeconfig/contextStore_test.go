@@ -161,6 +161,8 @@ func TestAddContextWithHeadlampInfo(t *testing.T) {
 	savedCtx, err := store.GetContext("my-custom-cluster-name")
 	require.NoError(t, err)
 	require.Equal(t, "my-custom-cluster-name", savedCtx.Name)
+	// The kubeconfig context name is still known, for example to remove it from the file.
+	require.Equal(t, "original-name", savedCtx.GetOriginalName())
 
 	// Verify original name is NOT in store
 	_, err = store.GetContext("original-name")

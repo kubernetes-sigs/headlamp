@@ -2189,7 +2189,7 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			"origin": map[string]interface{}{
 				"kubeconfig": kubeconfigPath,
 			},
-			"originalName":    context.Name,
+			"originalName":    context.GetOriginalName(),
 			logFieldClusterID: clusterID,
 		}
 

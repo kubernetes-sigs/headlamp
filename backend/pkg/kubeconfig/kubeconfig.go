@@ -79,6 +79,9 @@ type Context struct {
 	KubeConfigPath string `json:"kubeConfigPath"`
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
+	// OriginalName is the name the context has in the kubeconfig file. Name is made DNS friendly
+	// and becomes the custom name when the context has one, so this keeps the name in the file.
+	OriginalName string `json:"originalName,omitempty"`
 	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
 	ClusterInventory *inventorymetadata.Metadata `json:"clusterInventory,omitempty"`
 }
@@ -133,8 +136,19 @@ func (c *Context) Copy() *Context {
 		Error:            c.Error,
 		KubeConfigPath:   c.KubeConfigPath,
 		ClusterID:        c.ClusterID,
+		OriginalName:     c.OriginalName,
 		ClusterInventory: c.ClusterInventory.DeepCopy(),
 	}
+}
+
+// GetOriginalName returns the context name from the kubeconfig, which stays the same when the
+// context gets a custom name.
+func (c *Context) GetOriginalName() string {
+	if c.OriginalName != "" {
+		return c.OriginalName
+	}
+
+	return c.Name
 }
 
 // UsesInClusterServiceAccountToken reports whether this context should authenticate
@@ -1077,15 +1091,17 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
-	// Make contextName DNS friendly.
+	// Keep the name the context has in the kubeconfig file, then make contextName DNS friendly.
+	originalName := contextName
 	contextName = MakeDNSFriendly(contextName)
 
 	newContext := Context{
-		Name:        contextName,
-		KubeContext: context,
-		Cluster:     cluster,
-		AuthInfo:    authInfo,
-		Source:      source,
+		Name:         contextName,
+		KubeContext:  context,
+		Cluster:      cluster,
+		AuthInfo:     authInfo,
+		Source:       source,
+		OriginalName: originalName,
 	}
 
 	if !skipProxySetup {
@@ -1113,14 +1129,16 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		// Note: nil authInfo is valid as authInfo can be provided by token.
 		authInfo := config.AuthInfos[context.AuthInfo]
 
-		// Make contextName DNS friendly.
+		// Keep the name the context has in the kubeconfig file, then make contextName DNS friendly.
+		originalName := contextName
 		contextName = MakeDNSFriendly(contextName)
 
 		context := Context{
-			Name:        contextName,
-			KubeContext: context,
-			Cluster:     cluster,
-			AuthInfo:    authInfo,
+			Name:         contextName,
+			KubeContext:  context,
+			Cluster:      cluster,
+			AuthInfo:     authInfo,
+			OriginalName: originalName,
 		}
 
 		if !skipProxySetup {

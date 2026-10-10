@@ -102,6 +102,12 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		}
 	}
 
+	// Remember the context name before a custom name replaces it, unless the loader already
+	// kept the name from the kubeconfig file.
+	if headlampContext.OriginalName == "" {
+		headlampContext.OriginalName = headlampContext.Name
+	}
+
 	// Keep the stored context identifier consistent with the cache key.
 	headlampContext.Name = name
 
