@@ -22,7 +22,10 @@ import { styled } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/system/colorManipulator';
 import React from 'react';
+import { useDispatch } from 'react-redux';
 import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom';
+import { setSelectedResource } from '../../redux/drawerModeSlice';
+import { Activity } from '../activity/Activity';
 
 const ExpandedIconSize = 20;
 const CollapsedIconSize = 24;
@@ -40,6 +43,7 @@ interface ListItemLinkProps {
   level?: number;
   fullWidth?: boolean;
   divider?: boolean;
+  onClick?: (event: React.MouseEvent<any, any>) => void;
   containerProps?: {
     [prop: string]: any;
   };
@@ -52,6 +56,7 @@ const StyledLi = styled('li')<{ level: number }>(({ level }) => ({
 }));
 
 export default function ListItemLink(props: ListItemLinkProps) {
+  const dispatch = useDispatch();
   const {
     primary,
     pathname,
@@ -131,6 +136,13 @@ export default function ListItemLink(props: ListItemLinkProps) {
         component={renderLink}
         aria-label={iconOnly ? name : undefined}
         {...other}
+        onClick={e => {
+          if (other.onClick) {
+            other.onClick(e);
+          }
+          dispatch(setSelectedResource(undefined));
+          Activity.minimizeAll();
+        }}
         sx={theme => ({
           color:
             theme.palette.sidebar.color ??
