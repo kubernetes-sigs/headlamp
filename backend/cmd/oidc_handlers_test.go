@@ -60,6 +60,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -68,9 +70,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/coreos/go-oidc/v3/oidc/oidctest"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -83,7 +92,41 @@ import (
 // oidcTestServer is a minimal mock OIDC provider exposing the discovery,
 // JWKS, and token endpoints required to drive /oidc and /oidc-callback.
 type oidcTestServer struct {
-	server *httptest.Server
+	server       *httptest.Server
+	tokenHandler http.HandlerFunc
+}
+
+// setTokenHandler swaps the /token response after construction, so a handler
+// can close over the server's own issuer URL when minting tokens.
+func (o *oidcTestServer) setTokenHandler(h http.HandlerFunc) {
+	o.tokenHandler = h
+}
+
+// testKeyID is the `kid` advertised in the mock provider's JWKS and stamped
+// into every token it signs.
+const testKeyID = "test-key-id"
+
+// The signing key is generated once for the whole package. A 2048-bit RSA
+// keygen is slow enough that doing it per test server would dominate the
+// runtime of this file. The key is immutable after initialization, so
+// sharing it across parallel tests is safe.
+var (
+	testSigningKeyOnce sync.Once
+	testSigningKey     *rsa.PrivateKey
+	testSigningKeyErr  error
+)
+
+// signingKey returns the shared package test signing key.
+func signingKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+
+	testSigningKeyOnce.Do(func() {
+		testSigningKey, testSigningKeyErr = rsa.GenerateKey(rand.Reader, 2048)
+	})
+
+	require.NoError(t, testSigningKeyErr, "generating package test signing key")
+
+	return testSigningKey
 }
 
 // newOIDCTestServer starts an in-process OIDC mock and returns a handle.
@@ -96,43 +139,59 @@ func newOIDCTestServer(t *testing.T, tokenHandler http.HandlerFunc) *oidcTestSer
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		cfg := map[string]any{
-			"issuer":                                srv.URL,
-			"authorization_endpoint":                srv.URL + "/auth",
-			"token_endpoint":                        srv.URL + "/token",
-			"jwks_uri":                              srv.URL + "/jwks",
-			"id_token_signing_alg_values_supported": []string{"RS256"},
-		}
-		if err := json.NewEncoder(w).Encode(cfg); err != nil {
-			t.Errorf("encode discovery: %v", err)
-		}
-	})
-
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if _, err := w.Write([]byte(`{"keys":[]}`)); err != nil {
-			t.Errorf("write jwks: %v", err)
-		}
-	})
-
-	if tokenHandler != nil {
-		mux.HandleFunc("/token", tokenHandler)
-	} else {
-		mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		})
+	osrv := &oidctest.Server{
+		PublicKeys: []oidctest.PublicKey{{
+			PublicKey: signingKey(t).Public(),
+			KeyID:     testKeyID,
+			Algorithm: oidc.RS256,
+		}},
 	}
+	osrv.SetIssuer(srv.URL)
 
-	return &oidcTestServer{server: srv}
+	mux.Handle("/.well-known/openid-configuration", osrv)
+	mux.Handle("/keys", osrv)
+
+	o := &oidcTestServer{server: srv, tokenHandler: tokenHandler}
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		if o.tokenHandler == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		o.tokenHandler(w, r)
+	})
+
+	return o
 }
 
 // URL returns the issuer URL of the mock OIDC server.
 func (o *oidcTestServer) URL() string {
 	return o.server.URL
+}
+
+// signToken mints an RS256 JWT signed by the shared test key, with issuer and
+// audience matching what the handler under test will verify against. Supplied
+// claims override the defaults.
+func (o *oidcTestServer) signToken(t *testing.T, claims map[string]any) string {
+	t.Helper()
+
+	c := map[string]any{
+		"iss": o.URL(),
+		"aud": "test-client-id",
+		"sub": "test-subject",
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	}
+	for k, v := range claims {
+		c[k] = v
+	}
+
+	raw, err := json.Marshal(c)
+	require.NoError(t, err, "marshal token claims")
+
+	return oidctest.SignIDToken(signingKey(t), testKeyID, oidc.RS256, string(raw))
 }
 
 // failingTokenHandler returns a /token handler that rejects every exchange,
@@ -158,6 +217,28 @@ func withPKCE() oidcTestOption {
 // test can force the state-generation failure path.
 func withStateReader(r io.Reader) oidcTestOption {
 	return func(c *HeadlampConfig) { c.oidcStateReader = r }
+}
+
+// withCache injects a caller-held cache so a test can inspect what the
+// callback handler wrote. Without it, newOIDCTestHandler's cache is private.
+func withCache(c cache.Cache[interface{}]) oidcTestOption {
+	return func(hc *HeadlampConfig) { hc.Cache = c }
+}
+
+// withAccessToken makes the callback read access_token instead of id_token.
+func withAccessToken() oidcTestOption {
+	return func(c *HeadlampConfig) { c.OidcUseAccessToken = true }
+}
+
+// withDevMode enables the DevMode redirect branch of the callback.
+func withDevMode() oidcTestOption {
+	return func(c *HeadlampConfig) { c.DevMode = true }
+}
+
+// withBaseURL sets the server base URL, which the callback prepends to the
+// post-login redirect.
+func withBaseURL(u string) oidcTestOption {
+	return func(c *HeadlampConfig) { c.BaseURL = u }
 }
 
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
@@ -210,23 +291,7 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 func driveOIDCStart(t *testing.T, handler http.Handler, cluster string) *url.URL {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
-		"/oidc?cluster="+cluster, nil)
-	require.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusFound, rr.Code,
-		"GET /oidc should 302 to the IdP; got %d body=%q", rr.Code, rr.Body.String())
-
-	loc := rr.Header().Get("Location")
-	require.NotEmpty(t, loc, "Location header missing on /oidc redirect")
-
-	u, err := url.Parse(loc)
-	require.NoError(t, err)
-
-	return u
+	return driveOIDCStartWithPrefix(t, handler, cluster, "")
 }
 
 // extractState returns the `state` query parameter from a parsed URL,
@@ -253,6 +318,109 @@ func callOIDCCallback(t *testing.T, handler http.Handler, rawQuery string) *http
 	handler.ServeHTTP(rr, req)
 
 	return rr
+}
+
+// testAuthCode is the authorization code the callback tests exchange. The mock
+// provider never validates it — only its presence on the request matters — so
+// there is nothing for a caller to vary.
+const testAuthCode = "auth-code"
+
+// driveOIDCCallback calls /oidc-callback with the supplied state and returns
+// the raw recorder so callers can assert status, body, and cookies.
+func driveOIDCCallback(t *testing.T, handler http.Handler, state string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return driveOIDCCallbackWithPrefix(t, handler, state, "")
+}
+
+// driveOIDCStartWithPrefix is driveOIDCStart with the request path prefixed
+// by routePrefix, needed because a non-empty config.BaseURL mounts the whole
+// router (including /oidc and /oidc-callback, not just the post-login
+// redirect target) under that prefix (headlamp.go:640-647). An empty
+// routePrefix behaves exactly like driveOIDCStart.
+func driveOIDCStartWithPrefix(t *testing.T, handler http.Handler, cluster, routePrefix string) *url.URL {
+	t.Helper()
+
+	target := "http://localhost:4466" + routePrefix + "/oidc?cluster=" + url.QueryEscape(cluster)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusFound, rr.Code,
+		"GET %s/oidc should 302 to the IdP; got %d body=%q", routePrefix, rr.Code, rr.Body.String())
+
+	loc := rr.Header().Get("Location")
+	require.NotEmpty(t, loc, "Location header missing on /oidc redirect")
+
+	u, err := url.Parse(loc)
+	require.NoError(t, err)
+
+	return u
+}
+
+// driveOIDCCallbackWithPrefix is driveOIDCCallback with the request path
+// prefixed by routePrefix; see driveOIDCStartWithPrefix.
+func driveOIDCCallbackWithPrefix(
+	t *testing.T, handler http.Handler, state, routePrefix string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	target := "http://localhost:4466" + routePrefix + "/oidc-callback?state=" + url.QueryEscape(state) +
+		"&code=" + url.QueryEscape(testAuthCode)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	return rr
+}
+
+// authCookieValue reassembles the chunked auth cookie that SetTokenCookie
+// writes as headlamp-auth-<cluster>.0, .1, ... (see pkg/auth/cookies.go).
+// Reading only chunk .0 would silently truncate any token past chunkSize.
+//
+// SetTokenCookie names cookies from auth.SanitizeClusterName(cluster), not
+// the raw cluster name (cookies.go:84,100), mirrored here as
+// GetTokenFromCookie does (cookies.go:115) — otherwise an awkward cluster
+// name would silently find no cookies.
+func authCookieValue(t *testing.T, rr *httptest.ResponseRecorder, cluster string) string {
+	t.Helper()
+
+	prefix := "headlamp-auth-" + auth.SanitizeClusterName(cluster) + "."
+
+	type chunk struct {
+		idx int
+		val string
+	}
+
+	var chunks []chunk
+
+	for _, c := range rr.Result().Cookies() {
+		if !strings.HasPrefix(c.Name, prefix) || c.Value == "" {
+			continue
+		}
+
+		idx, err := strconv.Atoi(strings.TrimPrefix(c.Name, prefix))
+		require.NoError(t, err, "unexpected auth cookie name %q", c.Name)
+
+		chunks = append(chunks, chunk{idx: idx, val: c.Value})
+	}
+
+	require.NotEmpty(t, chunks, "no headlamp-auth-%s.N cookies were set", cluster)
+
+	sort.Slice(chunks, func(i, j int) bool { return chunks[i].idx < chunks[j].idx })
+
+	var b strings.Builder
+	for _, c := range chunks {
+		b.WriteString(c.val)
+	}
+
+	return b.String()
 }
 
 // TestOIDCStart_StateIsRandom32Bytes covers target #1: each /oidc call
@@ -527,4 +695,211 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 		assert.Empty(t, form.Get("code_verifier"),
 			"no code_verifier should be sent when PKCE is off")
 	})
+}
+
+// TestOIDCCallback_Success characterizes the full happy path: a signed
+// id_token that the verifier accepts results in a redirect to the frontend
+// with the token in the auth cookie.
+func TestOIDCCallback_Success(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv)
+
+	idToken := srv.signToken(t, map[string]any{"email": "user@example.com"})
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-abc","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	require.Equal(t, http.StatusSeeOther, rr.Code,
+		"callback should 303 on success; body=%q", rr.Body.String())
+
+	assert.Equal(t, idToken, authCookieValue(t, rr, cluster),
+		"the verified id_token should be what lands in the auth cookie")
+
+	assert.Equal(t, "/auth?cluster="+cluster, rr.Header().Get("Location"),
+		"non-DevMode, empty BaseURL redirects to /auth?cluster=<cluster>")
+}
+
+// TestOIDCCallback_CachesRefreshToken characterizes where the callback stores
+// the refresh token: keyed by the raw user token, so a later refresh can find
+// it (see OIDCTokenRefreshMiddleware).
+func TestOIDCCallback_CachesRefreshToken(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	c := cache.New[interface{}]()
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(c))
+
+	idToken := srv.signToken(t, nil)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-xyz","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+
+	got, err := c.Get(context.Background(), "oidc-token-"+idToken)
+	require.NoError(t, err, "refresh token should be cached under oidc-token-<raw token>")
+	assert.Equal(t, "refresh-xyz", got)
+}
+
+// TestOIDCCallback_TokenMissingFromResponse characterizes a token endpoint
+// that succeeds but omits id_token entirely.
+func TestOIDCCallback_TokenMissingFromResponse(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "No id_token field in oauth2 token")
+}
+
+// TestOIDCCallback_VerificationFailure characterizes a token that is well
+// formed but signed by a key the provider does not advertise.
+//
+// It also pins a partial write: the refresh token is cached BEFORE the
+// signature is verified (headlamp.go:1078-1092), so a token that is then
+// rejected still leaves an oidc-token-<raw> entry behind. This is recorded as
+// current behavior, not endorsed — caching credentials for a token that was
+// subsequently rejected is arguably wrong, and #5401 may want to reorder it.
+// If that happens, this assertion should be UPDATED, not deleted.
+func TestOIDCCallback_VerificationFailure(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	c := cache.New[interface{}]()
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(c))
+
+	otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	claims := fmt.Sprintf(
+		`{"iss":%q,"aud":"test-client-id","sub":"test-subject","exp":%s,"iat":%s}`,
+		srv.URL(),
+		strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
+		strconv.FormatInt(time.Now().Unix(), 10),
+	)
+	badToken := oidctest.SignIDToken(otherKey, testKeyID, oidc.RS256, claims)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-orphan","id_token":"`+badToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to verify ID Token")
+
+	got, err := c.Get(context.Background(), "oidc-token-"+badToken)
+	require.NoError(t, err,
+		"current behavior: the refresh token is cached before verification, so a "+
+			"rejected token still leaves an entry")
+	assert.Equal(t, "refresh-orphan", got)
+}
+
+// TestOIDCCallback_UsesAccessTokenWhenConfigured characterizes OidcUseAccessToken.
+//
+// Note what this reveals: the flag only changes which field is READ. The value
+// is still passed through the ID-token verifier, so an opaque access token —
+// what most providers actually issue — would be rejected. The access_token
+// here is therefore a second signed JWT, distinguishable only by its subject.
+func TestOIDCCallback_UsesAccessTokenWhenConfigured(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv, withAccessToken())
+
+	idToken := srv.signToken(t, map[string]any{"sub": "id-token-subject"})
+	accessToken := srv.signToken(t, map[string]any{"sub": "access-token-subject"})
+	require.NotEqual(t, idToken, accessToken, "the two tokens must be distinguishable")
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"`+accessToken+`","token_type":"Bearer",`+
+			`"refresh_token":"refresh-abc","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
+		"with OidcUseAccessToken, the access_token — not the id_token — reaches the cookie")
+}
+
+// TestOIDCCallback_RedirectTarget characterizes where a successful login sends
+// the browser, across DevMode and BaseURL. In every case the target ends with
+// auth?cluster=<cluster>; DevMode swaps the origin and BaseURL inserts a path
+// segment ahead of it (headlamp.go:1106-1121).
+func TestOIDCCallback_RedirectTarget(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []oidcTestOption
+		// routePrefix mirrors config.BaseURL: when the router mounts routes
+		// under a base URL (headlamp.go:640-647), /oidc and /oidc-callback
+		// themselves move under that prefix too, not just the post-login
+		// redirect target being asserted below.
+		routePrefix string
+		want        string
+	}{
+		{
+			name: "default",
+			opts: nil,
+			want: "/auth?cluster=oidc-char-test",
+		},
+		{
+			name: "dev mode",
+			opts: []oidcTestOption{withDevMode()},
+			want: "http://localhost:3000/auth?cluster=oidc-char-test",
+		},
+		{
+			name:        "base URL",
+			opts:        []oidcTestOption{withBaseURL("/headlamp")},
+			routePrefix: "/headlamp",
+			want:        "/headlamp/auth?cluster=oidc-char-test",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newOIDCTestServer(t, nil)
+			handler, cluster := newOIDCTestHandler(t, srv, tc.opts...)
+			require.Equal(t, "oidc-char-test", cluster,
+				"the want values above hardcode the cluster name")
+
+			idToken := srv.signToken(t, nil)
+
+			srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+
+				_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+					`"refresh_token":"refresh-abc","id_token":"`+idToken+`"}`)
+			})
+
+			loc := driveOIDCStartWithPrefix(t, handler, cluster, tc.routePrefix)
+			state := extractState(t, loc)
+			rr := driveOIDCCallbackWithPrefix(t, handler, state, tc.routePrefix)
+
+			require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+			assert.Equal(t, tc.want, rr.Header().Get("Location"))
+		})
+	}
 }
