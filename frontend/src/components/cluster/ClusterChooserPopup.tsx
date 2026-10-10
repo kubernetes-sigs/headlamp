@@ -139,7 +139,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         return 1;
       }
 
-      return 0;
+      return recentClustersNames.indexOf(a.name) - recentClustersNames.indexOf(b.name);
     });
 
     clustersToShow.sort((a, b) => {
