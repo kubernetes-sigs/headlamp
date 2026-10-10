@@ -207,19 +207,14 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.LIST_VIEW);
-  const dispatchHeadlampEventRef = useRef(dispatchHeadlampEvent);
 
   useEffect(() => {
-    dispatchHeadlampEventRef.current = dispatchHeadlampEvent;
-  }, [dispatchHeadlampEvent]);
-
-  useEffect(() => {
-    dispatchHeadlampEventRef.current({
+    dispatchHeadlampEvent({
       resources: items ?? [],
       resourceKind: resourceClass.className,
       error: errors?.[0] || undefined,
     });
-  }, [errors, items, resourceClass.className]);
+  }, [dispatchHeadlampEvent, errors, items, resourceClass.className]);
 
   return (
     <ResourceTableContent
