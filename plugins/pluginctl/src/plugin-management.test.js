@@ -163,3 +163,98 @@ describe('validateArchiveURL', () => {
     expect(validateArchiveURL('https://gitlab.com/owner/repo/invalid/path')).toBe(false);
   });
 });
+
+const fetchWithRetry = pluginManagement.fetchWithRetry;
+
+describe('fetchWithRetry', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+    global.fetch = jest.fn();
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => cb());
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  test('recovers after transient failures and network rejections', async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: false, status: 500 }) // 1st try fails (HTTP error)
+      .mockRejectedValueOnce(new Error('Network connection dropped')) // 2nd try fails (Network error)
+      .mockResolvedValueOnce({ ok: true, status: 200 }); // 3rd try succeeds
+
+    const response = await fetchWithRetry('https://example.com/api', {}, 3);
+
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(response.ok).toBe(true);
+    expect(response.status).toBe(200);
+  });
+
+  test('exhausts retry budget on network rejections and throws last error', async () => {
+    global.fetch.mockRejectedValue(new Error('Persistent network failure'));
+
+    await expect(fetchWithRetry('https://example.com/api', {}, 3)).rejects.toThrow('Persistent network failure');
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+  });
+
+  test('returns immediately on non-transient client errors', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 404 }); // 1st try returns 404
+
+    const response = await fetchWithRetry('https://example.com/api', {}, 3);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1); // Should not retry 404
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(404);
+  });
+
+  test('exhausts retry budget and returns last failed response for transient statuses', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 503 });
+
+    const response = await fetchWithRetry('https://example.com/api', {}, 3);
+
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(503);
+
+    expect(global.setTimeout).toHaveBeenCalledTimes(3);
+    expect(global.setTimeout).toHaveBeenNthCalledWith(1, expect.any(Function), 1000);
+    expect(global.setTimeout).toHaveBeenNthCalledWith(2, expect.any(Function), 2000);
+    expect(global.setTimeout).toHaveBeenNthCalledWith(3, expect.any(Function), 4000);
+  });
+
+  test('throws AbortError immediately during a request', async () => {
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'AbortError';
+    global.fetch.mockRejectedValue(abortError);
+
+    await expect(fetchWithRetry('https://example.com/api', {}, 3)).rejects.toThrow('The operation was aborted');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('throws AbortError immediately during backoff', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    
+    // For this test, we actually want setTimeout to block so we can abort it.
+    // We'll restore setTimeout specifically for this test.
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      // Don't call cb, let it hang so we can test cancellation.
+      return 123; // fake timeout ID
+    });
+    jest.spyOn(global, 'clearTimeout').mockImplementation(() => {});
+    
+    const controller = new AbortController();
+    const fetchPromise = fetchWithRetry('https://example.com/api', { signal: controller.signal }, 3);
+
+    await Promise.resolve(); // flush fetch promise
+    
+    // Abort while it's "waiting" in the mocked setTimeout
+    controller.abort();
+
+    await expect(fetchPromise).rejects.toThrow('The operation was aborted');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.clearTimeout).toHaveBeenCalled();
+  });
+});
