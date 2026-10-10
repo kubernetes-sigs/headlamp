@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
+import { toError } from '../../../helpers/thrownError';
 import { getCluster } from '../../../lib/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
@@ -89,8 +90,8 @@ export default function AuthVisible(props: AuthVisibleProps) {
           cluster ?? undefined
         );
         return res;
-      } catch (e: any) {
-        onError?.(e);
+      } catch (e: unknown) {
+        onError?.(toError(e));
       }
     },
   });
