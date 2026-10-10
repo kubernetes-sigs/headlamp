@@ -322,7 +322,7 @@ export default class Registry {
  *
  * ```
  *
- * @see {@link http://github.com/kinvolk/headlamp/plugins/examples/sidebar/ Sidebar Example}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar Sidebar Example}
  */
 export function registerSidebarEntry({
   parent,
@@ -465,7 +465,7 @@ export function registerRouteFilter(filterFunc: (entry: Route) => Route | null) 
  * ```
  *
  * @see {@link https://github.com/kinvolk/headlamp/blob/main/frontend/src/lib/router.tsx Route examples}
- * @see {@link http://github.com/kinvolk/headlamp/plugins/examples/sidebar/ Sidebar Example}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar Sidebar Example}
  *
  */
 export function registerRoute(routeSpec: Route) {
@@ -516,7 +516,7 @@ export function registerDetailsViewHeaderAction(headerAction: DetailsViewHeaderA
  * });
  *
  * More complete detail view example in plugins/examples/details-view:
- * @see {@link http://github.com/kinvolk/headlamp/plugins/examples/details-view/ Detail View Example}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/details-view Detail View Example}
  *
  */
 export function registerDetailsViewHeaderActionsProcessor(
@@ -692,7 +692,7 @@ export function registerDetailsViewSectionsProcessor(
  * ```
  *
  * More complete logo example in plugins/examples/change-logo:
- * @see {@link http://github.com/kinvolk/headlamp/plugins/examples/change-logo/ Change Logo Example}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo Change Logo Example}
  *
  */
 export function registerAppLogo(logo: AppLogoType) {
@@ -715,7 +715,7 @@ export function registerAppLogo(logo: AppLogoType) {
  * })
  * ```
  *
- * @see {@link http://github.com/kinvolk/headlamp/plugins/examples/cluster-chooser/ Cluster Chooser example}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser Cluster Chooser example}
  *
  */
 export function registerClusterChooser(chooser: ClusterChooserType) {
