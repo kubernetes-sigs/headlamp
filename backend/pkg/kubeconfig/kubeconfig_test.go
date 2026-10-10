@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -1229,6 +1230,55 @@ func TestLoadContextsFromFileResolvesRelativePKIPaths(t *testing.T) {
 	assert.True(t, filepath.IsAbs(ctx.AuthInfo.ClientCertificate))
 	assert.True(t, filepath.IsAbs(ctx.AuthInfo.ClientKey))
 	assert.True(t, filepath.IsAbs(ctx.AuthInfo.TokenFile))
+}
+
+// TestLoadedContextsKeepTheKubeconfigName checks that contexts whose names are not DNS
+// friendly keep the name they have in the kubeconfig file, and that this name finds the
+// context in the file again, for example to remove it.
+func TestLoadedContextsKeepTheKubeconfigName(t *testing.T) {
+	t.Parallel()
+
+	names := map[string]string{
+		"prod/us": "prod--us",
+		"arn:aws:eks:us-west-2:123456789012:cluster/demo": "arn:aws:eks:us-west-2:123456789012:cluster--demo",
+		"dev team": "dev__team",
+	}
+
+	config := api.NewConfig()
+	config.Clusters["c1"] = &api.Cluster{Server: "https://127.0.0.1:9"}
+	config.AuthInfos["u1"] = &api.AuthInfo{Token: "fake"}
+
+	for name := range names {
+		config.Contexts[name] = &api.Context{Cluster: "c1", AuthInfo: "u1"}
+	}
+
+	kubeconfigPath := filepath.Join(t.TempDir(), "config")
+	require.NoError(t, clientcmd.WriteToFile(*config, kubeconfigPath))
+
+	fromFile, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeconfigPath, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+
+	fromAPIConfig, apiErrors := kubeconfig.LoadContextsFromAPIConfig(config, true)
+	require.Empty(t, apiErrors)
+
+	for _, contexts := range [][]kubeconfig.Context{fromFile, fromAPIConfig} {
+		require.Len(t, contexts, len(names))
+
+		for _, ctx := range contexts {
+			original := ctx.GetOriginalName()
+			require.Contains(t, names, original)
+			assert.Equal(t, names[original], ctx.Name)
+		}
+	}
+
+	for _, ctx := range fromFile {
+		require.NoError(t, kubeconfig.RemoveContextFromFile(ctx.GetOriginalName(), kubeconfigPath))
+	}
+
+	left, err := clientcmd.LoadFromFile(kubeconfigPath)
+	require.NoError(t, err)
+	assert.Empty(t, left.Contexts)
 }
 
 func TestLoadContextsFromFileKeepsAbsolutePKIPaths(t *testing.T) {
