@@ -15,10 +15,11 @@
  */
 
 import { Base64 } from 'js-base64';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import store from '../redux/stores/store';
-import { getUserInfo, setToken } from './auth';
+import { getUserInfo, logout, setToken } from './auth';
 import { backendFetch } from './k8s/api/v2/fetch';
+import { queryClient } from './queryClient';
 
 // Mock the dependencies
 vi.mock('./k8s/api/v2/fetch');
@@ -161,6 +162,56 @@ describe('auth', () => {
       expect(spy).toHaveBeenCalled();
 
       spy.mockRestore();
+    });
+  });
+
+  describe('logout', () => {
+    afterEach(() => {
+      queryClient.clear();
+    });
+
+    it('clears cached resource data for the logged-out cluster but leaves other clusters untouched', async () => {
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'prod', '', {}], {
+        items: ['prod-list'],
+      });
+      queryClient.setQueryData(['object', 'prod', '/api/v1/pods', 'default', 'nginx', {}], {
+        metadata: { name: 'nginx' },
+      });
+      queryClient.setQueryData(['auth', 'prod'], { allowed: true });
+      queryClient.setQueryData(['clusterMe', 'prod'], { username: 'test-user' });
+      queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', '', {}], {
+        items: ['staging-list'],
+      });
+      // 'prod' here is the namespace on the 'staging' cluster, not the cluster field.
+      // Must survive logging out of the 'prod' cluster.
+      queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', 'prod', {}], {
+        items: ['staging-prod-namespace-list'],
+      });
+
+      await logout('prod');
+
+      expect(
+        queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'prod', '', {}])
+      ).toBeUndefined();
+      expect(
+        queryClient.getQueryData(['object', 'prod', '/api/v1/pods', 'default', 'nginx', {}])
+      ).toBeUndefined();
+      expect(queryClient.getQueryData(['auth', 'prod'])).toBeUndefined();
+      expect(queryClient.getQueryData(['clusterMe', 'prod'])).toBeUndefined();
+
+      expect(
+        queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', '', {}])
+      ).toEqual({ items: ['staging-list'] });
+      expect(
+        queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', 'prod', {}])
+      ).toEqual({ items: ['staging-prod-namespace-list'] });
     });
   });
 });
