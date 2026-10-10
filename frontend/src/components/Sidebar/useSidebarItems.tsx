@@ -21,7 +21,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
-import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PodGroup from '../../lib/k8s/podGroup';
@@ -40,6 +40,12 @@ const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) =>
   });
 };
 
+// Stable reference so the `?? EMPTY_CLUSTERS` fallback below doesn't create
+// a new object identity on every render when there's no cluster config yet
+// — an unstable fallback here would defeat the `sidebars` memo's dependency
+// on `clusters`.
+const EMPTY_CLUSTERS: Record<string, unknown> = {};
+
 const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   const homeItems = items.filter(({ name }) => name === 'home');
   const otherItems = items
@@ -56,14 +62,13 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
 };
 
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
-  const clusters = useTypedSelector(state => state.config.clusters) ?? {};
+  const clusters = useTypedSelector(state => state.config.clusters) ?? EMPTY_CLUSTERS;
   const settings = useTypedSelector(state => state.config.settings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
-  const allClustersConf = useClustersConf();
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -603,32 +608,27 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     }
 
     return sidebars;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     customSidebarEntries,
     shouldShowHomeItem,
     customSidebarFilters,
     customHomeSidebarFilters,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    Object.keys(clusters).join(','),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    selectedClusters.join(','),
-    allClustersConf,
+    clusters,
+    selectedClusters,
     crdsSidebarEntries,
     gatewayKinds,
     schedulingWorkloadsEnabled,
     t,
+    theme,
   ]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const unsortedItems =
-    sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
-
   const sortedItems = useMemo(() => {
+    const unsortedItems =
+      sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
     // Make a copy so that we always start from the original (unsorted) order.
     const itemsCopy = [...unsortedItems];
     return settings?.sidebarSortAlphabetically ? sortSidebarItems(itemsCopy) : itemsCopy;
-  }, [unsortedItems, settings.sidebarSortAlphabetically]);
+  }, [sidebars, sidebarName, settings.sidebarSortAlphabetically]);
 
   return sortedItems;
 };
