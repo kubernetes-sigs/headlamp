@@ -122,15 +122,16 @@ export function JobsListRenderer(props: JobsListRendererProps) {
   const { t } = useTranslation(['glossary', 'translation']);
 
   function getCompletions(job: Job) {
-    return `${job.spec.completions}/${job.spec.parallelism}`;
+    return `${job.status?.succeeded ?? 0}/${job.spec?.completions ?? 1}`;
   }
 
   function sortByCompletions(job1: Job, job2: Job) {
-    const parallelismSorted = (job1.spec.parallelism ?? 0) - (job2.spec.parallelism ?? 0);
-    if (parallelismSorted === 0) {
-      return (job1.spec.completions ?? 0) - (job2.spec.completions ?? 0);
+    const succeeded1 = job1.status?.succeeded ?? 0;
+    const succeeded2 = job2.status?.succeeded ?? 0;
+    if (succeeded1 !== succeeded2) {
+      return succeeded1 - succeeded2;
     }
-    return parallelismSorted;
+    return (job1.spec?.completions ?? 1) - (job2.spec?.completions ?? 1);
   }
 
   return (
