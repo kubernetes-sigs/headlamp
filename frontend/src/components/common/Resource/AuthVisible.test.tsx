@@ -220,4 +220,72 @@ describe('AuthVisible', () => {
 
     expect(screen.queryByText('Authorized Content')).toBeNull();
   });
+
+  it('does not invoke onAuthResult again when only the callback identity changes, and uses the latest callback on subsequent updates', async () => {
+    let authAllowed = true;
+    const mockItem = {
+      _class: () => ({
+        apiName: 'pods',
+        apiVersion: 'v1',
+      }),
+      getName: () => 'test-pod',
+      getAuthorization: vi.fn().mockImplementation(() =>
+        Promise.resolve({
+          status: {
+            allowed: authAllowed,
+            reason: authAllowed ? 'Allowed' : 'Forbidden',
+          },
+        })
+      ),
+    };
+
+    const initialCallback = vi.fn();
+    const updatedCallback = vi.fn();
+
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={mockItem as any} authVerb="get" onAuthResult={initialCallback}>
+          <div>Authorized Content</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(initialCallback).toHaveBeenCalledWith({
+        allowed: true,
+        reason: 'Allowed',
+      });
+    });
+
+    initialCallback.mockClear();
+
+    // Rerender with a new callback identity
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={mockItem as any} authVerb="get" onAuthResult={updatedCallback}>
+          <div>Authorized Content</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    // Wait a tick to ensure no unexpected calls
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(updatedCallback).not.toHaveBeenCalled();
+    expect(initialCallback).not.toHaveBeenCalled();
+
+    // Trigger a new authorization result
+    authAllowed = false;
+    queryClient.invalidateQueries();
+
+    await waitFor(() => {
+      expect(updatedCallback).toHaveBeenCalledWith({
+        allowed: false,
+        reason: 'Forbidden',
+      });
+    });
+
+    // The initial callback should still not have been called again
+    expect(initialCallback).not.toHaveBeenCalled();
+  });
 });
