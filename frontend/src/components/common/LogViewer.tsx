@@ -25,6 +25,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { ReactNode, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShortcut } from '../../lib/useShortcut';
@@ -66,6 +67,7 @@ export function LogViewer(props: LogViewerProps) {
     ...other
   } = props;
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const muiTheme = useTheme();
   const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
   const xtermRef = React.useRef<XTerminal | null>(null);
@@ -89,6 +91,57 @@ export function LogViewer(props: LogViewerProps) {
     // Required for FireFox
     document.body.appendChild(element);
     element.click();
+  }
+
+  /** Reads back what's actually rendered in the terminal, so filtering/formatting applied by callers (e.g. severity filters) is preserved in the copy. Falls back to the raw logs if the terminal isn't available. */
+  function getRenderedLogsText() {
+    const buffer = xtermRef.current?.buffer?.active;
+    if (!buffer) {
+      return logs.join('');
+    }
+
+    const lines: string[] = [];
+    for (let i = 0; i < buffer.length; i++) {
+      const line = buffer.getLine(i);
+      const text = line?.translateToString(true) ?? '';
+      if (line?.isWrapped && lines.length > 0) {
+        lines[lines.length - 1] += text;
+      } else {
+        lines.push(text);
+      }
+    }
+
+    // Drop trailing blank rows from the unused portion of the viewport.
+    while (lines.length > 0 && lines[lines.length - 1] === '') {
+      lines.pop();
+    }
+
+    return lines.join('\n');
+  }
+
+  async function copyLogs() {
+    const text = getRenderedLogsText();
+
+    if (!navigator.clipboard) {
+      console.error(
+        'Failed to copy logs to clipboard: navigator.clipboard is unavailable (Headlamp is likely being served over an insecure, non-HTTPS connection).'
+      );
+      enqueueSnackbar(
+        t(
+          'translation|Clipboard is not available. This can happen when Headlamp is served over an insecure (non-HTTPS) connection.'
+        ),
+        { variant: 'error' }
+      );
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      enqueueSnackbar(t('translation|Copied to clipboard'), { variant: 'success' });
+    } catch (err) {
+      console.error('Failed to copy logs to clipboard:', err);
+      enqueueSnackbar(t('translation|Failed to copy to clipboard'), { variant: 'error' });
+    }
   }
 
   React.useEffect(() => {
@@ -214,6 +267,13 @@ export function LogViewer(props: LogViewerProps) {
             description={t('Download')}
             onClick={downloadLog}
             icon="mdi:file-download-outline"
+          />
+        </Grid>
+        <Grid item xs>
+          <ActionButton
+            description={t('translation|Copy to clipboard')}
+            onClick={copyLogs}
+            icon="mdi:content-copy"
           />
         </Grid>
       </Grid>
