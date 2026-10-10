@@ -62,6 +62,8 @@ import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
+import ValidatingAdmissionPolicy from '../../../../lib/k8s/validatingAdmissionPolicy';
+import ValidatingAdmissionPolicyBinding from '../../../../lib/k8s/validatingAdmissionPolicyBinding';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import VPA from '../../../../lib/k8s/vpa';
 import { useNamespaces } from '../../../../redux/filterSlice';
@@ -280,6 +282,8 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Secret),
           makeKubeSource(MutatingWebhookConfiguration),
           makeKubeSource(ValidatingWebhookConfiguration),
+          makeKubeSource(ValidatingAdmissionPolicy),
+          makeKubeSource(ValidatingAdmissionPolicyBinding),
           makeKubeSource(HPA),
           ...(vpaEnabled ? [makeKubeSource(VPA)] : []),
           makeKubeSource(PDB),

@@ -93,6 +93,12 @@ vi.mock('../../webhookconfiguration/MutatingWebhookConfigDetails', () => ({
 vi.mock('../../webhookconfiguration/ValidatingWebhookConfigDetails', () => ({
   default: makeDetails('ValidatingWebhookConfiguration'),
 }));
+vi.mock('../../validatingadmissionpolicy/PolicyDetails', () => ({
+  default: makeDetails('ValidatingAdmissionPolicy'),
+}));
+vi.mock('../../validatingadmissionpolicy/BindingDetails', () => ({
+  default: makeDetails('ValidatingAdmissionPolicyBinding'),
+}));
 vi.mock('../../workload/Details', () => ({ default: makeDetails('Workload') }));
 
 const dispatchCases = [
@@ -132,6 +138,8 @@ const dispatchCases = [
   ['VerticalPodAutoscaler', 'VerticalPodAutoscaler'],
   ['MutatingWebhookConfiguration', 'MutatingWebhookConfiguration'],
   ['ValidatingWebhookConfiguration', 'ValidatingWebhookConfiguration'],
+  ['ValidatingAdmissionPolicy', 'ValidatingAdmissionPolicy'],
+  ['ValidatingAdmissionPolicyBinding', 'ValidatingAdmissionPolicyBinding'],
   ['IngressClass', 'IngressClass'],
   ['CustomResourceDefinition', 'CustomResourceDefinition'],
   ['crd', 'CustomResourceDefinition'],
