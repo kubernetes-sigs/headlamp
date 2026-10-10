@@ -52,7 +52,7 @@ export default mergeConfig(
         },
       },
       restoreMocks: false,
-      setupFiles: ['./src/setupTests.ts'],
+      setupFiles: ['./src/test/setup.ts'],
     },
   })
 );
