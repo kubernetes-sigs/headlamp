@@ -38,6 +38,7 @@ function loadInitialState(): PluginConfigState {
       return {};
     }
     const parsed: unknown = JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
+
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       // Avoid logging the value itself: plugin configs may hold sensitive data.
       console.warn(
@@ -45,11 +46,50 @@ function loadInitialState(): PluginConfigState {
           parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed
         }), falling back to empty.`
       );
+      try {
+        localStorage.removeItem(PLUGIN_CONFIG_KEY);
+      } catch {
+        // Ignore (e.g. SecurityError / storage disabled).
+      }
       return {};
     }
-    return parsed as PluginConfigState;
+
+    // Narrow to Record so Object.entries is type-safe and value is unknown.
+    const validated = parsed as Record<string, unknown>;
+
+    // Deep validation: ensure each plugin's config is a valid object
+    const sanitizedState: PluginConfigState = {};
+    let hasInvalidEntries = false;
+
+    for (const [key, value] of Object.entries(validated)) {
+      // Skip keys that could trigger prototype-pollution via the __proto__ setter
+      // or mutate constructor/prototype chains. localStorage is user-controlled,
+      // so we must not trust arbitrary key names.
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        hasInvalidEntries = true;
+        continue;
+      }
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        sanitizedState[key] = value as { [key: string]: any };
+      } else {
+        hasInvalidEntries = true;
+      }
+    }
+
+    if (hasInvalidEntries) {
+      console.warn('Some stored plugin configs were invalid and have been discarded.');
+    }
+
+    return sanitizedState;
   } catch (error) {
     console.warn('Failed to read stored plugin configs, falling back to empty:', error);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(PLUGIN_CONFIG_KEY);
+      }
+    } catch {
+      // Ignore (e.g. SecurityError / storage disabled).
+    }
     return {};
   }
 }
