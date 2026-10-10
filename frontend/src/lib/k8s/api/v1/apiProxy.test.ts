@@ -251,6 +251,67 @@ describe('apiProxy', () => {
         server.send(JSON.stringify({ type: 'MODIFIED', object: modifiedConfigMap }));
         expect(cb).toHaveBeenNthCalledWith(3, [{ actionType: 'MODIFIED', ...modifiedConfigMap }]);
       });
+
+      it('applies a MODIFIED event whose resourceVersion is distinct but collapses under parseInt', async () => {
+        const server = new WS(
+          `${wsUrl}clusters/${clusterName}/apis/${mockSingleResource[0]}/${mockSingleResource[1]}/${mockSingleResource[2]}`
+        );
+
+        const client = apiProxy.apiFactory(...mockSingleResource);
+        client.list(cb, errCb, {}, clusterName);
+
+        await server.connected;
+
+        // Two distinct resourceVersions above Number.MAX_SAFE_INTEGER that both
+        // parseInt() to the same number. resourceVersion is opaque, so the newer
+        // MODIFIED event must still be applied.
+        const addedObject = {
+          ...mockConfigMap,
+          metadata: { ...mockConfigMap.metadata, resourceVersion: '18014398509481984' },
+        };
+        const modifiedObject = {
+          ...mockConfigMap,
+          metadata: { ...mockConfigMap.metadata, resourceVersion: '18014398509481985' },
+          data: { ...mockConfigMap.data, volumeName: 'pvc-updated' },
+        };
+
+        server.send(JSON.stringify({ type: 'ADDED', object: addedObject }));
+        server.send(JSON.stringify({ type: 'MODIFIED', object: modifiedObject }));
+
+        expect(cb).toHaveBeenLastCalledWith([{ actionType: 'MODIFIED', ...modifiedObject }]);
+      });
+
+      it('applies a MODIFIED event even when the object has no resourceVersion', async () => {
+        const server = new WS(
+          `${wsUrl}clusters/${clusterName}/apis/${mockSingleResource[0]}/${mockSingleResource[1]}/${mockSingleResource[2]}`
+        );
+
+        const client = apiProxy.apiFactory(...mockSingleResource);
+        client.list(cb, errCb, {}, clusterName);
+
+        await server.connected;
+
+        const addedObject = {
+          ...mockConfigMap,
+          metadata: { ...mockConfigMap.metadata, resourceVersion: '1' },
+        };
+        // A MODIFIED event with no resourceVersion must still be applied, not dropped.
+        const modifiedObject = {
+          ...mockConfigMap,
+          metadata: { ...mockConfigMap.metadata, resourceVersion: undefined },
+          data: { ...mockConfigMap.data, volumeName: 'pvc-no-rv' },
+        };
+
+        server.send(JSON.stringify({ type: 'ADDED', object: addedObject }));
+        server.send(JSON.stringify({ type: 'MODIFIED', object: modifiedObject }));
+
+        expect(cb).toHaveBeenLastCalledWith([
+          expect.objectContaining({
+            actionType: 'MODIFIED',
+            data: expect.objectContaining({ volumeName: 'pvc-no-rv' }),
+          }),
+        ]);
+      });
     });
 
     describe('multipleApiFactory', () => {
