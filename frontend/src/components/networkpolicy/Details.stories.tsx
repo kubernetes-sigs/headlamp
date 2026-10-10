@@ -44,6 +44,13 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
+        // Handlers for the "Targeted Pods" section (pods matched by spec.podSelector).
+        http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () =>
+          HttpResponse.json({ kind: 'PodList', items: [], metadata: {} })
+        ),
+        http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/default/pods`, () =>
+          HttpResponse.json({ kind: 'PodMetricsList', items: [], metadata: {} })
+        ),
         http.get(
           `${API_BASE}/apis/networking.k8s.io/v1/namespaces/default/networkpolicies/allow-frontend-traffic`,
           () => HttpResponse.json(NETWORK_POLICY_DETAIL)
