@@ -87,7 +87,7 @@ const differentlyVersionedDependencies = [
   '@vitest/coverage-istanbul',
 ];
 
-const yargs = require('yargs/yargs');
+const yargs = require('yargs');
 const fs = require('fs-extra');
 const headlampPluginPkg = require('./package.json');
 const frontendPkg = require('../../frontend/package.json');

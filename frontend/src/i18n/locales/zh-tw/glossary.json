@@ -4,6 +4,7 @@
   "Cluster selector": "叢集選擇器",
   "Namespace": "命名空間",
   "Git Commit": "Git 提交",
+  "Audit Logs": "",
   "Memory": "記憶體",
   "CPU": "CPU",
   "Pods": "Pods",

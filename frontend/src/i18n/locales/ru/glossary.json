@@ -4,6 +4,7 @@
   "Cluster selector": "Селектор кластера",
   "Namespace": "Пространство имён",
   "Git Commit": "Git-коммит",
+  "Audit Logs": "",
   "Memory": "Память",
   "CPU": "Процессор",
   "Pods": "Поды",
