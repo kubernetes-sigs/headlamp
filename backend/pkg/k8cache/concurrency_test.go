@@ -25,30 +25,46 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
+func runConcurrentCalls(cache *k8cache.ClientsetCache, ctx *kubeconfig.Context, n int) []error {
+	var wg sync.WaitGroup
+
+	errs := make([]error, n)
+
+	wg.Add(n)
+
+	for i := 0; i < n; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			_, errs[idx] = cache.GetClientSet("test-cluster", ctx, "same-token")
+		}(i)
+	}
+
+	wg.Wait()
+
+	return errs
+}
+
 // TestGetClientSet_InFlightDedup verifies that concurrent GetClientSet calls
 // for the same cache key result in only a single clientset creation.
 func TestGetClientSet_InFlightDedup(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	k8cache.ResetInFlight()
+	cache := k8cache.NewClientsetCache()
 
 	const goroutines = 10
 
 	var (
 		createCount   atomic.Int32
-		wg            sync.WaitGroup
 		waiters       atomic.Int32
 		readyToCreate = make(chan struct{})
-		errs          = make([]error, goroutines)
 	)
 
-	restoreWaitHook := k8cache.SetTestingInFlightWait(func() {
+	cache.SetInFlightWaitHook(func() {
 		if waiters.Add(1) == int32(goroutines-1) {
 			close(readyToCreate)
 		}
 	})
-	defer restoreWaitHook()
 
-	restoreCreator := k8cache.SetClientsetCreator(
+	cache.SetClientsetCreator(
 		func(_ *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
 			if goroutines > 1 {
 				<-readyToCreate
@@ -59,7 +75,6 @@ func TestGetClientSet_InFlightDedup(t *testing.T) {
 			return &kubernetes.Clientset{}, nil
 		},
 	)
-	defer restoreCreator()
 
 	ctx := &kubeconfig.Context{
 		ClusterID:   "/path+test-cluster",
@@ -68,17 +83,7 @@ func TestGetClientSet_InFlightDedup(t *testing.T) {
 		KubeContext: &api.Context{Cluster: "test-cluster"},
 	}
 
-	wg.Add(goroutines)
-
-	for i := 0; i < goroutines; i++ {
-		go func(idx int) {
-			defer wg.Done()
-
-			_, errs[idx] = k8cache.GetClientSet("test-cluster", ctx, "same-token")
-		}(i)
-	}
-
-	wg.Wait()
+	errs := runConcurrentCalls(cache, ctx, goroutines)
 
 	for i, err := range errs {
 		assert.NoError(t, err, "goroutine %d returned error", i)
@@ -91,25 +96,24 @@ func TestGetClientSet_InFlightDedup(t *testing.T) {
 // TestGetClientSet_InFlightDedupDifferentKeys verifies that concurrent calls
 // with different cache keys create separate clientsets.
 func TestGetClientSet_InFlightDedupDifferentKeys(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	k8cache.ResetInFlight()
+	cache := k8cache.NewClientsetCache()
 
 	var createCount atomic.Int32
 
-	restoreCreator := k8cache.SetClientsetCreator(
+	cache.SetClientsetCreator(
 		func(_ *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
 			createCount.Add(1)
 
 			return &kubernetes.Clientset{}, nil
 		},
 	)
-	defer restoreCreator()
 
 	tokens := []string{"token-a", "token-b", "token-c"}
 
 	var wg sync.WaitGroup
 
 	errs := make([]error, len(tokens))
+
 	wg.Add(len(tokens))
 
 	for i, tok := range tokens {
@@ -123,7 +127,7 @@ func TestGetClientSet_InFlightDedupDifferentKeys(t *testing.T) {
 				KubeContext: &api.Context{Cluster: "test-cluster"},
 			}
 
-			_, errs[idx] = k8cache.GetClientSet("test-cluster", ctx, token)
+			_, errs[idx] = cache.GetClientSet("test-cluster", ctx, token)
 		}(i, tok)
 	}
 
@@ -135,4 +139,67 @@ func TestGetClientSet_InFlightDedupDifferentKeys(t *testing.T) {
 
 	assert.Equal(t, len(tokens), int(createCount.Load()),
 		"each unique token should create its own clientset")
+}
+
+// TestGetClientSet_InFlightCreatorErrorReleasesWaiters verifies that creator failure
+// releases all waiting callers with the error and leaves no stale in-flight state.
+func TestGetClientSet_InFlightCreatorErrorReleasesWaiters(t *testing.T) {
+	cache := k8cache.NewClientsetCache()
+
+	const goroutines = 10
+
+	var (
+		createCount   atomic.Int32
+		waiters       atomic.Int32
+		readyToCreate = make(chan struct{})
+	)
+
+	cache.SetInFlightWaitHook(func() {
+		if waiters.Add(1) == int32(goroutines-1) {
+			close(readyToCreate)
+		}
+	})
+
+	expectedErr := assert.AnError
+
+	cache.SetClientsetCreator(
+		func(_ *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
+			if goroutines > 1 {
+				<-readyToCreate
+			}
+
+			createCount.Add(1)
+
+			return nil, expectedErr
+		},
+	)
+
+	ctx := &kubeconfig.Context{
+		ClusterID:   "/path+test-cluster",
+		Cluster:     &api.Cluster{Server: "https://example.com"},
+		AuthInfo:    &api.AuthInfo{Token: "test"},
+		KubeContext: &api.Context{Cluster: "test-cluster"},
+	}
+
+	errs := runConcurrentCalls(cache, ctx, goroutines)
+
+	assert.Equal(t, int32(1), createCount.Load())
+
+	for i, err := range errs {
+		assert.ErrorIs(t, err, expectedErr, "goroutine %d should have received expected error", i)
+	}
+
+	assert.Equal(t, 0, cache.InFlightLen())
+	assert.Equal(t, 0, cache.Len())
+
+	// Verify retry can succeed
+	cache.SetInFlightWaitHook(nil)
+	cache.SetClientsetCreator(func(_ *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
+		return &kubernetes.Clientset{}, nil
+	})
+
+	cs, err := cache.GetClientSet("test-cluster", ctx, "same-token")
+	assert.NoError(t, err)
+	assert.NotNil(t, cs)
+	assert.Equal(t, 1, cache.Len())
 }
