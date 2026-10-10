@@ -887,6 +887,15 @@ func TestCompileProxyURLPatternsInvalidPattern(t *testing.T) {
 	assert.Contains(t, err.Error(), "compiling proxy URL pattern")
 }
 
+func TestCompileProxyURLPatternsRejectsPatternsWithoutHost(t *testing.T) {
+	for _, pattern := range []string{"example.com/path", "/just/a/path", "artifacthub.io"} {
+		_, err := compileProxyURLPatterns([]string{pattern})
+
+		require.Error(t, err, "pattern %q should be rejected", pattern)
+		assert.Contains(t, err.Error(), "compiling proxy URL pattern")
+	}
+}
+
 func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
 	config := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -901,6 +910,93 @@ func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, allowed)
 	assert.NotEmpty(t, config.compiledProxyURLs)
+}
+
+func TestProxyURLAllowedDoesNotBypassAllowlist(t *testing.T) { //nolint:funlen
+	tests := []struct {
+		name    string
+		pattern string
+		url     string
+		allowed bool
+	}{
+		{
+			name:    "exact host matches",
+			pattern: "https://prometheus.example.com/*",
+			url:     "https://prometheus.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "subdomain wildcard matches a real subdomain",
+			pattern: "https://*.example.com",
+			url:     "https://api.example.com",
+			allowed: true,
+		},
+		{
+			name:    "wildcard matches a nested path on the allowed host",
+			pattern: "https://artifacthub.io/*",
+			url:     "https://artifacthub.io/api/v1/packages/search",
+			allowed: true,
+		},
+		{
+			name:    "wildcard matches a nested path even with a query string",
+			pattern: "https://artifacthub.io/*",
+			url:     "https://artifacthub.io/api/v1/packages/search?query=up",
+			allowed: true,
+		},
+		{
+			name:    "double star matches across path segments",
+			pattern: "https://prometheus.example.com/**",
+			url:     "https://prometheus.example.com/api/v1/query",
+			allowed: true,
+		},
+		{
+			name:    "subdomain wildcard does not match host with allowed suffix in the path",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com/a.example.com",
+			allowed: false,
+		},
+		{
+			name:    "wildcard does not cross the path boundary onto another host",
+			pattern: "https://prometheus.example.com/*",
+			url:     "https://prometheus.example.com.evil.com/api",
+			allowed: false,
+		},
+		{
+			name:    "wildcard does not cross the query boundary onto another host",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com?target=.example.com",
+			allowed: false,
+		},
+		{
+			name:    "wildcard does not cross the fragment boundary onto another host",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com#.example.com",
+			allowed: false,
+		},
+		{
+			name:    "unrelated host is rejected",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com",
+			allowed: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						ProxyURLs: []string{tc.pattern},
+					},
+				},
+			}
+
+			allowed, err := config.proxyURLAllowed(tc.url)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.allowed, allowed)
+		})
+	}
 }
 
 func newLargeBodyUpstream(t *testing.T, size int) *httptest.Server {
