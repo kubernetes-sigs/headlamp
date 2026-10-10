@@ -287,6 +287,35 @@ service:
   #   protocol: TCP
   #   nodePort: null
 
+# Prometheus metrics configuration.
+# The Headlamp backend exposes a /metrics endpoint when metrics are enabled.
+# This section controls that endpoint and optional ServiceMonitor creation
+# for automatic discovery by kube-prometheus-stack.
+metrics:
+  # -- Enable the Prometheus /metrics endpoint on the Headlamp backend.
+  # Sets the HEADLAMP_CONFIG_METRICS_ENABLED environment variable.
+  enabled: false
+  serviceMonitor:
+    # -- Create a ServiceMonitor resource for Prometheus Operator.
+    # Requires metrics.enabled to be true and the Prometheus Operator CRDs to be installed.
+    enabled: false
+    # -- Namespace for the ServiceMonitor. Defaults to the release namespace.
+    namespace: ""
+    # -- Additional labels to add to the ServiceMonitor (e.g. for Prometheus selector matching)
+    labels: {}
+    # -- Annotations to add to the ServiceMonitor
+    annotations: {}
+    # -- Prometheus scrape interval
+    interval: "30s"
+    # -- Prometheus scrape timeout
+    scrapeTimeout: "10s"
+    # -- Whether to honor labels from the scraped data over labels attached by Prometheus
+    honorLabels: false
+    # -- MetricRelabelConfigs to apply to samples before ingestion
+    metricRelabelings: []
+    # -- RelabelConfigs to apply to samples before scraping
+    relabelings: []
+
 # -- Headlamp containers volume mounts
 volumeMounts: []
 
