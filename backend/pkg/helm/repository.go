@@ -263,7 +263,8 @@ func createFullPath(p string) (*os.File, error) {
 		return nil, err
 	}
 
-	return os.Create(p) //nolint:gosec
+	//nolint:gosec // Creates Helm repositories configuration file at configured path.
+	return os.Create(p)
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
