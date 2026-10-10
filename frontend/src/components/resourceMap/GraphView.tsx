@@ -19,10 +19,9 @@ import './GraphView.css';
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
-import { Theme } from '@mui/material/styles';
-import { styled } from '@mui/material/styles';
+import { styled, Theme } from '@mui/material/styles';
 import ThemeProvider from '@mui/system/ThemeProvider';
-import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
+import { Edge, Node, ReactFlowProvider } from '@xyflow/react';
 import {
   ReactNode,
   StrictMode,
@@ -40,6 +39,7 @@ import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
+import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { MAP_PERFORMANCE_FEATURES_ENABLED } from './config';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
 import { getGraphForNamespaceSelection } from './graph/graphForNamespaceSelection';
@@ -390,6 +390,7 @@ function GraphViewContent({
   ]);
 
   const viewport = useGraphViewport();
+  const [minimapHidden, setMinimapHidden] = useLocalStorageState('map-minimap-hidden', false);
 
   useEffect(() => {
     let isCurrent = true;
@@ -480,6 +481,8 @@ function GraphViewContent({
             display: 'flex',
             flexDirection: 'row',
             flex: 1,
+            minWidth: 0,
+            width: '100%',
           }}
         >
           <CustomThemeProvider>
@@ -490,6 +493,8 @@ function GraphViewContent({
                 flexDirection: 'column',
                 position: 'relative',
                 flexGrow: 1,
+                minWidth: 0,
+                width: '100%',
                 background: '#00000002',
               }}
             >
@@ -586,7 +591,17 @@ function GraphViewContent({
                 )}
               </Box>
 
-              <div style={{ flexGrow: 1 }}>
+              {selectedGroup && (
+                <Box sx={{ px: 2, pb: 1, display: 'flex', alignItems: 'center' }}>
+                  <SelectionBreadcrumbs
+                    graph={fullGraph}
+                    selectedNodeId={selectedNodeId}
+                    onNodeClick={id => setSelectedNodeId(id)}
+                  />
+                </Box>
+              )}
+
+              <div style={{ flexGrow: 1, minWidth: 0, width: '100%' }}>
                 <GraphRenderer
                   nodes={layoutedGraph.nodes}
                   edges={layoutedGraph.edges}
@@ -609,19 +624,16 @@ function GraphViewContent({
                       >
                         100%
                       </GraphControlButton>
+                      <GraphControlButton
+                        title={t('Toggle map overview')}
+                        aria-pressed={!minimapHidden}
+                        onClick={() => setMinimapHidden(it => !it)}
+                      >
+                        <Icon icon={minimapHidden ? 'mdi:map-outline' : 'mdi:map'} />
+                      </GraphControlButton>
                     </>
                   }
-                >
-                  <Panel position="top-left">
-                    {selectedGroup && (
-                      <SelectionBreadcrumbs
-                        graph={fullGraph}
-                        selectedNodeId={selectedNodeId}
-                        onNodeClick={id => setSelectedNodeId(id)}
-                      />
-                    )}
-                  </Panel>
-                </GraphRenderer>
+                />
               </div>
             </Box>
           </CustomThemeProvider>

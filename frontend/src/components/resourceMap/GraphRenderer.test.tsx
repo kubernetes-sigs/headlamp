@@ -36,6 +36,10 @@ vi.mock('./GraphControls', () => ({
   GraphControls: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+vi.mock('./GraphMiniMap', () => ({
+  GraphMiniMap: () => null,
+}));
+
 vi.mock('./edges/GraphEdgeComponent', () => ({
   GraphEdgeComponent: () => null,
 }));

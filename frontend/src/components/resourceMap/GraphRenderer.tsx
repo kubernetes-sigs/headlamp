@@ -35,6 +35,7 @@ import Loader from '../common/Loader';
 import { GraphEdgeComponent } from './edges/GraphEdgeComponent';
 import { maxZoom, minZoom } from './graphConstants';
 import { GraphControls } from './GraphControls';
+import { GraphMiniMap } from './GraphMiniMap';
 import { KubeObjectNodeComponent } from './nodes/KubeObjectNode';
 
 export const nodeTypes = {
@@ -150,6 +151,7 @@ export function GraphRenderer({
       <Controls showInteractive={false} showFitView={false} showZoom={false}>
         <GraphControls>{controlActions}</GraphControls>
       </Controls>
+      <GraphMiniMap />
       {isLoading && (
         <Box
           sx={{
