@@ -8,9 +8,12 @@
         class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
       >
         <li
-          class="MuiDivider-root MuiDivider-fullWidth css-lu63ml-MuiDivider-root"
-          role="separator"
-        />
+          class="MuiBox-root css-129d07s"
+        >
+          <hr
+            class="MuiDivider-root MuiDivider-fullWidth css-1tm7fe-MuiDivider-root"
+          />
+        </li>
       </ul>
     </div>
   </div>
