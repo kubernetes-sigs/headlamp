@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/internal/testutil"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -175,7 +176,7 @@ var parseClusterAndTokenTests = []struct {
 		wantToken:   "cookie-token",
 		cookies: []*http.Cookie{
 			{
-				Name:  "headlamp-auth-cookie-cluster.0",
+				Name:  "headlamp-auth-" + auth.SanitizeClusterName("cookie-cluster") + ".0",
 				Value: "cookie-token",
 			},
 		},
@@ -679,15 +680,31 @@ func newOIDCProviderServer(t *testing.T, issuerURL string, tokenHandler http.Han
 	return srv
 }
 
+// findAuthCookie returns the final value a browser's cookie jar would hold for the named auth
+// cookie, after applying every Set-Cookie header on resp in order. SetTokenCookie's ClearTokenCookie
+// pre-step (see its doc comment) unconditionally emits its own clearing Set-Cookie headers before
+// the real value is written, so the first header matching the name is not necessarily the one
+// that ends up set; this takes the last one instead, and treats a clear (MaxAge < 0) as unsetting
+// it unless a later Set-Cookie re-adds it.
 func findAuthCookie(resp *http.Response, cluster string) (string, bool) {
 	want := fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName(cluster))
+
+	value, found := "", false
+
 	for _, cookie := range resp.Cookies() {
-		if cookie.Name == want {
-			return cookie.Value, true
+		if cookie.Name != want {
+			continue
 		}
+
+		if cookie.MaxAge < 0 {
+			value, found = "", false
+			continue
+		}
+
+		value, found = cookie.Value, true
 	}
 
-	return "", false
+	return value, found
 }
 
 var oauthSuccessBody = map[string]any{
@@ -1007,6 +1024,52 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 	assert.Equal(t, "ACCESS_NEW", cookieVal)
 }
 
+// TestRefreshAndSetToken_UpdatesRequestAuthorizationHeader locks in the fix for a race this
+// package's own call sites can hit: NewOIDCTokenRefreshMiddleware refreshes and writes a new
+// Set-Cookie on the response, then calls next.ServeHTTP with the SAME *http.Request -- whose
+// Cookie header was never touched. A handler further down that chain (for example
+// impersonationForRequest) reading that request's token would otherwise still see the one this
+// refresh just replaced, fail verification if it had already expired, and attempt its own
+// refresh using the same now-consumed refresh token -- which a provider that rotates or
+// invalidates refresh tokens after use would reject, turning this refresh's success into a 401
+// anyway. Setting the Authorization header here, which requestIDToken checks before falling
+// back to the cookie, is what breaks that chain.
+func TestRefreshAndSetToken_UpdatesRequestAuthorizationHeader(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "test"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		BaseURL:          "",
+	})
+
+	assert.Equal(t, "Bearer NEW", req.Header.Get("Authorization"),
+		"the same request's Authorization header must carry the refreshed token, "+
+			"not just the response's Set-Cookie")
+}
+
 func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 	const (
 		oldToken = "OLD"
@@ -1157,20 +1220,6 @@ func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
 	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
 }
 
-func makeTestToken(t *testing.T, claims map[string]interface{}) string {
-	// helper to build unsigned JWT-like string for tests
-	header := map[string]string{"alg": "none", "typ": "JWT"}
-	headerJSON, err := json.Marshal(header)
-	require.NoError(t, err)
-	claimsJSON, err := json.Marshal(claims)
-	require.NoError(t, err)
-
-	return fmt.Sprintf("%s.%s.signature",
-		base64.RawURLEncoding.EncodeToString(headerJSON),
-		base64.RawURLEncoding.EncodeToString(claimsJSON),
-	)
-}
-
 func TestHandleMe_Success(t *testing.T) {
 	t.Parallel()
 
@@ -1182,7 +1231,7 @@ func TestHandleMe_Success(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1233,7 +1282,7 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1309,7 +1358,7 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
@@ -1367,4 +1416,35 @@ func TestHandleMe_MissingCookie(t *testing.T) {
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
+}
+
+func TestIdentityFromClaims_Success(t *testing.T) {
+	t.Parallel()
+
+	claims := map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev", "ops"},
+	}
+
+	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
+	require.NoError(t, err)
+	assert.Equal(t, "alice@example.com", identity.Username)
+	assert.Equal(t, []string{"dev", "ops"}, identity.Groups)
+}
+
+func TestIdentityFromClaims_MissingUsernameClaim(t *testing.T) {
+	t.Parallel()
+
+	// Default me-username-path claims are absent; only "email" is present, so resolution must
+	// fail unless the operator configured --me-username-path=email to match the IdP's claims.
+	claims := map[string]interface{}{
+		"email": "alice@example.com",
+	}
+
+	_, err := auth.IdentityFromClaims(
+		claims,
+		auth.CompileJMESPaths("preferred_username,upn,username,name"),
+		auth.CompileJMESPaths("groups"),
+	)
+	require.Error(t, err)
 }

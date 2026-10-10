@@ -128,6 +128,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ForceTheme:                            conf.ForceTheme,
 		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
 		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
+		OidcUseImpersonation:                  conf.OidcUseImpersonation,
 	}
 }
 
@@ -241,10 +242,20 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+
+	// The multiplexer calls this once per client message with no per-message response of its
+	// own (see impersonationForRequest's doc comment), so w is always nil here.
+	multiplexer.resolveImpersonation = func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error) {
+		return headlampConfig.impersonationForRequest(nil, r, clusterName, kContext)
+	}
+
+	return headlampConfig
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
@@ -299,6 +310,13 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 
 	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 	if err != nil {
+		return
+	}
+
+	// Cache entries are keyed by cluster and URL, not by identity. A request that acts as a
+	// verified user must neither read another identity's response nor store its own.
+	if c.shouldUseImpersonationForContext(kContext) {
+		next.ServeHTTP(w, r)
 		return
 	}
 
