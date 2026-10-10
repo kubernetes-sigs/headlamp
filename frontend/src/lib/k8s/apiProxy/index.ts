@@ -37,6 +37,8 @@
 // import { debugVerbose } from '../../helpers/debugVerbose';
 // debugVerbose('k8s/apiProxy');
 
+import type { ClusterRequestOptions, RequestOptions } from '../api/v1/clusterRequests';
+
 export type { QueryParameters } from '../api/v1/queryParameters';
 export type { DeleteParameters } from '../api/v1/deleteParameters';
 
@@ -49,9 +51,12 @@ export {
   remove,
   request,
   type ClusterRequest,
-  type ClusterRequestParams,
-  type RequestParams,
+  type ClusterRequestOptions,
+  type RequestOptions,
 } from '../api/v1/clusterRequests';
+
+export type RequestParams = RequestOptions;
+export type ClusterRequestParams = ClusterRequestOptions;
 
 // Streaming API functions
 export {
