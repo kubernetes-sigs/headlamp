@@ -41,6 +41,11 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
   const externalWindowRef = React.useRef<Window | null>(null);
   const storageListenerRef = React.useRef<(() => void) | null>(null);
   const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
+  const latestProps = React.useRef(props);
+
+  React.useLayoutEffect(() => {
+    latestProps.current = props;
+  }, [props]);
 
   const cleanupPopup = React.useCallback(
     (closeWindow = false) => {
@@ -80,7 +85,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
   }, [cleanupPopup]);
 
   const createPopup = () => {
-    const { url, title, width, height, onCode } = { ...defaultOauthPopupProps, ...props };
+    const { url, title, width, height } = { ...defaultOauthPopupProps, ...props };
     const left = window.screenX + ((window.outerWidth - width) as number) / 2;
     const top = window.screenY + ((window.outerHeight - height) as number) / 2.5;
 
@@ -93,7 +98,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
       try {
         const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
         if (authStatus) {
-          onCode(authStatus);
+          latestProps.current.onCode(authStatus);
           localStorage.removeItem(AUTH_STATUS_KEY);
           cleanupPopup(true);
         }
@@ -111,8 +116,8 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
         const beforeUnloadListener = () => {
           cleanupPopup();
           externalWindowRef.current = null;
-          if (!!props.onClose) {
-            props.onClose();
+          if (!!latestProps.current.onClose) {
+            latestProps.current.onClose();
           }
         };
 

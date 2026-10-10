@@ -138,4 +138,98 @@ describe('OauthPopup', () => {
     );
     expect(popupWindow.close).toHaveBeenCalled();
   });
+
+  it('uses the latest onCode callback when the component re-renders and auth completes', () => {
+    const popupWindow = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      close: vi.fn(),
+    } as unknown as Window;
+
+    vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+    const initialOnCode = vi.fn();
+
+    const { rerender } = render(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={initialOnCode}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+
+    const newOnCode = vi.fn();
+    rerender(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={newOnCode}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    const storageListener = addEventListenerSpy.mock.calls.find(
+      ([eventName]) => eventName === 'storage'
+    )?.[1];
+    expect(storageListener).toBeTypeOf('function');
+
+    localStorage.setItem(AUTH_STATUS_KEY, 'code=oauth-code');
+    window.dispatchEvent(new StorageEvent('storage'));
+
+    expect(initialOnCode).not.toHaveBeenCalled();
+    expect(newOnCode).toHaveBeenCalledWith('code=oauth-code');
+  });
+
+  it('uses the latest onClose callback when the component re-renders and the popup is closed manually', () => {
+    const popupListeners: Record<string, () => void> = {};
+    const popupWindow = {
+      addEventListener: vi.fn((eventName: string, listener: () => void) => {
+        popupListeners[eventName] = listener;
+      }),
+      removeEventListener: vi.fn(),
+      close: vi.fn(),
+    } as unknown as Window;
+
+    vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const initialOnClose = vi.fn();
+
+    const { rerender } = render(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={vi.fn()}
+        onClose={initialOnClose}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+
+    const newOnClose = vi.fn();
+    rerender(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={vi.fn()}
+        onClose={newOnClose}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    popupListeners.beforeunload?.();
+
+    expect(initialOnClose).not.toHaveBeenCalled();
+    expect(newOnClose).toHaveBeenCalled();
+  });
 });
