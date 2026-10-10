@@ -90,6 +90,18 @@ export function ResourceQuotaRenderer(props: ResourceQuotaProps) {
             return <WrappingBox>{limits}</WrappingBox>;
           },
         },
+        {
+          id: 'counts',
+          label: t('translation|Object Counts'),
+          getValue: item => item?.counts?.join(', '),
+          render: item => {
+            const counts: ReactNode[] = [];
+            item.counts.forEach((count: string) => {
+              counts.push(<PaddedChip label={count} variant="outlined" size="small" />);
+            });
+            return <WrappingBox>{counts}</WrappingBox>;
+          },
+        },
         'labels',
         'age',
       ]}
