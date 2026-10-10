@@ -18,4 +18,5 @@ type CacheKey struct {
 	Kind      string // Kind is the string object which is the user is requesting
 	Namespace string // Namespace is string object which tells what Namespace is the user trying to access
 	Context   string // Context is the unique Id which helps to differentiate multi-context
+	Query     string // Query parameters from the URL
 }
