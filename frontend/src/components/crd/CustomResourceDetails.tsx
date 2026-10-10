@@ -104,12 +104,13 @@ function getExtraInfo(extraInfoSpec: AdditionalPrinterColumns, item: KubeCRD) {
       return;
     }
 
+    // Make sure the value will be represented in string form (to account for
+    // e.g. cases where we may get an array). JSONPath returns an empty array
+    // for a missing field, which becomes '' here.
+    value = value?.toString();
+
     if (spec.type === 'date' && !!value) {
       value = localeDate(new Date(value));
-    } else {
-      // Make sure the value will be represented in string form (to account for
-      // e.g. cases where we may get an array).
-      value = value?.toString();
     }
 
     const desc = spec.description;
