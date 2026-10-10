@@ -1,0 +1,26 @@
+# Dex configuration for backend OIDC integration tests.
+# The mockCallback connector issues an authorization code without any user
+# interaction, so the whole flow is a redirect chain a plain http.Client can
+# follow. Do not use this configuration outside tests.
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: headlamp-test
+    name: Headlamp integration test
+    secret: headlamp-test-secret
+    redirectURIs:
+      - http://127.0.0.1:18080/oidc-callback
+
+connectors:
+  - type: mockCallback
+    id: mock
+    name: Mock
