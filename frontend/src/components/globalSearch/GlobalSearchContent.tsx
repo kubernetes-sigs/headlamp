@@ -26,7 +26,16 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import {
+  type FocusEvent,
+  forwardRef,
+  type HTMLAttributes,
+  lazy,
+  Suspense,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
@@ -70,6 +79,12 @@ import { useRecent } from './useRecent';
 
 const LazyKubeIcon = lazy(() =>
   import('../resourceMap/kubeIcon/KubeIcon').then(it => ({ default: it.KubeIcon }))
+);
+
+const FocusableSearchResultsOuter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function FocusableSearchResultsOuter(props, ref) {
+    return <Box {...props} ref={ref} role="group" tabIndex={0} />;
+  }
 );
 
 /**
@@ -513,17 +528,36 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   });
 
   const listRef = useRef<FixedSizeList>(null);
+  const popperRef = useRef<HTMLDivElement>(null);
+  const inputProps = autocomplete.getInputProps();
+
+  // MUI's blur handler refocuses the input whenever focus lands inside the popup, and closes
+  // the popup when focus moves to the Clear button. That makes the scrollable results list
+  // impossible to reach with the keyboard. Only run it once focus leaves the whole widget.
+  // React blur events bubble from the portaled popup to this root, so one handler covers both.
+  const handleBlur = (event: FocusEvent<HTMLElement>) => {
+    const next = event.relatedTarget as globalThis.Node | null;
+    if (next && (event.currentTarget.contains(next) || popperRef.current?.contains(next))) {
+      return;
+    }
+    inputProps.onBlur?.(event as unknown as FocusEvent<HTMLInputElement>);
+  };
 
   return (
-    <Box {...autocomplete.getRootProps()}>
+    <Box {...autocomplete.getRootProps()} onBlur={handleBlur}>
       <TextField
         fullWidth
         size="small"
         variant="outlined"
         placeholder={t('Search resources, pages, clusters by name')}
+        inputProps={{
+          'aria-label': t('Search resources, pages, clusters by name'),
+        }}
         InputProps={
           {
-            ...autocomplete.getInputProps(),
+            ...inputProps,
+            onBlur: undefined,
+            'aria-label': t('Search resources, pages, clusters by name'),
             ref: (el: HTMLDivElement) => {
               const ac = autocomplete as any; // some types are wrong
               ac.setAnchorEl(el);
@@ -542,7 +576,19 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             endAdornment: (
               <>
                 <Tooltip title={<Trans>Clear</Trans>} sx={{ opacity: query.length ? 1 : 0 }}>
-                  <IconButton onClick={() => setQuery('')} aria-label={t('Clear')} size="small">
+                  <IconButton
+                    onClick={() => setQuery('')}
+                    // Keep Enter/Space on the button from reaching the autocomplete root, which
+                    // would select the highlighted result instead of clearing the query.
+                    // Other keys (e.g. Escape) must still bubble so the popup can close.
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.stopPropagation();
+                      }
+                    }}
+                    aria-label={t('Clear')}
+                    size="small"
+                  >
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </Tooltip>
@@ -560,8 +606,10 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         }
       />
       <Popper
+        ref={popperRef}
         anchorEl={autocomplete.anchorEl}
         open={autocomplete.popupOpen}
+        role="presentation"
         sx={theme => ({ zIndex: theme.zIndex.modal, width: '100%', maxWidth: maxWidth + 'px' })}
       >
         <Paper
@@ -569,6 +617,8 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
           variant="outlined"
           sx={{ position: 'relative', padding: 0, margin: 0 }}
           {...autocomplete.getListboxProps()}
+          aria-labelledby={undefined}
+          aria-label={t('Search')}
         >
           {autocomplete.groupedOptions.length > 0 && (
             <FixedSizeList
@@ -578,6 +628,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
               itemData={autocomplete}
               itemSize={50}
               width={'100%'}
+              outerElementType={FocusableSearchResultsOuter}
             >
               {SearchRow}
             </FixedSizeList>
