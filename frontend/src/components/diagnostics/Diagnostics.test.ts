@@ -96,6 +96,81 @@ function makePod(overrides: any = {}) {
 }
 
 describe('diagnostics helpers', () => {
+  it('passes the repeat count under i18next\'s reserved "count" key', () => {
+    const t = vi.fn((key: string) => key);
+
+    getPodDiagnostics(
+      makePod(),
+      [
+        {
+          type: 'Warning',
+          reason: 'BackOff',
+          message: 'Back-off restarting failed container gadget',
+          count: 5,
+          lastTimestamp: '2026-05-09T05:31:00Z',
+          firstTimestamp: '2026-05-09T05:20:00Z',
+          metadata: { uid: 'event-1' },
+        } as any,
+      ],
+      t
+    );
+
+    expect(t).toHaveBeenCalledWith(
+      '{{ count }} times since {{ age }}',
+      expect.objectContaining({ count: 5 })
+    );
+    expect(t).toHaveBeenCalledWith(
+      'Warning event: {{ reason }} ({{ count }} times)',
+      expect.objectContaining({ count: 5, reason: 'BackOff' })
+    );
+    // Regression guard: restoring `eventCount` would silently pass every
+    // other assertion in this file, since defaultTranslate interpolates
+    // any placeholder name. Fail loudly if it ever comes back.
+    expect(t).not.toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ eventCount: expect.anything() })
+    );
+  });
+
+  it('uses the count-only phrasing when no first-occurrence timestamp is available', () => {
+    const t = vi.fn((key: string) => key);
+
+    getPodDiagnostics(
+      makePod(),
+      [
+        {
+          type: 'Warning',
+          reason: 'FailedMount',
+          message: 'Unable to mount volume',
+          count: 5,
+          lastTimestamp: '2026-05-09T05:31:00Z',
+          metadata: { uid: 'event-2' },
+        } as any,
+      ],
+      t
+    );
+
+    expect(t).toHaveBeenCalledWith('{{ count }} times', { count: 5 });
+    expect(t).not.toHaveBeenCalledWith('{{ count }} times since {{ age }}', expect.anything());
+  });
+  it('does not show repeat-count detail for a single occurrence', () => {
+    const diagnostics = getPodDiagnostics(makePod(), [
+      {
+        type: 'Warning',
+        reason: 'FailedMount',
+        message: 'Unable to mount volume',
+        count: 1,
+        lastTimestamp: '2026-05-09T05:31:00Z',
+        firstTimestamp: '2026-05-09T05:31:00Z',
+        metadata: { uid: 'event-2' },
+      } as any,
+    ]);
+
+    const warningItem = diagnostics.find(item => item.title === 'Warning event: FailedMount');
+    expect(warningItem).toBeDefined();
+    expect(warningItem?.details?.some(d => /times/.test(d))).toBe(false);
+  });
+
   it('summarizes pod status, failed conditions, and warning events without duplicating container state', () => {
     const diagnostics = getPodDiagnostics(makePod(), [
       {
