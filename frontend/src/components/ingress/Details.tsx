@@ -198,7 +198,11 @@ export default function IngressDetails(props: {
       ports.push('443');
     }
 
-    return ports.sort((a, b) => a.localeCompare(b));
+    // Most of these are port numbers held as strings, so a plain string compare
+    // orders 443 before 80. Numeric collation compares the digit runs as numbers
+    // and still handles the entries that are not numbers at all: a named service
+    // port such as "someport", or a "Kind:name" resource backend.
+    return ports.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }
 
   function getDefaultBackend(item: Ingress) {
