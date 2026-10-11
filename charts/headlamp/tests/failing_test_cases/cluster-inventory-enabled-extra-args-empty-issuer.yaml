@@ -1,0 +1,10 @@
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: headlamp
+    issuerURL: https://idp.example.com
+  extraArgs:
+    - --enable-cluster-inventory=0
+    - --enable-cluster-inventory=1
+    - --oidc-idp-issuer-url=

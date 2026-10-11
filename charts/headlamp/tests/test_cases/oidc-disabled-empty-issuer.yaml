@@ -1,0 +1,9 @@
+env:
+  - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
+    value: https://idp.example.com
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-idp-issuer-url=

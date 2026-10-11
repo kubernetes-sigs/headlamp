@@ -1,0 +1,15 @@
+env:
+  - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
+    value: env-client-id
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: chart-client-id
+    issuerURL: https://idp.example.com
+  extraArgs:
+    - --oidc-client-id=previous-client-id
+    - --oidc-client-id-file=/etc/oidc/client-id
+    - --oidc-client-id=
+  clusterInventory:
+    enabled: true

@@ -21,6 +21,7 @@
        discovery OIDC check, so no -oidc-* flag is rendered for them. */}}
 {{- $backendEnvClientID := "" }}
 {{- $backendEnvIssuerURL := "" }}
+{{- $oidcClientFileConfigured := false }}
 {{- $clusterInventory := .Values.config.clusterInventory | default dict }}
 {{- $clusterInventoryEnabled := $clusterInventory.enabled | default false }}
 {{- $clusterAPI := .Values.config.clusterAPI | default dict }}
@@ -50,6 +51,9 @@
   {{- end }}
   {{- if eq .name "HEADLAMP_CONFIG_OIDC_CLIENT_ID" }}
     {{- $backendEnvClientID = .value }}
+  {{- end }}
+  {{- if eq .name "HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE" }}
+    {{- $oidcClientFileConfigured = or (not (empty .value)) (not (empty .valueFrom)) }}
   {{- end }}
   {{- if eq .name "HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL" }}
     {{- $backendEnvIssuerURL = .value }}
@@ -86,9 +90,95 @@
   {{- end }}
 {{- end }}
 
-{{- $oidcClientConfigured := or (ne $oidc.clientID "") (ne $clientID "") (ne $backendEnvClientID "") }}
-{{- $oidcIssuerConfigured := or (ne $oidc.issuerURL "") (ne $issuerURL "") (ne $backendEnvIssuerURL "") }}
-{{- if and (or $clusterInventoryEnabled $clusterAPIEnabled) (not (or $oidc.externalSecret.enabled (and $oidcClientConfigured $oidcIssuerConfigured))) }}
+{{- $extraArgs := .Values.config.extraArgs }}
+{{- $effectiveClusterInventoryEnabled := $clusterInventoryEnabled }}
+{{- $effectiveClusterAPIEnabled := $clusterAPIEnabled }}
+{{- $oidcArgs := dict }}
+{{- /* Keep boolean flag names in sync with backend/pkg/config. Other bare
+       flags consume the next argument, even when that value looks like a flag. */}}
+{{- $booleanFlags := list
+    "version" "in-cluster" "dev" "cache-enabled" "no-browser" "insecure-ssl"
+    "enable-dynamic-clusters" "allow-kubeconfig-changes" "watch-plugins-changes"
+    "enable-helm" "unsafe-use-service-account-token" "oidc-auto-login"
+    "oidc-skip-tls-verify" "oidc-skip-logout" "oidc-api-proxy-skip-tls-verify"
+    "oidc-use-access-token" "oidc-use-cookie" "oidc-use-token-broadcast"
+    "oidc-use-pkce" "proxy-auth" "tracing-enabled" "metrics-enabled"
+    "use-otlp-http" "stdout-trace-enabled" "enable-cluster-inventory" "enable-cluster-api" }}
+{{- $skipNext := false }}
+{{- $parseArgs := true }}
+{{- range $index, $arg := $extraArgs }}
+  {{- if $parseArgs }}
+    {{- if $skipNext }}
+      {{- $skipNext = false }}
+    {{- else if or (eq $arg "--") (eq $arg "-") (not (hasPrefix "-" $arg)) }}
+      {{- $parseArgs = false }}
+    {{- else }}
+      {{- $flagName := first (splitList "=" (trimPrefix "-" (trimPrefix "-" $arg))) }}
+      {{- if regexMatch "^--?oidc-(client-(id|secret)(-file)?|idp-issuer-url)(=|$)" $arg }}
+        {{- $flag := regexFind "^--?oidc-(client-(id|secret)(-file)?|idp-issuer-url)" $arg }}
+        {{- $value := "" }}
+        {{- $hasValue := false }}
+        {{- $flagLikeValue := false }}
+        {{- if contains "=" $arg }}
+          {{- $value = trimPrefix (printf "%s=" $flag) $arg }}
+          {{- $hasValue = true }}
+        {{- else if lt (add1 $index) (len $extraArgs) }}
+          {{- $value = index $extraArgs (add1 $index) }}
+          {{- $hasValue = true }}
+          {{- $flagLikeValue = hasPrefix "-" $value }}
+        {{- end }}
+        {{- $_ := set $oidcArgs $flagName (dict "value" $value "hasValue" $hasValue "flagLikeValue" $flagLikeValue) }}
+      {{- end }}
+      {{- if has $flagName (list "enable-cluster-inventory" "enable-cluster-api") }}
+        {{- $enabled := true }}
+        {{- if contains "=" $arg }}
+          {{- $value := trimPrefix (printf "%s=" (first (splitList "=" $arg))) $arg }}
+          {{- $enabled = has $value (list "1" "t" "T" "TRUE" "true" "True") }}
+          {{- if not (or $enabled (has $value (list "0" "f" "F" "FALSE" "false" "False"))) }}
+            {{- fail (printf "%s has an invalid boolean value in config.extraArgs" $flagName) }}
+          {{- end }}
+        {{- end }}
+        {{- if eq $flagName "enable-cluster-inventory" }}
+          {{- $effectiveClusterInventoryEnabled = $enabled }}
+        {{- else }}
+          {{- $effectiveClusterAPIEnabled = $enabled }}
+        {{- end }}
+      {{- end }}
+      {{- $skipNext = and (not (contains "=" $arg)) (not (has $flagName $booleanFlags)) }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- $discoveryEnabled := or $effectiveClusterInventoryEnabled $effectiveClusterAPIEnabled }}
+{{- if $discoveryEnabled }}
+  {{- $directClientID := or $oidc.externalSecret.enabled (ne $oidc.clientID "") (ne $clientID "") (hasKey $oidcArgs "oidc-client-id") }}
+  {{- $directClientSecret := or $oidc.externalSecret.enabled (ne $oidc.clientSecret "") (ne $clientSecret "") (hasKey $oidcArgs "oidc-client-secret") }}
+  {{- range $name, $option := $oidcArgs }}
+    {{- if not $option.hasValue }}
+      {{- fail (printf "%s requires a value in config.extraArgs" $name) }}
+    {{- end }}
+    {{- $used := or (eq $name "oidc-idp-issuer-url") (and (eq $name "oidc-client-id-file") (not $directClientID)) (and (eq $name "oidc-client-secret-file") (not $directClientSecret)) }}
+    {{- if and $used (or (empty $option.value) $option.flagLikeValue (and (eq $name "oidc-idp-issuer-url") (empty (trim $option.value)))) }}
+      {{- fail (printf "%s requires a non-empty value in config.extraArgs" $name) }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if hasKey $oidcArgs "oidc-client-id-file" }}
+  {{- $option := get $oidcArgs "oidc-client-id-file" }}
+  {{- $oidcClientFileConfigured = not (empty $option.value) }}
+{{- end }}
+{{- $oidcClientConfigured := or $oidc.externalSecret.enabled (ne $oidc.clientID "") (ne $clientID "") (ne $backendEnvClientID "") $oidcClientFileConfigured }}
+{{- if hasKey $oidcArgs "oidc-client-id" }}
+  {{- $option := get $oidcArgs "oidc-client-id" }}
+  {{- $oidcClientConfigured = not (empty (trim $option.value)) }}
+{{- end }}
+{{- $oidcIssuerConfigured := or $oidc.externalSecret.enabled (ne $oidc.issuerURL "") (ne $issuerURL "") (ne $backendEnvIssuerURL "") }}
+{{- if hasKey $oidcArgs "oidc-idp-issuer-url" }}
+  {{- $option := get $oidcArgs "oidc-idp-issuer-url" }}
+  {{- $oidcIssuerConfigured = not (empty (trim $option.value)) }}
+{{- end }}
+{{- if and $discoveryEnabled (not (and $oidcClientConfigured $oidcIssuerConfigured)) }}
 {{-   fail "Cluster discovery requires the OIDC client ID and issuer URL; set config.oidc (or OIDC / HEADLAMP_CONFIG_OIDC env vars / externalSecret)" }}
 {{- end }}
 
