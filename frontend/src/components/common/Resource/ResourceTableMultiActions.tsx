@@ -18,6 +18,7 @@ import Grid from '@mui/material/Grid';
 import { MRT_TableInstance } from 'material-react-table';
 import { useCallback } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
+import CompareMultipleButton, { canCompareResources } from './CompareMultipleButton';
 import DeleteMultipleButton from './DeleteMultipleButton';
 import { isRestartableResource } from './RestartButton';
 import RestartMultipleButton from './RestartMultipleButton';
@@ -50,6 +51,11 @@ export default function ResourceTableMultiActions<RowItem extends Record<string,
       {restartableItems.length > 0 && (
         <Grid item>
           <RestartMultipleButton items={restartableItems} afterConfirm={afterConfirm} />
+        </Grid>
+      )}
+      {canCompareResources(items) && (
+        <Grid item>
+          <CompareMultipleButton items={items} />
         </Grid>
       )}
       <Grid item>
