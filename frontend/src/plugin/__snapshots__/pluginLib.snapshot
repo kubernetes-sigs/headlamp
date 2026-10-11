@@ -270,6 +270,7 @@
           "form": [Function],
         },
       },
+      "ResourceComparison": [Function],
       "ResourceLink": [Function],
       "ResourceListView": [Function],
       "ResourceTable": {
@@ -333,6 +334,7 @@
       "useSelectorPodTemplate": [Function],
       "useThrottle": [Function],
     },
+    "ResourceComparison": [Function],
     "ResourceLink": [Function],
     "ResourceListView": [Function],
     "ResourceTable": {

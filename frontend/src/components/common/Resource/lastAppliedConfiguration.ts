@@ -1106,3 +1106,37 @@ function countDifferencesAt(
 
   return isSameValue(applied, live, path, type) ? 0 : 1;
 }
+
+/**
+ * Counts the fields that are only present in `b`, at any depth. These are the differences
+ * countDifferences(a, b) leaves out, since it treats `b` as the live object.
+ */
+function countFieldsOnlyIn(a: unknown, b: unknown): number {
+  if (isPlainObject(a) && isPlainObject(b)) {
+    const aObj = a as Record<string, unknown>;
+    return Object.entries(b as Record<string, unknown>).reduce(
+      (count, [key, value]) =>
+        count + (hasOwn(aObj, key) ? countFieldsOnlyIn(aObj[key], value) : 1),
+      0
+    );
+  }
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.reduce(
+      (count: number, value, index) =>
+        count + (index < b.length ? countFieldsOnlyIn(value, b[index]) : 0),
+      0
+    );
+  }
+
+  return 0;
+}
+
+/**
+ * Counts the fields that differ between two objects, including the fields only present in one of
+ * them. Unlike countDifferences, neither side is treated as the live object, so this suits
+ * comparing two separate objects, e.g. the same Deployment in two clusters.
+ */
+export function countAllDifferences(a: unknown, b: unknown): number {
+  return countDifferences(a, b) + countFieldsOnlyIn(a, b);
+}

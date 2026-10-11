@@ -64,6 +64,8 @@ export * from './MatchExpressions';
 export * from './PortForward';
 export { default as PortForward } from './PortForward';
 export * from './Resource';
+export * from './ResourceComparison';
+export { default as ResourceComparison } from './ResourceComparison';
 export * from './ResourceTable';
 export * from './resourceTableSlice';
 export * from './ResourceTableColumnChooser';

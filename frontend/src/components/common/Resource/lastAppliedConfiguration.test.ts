@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest';
 import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import {
   convertToLiveApiVersion,
+  countAllDifferences,
   countDifferences,
   isQuantityPath,
   LAST_APPLIED_ANNOTATION,
@@ -1178,5 +1179,45 @@ describe('__proto__ keys', () => {
 
     const allFields = projectOntoApplied(configMap('b'), { kind: 'ConfigMap' }, true) as any;
     expect(Object.keys(allFields.data)).toEqual(['other', '__proto__']);
+  });
+});
+
+describe('countAllDifferences', () => {
+  const deployment = (spec: Record<string, unknown>) => ({
+    kind: 'Deployment',
+    metadata: { name: 'web' },
+    spec,
+  });
+
+  it('returns 0 for identical objects', () => {
+    const a = deployment({ replicas: 2, paused: false });
+    expect(countAllDifferences(a, deployment({ replicas: 2, paused: false }))).toBe(0);
+  });
+
+  it('counts fields only present on either side, at any depth', () => {
+    const a = deployment({ replicas: 2, template: { metadata: { labels: { app: 'web' } } } });
+    const b = deployment({ paused: true, template: { metadata: { labels: { tier: 'front' } } } });
+    // replicas and app only in a, paused and tier only in b.
+    expect(countAllDifferences(a, b)).toBe(4);
+    expect(countAllDifferences(b, a)).toBe(4);
+  });
+
+  it('counts changed values and extra array items once', () => {
+    const a = deployment({ containers: [{ name: 'app', image: 'web:1' }] });
+    const b = deployment({
+      containers: [
+        { name: 'app', image: 'web:2' },
+        { name: 'sidecar', image: 'proxy:1' },
+      ],
+    });
+    expect(countAllDifferences(a, b)).toBe(2);
+    expect(countAllDifferences(b, a)).toBe(2);
+  });
+
+  it('counts fields only present in one side of a shared array item', () => {
+    const a = deployment({ containers: [{ name: 'app' }] });
+    const b = deployment({ containers: [{ name: 'app', args: ['--debug'] }] });
+    expect(countAllDifferences(a, b)).toBe(1);
+    expect(countAllDifferences(b, a)).toBe(1);
   });
 });

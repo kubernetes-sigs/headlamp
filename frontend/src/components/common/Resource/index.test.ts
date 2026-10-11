@@ -56,6 +56,7 @@ const checkExports = [
   'MetadataDisplay',
   'PortForward',
   'Resource',
+  'ResourceComparison',
   'ResourceListView',
   'ResourceTable',
   'ResourceTableMultiActions',
