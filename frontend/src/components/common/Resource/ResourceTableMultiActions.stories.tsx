@@ -174,6 +174,24 @@ export const WithMixedItems: StoryFn = () => (
   <ResourceTableMultiActions table={makeMockTable([mockDeployment, mockReplicaSet])} />
 );
 
+const mockOtherDeployment = new Deployment(
+  {
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: {
+      name: 'other-deployment',
+      namespace: 'default',
+      uid: 'other-deployment-uid',
+    },
+  } as any,
+  MOCK_CLUSTER
+);
+
+// Two items of the same kind, which can be compared
+export const WithComparableItems: StoryFn = () => (
+  <ResourceTableMultiActions table={makeMockTable([mockDeployment, mockOtherDeployment])} />
+);
+
 // Empty selection
 export const EmptySelection: StoryFn = () => (
   <ResourceTableMultiActions table={makeMockTable([])} />

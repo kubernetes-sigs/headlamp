@@ -41,6 +41,7 @@ const checkExports = [
   'CircularChart',
   'CreateButton',
   'CreateResourceForm',
+  'CompareMultipleButton',
   'CopyButton',
   'DeleteButton',
   'DeleteMultipleButton',
