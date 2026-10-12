@@ -130,7 +130,7 @@
            resources)
         </div>
         <div
-          style="font-size: 12px; color: rgb(211, 47, 47); font-weight: bold; padding: 8px; background-color: rgb(255, 235, 238); border-radius: 4px;"
+          style="font-size: 13px; font-weight: bold; color: rgb(183, 28, 28); background-color: rgb(255, 235, 238); border: 1px solid rgb(239, 154, 154); border-radius: 4px; padding: 8px; width: 100%; box-sizing: border-box;"
         >
           ⚠️ EXTREME STRESS TEST with 
           34350

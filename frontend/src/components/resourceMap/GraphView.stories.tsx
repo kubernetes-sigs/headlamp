@@ -1346,12 +1346,15 @@ export const PerformanceTest20000Pods = () => {
           </div>
           <div
             style={{
-              fontSize: '12px',
-              color: '#d32f2f',
+              fontSize: '13px',
               fontWeight: 'bold',
-              padding: '8px',
+              color: '#b71c1c',
               backgroundColor: '#ffebee',
+              border: '1px solid #ef9a9a',
               borderRadius: '4px',
+              padding: '8px',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
             ⚠️ EXTREME STRESS TEST with {allResources.length} resources (~60k edges). Initial render
@@ -1576,12 +1579,14 @@ export const PerformanceTest100000Pods = () => {
           <div
             style={{
               fontSize: '13px',
-              color: '#d32f2f',
               fontWeight: 'bold',
-              border: '2px solid #d32f2f',
-              padding: '8px',
-              borderRadius: '4px',
+              color: '#b71c1c',
               backgroundColor: '#ffebee',
+              border: '1px solid #ef9a9a',
+              borderRadius: '4px',
+              padding: '8px',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
             🚨 ULTIMATE STRESS TEST: {allResources.length} resources (~{edges.length} edges).
