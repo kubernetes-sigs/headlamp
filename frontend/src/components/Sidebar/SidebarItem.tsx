@@ -21,14 +21,15 @@ import ListItem, { type ListItemProps } from '@mui/material/ListItem';
 import ListSubheader from '@mui/material/ListSubheader';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import { generatePath } from 'react-router';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
 import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
+import { useAppDispatch, useTypedSelector } from '../../redux/hooks';
 import ListItemLink from './ListItemLink';
-import { SidebarEntry } from './sidebarSlice';
+import { SidebarEntry, toggleSidebarItemExpanded } from './sidebarSlice';
 
 export function getFullURLOnRoute(
   name: string,
@@ -91,6 +92,16 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
     clusters = [],
     ...other
   } = props;
+
+  const dispatch = useAppDispatch();
+  const manuallyExpanded = useTypedSelector(state => state.sidebar?.expandedItems?.[name]);
+  const isExpanded = manuallyExpanded !== undefined ? manuallyExpanded : isSelected;
+
+  useEffect(() => {
+    if (isSelected && subList.length > 0 && manuallyExpanded === undefined) {
+      dispatch(toggleSidebarItemExpanded({ name, expanded: true }));
+    }
+  }, [isSelected, subList.length, manuallyExpanded, name, dispatch]);
 
   if (hide) {
     return null;
@@ -186,6 +197,12 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
     fullURL = getFullURLOnRoute(name, isCR, subList);
   }
 
+  const handleItemClick = () => {
+    if (subList.length > 0) {
+      dispatch(toggleSidebarItemExpanded({ name, expanded: !isExpanded }));
+    }
+  };
+
   return (
     <React.Fragment>
       <ListItemLink
@@ -201,10 +218,13 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
         hasParent={hasParent}
         level={level}
         fullWidth={fullWidth}
+        isExpandable={subList.length > 0}
+        isExpanded={Boolean(fullWidth && isExpanded)}
+        onClick={handleItemClick}
         {...other}
       />
       {subList.length > 0 && (
-        <Collapse component="li" in={fullWidth && isSelected} sx={{ width: '100%' }} unmountOnExit>
+        <Collapse component="li" in={fullWidth && isExpanded} sx={{ width: '100%' }} unmountOnExit>
           <List
             component="ul"
             disablePadding
