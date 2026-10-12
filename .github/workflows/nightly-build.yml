@@ -14,11 +14,12 @@ env:
 
 jobs:
   push_to_registry:
-    if: ${{ github.repository == 'kubernetes-sigs/headlamp' }}
+    if: ${{ github.repository == 'kubernetes-sigs/headlamp' && github.ref == 'refs/heads/main' }}
     name: Build and push nightly container image
     runs-on: ubuntu-latest
     permissions:
       packages: write
+      id-token: write # needed for cosign keyless signing via GitHub OIDC
     steps:
       - name: Check out the repo
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -37,6 +38,7 @@ jobs:
           password: ${{ secrets.GHCR_IMAGES }}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9 # v4.2.1
         with:
           context: .
@@ -49,3 +51,15 @@ jobs:
           provenance: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Check Cosign install
+        run: cosign version
+
+      - name: Sign the container image with cosign (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"

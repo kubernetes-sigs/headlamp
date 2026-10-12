@@ -44,7 +44,7 @@ releaser start 0.42.0
 #    via the GitHub Actions UI with releaseName: 0.42.0
 
 # 3. Create the release tag (reads version from app/package.json,
-#    creates annotated git tag v0.42.0)
+#    creates a signed, annotated git tag v0.42.0)
 releaser tag
 
 # 4. Verify the draft release and its required artifacts before publishing
@@ -64,7 +64,7 @@ releaser check 0.42.0
 
 ### `check` — Verify a release
 
-Check whether a release exists on GitHub and verify that all required artifacts (Mac, Linux, Windows) are present.
+Check whether a release exists on GitHub and verify that all required artifacts (Mac, Linux, Windows) and the `checksums.txt` cosign signature (`checksums.txt.sigstore.json`) are present. Once the `v<version>` tag is on GitHub, it also checks that the tag is signed (failing for unsigned or lightweight tags and invalid signatures, such as ones made with an expired key) and warns if GitHub can't match the signing key to the tagger's GitHub account or couldn't check the signature at the moment. Run it before and after publishing a release.
 
 ```bash
 releaser check <release-version>
@@ -104,15 +104,26 @@ releaser start 0.42.0 --no-branch
 
 ### `tag` — Create a release tag
 
-Create an annotated git tag (`v<version>`) for the current version read from `app/package.json`.
+Create a signed, annotated git tag (`v<version>`) for the current version read from `app/package.json`. The tag is signed with your configured git signing key (`git tag -s`, GPG or SSH). Make sure your signing key is [added to your GitHub account](https://docs.github.com/en/authentication/managing-commit-signature-verification) as a signing key, so the tag shows as **Verified**.
 
 ```bash
 releaser tag
 ```
 
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--no-sign` | Create an unsigned annotated tag instead. `releaser publish` refuses unsigned tags unless `--allow-unsigned` is passed |
+
+To check the signature of a tag:
+
+- **Locally**: `git tag -v v<version>`. For GPG-signed tags this works once the signer's public key is in your keyring, which your own key already is. For SSH-signed tags, git first needs an allowed signers file listing the signer's key; see [Verifying Releases](../../docs/installation/verify-releases.md#source-code) for the commands.
+- **On GitHub**, after pushing it: open the tag on the [tags page](https://github.com/kubernetes-sigs/headlamp/tags) and look for the **Verified** label. `releaser check` and `releaser publish` check this too.
+
 ### `publish` — Publish a release
 
-Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used.
+Push the tag to the remote, associate it with the GitHub release draft, and publish the release. You will be prompted for confirmation unless `--force` is used. The release tag must exist locally and be signed (see `releaser tag`). After pushing the tag, it stops without publishing if GitHub reports the tag as missing, unsigned, or with an invalid signature (for example one made with an expired key), unless `--allow-unsigned` is passed; it only warns if GitHub can't attribute the signature to your account, for example because your signing key is not registered on your GitHub account, or couldn't check it right now.
 
 ```bash
 releaser publish <release-version> [options]
@@ -123,6 +134,7 @@ releaser publish <release-version> [options]
 | Option | Description |
 |---|---|
 | `--force` | Skip the confirmation prompt |
+| `--allow-unsigned` | Publish even if the release tag is not signed or GitHub can't verify its signature |
 
 **Example:**
 
@@ -170,6 +182,20 @@ releaser ci app --list
 releaser ci app --list --platform mac --latest 3 --output json
 ```
 
+### `ci verify-assets` — Check files attached to a release
+
+Check that each file is attached to the release under the same name, and that the attached copy matches the local file. Exits non-zero if any file is missing or different. The Upload Release Assets workflow uses this to check that the `checksums.txt` signature was attached.
+
+```bash
+releaser ci verify-assets <release-version> <files...>
+```
+
+**Example:**
+
+```bash
+releaser ci verify-assets 0.42.0 ./checksums.txt.sigstore.json
+```
+
 ### `security-check` — Scan the backend and Dockerfiles for security issues
 
 Runs [`govulncheck`](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) against the Go backend module to catch known vulnerabilities, and [`hadolint`](https://github.com/hadolint/hadolint) against `Dockerfile`, `Dockerfile.plugins`, and `docker-extension/Dockerfile` to catch Dockerfile security issues (e.g. unpinned packages, missing pipefail on piped `RUN` commands). Exits non-zero if any check reports a real problem.
@@ -185,11 +211,17 @@ releaser security-check
 Source code is in `src/` and is organized as follows:
 
 - `src/index.ts` — CLI entry point and command definitions
-- `src/commands/` — Individual command implementations (`check`, `start`, `tag`, `publish`, `build`, `get-app-runs`, `security-check`)
+- `src/commands/` — Individual command implementations (`check`, `start`, `tag`, `publish`, `build`, `get-app-runs`, `security-check`, `verify-assets`)
 - `src/utils/` — Shared utilities (`git`, `github`, `version`, `security`)
 
 To rebuild after making changes:
 
 ```bash
 npm run build
+```
+
+To run the unit tests (`src/**/*.test.ts`, using Node's built-in test runner):
+
+```bash
+npm test
 ```

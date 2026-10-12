@@ -256,6 +256,7 @@ describe('useClustersVersion', () => {
 
   afterEach(() => {
     queryClient.clear();
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -301,6 +302,7 @@ const notNamespacedClasses = [
   'ClusterRole',
   'ClusterRoleBinding',
   'CustomResourceDefinition',
+  'DeviceClass',
   'GatewayClass',
   'IngressClass',
   'Namespace',
@@ -313,6 +315,7 @@ const notNamespacedClasses = [
 ];
 
 const namespacedClasses = [
+  'CompositePodGroup',
   'ConfigMap',
   'ControllerRevision',
   'CronJob',

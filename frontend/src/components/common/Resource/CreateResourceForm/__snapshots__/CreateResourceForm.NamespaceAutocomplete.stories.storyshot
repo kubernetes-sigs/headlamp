@@ -46,6 +46,7 @@
                         aria-autocomplete="list"
                         aria-expanded="false"
                         aria-invalid="false"
+                        aria-label="Namespace"
                         autocapitalize="none"
                         autocomplete="off"
                         class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"

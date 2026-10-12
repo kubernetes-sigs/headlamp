@@ -16,25 +16,8 @@
 
 import { useTranslation } from 'react-i18next';
 import PodGroup from '../../lib/k8s/podGroup';
-import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
-
-/** Shows whether the group met its scheduling requirement, from its scheduling condition. */
-function SchedulingStatus({ podGroup }: { podGroup: PodGroup }) {
-  const { t } = useTranslation(['translation']);
-  const condition = podGroup.schedulingCondition;
-
-  if (!condition) {
-    return <span>{t('translation|Unknown')}</span>;
-  }
-
-  const scheduled = condition.status === 'True';
-  return (
-    <StatusLabel status={scheduled ? 'success' : 'warning'}>
-      {condition.reason || (scheduled ? t('translation|Scheduled') : t('translation|Pending'))}
-    </StatusLabel>
-  );
-}
+import { getSchedulingStatusText, SchedulingStatus } from '../scheduling/SchedulingStatus';
 
 export default function PodGroupList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -72,18 +55,8 @@ export default function PodGroupList() {
           id: 'status',
           label: t('translation|Status'),
           gridTemplate: 'min-content',
-          getValue: item => {
-            const condition = item.schedulingCondition;
-            if (!condition) {
-              return t('translation|Unknown');
-            }
-            const scheduled = condition.status === 'True';
-            return (
-              condition.reason ||
-              (scheduled ? t('translation|Scheduled') : t('translation|Pending'))
-            );
-          },
-          render: item => <SchedulingStatus podGroup={item} />,
+          getValue: item => getSchedulingStatusText(item.schedulingCondition, t),
+          render: item => <SchedulingStatus condition={item.schedulingCondition} />,
         },
         'age',
       ]}

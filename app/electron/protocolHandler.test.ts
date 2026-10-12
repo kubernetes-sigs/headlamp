@@ -119,7 +119,7 @@ describe('createProtocolHandler', () => {
 
     expect(dialog.showErrorBox).not.toHaveBeenCalled();
     expect(loadURL).toHaveBeenCalledOnce();
-    expect(loadURL).toHaveBeenCalledWith('file:///headlamp/index.html#cluster?name=local');
+    expect(loadURL).toHaveBeenCalledWith('file:///headlamp/index.html#/cluster?name=local');
   });
 
   it('shows a user-visible error when an OAuth provider fails', () => {

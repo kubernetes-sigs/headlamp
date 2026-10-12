@@ -25,6 +25,7 @@ import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
 import DaemonSetDetails from '../../daemonset/Details';
 import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionSlice';
+import DeviceClassDetails from '../../device/DeviceClassDetails';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -96,6 +97,7 @@ const kindComponentMap: Record<
   Node: NodeDetails,
   PodDisruptionBudget: PDBDetails,
   PriorityClass: PriorityClassDetails,
+  DeviceClass: DeviceClassDetails,
   ResourceQuota: ResourceQuotaDetails,
   ClusterRole: RoleDetails,
   Role: RoleDetails,

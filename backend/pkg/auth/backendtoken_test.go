@@ -103,7 +103,7 @@ func TestCheckBackendTokenRejectsDuplicateHeaders(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), validToken)
 }
 
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering token middleware validation scenarios.
 func TestNewBackendTokenMiddleware(t *testing.T) {
 	const validToken = "desktop-token"
 

@@ -184,6 +184,29 @@ describe('AuthVisible', () => {
     expect(clusterBItem.getAuthorization).toHaveBeenCalledTimes(1);
   });
 
+  it('checks the given cluster instead of the item one', async () => {
+    const mockItem = {
+      _class: () => ({ apiName: 'deviceclasses', apiVersion: 'resource.k8s.io/v1' }),
+      cluster: 'legacy',
+      getAuthorization: vi.fn().mockResolvedValue({ status: { allowed: true, reason: '' } }),
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={mockItem as any} authVerb="create" cluster="dra">
+          <div>Create</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText('Create')).toBeInTheDocument());
+    expect(mockItem.getAuthorization).toHaveBeenCalledWith(
+      'create',
+      { subresource: undefined, namespace: undefined },
+      'dra'
+    );
+  });
+
   it('warns and returns null if authVerb is invalid', () => {
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mockItem = {

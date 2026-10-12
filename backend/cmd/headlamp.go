@@ -735,6 +735,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
+	if config.Telemetry != nil && config.Metrics != nil {
+		r.Use(telemetry.TracingMiddleware("headlamp-server"))
+		r.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
 	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
 	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
 
@@ -1562,13 +1567,6 @@ func StartHeadlampServer(config *HeadlampConfig) {
 			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
 		}
 	}()
-
-	router := mux.NewRouter()
-
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
 
 	if config.StaticDir != "" {
 		if err := copyStaticFiles(config); err != nil {
@@ -2804,7 +2802,15 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	// Renaming a cluster to its own context name, or to the DNS-friendly form
+	// shown for it, goes back to the original, so clear the custom name instead
+	// of saving one that matches the original.
+	newClusterName := reqBody.NewClusterName
+	if newClusterName == contextName || newClusterName == kubeconfig.MakeDNSFriendly(contextName) {
+		newClusterName = ""
+	}
+
+	if err := customNameToExtensions(config, contextName, newClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
@@ -2886,41 +2892,47 @@ func findMatchingContextName(config *api.Config, clusterName string) string {
 	}
 }
 
-// checkUniqueName returns false if 'newName' is already in 'names', otherwise returns true.
+// CheckUniqueName returns false if 'newName' is already used by a context other
+// than the one being renamed, either as its context name or as its custom name.
 // It is used for checking context names.
+//
+// The context being renamed is left out of the check, so a cluster can be
+// renamed back to its original name, or to the name it already has.
 //
 // Parameters:
 //   - contexts: The Kubernetes API configuration containing contexts.
-//   - currentName: The name of the current context being checked.
+//   - currentName: The name of the context being renamed (its custom name or its context name).
 //   - newName: The new name to check for uniqueness.
 func CheckUniqueName(contexts map[string]*api.Context, currentName string, newName string) bool {
-	contextNames := make([]string, 0, len(contexts))
+	ownKey := findMatchingContextName(&api.Config{Contexts: contexts}, currentName)
 
-	for name := range contexts {
-		contextNames = append(contextNames, name)
+	for name, y := range contexts {
+		if name == ownKey {
+			continue
+		}
+
 		logger.Log(logger.LevelInfo, map[string]string{"context added": name},
 			nil, "context name")
-	}
 
-	// Iterate over the contexts and add the custom names
-	for _, y := range contexts {
-		info := y.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, currentName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"context": currentName},
-					err, "marshaling custom object")
-			}
-
-			// add custom name if it is not empty
-			if customObj.CustomName != "" {
-				contextNames = append(contextNames, customObj.CustomName)
-			}
+		if name == newName {
+			return false
 		}
-	}
 
-	for _, current := range contextNames {
-		if current == newName {
+		info := y.Extensions["headlamp_info"]
+		if info == nil {
+			continue
+		}
+
+		customObj, err := MarshalCustomObject(info, name)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"context": name},
+				err, "marshaling custom object")
+
+			continue
+		}
+
+		// compare with the custom name if it is not empty
+		if customObj.CustomName != "" && customObj.CustomName == newName {
 			return false
 		}
 	}

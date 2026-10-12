@@ -16,11 +16,14 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
+import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
+import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
+import PodGroup from '../../lib/k8s/podGroup';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -31,6 +34,11 @@ import { useSidebarItems } from './useSidebarItems';
 // And assigning it to a value will make sure it's not tree-shaken and removed
 // eslint-disable-next-line no-unused-vars
 const DontDeleteMe = App;
+
+vi.mock('../../lib/k8s/api/v1/hooks', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../lib/k8s/api/v1/hooks')>();
+  return { ...actual, useSelectedClusters: vi.fn(actual.useSelectedClusters) };
+});
 
 vi.mock('../../lib/k8s/gatewayL4RouteAvailability', () => ({
   useGatewayL4RouteAvailability: vi.fn(),
@@ -122,6 +130,59 @@ describe('useSidebarItems', () => {
       expect(gatewayItems.some(item => item.name === 'udproutes')).toBe(udpVisible);
     }
   );
+
+  describe('the Scheduling (alpha) section', () => {
+    const schedulingItems = (items: ReturnType<typeof useSidebarItems>) =>
+      items.find(item => item.name === 'scheduling')?.subList?.map(item => item.name);
+
+    beforeEach(() => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('keeps the section but leaves out Composite Pod Groups when only its gate is off', async () => {
+      // CompositePodGroup needs a feature gate on top of the ones PodGroup needs, so a
+      // cluster can serve pod groups without serving it.
+      vi.spyOn(PodGroup, 'isEnabled').mockResolvedValue(true);
+      const compositeEnabled = vi.spyOn(CompositePodGroup, 'isEnabled').mockResolvedValue(false);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(schedulingItems(result.current)).toEqual(['podGroups', 'schedulingWorkloads'])
+      );
+      expect(compositeEnabled).toHaveBeenCalledWith('test-cluster');
+    });
+
+    it('lists Composite Pod Groups when the cluster serves both', async () => {
+      vi.spyOn(PodGroup, 'isEnabled').mockResolvedValue(true);
+      vi.spyOn(CompositePodGroup, 'isEnabled').mockResolvedValue(true);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(schedulingItems(result.current)).toEqual([
+          'podGroups',
+          'compositePodGroups',
+          'schedulingWorkloads',
+        ])
+      );
+    });
+
+    it('hides the section when the cluster serves neither', async () => {
+      const podGroupEnabled = vi.spyOn(PodGroup, 'isEnabled').mockResolvedValue(false);
+      vi.spyOn(CompositePodGroup, 'isEnabled').mockResolvedValue(false);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(podGroupEnabled).toHaveBeenCalledWith('test-cluster'));
+      expect(schedulingItems(result.current)).toBeUndefined();
+    });
+  });
 
   it('should include customSidebarEntries', () => {
     const customEntries = {

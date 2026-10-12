@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage"
+	"helm.sh/helm/v3/pkg/storage/driver"
 )
 
 func TestGetActionStatus_NilErr(t *testing.T) {
@@ -73,4 +76,44 @@ func TestGetChart_InvalidType(t *testing.T) {
 	assert.Equal(t, "failed", statusMap.Status)
 	assert.NotNil(t, statusMap.Err)
 	assert.Contains(t, *statusMap.Err, "chart type \"library\" is not installable")
+}
+
+func TestReleaseExists(t *testing.T) {
+	actionConfig := &action.Configuration{Releases: storage.Init(driver.NewMemory())}
+
+	for name, status := range map[string]release.Status{
+		"deployed-release":        release.StatusDeployed,
+		"failed-release":          release.StatusFailed,
+		"pending-upgrade-release": release.StatusPendingUpgrade,
+	} {
+		require.NoError(t, actionConfig.Releases.Create(&release.Release{
+			Name:      name,
+			Namespace: "default",
+			Version:   1,
+			Info:      &release.Info{Status: status},
+		}))
+	}
+
+	tests := []struct {
+		name        string
+		releaseName string
+		wantErr     error
+	}{
+		{name: "deployed release", releaseName: "deployed-release"},
+		{name: "failed release", releaseName: "failed-release"},
+		{name: "pending release", releaseName: "pending-upgrade-release"},
+		{name: "missing release", releaseName: "missing-release", wantErr: driver.ErrReleaseNotFound},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := releaseExists(actionConfig, tt.releaseName)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+
+			assert.NoError(t, err)
+		})
+	}
 }

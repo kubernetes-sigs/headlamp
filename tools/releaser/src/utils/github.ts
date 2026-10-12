@@ -101,7 +101,8 @@ export async function checkArtifactsForRelease(releaseDraft: GitHubRelease): Pro
     `Headlamp-${releaseVersion}-linux-x64.tar.gz`,
     `Headlamp-${releaseVersion}-win-x64.exe`,
     `headlamp_${releaseVersion}-1_amd64.deb`,
-    `checksums.txt`
+    `checksums.txt`,
+    `checksums.txt.sigstore.json`
   ];
 
   const assets = releaseDraft.assets || [];
@@ -171,6 +172,179 @@ export async function associateTagWithRelease(releaseId: number, version: string
     console.error(error);
     throw error;
   }
+}
+
+/** The result of comparing a local file with the copy attached to a release. */
+export type AssetCheck = 'ok' | 'missing' | 'mismatch';
+
+/**
+ * Compares a local file with the copy attached to a release.
+ *
+ * @param local The contents of the local file
+ * @param attached The contents of the release asset, or null if it isn't attached
+ */
+export function compareAsset(local: Buffer, attached: Buffer | null): AssetCheck {
+  if (!attached) {
+    return 'missing';
+  }
+  return local.equals(attached) ? 'ok' : 'mismatch';
+}
+
+/**
+ * Downloads the release asset with the given name, or returns null if the
+ * release has no such asset.
+ *
+ * @param release The release to download the asset from
+ * @param name The name of the asset
+ */
+export async function downloadReleaseAsset(release: GitHubRelease, name: string): Promise<Buffer | null> {
+  const asset = release.assets.find(a => a.name === name);
+  if (!asset) {
+    return null;
+  }
+
+  const octokit = getOctokit();
+  const { data } = await octokit.repos.getReleaseAsset({
+    owner: OWNER,
+    repo: REPO,
+    asset_id: asset.id,
+    headers: { accept: 'application/octet-stream' }
+  });
+  return Buffer.from(data as unknown as ArrayBuffer);
+}
+
+/** GitHub's signature verification status for a release tag. */
+export interface TagVerification {
+  /** Whether GitHub matched the tag's signature to a key on the tagger's account. */
+  verified: boolean;
+  /**
+   * Why the tag is or isn't verified, as reported by GitHub (e.g. `valid`,
+   * `unsigned`, `unknown_key`), or `lightweight` for tags that have no tag
+   * object and so cannot be signed.
+   */
+  reason: string;
+}
+
+/**
+ * Returns GitHub's signature verification status for the pushed release tag,
+ * or null if the tag does not exist on GitHub. Lightweight tags cannot be
+ * signed, so they are reported as unverified.
+ *
+ * @param version The version of the tag (without 'v' prefix)
+ */
+export async function getTagVerification(version: string): Promise<TagVerification | null> {
+  const octokit = getOctokit();
+  let ref;
+  try {
+    ({ data: ref } = await octokit.git.getRef({
+      owner: OWNER,
+      repo: REPO,
+      ref: `tags/v${version}`
+    }));
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) {
+      return null;
+    }
+    throw error;
+  }
+
+  if (ref.object.type !== 'tag') {
+    return { verified: false, reason: 'lightweight' };
+  }
+
+  const { data: tag } = await octokit.git.getTag({
+    owner: OWNER,
+    repo: REPO,
+    tag_sha: ref.object.sha
+  });
+
+  return {
+    verified: Boolean(tag.verification?.verified),
+    reason: tag.verification?.reason ?? 'unknown'
+  };
+}
+
+/** The result of checking whether a release tag is properly signed. */
+export interface ReleaseTagCheck {
+  /**
+   * How serious the result is: `ok` if the tag is verified, `info` if the tag
+   * of a draft release hasn't been pushed yet, `warn` if the tag is signed but
+   * GitHub can't attribute the signature to the tagger's account or couldn't
+   * check it right now, and `error` if the tag is missing, unsigned, or its
+   * signature is invalid or can't be parsed.
+   */
+  level: 'ok' | 'info' | 'warn' | 'error';
+  /** A human-readable description of the result. */
+  message: string;
+}
+
+/**
+ * Decides whether a release tag's signature status is acceptable.
+ *
+ * @param version The version of the tag (without 'v' prefix)
+ * @param verification The tag's verification status, or null if it is not on GitHub
+ * @param isDraft Whether the release is still a draft
+ */
+/**
+ * Reasons GitHub reports for a signed tag whose signature is fine, but which it
+ * can't attribute to the tagger's account. Any other unverified reason,
+ * including ones GitHub adds later, is treated as an error.
+ * See https://docs.github.com/en/rest/git/tags
+ */
+const UNATTRIBUTED_SIGNATURE_REASONS = new Set(['unknown_key', 'no_user', 'unverified_email', 'bad_email']);
+
+/**
+ * Reasons GitHub reports when it couldn't check the signature, or its
+ * certificate's revocation status, at the moment.
+ */
+const TRANSIENT_VERIFICATION_REASONS = new Set([
+  'gpgverify_error',
+  'gpgverify_unavailable',
+  'ocsp_pending',
+  'ocsp_error'
+]);
+
+export function evaluateReleaseTag(
+  version: string,
+  verification: TagVerification | null,
+  isDraft: boolean
+): ReleaseTagCheck {
+  const tag = `v${version}`;
+  if (!verification) {
+    return isDraft
+      ? { level: 'info', message: `Tag ${tag} has not been pushed yet. Run this check again after pushing it.` }
+      : { level: 'error', message: `Tag ${tag} was not found on GitHub.` };
+  }
+  if (verification.verified) {
+    return { level: 'ok', message: `Tag ${tag} is signed and GitHub shows it as verified.` };
+  }
+  if (verification.reason === 'lightweight' || verification.reason === 'unsigned') {
+    return {
+      level: 'error',
+      message: `Tag ${tag} is not signed (${verification.reason}). Release tags must be signed, see the release guide.`
+    };
+  }
+  if (TRANSIENT_VERIFICATION_REASONS.has(verification.reason)) {
+    return {
+      level: 'warn',
+      message:
+        `GitHub could not verify the signature of tag ${tag} right now (reason: ${verification.reason}). ` +
+        `Run this check again later.`
+    };
+  }
+  if (UNATTRIBUTED_SIGNATURE_REASONS.has(verification.reason)) {
+    return {
+      level: 'warn',
+      message:
+        `Tag ${tag} is signed, but GitHub does not show it as verified (reason: ${verification.reason}). ` +
+        `Add the signing key to the tagger's GitHub account as a signing key: ` +
+        `https://docs.github.com/en/authentication/managing-commit-signature-verification`
+    };
+  }
+  return {
+    level: 'error',
+    message: `Tag ${tag} has a signature that GitHub could not verify (reason: ${verification.reason}). Re-sign the tag.`
+  };
 }
 
 /**

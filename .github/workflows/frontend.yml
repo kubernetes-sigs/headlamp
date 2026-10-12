@@ -108,10 +108,10 @@ jobs:
         run: |
           make frontend-build
 
-      # This is to check the rsbuild setup is still working, so "npm run star" still works.
-      - name: Build Frontend (rsbuild)
+      # Keep the supported Vite fallback covered after Rsbuild becomes the default.
+      - name: Build Frontend (Vite)
         run: |
-          make frontend-build-rsbuild
+          make frontend-build-vite
 
   test-headlamp-plugin:
     name: test headlamp-plugin

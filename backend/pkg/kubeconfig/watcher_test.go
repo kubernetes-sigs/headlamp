@@ -14,7 +14,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-//nolint:funlen
+//nolint:funlen // Integration test function covering file watcher events across multiple kubeconfigs.
 func TestWatchAndLoadFiles(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
 		t.Skip("skipping integration test")

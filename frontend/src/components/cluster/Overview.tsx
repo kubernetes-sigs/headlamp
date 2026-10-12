@@ -65,13 +65,23 @@ export default function Overview() {
     {
       id: 'cpu',
       component: () => (
-        <CpuCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        <CpuCircularChart
+          items={nodes}
+          itemsMetrics={nodeMetrics}
+          noMetrics={noMetrics}
+          metricsError={metricsError}
+        />
       ),
     },
     {
       id: 'memory',
       component: () => (
-        <MemoryCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        <MemoryCircularChart
+          items={nodes}
+          itemsMetrics={nodeMetrics}
+          noMetrics={noMetrics}
+          metricsError={metricsError}
+        />
       ),
     },
     {

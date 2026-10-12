@@ -205,4 +205,129 @@ describe('diagnostics helpers', () => {
       ])
     );
   });
+
+  it('surfaces ReplicaFailure=True controller condition when ReplicaSet is blocked by quota with no pods', () => {
+    const replicaSet = {
+      kind: 'ReplicaSet',
+      metadata: {
+        name: 'quota-blocked',
+        namespace: 'headlamp-diagnostics-repro',
+      },
+      spec: {
+        replicas: 1,
+      },
+      status: {
+        replicas: 0,
+        observedGeneration: 1,
+        conditions: [
+          {
+            type: 'ReplicaFailure',
+            status: 'True',
+            reason: 'FailedCreate',
+            message:
+              'pods "quota-blocked-hqj5l" is forbidden: exceeded quota: no-pods, requested: pods=1, used: pods=0, limited: pods=0',
+          },
+        ],
+      },
+    } as any;
+
+    const diagnostics = getWorkloadDiagnostics(replicaSet, []);
+
+    const failureItem = diagnostics.find(item => item.id === 'workload-condition-ReplicaFailure');
+    expect(failureItem).toBeDefined();
+    expect(failureItem?.severity).toBe('error');
+    expect(failureItem?.title).toBe('ReplicaSet condition ReplicaFailure is True');
+    expect(failureItem?.message).toBe(
+      'pods "quota-blocked-hqj5l" is forbidden: exceeded quota: no-pods, requested: pods=1, used: pods=0, limited: pods=0'
+    );
+    expect(failureItem?.details).toEqual(['Reason: FailedCreate']);
+  });
+
+  it('surfaces ReplicaFailure=True condition for Deployments', () => {
+    const deployment = {
+      kind: 'Deployment',
+      metadata: { name: 'web-deploy', namespace: 'default' },
+      spec: { replicas: 2 },
+      status: {
+        replicas: 0,
+        conditions: [
+          {
+            type: 'ReplicaFailure',
+            status: 'True',
+            reason: 'FailedCreate',
+            message: 'Cannot create pods',
+          },
+        ],
+      },
+    } as any;
+
+    const diagnostics = getWorkloadDiagnostics(deployment, []);
+    const failureItem = diagnostics.find(item => item.id === 'workload-condition-ReplicaFailure');
+    expect(failureItem).toBeDefined();
+    expect(failureItem?.severity).toBe('error');
+    expect(failureItem?.title).toBe('Deployment condition ReplicaFailure is True');
+    expect(failureItem?.message).toBe('Cannot create pods');
+  });
+
+  // Defensive semantics test: Kubernetes controllers typically remove ReplicaFailure
+  // upon recovery rather than keeping it with status=False, but if present False must
+  // never be flagged as a failure.
+  it('does not create a failure finding when ReplicaFailure is False', () => {
+    const replicaSet = {
+      kind: 'ReplicaSet',
+      metadata: { name: 'recovered-rs', namespace: 'default' },
+      spec: { replicas: 1 },
+      status: {
+        replicas: 1,
+        availableReplicas: 1,
+        readyReplicas: 1,
+        conditions: [
+          {
+            type: 'ReplicaFailure',
+            status: 'False',
+            reason: 'ReplicaSetCreateSuccessful',
+          },
+        ],
+      },
+    } as any;
+
+    const diagnostics = getWorkloadDiagnostics(replicaSet, []);
+    expect(diagnostics.some(item => item.id.includes('ReplicaFailure'))).toBe(false);
+  });
+
+  it.each([
+    { type: 'Available', status: 'True', expectedSeverity: null },
+    { type: 'Progressing', status: 'True', expectedSeverity: null },
+    { type: 'Available', status: 'False', expectedSeverity: 'error' },
+    { type: 'Progressing', status: 'False', expectedSeverity: 'error' },
+    { type: 'Available', status: 'Unknown', expectedSeverity: 'warning' },
+    { type: 'ReplicaFailure', status: 'Unknown', expectedSeverity: 'warning' },
+  ])(
+    'evaluates condition $type with status $status as severity $expectedSeverity',
+    ({ type, status, expectedSeverity }) => {
+      const workload = {
+        kind: 'Deployment',
+        metadata: { name: 'app', namespace: 'default' },
+        spec: { replicas: 1 },
+        status: {
+          replicas: 1,
+          availableReplicas: 1,
+          readyReplicas: 1,
+          conditions: [{ type, status, reason: 'TestReason', message: `Test message for ${type}` }],
+        },
+      } as any;
+
+      const diagnostics = getWorkloadDiagnostics(workload, []);
+      const conditionDiagnostic = diagnostics.find(
+        item => item.id === `workload-condition-${type}`
+      );
+
+      if (expectedSeverity === null) {
+        expect(conditionDiagnostic).toBeUndefined();
+      } else {
+        expect(conditionDiagnostic).toBeDefined();
+        expect(conditionDiagnostic?.severity).toBe(expectedSeverity);
+      }
+    }
+  );
 });

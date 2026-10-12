@@ -334,6 +334,11 @@ export function SearchPopover(props: SearchPopoverProps) {
       return;
     }
 
+    // findNext emits results synchronously, so subscribe before starting the search.
+    const disposable = searchAddonRef.current?.onDidChangeResults(args => {
+      setSearchResult(args);
+    });
+
     try {
       searchAddonRef.current?.findNext(searchText, {
         regex: regexChecked,
@@ -346,10 +351,6 @@ export function SearchPopover(props: SearchPopoverProps) {
       console.error('Error searching logs: ', e);
       searchAddonRef.current?.findNext('');
     }
-
-    const disposable = searchAddonRef.current?.onDidChangeResults(args => {
-      setSearchResult(args);
-    });
 
     return function cleanup() {
       disposable?.dispose();

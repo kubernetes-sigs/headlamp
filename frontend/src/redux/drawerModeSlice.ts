@@ -16,8 +16,13 @@
 
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
+export type DetailsDrawerLocation = 'split-right' | 'split-left' | 'split-bottom';
+
+const drawerLocationValues: DetailsDrawerLocation[] = ['split-right', 'split-left', 'split-bottom'];
+
 export interface DrawerModeState {
   isDetailDrawerEnabled: boolean;
+  detailsDrawerLocation: DetailsDrawerLocation;
   selectedResource?: {
     kind: string;
     metadata: { name: string; namespace?: string };
@@ -33,9 +38,18 @@ export interface DrawerModeState {
 const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
 
 const localStorageName = 'detailDrawerEnabled';
+const locationStorageName = 'detailDrawerLocation';
+
+function readStoredLocation(): DetailsDrawerLocation {
+  const raw = localStorage.getItem(locationStorageName);
+  return drawerLocationValues.includes(raw as DetailsDrawerLocation)
+    ? (raw as DetailsDrawerLocation)
+    : 'split-right';
+}
 
 const initialState: DrawerModeState = {
   isDetailDrawerEnabled: getLocalDrawerStatus(localStorageName),
+  detailsDrawerLocation: readStoredLocation(),
   selectedResource: undefined,
 };
 
@@ -47,11 +61,16 @@ export const drawerModeSlice = createSlice({
       state.isDetailDrawerEnabled = action.payload;
       localStorage.setItem(localStorageName, `${action.payload}`);
     },
+    setDetailsDrawerLocation: (state, action: PayloadAction<DetailsDrawerLocation>) => {
+      state.detailsDrawerLocation = action.payload;
+      localStorage.setItem(locationStorageName, action.payload);
+    },
     setSelectedResource: (state, action: PayloadAction<DrawerModeState['selectedResource']>) => {
       state.selectedResource = action.payload;
     },
   },
 });
 
-export const { setDetailDrawerEnabled, setSelectedResource } = drawerModeSlice.actions;
+export const { setDetailDrawerEnabled, setDetailsDrawerLocation, setSelectedResource } =
+  drawerModeSlice.actions;
 export default drawerModeSlice.reducer;

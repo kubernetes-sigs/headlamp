@@ -19,12 +19,13 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 const {
   defaultPluginsDirMock,
   defaultUserPluginsDirMock,
   getShellEnvironmentMock,
+  pluginManagementPaths,
   preparePluginExecutableMock,
   preparePluginScriptMock,
   removePreparedPluginExecutableMock,
@@ -36,6 +37,7 @@ const {
   defaultPluginsDirMock: vi.fn(() => '/plugins/default'),
   defaultUserPluginsDirMock: vi.fn(() => '/plugins/user'),
   getShellEnvironmentMock: vi.fn(),
+  pluginManagementPaths: { prepared: '/plugins/prepared' },
   preparePluginExecutableMock: vi.fn(),
   preparePluginScriptMock: vi.fn(),
   removePreparedPluginExecutableMock: vi.fn(),
@@ -50,14 +52,16 @@ vi.mock('electron', () => ({
   dialog: { showMessageBoxSync: showMessageBoxSyncMock },
 }));
 
-vi.mock('child_process', () => ({
-  spawn: spawnMock,
+vi.mock('cross-spawn', () => ({
+  default: spawnMock,
 }));
 
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: defaultPluginsDirMock,
   defaultUserPluginsDir: defaultUserPluginsDirMock,
-  PREPARED_PLUGIN_SCRIPTS_PATH: '/plugins/prepared',
+  get PREPARED_PLUGIN_SCRIPTS_PATH() {
+    return pluginManagementPaths.prepared;
+  },
   preparePluginExecutable: preparePluginExecutableMock,
   preparePluginScript: preparePluginScriptMock,
   removePreparedPluginExecutable: removePreparedPluginExecutableMock,
@@ -1489,6 +1493,359 @@ describe('handleRunCommand', () => {
     fs.rmSync(externalRoot, { recursive: true, force: true });
   });
 
+  it.each([
+    {
+      source: 'shipped',
+      denied: false,
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: false,
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    { source: 'shipped', denied: true, authorized: true, approved: true, prompt: false, exit: -3 },
+    {
+      source: 'shipped',
+      denied: 'legacy',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'shipped',
+      denied: 'v1',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'shipped',
+      denied: 'display',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: 'legacy',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: 'v1',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'development',
+      denied: 'display',
+      authorized: true,
+      approved: true,
+      prompt: false,
+      exit: undefined,
+    },
+    {
+      source: 'shipped',
+      denied: false,
+      authorized: false,
+      approved: true,
+      prompt: false,
+      exit: -2,
+    },
+    { source: 'shipped', denied: false, authorized: true, approved: false, prompt: true, exit: -3 },
+    {
+      source: 'development',
+      denied: false,
+      authorized: true,
+      approved: false,
+      prompt: true,
+      exit: -3,
+    },
+    { source: 'user', denied: false, authorized: true, approved: true, prompt: true, exit: -3 },
+  ] as const)(
+    'limits command-list approval ($source, denied=$denied, authorized=$authorized, approved=$approved)',
+    async ({ source, denied, authorized, approved, prompt, exit }) => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      if (prompt) showMessageBoxSyncMock.mockReturnValueOnce(1);
+      const { loadSettings, saveSettings } = await import('./settings');
+      if (authorized) {
+        const denialKey =
+          denied === 'legacy'
+            ? 'examplectl project'
+            : denied === 'v1'
+            ? `run-command-consent:v1:${JSON.stringify([
+                '@example/plugin@example-plugin',
+                'examplectl',
+                ['project'],
+              ])}`
+            : denied === 'display'
+            ? '@example/plugin@example-plugin: examplectl project'
+            : productConsentKey(source, 'examplectl', ['project']);
+        vi.mocked(loadSettings).mockReturnValueOnce({
+          confirmedCommands: denied ? { [denialKey]: false } : {},
+        });
+      }
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'preapproved-id',
+          command: 'examplectl',
+          args: [authorized ? 'project' : 'admin', approved ? 'list' : 'delete'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              bundleName: 'example-plugin',
+              packageName: '@example/plugin',
+              source,
+              approvedCommands: [{ tool: 'examplectl', args: ['project', 'list'] }],
+              grants: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).toHaveBeenCalledTimes(prompt ? 1 : 0);
+      if (exit === undefined) {
+        expect(spawnMock).toHaveBeenCalledOnce();
+        expect(saveSettings).not.toHaveBeenCalled();
+        childEmitter.emit('close', 0);
+      } else {
+        expect(spawnMock).not.toHaveBeenCalled();
+        expect(sentMessages).toEqual([['command-exit', 'preapproved-id', exit]]);
+      }
+    }
+  );
+
+  it.each(['legacy', 'v1', 'display'] as const)(
+    'honors an applicable %s denial over a product approval',
+    async denied => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      const pluginLabel = '@headlamp-k8s/ai-assistant@headlamp_ai-assistant';
+      const denialKey =
+        denied === 'legacy'
+          ? 'gh auth'
+          : denied === 'v1'
+          ? `run-command-consent:v1:${JSON.stringify([pluginLabel, 'gh', ['auth']])}`
+          : `${pluginLabel}: gh auth`;
+      const { loadSettings, saveSettings } = await import('./settings');
+      vi.mocked(loadSettings).mockReturnValueOnce({
+        confirmedCommands: { [denialKey]: false },
+      });
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'applicable-denial-id',
+          command: 'gh',
+          args: ['auth', 'status'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              bundleName: 'headlamp_ai-assistant',
+              packageName: '@headlamp-k8s/ai-assistant',
+              source: 'development',
+              approvedCommands: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              grants: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(saveSettings).not.toHaveBeenCalled();
+      expect(sentMessages).toEqual([['command-exit', 'applicable-denial-id', -3]]);
+    }
+  );
+
+  it('honors a matching v2 denial after the product broadens its reviewed prefix', async () => {
+    const capability = 'a'.repeat(64);
+    fakeEvent.sender.id = 7;
+    showMessageBoxSyncMock.mockClear();
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({
+      confirmedCommands: {
+        [productConsentKey('shipped', 'examplectl', ['project', 'list'])]: false,
+      },
+    });
+    vi.mocked(saveSettings).mockClear();
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'updated-policy-denial-id',
+        command: 'examplectl',
+        args: ['project', 'list'],
+        options: {},
+        permissionSecrets: {},
+        capability,
+      },
+      { id: 1 } as any,
+      {},
+      new Map([
+        [
+          capability,
+          {
+            bundleName: 'example-plugin',
+            packageName: '@example/plugin',
+            source: 'shipped',
+            approvedCommands: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+            grants: [{ tool: 'examplectl', args: ['project'], allowTrailingArgs: true }],
+            webContentsId: 7,
+          },
+        ],
+      ])
+    );
+
+    expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(saveSettings).not.toHaveBeenCalled();
+    expect(sentMessages).toEqual([['command-exit', 'updated-policy-denial-id', -3]]);
+  });
+
+  it.each(['legacy', 'v1', 'display'] as const)(
+    'prefers a newer v2 denial over an older %s approval',
+    async approved => {
+      const capability = 'a'.repeat(64);
+      fakeEvent.sender.id = 7;
+      showMessageBoxSyncMock.mockClear();
+      const identity = {
+        source: 'development',
+        packageName: '@headlamp-k8s/ai-assistant',
+        bundleName: 'headlamp_ai-assistant',
+      } as const;
+      const pluginLabel = `${identity.packageName}@${identity.bundleName}`;
+      const legacyApprovalKey =
+        approved === 'legacy'
+          ? 'gh auth'
+          : approved === 'v1'
+          ? `run-command-consent:v1:${JSON.stringify([pluginLabel, 'gh', ['auth']])}`
+          : `${pluginLabel}: gh auth`;
+      const previousV2Key = `run-command-consent:v2:${JSON.stringify([
+        identity,
+        'gh',
+        ['auth', 'status'],
+      ])}`;
+      const { loadSettings, saveSettings } = await import('./settings');
+      vi.mocked(loadSettings).mockReturnValueOnce({
+        confirmedCommands: {
+          [legacyApprovalKey]: true,
+          [previousV2Key]: false,
+        },
+      });
+      vi.mocked(saveSettings).mockClear();
+
+      await handleRunCommand(
+        fakeEvent,
+        {
+          id: 'newer-v2-denial-id',
+          command: 'gh',
+          args: ['auth', 'status'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        { id: 1 } as any,
+        {},
+        new Map([
+          [
+            capability,
+            {
+              ...identity,
+              approvedCommands: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              grants: [{ tool: 'gh', args: ['auth'], allowTrailingArgs: true }],
+              webContentsId: 7,
+            },
+          ],
+        ])
+      );
+
+      expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(saveSettings).not.toHaveBeenCalled();
+      expect(sentMessages).toEqual([['command-exit', 'newer-v2-denial-id', -3]]);
+    }
+  );
+
+  it('runs an authorized no-argument product approval without prompting', async () => {
+    const capability = 'a'.repeat(64);
+    fakeEvent.sender.id = 7;
+    showMessageBoxSyncMock.mockClear();
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'no-argument-approval-id',
+        command: 'examplectl',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+        capability,
+      },
+      { id: 1 } as any,
+      {},
+      new Map([
+        [
+          capability,
+          {
+            bundleName: 'example-plugin',
+            packageName: '@example/plugin',
+            source: 'shipped',
+            approvedCommands: [{ tool: 'examplectl', args: [] }],
+            grants: [{ tool: 'examplectl', args: [] }],
+            webContentsId: 7,
+          },
+        ],
+      ])
+    );
+
+    expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(saveSettings).not.toHaveBeenCalled();
+    childEmitter.emit('close', 0);
+  });
+
   it('stores product consent with an unambiguous argument-vector key', async () => {
     const capability = 'a'.repeat(64);
     fakeEvent.sender.id = 7;
@@ -1766,10 +2123,23 @@ describe('runScript', () => {
 
   let exitMock: Mock;
   let consoleErrorMock: Mock;
+  // Real files: vitest 4 can't mock dynamic imports of paths that don't exist.
+  let tmpRoot: string;
+  beforeAll(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'runscript-'));
+  });
+
+  afterAll(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
   beforeEach(() => {
     vi.resetModules();
+    defaultPluginsDirMock.mockReturnValue(path.join(tmpRoot, 'plugins/default'));
+    defaultUserPluginsDirMock.mockReturnValue(path.join(tmpRoot, 'plugins/user'));
+    pluginManagementPaths.prepared = path.join(tmpRoot, 'plugins/prepared');
     // @ts-ignore this is fine for tests
-    process.resourcesPath = '/resources';
+    process.resourcesPath = path.join(tmpRoot, 'resources');
 
     exitMock = vi.fn() as any;
     // @ts-expect-error overriding for test
@@ -1784,37 +2154,55 @@ describe('runScript', () => {
     console.error = originalConsoleError;
     // @ts-ignore
     process.resourcesPath = originalResourcesPath;
+    defaultPluginsDirMock.mockReturnValue('/plugins/default');
+    defaultUserPluginsDirMock.mockReturnValue('/plugins/user');
+    pluginManagementPaths.prepared = '/plugins/prepared';
     vi.restoreAllMocks();
   });
 
-  const testScriptImport = async (scriptPath: string) => {
-    const resolvedPath = path.resolve(scriptPath);
-    process.argv = ['node', resolvedPath];
-    vi.doMock(resolvedPath, () => ({}));
+  const writeScript = (relativePath: string) => {
+    const scriptPath = path.join(tmpRoot, relativePath);
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+    fs.writeFileSync(
+      scriptPath,
+      `globalThis.__runScriptImports?.push(${JSON.stringify(relativePath)});\n`
+    );
+    return scriptPath;
+  };
+
+  const testScriptImport = async (relativePath: string) => {
+    const imports: string[] = [];
+    (globalThis as any).__runScriptImports = imports;
+    process.argv = ['node', writeScript(relativePath)];
     const runCmdModule = await import('./runCmd');
     runCmdModule.runScript();
     expect(exitMock).not.toHaveBeenCalled();
+    // runScript() doesn't await its import; wait so it can't outlive the temp dir.
+    await vi.waitFor(() => expect(imports).toContain(relativePath));
+    delete (globalThis as any).__runScriptImports;
   };
 
   it('imports the script when path is inside defaultPluginsDir', () =>
-    testScriptImport('/plugins/default/my-script.js'));
+    testScriptImport('plugins/default/my-script.js'));
 
   it('imports the script when path is inside defaultUserPluginsDir', () =>
-    testScriptImport('/plugins/user/my-script.js'));
+    testScriptImport('plugins/user/my-script.js'));
 
   it('imports the script when path is inside static .plugins dir', () =>
-    testScriptImport('/resources/.plugins/my-script.js'));
+    testScriptImport('resources/.plugins/my-script.js'));
 
   it('imports the script when path is inside the app-owned prepared directory', () =>
-    testScriptImport('/plugins/prepared/run-id/my-script.js'));
+    testScriptImport('plugins/prepared/run-id/my-script.js'));
 
   it('exits with error when script is outside allowed directories', async () => {
-    const scriptPath = path.resolve('/not-allowed/my-script.js');
-    process.argv = ['node', scriptPath];
-    vi.doMock(scriptPath, () => ({}));
+    process.argv = ['node', path.join(tmpRoot, 'not-allowed/my-script.js')];
+    // Stop execution like a real exit so the disallowed script is never imported.
+    exitMock.mockImplementation(() => {
+      throw new Error('process.exit');
+    });
 
     const runCmdModule = await import('./runCmd');
-    runCmdModule.runScript();
+    expect(() => runCmdModule.runScript()).toThrow('process.exit');
 
     expect(consoleErrorMock).toHaveBeenCalledTimes(1);
     expect(exitMock).toHaveBeenCalledWith(1);

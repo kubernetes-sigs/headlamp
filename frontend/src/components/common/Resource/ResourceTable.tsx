@@ -140,6 +140,9 @@ const DEFAULT_SORT_COLUMN_ID = 'age';
  */
 const MAX_TABLE_ID_LENGTH = 50;
 
+/** What a table asked to list from no cluster shows, kept stable across renders. */
+const NOTHING_LISTED = { items: [], errors: null };
+
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
   columns: (ResourceTableColumn<RowItem> | ColumnType)[];
@@ -167,6 +170,11 @@ export interface ResourceTableProps<RowItem> {
   data: Array<RowItem> | null;
   /** Filter out rows from the table */
   filterFunction?: (item: RowItem) => boolean;
+  /**
+   * Structured search: return a boolean to decide the row outright (skipping fuzzy matching),
+   * or undefined to fall back to the default search.
+   */
+  searchFilter?: (item: RowItem, search: string) => boolean | undefined;
   /** Display an error message. Table will be hidden even if data is present */
   errorMessage?: string | null;
   /** Display an errors */
@@ -179,6 +187,12 @@ export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjec
   extends Omit<ResourceTableProps<InstanceType<KubeClass>>, 'data'> {
   resourceClass: KubeClass;
   namespaces?: string[];
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried. An empty list queries no cluster and shows an empty table.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceTable<KubeClass extends KubeObjectClass>(
@@ -198,11 +212,13 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, ...otherProps } = props;
+  const { resourceClass, id, clusters, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
-  const { items, errors } = resourceClass.useList({
+  const listed = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
+    clusters,
   });
+  const { items, errors } = clusters?.length === 0 ? NOTHING_LISTED : listed;
 
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
@@ -322,6 +338,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     noProcessing = false,
     hideColumns = [],
     filterFunction,
+    searchFilter,
     errorMessage,
     reflectInURL,
     data,
@@ -750,6 +767,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         renderRowActionMenuItems={renderRowActionMenuItems}
         filterFns={{
           kubeObjectSearch: (row, id, filterValue) => {
+            const searchFilterResult = searchFilter?.(row.original, filterValue);
+            if (searchFilterResult !== undefined) {
+              return searchFilterResult;
+            }
             const customFilterResult = filterFunc(row.original, filterValue);
             const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
             return customFilterResult || fuzzyColumnsResult;
