@@ -397,6 +397,10 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 	pluginListURLs := make([]string, 0, len(files))
 
 	for _, f := range files {
+		if strings.HasPrefix(f.Name(), ".staging-") || strings.HasPrefix(f.Name(), ".backup-") {
+			continue
+		}
+
 		if !f.IsDir() {
 			pluginPath := filepath.Join(pluginDir, f.Name())
 			logger.Log(logger.LevelInfo, map[string]string{"pluginPath": pluginPath},
