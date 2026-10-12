@@ -214,7 +214,7 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(stopRespBody), "stopped")
 
-	cacheKey := "PORT_FORWARD_" + minikubeName + id
+	cacheKey := portforward.PortForwardStoreKeyForTest(minikubeName, id)
 	chState, err := ch.Get(context.Background(), cacheKey)
 	require.NoError(t, err, "failed to get port-forward state from cache with key %s", cacheKey)
 
