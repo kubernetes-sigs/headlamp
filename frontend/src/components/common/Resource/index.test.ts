@@ -32,6 +32,9 @@ const avoidCheck = [
   // Internal helper exported only so `ResourceTable` and its co-located
   // tests can import it; deliberately kept out of the barrel.
   'getResourceRowId',
+  // Exported via CreateButton (and re-exported by Resource/index.tsx); excluded here to avoid
+  // requiring a redundant direct barrel entry for the extracted file.
+  'parseEditorObject',
 ];
 
 const checkExports = [
