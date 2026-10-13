@@ -275,6 +275,39 @@ describe('SettingsCluster states and namespaces', () => {
     expect(screen.getByText('zeta')).toBeInTheDocument();
   });
 
+  it('does not add an invalid allowed namespace', async () => {
+    renderSettings();
+    const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    const addButton = screen.getByRole('button', { name: 'Add namespace' });
+
+    await userEvent.type(input, 'Invalid-Namespace');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(addButton).toBeDisabled();
+
+    await userEvent.keyboard('{Enter}');
+    expect(
+      JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}').allowedNamespaces
+    ).toBeUndefined();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'a'.repeat(64));
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Namespaces must be under 64 characters.')).toBeInTheDocument();
+    expect(addButton).toBeDisabled();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'a'.repeat(63));
+    expect(addButton).toBeEnabled();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'valid-namespace');
+    expect(addButton).toBeEnabled();
+    await userEvent.click(addButton);
+
+    expect(screen.getByText('valid-namespace')).toBeInTheDocument();
+    expect(screen.queryByText('Invalid-Namespace')).not.toBeInTheDocument();
+  });
+
   it('renders Electron controls and removes a dynamic cluster', async () => {
     mockState.electron = true;
     mockState.clustersConf[clusterName].meta_data.source = 'dynamic_cluster';
