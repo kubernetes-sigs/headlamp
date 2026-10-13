@@ -382,6 +382,7 @@ func TestParseWithEnv(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestParseErrors(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -414,6 +415,39 @@ func TestParseErrors(t *testing.T) {
 				"--service-account-token-path=/custom/token/path",
 			},
 			errorContains: "--service-account-token-path requires --unsafe-use-service-account-token",
+		},
+		{
+			name:          "oidc_use_impersonation_without_incluster",
+			args:          []string{"go run ./cmd", "--oidc-use-impersonation"},
+			errorContains: "--oidc-use-impersonation is only meant to be used with --in-cluster",
+		},
+		{
+			name:          "oidc_use_impersonation_without_oidc_configured",
+			args:          []string{"go run ./cmd", "--in-cluster", "--oidc-use-impersonation"},
+			errorContains: "--oidc-use-impersonation requires OIDC to be configured",
+		},
+		{
+			name: "oidc_use_impersonation_with_unsafe_service_account_token",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-use-impersonation",
+				"--unsafe-use-service-account-token",
+			},
+			errorContains: "--oidc-use-impersonation cannot be used together with " +
+				"--unsafe-use-service-account-token",
+		},
+		{
+			name: "oidc_use_impersonation_with_access_token",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-use-impersonation",
+				"--oidc-use-access-token",
+				"--oidc-client-id=my-id",
+				"--oidc-idp-issuer-url=https://example.com/issuer",
+			},
+			errorContains: "--oidc-use-impersonation cannot be used together with --oidc-use-access-token",
 		},
 		{
 			name:          "invalid_base_url",
@@ -504,6 +538,34 @@ var parseFlagTests = []parseFlagTest{
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, true, conf.UnsafeUseServiceAccountToken)
+			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+	{
+		name: "oidc_use_impersonation_flag",
+		args: []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-use-impersonation",
+			"--oidc-client-id=my-id",
+			"--oidc-idp-issuer-url=https://example.com/issuer",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcUseImpersonation)
+		},
+	},
+	{
+		name: "oidc_use_impersonation_with_service_account_token_path",
+		args: []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--oidc-use-impersonation",
+			"--oidc-client-id=my-id",
+			"--oidc-idp-issuer-url=https://example.com/issuer",
+			"--service-account-token-path=/custom/token/path",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcUseImpersonation)
 			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
 		},
 	},
