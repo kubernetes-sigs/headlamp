@@ -51,6 +51,22 @@ function isFullscreen(): boolean {
 }
 
 describe('Dialog — mobile fullscreen policy', () => {
+  it('labels the dialog with a unique heading, excluding the close button', () => {
+    mockUseMediaQuery.mockReturnValue(false);
+
+    render(
+      <Dialog open title="Test">
+        <DialogContent>content</DialogContent>
+      </Dialog>
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Test' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Test' });
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.id);
+    expect(document.querySelectorAll(`[id="${heading.id}"]`)).toHaveLength(1);
+    expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument();
+  });
+
   it('opens fullscreen when the viewport is mobile (≤600 px)', () => {
     mockUseMediaQuery.mockReturnValue(true); // isMobile = true
 

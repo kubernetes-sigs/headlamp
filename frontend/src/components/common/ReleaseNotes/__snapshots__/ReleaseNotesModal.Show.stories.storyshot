@@ -26,7 +26,7 @@
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthXl css-h0fqyc-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
-        <h2
+        <div
           class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
           id=":mock-test-id:"
           style="display: flex;"
@@ -63,7 +63,7 @@
               </div>
             </div>
           </div>
-        </h2>
+        </div>
         <div
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
         >
