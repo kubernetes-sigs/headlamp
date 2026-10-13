@@ -117,19 +117,18 @@ func TestSyncWatchersDoesNotPurgeActiveContextWithPlusInName(t *testing.T) {
 	k8cache.ResetRegistries()
 	t.Cleanup(func() { k8cache.ResetRegistries() })
 
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	authCache := k8cache.NewClientsetCache()
 
 	k8scache := cache.New[string]()
 	ctx := context.Background()
 
 	require.NoError(t, k8scache.Set(ctx, activeCacheDataKey, "active-data"))
 	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
-	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
+	authCache.SeedClientset(removedContextKey+"\x00token", time.Now())
 
 	k8cache.StoreTestRegistry(activeContextKey, func() {})
 
-	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
+	k8cache.SyncWatchers(k8scache, authCache, []string{activeContextKey})
 
 	val, err := k8scache.Get(ctx, activeCacheDataKey)
 	assert.NoError(t, err)
@@ -140,62 +139,58 @@ func TestSyncWatchersDoesNotPurgeActiveContextWithPlusInName(t *testing.T) {
 }
 
 func TestEvictClientsetsForCluster(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	cache := k8cache.NewClientsetCache()
 
-	k8cache.SeedClientsetCache("minikube\x00token-a", time.Now())
-	k8cache.SeedClientsetCache("minikube\x00token-b", time.Now())
-	k8cache.SeedClientsetCache("other\x00token-c", time.Now())
+	cache.SeedClientset("minikube\x00token-a", time.Now())
+	cache.SeedClientset("minikube\x00token-b", time.Now())
+	cache.SeedClientset("other\x00token-c", time.Now())
 
-	assert.Equal(t, 3, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 3, cache.Len())
 
-	k8cache.EvictClientsetsForCluster("minikube")
+	cache.EvictClientsetsForCluster("minikube")
 
-	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 1, cache.Len())
 }
 
 func TestEvictClientsetsForCluster_StatelessScope(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	cache := k8cache.NewClientsetCache()
 
 	const (
 		removedUser = "minikube\x00user1"
 		activeUser  = "minikube\x00user2"
 	)
 
-	k8cache.SeedClientsetCache(removedUser+"\x00token-a", time.Now())
-	k8cache.SeedClientsetCache(activeUser+"\x00token-b", time.Now())
+	cache.SeedClientset(removedUser+"\x00token-a", time.Now())
+	cache.SeedClientset(activeUser+"\x00token-b", time.Now())
 
-	assert.Equal(t, 2, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 2, cache.Len())
 
-	k8cache.EvictClientsetsForCluster(removedUser)
+	cache.EvictClientsetsForCluster(removedUser)
 
-	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 1, cache.Len())
 }
 
 func TestEvictClientsetsForCluster_KeepsPrefixBlocked(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	cache := k8cache.NewClientsetCache()
 
 	const removedContext = "minikube\x00user1"
 
-	k8cache.EvictClientsetsForCluster(removedContext)
+	cache.EvictClientsetsForCluster(removedContext)
 
-	assert.True(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
+	assert.True(t, cache.IsPrefixBlocked(removedContext))
 }
 
 func TestEvictClientsetsForCluster_PrunesBlockedPrefixWithoutGetClientSet(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	cache := k8cache.NewClientsetCache()
 
 	const removedContext = "minikube\x00user1"
 
-	k8cache.EvictClientsetsForCluster(removedContext)
-	k8cache.SeedBlockedClientsetPrefix(removedContext, time.Now().Add(-11*time.Minute))
+	cache.EvictClientsetsForCluster(removedContext)
+	cache.SeedBlockedPrefix(removedContext, time.Now().Add(-11*time.Minute))
 
-	k8cache.ManualEvictExpiredClientsets()
+	cache.EvictExpired()
 
-	assert.False(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
+	assert.False(t, cache.IsPrefixBlocked(removedContext))
 }
 
 func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
@@ -208,15 +203,14 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	k8cache.ResetRegistries()
 	t.Cleanup(func() { k8cache.ResetRegistries() })
 
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	authCache := k8cache.NewClientsetCache()
 
 	k8scache := cache.New[string]()
 	ctx := context.Background()
 
 	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
-	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
-	k8cache.SeedClientsetCache(activeContextKey+"\x00other-token", time.Now())
+	authCache.SeedClientset(removedContextKey+"\x00token", time.Now())
+	authCache.SeedClientset(activeContextKey+"\x00other-token", time.Now())
 
 	canceled := make(map[string]bool)
 
@@ -233,7 +227,7 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	k8cache.StoreTestContextCancel(removedContextKey, wrappedCancel)
 	k8cache.StoreTestRegistry(activeContextKey, func() {})
 
-	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
+	k8cache.SyncWatchers(k8scache, authCache, []string{activeContextKey})
 
 	mu.Lock()
 	assert.True(t, canceled[removedContextKey])
@@ -241,7 +235,7 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 
 	_, err := k8scache.Get(ctx, removedCacheDataKey)
 	assert.Error(t, err)
-	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 1, authCache.Len())
 }
 
 func TestSyncWatchersPurgesCacheWithoutWatcher(t *testing.T) {
@@ -254,20 +248,19 @@ func TestSyncWatchersPurgesCacheWithoutWatcher(t *testing.T) {
 	k8cache.ResetRegistries()
 	t.Cleanup(func() { k8cache.ResetRegistries() })
 
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	authCache := k8cache.NewClientsetCache()
 
 	k8scache := cache.New[string]()
 	ctx := context.Background()
 
 	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
-	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
+	authCache.SeedClientset(removedContextKey+"\x00token", time.Now())
 
-	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
+	k8cache.SyncWatchers(k8scache, authCache, []string{activeContextKey})
 
 	_, err := k8scache.Get(ctx, removedCacheDataKey)
 	assert.Error(t, err)
-	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 0, authCache.Len())
 }
 
 func TestSyncWatchersPurgesContextWithOnlyInFlightClientset(t *testing.T) {
@@ -279,30 +272,25 @@ func TestSyncWatchersPurgesContextWithOnlyInFlightClientset(t *testing.T) {
 	k8cache.ResetRegistries()
 	t.Cleanup(func() { k8cache.ResetRegistries() })
 
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	authCache := k8cache.NewClientsetCache()
 
-	k8cache.ResetInFlight()
-	t.Cleanup(k8cache.ResetInFlight)
+	authCache.SeedInFlight(removedContextKey + "\x00token")
+	assert.Equal(t, 0, authCache.Len())
 
-	k8cache.SeedInFlightClientsetKey(removedContextKey + "\x00token")
-	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
+	k8cache.SyncWatchers(nil, authCache, []string{activeContextKey})
 
-	k8cache.SyncWatchers(nil, []string{activeContextKey})
-
-	assert.True(t, k8cache.ExportedClientsetPrefixBlocked(removedContextKey))
+	assert.True(t, authCache.IsPrefixBlocked(removedContextKey))
 }
 
 func TestPruneBlockedClientsetPrefixes(t *testing.T) {
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	cache := k8cache.NewClientsetCache()
 
 	const removedContext = "minikube\x00user1"
 
-	k8cache.SeedBlockedClientsetPrefix(removedContext, time.Now().Add(-11*time.Minute))
-	assert.True(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
+	cache.SeedBlockedPrefix(removedContext, time.Now().Add(-11*time.Minute))
+	assert.True(t, cache.IsPrefixBlocked(removedContext))
 
-	k8cache.ManualEvictExpiredClientsets()
+	cache.EvictExpired()
 
-	assert.False(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
+	assert.False(t, cache.IsPrefixBlocked(removedContext))
 }

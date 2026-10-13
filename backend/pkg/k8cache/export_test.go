@@ -62,96 +62,6 @@ func RegistryLoaded(key string) (watcher, cancel bool) {
 	return
 }
 
-// ResetClientsetCache clears the clientset cache for test isolation.
-func ResetClientsetCache() {
-	mu.Lock()
-	defer mu.Unlock()
-
-	clientsetCache = make(map[string]*CachedClientSet)
-	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
-}
-
-// SeedClientsetCache populates the clientset cache with dummy entries for testing.
-func SeedClientsetCache(key string, lastUsed time.Time) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	clientsetCache[key] = &CachedClientSet{
-		clientset: &kubernetes.Clientset{},
-		lastUsed:  lastUsed,
-	}
-}
-
-// ManualEvictExpiredClientsets triggers the eviction logic immediately for testing.
-func ManualEvictExpiredClientsets() {
-	evictExpiredClientsets()
-}
-
-// SeedBlockedClientsetPrefix marks a prefix as blocked at the given time for testing.
-func SeedBlockedClientsetPrefix(prefix string, blockedAt time.Time) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	blockedClientsetPrefixes[prefix] = blockedPrefixEntry{blockedAt: blockedAt}
-}
-
-// ClientsetCacheLen returns the current number of entries in the
-// clientset cache. It is intended for use in tests.
-func ClientsetCacheLen() int {
-	mu.Lock()
-	defer mu.Unlock()
-
-	return len(clientsetCache)
-}
-
-// ResetInFlight clears the inFlight map for test isolation.
-func ResetInFlight() {
-	mu.Lock()
-	defer mu.Unlock()
-
-	inFlight = make(map[string]*inFlightEntry)
-}
-
-// SeedInFlightClientsetKey registers an in-flight clientset creation for testing.
-func SeedInFlightClientsetKey(cacheKey string) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	inFlight[cacheKey] = &inFlightEntry{
-		waitCh: make(chan struct{}),
-	}
-}
-
-// SetClientsetCreator sets a custom clientset creator function for testing.
-// It returns a function to restore the original creator.
-func SetClientsetCreator(fn func(*kubeconfig.Context, string) (*kubernetes.Clientset, error)) func() {
-	hookMu.Lock()
-	original := clientsetCreator
-	clientsetCreator = fn
-	hookMu.Unlock()
-
-	return func() {
-		hookMu.Lock()
-		clientsetCreator = original
-		hookMu.Unlock()
-	}
-}
-
-// SetTestingInFlightWait sets a custom wait hook for testing.
-// It returns a function to restore the original hook.
-func SetTestingInFlightWait(fn func()) func() {
-	hookMu.Lock()
-	original := testingInFlightWait
-	testingInFlightWait = fn
-	hookMu.Unlock()
-
-	return func() {
-		hookMu.Lock()
-		testingInFlightWait = original
-		hookMu.Unlock()
-	}
-}
-
 // ExportedRedactContextKey exposes redactContextKey for testing.
 func ExportedRedactContextKey(key string) string {
 	return redactContextKey(key)
@@ -186,12 +96,111 @@ func ExportedCacheKeyBelongsToContext(key, contextKey string) bool {
 	return cacheKeyBelongsToContext(key, contextKey)
 }
 
-// ExportedClientsetPrefixBlocked reports whether clientset caching is blocked for a prefix.
-func ExportedClientsetPrefixBlocked(prefix string) bool {
-	mu.Lock()
-	defer mu.Unlock()
+// WithInFlightWaitHook sets a wait hook invoked when a waiter begins blocking on in-flight creation for testing.
+func WithInFlightWaitHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.inFlightWaitHook = hook
+	}
+}
 
-	_, blocked := blockedClientsetPrefixes[prefix]
+// WithJanitorLoopHook sets an unexported testing hook invoked on each janitor tick for testing.
+func WithJanitorLoopHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.janitorLoopHook = hook
+	}
+}
 
-	return blocked
+// WithJanitorStopHook sets an unexported testing hook invoked inside Stop() while holding janitorMu.
+func WithJanitorStopHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.janitorStopHook = hook
+	}
+}
+
+// SetJanitorStopHook allows setting or overriding the janitor stop hook for testing.
+func (c *ClientsetCache) SetJanitorStopHook(hook func()) {
+	c.janitorMu.Lock()
+	defer c.janitorMu.Unlock()
+
+	c.janitorStopHook = hook
+}
+
+// WithJanitorStartHook sets an unexported testing hook invoked inside Start() before acquiring janitorMu.
+func WithJanitorStartHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.janitorStartHook = hook
+	}
+}
+
+// SetJanitorStartHook allows setting or overriding the janitor start hook for testing.
+func (c *ClientsetCache) SetJanitorStartHook(hook func()) {
+	c.janitorMu.Lock()
+	defer c.janitorMu.Unlock()
+
+	c.janitorStartHook = hook
+}
+
+// JanitorDone returns the done channel of the current janitor goroutine for testing.
+func (c *ClientsetCache) JanitorDone() <-chan struct{} {
+	c.janitorMu.Lock()
+	defer c.janitorMu.Unlock()
+
+	return c.janitorDone
+}
+
+// SetClientsetCreator allows setting or overriding the clientset creator on an existing cache instance for testing.
+func (c *ClientsetCache) SetClientsetCreator(creator ClientsetCreatorFunc) {
+	c.creator = creator
+}
+
+// SetInFlightWaitHook allows setting or overriding the in-flight wait hook on an existing cache instance for testing.
+func (c *ClientsetCache) SetInFlightWaitHook(hook func()) {
+	c.inFlightWaitHook = hook
+}
+
+// SeedClientset inserts a clientset directly into the appropriate shard for testing.
+func (c *ClientsetCache) SeedClientset(key string, lastUsed time.Time, cs ...*kubernetes.Clientset) {
+	prefix := clientsetCachePrefixFromCacheKey(key)
+	shard := c.shardForPrefix(prefix)
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	var client *kubernetes.Clientset
+	if len(cs) > 0 && cs[0] != nil {
+		client = cs[0]
+	} else {
+		client = &kubernetes.Clientset{}
+	}
+
+	shard.clientsets[key] = &CachedClientSet{
+		clientset: client,
+		lastUsed:  lastUsed,
+	}
+}
+
+// SeedBlockedPrefix marks a prefix as blocked at blockedAt for testing.
+func (c *ClientsetCache) SeedBlockedPrefix(prefix string, blockedAt time.Time) {
+	shard := c.shardForPrefix(prefix)
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	shard.blockedClientsetPrefixes[prefix] = blockedPrefixEntry{blockedAt: blockedAt}
+}
+
+// SeedInFlight registers an in-flight entry for testing.
+func (c *ClientsetCache) SeedInFlight(cacheKey string) chan struct{} {
+	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
+	shard := c.shardForPrefix(prefix)
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	waitCh := make(chan struct{})
+	shard.inFlight[cacheKey] = &inFlightEntry{
+		waitCh: waitCh,
+	}
+
+	return waitCh
 }

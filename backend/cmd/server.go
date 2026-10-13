@@ -148,7 +148,7 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 
 // setupKubeConfigStoreWatcher sets up a listener on the kubeConfigStore to sync watchers
 // when kubeconfig contexts change.
-func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
+func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore, authCache *k8cache.ClientsetCache) {
 	var (
 		syncTimer  *time.Timer
 		syncMu     sync.Mutex
@@ -180,7 +180,7 @@ func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
 				return
 			}
 
-			k8cache.SyncWatchers(k8sResponseCache, active)
+			k8cache.SyncWatchers(k8sResponseCache, authCache, active)
 		})
 	})
 }
@@ -202,8 +202,9 @@ func loadOidcCACert(oidcCAFile string) string {
 
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
+	authCache := k8cache.NewClientsetCache()
 	kubeConfigStore := kubeconfig.NewContextStore()
-	setupKubeConfigStoreWatcher(kubeConfigStore)
+	setupKubeConfigStoreWatcher(kubeConfigStore, authCache)
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
@@ -224,6 +225,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		MeGroupsPaths:             conf.MeGroupsPath,
 		MeUserInfoURL:             conf.MeUserInfoURL,
 		Cache:                     cache,
+		ClientsetCache:            authCache,
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
@@ -352,7 +354,17 @@ func handleCacheAuthorization(
 		clearRequestAuthorization(r)
 	}
 
-	isAllowed, authErr := k8cache.IsAllowed(contextKey, kContext, r)
+	var authCache *k8cache.ClientsetCache
+
+	if c != nil {
+		if c.ClientsetCache == nil {
+			c.ClientsetCache = k8cache.NewClientsetCache()
+		}
+
+		authCache = c.ClientsetCache
+	}
+
+	isAllowed, authErr := k8cache.IsAllowed(authCache, contextKey, kContext, r)
 	if authErr != nil {
 		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
 
