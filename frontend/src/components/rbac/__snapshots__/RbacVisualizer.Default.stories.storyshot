@@ -1,0 +1,211 @@
+<body>
+  <div>
+    <div
+      class="MuiContainer-root MuiContainer-maxWidthXl css-1l2h60-MuiContainer-root"
+    >
+      <div
+        class="MuiBox-root css-16xddcs"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-70qvj9"
+            >
+              <h1
+                class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+              >
+                RBAC Dependency Visualizer
+              </h1>
+              <div
+                class="MuiBox-root css-ldp2l3"
+              />
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-h6 css-1fggqnx-MuiTypography-root"
+            >
+              Trace and visualize access dependencies connecting Subjects to RoleBindings, Roles, and permitted API rules.
+            </p>
+          </div>
+        </div>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1xrbozq-MuiPaper-root"
+        >
+          <div
+            class="MuiAutocomplete-root css-ka7ti6-MuiAutocomplete-root"
+          >
+            <div
+              class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-hcbq3y-MuiFormControl-root-MuiTextField-root"
+            >
+              <label
+                class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-standard MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-standard css-164d6nr-MuiFormLabel-root-MuiInputLabel-root"
+                data-shrink="false"
+                for="rbac-subject-select"
+                id="rbac-subject-select-label"
+              >
+                Select Subject (ServiceAccount, User, Group)
+              </label>
+              <div
+                class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiAutocomplete-inputRoot css-kefb05-MuiInputBase-root-MuiInput-root"
+              >
+                <input
+                  aria-autocomplete="list"
+                  aria-expanded="false"
+                  aria-invalid="false"
+                  autocapitalize="none"
+                  autocomplete="off"
+                  class="MuiInputBase-input MuiInput-input MuiInputBase-inputSizeSmall MuiAutocomplete-input MuiAutocomplete-inputFocused css-nz481w-MuiInputBase-input-MuiInput-input"
+                  id="rbac-subject-select"
+                  placeholder="Type or select a subject..."
+                  role="combobox"
+                  spellcheck="false"
+                  type="text"
+                  value=""
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            class="MuiFormControl-root css-dru9rs-MuiFormControl-root"
+          >
+            <label
+              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-standard MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-standard css-164d6nr-MuiFormLabel-root-MuiInputLabel-root"
+              data-shrink="false"
+              id="rbac-namespace-filter-label"
+            >
+              Namespace Filter
+            </label>
+            <div
+              class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+            >
+              <div
+                aria-controls=":mock-test-id:"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                aria-labelledby="rbac-namespace-filter-label rbac-namespace-filter"
+                class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input MuiInputBase-inputSizeSmall css-1q7gfwb-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                id="rbac-namespace-filter"
+                role="combobox"
+                tabindex="0"
+              >
+                <span
+                  class="notranslate"
+                >
+                  ​
+                </span>
+              </div>
+              <input
+                aria-hidden="true"
+                aria-invalid="false"
+                class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                tabindex="-1"
+                value=""
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconStandard css-pqjvzy-MuiSvgIcon-root-MuiSelect-icon"
+                data-testid="ArrowDropDownIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M7 10l5 5 5-5z"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div
+          class="MuiBox-root css-1galtz4"
+        >
+          <div
+            class="MuiBox-root css-wi9ggx"
+          >
+            <h6
+              class="MuiTypography-root MuiTypography-h6 css-1y3305-MuiTypography-root"
+            >
+              Select a Subject to Visualize Permissions
+            </h6>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-49zsar-MuiTypography-root"
+            >
+              Choose a ServiceAccount, User, or Group from the selector above to trace the complete path from Subject through RoleBindings to Roles and granted rules.
+            </p>
+            <div
+              class="MuiBox-root css-178yklu"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-caption css-oafi7l-MuiTypography-root"
+              >
+                Quick select:
+              </span>
+              <div
+                class="MuiBox-root css-163l4ku"
+              >
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    operators
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    default (default)
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    deployer (default)
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    jane
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
