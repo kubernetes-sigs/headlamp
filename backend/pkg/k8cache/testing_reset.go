@@ -25,6 +25,10 @@ func ResetForTesting() {
 
 	mu.Unlock()
 
+	resourceIndexMu.Lock()
+	resourceKeyIndex = make(map[string]map[string]struct{})
+	resourceIndexMu.Unlock()
+
 	clearWatcherRegistriesForTesting()
 }
 

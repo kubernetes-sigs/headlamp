@@ -23,18 +23,18 @@ import (
 )
 
 // cacheKeyBelongsToContext reports whether a k8cache entry key belongs to the
-// given Headlamp context. Keys use the format group+resource+namespace+context.
+// given Headlamp context.
 func cacheKeyBelongsToContext(key, contextKey string) bool {
 	if contextKey == "" {
 		return false
 	}
 
-	parts := strings.SplitN(key, "+", 4)
+	parts := strings.Split(key, "+")
 	if len(parts) < 4 {
 		return false
 	}
 
-	return parts[3] == escapeCacheKeySegment(contextKey)
+	return parts[len(parts)-1] == escapeCacheKeySegment(contextKey)
 }
 
 // PurgeCacheForContext removes all cached API responses for a removed context.
@@ -42,6 +42,8 @@ func PurgeCacheForContext(k8scache cache.Cache[string], contextKey string) {
 	if k8scache == nil || contextKey == "" {
 		return
 	}
+
+	purgeIndexForContext(contextKey)
 
 	keys, err := k8scache.GetAll(context.Background(), func(key string) bool {
 		return cacheKeyBelongsToContext(key, contextKey)

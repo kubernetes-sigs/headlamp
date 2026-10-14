@@ -24,6 +24,10 @@ func ExportedRunWatcher(
 // ResetRegistries clears both registries for test isolation.
 // If no keys are provided, it clears all entries.
 func ResetRegistries(keys ...string) {
+	resourceIndexMu.Lock()
+	resourceKeyIndex = make(map[string]map[string]struct{})
+	resourceIndexMu.Unlock()
+
 	if len(keys) == 0 {
 		watcherRegistry.Range(func(key, _ interface{}) bool {
 			watcherRegistry.Delete(key)
@@ -41,6 +45,11 @@ func ResetRegistries(keys ...string) {
 		watcherRegistry.Delete(k)
 		contextCancel.Delete(k)
 	}
+}
+
+// ExportedIndexCacheKey exposes indexCacheKey for testing.
+func ExportedIndexCacheKey(key string) {
+	indexCacheKey(key)
 }
 
 // StoreTestRegistry populates both registries for test setup.
