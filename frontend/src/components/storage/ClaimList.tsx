@@ -20,6 +20,7 @@ import LabelListItem from '../common/LabelListItem';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { makePVCStatusLabel } from './ClaimDetails';
+import { sortByCapacity } from './sortByCapacity';
 
 export default function VolumeClaimList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -57,6 +58,7 @@ export default function VolumeClaimList() {
           id: 'capacity',
           label: t('Capacity'),
           getValue: volumeClaim => volumeClaim.status?.capacity?.storage,
+          sort: sortByCapacity,
           gridTemplate: 0.8,
         },
         {
