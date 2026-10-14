@@ -15,7 +15,7 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { type MockInstance, vi } from 'vitest';
 import {
@@ -317,11 +317,13 @@ describe('KubeObject.useApiList namespace restriction', () => {
     vi.mocked(hasAllowedNamespacesRestriction).mockReturnValue(true);
     vi.mocked(getCombinedAllowedNamespaces).mockReturnValue(['ns-a']);
     const onList = vi.fn();
-    let emitStaleDuringCommit = false;
+    let setEmitStaleDuringCommit!: (emit: boolean) => void;
 
     const { rerender } = renderHook(
       () => {
         FreshTestResource.useApiList(onList);
+        const [emitStaleDuringCommit, setEmit] = useState(false);
+        setEmitStaleDuringCommit = setEmit;
         useLayoutEffect(() => {
           if (emitStaleDuringCommit && requests[0]) {
             requests[0].callback([
@@ -353,8 +355,9 @@ describe('KubeObject.useApiList namespace restriction', () => {
     // Clear the restriction while the request's cancellation function is still pending.
     vi.mocked(getCombinedAllowedNamespaces).mockReturnValue([]);
     const callsBeforeClear = onList.mock.calls.length;
-    emitStaleDuringCommit = true;
-    rerender();
+    act(() => {
+      setEmitStaleDuringCommit(true);
+    });
     expect(onList).toHaveBeenCalledTimes(callsBeforeClear + 1);
     expect(onList).toHaveBeenLastCalledWith([]);
 
