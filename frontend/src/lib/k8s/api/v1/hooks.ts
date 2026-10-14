@@ -75,8 +75,14 @@ export function useSelectedClusters(): string[] {
  * Hook to manage multiple cancellable API calls tied to the active cluster.
  *
  * @param apiCalls - functions returning cancellable promises for API calls.
+ * @param deps - additional dependencies that should trigger cleanup and re-run.
+ *               Use this for things like namespace restriction changes that
+ *               require cancelling in-flight streams.
  */
-export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
+export function useConnectApi(
+  apiCalls: (() => CancellablePromise)[],
+  deps: React.DependencyList = []
+) {
   // Use the location to make sure the API calls are changed, as they may depend on the cluster
   // (defined in the URL ATM).
   const cluster = useCluster();
@@ -91,9 +97,7 @@ export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
         }
       };
     },
-    // If we add the apiCalls to the dependency list, then it actually
-    // results in undesired reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cluster]
+    [cluster, ...deps]
   );
 }

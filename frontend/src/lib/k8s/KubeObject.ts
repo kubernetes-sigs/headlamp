@@ -315,7 +315,30 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     const [objs, setObjs] = React.useState<{ [key: string]: K[] }>({});
     const listCallback = onList as (arg: any[]) => void;
 
+    // Track the restriction generation to gate stale callbacks from cancelled streams.
+    // Incremented each time restrictedToNoNamespaces changes.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const restrictionGeneration = React.useRef(0);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const currentRestrictedToNoNamespaces = React.useRef(false);
+
+    // Capture the generation at render time so each render's callbacks
+    // can check if they're still valid.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const renderGeneration = restrictionGeneration.current;
+
     function onObjs(namespace: string, objList: K[]) {
+      // Gate against stale callbacks from cancelled streams:
+      // - If we're currently restricted to zero namespaces, ignore all callbacks.
+      // - If this callback's generation doesn't match the current generation,
+      //   it's from a previous restriction state and should be ignored.
+      if (currentRestrictedToNoNamespaces.current) {
+        return;
+      }
+      if (renderGeneration !== restrictionGeneration.current) {
+        return;
+      }
+
       let newObjs: typeof objs = {};
       // Set the objects so we have them for the next API response...
       setObjs(previousObjs => {
@@ -350,9 +373,32 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     // If the request itself has no namespaces set, we check whether to apply the
     // allowed namespaces.
+    let restrictedToNoNamespaces = false;
     if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
+      const restrictionCluster = cluster ?? getCluster();
+      namespaces = getAllowedNamespaces(restrictionCluster);
+
+      // An active allowed-namespaces restriction that currently resolves to no
+      // namespaces must fail closed: issue no request rather than falling back to an
+      // unrestricted cluster-wide list. This mirrors makeListRequests (see #7361, #7382).
+      // The restriction is checked against the same cluster used for the list request.
+      restrictedToNoNamespaces =
+        namespaces.length === 0 && hasAllowedNamespacesRestriction(restrictionCluster ?? '');
     }
+
+    // When restrictedToNoNamespaces changes, increment the generation to invalidate
+    // any in-flight callbacks from the previous restriction state.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useLayoutEffect(() => {
+      currentRestrictedToNoNamespaces.current = restrictedToNoNamespaces;
+      if (restrictedToNoNamespaces) {
+        restrictionGeneration.current += 1;
+        setObjs({});
+        listCallback([]);
+      }
+      // listCallback intentionally omitted: it's a new function reference every render.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [restrictedToNoNamespaces]);
 
     if (namespaces.length > 0) {
       // If we have a namespace set, then we have to make an API call for each
@@ -366,14 +412,14 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           })
         );
       }
-    } else {
+    } else if (!restrictedToNoNamespaces) {
       // If we don't have a namespace set, then we only have one API call
       // response to set and we return it right away.
       listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(...listCalls);
+    useConnectApi(listCalls, [restrictedToNoNamespaces]);
   }
 
   static useList<K extends KubeObject>(
@@ -528,7 +574,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // the exact signature as get callbacks.
     const getCallback = onGet as (item: K) => void;
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(this.apiGet(getCallback, name, namespace, onError, opts));
+    useConnectApi([this.apiGet(getCallback, name, namespace, onError, opts)]);
   }
 
   _class() {
