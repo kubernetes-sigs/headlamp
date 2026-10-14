@@ -183,14 +183,35 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 	return nil
 }
 
+// GetNewTokenParams groups the inputs needed to exchange a cached refresh
+// token for a new OAuth2 token.
+type GetNewTokenParams struct {
+	// ClientID is the OIDC client ID.
+	ClientID string
+	// ClientSecret is the OIDC client secret. It is unused when
+	// ClientAssertionFile is set.
+	ClientSecret string
+	// ClientAssertionFile is the path to a file holding a JWT sent as
+	// client_assertion (RFC 7523) to authenticate at the token endpoint
+	// instead of a client secret.
+	ClientAssertionFile string
+	// Cache holds the refresh token keyed by the current token.
+	Cache cache.Cache[interface{}]
+	// TokenType is the token field passed on to the client, either
+	// "id_token" or "access_token".
+	TokenType string
+	// Token is the current token, used as the cache key of the refresh token.
+	Token string
+	// TokenURL is the token endpoint of the identity provider.
+	TokenURL string
+}
+
 // GetNewToken uses the provided credentials and fetches the old refresh
 // token from the cache to obtain a new OAuth2 token
 // from the specified token URL endpoint.
-func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
-	tokenType string, token string, tokenURL string, ctx context.Context,
-) (*oauth2.Token, error) {
+func GetNewToken(ctx context.Context, params GetNewTokenParams) (*oauth2.Token, error) {
 	// get refresh token
-	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
+	refreshToken, err := params.Cache.Get(ctx, oidcKeyPrefix+params.Token)
 	if err != nil {
 		return nil, fmt.Errorf("getting refresh token: %w", err)
 	}
@@ -200,27 +221,38 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 		return nil, fmt.Errorf("failed to get refresh token")
 	}
 
-	// Create OAuth2 config with client credentials and token endpoint
-	conf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Endpoint: oauth2.Endpoint{
-			TokenURL: tokenURL,
-		},
-	}
-
-	// Request new token using the refresh token
-	newToken, err := conf.TokenSource(ctx, &oauth2.Token{RefreshToken: rToken}).Token()
+	newToken, err := redeemRefreshToken(ctx, params, rToken)
 	if err != nil {
 		return nil, err
 	}
 
 	// update the refresh token in the cache
-	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
+	if err := CacheRefreshedToken(newToken, params.TokenType, params.Token, rToken, params.Cache); err != nil {
 		return nil, fmt.Errorf("caching refreshed token: %w", err)
 	}
 
 	return newToken, nil
+}
+
+// redeemRefreshToken requests a new token from the token endpoint, using
+// whichever client authentication method is configured.
+func redeemRefreshToken(ctx context.Context, params GetNewTokenParams, refreshToken string) (*oauth2.Token, error) {
+	if params.ClientAssertionFile != "" {
+		return RefreshTokenWithClientAssertion(ctx,
+			params.TokenURL, params.ClientID, params.ClientAssertionFile, refreshToken)
+	}
+
+	// Create OAuth2 config with client credentials and token endpoint
+	conf := &oauth2.Config{
+		ClientID:     params.ClientID,
+		ClientSecret: params.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			TokenURL: params.TokenURL,
+		},
+	}
+
+	// Request new token using the refresh token
+	return conf.TokenSource(ctx, &oauth2.Token{RefreshToken: refreshToken}).Token()
 }
 
 // ConfigureTLSContext configures TLS settings for the HTTP client in the context.
@@ -306,15 +338,15 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 		return nil, fmt.Errorf("getting provider: %w", err)
 	}
 	// get refresh token
-	newToken, err := GetNewToken(
-		oidcAuthConfig.ClientID,
-		oidcAuthConfig.ClientSecret,
-		cache,
-		tokenType,
-		token,
-		provider.Endpoint().TokenURL,
-		ctx,
-	)
+	newToken, err := GetNewToken(ctx, GetNewTokenParams{
+		ClientID:            oidcAuthConfig.ClientID,
+		ClientSecret:        oidcAuthConfig.ClientSecret,
+		ClientAssertionFile: oidcAuthConfig.ClientAssertionFile,
+		Cache:               cache,
+		TokenType:           tokenType,
+		Token:               token,
+		TokenURL:            provider.Endpoint().TokenURL,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("refreshing token: %w", err)
 	}
