@@ -1115,3 +1115,79 @@ func TestStoreAndInvalidationSynchronization(t *testing.T) {
 	close(start)
 	wg.Wait()
 }
+
+// TestResourceKeyIndex_EvictionOnExpiration verifies that when cached responses expire,
+// the cache's eviction callback unindexes the corresponding resource key index entries.
+func TestResourceKeyIndex_EvictionOnExpiration(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	realCache := cache.New[string]()
+	contextKey := "cluster-a"
+	u, err := url.Parse("/api/v1/namespaces/default/events?limit=50")
+	require.NoError(t, err)
+
+	key, err := k8cache.GenerateKey(u, contextKey)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	rcw := k8cache.NewResponseCapture(rec)
+	rcw.WriteHeader(http.StatusOK)
+	_, _ = rcw.Write([]byte(`{"kind":"EventList","items":[]}`))
+
+	require.NoError(t, k8cache.StoreK8sResponseInCache(realCache, u, rcw, key))
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key), "key should be indexed after store")
+
+	// Trigger eviction callback as would occur when cache entry expires.
+	k8cache.ExportedUnindexIfExpired(key, time.Now().Add(time.Hour))
+	assert.False(t, k8cache.ExportedIsKeyIndexed(key), "key should be unindexed after expiration")
+}
+
+// TestResourceKeyIndex_ReplacementSynchronized verifies that expiring an older response
+// cannot unindex a fresh replacement entry that replaced it with a later expiration timestamp.
+func TestResourceKeyIndex_ReplacementSynchronized(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	key := "+v1+pods?page=1+default+cluster-a"
+	tOld := time.Now().Add(5 * time.Second)
+	tNew := time.Now().Add(10 * time.Minute)
+
+	// Old entry indexed.
+	k8cache.ExportedIndexCacheKeyWithTTL(key, 5*time.Second)
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key))
+
+	// Replaced by newer entry with longer TTL.
+	k8cache.ExportedIndexCacheKeyWithTTL(key, 10*time.Minute)
+
+	// An expiration event from the old entry fires at tOld.
+	k8cache.ExportedUnindexIfExpired(key, tOld)
+
+	// The replacement entry must not have been unindexed.
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key), "replacement entry must remain indexed")
+
+	// When tNew passes, expiration unindexes it.
+	k8cache.ExportedUnindexIfExpired(key, tNew.Add(time.Second))
+	assert.False(t, k8cache.ExportedIsKeyIndexed(key), "key should be unindexed once new entry expires")
+}
+
+// TestResourceKeyIndex_UnmonitoredResourceJanitor verifies that entries for unmonitored resources
+// (e.g. Events, custom resources excluded from informers) are cleaned up by expiration sweep.
+func TestResourceKeyIndex_UnmonitoredResourceJanitor(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	key1 := "+v1+events?limit=25+default+cluster-b"
+	key2 := "+v1+events?limit=50+default+cluster-b"
+
+	k8cache.ExportedIndexCacheKeyWithTTL(key1, -1*time.Minute) // already expired
+	k8cache.ExportedIndexCacheKeyWithTTL(key2, 10*time.Minute) // active
+
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key1))
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key2))
+
+	k8cache.ExportedEvictExpiredIndexEntries(time.Now())
+
+	assert.False(t, k8cache.ExportedIsKeyIndexed(key1), "expired event index entry should be pruned")
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key2), "active event index entry should remain")
+}

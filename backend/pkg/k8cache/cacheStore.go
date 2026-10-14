@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -243,6 +244,19 @@ func parseCacheKey(key string) (apiGroup, apiVersion, kind, namespace, contextID
 	return "", "", "", "", "", false
 }
 
+func parseContextKeyFromCacheKey(key string) (string, bool) {
+	parts := strings.Split(key, "+")
+	if len(parts) == 5 {
+		return unescapeCacheKeySegment(parts[4]), true
+	}
+
+	if len(parts) == 4 {
+		return unescapeCacheKeySegment(parts[3]), true
+	}
+
+	return "", false
+}
+
 func parseNamespacedResourcePath(resParts []string) (string, string) {
 	switch len(resParts) {
 	case 1:
@@ -308,6 +322,8 @@ func extractNamespaceAndResourcePath(u *url.URL) (string, string) {
 			if canonicalQuery := parsedQuery.Encode(); canonicalQuery != "" {
 				resourcePath += "?" + canonicalQuery
 			}
+		} else {
+			resourcePath += "?" + rawQuery
 		}
 	}
 
@@ -478,15 +494,39 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	return nil
 }
 
+var (
+	registeredCachesMu sync.Mutex
+	registeredCaches   = make(map[cache.Cache[string]]struct{})
+)
+
+func registerCacheEvictionCallback(c cache.Cache[string]) {
+	if c == nil {
+		return
+	}
+
+	registeredCachesMu.Lock()
+	defer registeredCachesMu.Unlock()
+
+	if _, exists := registeredCaches[c]; !exists {
+		c.SetOnEvicted(func(key string, _ string) {
+			unindexIfExpired(key)
+		})
+
+		registeredCaches[c] = struct{}{}
+	}
+}
+
 func setAndIndexCacheEntry(k8scache cache.Cache[string], key string, jsonBytes []byte, ttl time.Duration) error {
 	resourceIndexMu.Lock()
 	defer resourceIndexMu.Unlock()
+
+	registerCacheEvictionCallback(k8scache)
 
 	if err := k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), ttl); err != nil {
 		return err
 	}
 
-	indexCacheKeyLocked(key)
+	indexCacheKeyLocked(key, time.Now().Add(ttl))
 
 	return nil
 }

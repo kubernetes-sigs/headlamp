@@ -671,6 +671,30 @@ func TestGenerateKey_CanonicalQueryOrdering(t *testing.T) {
 	assert.Equal(t, k1, k2, "query parameters must be canonicalized and sorted")
 }
 
+// TestGenerateKey_MalformedQueryPreservesPartition verifies that requests with
+// malformed query parameters retain their query partition and do not collide
+// with unfiltered list requests.
+func TestGenerateKey_MalformedQueryPreservesPartition(t *testing.T) {
+	ctx := "cluster-ctx"
+
+	unfilteredURL, err := url.Parse("/api/v1/namespaces/default/pods")
+	require.NoError(t, err)
+
+	unfilteredKey, err := k8cache.GenerateKey(unfilteredURL, ctx)
+	require.NoError(t, err)
+
+	malformedURL, err := url.Parse("/api/v1/namespaces/default/pods?labelSelector=app%3Dbackend&unused=%ZZ")
+	require.NoError(t, err)
+
+	malformedKey, err := k8cache.GenerateKey(malformedURL, ctx)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, unfilteredKey, malformedKey,
+		"malformed query request must not collapse to unfiltered list cache key")
+	assert.Contains(t, malformedKey, "labelSelector=app%253Dbackend")
+	assert.Contains(t, malformedKey, "unused=%25ZZ")
+}
+
 // TestShouldSkipCache verifies that streaming and interactive endpoints bypass the cache.
 func TestShouldSkipCache(t *testing.T) {
 	tests := []struct {

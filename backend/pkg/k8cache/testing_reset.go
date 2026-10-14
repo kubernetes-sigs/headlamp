@@ -13,7 +13,10 @@
 
 package k8cache
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ResetForTesting clears package-global k8cache state between integration tests.
 func ResetForTesting() {
@@ -26,7 +29,7 @@ func ResetForTesting() {
 	mu.Unlock()
 
 	resourceIndexMu.Lock()
-	resourceKeyIndex = make(map[string]map[string]struct{})
+	resourceKeyIndex = make(map[string]map[string]time.Time)
 	resourceIndexMu.Unlock()
 
 	clearWatcherRegistriesForTesting()
