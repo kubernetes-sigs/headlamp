@@ -41,13 +41,27 @@ import { ServiceGlance } from './ServiceGlance';
  */
 export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) => {
   const { t } = useTranslation();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [eventState, setEventState] = useState<{ resource: KubeObject | null; events: Event[] }>({
+    resource: null,
+    events: [],
+  });
+  const events = eventState.resource === resource ? eventState.events : [];
   useEffect(() => {
-    Event.objectEvents(resource).then(fetchedEvents =>
-      setEvents(fetchedEvents.map((event: KubeEvent) => new Event(event)))
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let cancelled = false;
+
+    Event.objectEvents(resource).then(fetchedEvents => {
+      if (!cancelled) {
+        setEventState({
+          resource,
+          events: fetchedEvents.map((event: KubeEvent) => new Event(event)),
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resource]);
 
   const sections = [];
 
