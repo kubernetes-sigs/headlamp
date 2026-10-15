@@ -1162,4 +1162,146 @@ describe('MCPClient#mcpExecuteTool', () => {
     const res = await client.mcpExecuteTool('x.y', [], 'call-5');
     expect(res).toBeUndefined();
   });
+
+  it('validates calls using canonical schema and rejects invalid oneOf combinations locally', async () => {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const invokeFunc = vi.fn().mockResolvedValue('server-executed');
+    const simplifiedSchema = {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string' },
+        name: { type: 'string' },
+        selector: { type: 'string' },
+      },
+      required: ['namespace'],
+    };
+    const canonicalSchema = {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string' },
+        name: { type: 'string' },
+        selector: { type: 'string' },
+      },
+      required: ['namespace'],
+      oneOf: [{ required: ['name'] }, { required: ['selector'] }],
+    };
+
+    const clientTool = new DynamicStructuredTool({
+      name: 'srv__select',
+      description: 'exclusive tool',
+      schema: simplifiedSchema,
+      func: invokeFunc,
+    });
+    const canonicalTool = new DynamicStructuredTool({
+      name: 'srv__select',
+      description: 'exclusive tool',
+      schema: canonicalSchema,
+      func: invokeFunc,
+    });
+
+    (client as any).clientTools = [clientTool];
+    (client as any).canonicalSchemas.set('srv__select', canonicalSchema);
+    (client as any).canonicalTools.set('srv__select', canonicalTool);
+    (client as any).isInitialized = true;
+    (client as any).client = {};
+
+    // Valid call with name only
+    const validRes = await (client as any).mcpExecuteTool(
+      'srv__select',
+      { namespace: 'default', name: 'pod1' },
+      'call-valid'
+    );
+    expect(validRes.success).toBe(true);
+    expect(validRes.result).toBe('server-executed');
+    expect(invokeFunc).toHaveBeenCalledTimes(1);
+
+    // Invalid call violating oneOf (both name and selector supplied)
+    const invalidRes = await (client as any).mcpExecuteTool(
+      'srv__select',
+      { namespace: 'default', name: 'pod1', selector: 'app=web' },
+      'call-invalid'
+    );
+    expect(invalidRes.success).toBe(false);
+    expect(invalidRes.error).toMatch(/did not match expected schema/);
+    // invokeFunc was NOT called for invalid call!
+    expect(invokeFunc).toHaveBeenCalledTimes(1);
+  });
+
+  it('permits valid branch in conditional if/then/else schemas', async () => {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const invokeFunc = vi.fn().mockImplementation(async args => `echo-${JSON.stringify(args)}`);
+    const canonicalConditionalSchema = {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['name', 'selector'] },
+        name: { type: 'string' },
+        selector: { type: 'string' },
+      },
+      required: ['mode'],
+      if: { properties: { mode: { const: 'name' } }, required: ['mode'] },
+      then: { required: ['name'] },
+      else: { required: ['selector'] },
+    };
+
+    const canonicalTool = new DynamicStructuredTool({
+      name: 'srv__cond',
+      description: 'conditional tool',
+      schema: canonicalConditionalSchema,
+      func: invokeFunc,
+    });
+
+    (client as any).clientTools = [canonicalTool];
+    (client as any).canonicalSchemas.set('srv__cond', canonicalConditionalSchema);
+    (client as any).canonicalTools.set('srv__cond', canonicalTool);
+    (client as any).isInitialized = true;
+    (client as any).client = {};
+
+    // Mode 'name' with name supplied
+    const resName = await (client as any).mcpExecuteTool(
+      'srv__cond',
+      { mode: 'name', name: 'my-service' },
+      'call-name'
+    );
+    expect(resName.success).toBe(true);
+
+    // Mode 'selector' with selector supplied
+    const resSelector = await (client as any).mcpExecuteTool(
+      'srv__cond',
+      { mode: 'selector', selector: 'tier=backend' },
+      'call-selector'
+    );
+    expect(resSelector.success).toBe(true);
+
+    // Incomplete mode 'name' missing required 'name'
+    const resMissing = await (client as any).mcpExecuteTool(
+      'srv__cond',
+      { mode: 'name' },
+      'call-missing'
+    );
+    expect(resMissing.success).toBe(false);
+  });
+
+  it('keeps canonical schemas isolated per server and clears them on cleanup', async () => {
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    (client as any).canonicalSchemas.set('server1__tool', { type: 'object', title: 'schema1' });
+    (client as any).canonicalSchemas.set('server2__tool', { type: 'object', title: 'schema2' });
+    (client as any).canonicalTools.set('server1__tool', {} as any);
+    (client as any).canonicalTools.set('server2__tool', {} as any);
+
+    expect((client as any).canonicalSchemas.get('server1__tool').title).toBe('schema1');
+    expect((client as any).canonicalSchemas.get('server2__tool').title).toBe('schema2');
+
+    await client.cleanup();
+
+    expect((client as any).canonicalSchemas.size).toBe(0);
+    expect((client as any).canonicalTools.size).toBe(0);
+  });
 });
