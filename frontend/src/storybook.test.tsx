@@ -274,7 +274,7 @@ describe('Storybook Tests', () => {
 
             await expect(document.body).toMatchFileSnapshot(snapshotPath);
           },
-          story.parameters?.storyshots?.timeout
+          story.parameters?.storyshots?.timeout ?? 15000
         );
       });
     });

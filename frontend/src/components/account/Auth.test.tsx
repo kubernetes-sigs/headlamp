@@ -66,7 +66,8 @@ vi.mock('../../lib/k8s', () => ({
 
 // --- Theme mock (AppLogo → useNavBarMode reads theme.palette.navbar, which is undefined without a ThemeProvider) ---
 
-vi.mock('../../lib/themes', () => ({
+vi.mock('../../lib/themes', async importOriginal => ({
+  ...(await importOriginal<any>()),
   useNavBarMode: () => 'light',
   getThemeName: () => 'light',
 }));
