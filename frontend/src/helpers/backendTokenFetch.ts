@@ -46,12 +46,14 @@ export function createBackendTokenFetch(
 
     const backendPort = getBackendPort();
     const token = getHeaders()[BACKEND_TOKEN_HEADER];
+    const effectiveUrlPort =
+      url.port || (url.protocol === 'http:' ? '80' : url.protocol === 'https:' ? '443' : '');
     if (
       !token ||
       backendPort === undefined ||
       url.protocol !== 'http:' ||
       !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
-      url.port !== `${backendPort}`
+      effectiveUrlPort !== `${backendPort}`
     ) {
       return fetchImplementation(input, init);
     }
@@ -86,6 +88,134 @@ export function installBackendTokenFetch(): void {
     () => window.headlampBackendPort
   );
   installed = true;
+}
+
+const HEADLESS_BACKEND_TOKEN_STORAGE_KEY = 'headlamp_headless_backend_token';
+
+/**
+ * Initializes authenticated communication with the backend in headless mode.
+ *
+ * In headless mode Electron cannot deliver the per-launch backend token via IPC
+ * because the UI runs in an external system browser. Instead the token is passed
+ * as a one-time URL fragment (#backendToken=<token>) when the browser is
+ * opened. This function reads that fragment, sets the active backend port from
+ * window.location.port, installs the authenticated fetch wrapper, caches the
+ * token in sessionStorage so authentication survives page reloads in the same
+ * browser tab, and immediately strips the token from the visible URL fragment
+ * so it does not persist in the browser history or appear in server logs/referrers.
+ *
+ * If no token is found in the URL fragment (e.g. following a page reload), this
+ * function attempts to restore the cached token from sessionStorage.
+ *
+ * This must only be called when `window.desktopApi` is absent (i.e. in a plain
+ * browser window, not inside Electron's renderer process).
+ *
+ * @param locationHash - The `window.location.hash` string, injectable for tests.
+ * @param replaceState - `window.history.replaceState` function, injectable for tests.
+ * @param port - Optional port override, defaults to parsing `window.location.port`.
+ * @param storage - Storage implementation for session persistence, injectable for tests.
+ * @returns true when a valid headless token was found and applied, false otherwise.
+ */
+export function initializeHeadlessBackend(
+  locationHash: string = (() => {
+    try {
+      return typeof window !== 'undefined' && window.location ? window.location.hash : '';
+    } catch {
+      return '';
+    }
+  })(),
+  replaceState: (data: unknown, unused: string, url: string) => void = (() => {
+    try {
+      return typeof window !== 'undefined' && window.history
+        ? window.history.replaceState.bind(window.history)
+        : () => {};
+    } catch {
+      return () => {};
+    }
+  })(),
+  port?: number,
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null = (() => {
+    try {
+      return typeof window !== 'undefined' ? window.sessionStorage : null;
+    } catch {
+      return null;
+    }
+  })()
+): boolean {
+  const hash = locationHash.startsWith('#') ? locationHash.slice(1) : locationHash;
+  const params = hash ? new URLSearchParams(hash) : null;
+  const hashToken = params?.get('backendToken');
+
+  let token: string | null = null;
+  let fromHash = false;
+
+  // Validate token from URL fragment if present
+  if (hashToken && hashToken.trim().length > 0) {
+    token = hashToken;
+    fromHash = true;
+    try {
+      storage?.setItem(HEADLESS_BACKEND_TOKEN_STORAGE_KEY, hashToken);
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing with strict settings)
+    }
+  } else {
+    // Attempt recovery from sessionStorage on page reload
+    try {
+      const storedToken = storage?.getItem(HEADLESS_BACKEND_TOKEN_STORAGE_KEY);
+      if (storedToken && storedToken.trim().length > 0) {
+        token = storedToken;
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+  }
+
+  if (!token) {
+    return false;
+  }
+
+  // Determine the backend port from window.location or explicit parameter
+  let backendPort = port;
+  if (backendPort === undefined && typeof window !== 'undefined') {
+    try {
+      if (window.location?.port) {
+        const parsedPort = parseInt(window.location.port, 10);
+        if (!Number.isNaN(parsedPort)) {
+          backendPort = parsedPort;
+        }
+      } else if (window.location?.protocol === 'https:') {
+        backendPort = 443;
+      } else if (window.location?.protocol === 'http:') {
+        backendPort = 80;
+      }
+    } catch {
+      // window.location access restricted
+    }
+  }
+
+  if (typeof window !== 'undefined' && backendPort !== undefined) {
+    window.headlampBackendPort = backendPort;
+  }
+
+  // Install the authenticated fetch wrapper before publishing the token so no
+  // fetch call can slip through unauthenticated between these two steps.
+  installBackendTokenFetch();
+  setBackendToken(token);
+
+  // If token was present in the URL fragment, strip it immediately so it does not
+  // appear in browser history, bookmarks, or referrer headers on subsequent navigations.
+  if (fromHash && params) {
+    params.delete('backendToken');
+    const remainingHash = params.toString();
+    const newHash = remainingHash ? `#${remainingHash}` : '';
+    const pathname =
+      typeof window !== 'undefined' && window.location ? window.location.pathname : '';
+    const search = typeof window !== 'undefined' && window.location ? window.location.search : '';
+    const newUrl = `${pathname}${search}${newHash}`;
+    replaceState(null, '', newUrl);
+  }
+
+  return true;
 }
 
 /** IPC surface used to request desktop backend connection details. */
