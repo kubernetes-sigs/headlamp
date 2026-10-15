@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ResourceClasses } from '.';
 import { request } from './api/v1/clusterRequests';
 import type { KubeObjectClass, KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import { ResourceClasses } from './resourceClasses';
 
 type ResourceName = 'cpu' | 'memory' | 'storage' | 'ephemeral-storage';
 

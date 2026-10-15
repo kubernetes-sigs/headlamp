@@ -17,7 +17,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
 import { createContext, ReactNode } from 'react';
-import { KubeObject } from '../../lib/k8s/KubeObject';
+import type { KubeObject } from '../../lib/k8s/KubeObject';
 import { DetailsViewSectionType } from './DetailsViewSection';
 
 export type DetailsViewSection = {
