@@ -320,6 +320,10 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 			return err
 		}
 
+		if !hasRoomFor(k8scache, key, int64(len(jsonBytes))) {
+			return nil
+		}
+
 		if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
 			return err
 		}
