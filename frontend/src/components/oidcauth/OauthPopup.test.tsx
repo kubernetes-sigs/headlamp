@@ -15,7 +15,7 @@
  */
 
 import Button from '@mui/material/Button';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { AUTH_STATUS_KEY } from './constants';
 import OauthPopup from './OauthPopup';
@@ -24,6 +24,7 @@ describe('OauthPopup', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
     localStorage.clear();
   });
 
@@ -64,17 +65,14 @@ describe('OauthPopup', () => {
     expect(popupWindow.close).toHaveBeenCalled();
   });
 
-  it('removes the storage listener when the popup closes without completing auth', () => {
-    const popupListeners: Record<string, () => void> = {};
+  it('calls onClose without removing storage listener when popup is closed or disconnected by COOP', async () => {
     const popupWindow = {
-      addEventListener: vi.fn((eventName: string, listener: () => void) => {
-        popupListeners[eventName] = listener;
-      }),
-      removeEventListener: vi.fn(),
       close: vi.fn(),
+      closed: false,
     } as unknown as Window;
 
     vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
     const onClose = vi.fn();
 
@@ -92,20 +90,128 @@ describe('OauthPopup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
 
-    popupListeners.beforeunload?.();
+    const storageListener = addEventListenerSpy.mock.calls.find(
+      ([eventName]) => eventName === 'storage'
+    )?.[1];
+    expect(storageListener).toBeTypeOf('function');
 
-    expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', expect.any(Function));
-    expect(onClose).toHaveBeenCalled();
+    // Simulate popup close or COOP browsing context disconnection
+    // @ts-ignore
+    popupWindow.closed = true;
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    // Storage listener must remain attached to avoid losing completion signals on COOP redirects
+    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('storage', storageListener);
   });
 
-  it('closes the popup and removes listeners when auth completes', () => {
-    const popupListeners: Record<string, () => void> = {};
+  it('completes auth and removes listener even if popup was disconnected by COOP before completion', async () => {
     const popupWindow = {
-      addEventListener: vi.fn((eventName: string, listener: () => void) => {
-        popupListeners[eventName] = listener;
-      }),
-      removeEventListener: vi.fn(),
       close: vi.fn(),
+      closed: false,
+    } as unknown as Window;
+
+    vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+    const onCode = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={onCode}
+        onClose={onClose}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+
+    const storageListener = addEventListenerSpy.mock.calls.find(
+      ([eventName]) => eventName === 'storage'
+    )?.[1];
+    expect(storageListener).toBeTypeOf('function');
+
+    // Simulate COOP disconnection where popupWindow.closed becomes true while auth is in progress
+    // @ts-ignore
+    popupWindow.closed = true;
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    // Storage listener should still be active
+    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('storage', storageListener);
+
+    // Now auth completes in popup and dispatches storage event
+    localStorage.setItem(AUTH_STATUS_KEY, 'code=oauth-code');
+    window.dispatchEvent(new StorageEvent('storage'));
+
+    expect(onCode).toHaveBeenCalledWith('code=oauth-code');
+    expect(localStorage.getItem(AUTH_STATUS_KEY)).toBeNull();
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', storageListener);
+  });
+
+  it('handles SecurityError when accessing popupWindow.closed due to strict COOP', async () => {
+    const closedGetterSpy = vi.fn(() => {
+      throw new Error('Blocked by Cross-Origin-Opener-Policy');
+    });
+    const popupWindow = {
+      close: vi.fn(),
+      get closed() {
+        return closedGetterSpy();
+      },
+    } as unknown as Window;
+
+    vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+    const onCode = vi.fn();
+
+    render(
+      <OauthPopup button={Button} url="https://example.com/auth" title="Auth Popup" onCode={onCode}>
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    vi.useFakeTimers({
+      toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+
+    const storageListener = addEventListenerSpy.mock.calls.find(
+      ([eventName]) => eventName === 'storage'
+    )?.[1];
+    expect(storageListener).toBeTypeOf('function');
+
+    // Advance fake timers through one poll to invoke the throwing getter
+    vi.advanceTimersByTime(500);
+
+    expect(closedGetterSpy).toHaveBeenCalled();
+
+    // Storage listener remains active despite the error thrown by closed property
+    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('storage', storageListener);
+
+    // Auth completes normally
+    localStorage.setItem(AUTH_STATUS_KEY, 'code=oauth-code');
+    window.dispatchEvent(new StorageEvent('storage'));
+
+    expect(onCode).toHaveBeenCalledWith('code=oauth-code');
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', storageListener);
+
+    vi.useRealTimers();
+  });
+
+  it('closes the popup and removes listeners when auth completes', async () => {
+    const popupWindow = {
+      close: vi.fn(),
+      closed: false,
     } as unknown as Window;
 
     vi.spyOn(window, 'open').mockReturnValue(popupWindow);
@@ -132,10 +238,6 @@ describe('OauthPopup', () => {
     expect(onCode).toHaveBeenCalledWith('code=oauth-code');
     expect(localStorage.getItem(AUTH_STATUS_KEY)).toBeNull();
     expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', storageListener);
-    expect(popupWindow.removeEventListener).toHaveBeenCalledWith(
-      'beforeunload',
-      popupListeners.beforeunload
-    );
     expect(popupWindow.close).toHaveBeenCalled();
   });
 });
