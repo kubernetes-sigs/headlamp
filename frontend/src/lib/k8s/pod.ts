@@ -422,6 +422,13 @@ class Pod extends KubeObject<KubePod> {
 
     let reason = this.status?.reason || this.status?.phase || 'Unknown';
 
+    // A pod held back by scheduling gates shows as SchedulingGated, like kubectl does
+    for (const condition of this.status?.conditions ?? []) {
+      if (condition.type === 'PodScheduled' && condition.reason === 'SchedulingGated') {
+        reason = 'SchedulingGated';
+      }
+    }
+
     const initContainers: Record<string, KubeContainer> = {};
     let totalContainers = (this.spec?.containers ?? []).length;
     for (const ic of this.spec?.initContainers ?? []) {
