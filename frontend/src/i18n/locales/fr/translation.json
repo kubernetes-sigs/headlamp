@@ -314,6 +314,7 @@
   "Reason": "Motif",
   "Count": "Nombre",
   "Last Seen": "Dernière vue",
+  "({{ seconds }}s)": "({{ seconds }}s)",
   "Offline": "Hors ligne",
   "Dismiss": "Rejeter",
   "Lost connection to the cluster.": "Connexion perdue avec le cluster.",

@@ -310,6 +310,7 @@
   "Reason": "이유",
   "Count": "",
   "Last Seen": "마지막 확인",
+  "({{ seconds }}s)": "({{ seconds }}초)",
   "Offline": "오프라인",
   "Dismiss": "닫기",
   "Lost connection to the cluster.": "클러스터와의 연결이 끊겼습니다.",

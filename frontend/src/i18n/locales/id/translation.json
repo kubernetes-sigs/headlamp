@@ -310,6 +310,7 @@
   "Reason": "Alasan",
   "Count": "Hitungan",
   "Last Seen": "Terakhir Dilihat",
+  "({{ seconds }}s)": "({{ seconds }} dtk)",
   "Offline": "Offline",
   "Dismiss": "Tutup",
   "Lost connection to the cluster.": "Koneksi terputus ke kluster.",

@@ -312,6 +312,7 @@
   "Reason": "Reden",
   "Count": "Aantal",
   "Last Seen": "Laatst gezien",
+  "({{ seconds }}s)": "({{ seconds }} s)",
   "Offline": "Offline",
   "Dismiss": "Negeren",
   "Lost connection to the cluster.": "Verbinding met het cluster verbroken.",

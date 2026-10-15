@@ -316,6 +316,7 @@
   "Reason": "Důvod",
   "Count": "Počet",
   "Last Seen": "Naposledy online",
+  "({{ seconds }}s)": "({{ seconds }} s)",
   "Offline": "Offline",
   "Dismiss": "Zrušit",
   "Lost connection to the cluster.": "Došlo ke ztrátě připojení ke clusteru.",

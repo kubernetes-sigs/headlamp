@@ -314,6 +314,7 @@
   "Reason": "Motivo",
   "Count": "",
   "Last Seen": "Ultima Visualizzazione",
+  "({{ seconds }}s)": "({{ seconds }}s)",
   "Offline": "Offline",
   "Dismiss": "Ignora",
   "Lost connection to the cluster.": "Connessione al cluster persa.",

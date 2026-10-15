@@ -312,6 +312,7 @@
   "Reason": "Anledning",
   "Count": "Antal",
   "Last Seen": "Sågs senast",
+  "({{ seconds }}s)": "({{ seconds }}s)",
   "Offline": "Offline",
   "Dismiss": "Ignorera",
   "Lost connection to the cluster.": "Anslutningen till klustret bröts.",

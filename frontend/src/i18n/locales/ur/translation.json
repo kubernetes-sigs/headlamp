@@ -312,6 +312,7 @@
   "Reason": "وجہ",
   "Count": "تعداد",
   "Last Seen": "آخری بار دیکھا گیا",
+  "({{ seconds }}s)": "({{ seconds }} سیکنڈ)",
   "Offline": "آف لائن",
   "Dismiss": "مسترد کریں",
   "Lost connection to the cluster.": "کلسٹر سے رابطہ منقطع ہو گیا",

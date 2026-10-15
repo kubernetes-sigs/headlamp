@@ -316,6 +316,7 @@
   "Reason": "Причина",
   "Count": "Количество",
   "Last Seen": "Последнее появление",
+  "({{ seconds }}s)": "({{ seconds }} с)",
   "Offline": "Офлайн",
   "Dismiss": "Закрыть",
   "Lost connection to the cluster.": "Потеряно соединение с кластером.",

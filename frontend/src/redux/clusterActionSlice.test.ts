@@ -77,9 +77,11 @@ describe('clusterActionSlice', () => {
         const callback = vi.fn();
         const result = store.dispatch(executeClusterAction({ callback, startMessage: 'Starting' }));
         const actionKey = Object.keys(store.getState().clusterAction)[0];
+        expect(store.getState().clusterAction[actionKey].executeAt).toBe(Date.now() + delay);
         expect(store.getState().clusterAction[actionKey].snackbarProps?.autoHideDuration).toBe(
           delay
         );
+        expect(store.getState().clusterAction[actionKey].snackbarProps?.persist).toBeUndefined();
         store.dispatch(setAppSettings({ actionDelay: 0 }));
         await vi.advanceTimersByTimeAsync(delay - 1);
         expect(callback).not.toHaveBeenCalled();
@@ -100,6 +102,7 @@ describe('clusterActionSlice', () => {
         expect(callback).toHaveBeenCalledTimes(1);
         const started = store.getActions().find(action => action.payload?.state === 'start');
         expect(started.payload.buttons).toBeUndefined();
+        expect(started.payload.executeAt).toBe(Date.now());
         await result;
       } finally {
         vi.useRealTimers();

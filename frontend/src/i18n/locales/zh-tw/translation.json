@@ -310,6 +310,7 @@
   "Reason": "原因",
   "Count": "",
   "Last Seen": "最後一次看到",
+  "({{ seconds }}s)": "({{ seconds }} 秒)",
   "Offline": "離線",
   "Dismiss": "忽略",
   "Lost connection to the cluster.": "與叢集的連線遺失。",

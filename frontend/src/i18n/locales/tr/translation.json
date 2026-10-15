@@ -312,6 +312,7 @@
   "Reason": "Neden",
   "Count": "Sayı",
   "Last Seen": "Son Görülme",
+  "({{ seconds }}s)": "({{ seconds }}sn)",
   "Offline": "Çevrimdışı",
   "Dismiss": "Bırak",
   "Lost connection to the cluster.": "Küme bağlantısı kesildi.",

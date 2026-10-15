@@ -312,6 +312,7 @@
   "Reason": "Ok",
   "Count": "Szám",
   "Last Seen": "Utoljára aktív",
+  "({{ seconds }}s)": "({{ seconds }} mp)",
   "Offline": "Offline",
   "Dismiss": "Bezárás",
   "Lost connection to the cluster.": "Megszakadt a kapcsolat a fürttel.",

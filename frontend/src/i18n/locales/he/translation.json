@@ -314,6 +314,7 @@
   "Reason": "Reason",
   "Count": "Count",
   "Last Seen": "Last Seen",
+  "({{ seconds }}s)": "({{ seconds }} שנ׳)",
   "Offline": "Offline",
   "Dismiss": "Dismiss",
   "Lost connection to the cluster.": "Lost connection to the cluster.",

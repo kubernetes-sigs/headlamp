@@ -312,6 +312,7 @@
   "Reason": "Ereignis",
   "Count": "",
   "Last Seen": "Zuletzt gesehen",
+  "({{ seconds }}s)": "({{ seconds }} Sek.)",
   "Offline": "Offline",
   "Dismiss": "Schließen",
   "Lost connection to the cluster.": "",

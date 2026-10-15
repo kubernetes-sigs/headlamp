@@ -320,6 +320,7 @@
   "Reason": "السبب",
   "Count": "العدد",
   "Last Seen": "آخر ظهور",
+  "({{ seconds }}s)": "({{ seconds }} ث)",
   "Offline": "غير متصل",
   "Dismiss": "إغلاق",
   "Lost connection to the cluster.": "فُقد الاتصال بالكتلة.",

@@ -312,6 +312,7 @@
   "Reason": "",
   "Count": "",
   "Last Seen": "",
+  "({{ seconds }}s)": "({{ seconds }} से)",
   "Offline": "",
   "Dismiss": "",
   "Lost connection to the cluster.": "",

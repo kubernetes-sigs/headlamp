@@ -314,6 +314,7 @@
   "Reason": "Razão",
   "Count": "Contagem",
   "Last Seen": "Visto últ. vez",
+  "({{ seconds }}s)": "({{ seconds }} s)",
   "Offline": "Desconectado",
   "Dismiss": "Dispensar",
   "Lost connection to the cluster.": "Perdeu-se a conexão com o cluster.",

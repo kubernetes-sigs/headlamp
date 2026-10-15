@@ -16,6 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { SnackbarProvider } from 'notistack';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { PureActionsNotifier, PureActionsNotifierProps } from './ActionsNotifier';
 
@@ -55,4 +56,27 @@ Some.args = {
 export const None = Template.bind({});
 None.args = {
   clusterActions: {},
+};
+
+export const Countdown: StoryFn<PureActionsNotifierProps> = args => {
+  const [executeAt] = useState(() => Date.now() + 10000);
+  return (
+    <PureActionsNotifier
+      {...args}
+      clusterActions={{
+        countdown: {
+          id: 'countdown',
+          state: 'start',
+          message: 'Deleting 1 item...',
+          executeAt,
+          snackbarProps: { autoHideDuration: 10000 },
+          buttons: [{ label: 'Cancel', actionToDispatch: 'clusterAction/cancel/countdown' }],
+        },
+      }}
+    />
+  );
+};
+Countdown.parameters = {
+  // The live countdown is covered by fake-timer tests instead of a timing-dependent snapshot.
+  storyshots: { disable: true },
 };

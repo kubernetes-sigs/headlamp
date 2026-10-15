@@ -310,6 +310,7 @@
   "Reason": "理由",
   "Count": "",
   "Last Seen": "最終確認",
+  "({{ seconds }}s)": "({{ seconds }} 秒)",
   "Offline": "オフライン",
   "Dismiss": "却下",
   "Lost connection to the cluster.": "クラスターへの接続が失われました。",
