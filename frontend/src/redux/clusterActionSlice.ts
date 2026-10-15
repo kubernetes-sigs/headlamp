@@ -54,6 +54,8 @@ export interface ClusterAction {
    * The amount of time to display the snackbar.
    */
   autoHideDuration?: number;
+  /** When the action is scheduled to execute, as a Unix timestamp in milliseconds. */
+  executeAt?: number;
   /**
    * The message to display on the action.
    */
@@ -236,6 +238,7 @@ export const executeClusterAction = createAsyncThunk(
           key: actionKey,
           message: startMessage,
           state: 'start',
+          executeAt: Date.now() + actionDelay,
           url: startUrl,
           buttons:
             actionDelay > 0
