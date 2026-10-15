@@ -224,6 +224,8 @@
   "Cluster IP": "クラスター IP",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "リソース割り当て",
   "Reference Kind": "参照種類",
   "Reference Name": "参照名",

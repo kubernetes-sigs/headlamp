@@ -224,6 +224,8 @@
   "Cluster IP": "க்ளஸ்டர் ஐபி",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "ரிசோர்ஸ் கோட்டாக்கள்",
   "Reference Kind": "ரெஃபரன்ஸ் கைண்ட்",
   "Reference Name": "ரெஃபரன்ஸ் பெயர்",

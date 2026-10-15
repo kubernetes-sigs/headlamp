@@ -224,6 +224,8 @@
   "Cluster IP": "IP المجموعة",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "حصص الموارد",
   "Reference Kind": "نوع المرجع",
   "Reference Name": "اسم المرجع",
