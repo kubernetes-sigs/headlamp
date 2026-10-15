@@ -52,7 +52,41 @@ export const queryClient = new QueryClient({
 });
 
 /**
- * Invalidates the cached user identity (`clusterMe`) for every cluster.
+ * Removes cached Kubernetes object and list results for a cluster, or for all
+ * clusters when the authenticated identity may have changed across them.
+ *
+ * Object and list query keys do not include the authenticated user. Removing
+ * these entries when a token changes prevents one session's resource data from
+ * being displayed by the next session while a request is pending or failing.
+ *
+ * @param cluster - Cluster whose resource results should be removed. Omit when
+ *                  a token change may have been broadcast to sibling clusters.
+ */
+export function removeClusterResourceQueries(cluster?: string) {
+  const predicate = (query: { queryKey: readonly unknown[] }) => {
+    const [keyType, keyScope] = query.queryKey;
+    const isObjectQuery = keyType === 'object' && typeof keyScope === 'string';
+    const isObjectListQuery =
+      keyType === 'kubeObject' &&
+      query.queryKey[1] === 'list' &&
+      typeof query.queryKey[4] === 'string';
+
+    if (!isObjectQuery && !isObjectListQuery) {
+      return false;
+    }
+
+    const queryCluster = isObjectQuery ? keyScope : query.queryKey[4];
+    return cluster === undefined || queryCluster === cluster;
+  };
+
+  // Active observers can retain the last Query result after cache removal.
+  // Publish an empty result first so mounted views stop showing old objects.
+  queryClient.setQueriesData({ predicate }, null);
+  queryClient.removeQueries({ predicate });
+}
+
+/**
+ * Invalidates cached user identities and clears resource data for every cluster.
  *
  * Call this after an OIDC login completes. The backend may broadcast the new
  * token to sibling clusters that share the same identity provider, which
@@ -66,5 +100,7 @@ export const queryClient = new QueryClient({
  * capability plugins should have.
  */
 export function invalidateClusterUserInfo() {
+  // OIDC token broadcasts can change the active user on sibling clusters too.
+  removeClusterResourceQueries();
   return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
 }
