@@ -504,4 +504,96 @@ describe('validateToolArgs', () => {
     expect(res.valid).toBe(true);
     expect(res.error).toBeUndefined();
   });
+
+  it('accepts null for a required parameter whose schema allows null', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { selector: null });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('accepts a valid string for a required nullable parameter', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { selector: 'my-selector' });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('rejects an omitted required nullable parameter as missing', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, {});
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Required parameter 'selector' is missing");
+  });
+
+  it('rejects an invalid type for a required nullable parameter', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { selector: 42 });
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain('should be a string/null');
+  });
+
+  it('rejects null for a required non-nullable string parameter', () => {
+    const schema = {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+      },
+    };
+    const res = validateToolArgs(schema, { name: null });
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Parameter 'name' should be a string, got null");
+  });
+
+  it('accepts null for an optional nullable parameter', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        filter: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { filter: null });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('preserves valid false, zero, and empty-string inputs', () => {
+    const schema = {
+      type: 'object',
+      required: ['enabled', 'count', 'label'],
+      properties: {
+        enabled: { type: 'boolean' },
+        count: { type: 'number' },
+        label: { type: 'string' },
+      },
+    };
+    const res = validateToolArgs(schema, { enabled: false, count: 0, label: '' });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
 });
