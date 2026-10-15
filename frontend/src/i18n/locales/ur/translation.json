@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "پلگ ان {{ itemName }} حذف کیا جا رہا ہے...",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} کا حذف کرنا منسوخ کر دیا گیا",
   "Deleted plugin {{ itemName }}.": "پلگ ان {{ itemName }} حذف کر دیا گیا",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "پلگ ان {{ itemName }} حذف کرنے میں خرابی",
   "Uh-oh! Something went wrong.": "اوہ! کچھ غلط ہو گیا",
   "Error loading {{ routeName }}": "{{ routeName }} لوڈ کرنے میں خرابی",

@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Excluindo o plug-in {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "A eliminação do item {{ itemName }} foi cancelada.",
   "Deleted plugin {{ itemName }}.": "Plug-in {{ itemName }} excluído.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Erro ao excluir o plug-in {{ itemName }}.",
   "Uh-oh! Something went wrong.": "Oh-oh! Algo correu mal.",
   "Error loading {{ routeName }}": "Erro ao carregar {{ routeName }}",

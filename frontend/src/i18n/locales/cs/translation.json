@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Odstraňuje se modul plug-in {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "Odstranění {{ itemName }} bylo zrušeno.",
   "Deleted plugin {{ itemName }}.": "Modul plug-in {{ itemName }} byl odstraněn.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Při odstraňování modulu plug-in {{ itemName }} došlo k chybě.",
   "Uh-oh! Something went wrong.": "Ale ne! Něco se nepovedlo.",
   "Error loading {{ routeName }}": "Chyba při načítání {{ routeName }}",

@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Plugin {{ itemName }} tas bort...",
   "Cancelled deletion of {{ itemName }}.": "Borttagning av {{ itemName }} har avbrutits.",
   "Deleted plugin {{ itemName }}.": "Plugin {{ itemName }} har tagits bort.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Fel vid borttagning av plugin {{ itemName }}.",
   "Uh-oh! Something went wrong.": "Hoppsan! Något blev fel.",
   "Error loading {{ routeName }}": "Fel vid inläsning av {{ routeName }}",

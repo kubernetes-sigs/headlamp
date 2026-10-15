@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "正在删除插件 {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "取消删除 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "已删除插件 {{ itemName }}。",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "删除插件 {{ itemName }} 时出错。",
   "Uh-oh! Something went wrong.": "哎呀！出现问题。",
   "Error loading {{ routeName }}": "读取 {{ routeName }} 时出错",
