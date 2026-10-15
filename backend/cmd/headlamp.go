@@ -69,6 +69,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -3488,6 +3489,29 @@ func (c *HeadlampConfig) drainNode(
 	}()
 }
 
+// Variables so that tests can shorten them.
+var (
+	// drainEvictRetryInterval is how long to wait before retrying pods whose eviction was refused,
+	// for example because it would violate a PodDisruptionBudget.
+	drainEvictRetryInterval = 5 * time.Second
+	// drainEvictTimeout is how long the drain keeps retrying refused evictions.
+	drainEvictTimeout = 5 * time.Minute
+)
+
+// evictPod asks the API server to evict the pod through the Eviction API. This is what
+// `kubectl drain` does: it honours PodDisruptionBudgets, runs eviction admission webhooks and uses
+// the pod's own termination grace period. A pod that is already gone is not an error.
+func evictPod(ctx context.Context, clientset kubernetes.Interface, pod *corev1.Pod) error {
+	err := clientset.CoreV1().Pods(pod.Namespace).EvictV1(ctx, &policyv1.Eviction{
+		ObjectMeta: v1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace},
+	})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+
+	return err
+}
+
 func (c *HeadlampConfig) drainNodePods(
 	ctx context.Context,
 	clientset kubernetes.Interface,
@@ -3495,26 +3519,53 @@ func (c *HeadlampConfig) drainNodePods(
 	cacheKey string,
 	cacheItemTTL time.Duration,
 ) {
-	var gracePeriod int64 = 0
-
-	var deleteErrors []string
+	pending := make([]*corev1.Pod, 0, len(pods))
 
 	for i := range pods {
+		// ignore daemonsets
+		if !isDaemonSetPod(&pods[i]) {
+			pending = append(pending, &pods[i])
+		}
+	}
+
+	deadline := time.Now().Add(drainEvictTimeout)
+
+	var evictErrors []string
+
+	lastRefusal := map[*corev1.Pod]error{}
+
+	for len(pending) > 0 {
 		if ctx.Err() != nil {
 			return
 		}
 
-		pod := &pods[i]
+		var retry []*corev1.Pod
 
-		// ignore daemonsets
-		if isDaemonSetPod(pod) {
-			continue
+		for _, pod := range pending {
+			err := evictPod(ctx, clientset, pod)
+
+			switch {
+			case err == nil:
+			case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+				return
+			case apierrors.IsTooManyRequests(err):
+				// Refused, typically by a PodDisruptionBudget. Retry until the timeout.
+				retry = append(retry, pod)
+				lastRefusal[pod] = err
+			default:
+				evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
+			}
 		}
 
-		if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
-			pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil &&
-			!apierrors.IsNotFound(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			deleteErrors = append(deleteErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
+		pending = retry
+		if len(pending) == 0 || time.Now().Add(drainEvictRetryInterval).After(deadline) {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(drainEvictRetryInterval):
 		}
 	}
 
@@ -3522,11 +3573,16 @@ func (c *HeadlampConfig) drainNodePods(
 		return
 	}
 
-	if len(deleteErrors) > 0 {
-		errMsg := fmt.Sprintf("error: failed to delete %d pod(s)", len(deleteErrors))
+	// Pods that are still refused when the timeout is reached also fail the drain.
+	for _, pod := range pending {
+		evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, lastRefusal[pod]))
+	}
+
+	if len(evictErrors) > 0 {
+		errMsg := fmt.Sprintf("error: failed to evict %d pod(s)", len(evictErrors))
 		logger.Log(logger.LevelError, nil, nil,
-			fmt.Sprintf("node drain: failed to delete %d pod(s): %s",
-				len(deleteErrors), strings.Join(deleteErrors, "; ")))
+			fmt.Sprintf("node drain: failed to evict %d pod(s): %s",
+				len(evictErrors), strings.Join(evictErrors, "; ")))
 
 		_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
 	} else {
