@@ -184,6 +184,10 @@ export default function SettingsCluster() {
   }
 
   function storeNewAllowedNamespace(namespace: string) {
+    if (!namespace || !isValidNamespaceFormat(namespace)) {
+      return;
+    }
+
     setNewAllowedNamespace('');
     setClusterSettings(settings => {
       const newSettings = { ...settings };
@@ -197,9 +201,12 @@ export default function SettingsCluster() {
 
   const isValidDefaultNamespace = isValidNamespaceFormat(defaultNamespaceInput);
   const isValidNewAllowedNamespace = isValidNamespaceFormat(newAllowedNamespace);
-  const invalidNamespaceMessage = t(
-    "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
-  );
+  const invalidNamespaceMessage = (value: string) =>
+    value.length > 63
+      ? t('translation|Namespaces must be under 64 characters.')
+      : t(
+          "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
+        );
 
   // If we don't have yet a cluster name from the URL, we are still loading.
   if (!clusterFromUrl) {
@@ -393,7 +400,7 @@ export default function SettingsCluster() {
                       ? t(
                           'translation|The default namespace for e.g. when applying resources (when not specified directly).'
                         )
-                      : invalidNamespaceMessage
+                      : invalidNamespaceMessage(defaultNamespaceInput)
                   }
                   variant="outlined"
                   size="small"
@@ -425,7 +432,7 @@ export default function SettingsCluster() {
                         ? t(
                             'translation|The list of namespaces you are allowed to access in this cluster.'
                           )
-                        : invalidNamespaceMessage
+                        : invalidNamespaceMessage(newAllowedNamespace)
                     }
                     autoComplete="off"
                     inputProps={{
@@ -442,7 +449,7 @@ export default function SettingsCluster() {
                           onClick={() => {
                             storeNewAllowedNamespace(newAllowedNamespace);
                           }}
-                          disabled={!newAllowedNamespace}
+                          disabled={!newAllowedNamespace || !isValidNewAllowedNamespace}
                           size="medium"
                           aria-label={t('translation|Add namespace')}
                         >
