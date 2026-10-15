@@ -19,13 +19,28 @@ package portforward
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
-const storeKeyPrefix = "PORT_FORWARD_"
+const (
+	storeKeyPrefix = "PORT_FORWARD_"
+	// storeKeySeparator separates the cluster key from the rest of a store key,
+	// so one cluster's prefix never matches another cluster whose name starts
+	// with the same text (e.g. "prod" and "prod-eu").
+	storeKeySeparator = "\x00"
+)
+
+// storeKeyClusterPrefix returns the store key prefix for a cluster key.
+// The cluster key is escaped so it never contains storeKeySeparator: stateless
+// context keys are "<cluster>\x00<userID>", so without escaping, a base
+// cluster's prefix would also match its users' port forwards.
+func storeKeyClusterPrefix(clusterKey string) string {
+	return storeKeyPrefix + url.QueryEscape(clusterKey) + storeKeySeparator
+}
 
 // portforwardKeyGenerator generates a unique key
 // based on the cluster name, id,service name, and pod name.
@@ -38,10 +53,10 @@ func portforwardKeyGenerator(p portForward) string {
 	}
 
 	if p.ID != "" {
-		return storeKeyPrefix + clusterKey + p.ID
+		return storeKeyClusterPrefix(clusterKey) + p.ID
 	}
 
-	key := storeKeyPrefix + clusterKey
+	key := storeKeyClusterPrefix(clusterKey)
 
 	if p.Service != "" {
 		key += p.Service
@@ -99,7 +114,7 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 // getPortForwardList returns a list of port forwards by its cluster name.
 func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portForward {
 	portforwards, err := cache.GetAll(context.Background(), func(key string) bool {
-		return strings.HasPrefix(key, storeKeyPrefix+cluster)
+		return strings.HasPrefix(key, storeKeyClusterPrefix(cluster))
 	})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
@@ -118,7 +133,7 @@ func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portFo
 
 // getPortForwardByID returns a port forward by its cluster name and id.
 func getPortForwardByID(cache cache.Cache[interface{}], cluster string, id string) (portForward, error) {
-	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+id)
+	cacheValue, err := cache.Get(context.Background(), storeKeyClusterPrefix(cluster)+id)
 	if err != nil {
 		return portForward{}, fmt.Errorf("failed to get portforward from cache: %w", err)
 	}

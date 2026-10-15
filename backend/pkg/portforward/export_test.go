@@ -36,3 +36,9 @@ func StorePortForwardForTest(c cache.Cache[interface{}], clusterName, contextKey
 
 	return nil
 }
+
+// PortForwardStoreKeyForTest returns the cache key under which a port forward
+// with the given context key and ID is stored.
+func PortForwardStoreKeyForTest(contextKey, id string) string {
+	return portforwardKeyGenerator(portForward{ID: id, cacheKey: contextKey})
+}
