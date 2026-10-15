@@ -76,7 +76,7 @@ jobs:
     - name: Verify Linux build
       run: npm run app:verify-build-linux
     - name: Start Minikube
-      uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+      uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # latest
     - name: Verify Minikube
       run: |
         minikube status

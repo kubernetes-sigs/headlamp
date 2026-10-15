@@ -52,6 +52,12 @@ environment is only partially present. Clusters created by a successful setup
 stay running for subsequent tests. The setup log reports whether it created or
 reused the clusters.
 
+The Headlamp Deployment has an HTTP readiness probe. Setup also waits for a
+successful, nonempty `/config` response containing one discovered Cluster
+Inventory cluster before exporting the Playwright environment. Connection
+failures and invalid responses are retried and fail setup if discovery does
+not converge.
+
 If the setup reused the clusters, leave both clusters and contexts intact and
 remove only the generated environment file:
 

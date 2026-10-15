@@ -33,7 +33,7 @@ jobs:
           python-version: 3.7
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@e6669bcd63d7cb57cb4380c33043eebe5d111992 # v2.6.1
+        uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
 
       - name: Run chart-testing (list-changed)
         id: list-changed
@@ -47,7 +47,7 @@ jobs:
         run: ct lint --config .github/ct.yaml
 
       - name: Setup Minikube
-        uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+        uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # latest
         with:
           container-runtime: docker
 

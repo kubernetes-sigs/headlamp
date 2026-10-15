@@ -200,6 +200,12 @@ spec:
         - name: http
           containerPort: 4466
           protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /config
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
         volumeMounts:
         - mountPath: /build/plugins
           name: headlamp-plugins

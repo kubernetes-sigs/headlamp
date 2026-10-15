@@ -79,13 +79,13 @@ jobs:
       if: github.event_name == 'pull_request' && steps.check-sha.outputs.sha_changed == 'true'
       run: npm run image:verify-image-digests
     - name: Start Cluster 1
-      uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
+      uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.0.0
       with:
         cluster_name: test
     - name: Rename Cluster 1 kind context
       run: kubectl config rename-context kind-test test
     - name: Start Cluster 2
-      uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
+      uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.0.0
       with:
         cluster_name: test2
     - name: Rename Cluster 2 kind context

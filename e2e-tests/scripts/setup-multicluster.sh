@@ -124,10 +124,11 @@ wait_for_inventory() {
   local attempt
 
   for ((attempt = 0; attempt < 120; attempt++)); do
-    config="$(curl -fsS --connect-timeout 2 --max-time 5 "${service_url}/config" 2>/dev/null || true)"
-    if jq -e '
+    if config="$(curl -fsS --connect-timeout 2 --max-time 5 "${service_url}/config")" &&
+      [[ -n "${config}" ]] &&
+      jq -e '
       [.clusters[] | select(.meta_data.source == "cluster_inventory")] | length == 1
-    ' <<<"${config}" >/dev/null 2>&1; then
+      ' <<<"${config}" >/dev/null; then
       return
     fi
 

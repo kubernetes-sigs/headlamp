@@ -252,7 +252,69 @@ func TestCreateHeadlampHandlerTracesRequests(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+type kubeConfigLog struct {
+	level uint
+	msg   string
+}
+
+func captureKubeConfigLogs(t *testing.T, path string) func() []kubeConfigLog {
+	t.Helper()
+
+	var (
+		mu   sync.Mutex
+		logs []kubeConfigLog
+	)
+
+	originalLogFunc := logger.SetLogFunc(func(level uint, fields map[string]string, _ interface{}, msg string) {
+		logPath, hasPath := fields["kubeconfig"]
+		matchesPath := hasPath && logPath == path
+		matchesEmptyPath := path == "" && (msg == "No kubeconfig set" ||
+			msg == "No kubeconfig set, using only the in-cluster context")
+
+		if !matchesPath && !matchesEmptyPath {
+			return
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		logs = append(logs, kubeConfigLog{level: level, msg: msg})
+	})
+
+	t.Cleanup(func() { logger.SetLogFunc(originalLogFunc) })
+
+	return func() []kubeConfigLog {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return append([]kubeConfigLog(nil), logs...)
+	}
+}
+
+func TestCaptureKubeConfigLogsIgnoresBackgroundWatchers(t *testing.T) {
+	var wg sync.WaitGroup
+
+	path := filepath.Join(t.TempDir(), "config")
+	snapshot := captureKubeConfigLogs(t, path)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for range 100 {
+			logger.Log(logger.LevelInfo, nil, nil, "watcher: shutting down plugin watcher")
+
+			_ = snapshot()
+		}
+	}()
+
+	logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, nil, "loading kubeconfig")
+	logger.Log(logger.LevelError, map[string]string{"kubeconfig": path + "-other"}, nil, "loading kubeconfig")
+	wg.Wait()
+
+	assert.Equal(t, []kubeConfigLog{{level: logger.LevelError, msg: "loading kubeconfig"}}, snapshot())
+}
+
 func TestLoadKubeConfigClustersLogging(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -289,18 +351,7 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var logs []struct {
-				level uint
-				msg   string
-			}
-
-			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
-				logs = append(logs, struct {
-					level uint
-					msg   string
-				}{level: level, msg: msg})
-			})
-			defer logger.SetLogFunc(originalLogFunc)
+			snapshot := captureKubeConfigLogs(t, test.path)
 
 			config := &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -313,6 +364,7 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 
 			loadKubeConfigClusters(config, test.path, nil)
 
+			logs := snapshot()
 			require.Len(t, logs, 1)
 			assert.Equal(t, test.expectedLevel, logs[0].level)
 			assert.Equal(t, test.expectedMsg, logs[0].msg)
@@ -347,18 +399,7 @@ func TestLoadDynamicClustersLogging(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var logs []struct {
-				level uint
-				msg   string
-			}
-
-			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
-				logs = append(logs, struct {
-					level uint
-					msg   string
-				}{level: level, msg: msg})
-			})
-			defer logger.SetLogFunc(originalLogFunc)
+			snapshot := captureKubeConfigLogs(t, test.path)
 
 			config := &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -370,6 +411,7 @@ func TestLoadDynamicClustersLogging(t *testing.T) {
 
 			loadDynamicClusters(config, test.path, nil)
 
+			logs := snapshot()
 			if test.expectedMsg == "" {
 				assert.Empty(t, logs)
 
