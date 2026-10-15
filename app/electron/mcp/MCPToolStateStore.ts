@@ -594,6 +594,31 @@ export function parseServerNameToolName(fullToolName: string): {
  *   // result: { valid: true }
  * ```
  */
+function permitsNull(propSchema: any): boolean {
+  if (!propSchema || typeof propSchema !== 'object') {
+    return false;
+  }
+  if (propSchema.type === 'null') {
+    return true;
+  }
+  if (Array.isArray(propSchema.type) && propSchema.type.includes('null')) {
+    return true;
+  }
+  if (propSchema.nullable === true) {
+    return true;
+  }
+  if (Array.isArray(propSchema.anyOf) && propSchema.anyOf.some(permitsNull)) {
+    return true;
+  }
+  if (Array.isArray(propSchema.oneOf) && propSchema.oneOf.some(permitsNull)) {
+    return true;
+  }
+  if (Array.isArray(propSchema.allOf) && propSchema.allOf.some(permitsNull)) {
+    return true;
+  }
+  return false;
+}
+
 export function validateToolArgs(
   schema: MCPToolState['inputSchema'] | null,
   args: Record<string, any>
@@ -607,7 +632,7 @@ export function validateToolArgs(
     // Basic validation - check required properties
     if (schema.required && Array.isArray(schema.required)) {
       for (const requiredProp of schema.required) {
-        if (args[requiredProp] === undefined || args[requiredProp] === null) {
+        if (args[requiredProp] === undefined) {
           return {
             valid: false,
             error: `Required parameter '${requiredProp}' is missing`,
@@ -620,8 +645,49 @@ export function validateToolArgs(
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties as any)) {
         if (args[propName] !== undefined) {
+          if (args[propName] === null) {
+            if (permitsNull(propSchema)) {
+              continue;
+            }
+            const expectedType = (propSchema as any)?.type;
+            const typeStr = Array.isArray(expectedType)
+              ? expectedType.join('/')
+              : expectedType || 'non-null value';
+            const article = ['object', 'array'].includes(typeStr) ? 'an' : 'a';
+            return {
+              valid: false,
+              error: `Parameter '${propName}' should be ${article} ${typeStr}, got null`,
+            };
+          }
+
           const propType = (propSchema as any).type;
           const actualType = typeof args[propName];
+
+          if (Array.isArray(propType)) {
+            const nonNullTypes = propType.filter(t => t !== 'null');
+            const matches = nonNullTypes.some(t => {
+              if (t === 'string') return actualType === 'string';
+              if (t === 'number') return actualType === 'number';
+              if (t === 'boolean') return actualType === 'boolean';
+              if (t === 'array') return Array.isArray(args[propName]);
+              if (t === 'object')
+                return (
+                  actualType === 'object' &&
+                  !Array.isArray(args[propName]) &&
+                  args[propName] !== null
+                );
+              return false;
+            });
+            if (nonNullTypes.length > 0 && !matches) {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be a ${propType.join(
+                  '/'
+                )}, got ${actualType}`,
+              };
+            }
+            continue;
+          }
 
           if (propType === 'string' && actualType !== 'string') {
             return {
