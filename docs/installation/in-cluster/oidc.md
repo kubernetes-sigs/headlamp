@@ -9,8 +9,8 @@ Headlamp supports OIDC for cluster users to effortlessly log in using a "Sign in
 
 To use OIDC, Headlamp needs to know how to configure it, so you have to provide the following OIDC-related arguments to Headlamp from your OIDC provider:
 
-- the client ID: `-oidc-client-id` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ID`
-- the client secret: `-oidc-client-secret` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`
+- the client ID: `-oidc-client-id` (or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ID`), or from a file via `-oidc-client-id-file` (or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE`)
+- the client secret: `-oidc-client-secret` (or env var `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`), or from a file via `-oidc-client-secret-file` (or env var `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE`)
 - the issuer URL: `-oidc-idp-issuer-url` or env var `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`
 - (optionally) the OpenId scopes: `-oidc-scopes` or env var `HEADLAMP_CONFIG_OIDC_SCOPES`
 
