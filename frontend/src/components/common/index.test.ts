@@ -34,6 +34,10 @@ const avoidCheck = [
   // want to override terminal colors should set the `terminal` field on the
   // AppTheme they pass to `registerAppTheme(...)` instead.
   'xtermTheme',
+  // Internal copy-to-clipboard hook shared by CopyButton and the mobile
+  // cluster menu in TopBar; intentionally not part of the common barrel or
+  // window.pluginLib.
+  'useCopyToClipboard',
 ];
 
 const checkExports = [

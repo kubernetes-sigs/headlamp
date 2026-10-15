@@ -54,6 +54,14 @@ export interface ConfigState {
    */
   allowKubeconfigChanges: boolean;
   /**
+   * Whether the backend will export kubeconfigs for server-stored clusters.
+   * False on deployments without a trust boundary for stored credentials
+   * (in-cluster, or no HEADLAMP_BACKEND_TOKEN); the UI then hides the
+   * copy/download actions for those clusters. Stateless (browser-imported)
+   * clusters are always exportable. Defaults to false.
+   */
+  kubeconfigExportEnabled: boolean;
+  /**
    * Default image used for pod debug containers when no per-cluster override is configured.
    * An empty string indicates that no default image is configured.
    */
@@ -170,6 +178,7 @@ export const initialState: ConfigState = {
   allClusters: null,
   isDynamicClusterEnabled: false,
   allowKubeconfigChanges: false,
+  kubeconfigExportEnabled: false,
   defaultPodDebugImage: '',
   defaultNodeShellImage: '',
   defaultNodeShellNamespace: '',
@@ -198,6 +207,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
+        kubeconfigExportEnabled?: boolean;
         defaultPodDebugImage?: string;
         defaultNodeShellImage?: string;
         defaultNodeShellNamespace?: string;
@@ -212,6 +222,9 @@ const configSlice = createSlice({
       }
       if (action.payload.allowKubeconfigChanges !== undefined) {
         state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;
+      }
+      if (action.payload.kubeconfigExportEnabled !== undefined) {
+        state.kubeconfigExportEnabled = action.payload.kubeconfigExportEnabled;
       }
       if (action.payload.defaultPodDebugImage !== undefined) {
         state.defaultPodDebugImage = action.payload.defaultPodDebugImage;

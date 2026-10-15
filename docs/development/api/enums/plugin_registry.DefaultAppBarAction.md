@@ -12,7 +12,53 @@
 
 #### Defined in
 
-[redux/actionButtonsSlice.ts:42](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/actionButtonsSlice.ts#L42)
+[redux/actionButtonsSlice.ts:61](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L61)
+
+___
+
+### GLOBAL\_SEARCH
+
+• **GLOBAL\_SEARCH** = `"GLOBAL_SEARCH"`
+
+#### Defined in
+
+[redux/actionButtonsSlice.ts:76](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L76)
+
+___
+
+### KUBECONFIG
+
+• **KUBECONFIG** = `"KUBECONFIG"`
+
+#### Defined in
+
+[redux/actionButtonsSlice.ts:63](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L63)
+
+___
+
+### KUBECONFIG\_COPY
+
+• **KUBECONFIG\_COPY** = `"KUBECONFIG_COPY"`
+
+The mobile-layout copy action. The mobile app bar splits the desktop
+KUBECONFIG action into separate copy and download menu items; plugins
+that filter or reorder KUBECONFIG should treat these the same way.
+
+#### Defined in
+
+[redux/actionButtonsSlice.ts:69](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L69)
+
+___
+
+### KUBECONFIG\_DOWNLOAD
+
+• **KUBECONFIG\_DOWNLOAD** = `"KUBECONFIG_DOWNLOAD"`
+
+The mobile-layout download action. See KUBECONFIG_COPY.
+
+#### Defined in
+
+[redux/actionButtonsSlice.ts:73](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L73)
 
 ___
 
@@ -22,7 +68,7 @@ ___
 
 #### Defined in
 
-[redux/actionButtonsSlice.ts:43](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/actionButtonsSlice.ts#L43)
+[redux/actionButtonsSlice.ts:62](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L62)
 
 ___
 
@@ -32,7 +78,7 @@ ___
 
 #### Defined in
 
-[redux/actionButtonsSlice.ts:44](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/actionButtonsSlice.ts#L44)
+[redux/actionButtonsSlice.ts:74](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L74)
 
 ___
 
@@ -42,4 +88,4 @@ ___
 
 #### Defined in
 
-[redux/actionButtonsSlice.ts:45](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/actionButtonsSlice.ts#L45)
+[redux/actionButtonsSlice.ts:75](https://github.com/kubernetes-sigs/headlamp/blob/730dd4ae0bb05dddd36ed3c1b21ff616f09698c0/frontend/src/redux/actionButtonsSlice.ts#L75)

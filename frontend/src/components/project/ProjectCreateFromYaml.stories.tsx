@@ -42,6 +42,7 @@ const makeStore = () => {
         } as any,
         isDynamicClusterEnabled: true,
         allowKubeconfigChanges: false,
+        kubeconfigExportEnabled: false,
         defaultPodDebugImage: '',
         defaultNodeShellImage: '',
         defaultNodeShellNamespace: '',
