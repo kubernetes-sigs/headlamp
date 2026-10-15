@@ -667,9 +667,9 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-token-broadcast", false,
-		"After a successful OIDC login, also set the auth cookie for other kubeconfig contexts "+
-			"whose OIDC auth-provider has the same idp-issuer-url and client-id. Disabled by "+
-			"default. Preconditions and caveats: "+
+		"After a successful OIDC login or token refresh, also set the auth cookie for other "+
+			"kubeconfig contexts whose OIDC auth-provider has the same idp-issuer-url and "+
+			"client-id. Disabled by default. Preconditions and caveats: "+
 			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,

@@ -579,6 +579,13 @@ func marshalToString(val interface{}) (string, bool) {
 
 // RefreshAndSetTokenParams groups the inputs required to refresh a token and
 // update the Headlamp auth cookie.
+//
+// KubeConfigStore and UseTokenBroadcast are optional: when UseTokenBroadcast is
+// true and KubeConfigStore is non-nil, a successfully refreshed token is also
+// broadcast to sibling kubeconfig contexts sharing the source cluster's OIDC
+// issuer + client-id (see BroadcastOIDCToken), so sibling cookies stay in sync
+// across refresh cycles. Leaving them zero preserves the previous behavior of
+// refreshing only the requesting cluster's cookie.
 type RefreshAndSetTokenParams struct {
 	Ctx                       context.Context
 	OIDCAuthConfig            *kubeconfig.OidcConfig
@@ -594,10 +601,14 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	KubeConfigStore           kubeconfig.ContextStore
+	UseTokenBroadcast         bool
 }
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
-// and records telemetry based on the provided parameters.
+// and records telemetry based on the provided parameters. When token broadcast
+// is enabled via the params, the refreshed token is additionally broadcast to
+// sibling contexts sharing the same OIDC issuer + client-id.
 func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 	// The token type to use
 	tokenType := "id_token"
@@ -624,29 +635,56 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to refresh token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
-	} else if newToken != nil {
-		var newTokenString string
 
-		var ok bool
-
-		if params.OIDCUseAccessToken {
-			newTokenString, ok = newToken.Extra("access_token").(string)
-		} else {
-			newTokenString, ok = newToken.Extra("id_token").(string)
-		}
-
-		if !ok || newTokenString == "" {
-			logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
-				errors.New("refreshed token missing expected field"), "failed to extract token string")
-			params.TelemetryHandler.RecordError(params.Span,
-				errors.New("refreshed token missing expected field"), "Token extraction failed")
-
-			return
-		}
-
-		// Set refreshed token in cookie
-		SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
-
-		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+		return
 	}
+
+	if newToken == nil {
+		return
+	}
+
+	var newTokenString string
+
+	var ok bool
+
+	if params.OIDCUseAccessToken {
+		newTokenString, ok = newToken.Extra("access_token").(string)
+	} else {
+		newTokenString, ok = newToken.Extra("id_token").(string)
+	}
+
+	if !ok || newTokenString == "" {
+		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+			errors.New("refreshed token missing expected field"), "failed to extract token string")
+		params.TelemetryHandler.RecordError(params.Span,
+			errors.New("refreshed token missing expected field"), "Token extraction failed")
+
+		return
+	}
+
+	// Set refreshed token in cookie
+	SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
+
+	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+
+	broadcastRefreshedToken(params, newTokenString)
+}
+
+// broadcastRefreshedToken keeps sibling clusters in sync with a freshly
+// refreshed token so they do not fall back to per-cluster re-login once the
+// old token expires. No-op unless broadcasting is enabled on the params.
+func broadcastRefreshedToken(params RefreshAndSetTokenParams, newTokenString string) {
+	if !params.UseTokenBroadcast || params.KubeConfigStore == nil {
+		return
+	}
+
+	BroadcastOIDCToken(BroadcastOIDCTokenParams{
+		Writer:          params.Writer,
+		Request:         params.Request,
+		KubeConfigStore: params.KubeConfigStore,
+		SourceCluster:   params.Cluster,
+		Token:           newTokenString,
+		BaseURL:         params.BaseURL,
+		SessionTTL:      params.SessionTTL,
+	})
 }
