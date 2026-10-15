@@ -187,6 +187,7 @@
   "Language": "Dil",
   "Resource details view": "Kaynak ayrıntıları görünümü",
   "Number of rows for tables": "Tablolar için satırların sayısı",
+  "Action delay": "",
   "Timezone to display for dates": "Tarihler için görüntülenecek saat dilimi",
   "Sort sidebar items alphabetically": "Kenar çubuğu öğelerini alfabetik olarak sırala",
   "Use evict for pod deletion": "Pod silme için çıkarmayı kullan",

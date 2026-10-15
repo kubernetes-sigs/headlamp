@@ -187,6 +187,7 @@
   "Language": "語言",
   "Resource details view": "資源詳細資訊檢視",
   "Number of rows for tables": "表格的行數",
+  "Action delay": "",
   "Timezone to display for dates": "顯示日期的時區",
   "Sort sidebar items alphabetically": "側邊欄項目按字母順序排序",
   "Use evict for pod deletion": "刪除 Pod 時使用 evict",

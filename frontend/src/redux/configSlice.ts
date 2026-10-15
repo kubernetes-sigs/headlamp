@@ -82,6 +82,8 @@ export interface ConfigState {
      * tableRowsPerPageOptions is the list of options for the number of rows per page in a table.
      */
     tableRowsPerPageOptions: number[];
+    /** Delay before executing cluster actions, in milliseconds. */
+    actionDelay?: number;
     /**
      * timezone is the timezone to use for displaying dates and times.
      */
@@ -103,6 +105,8 @@ export interface ConfigState {
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
+export const defaultActionDelay = 5000;
+export const maxActionDelay = 600000;
 
 function defaultTimezone() {
   return import.meta.env.UNDER_TEST ? 'UTC' : Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -114,6 +118,14 @@ function isNumberArray(value: unknown): value is number[] {
     value.length > 0 &&
     value.every(item => Number.isInteger(item) && item > 0)
   );
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number';
+}
+
+function isValidDelayRange(value: number): boolean {
+  return Number.isInteger(value / 1000) && value >= 0 && value <= maxActionDelay;
 }
 
 function isString(value: unknown): value is string {
@@ -151,6 +163,9 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
 
     if (isNumberArray(parsedSettings.tableRowsPerPageOptions)) {
       sanitizedSettings.tableRowsPerPageOptions = parsedSettings.tableRowsPerPageOptions;
+    }
+    if (isNumber(parsedSettings.actionDelay) && isValidDelayRange(parsedSettings.actionDelay)) {
+      sanitizedSettings.actionDelay = parsedSettings.actionDelay;
     }
     if (isString(parsedSettings.timezone) && isValidTimeZone(parsedSettings.timezone)) {
       sanitizedSettings.timezone = parsedSettings.timezone;
@@ -207,6 +222,7 @@ export const initialState: ConfigState = {
   defaultNodeShellNamespace: '',
   oidcAutoLogin: null,
   settings: {
+    actionDelay: storedSettings.actionDelay ?? defaultActionDelay,
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? builtInSettings.tableRowsPerPageOptions,
     timezone: storedSettings.timezone ?? builtInSettings.timezone,

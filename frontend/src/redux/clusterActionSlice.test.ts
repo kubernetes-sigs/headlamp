@@ -22,10 +22,11 @@ import clusterActionSliceReducer, {
   executeClusterAction,
   updateClusterAction,
 } from './clusterActionSlice';
+import configReducer, { initialState as configInitialState, setAppSettings } from './configSlice';
 
 vi.setConfig({ testTimeout: 10000 });
 
-function getStore() {
+function getStore(actionDelay = CLUSTER_ACTION_GRACE_PERIOD) {
   const createActionTracker = () => {
     const actions: any[] = [];
 
@@ -43,6 +44,13 @@ function getStore() {
   const store = configureStore({
     reducer: {
       clusterAction: clusterActionSliceReducer,
+      config: configReducer,
+    },
+    preloadedState: {
+      config: {
+        ...configInitialState,
+        settings: { ...configInitialState.settings, actionDelay },
+      },
     },
     middleware: getDefaultMiddleware => getDefaultMiddleware().concat(actionTracker),
   });
@@ -62,6 +70,61 @@ describe('clusterActionSlice', () => {
   });
 
   describe('executeClusterAction', () => {
+    it.each([3000, 7000, 10000, 30000])('waits for the configured %s ms', async delay => {
+      vi.useFakeTimers();
+      try {
+        store = getStore(delay);
+        const callback = vi.fn();
+        const result = store.dispatch(executeClusterAction({ callback, startMessage: 'Starting' }));
+        const actionKey = Object.keys(store.getState().clusterAction)[0];
+        expect(store.getState().clusterAction[actionKey].snackbarProps?.autoHideDuration).toBe(
+          delay
+        );
+        store.dispatch(setAppSettings({ actionDelay: 0 }));
+        await vi.advanceTimersByTimeAsync(delay - 1);
+        expect(callback).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        await result;
+        expect(callback).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('executes immediately without a cancel button when delay is zero', async () => {
+      vi.useFakeTimers();
+      try {
+        store = getStore(0);
+        const callback = vi.fn();
+        const result = store.dispatch(executeClusterAction({ callback, startMessage: 'Starting' }));
+        expect(callback).toHaveBeenCalledTimes(1);
+        const started = store.getActions().find(action => action.payload?.state === 'start');
+        expect(started.payload.buttons).toBeUndefined();
+        await result;
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('cancels during a custom delay', async () => {
+      vi.useFakeTimers();
+      try {
+        store = getStore(7000);
+        const callback = vi.fn();
+        const result = store.dispatch(
+          executeClusterAction({ callback, cancelledMessage: 'Cancelled' })
+        );
+        await vi.advanceTimersByTimeAsync(6000);
+        const actionKey = Object.keys(store.getState().clusterAction)[0];
+        store.dispatch(cancelClusterAction(actionKey));
+        await result;
+        expect(callback).not.toHaveBeenCalled();
+        expect(store.getState().clusterAction[actionKey].message).toBe('Cancelled');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should execute cluster action', async () => {
       const callback = vi.fn(() => Promise.resolve());
       const action: CallbackAction = {

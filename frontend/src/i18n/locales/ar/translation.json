@@ -187,6 +187,7 @@
   "Language": "اللغة",
   "Resource details view": "عرض تفاصيل المورد",
   "Number of rows for tables": "عدد الصفوف للجداول",
+  "Action delay": "",
   "Timezone to display for dates": "المنطقة الزمنية لعرض التواريخ",
   "Sort sidebar items alphabetically": "ترتيب عناصر الشريط الجانبي أبجديًا",
   "Use evict for pod deletion": "استخدام evict لحذف الـ pod",

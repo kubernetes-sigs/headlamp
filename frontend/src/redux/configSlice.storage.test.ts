@@ -22,12 +22,30 @@ describe('configSlice storage initialization', () => {
     expect(initialState.settings.timezone).toBe('UTC');
     expect(initialState.settings.sidebarSortAlphabetically).toBe(false);
     expect(initialState.settings.useEvict).toBe(true);
+    expect(initialState.settings.actionDelay).toBe(5000);
   }
 
   beforeEach(() => {
     vi.resetModules();
     localStorage.clear();
   });
+
+  it.each([0, 3000, 5000, 7000, 10000, 30000, 600000])(
+    'restores action delay %s',
+    async actionDelay => {
+      localStorage.setItem('settings', JSON.stringify({ actionDelay }));
+      const { initialState } = await import('./configSlice');
+      expect(initialState.settings.actionDelay).toBe(actionDelay);
+    }
+  );
+
+  it.each([-1000, 1.5, 1500, '3000', null, 601000])(
+    'ignores invalid action delay %s',
+    async actionDelay => {
+      localStorage.setItem('settings', JSON.stringify({ actionDelay }));
+      await expectDefaultSettings();
+    }
+  );
 
   it('falls back to defaults when localStorage settings is invalid JSON', async () => {
     localStorage.setItem('settings', '{ invalid json [');

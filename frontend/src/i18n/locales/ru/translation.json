@@ -187,6 +187,7 @@
   "Language": "Язык",
   "Resource details view": "Просмотр сведений о ресурсе",
   "Number of rows for tables": "Количество строк в таблицах",
+  "Action delay": "",
   "Timezone to display for dates": "Часовой пояс для отображения дат",
   "Sort sidebar items alphabetically": "Сортировка элементов боковой панели по алфавиту",
   "Use evict for pod deletion": "Использовать Evict при удалении Pod",

@@ -187,6 +187,7 @@
   "Language": "மொழி",
   "Resource details view": "ரிசோர்ஸ் விவரங்கள் பார்வை",
   "Number of rows for tables": "அட்டவணைகளுக்கான வரிசைகளின் எண்ணிக்கை",
+  "Action delay": "",
   "Timezone to display for dates": "தேதிகளுக்கு காட்ட வேண்டிய நேர மண்டலம்",
   "Sort sidebar items alphabetically": "பக்கப்பட்டி உருப்படிகளை அகரவரிசையில் வரிசைப்படுத்து",
   "Use evict for pod deletion": "பாட் நீக்குவதற்கு evict பயன்படுத்து",

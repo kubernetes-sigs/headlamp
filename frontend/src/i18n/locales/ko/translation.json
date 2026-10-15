@@ -187,6 +187,7 @@
   "Language": "언어",
   "Resource details view": "리소스 세부 정보 보기",
   "Number of rows for tables": "테이블의 행 수",
+  "Action delay": "",
   "Timezone to display for dates": "날짜 표시용 시간대",
   "Sort sidebar items alphabetically": "사이드바 항목을 가나다순으로 정렬",
   "Use evict for pod deletion": "",

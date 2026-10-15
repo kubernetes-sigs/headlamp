@@ -187,6 +187,7 @@
   "Language": "Nyelv",
   "Resource details view": "Erőforrás részleteinek nézete",
   "Number of rows for tables": "Táblák sorainak száma",
+  "Action delay": "",
   "Timezone to display for dates": "Dátumok megjelenítendő időzónája",
   "Sort sidebar items alphabetically": "Oldalsáv elemeinek betűrendbe rendezése",
   "Use evict for pod deletion": "Kizárás használata a pod törléséhez",
