@@ -47,6 +47,7 @@ import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
+import ClusterLayout from './ClusterLayout';
 import ResourceShortcuts from './ResourceShortcuts';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
@@ -326,21 +327,8 @@ export default function Layout({}: LayoutProps) {
       <ResourceShortcuts />
       <CssBaseline enableColorScheme />
       <ActionsNotifier />
-      <Box sx={{ display: 'flex', height: '100dvh' }}>
-        {panels.left.map(it => (
-          <it.component key={it.id} />
-        ))}
-        <Box
-          sx={{
-            display: 'flex',
-            overflow: 'auto',
-            flexDirection: 'column',
-            flexGrow: 1,
-          }}
-        >
-          {panels.top.map(it => (
-            <it.component key={it.id} />
-          ))}
+      <ClusterLayout panels={panels}>
+        <>
           <TopBar />
           <Box
             sx={{
@@ -363,10 +351,10 @@ export default function Layout({}: LayoutProps) {
                 gridRow: '1 / 2',
               }}
             >
+              <AlertNotification />
               {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
                 <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
               ))}
-              <AlertNotification />
               <Box sx={{ height: '100%' }}>
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
@@ -396,14 +384,8 @@ export default function Layout({}: LayoutProps) {
             <ActivitiesRenderer />
             <DetailsDrawer />
           </Box>
-          {panels.bottom.map(it => (
-            <it.component key={it.id} />
-          ))}
-        </Box>
-        {panels.right.map(it => (
-          <it.component key={it.id} />
-        ))}
-      </Box>
+        </>
+      </ClusterLayout>
     </>
   );
 }

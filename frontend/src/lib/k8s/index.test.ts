@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
+import { Provider } from 'react-redux';
 import { afterEach, beforeEach, vi } from 'vitest';
+import configReducer, { setConfig, setStatelessConfig } from '../../redux/configSlice';
 import { createRouteURL } from '../router/createRouteURL';
-import { labelSelectorToQuery, ResourceClasses, useClustersVersion } from '.';
+import { labelSelectorToQuery, ResourceClasses, useClustersConf, useClustersVersion } from '.';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { Cluster, LabelSelector } from './cluster';
 import { KubeObjectClass } from './KubeObject';
@@ -231,6 +234,53 @@ describe('Label selector', () => {
       ],
     });
     expect(query).toBe('!label2');
+  });
+});
+
+describe('useClustersConf', () => {
+  const cluster = (name: string, resourceGroup: string) =>
+    ({ name, auth_type: '', meta_data: { resourceGroup } } as Cluster);
+
+  it('updates when metadata changes without changing the cluster name', async () => {
+    const store = configureStore({ reducer: { config: configReducer } });
+    store.dispatch(setConfig({ clusters: { 'test-cluster': cluster('test-cluster', 'old-rg') } }));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store, children });
+
+    const { result } = renderHook(() => useClustersConf(), { wrapper });
+    expect(result.current?.['test-cluster'].meta_data?.resourceGroup).toBe('old-rg');
+
+    act(() => {
+      store.dispatch(
+        setConfig({ clusters: { 'test-cluster': cluster('test-cluster', 'new-rg') } })
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current?.['test-cluster'].meta_data?.resourceGroup).toBe('new-rg')
+    );
+  });
+
+  it('waits for config and combines configured and stateless clusters', async () => {
+    const store = configureStore({ reducer: { config: configReducer } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store, children });
+    const { result } = renderHook(() => useClustersConf(), { wrapper });
+
+    expect(result.current).toBeNull();
+
+    act(() => {
+      store.dispatch(setConfig({ clusters: { configured: cluster('configured', 'config-rg') } }));
+      store.dispatch(
+        setStatelessConfig({
+          statelessClusters: { stateless: cluster('stateless', 'stateless-rg') },
+        })
+      );
+    });
+
+    await waitFor(() =>
+      expect(Object.keys(result.current || {})).toEqual(['configured', 'stateless'])
+    );
   });
 });
 
