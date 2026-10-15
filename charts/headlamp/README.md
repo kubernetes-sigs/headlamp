@@ -292,7 +292,7 @@ NOTE: for `hostUsers=false` user namespaces must be supported. See: https://kube
 | persistentVolumeClaim.annotations | object | `{}` | PVC annotations |
 | persistentVolumeClaim.size | string | `""` | PVC size (required if enabled) |
 | persistentVolumeClaim.storageClassName | string | `""` | Storage class name |
-| persistentVolumeClaim.accessModes | list | `[]` | PVC access modes |
+| persistentVolumeClaim.accessModes | list | `[]` | PVC access modes (required if enabled) |
 | persistentVolumeClaim.selector | object | `{}` | PVC selector |
 | persistentVolumeClaim.volumeMode | string | `""` | PVC volume mode |
 | volumeMounts | list | `[]` | Container volume mounts |

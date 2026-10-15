@@ -299,7 +299,7 @@ persistentVolumeClaim:
   # -- Annotations to add to the persistent volume claim (if enabled)
   annotations:
     {}
-  # -- accessModes for the persistent volume claim, eg: ReadWriteOnce, ReadOnlyMany, ReadWriteMany etc.
+  # -- accessModes for the persistent volume claim, eg: ReadWriteOnce, ReadOnlyMany, ReadWriteMany etc. Required if enabled is true.
   accessModes: []
   # -- size of the persistent volume claim, eg: 10Gi. Required if enabled is true.
   size: ""
