@@ -440,7 +440,19 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
         update => handleUpdate(update, cluster, namespace),
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
+        error => {
+          console.error(`WebSocket subscription error for cluster ${cluster}:`, error);
+          if (error.message.includes('410') || error.message.toLowerCase().includes('gone')) {
+            const queryKey = kubeObjectListQuery<K>(
+              kubeObjectClass,
+              endpoint,
+              namespace,
+              cluster,
+              stableQueryParams ?? {}
+            ).queryKey;
+            client.invalidateQueries({ queryKey });
+          }
+        }
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {
@@ -459,7 +471,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     return () => {
       cleanups.forEach(cleanup => cleanup());
     };
-  }, [connections, enabled, endpoint, handleUpdate]);
+  }, [connections, enabled, endpoint, handleUpdate, client, kubeObjectClass, stableQueryParams]);
 }
 
 /**
