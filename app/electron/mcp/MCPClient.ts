@@ -53,6 +53,49 @@ import {
  *   await mcpClient.cleanup();
  * ```
  */
+/**
+ * Dereferences $ref pointers in a JSON Schema by inlining definitions from $defs or definitions.
+ *
+ * @param schema - The JSON Schema to dereference
+ * @returns A new schema with all $ref pointers resolved
+ */
+function dereferenceJsonSchema(schema: Record<string, any>): Record<string, any> {
+  const definitions = schema.$defs ?? schema.definitions ?? {};
+  function resolveRefs(obj: any, visitedRefs = new Set<string>()): any {
+    if (typeof obj !== 'object' || obj === null) return obj;
+    if (obj.$ref && typeof obj.$ref === 'string') {
+      const refPath = obj.$ref;
+      const defsMatch = refPath.match(/^#\/\$defs\/(.+)$/);
+      const definitionsMatch = refPath.match(/^#\/definitions\/(.+)$/);
+      const match = defsMatch || definitionsMatch;
+      if (match) {
+        const defName = match[1];
+        const definition = definitions[defName];
+        if (definition) {
+          if (visitedRefs.has(refPath)) {
+            return { type: 'object' };
+          }
+          const newVisitedRefs = new Set(visitedRefs);
+          newVisitedRefs.add(refPath);
+          const restOfObj = { ...obj };
+          delete restOfObj.$ref;
+          const resolvedDef = resolveRefs(definition, newVisitedRefs);
+          return { ...resolvedDef, ...restOfObj };
+        }
+      }
+      return obj;
+    }
+    const result: any = Array.isArray(obj) ? [] : {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '$defs' || key === 'definitions') continue;
+      result[key] =
+        typeof value === 'object' && value !== null ? resolveRefs(value, visitedRefs) : value;
+    }
+    return result;
+  }
+  return resolveRefs(schema);
+}
+
 export default class MCPClient {
   private mainWindow: BrowserWindow | null = null;
   private initialized = false;
@@ -61,6 +104,10 @@ export default class MCPClient {
 
   /** Cached list of available tools from all MCP servers */
   private clientTools: DynamicStructuredTool[] = [];
+  /** Canonical raw input schemas keyed by server-prefixed tool name */
+  private canonicalSchemas: Map<string, Record<string, any>> = new Map();
+  /** Execution tools validating against canonical schemas */
+  private canonicalTools: Map<string, DynamicStructuredTool> = new Map();
   /** The LangChain MCP client instance managing multiple servers */
   private client: MultiServerMCPClient | null = null;
   /** Whether the MCP client has been successfully initialized */
@@ -220,6 +267,9 @@ export default class MCPClient {
       this.clientTools = clientTools;
       this.mcpToolState?.initConfigFromClientTools(this.clientTools);
 
+      // Cache canonical schemas and execution tools
+      await this.initCanonicalTools(client, mcpServers);
+
       this.isInitialized = true;
       mcpDebugLog('MCPClient: doInitialize: MCP client initialized successfully with tools:', {
         count: this.clientTools.length,
@@ -227,9 +277,64 @@ export default class MCPClient {
     } catch (error) {
       console.error('Failed to initialize MCP client:', error);
       this.client = null;
+      this.clientTools = [];
+      this.canonicalSchemas.clear();
+      this.canonicalTools.clear();
       this.isInitialized = false;
       this.initializationPromise = null;
       throw error;
+    }
+  }
+
+  /**
+   * Discovers and caches canonical input schemas directly from connected MCP servers
+   * and creates execution wrappers that enforce original schemas during tool invocation.
+   */
+  private async initCanonicalTools(
+    client: MultiServerMCPClient,
+    mcpServers: Record<string, any>
+  ): Promise<void> {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
+    this.canonicalSchemas.clear();
+    this.canonicalTools.clear();
+
+    for (const serverName of Object.keys(mcpServers)) {
+      try {
+        const serverClient = await client.getClient(serverName);
+        if (!serverClient) {
+          continue;
+        }
+
+        let toolsResponse: any;
+        do {
+          toolsResponse = await serverClient.listTools({
+            ...(toolsResponse?.nextCursor ? { cursor: toolsResponse.nextCursor } : {}),
+          });
+          for (const mcpTool of toolsResponse?.tools || []) {
+            if (mcpTool?.name && mcpTool?.inputSchema) {
+              const qualifiedName = `${serverName}__${mcpTool.name}`;
+              const dereferencedSchema = dereferenceJsonSchema(mcpTool.inputSchema);
+              this.canonicalSchemas.set(qualifiedName, dereferencedSchema);
+
+              const matchingClientTool = this.clientTools.find(t => t.name === qualifiedName);
+              if (matchingClientTool) {
+                const canonicalTool = new DynamicStructuredTool({
+                  name: matchingClientTool.name,
+                  description: matchingClientTool.description || '',
+                  schema: dereferencedSchema,
+                  responseFormat: (matchingClientTool as any).responseFormat,
+                  metadata: (matchingClientTool as any).metadata,
+                  defaultConfig: (matchingClientTool as any).defaultConfig,
+                  func: (matchingClientTool as any).func,
+                });
+                this.canonicalTools.set(qualifiedName, canonicalTool);
+              }
+            }
+          }
+        } while (toolsResponse?.nextCursor);
+      } catch (error) {
+        mcpDebugLog(`MCPClient: failed to load canonical tools for server ${serverName}:`, error);
+      }
     }
   }
 
@@ -267,6 +372,8 @@ export default class MCPClient {
     }
     this.client = null;
     this.clientTools = [];
+    this.canonicalSchemas.clear();
+    this.canonicalTools.clear();
     this.isInitialized = false;
     this.initializationPromise = null;
 
@@ -352,6 +459,9 @@ export default class MCPClient {
         }
       }
       this.client = null;
+      this.clientTools = [];
+      this.canonicalSchemas.clear();
+      this.canonicalTools.clear();
       this.isInitialized = false;
       this.initializationPromise = null;
       // Re-initialize with new cluster context
@@ -397,8 +507,11 @@ export default class MCPClient {
       if (!tool) {
         throw new Error(`Tool ${toolName} not found`);
       }
-      // Validate parameters against schema from configuration
-      const validation = validateToolArgs(tool.schema, args);
+      const canonicalSchema = this.canonicalSchemas.get(toolName);
+      const executionTool = this.canonicalTools.get(toolName) || tool;
+
+      // Validate parameters against canonical schema if available, falling back to tool.schema
+      const validation = validateToolArgs(canonicalSchema || tool.schema, args);
 
       if (!validation.valid) {
         throw new Error(`Parameter validation failed: ${validation.error}`);
@@ -407,7 +520,7 @@ export default class MCPClient {
         toolName,
       });
       // Execute the tool directly using LangChain's invoke method
-      const result = await tool.invoke(args);
+      const result = await executionTool.invoke(args);
       mcpDebugLog('MCP tool executed successfully:', {
         toolName,
       });
@@ -464,6 +577,9 @@ export default class MCPClient {
         }
 
         this.client = null;
+        this.clientTools = [];
+        this.canonicalSchemas.clear();
+        this.canonicalTools.clear();
         this.isInitialized = false;
         this.initializationPromise = null;
 
@@ -516,6 +632,8 @@ export default class MCPClient {
         }
         this.client = null;
         this.clientTools = [];
+        this.canonicalSchemas.clear();
+        this.canonicalTools.clear();
         this.isInitialized = false;
         this.initializationPromise = null;
 
