@@ -15,22 +15,41 @@
  */
 
 import { useClustersConf } from '../../../lib/k8s';
+import { Cluster } from '../../../lib/k8s/cluster';
+import { getClusterInventoryDisplayName } from './ClusterInventory';
 
 /**
- * Gets the names of the clusters from the clusters configuration.
- * If the cluster has a custom name, it will be used instead of the default name.
- * The clusters are sorted by their names.
+ * Gets the display label for a cluster: an explicit custom name if set,
+ * otherwise the owning ClusterProfile's Cluster Inventory displayName,
+ * otherwise the cluster's real name.
  *
- * @returns An array of name sorted clusters.
+ * This is presentation-only. Cluster.name must stay untouched: it's the
+ * canonical identifier used for routing, recent-cluster storage, and
+ * connection tracking, and -- unlike a user-set custom name, which is
+ * validated unique -- a ClusterProfile displayName is not guaranteed unique,
+ * so using it as an identifier risks collisions between unrelated clusters.
+ *
+ * @returns The label to render for this cluster.
  */
-export function getCustomClusterNames(clusters: ReturnType<typeof useClustersConf>) {
+export function getClusterDisplayLabel(cluster: Cluster): string {
+  return (
+    cluster.meta_data?.extensions?.headlamp_info?.customName ||
+    getClusterInventoryDisplayName(cluster) ||
+    cluster.name
+  );
+}
+
+/**
+ * Gets the clusters from the clusters configuration, sorted by their display
+ * label (see getClusterDisplayLabel). Cluster.name is left untouched.
+ *
+ * @returns An array of clusters sorted by display label.
+ */
+export function getCustomClusterNames(clusters: ReturnType<typeof useClustersConf>): Cluster[] {
   if (clusters === null) {
     return [];
   }
-  return Object.values(clusters)
-    .map(c => ({
-      ...c,
-      name: c.meta_data?.extensions?.headlamp_info?.customName || c.name,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return Object.values(clusters).sort((a, b) =>
+    getClusterDisplayLabel(a).localeCompare(getClusterDisplayLabel(b))
+  );
 }
