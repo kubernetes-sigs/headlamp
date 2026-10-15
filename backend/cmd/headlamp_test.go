@@ -60,6 +60,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -1297,11 +1299,12 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 
 	fakeClient := fake.NewClientset(node, podOk, podDaemonset, podFail)
 
-	// Inject error for deleting pod-fail
-	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-		deleteAction := action.(k8stesting.DeleteAction)
-		if deleteAction.GetName() == "pod-fail" {
-			return true, nil, fmt.Errorf("pod is protected by PodDisruptionBudget")
+	// Inject error for evicting pod-fail
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		createAction := action.(k8stesting.CreateAction)
+		eviction, ok := createAction.GetObject().(*policyv1.Eviction)
+		if action.GetSubresource() == "eviction" && ok && eviction.Name == "pod-fail" {
+			return true, nil, fmt.Errorf("eviction webhook denied the request")
 		}
 
 		return false, nil, nil
@@ -1338,7 +1341,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 
 	assert.True(t, strings.HasPrefix(status, "error:"),
 		"expected error status, got: %s", status)
-	assert.Contains(t, status, "failed to delete")
+	assert.Contains(t, status, "failed to evict")
 }
 
 func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
@@ -1390,6 +1393,112 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "success", status)
+}
+
+// drainTestSetup returns a fake clientset with one pod on test-node, a config and the cache key.
+func drainTestSetup(t *testing.T) (*fake.Clientset, *HeadlampConfig, cache.Cache[interface{}], string) {
+	t.Helper()
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{Cache: testCache}}
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	return fake.NewClientset(node, pod), c, testCache, cacheKey
+}
+
+func waitForDrainStatus(t *testing.T, testCache cache.Cache[interface{}], cacheKey string) string {
+	t.Helper()
+
+	var status string
+
+	require.Eventually(t, func() bool {
+		item, err := testCache.Get(context.Background(), cacheKey)
+		if err != nil {
+			return false
+		}
+
+		status, _ = item.(string)
+
+		return status != ""
+	}, 5*time.Second, 10*time.Millisecond)
+
+	return status
+}
+
+// TestDrainNodeEvictsInsteadOfDeleting checks that the drain goes through the Eviction API, so that
+// PodDisruptionBudgets and eviction webhooks apply, and never deletes pods directly.
+func TestDrainNodeEvictsInsteadOfDeleting(t *testing.T) {
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+
+	var evictions, deletes int
+
+	for _, action := range fakeClient.Actions() {
+		if action.GetSubresource() == "eviction" {
+			evictions++
+		}
+
+		if action.GetVerb() == "delete" && action.GetResource().Resource == "pods" {
+			deletes++
+		}
+	}
+
+	assert.Equal(t, 1, evictions)
+	assert.Zero(t, deletes, "pods must not be deleted directly")
+}
+
+func TestDrainNodeRetriesEvictionBlockedByPDB(t *testing.T) {
+	oldInterval := drainEvictRetryInterval
+	drainEvictRetryInterval = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval = oldInterval })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		if attempts.Add(1) < 3 {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		return false, nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(3), attempts.Load())
+}
+
+func TestDrainNodeFailsWhenPDBBlocksUntilTimeout(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() == "eviction" {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		return false, nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
 func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testing.T) { //nolint:funlen
@@ -1551,10 +1660,13 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 
 	fakeClient := fake.NewClientset(node, podDaemonset)
 
-	var deleted atomic.Bool
+	var evicted atomic.Bool
 
-	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-		deleted.Store(true)
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() == "eviction" {
+			evicted.Store(true)
+		}
+
 		return false, nil, nil
 	})
 
@@ -1581,7 +1693,7 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 		return ok && status == "success"
 	}, 2*time.Second, 50*time.Millisecond)
 
-	assert.False(t, deleted.Load(), "DaemonSet pod should not be deleted during drain")
+	assert.False(t, evicted.Load(), "DaemonSet pod should not be evicted during drain")
 }
 
 func TestDeletePlugin(t *testing.T) {
