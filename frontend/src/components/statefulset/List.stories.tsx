@@ -209,3 +209,34 @@ WithNotReadyReplicas.parameters = {
     },
   },
 };
+
+export const WithPodsNotCreated = Template.bind({});
+WithPodsNotCreated.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/apps/v1/statefulsets`, () => {
+          return HttpResponse.json({
+            kind: 'StatefulSetList',
+            apiVersion: 'apps/v1',
+            metadata: {
+              resourceVersion: '12345',
+            },
+            items: [
+              {
+                ...mockStatefulSets[0],
+                // 3 desired, but only the first pod could be created (e.g. a pod quota)
+                status: {
+                  replicas: 1,
+                  readyReplicas: 1,
+                  currentReplicas: 1,
+                  updatedReplicas: 1,
+                },
+              },
+            ],
+          });
+        }),
+      ],
+    },
+  },
+};
