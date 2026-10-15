@@ -403,7 +403,18 @@ class Pod extends KubeObject<KubePod> {
     return false;
   }
 
-  // Implementation based on: https://github.com/kubernetes/kubernetes/blob/67216cfdd980cdd0234866d66a9ffe2ba3d8fcc4/pkg/printers/internalversion/printers.go#L891
+  /**
+   * Whether the pod has finished running. A finished pod keeps its final
+   * status even while a deletionTimestamp and a finalizer hold it, the same
+   * way kubectl keeps showing Completed or Error instead of Terminating.
+   * Mirrors IsPodPhaseTerminal in k8s.io/kubernetes/pkg/api/v1/pod.
+   */
+  isInTerminalPhase(): boolean {
+    const phase = this.status?.phase;
+    return phase === 'Succeeded' || phase === 'Failed';
+  }
+
+  // Implementation based on: https://github.com/kubernetes/kubernetes/blob/dfd7b93a1783/pkg/printers/internalversion/printers.go#L967
   getDetailedStatus(): PodDetailedStatus {
     // We cache this data to avoid going through all this logic when nothing has changed
     if (
@@ -543,7 +554,7 @@ class Pod extends KubeObject<KubePod> {
 
     if (!!deletionTimestamp && this.status?.reason === 'NodeLost') {
       reason = 'Unknown';
-    } else if (!!deletionTimestamp) {
+    } else if (!!deletionTimestamp && !this.isInTerminalPhase()) {
       reason = 'Terminating';
     }
 
@@ -575,7 +586,12 @@ class Pod extends KubeObject<KubePod> {
   getHealth(): WorkloadHealthCategory {
     // A lost node is reported as Unknown (unhealthy), matching getDetailedStatus.
     if (this.metadata.deletionTimestamp) {
-      return this.status?.reason === 'NodeLost' ? 'failed' : 'transitional';
+      if (this.status?.reason === 'NodeLost') {
+        return 'failed';
+      }
+      if (!this.isInTerminalPhase()) {
+        return 'transitional';
+      }
     }
 
     const phase = this.status?.phase;
