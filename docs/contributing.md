@@ -187,8 +187,32 @@ out Kinvolk's
 
 ## Testing
 
-The frontend is tested via Storybook-related snapshots. So new components should have
-an associated story when possible.
+### Testing policy
+
+To keep Headlamp reliable, the following rules apply to all pull requests.
+Reviewers will ask for tests before approving changes that need them:
+
+- **New functionality MUST include tests.** When adding new functionality,
+  add automated tests for it to the relevant test suite (unit tests, Storybook
+  stories with snapshots, backend Go tests, or end-to-end tests).
+- **Tests SHOULD cover failure cases, not just the expected behavior**: for
+  example, invalid input, missing permissions, or API errors. Changes to
+  security checks (such as authentication, authorization, input validation, or
+  signature verification) MUST include tests showing that what should be
+  rejected is rejected.
+- **Bug fixes MUST include a regression test** that fails without the fix,
+  unless that is not practical (for example, for documentation, build, or
+  purely visual fixes). If you cannot add one, explain why in the pull request
+  description.
+- **Changes SHOULD NOT reduce test coverage.** CI reports coverage changes for
+  the backend and enforces minimum coverage thresholds for the frontend. Our
+  goal is at least 80% statement coverage for both.
+- **All tests MUST pass in CI** before a pull request is merged.
+
+### Running tests
+
+The frontend is tested via unit tests and Storybook-related snapshots. So new
+components should have an associated story when possible.
 
 For running the frontend tests, use the following command:
 
