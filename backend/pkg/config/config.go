@@ -48,6 +48,8 @@ type Config struct {
 	// It has no effect in in-cluster mode or when running without embedded frontend.
 	NoBrowser              bool   `koanf:"no-browser"`
 	CacheEnabled           bool   `koanf:"cache-enabled"`
+	CacheMaxEntryMB        int64  `koanf:"cache-max-entry-mb"`
+	CacheMaxTotalMB        int64  `koanf:"cache-max-total-mb"`
 	EnableHelm             bool   `koanf:"enable-helm"`
 	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
 	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
@@ -607,6 +609,10 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Int64("cache-max-entry-mb", 16,
+		"Largest Kubernetes response, in MiB, that the backend cache stores. Larger responses are not cached")
+	f.Int64("cache-max-total-mb", 256,
+		"Memory budget, in MiB, for all Kubernetes responses in the backend cache. Responses that do not fit are not cached")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
