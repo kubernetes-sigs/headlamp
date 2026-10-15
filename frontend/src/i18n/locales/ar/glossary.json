@@ -236,6 +236,7 @@
   "API Groups": "مجموعات API",
   "Resources": "الموارد",
   "Non Resources": "موارد غيرية",
+  "Resource Names": "",
   "Verbs": "الأفعال",
   "RuntimeClass": "فئة التشغيل",
   "Workloads (scheduling)": "أحمال العمل (الجدولة)",
