@@ -17,8 +17,9 @@
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../../App';
 import { createMuiTheme } from '../../../lib/themes';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
@@ -118,5 +119,84 @@ describe('Settings theme', () => {
         { type: HeadlampEventType.CLUSTER_SETTINGS_VIEW, data: { cluster: 'cluster-1' } },
       ]);
     });
+  });
+});
+
+describe('Settings theme swatches and quick swap remember mode', () => {
+  const PREFERRED_LIGHT_THEME_KEY = 'headlampPreferredLightTheme';
+  const PREFERRED_DARK_THEME_KEY = 'headlampPreferredDarkTheme';
+  const REMEMBER_THEME_CHOICES_KEY = 'headlampRememberThemeChoices';
+  const QUICK_SWAP_ENABLED_KEY = 'headlampQuickSwapEnabled';
+
+  beforeEach(() => {
+    localStorage.clear();
+    store.dispatch(setTheme('Light'));
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  /** Theme swatches are the role="button" divs whose label is the theme name. */
+  function getSwatch(name: string): HTMLElement {
+    const swatch = screen
+      .getAllByRole('button')
+      .find(el => el.tagName === 'DIV' && el.lastElementChild?.textContent === name);
+    expect(swatch).toBeDefined();
+    return swatch!;
+  }
+
+  type Activate = (swatch: HTMLElement) => Promise<void>;
+  const activations: [string, Activate][] = [
+    ['click', swatch => userEvent.click(swatch)],
+    [
+      'Enter key',
+      async swatch => {
+        swatch.focus();
+        await userEvent.keyboard('{Enter}');
+      },
+    ],
+    [
+      'Space key',
+      async swatch => {
+        swatch.focus();
+        await userEvent.keyboard(' ');
+      },
+    ],
+  ];
+
+  it.each(activations)(
+    'stores light and dark preferences via %s when remember mode is on',
+    async (_, activate) => {
+      renderWithProviders(<Settings />);
+
+      await activate(getSwatch('Lights Out'));
+      expect(store.getState().theme.name).toBe('Lights Out');
+      expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBe('Lights Out');
+      expect(localStorage.getItem(PREFERRED_LIGHT_THEME_KEY)).toBeNull();
+
+      await activate(getSwatch('Monochrome Light'));
+      expect(store.getState().theme.name).toBe('Monochrome Light');
+      expect(localStorage.getItem(PREFERRED_LIGHT_THEME_KEY)).toBe('Monochrome Light');
+      expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBe('Lights Out');
+    }
+  );
+
+  it.each([
+    ['remember mode is off', REMEMBER_THEME_CHOICES_KEY],
+    ['quick swap is disabled', QUICK_SWAP_ENABLED_KEY],
+  ])('applies the theme without storing preferences when %s', async (_, disabledKey) => {
+    localStorage.setItem(disabledKey, 'false');
+    renderWithProviders(<Settings />);
+
+    for (const [, activate] of activations) {
+      await activate(getSwatch('Lights Out'));
+      expect(store.getState().theme.name).toBe('Lights Out');
+      await activate(getSwatch('Monochrome Light'));
+      expect(store.getState().theme.name).toBe('Monochrome Light');
+    }
+
+    expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBeNull();
+    expect(localStorage.getItem(PREFERRED_LIGHT_THEME_KEY)).toBeNull();
   });
 });
