@@ -531,6 +531,9 @@ const mdiIcons = {
     'timer-sand': {
       body: '<path fill="currentColor" d="M6 2h12v6l-4 4l4 4v6H6v-6l4-4l-4-4zm10 14.5l-4-4l-4 4V20h8zm-4-5l4-4V4H8v3.5zM10 6h4v.75l-2 2l-2-2z"/>',
     },
+    'compare-horizontal': {
+      body: '<path fill="currentColor" d="M9 14H2v2h7v3l4-4l-4-4v3m6-1v-3h7V8h-7V5l-4 4l4 4Z"/>',
+    },
   },
   aliases: {
     'more-vert': {
