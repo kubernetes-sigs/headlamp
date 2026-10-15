@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
@@ -102,15 +103,28 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
       theme.palette.getContrastText(theme.palette.sidebar.background);
 
     if (!fullWidth) {
+      // Render a plain <li> (via Box) so this stays a valid, unmodified
+      // list item for assistive tech. MUI's Divider always carries an
+      // implicit role="separator", so rendering the Divider itself as
+      // component="li" would produce <li role="separator">, which
+      // overrides the <li>'s native listitem semantics and breaks the
+      // surrounding <List>'s list structure. Nesting the Divider inside
+      // a role-free <li> keeps both the separator semantics and the
+      // list structure intact.
       return (
-        <Divider
+        <Box
           component="li"
-          sx={theme => ({
-            borderColor: alpha(sidebarColor(theme), 0.15),
+          sx={{
             listStyle: 'none',
-            margin: theme.spacing(1, 2),
-          })}
-        />
+            margin: theme => theme.spacing(1, 2),
+          }}
+        >
+          <Divider
+            sx={theme => ({
+              borderColor: alpha(sidebarColor(theme), 0.15),
+            })}
+          />
+        </Box>
       );
     }
 
