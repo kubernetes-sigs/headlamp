@@ -75,6 +75,18 @@ export default {
 
 const Template: StoryFn<typeof CreateButton> = args => <CreateButton {...args} />;
 
+/** EditorDialog opens on the YAML tab; form fields live under the Form tab. */
+async function openFormTabWithResourceTypePicker() {
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'Form' })).toBeVisible());
+  await userEvent.click(screen.getByRole('tab', { name: 'Form' }));
+  await waitFor(() => expect(screen.getByLabelText('Resource Type')).toBeVisible());
+}
+
+async function openCreateActivityForm(buttonName: string | RegExp) {
+  await userEvent.click(screen.getByRole('button', { name: buttonName }));
+  await openFormTabWithResourceTypePicker();
+}
+
 export const Default = Template.bind({});
 Default.args = {
   isNarrow: false,
@@ -104,8 +116,7 @@ OpensCreateActivity.parameters = {
   storyshots: { disable: true },
 };
 OpensCreateActivity.play = async () => {
-  await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-  await waitFor(() => expect(screen.getByLabelText('Resource Type')).toBeVisible());
+  await openCreateActivityForm('Create');
 };
 
 /**
@@ -127,8 +138,7 @@ NarrowButtonOpensCreateActivity.parameters = {
   storyshots: { disable: true },
 };
 NarrowButtonOpensCreateActivity.play = async () => {
-  await userEvent.click(screen.getByRole('button', { name: 'Create / Apply' }));
-  await waitFor(() => expect(screen.getByLabelText('Resource Type')).toBeVisible());
+  await openCreateActivityForm('Create / Apply');
 };
 
 /**
@@ -153,5 +163,5 @@ ExtraClickHandler.parameters = {
 ExtraClickHandler.play = async ({ args }) => {
   await userEvent.click(screen.getByRole('button', { name: 'Create' }));
   await waitFor(() => expect(args.onClickExtra).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(screen.getByLabelText('Resource Type')).toBeVisible());
+  await openFormTabWithResourceTypePicker();
 };
