@@ -25,6 +25,8 @@ import CreateButton from './CreateButton';
 
 function CreateActivityLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    // Storybook keeps activity state across stories; clear stale create UI on enter/exit.
+    Activity.close('create-button');
     return () => {
       Activity.close('create-button');
     };
