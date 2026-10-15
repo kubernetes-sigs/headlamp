@@ -242,7 +242,7 @@ export function useKubeObject<K extends KubeObject>({
 }
 
 /**
- * Probes the provided endpoints and returns the first one that works.
+ * Probes the provided endpoints in order and returns the first one that works.
  *
  * @param endpoints - List of possible endpoints
  * @param cluster - Target cluster name
@@ -259,22 +259,26 @@ const getWorkingEndpoint = async (
   namespace?: string,
   name?: string
 ) => {
-  const promises = endpoints.map(endpoint => {
+  let firstError: unknown;
+
+  for (const endpoint of endpoints) {
     const resourceUrl = KubeObjectEndpoint.toUrl(endpoint, namespace);
     // If a name is provided, we probe for that specific resource.
     // Otherwise we probe for the list of resources.
     const url = name ? makeUrl([resourceUrl, name]) : resourceUrl;
 
-    return clusterFetch(url, {
-      method: 'GET',
-      cluster: cluster ?? getCluster() ?? '',
-    }).then(() => endpoint);
-  });
+    try {
+      await clusterFetch(url, {
+        method: 'GET',
+        cluster: cluster ?? getCluster() ?? '',
+      });
+      return endpoint;
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
 
-  return Promise.any(promises).catch((aggregateError: AggregateError) => {
-    // when no endpoint is available, throw an error
-    throw aggregateError.errors[0];
-  });
+  throw firstError ?? new Error('No API endpoints were provided');
 };
 
 /**
