@@ -289,6 +289,37 @@ describe('Table select filter options with real MRT', () => {
     expect(statusFilterInput()).toHaveTextContent('rare-1');
   });
 
+  it.each(['multi-select', 'select'] as const)(
+    'keeps showing a %s selection after a refresh took the value out of the rows',
+    filterVariant => {
+      // A pod that was filtered for is gone after the next list update. The rows stay
+      // filtered by it, so the input must still say by what.
+      const data: StatusRow[] = [...largeData, { status: 'gone-soon' }];
+      const value = filterVariant === 'select' ? 'gone-soon' : ['gone-soon'];
+      const props = {
+        filterVariant,
+        initialState: { columnFilters: [{ id: 'status', value }] },
+      };
+      const rendered = renderStatusTable({ ...props, data });
+      expect(statusFilterInput()).toHaveTextContent('gone-soon');
+
+      rendered.rerender(statusTable({ ...props, data: largeData }));
+
+      expect(statusFilterInput()).toHaveTextContent('gone-soon');
+    }
+  );
+
+  it('does not turn the typed text of an autocomplete filter into an option', () => {
+    renderStatusTable({
+      filterVariant: 'autocomplete',
+      initialState: { columnFilters: [{ id: 'status', value: 'Runn' }] },
+    });
+
+    fireEvent.keyDown(statusFilterInput(), { key: 'ArrowDown' });
+
+    expect(dropdownOptions()).toEqual(['Completed', 'Running']);
+  });
+
   it('keeps the full faceting contract for non-dropdown columns while faceting is on', () => {
     // Ported from #7226 by @simonepri.
     let uniqueCount = -1;
