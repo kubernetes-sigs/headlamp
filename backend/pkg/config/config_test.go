@@ -1098,7 +1098,11 @@ func TestMakeKubeConfigsDir(t *testing.T) {
 
 		dir, err := config.MakeKubeConfigsDir("")
 		require.NoError(t, err)
-		assert.Contains(t, dir, filepath.Join("Headlamp", "kubeconfigs"))
+		defaultSubpath := filepath.Join("Headlamp", "kubeconfigs")
+		if runtime.GOOS == "windows" {
+			defaultSubpath = filepath.Join("Headlamp", "Config", "kubeconfigs")
+		}
+		assert.Contains(t, dir, defaultSubpath)
 	})
 
 	t.Run("falls back to the executable directory", func(t *testing.T) {

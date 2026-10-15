@@ -78,22 +78,25 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	DeleteKeys(key, k8scache)
 
+	// Serve the mutating request directly to the client. Only the fresh GET
+	// response below is captured for the cache.
+	next.ServeHTTP(w, r)
+
 	freshURL := *r.URL
 
 	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
 	if err != nil {
-		return err
+		return ErrHandled
 	}
 
 	freshReq.Header = r.Header.Clone()
-	next.ServeHTTP(w, r)
 
 	rr := httptest.NewRecorder()
 	freshRcw := NewResponseCapture(rr)
 	next.ServeHTTP(freshRcw, freshReq)
 
 	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
-		return err
+		logger.Log(logger.LevelError, nil, err, "failed to store fresh response in cache after invalidation")
 	}
 
 	return ErrHandled
