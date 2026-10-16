@@ -234,6 +234,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
   function handleContainerChange(event: any) {
     setContainer(event.target.value);
     setHasJsonLogs(false);
+    // The new container may never have restarted, so don't carry "Previous" over to it
+    setShowPrevious(false);
   }
 
   function handleLinesChange(event: any) {
@@ -245,9 +247,13 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   function hasContainerRestarted() {
-    const cont = item?.status?.containerStatuses?.find(
-      (c: KubeContainerStatus) => c.name === container
-    );
+    // The container picker also lists init and ephemeral containers, so look in every status list
+    const statuses: KubeContainerStatus[] = [
+      ...(item?.status?.containerStatuses ?? []),
+      ...(item?.status?.initContainerStatuses ?? []),
+      ...(item?.status?.ephemeralContainerStatuses ?? []),
+    ];
+    const cont = statuses.find(c => c.name === container);
     if (!cont) {
       return false;
     }
