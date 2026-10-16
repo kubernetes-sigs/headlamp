@@ -196,7 +196,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
                 description={label(defaultAction)}
                 buttonStyle={buttonStyle}
                 onClick={() => openDialogFor(defaultAction)}
-                icon="mdi:delete"
+                icon={icon(defaultAction)}
               />
               <ActionButton
                 description={t('translation|More delete options')}
