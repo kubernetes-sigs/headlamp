@@ -50,6 +50,12 @@ function DocsViewer(props: DocsViewerProps) {
   const { t } = useTranslation();
 
   React.useEffect(() => {
+    // Defensive hardening: ignore a result that settles after docSpecs changed
+    // or the component unmounted, so stale data can't overwrite docs/docsLoading.
+    // Today getDocDefinitions shares one cached promise, so responses can't settle
+    // out of order; this keeps DocsViewer correct if that caching ever changes.
+    let isActive = true;
+
     setDocsLoading(true);
     // fetch docSpecs for all the resources specified
     Promise.allSettled(
@@ -58,6 +64,9 @@ function DocsViewer(props: DocsViewerProps) {
       })
     )
       .then(values => {
+        if (!isActive) {
+          return;
+        }
         const docSpecsFromApi = values.map((value, index) => {
           if (value.status === 'fulfilled') {
             return {
@@ -77,8 +86,15 @@ function DocsViewer(props: DocsViewerProps) {
         setDocs(docSpecsFromApi);
       })
       .catch(() => {
+        if (!isActive) {
+          return;
+        }
         setDocsLoading(false);
       });
+
+    return () => {
+      isActive = false;
+    };
   }, [docSpecs]);
 
   function makeItems(name: string, value: any, key: string) {
