@@ -87,12 +87,18 @@ describe('ProjectDeleteDialog', () => {
     [
       {
         metadata: { name: 'ns1' },
+        getAuthorization: vi.fn().mockResolvedValue({
+          status: { allowed: true },
+        }),
         delete: vi.fn().mockResolvedValue(undefined),
         update: vi.fn().mockResolvedValue(undefined),
         jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
       },
       {
         metadata: { name: 'ns2' },
+        getAuthorization: vi.fn().mockResolvedValue({
+          status: { allowed: true },
+        }),
         delete: vi.fn().mockResolvedValue(undefined),
         update: vi.fn().mockResolvedValue(undefined),
         jsonData: { metadata: { name: 'ns2', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
@@ -122,6 +128,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -141,6 +148,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -165,6 +173,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={namespaces}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -202,14 +211,30 @@ describe('ProjectDeleteDialog', () => {
       {
         metadata: { name: 'ns1' },
         cluster: 'cluster-a',
+        getAuthorization: vi.fn().mockResolvedValue({
+          status: { allowed: true },
+        }),
         update: vi.fn().mockResolvedValue(undefined),
-        jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
+        jsonData: {
+          metadata: {
+            name: 'ns1',
+            labels: { [PROJECT_ID_LABEL]: 'test-project' },
+          },
+        },
       },
       {
         metadata: { name: 'ns1' },
         cluster: 'cluster-b',
+        getAuthorization: vi.fn().mockResolvedValue({
+          status: { allowed: true },
+        }),
         update: vi.fn().mockResolvedValue(undefined),
-        jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
+        jsonData: {
+          metadata: {
+            name: 'ns1',
+            labels: { [PROJECT_ID_LABEL]: 'test-project' },
+          },
+        },
       },
     ] as any;
 
@@ -220,6 +245,7 @@ describe('ProjectDeleteDialog', () => {
           project={makePairedProject()}
           onClose={mockOnClose}
           namespaces={namespaces}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -249,6 +275,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={namespaces}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -271,8 +298,14 @@ describe('ProjectDeleteDialog', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  test('dispatches DELETE_PROJECT with deleteNamespaces false when only the label is removed', () => {
+  test('dispatches DELETE_PROJECT with deleteNamespaces false when only the label is removed', async () => {
     const events = recordHeadlampEvents();
+    let capturedActionFn: (() => Promise<void>) | null = null;
+
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
 
     render(
       <TestContext>
@@ -281,11 +314,15 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+
+    expect(capturedActionFn).not.toBeNull();
+    await capturedActionFn!();
 
     expect(events.filter(e => e.type === HeadlampEventType.DELETE_PROJECT)).toEqual([
       {
@@ -299,8 +336,14 @@ describe('ProjectDeleteDialog', () => {
     ]);
   });
 
-  test('dispatches DELETE_PROJECT with deleteNamespaces true when namespaces are deleted', () => {
+  test('dispatches DELETE_PROJECT with deleteNamespaces true when namespaces are deleted', async () => {
     const events = recordHeadlampEvents();
+    let capturedActionFn: (() => Promise<void>) | null = null;
+
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
 
     render(
       <TestContext>
@@ -309,12 +352,16 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
 
     fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete Project & Namespaces' }));
+
+    expect(capturedActionFn).not.toBeNull();
+    await capturedActionFn!();
 
     expect(events.filter(e => e.type === HeadlampEventType.DELETE_PROJECT)).toEqual([
       {
@@ -336,6 +383,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -345,5 +393,112 @@ describe('ProjectDeleteDialog', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
 
     expect(screen.getByText(/This action cannot be undone/i)).toBeInTheDocument();
+  });
+
+  test('hides namespace deletion option when not authorized for every namespace', () => {
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={makeMockNamespaces()}
+          canDeleteNamespaces={false}
+        />
+      </TestContext>
+    );
+
+    expect(
+      screen.queryByRole('checkbox', { name: /also delete the namespaces/i })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete Project' })).toBeInTheDocument();
+  });
+
+  test('does not delete namespaces when delete authorization is lost before confirmation', async () => {
+    let capturedActionFn: (() => Promise<void>) | null = null;
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
+
+    const namespaces = makeMockNamespaces();
+    const { rerender } = render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+          canDeleteNamespaces
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
+
+    rerender(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+          canDeleteNamespaces={false}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+
+    if (capturedActionFn) {
+      await (capturedActionFn as () => Promise<void>)();
+    }
+
+    expect(namespaces[0].update).toHaveBeenCalled();
+    expect(namespaces[1].update).toHaveBeenCalled();
+    expect(namespaces[0].delete).not.toHaveBeenCalled();
+    expect(namespaces[1].delete).not.toHaveBeenCalled();
+  });
+  test('does not mutate namespaces when authorization is revoked before confirmation', async () => {
+    let capturedActionFn: (() => Promise<void>) | null = null;
+
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
+
+    const namespaces = makeMockNamespaces();
+
+    namespaces[0].getAuthorization.mockResolvedValue({
+      status: { allowed: false },
+    });
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+          canDeleteNamespaces
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+
+    expect(capturedActionFn).not.toBeNull();
+
+    await expect(capturedActionFn!()).rejects.toThrow(
+      'Not authorized to update all project namespaces'
+    );
+
+    expect(namespaces[0].getAuthorization).toHaveBeenCalledWith('update');
+    expect(namespaces[1].getAuthorization).toHaveBeenCalledWith('update');
+
+    expect(namespaces[0].update).not.toHaveBeenCalled();
+    expect(namespaces[1].update).not.toHaveBeenCalled();
+    expect(namespaces[0].delete).not.toHaveBeenCalled();
+    expect(namespaces[1].delete).not.toHaveBeenCalled();
   });
 });

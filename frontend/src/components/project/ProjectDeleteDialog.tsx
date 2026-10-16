@@ -33,15 +33,14 @@ import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/he
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import { DialogTitle } from '../common/Dialog';
-import AuthVisible from '../common/Resource/AuthVisible';
 import { projectIncludesNamespace } from './projectGrouping';
 import { PROJECT_ID_LABEL } from './projectUtils';
-
 interface ProjectDeleteDialogProps {
   open: boolean;
   project: ProjectDefinition;
   onClose: () => void;
   namespaces: Namespace[];
+  canDeleteNamespaces: boolean;
 }
 
 export function ProjectDeleteDialog({
@@ -49,48 +48,65 @@ export function ProjectDeleteDialog({
   project,
   onClose,
   namespaces,
+  canDeleteNamespaces,
 }: ProjectDeleteDialogProps) {
   const { t } = useTranslation();
   const dispatch: AppDispatch = useDispatch();
   const [deleteNamespaces, setDeleteNamespaces] = useState(false);
   const dispatchDeleteProjectEvent = useEventCallback(HeadlampEventType.DELETE_PROJECT);
 
+  const authorizeNamespaces = async (targetNamespaces: Namespace[], verb: 'update' | 'delete') => {
+    const authorizationResults = await Promise.all(
+      targetNamespaces.map(namespace => namespace.getAuthorization(verb))
+    );
+
+    if (!authorizationResults.every(result => result?.status?.allowed === true)) {
+      throw new Error(`Not authorized to ${verb} all project namespaces`);
+    }
+  };
+
   const handleDelete = () => {
     const projectNamespaces = namespaces.filter(ns =>
       projectIncludesNamespace(project, { name: ns.metadata.name, cluster: ns.cluster })
     );
-
-    dispatchDeleteProjectEvent({
-      project,
-      deleteNamespaces,
-      status: EventStatus.CONFIRMED,
-    });
+    const shouldDeleteNamespaces = deleteNamespaces && canDeleteNamespaces;
 
     dispatch(
       clusterAction(
         async () => {
-          if (deleteNamespaces) {
-            // Delete the entire namespaces
+          await authorizeNamespaces(
+            projectNamespaces,
+            shouldDeleteNamespaces ? 'delete' : 'update'
+          );
+
+          dispatchDeleteProjectEvent({
+            project,
+            deleteNamespaces: shouldDeleteNamespaces,
+            status: EventStatus.CONFIRMED,
+          });
+
+          if (shouldDeleteNamespaces) {
             await Promise.all(projectNamespaces.map(namespace => namespace.delete()));
           } else {
-            // Just remove the project label from each namespace
             await Promise.all(
               projectNamespaces.map(async namespace => {
                 const updatedData = { ...namespace.jsonData };
+
                 if (updatedData.metadata?.labels) {
                   delete updatedData.metadata.labels[PROJECT_ID_LABEL];
-                  // If labels object becomes empty, remove it entirely
+
                   if (Object.keys(updatedData.metadata.labels).length === 0) {
                     delete updatedData.metadata.labels;
                   }
                 }
+
                 return namespace.update(updatedData);
               })
             );
           }
         },
         {
-          startMessage: t('Deleting project {{ projectName }}…', { projectName: project.id }),
+          startMessage: t('Deleting project {{ projectName }}...', { projectName: project.id }),
           cancelledMessage: t('Cancelled deletion of project {{ projectName }}.', {
             projectName: project.id,
           }),
@@ -136,31 +152,33 @@ export function ProjectDeleteDialog({
             ))}
           </ul>
 
-          <AuthVisible item={namespaces[0]} authVerb="delete">
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={deleteNamespaces}
-                  onChange={e => setDeleteNamespaces(e.target.checked)}
-                  name="deleteNamespaces"
-                  color="primary"
-                />
-              }
-              label={
-                <Typography variant="body2">
-                  {t('Also delete the namespaces (this will remove all resources within them)')}
-                </Typography>
-              }
-            />
+          {canDeleteNamespaces && (
+            <>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={deleteNamespaces}
+                    onChange={e => setDeleteNamespaces(e.target.checked)}
+                    name="deleteNamespaces"
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    {t('Also delete the namespaces (this will remove all resources within them)')}
+                  </Typography>
+                }
+              />
 
-            {deleteNamespaces && (
-              <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
-                {t(
-                  'Warning: This action cannot be undone. All resources in these namespaces will be permanently deleted.'
-                )}
-              </Typography>
-            )}
-          </AuthVisible>
+              {deleteNamespaces && (
+                <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
+                  {t(
+                    'Warning: This action cannot be undone. All resources in these namespaces will be permanently deleted.'
+                  )}
+                </Typography>
+              )}
+            </>
+          )}
         </DialogContentText>
       </DialogContent>
       <DialogActions>
@@ -173,7 +191,9 @@ export function ProjectDeleteDialog({
           variant="contained"
           sx={{ minWidth: '200px' }} // Fixed width to prevent button resize
         >
-          {deleteNamespaces ? t('Delete Project & Namespaces') : t('Delete Project')}
+          {deleteNamespaces && canDeleteNamespaces
+            ? t('Delete Project & Namespaces')
+            : t('Delete Project')}
         </Button>
       </DialogActions>
     </Dialog>

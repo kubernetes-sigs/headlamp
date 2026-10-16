@@ -14,18 +14,49 @@
  * limitations under the License.
  */
 
+import { useQueries } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Namespace from '../../lib/k8s/namespace';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import ActionButton, { ButtonStyle } from '../common/ActionButton';
-import AuthVisible from '../common/Resource/AuthVisible';
 import { ProjectDeleteDialog } from './ProjectDeleteDialog';
 import { projectIncludesNamespace, projectListRequests } from './projectGrouping';
 
 interface ProjectDeleteButtonProps {
   project: ProjectDefinition;
   buttonStyle?: ButtonStyle;
+}
+
+function useAllNamespacesAuthorized(
+  namespaces: Namespace[],
+  authVerb: 'update' | 'delete',
+  enabled = true
+) {
+  const authQueries = useQueries({
+    queries: namespaces.map(namespace => ({
+      queryKey: ['projectDelete:auth', authVerb, namespace.cluster, namespace.metadata.name],
+      queryFn: () => namespace.getAuthorization(authVerb),
+      enabled,
+      staleTime: 0,
+      refetchOnMount: 'always' as const,
+    })),
+  });
+
+  const hasPendingChecks = authQueries.some(
+    query => query.isLoading || query.isFetching || query.status === 'pending'
+  );
+  const hasFailedChecks = authQueries.some(query => query.isError);
+
+  return {
+    allAuthorized:
+      enabled &&
+      namespaces.length > 0 &&
+      !hasPendingChecks &&
+      !hasFailedChecks &&
+      authQueries.every(query => query.data?.status?.allowed === true),
+    isLoading: enabled && hasPendingChecks,
+  };
 }
 
 export function ProjectDeleteButton({ project, buttonStyle }: ProjectDeleteButtonProps) {
@@ -42,13 +73,25 @@ export function ProjectDeleteButton({ project, buttonStyle }: ProjectDeleteButto
       projectIncludesNamespace(project, { name: ns.metadata.name, cluster: ns.cluster })
     ) ?? [];
 
-  // Don't show the button if there are no namespaces for this project
-  if (projectNamespaces.length === 0) {
+  const updateAuthorization = useAllNamespacesAuthorized(projectNamespaces, 'update');
+  const deleteAuthorization = useAllNamespacesAuthorized(
+    projectNamespaces,
+    'delete',
+    openDialog && !updateAuthorization.isLoading && updateAuthorization.allAuthorized
+  );
+
+  // Project deletion affects every namespace, so only expose the action after
+  // update authorization has been confirmed for every target namespace.
+  if (
+    projectNamespaces.length === 0 ||
+    updateAuthorization.isLoading ||
+    !updateAuthorization.allAuthorized
+  ) {
     return null;
   }
 
   return (
-    <AuthVisible item={projectNamespaces[0]} authVerb="update">
+    <>
       <ActionButton
         description={t('Delete project')}
         buttonStyle={buttonStyle}
@@ -60,7 +103,8 @@ export function ProjectDeleteButton({ project, buttonStyle }: ProjectDeleteButto
         project={project}
         onClose={() => setOpenDialog(false)}
         namespaces={projectNamespaces}
+        canDeleteNamespaces={deleteAuthorization.allAuthorized}
       />
-    </AuthVisible>
+    </>
   );
 }
