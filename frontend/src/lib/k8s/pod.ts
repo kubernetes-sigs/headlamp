@@ -503,6 +503,9 @@ class Pod extends KubeObject<KubePod> {
       restarts = restartableInitContainerRestarts;
       lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
+      // Reason and message of a container that exited with a non-zero code, if any
+      let errorReason = '';
+      let errorMessage = '';
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
         const container = this.status?.containerStatuses?.[i];
 
@@ -512,27 +515,34 @@ class Pod extends KubeObject<KubePod> {
         if (!!container.state.waiting?.reason) {
           reason = container.state.waiting.reason;
           message = container.state.waiting.message || '';
-        } else if (!!container.state.terminated?.reason) {
-          reason = container.state.terminated.reason;
-          message = container.state.terminated.message || '';
-        } else if (container.state.terminated?.reason === '') {
-          if (container.state.terminated.signal) {
+        } else if (!!container.state.terminated) {
+          if (!!container.state.terminated.reason) {
+            reason = container.state.terminated.reason;
+          } else if (container.state.terminated.signal) {
             reason = `Signal:${container.state.terminated.signal}`;
           } else {
             reason = `ExitCode:${container.state.terminated.exitCode}`;
           }
           message = container.state.terminated.message || '';
+          if (container.state.terminated.exitCode !== 0) {
+            errorReason = reason;
+            errorMessage = message;
+          }
         } else if (container.ready && !!container.state.running) {
           hasRunning = true;
           readyContainers++;
         }
       }
 
-      // change pod status back to "Running" if there is at least one container still reporting as "Running" status
-      if (reason === 'Completed' && hasRunning) {
-        if (this.hasPodReadyCondition(this.status?.conditions ?? [])) {
+      // A "Completed" container should not hide a running or failed one, as in kubectl:
+      // https://github.com/kubernetes/kubernetes/pull/124766
+      if (reason === 'Completed') {
+        if (hasRunning && this.hasPodReadyCondition(this.status?.conditions ?? [])) {
           reason = 'Running';
-        } else {
+        } else if (errorReason) {
+          reason = errorReason;
+          message = errorMessage;
+        } else if (hasRunning) {
           reason = 'NotReady';
         }
       }
