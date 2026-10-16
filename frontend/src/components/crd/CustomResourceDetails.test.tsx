@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CustomResourceDefinition from '../../lib/k8s/crd';
+import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import { CustomResourceDetails } from './CustomResourceDetails';
 
@@ -76,12 +78,14 @@ vi.mock('../common/Loader', () => ({
   default: ({ title }: { title: string }) => <div data-testid="mock-loader">{title}</div>,
 }));
 
+const theme = createMuiTheme({ name: 'light', base: 'light' });
+
 describe('CustomResourceDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  const setupMocks = (apiVersion: string) => {
+  const setupMocks = (apiVersion: string, annotations?: Record<string, string>) => {
     const mockCrd = {
       metadata: { name: 'my-crd' },
       jsonData: {
@@ -103,11 +107,11 @@ describe('CustomResourceDetails', () => {
       makeCRClassOrNull: () => ({
         useGet: vi.fn(() => [
           {
-            metadata: { name: 'my-resource', namespace: 'default' },
+            metadata: { name: 'my-resource', namespace: 'default', annotations },
             jsonData: {
               apiVersion: apiVersion,
               kind: 'MyResource',
-              metadata: { name: 'my-resource', namespace: 'default' },
+              metadata: { name: 'my-resource', namespace: 'default', annotations },
               status: { phase: 'Running' },
             },
             getName: () => 'my-resource',
@@ -177,6 +181,44 @@ describe('CustomResourceDetails', () => {
     // The unset date column is hidden rather than shown as "Invalid Date".
     expect(screen.queryByTestId('extra-info-Finished')).not.toBeInTheDocument();
     expect(screen.queryByText('Invalid Date')).not.toBeInTheDocument();
+  });
+
+  it('shows the last applied configuration diff before events for a client-side applied resource', async () => {
+    const applied = {
+      apiVersion: 'example.com/v1',
+      kind: 'MyResource',
+      metadata: { name: 'my-resource', namespace: 'default' },
+    };
+    setupMocks('example.com/v1', {
+      'kubectl.kubernetes.io/last-applied-configuration': JSON.stringify(applied),
+    });
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <ThemeProvider theme={theme}>
+          <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    const diffTitle = await screen.findByText('Last Applied Configuration');
+    const eventList = screen.getByTestId('mock-event-list');
+    expect(diffTitle.compareDocumentPosition(eventList)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('does not show the last applied configuration diff without the annotation', async () => {
+    setupMocks('example.com/v1');
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <ThemeProvider theme={theme}>
+          <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(await screen.findByTestId('mock-event-list')).toBeInTheDocument();
+    expect(screen.queryByText('Last Applied Configuration')).not.toBeInTheDocument();
   });
 
   it('renders an empty state when makeCRClassOrNull() returns null (incomplete CRD spec, #4824)', async () => {

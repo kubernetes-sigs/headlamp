@@ -26,7 +26,8 @@ import Link from '../common/Link';
 import Loader from '../common/Loader';
 import { NameValueTableRow } from '../common/NameValueTable';
 import ObjectEventList from '../common/ObjectEventList';
-import { ConditionsTable, MainInfoSection, PageGrid } from '../common/Resource';
+import { ConditionsTable, LastAppliedDiff, MainInfoSection, PageGrid } from '../common/Resource';
+import { LAST_APPLIED_ANNOTATION } from '../common/Resource/lastAppliedConfiguration';
 import SectionBox from '../common/SectionBox';
 import DetailsViewSection from '../DetailsViewSection';
 
@@ -211,6 +212,9 @@ function CustomResourceDetailsItem(
         </SectionBox>
       )}
       <DetailsViewSection resource={item} />
+      {item.metadata?.annotations?.[LAST_APPLIED_ANNOTATION] && (
+        <LastAppliedDiff item={item.jsonData} />
+      )}
       {item && <ObjectEventList object={item} />}
     </PageGrid>
   );
