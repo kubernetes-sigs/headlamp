@@ -19,6 +19,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useCluster } from '../../lib/k8s';
 import VPA from '../../lib/k8s/vpa';
 import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -26,15 +27,41 @@ import SectionBox from '../common/SectionBox';
 
 export default function VpaList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const [vpaEnabled, setVpaEnabled] = useState<boolean | null>(null);
+  const cluster = useCluster();
+
+  const [prevCluster, setPrevCluster] = useState(cluster);
+  const [checkedState, setCheckedState] = useState<{
+    cluster: string | null;
+    enabled: boolean | null;
+  }>({
+    cluster: null,
+    enabled: null,
+  });
+
+  if (prevCluster !== cluster) {
+    setPrevCluster(cluster);
+    setCheckedState({ cluster: null, enabled: null });
+  }
 
   useEffect(() => {
+    let cancelled = false;
+
     const vpaStatus = async () => {
       const enabled = await VPA.isEnabled();
-      setVpaEnabled(enabled);
+
+      if (!cancelled) {
+        setCheckedState({ cluster, enabled });
+      }
     };
+
     vpaStatus();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cluster]);
+
+  const vpaEnabled = checkedState.cluster === cluster ? checkedState.enabled : null;
 
   return (
     <>
