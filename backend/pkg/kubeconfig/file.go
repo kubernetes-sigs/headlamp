@@ -166,6 +166,10 @@ func RemoveContextFromFile(contextName string, path string) error {
 
 	delete(config.Contexts, contextName)
 
+	if config.CurrentContext == contextName {
+		config.CurrentContext = ""
+	}
+
 	removeOrphanedClusterAndUser(config, clusterToRemove, userToRemove)
 
 	return clientcmd.WriteToFile(*config, path)
