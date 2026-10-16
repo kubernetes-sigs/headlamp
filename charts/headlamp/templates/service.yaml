@@ -14,7 +14,7 @@ spec:
   {{- if and .Values.service.clusterIP (eq .Values.service.type "ClusterIP") }}
   clusterIP: {{ .Values.service.clusterIP }}
   {{- end }}
-  {{- if (or (eq .Values.service.type "LoadBalancer") (eq .Values.service.type "NodePort")) }}
+  {{- if and (or (eq .Values.service.type "LoadBalancer") (eq .Values.service.type "NodePort")) (not (empty .Values.service.externalTrafficPolicy)) }}
   externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy | quote }}
   {{- end }}
   {{ if (and (eq .Values.service.type "LoadBalancer") (not (empty .Values.service.loadBalancerSourceRanges))) }}
