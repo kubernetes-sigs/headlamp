@@ -220,32 +220,43 @@ class Pod extends KubeObject<KubePod> {
     }
 
     function prettifyLogLine(logLine: string): string {
-      try {
-        const jsonMatch = logLine.match(/(\{.*\})/);
-        if (!jsonMatch) return logLine;
+      const valueReplacer = formatJsonValues
+        ? (key: string, value: any) =>
+            typeof value === 'string' ? unescapeStringLiterals(value) : value
+        : undefined;
 
-        const jsonStr = jsonMatch[1];
-        const jsonObj = JSON.parse(jsonStr);
+      // Process each line on its own so a multi-line chunk never loses lines.
+      // A line is only reformatted when a `{...}` region runs to the end of the
+      // line (ignoring trailing whitespace). This formats both bare JSON lines
+      // and structured logs with a leading prefix.
+      return logLine
+        .split('\n')
+        .map(line => {
+          try {
+            const firstBrace = line.indexOf('{');
+            const lastBrace = line.lastIndexOf('}');
+            if (
+              firstBrace === -1 ||
+              lastBrace < firstBrace ||
+              line.slice(lastBrace + 1).trim() !== ''
+            ) {
+              return line;
+            }
 
-        const valueReplacer = formatJsonValues
-          ? (key: string, value: any) =>
-              typeof value === 'string' ? unescapeStringLiterals(value) : value
-          : undefined;
+            const jsonObj = JSON.parse(line.slice(firstBrace, lastBrace + 1));
+            const prettyJson = JSON.stringify(jsonObj, valueReplacer, 2);
+            const terminalReadyJson = formatJsonValues
+              ? unescapeStringLiterals(prettyJson)
+              : prettyJson;
 
-        const prettyJson = JSON.stringify(jsonObj, valueReplacer, 2);
-        const terminalReadyJson = formatJsonValues
-          ? unescapeStringLiterals(prettyJson)
-          : prettyJson;
-
-        if (showTimestamps) {
-          const timestamp = logLine.slice(0, jsonMatch.index).trim();
-          return timestamp ? `${timestamp}\n${terminalReadyJson}\n` : `${terminalReadyJson}\n`;
-        } else {
-          return `${terminalReadyJson}\n`;
-        }
-      } catch {
-        return logLine; // Return original log line if parsing fails
-      }
+            // Keep any text before the JSON (timestamp, tag, …) on its own line.
+            const prefix = line.slice(0, firstBrace).trimEnd();
+            return prefix ? `${prefix}\n${terminalReadyJson}` : terminalReadyJson;
+          } catch {
+            return line; // Return original line if parsing fails
+          }
+        })
+        .join('\n');
     }
 
     function onResults(item: string) {
