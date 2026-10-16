@@ -373,6 +373,79 @@ describe('WebSocket Multiplexer', () => {
         // No message is also acceptable
       }
     });
+
+    it('should update reconnect metadata on watch events and resubscribe with the latest resourceVersion', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+
+      await WebSocketManager.subscribe(clusterName, path, initialQuery, onMessage);
+      await mockServer.connected;
+
+      // Verify initial subscription was sent with resourceVersion 100
+      const initialMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(initialMsg.query).toContain('resourceVersion=100');
+
+      // Deliver an incoming watch event with a newer resourceVersion 105
+      const watchEvent = {
+        clusterId: clusterName,
+        path,
+        query: initialQuery,
+        data: JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            metadata: {
+              resourceVersion: '105',
+            },
+          },
+        }),
+      };
+      await mockServer.send(JSON.stringify(watchEvent));
+
+      // Verify listener received update
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalled();
+      });
+
+      // Simulate connection drop
+      mockServer.close();
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      // Clean old server and set up new server for reconnect
+      WS.clean();
+      const reconnectServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+
+      // Reconnect
+      await WebSocketManager.connect();
+      await reconnectServer.connected;
+
+      // Verify resubscription uses the updated resourceVersion 105 instead of stale 100
+      const resubMsg = JSON.parse((await reconnectServer.nextMessage) as string);
+      expect(resubMsg.type).toBe('REQUEST');
+      expect(resubMsg.path).toBe(path);
+      expect(resubMsg.query).toContain('resourceVersion=105');
+      expect(resubMsg.query).not.toContain('resourceVersion=100');
+
+      // Deliver another watch event on the reconnected stream
+      const subsequentEvent = {
+        clusterId: clusterName,
+        path,
+        query: resubMsg.query,
+        data: JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            metadata: {
+              resourceVersion: '110',
+            },
+          },
+        }),
+      };
+      await reconnectServer.send(JSON.stringify(subsequentEvent));
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledTimes(2);
+      });
+    });
   });
 
   describe('useWebSocket hook', () => {
@@ -855,6 +928,30 @@ describe('WebSocket Multiplexer', () => {
       );
 
       expect(onMessage).not.toHaveBeenCalled();
+    });
+
+    it('should explicitly send CLOSE before REQUEST when re-subscribing with an updated query', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+      const updatedQuery = 'watch=1&resourceVersion=200';
+
+      await WebSocketManager.subscribe(clusterName, path, initialQuery, onMessage);
+      await mockServer.connected;
+
+      const firstMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(firstMsg.type).toBe('REQUEST');
+      expect(firstMsg.query).toBe(initialQuery);
+
+      // Re-subscribing with a different query (e.g. fresh LIST generation) on the same normalized key
+      await WebSocketManager.subscribe(clusterName, path, updatedQuery, onMessage);
+
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg.type).toBe('CLOSE');
+      expect(closeMsg.query).toBe(initialQuery);
+
+      const restartMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(restartMsg.type).toBe('REQUEST');
+      expect(restartMsg.query).toBe(updatedQuery);
     });
   });
 });
