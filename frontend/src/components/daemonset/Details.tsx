@@ -45,7 +45,7 @@ function TolerationsSection(props: TolerationsSection) {
   const tolerations = resource.spec.template.spec?.tolerations || [];
 
   function getEffectString(effect: string, seconds?: number) {
-    if (effect === 'NoExecute' && seconds === undefined) {
+    if (effect === 'NoExecute') {
       const secondsLabel = seconds === undefined ? 'forever' : `${seconds}s`;
       return `${effect} (${secondsLabel})`;
     }
