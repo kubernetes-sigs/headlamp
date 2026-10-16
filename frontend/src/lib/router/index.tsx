@@ -681,12 +681,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'roles',
     component: () => <RoleDetails />,
   },
-  clusterRoles: {
-    path: '/roles',
-    exact: true,
-    sidebar: 'roles',
-    component: () => <RoleList />,
-  },
+
   roleBindings: {
     path: '/rolebindings',
     exact: true,
@@ -708,12 +703,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'roleBindings',
     component: () => <RoleBindingDetails />,
   },
-  clusterRoleBindings: {
-    path: '/rolebindings',
-    exact: true,
-    sidebar: 'roleBindings',
-    component: () => <RoleBindingDetails />,
-  },
+
   secrets: {
     path: '/secrets',
     exact: true,
