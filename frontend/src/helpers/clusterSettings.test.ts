@@ -94,6 +94,28 @@ describe('clusterSettings', () => {
       expect(localStorage.getItem('cluster_settings.prod')).toBe('{}');
       expect(loadClusterSettings('prod')).toEqual({});
     });
+
+    it('catches and logs error when localStorage.setItem throws', () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const originalSetItem = localStorage.setItem.bind(localStorage);
+      const setItemMock = vi.fn().mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+      localStorage.setItem = setItemMock;
+
+      try {
+        storeClusterSettings('prod', { defaultNamespace: 'app' });
+
+        expect(setItemMock).toHaveBeenCalled();
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to store cluster settings:',
+          'QuotaExceededError'
+        );
+      } finally {
+        localStorage.setItem = originalSetItem;
+        consoleErrorSpy.mockRestore();
+      }
+    });
   });
 
   describe('loadClusterSettings', () => {
@@ -134,32 +156,37 @@ describe('clusterSettings', () => {
 
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const result = loadClusterSettings('prod');
+      try {
+        const result = loadClusterSettings('prod');
 
-      expect(result).toEqual({});
-      expect(consoleWarnSpy).toHaveBeenCalled();
-      consoleWarnSpy.mockRestore();
+        expect(result).toEqual({});
+        expect(consoleWarnSpy).toHaveBeenCalled();
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
     });
 
     it('returns empty object and logs console warning when the stored payload is not an object', () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      // Test null
-      localStorage.setItem('cluster_settings.prod', 'null');
-      expect(loadClusterSettings('prod')).toEqual({});
-      expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+      try {
+        // Test null
+        localStorage.setItem('cluster_settings.prod', 'null');
+        expect(loadClusterSettings('prod')).toEqual({});
+        expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
 
-      // Test array
-      localStorage.setItem('cluster_settings.prod', '[1, 2, 3]');
-      expect(loadClusterSettings('prod')).toEqual({});
-      expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
+        // Test array
+        localStorage.setItem('cluster_settings.prod', '[1, 2, 3]');
+        expect(loadClusterSettings('prod')).toEqual({});
+        expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
 
-      // Test string
-      localStorage.setItem('cluster_settings.prod', '"some string"');
-      expect(loadClusterSettings('prod')).toEqual({});
-      expect(consoleWarnSpy).toHaveBeenCalledTimes(3);
-
-      consoleWarnSpy.mockRestore();
+        // Test string
+        localStorage.setItem('cluster_settings.prod', '"some string"');
+        expect(loadClusterSettings('prod')).toEqual({});
+        expect(consoleWarnSpy).toHaveBeenCalledTimes(3);
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
     });
   });
 
