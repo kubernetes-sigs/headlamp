@@ -48,6 +48,7 @@ describe('getSchedulingStatusText', () => {
     expect(getSchedulingStatusText(condition('True'), t)).toBe('Scheduled');
     expect(getSchedulingStatusText(condition('False'), t)).toBe('Pending');
     expect(getSchedulingStatusText(condition('Unknown'), t)).toBe('Unknown');
+    expect(getSchedulingStatusText(condition('Unknown', 'WaitingForPods'), t)).toBe('Unknown');
     expect(getSchedulingStatusText(undefined, t)).toBe('Unknown');
   });
 });
