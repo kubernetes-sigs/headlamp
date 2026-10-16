@@ -66,7 +66,9 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
             value: item.spec.maxReplicas,
           },
           {
-            name: t('translation|Deployment pods'),
+            name: t('translation|{{ kind }} pods', {
+              kind: item.spec.scaleTargetRef?.kind ?? 'Deployment',
+            }),
             value: t(`translation|{{ currentReplicas }} current / {{ desiredReplicas }} desired`, {
               currentReplicas: item.status.currentReplicas,
               desiredReplicas: item.status.desiredReplicas,
