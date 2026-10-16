@@ -14,11 +14,18 @@
 package k8cache
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 func TestReturnGVRList(t *testing.T) {
@@ -87,4 +94,57 @@ func TestReturnGVRList(t *testing.T) {
 
 	result := returnGVRList(apiResourceLists)
 	assert.ElementsMatch(t, expected, result)
+}
+
+func TestRunWatcher_InvalidDynamicClientConfig(t *testing.T) {
+	t.Parallel()
+
+	kContext := kubeconfig.Context{
+		Name: "invalid-ctx",
+		KubeContext: &clientcmdapi.Context{
+			Cluster: "invalid-cluster",
+		},
+		Cluster: &clientcmdapi.Cluster{
+			Server: "://invalid-scheme",
+		},
+		AuthInfo: &clientcmdapi.AuthInfo{},
+	}
+
+	c := cache.New[string]()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	assert.NotPanics(t, func() {
+		runWatcher(ctx, c, "invalid-ctx", kContext)
+	})
+}
+
+func TestRunWatcher_DiscoveryClientError(t *testing.T) {
+	origNewDiscoveryClient := newDiscoveryClient
+	defer func() { newDiscoveryClient = origNewDiscoveryClient }()
+
+	newDiscoveryClient = func(config *rest.Config) (discovery.DiscoveryInterface, error) {
+		return nil, errors.New("mock discovery client creation error")
+	}
+
+	kContext := kubeconfig.Context{
+		Name: "test-ctx",
+		KubeContext: &clientcmdapi.Context{
+			Cluster: "test-cluster",
+		},
+		Cluster: &clientcmdapi.Cluster{
+			Server: "http://127.0.0.1:65535",
+		},
+		AuthInfo: &clientcmdapi.AuthInfo{},
+	}
+
+	c := cache.New[string]()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+
+	assert.NotPanics(t, func() {
+		runWatcher(ctx, c, "test-ctx", kContext)
+	})
 }
