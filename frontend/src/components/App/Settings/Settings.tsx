@@ -33,6 +33,7 @@ import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
 import { setTheme, useAppThemes } from '../themeSlice';
+import ActionDelayInput from './ActionDelayInput';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
@@ -163,6 +164,11 @@ export default function Settings() {
               />
             ),
             nameID: tableRowsLabelID,
+          },
+          {
+            name: 'Action Delay',
+            value: <ActionDelayInput nameLabelID="action-delay-label" />,
+            nameID: 'action-delay-label',
           },
           {
             name: t('translation|Timezone to display for dates'),
