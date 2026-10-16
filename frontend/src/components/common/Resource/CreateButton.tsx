@@ -22,7 +22,6 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { alpha } from '@mui/system';
-import * as yaml from 'js-yaml';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
@@ -65,24 +64,8 @@ export const RESOURCE_DEFINITIONS = {
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
 
-/** Parse a YAML string into a plain object. Returns `null` for non-empty
- *  invalid input so the form state is not overwritten mid-edit. Blank input
- *  yields `{}`. Used by {@link CreateActivityContent} to sync the form when
- *  the user edits YAML directly in the editor panel. */
-export function parseEditorObject(input: string): Record<string, any> | null {
-  if (!input.trim()) return {};
-
-  try {
-    const parsed = yaml.load(input);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, any>;
-    }
-  } catch {
-    // Ignore parse errors while editing incomplete YAML.
-  }
-
-  return null;
-}
+import { parseEditorObject } from './parseEditorObject';
+export { parseEditorObject };
 
 /** Inner component rendered inside the Activity panel. Holds shared state so the
  *  form can update the editor YAML in-place without relaunching the activity. */
