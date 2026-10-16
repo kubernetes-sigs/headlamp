@@ -1,0 +1,52 @@
+<body>
+  <div>
+    <nav
+      class="MuiTypography-root MuiTypography-body1 MuiBreadcrumbs-root css-ojlt14-MuiTypography-root-MuiBreadcrumbs-root"
+    >
+      <ol
+        class="MuiBreadcrumbs-ol css-4pdmu4-MuiBreadcrumbs-ol"
+      >
+        <li
+          class="MuiBreadcrumbs-li"
+        >
+          <a
+            aria-label="Home"
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-129edb2-MuiTypography-root-MuiLink-root"
+            data-mui-internal-clone-element="true"
+          >
+             
+             
+            <div
+              class="MuiBox-root css-1o4wo1x"
+            >
+              Home
+            </div>
+          </a>
+        </li>
+        <li
+          aria-hidden="true"
+          class="MuiBreadcrumbs-separator css-1wuw8dw-MuiBreadcrumbs-separator"
+        >
+          /
+        </li>
+        <li
+          class="MuiBreadcrumbs-li"
+        >
+          <div
+            aria-label="Workloads"
+            class="MuiBox-root css-1921pvu"
+            data-mui-internal-clone-element="true"
+          >
+             
+             
+            <div
+              class="MuiBox-root css-1o4wo1x"
+            >
+              Workloads
+            </div>
+          </div>
+        </li>
+      </ol>
+    </nav>
+  </div>
+</body>
