@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -79,21 +80,42 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	DeleteKeys(key, k8scache)
 
 	freshURL := *r.URL
+	freshHeader := r.Header.Clone()
 
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
+	next.ServeHTTP(w, r)
+
+	// Use context.WithoutCancel(r.Context()) instead of r.Context() so the cache repopulation
+	// request is not cancelled if the client disconnects before the fresh GET
+	// completes, while preserving request-scoped variables like mux route values.
+	// We wrap it in a finite timeout to prevent unresponsive upstream servers
+	// from leaking goroutines.
+	detachedCtx := context.WithoutCancel(r.Context())
+	timeoutCtx, timeoutCancel := context.WithTimeout(detachedCtx, 60*time.Second)
+
+	defer timeoutCancel()
+
+	freshReq, err := http.NewRequestWithContext( //nolint:gosec
+		timeoutCtx, http.MethodGet, freshURL.String(), nil,
+	)
 	if err != nil {
-		return err
+		logger.Log(logger.LevelWarn, nil, err, "could not create repopulation request")
+		return ErrHandled
 	}
 
-	freshReq.Header = r.Header.Clone()
-	next.ServeHTTP(w, r)
+	freshReq.Header = freshHeader
 
 	rr := httptest.NewRecorder()
 	freshRcw := NewResponseCapture(rr)
 	next.ServeHTTP(freshRcw, freshReq)
 
+	if timeoutCtx.Err() != nil {
+		logger.Log(logger.LevelWarn, nil, timeoutCtx.Err(), "cache repopulation request timed out")
+		return ErrHandled
+	}
+
 	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
-		return err
+		logger.Log(logger.LevelWarn, nil, err, "failed to store repopulated response in cache")
+		return ErrHandled
 	}
 
 	return ErrHandled
