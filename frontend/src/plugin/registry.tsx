@@ -57,6 +57,7 @@ import {
   DefaultHeaderAction,
   HeaderActionsProcessor,
   HeaderActionType,
+  NewHeaderActionType,
   setAppBarAction,
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
@@ -475,6 +476,8 @@ export function registerRoute(routeSpec: Route) {
 /**
  * Add a component into the details view header.
  *
+ * @deprecated Use registerDetailsViewHeaderActionButton instead.
+ *
  * @param headerAction - The action (link) to put in the app bar.
  *
  * @example
@@ -497,7 +500,29 @@ export function registerRoute(routeSpec: Route) {
  * ```
  */
 export function registerDetailsViewHeaderAction(headerAction: DetailsViewHeaderActionType) {
-  store.dispatch(setDetailsViewHeaderAction(headerAction));
+  store.dispatch(setDetailsViewHeaderAction({ id: '', action: headerAction, isLegacy: true }));
+}
+
+/**
+ * Add a button-based action into the details view header.
+ *
+ * @param id - A unique ID for this action.
+ * @param action - The action function returning ActionButtonProps.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerDetailsViewHeaderActionButton } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerDetailsViewHeaderActionButton('my-plugin-action', ({ item }) => ({
+ *   description: "Launch",
+ *   icon: "mdi:comment-quote",
+ *   onClick: () => console.log('Hello from IconAction! ' + item.metadata.name)
+ * }));
+ * ```
+ */
+export function registerDetailsViewHeaderActionButton(id: string, action: NewHeaderActionType) {
+  store.dispatch(setDetailsViewHeaderAction({ id, action, isLegacy: false }));
 }
 
 /**
