@@ -73,7 +73,7 @@ export function runCommand(
   ) => void,
   desktopApiReceive?: (
     channel: string,
-    listener: (cmdId: string, data: string | number) => void
+    listener: (cmdId: string, data: string | number | null) => void
   ) => (() => void) | void,
   capability?: string
 ): {
@@ -99,7 +99,7 @@ export function runCommand(
   const stdout = new EventTarget();
   const removeStdout = desktopApiReceive(
     'command-stdout',
-    (cmdId: string, data: string | number) => {
+    (cmdId: string, data: string | number | null) => {
       if (cmdId === id) {
         const event = new CustomEvent('data', { detail: data });
         stdout.dispatchEvent(event);
@@ -110,7 +110,7 @@ export function runCommand(
   const stderr = new EventTarget();
   const removeStderr = desktopApiReceive(
     'command-stderr',
-    (cmdId: string, data: string | number) => {
+    (cmdId: string, data: string | number | null) => {
       if (cmdId === id) {
         const event = new CustomEvent('data', { detail: data });
         stderr.dispatchEvent(event);
@@ -119,16 +119,19 @@ export function runCommand(
   );
 
   const exit = new EventTarget();
-  const removeExit = desktopApiReceive('command-exit', (cmdId: string, code: string | number) => {
-    if (cmdId === id) {
-      removeStdout?.();
-      removeStderr?.();
-      removeExit?.();
+  const removeExit = desktopApiReceive(
+    'command-exit',
+    (cmdId: string, code: string | number | null) => {
+      if (cmdId === id) {
+        removeStdout?.();
+        removeStderr?.();
+        removeExit?.();
 
-      const event = new CustomEvent('exit', { detail: code });
-      exit.dispatchEvent(event);
+        const event = new CustomEvent('exit', { detail: code });
+        exit.dispatchEvent(event);
+      }
     }
-  });
+  );
 
   // We use desktopApiReceive and desktopApiSend to communicate with the main process.
   // Because other plugins may change the global window.desktopApi functions
