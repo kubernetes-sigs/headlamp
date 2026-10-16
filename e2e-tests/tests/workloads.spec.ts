@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,8 @@ const appsWorkloads = [
       numberAvailable: 1,
       numberReady: 1,
     },
-    expectedText: 'kubernetes.io/os: linux',
+    expectedText: 'kubernetes…',
+    expectedTooltipText: 'kubernetes.io/os: linux',
   },
   {
     resource: 'deployments',
@@ -208,6 +209,10 @@ for (const workload of appsWorkloads) {
       .filter({ has: page.getByRole('link', { name: workload.name, exact: true }) });
     await expect(workloadRow).toBeVisible();
     await expect(workloadRow.getByText(workload.expectedText, { exact: true })).toBeVisible();
+    if ('expectedTooltipText' in workload && workload.expectedTooltipText) {
+      await workloadRow.getByText(workload.expectedText, { exact: true }).hover();
+      await expect(page.getByText(workload.expectedTooltipText)).toBeVisible();
+    }
   });
 }
 
