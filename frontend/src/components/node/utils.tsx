@@ -20,8 +20,11 @@ import Tooltip from '@mui/material/Tooltip';
 import { styled } from '@mui/system';
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { KubeContainer } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
+import type { KubePod } from '../../lib/k8s/pod';
 import Pod from '../../lib/k8s/pod';
+import * as units from '../../lib/units';
 
 export function isNodeCordoned(node: Node): boolean {
   return !!node.spec?.unschedulable;
@@ -41,6 +44,120 @@ function isWorkloadPod(pod: Pod): boolean {
 // remain scheduled on it.
 export function isNodeDrained(node: Node, podsOnNode: Pod[]): boolean {
   return isNodeCordoned(node) && !podsOnNode.some(isWorkloadPod);
+}
+
+/** CPU and memory totals, in the units returned by {@link units.parseCpu} and {@link units.parseRam}. */
+interface ResourceAmount {
+  cpu: number;
+  memory: number;
+}
+
+/** The scheduled CPU and memory of every pod on a node, requests and limits. */
+export interface NodeResourceTotals {
+  cpuRequests: number;
+  cpuLimits: number;
+  memoryRequests: number;
+  memoryLimits: number;
+}
+
+/**
+ * Whether an init container is a sidecar, i.e. a "restartable" init container.
+ *
+ * Init containers with `restartPolicy: 'Always'` keep running for the whole pod
+ * lifetime instead of running to completion, so they contribute to a pod's
+ * resources additively rather than as a one-off init step.
+ *
+ * @see {@link https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/} Kubernetes definition for sidecar containers
+ */
+function isSidecarContainer(container: KubeContainer): boolean {
+  return container.restartPolicy === 'Always';
+}
+
+const ZERO: ResourceAmount = { cpu: 0, memory: 0 };
+
+function add(a: ResourceAmount, b: ResourceAmount): ResourceAmount {
+  return { cpu: a.cpu + b.cpu, memory: a.memory + b.memory };
+}
+
+/** Per-resource maximum, matching Kubernetes' `maxResourceList`. */
+function max(a: ResourceAmount, b: ResourceAmount): ResourceAmount {
+  return { cpu: Math.max(a.cpu, b.cpu), memory: Math.max(a.memory, b.memory) };
+}
+
+function containerAmount(container: KubeContainer, field: 'requests' | 'limits'): ResourceAmount {
+  const resources = container.resources?.[field];
+  return {
+    cpu: units.parseCpu(resources?.cpu || '0'),
+    memory: units.parseRam(resources?.memory || '0'),
+  };
+}
+
+/**
+ * What a single pod's containers contribute to the requests (or limits)
+ * scheduled on its node, following the regular/init/sidecar rules Kubernetes
+ * defines.
+ *
+ * Regular containers run side by side, so their amounts add up. Plain init
+ * containers run one at a time and finish before the pod's containers start, so
+ * they only raise the total to the largest single init step. Sidecars —
+ * {@link isSidecarContainer} — stay up for the whole pod lifetime, so they add
+ * to the total like a regular container *and* raise the baseline that later
+ * init containers are measured against.
+ *
+ * This is the container-level contribution only. Kubernetes also adds
+ * `spec.overhead` to a pod's effective requests and limits, which Headlamp does
+ * not model, so the result matches `kubectl describe node` for every pod
+ * without pod overhead.
+ *
+ * @see {@link https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/#resource-sharing-within-containers} Kubernetes definition of a pod's effective requests
+ */
+function podAmount(pod: KubePod, field: 'requests' | 'limits'): ResourceAmount {
+  let total = ZERO;
+  for (const container of pod.spec?.containers ?? []) {
+    total = add(total, containerAmount(container, field));
+  }
+
+  // The running total of the sidecars seen so far, and the largest single init
+  // step, kept separate so a sidecar is never counted twice.
+  let sidecars = ZERO;
+  let initMax = ZERO;
+
+  for (const container of pod.spec?.initContainers ?? []) {
+    const amount = containerAmount(container, field);
+    if (isSidecarContainer(container)) {
+      total = add(total, amount);
+      sidecars = add(sidecars, amount);
+      initMax = max(initMax, sidecars);
+    } else {
+      initMax = max(initMax, add(amount, sidecars));
+    }
+  }
+
+  return max(total, initMax);
+}
+
+/**
+ * Sums the effective requests and limits of every pod scheduled on a node, for
+ * the node details resource allocation summary.
+ *
+ * Callers are expected to pass only non-terminated pods, since the scheduler
+ * releases the resources of Succeeded and Failed pods.
+ */
+export function getNodeResourceTotals(pods: KubePod[] | null): NodeResourceTotals {
+  let requests = ZERO;
+  let limits = ZERO;
+
+  for (const pod of pods ?? []) {
+    requests = add(requests, podAmount(pod, 'requests'));
+    limits = add(limits, podAmount(pod, 'limits'));
+  }
+
+  return {
+    cpuRequests: requests.cpu,
+    cpuLimits: limits.cpu,
+    memoryRequests: requests.memory,
+    memoryLimits: limits.memory,
+  };
 }
 
 const WrappingBox = styled(Box)(({ theme }) => ({
