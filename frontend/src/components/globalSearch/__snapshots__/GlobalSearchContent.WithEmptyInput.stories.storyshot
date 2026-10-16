@@ -10,6 +10,7 @@
           aria-activedescendant=""
           aria-autocomplete="list"
           aria-expanded="false"
+          aria-label="Search resources, pages, clusters by name"
           autocapitalize="none"
           class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-focused MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
           role="combobox"
@@ -17,6 +18,7 @@
         >
           <input
             aria-invalid="false"
+            aria-label="Search resources, pages, clusters by name"
             autocomplete="off"
             class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
             id=":mock-test-id:"
@@ -58,11 +60,11 @@
     data-popper-escaped=""
     data-popper-placement="bottom"
     data-popper-reference-hidden=""
-    role="tooltip"
+    role="presentation"
     style="position: absolute; top: 0px; left: 0px; margin: 0px; right: auto; bottom: auto; transform: translate(0px, 0px);"
   >
     <ul
-      aria-labelledby=":mock-test-id:"
+      aria-label="Search"
       class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-atm94b-MuiPaper-root"
       id=":mock-test-id:"
       role="listbox"
