@@ -30,6 +30,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockCache is struct which help to mock caching for testing purpose.
@@ -95,7 +96,18 @@ func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
 
 // GetAll Mocks retrieving all the values inside the cache.
 func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]string, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	result := make(map[string]string)
+
+	for k, v := range m.store {
+		if selectFunc == nil || selectFunc(k) {
+			result[k] = v
+		}
+	}
+
+	return result, nil
 }
 
 // UpdateTTL Mocks updating of time-to-live with the help of its corresponding key string.
@@ -431,63 +443,63 @@ func TestGenerateKey(t *testing.T) {
 			name:        "key with non-empty apiGroup, kind, namespace, contextId",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods"},
 			contextKey:  "kind-kind",
-			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind",
+			expectedKey: "k8s.metrics.io+v1beta1+pods+test-kube+kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key with empty apiGroup",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-kube/pods"},
 			contextKey:  "kind-kind",
-			expectedKey: "+pods+test-kube+kind-kind",
+			expectedKey: "+v1+pods+test-kube+kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key with direct api path",
 			urlPath:     url.URL{Path: "/api/v1/namespaces/test-kube/pods"},
 			contextKey:  "kind-kind",
-			expectedKey: "+pods+test-kube+kind-kind",
+			expectedKey: "+v1+pods+test-kube+kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key with empty apiGroup and namespace",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
 			contextKey:  "kind-kind",
-			expectedKey: "+pods++kind-kind",
+			expectedKey: "+v1+pods++kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key for core discovery path without version",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/api"},
 			contextKey:  "kind-kind",
-			expectedKey: "+api++kind-kind",
+			expectedKey: "++api++kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key for core discovery path with trailing slash",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/api/"},
 			contextKey:  "kind-kind",
-			expectedKey: "+api++kind-kind",
+			expectedKey: "++api++kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key for api group discovery root",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis"},
 			contextKey:  "kind-kind",
-			expectedKey: "+apis++kind-kind",
+			expectedKey: "++apis++kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key for api group discovery path without version",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io"},
 			contextKey:  "kind-kind",
-			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
+			expectedKey: "k8s.metrics.io++k8s.metrics.io++kind-kind",
 			expectedErr: nil,
 		},
 		{
 			name:        "key for api group discovery path with trailing slash",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/"},
 			contextKey:  "kind-kind",
-			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
+			expectedKey: "k8s.metrics.io++k8s.metrics.io++kind-kind",
 			expectedErr: nil,
 		},
 		{
@@ -501,7 +513,7 @@ func TestGenerateKey(t *testing.T) {
 			name:        "context key containing a literal plus is escaped, not treated as delimiter",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
 			contextKey:  "prod+cluster",
-			expectedKey: "apps+deployments+default+prod%2Bcluster",
+			expectedKey: "apps+v1+deployments+default+prod%2Bcluster",
 			expectedErr: nil,
 		},
 		{
@@ -511,7 +523,63 @@ func TestGenerateKey(t *testing.T) {
 			name:        "context key containing a literal percent sequence does not collide with the plus-escaped form",
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
 			contextKey:  "prod%2Bcluster",
-			expectedKey: "apps+deployments+default+prod%252Bcluster",
+			expectedKey: "apps+v1+deployments+default+prod%252Bcluster",
+			expectedErr: nil,
+		},
+		{
+			name:        "pod log request includes named resource, subresource, and query parameter",
+			urlPath:     url.URL{Path: "/api/v1/namespaces/payments/pods/api-1/log", RawQuery: "container=app"},
+			contextKey:  "kind-kind",
+			expectedKey: "+v1+pods/api-1/log?container=app+payments+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "distinct pod log request does not collide",
+			urlPath:     url.URL{Path: "/api/v1/namespaces/payments/pods/api-2/log", RawQuery: "container=app"},
+			contextKey:  "kind-kind",
+			expectedKey: "+v1+pods/api-2/log?container=app+payments+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "list request includes labelSelector query parameter",
+			urlPath:     url.URL{Path: "/api/v1/namespaces/default/pods", RawQuery: "labelSelector=env%3Dprod"},
+			contextKey:  "kind-kind",
+			expectedKey: "+v1+pods?labelSelector=env%253Dprod+default+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "list request with pagination token",
+			urlPath:     url.URL{Path: "/api/v1/namespaces/default/pods", RawQuery: "limit=50&continue=token-1"},
+			contextKey:  "kind-kind",
+			expectedKey: "+v1+pods?continue=token-1&limit=50+default+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "named GET request includes resource type and name",
+			urlPath:     url.URL{Path: "/api/v1/namespaces/default/pods/my-pod"},
+			contextKey:  "kind-kind",
+			expectedKey: "+v1+pods/my-pod+default+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "cluster-scoped GET for namespace named default produces canonical namespaces/default key",
+			urlPath:     url.URL{Path: "/api/v1/namespaces/default"},
+			contextKey:  "kind-kind",
+			expectedKey: "+v1+namespaces/default++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "multiple CRD versions produce distinct canonical keys",
+			urlPath:     url.URL{Path: "/apis/example.io/v1/widgets"},
+			contextKey:  "kind-kind",
+			expectedKey: "example.io+v1+widgets++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "distinct CRD version produces distinct canonical key",
+			urlPath:     url.URL{Path: "/apis/example.io/v2/widgets"},
+			contextKey:  "kind-kind",
+			expectedKey: "example.io+v2+widgets++kind-kind",
 			expectedErr: nil,
 		},
 	}
@@ -528,6 +596,163 @@ func TestGenerateKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGenerateKey_CollisionAvoidance verifies that distinct pod logs,
+// containers, selectors, and pagination tokens do not produce colliding keys.
+func TestGenerateKey_CollisionAvoidance(t *testing.T) {
+	ctx := "cluster-ctx"
+
+	// 1. Distinct pods with the same container and namespace
+	u1, _ := url.Parse("/api/v1/namespaces/payments/pods/api-1/log?container=app")
+	k1, err1 := k8cache.GenerateKey(u1, ctx)
+	require.NoError(t, err1)
+
+	u2, _ := url.Parse("/api/v1/namespaces/payments/pods/api-2/log?container=app")
+	k2, err2 := k8cache.GenerateKey(u2, ctx)
+	require.NoError(t, err2)
+
+	assert.NotEqual(t, k1, k2, "pod log keys for different pods must not collide")
+
+	// 2. Distinct containers on the same pod
+	u3, _ := url.Parse("/api/v1/namespaces/payments/pods/api-1/log?container=sidecar")
+	k3, err3 := k8cache.GenerateKey(u3, ctx)
+	require.NoError(t, err3)
+
+	assert.NotEqual(t, k1, k3, "log keys for different containers must not collide")
+
+	// 3. Distinct label selectors on list calls
+	l1, _ := url.Parse("/api/v1/namespaces/default/pods?labelSelector=tier%3Dbackend")
+	kl1, errL1 := k8cache.GenerateKey(l1, ctx)
+	require.NoError(t, errL1)
+
+	l2, _ := url.Parse("/api/v1/namespaces/default/pods?labelSelector=tier%3Dfrontend")
+	kl2, errL2 := k8cache.GenerateKey(l2, ctx)
+	require.NoError(t, errL2)
+
+	assert.NotEqual(t, kl1, kl2, "list keys with different labelSelectors must not collide")
+
+	// 4. Distinct pagination tokens
+	p1, _ := url.Parse("/api/v1/namespaces/default/pods?limit=50&continue=page-token-1")
+	kp1, errP1 := k8cache.GenerateKey(p1, ctx)
+	require.NoError(t, errP1)
+
+	p2, _ := url.Parse("/api/v1/namespaces/default/pods?limit=50&continue=page-token-2")
+	kp2, errP2 := k8cache.GenerateKey(p2, ctx)
+	require.NoError(t, errP2)
+
+	assert.NotEqual(t, kp1, kp2, "list keys with different pagination tokens must not collide")
+
+	// 5. Distinct resource types sharing the same name
+	r1, _ := url.Parse("/api/v1/namespaces/default/pods/web-svc")
+	kr1, errR1 := k8cache.GenerateKey(r1, ctx)
+	require.NoError(t, errR1)
+
+	r2, _ := url.Parse("/api/v1/namespaces/default/services/web-svc")
+	kr2, errR2 := k8cache.GenerateKey(r2, ctx)
+	require.NoError(t, errR2)
+
+	assert.NotEqual(t, kr1, kr2, "keys for different resource types sharing the same name must not collide")
+}
+
+// TestGenerateKey_CanonicalQueryOrdering verifies that query parameters are sorted
+// so that requests with the same parameters in different orders hit the same cache entry.
+func TestGenerateKey_CanonicalQueryOrdering(t *testing.T) {
+	ctx := "cluster-ctx"
+
+	u1, _ := url.Parse("/api/v1/namespaces/default/pods?limit=50&labelSelector=app%3Dtest")
+	u2, _ := url.Parse("/api/v1/namespaces/default/pods?labelSelector=app%3Dtest&limit=50")
+
+	k1, err1 := k8cache.GenerateKey(u1, ctx)
+	k2, err2 := k8cache.GenerateKey(u2, ctx)
+
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, k1, k2, "query parameters must be canonicalized and sorted")
+}
+
+// TestGenerateKey_MalformedQueryPreservesPartition verifies that requests with
+// malformed query parameters retain their query partition and do not collide
+// with unfiltered list requests.
+func TestGenerateKey_MalformedQueryPreservesPartition(t *testing.T) {
+	ctx := "cluster-ctx"
+
+	unfilteredURL, err := url.Parse("/api/v1/namespaces/default/pods")
+	require.NoError(t, err)
+
+	unfilteredKey, err := k8cache.GenerateKey(unfilteredURL, ctx)
+	require.NoError(t, err)
+
+	malformedURL, err := url.Parse("/api/v1/namespaces/default/pods?labelSelector=app%3Dbackend&unused=%ZZ")
+	require.NoError(t, err)
+
+	malformedKey, err := k8cache.GenerateKey(malformedURL, ctx)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, unfilteredKey, malformedKey,
+		"malformed query request must not collapse to unfiltered list cache key")
+	assert.Contains(t, malformedKey, "labelSelector=app%253Dbackend")
+	assert.Contains(t, malformedKey, "unused=%25ZZ")
+}
+
+// TestShouldSkipCache verifies that streaming and interactive endpoints bypass the cache.
+func TestShouldSkipCache(t *testing.T) {
+	tests := []struct {
+		name     string
+		rawURL   string
+		expected bool
+	}{
+		{
+			name:     "watch=true query parameter bypasses cache",
+			rawURL:   "/api/v1/namespaces/default/pods?watch=true",
+			expected: true,
+		},
+		{
+			name:     "watch=1 query parameter bypasses cache",
+			rawURL:   "/api/v1/namespaces/default/pods?watch=1",
+			expected: true,
+		},
+		{
+			name:     "follow=true log stream bypasses cache",
+			rawURL:   "/api/v1/namespaces/default/pods/p1/log?follow=true",
+			expected: true,
+		},
+		{
+			name:     "exec interactive subresource bypasses cache",
+			rawURL:   "/api/v1/namespaces/default/pods/p1/exec",
+			expected: true,
+		},
+		{
+			name:     "attach interactive subresource bypasses cache",
+			rawURL:   "/api/v1/namespaces/default/pods/p1/attach",
+			expected: true,
+		},
+		{
+			name:     "portforward interactive subresource bypasses cache",
+			rawURL:   "/api/v1/namespaces/default/pods/p1/portforward",
+			expected: true,
+		},
+		{
+			name:     "regular pod snapshot log does not bypass cache",
+			rawURL:   "/api/v1/namespaces/default/pods/p1/log?container=app",
+			expected: false,
+		},
+		{
+			name:     "regular list query does not bypass cache",
+			rawURL:   "/api/v1/namespaces/default/pods",
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tc.rawURL, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, k8cache.ShouldSkipCache(req))
+		})
+	}
+
+	assert.False(t, k8cache.ShouldSkipCache(nil))
 }
 
 // TestSetHeader tests whether the SetHeader is providing correct metadata for
@@ -1036,6 +1261,16 @@ func TestRedactCacheKey(t *testing.T) {
 			name:     "valid cache key with 4 segments and long context",
 			input:    "api+pods+default+my-production-cluster",
 			expected: "api+pods+default+my-...[redacted]",
+		},
+		{
+			name:     "valid cache key with 5 segments and long context",
+			input:    "apps+v1+deployments+default+my-production-cluster",
+			expected: "apps+v1+deployments+default+my-...[redacted]",
+		},
+		{
+			name:     "redacts sensitive query parameter values in logs",
+			input:    "+v1+pods/api-1/proxy?token=secret-token-123+default+my-cluster",
+			expected: "+v1+pods/api-1/proxy?token=%5Bredacted%5D+default+my-...[redacted]",
 		},
 	}
 
