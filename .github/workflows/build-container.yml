@@ -109,8 +109,15 @@ jobs:
         mkdir -p ~/image-cache
         gzip -dc ~/image-cache/headlamp-plugins-test.tar.gz | docker load
         gzip -dc ~/image-cache/headlamp.tar.gz | docker load
-    - name: Make a .plugins folder for testing later
+    - name: Restore .plugins cache
+      id: cache-plugins-restore
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      with:
+        path: .plugins
+        key: ${{ runner.os }}-plugins-v1-${{ hashFiles('plugins/examples/pod-counter/**', 'plugins/headlamp-plugin/package*.json', 'plugins/headlamp-plugin/bin/**', 'plugins/headlamp-plugin/config/**') }}
+    - name: Make a .plugins folder for testing later
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true' && steps.cache-plugins-restore.outputs.cache-hit != 'true'
       run: |
         echo "Extract pod-counter plugin into .plugins folder, which will be copied into image later by 'make image'."
         cd plugins/examples/pod-counter
@@ -122,6 +129,12 @@ jobs:
         node bin/headlamp-plugin.js extract ../examples/pod-counter ../../.plugins/
         cd ../../
         ls -laR .plugins
+    - name: Save .plugins cache
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true' && steps.cache-plugins-restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      with:
+        path: .plugins
+        key: ${{ steps.cache-plugins-restore.outputs.cache-primary-key }}
     - name: Remove unnecessary files
       run: |
         sudo rm -rf /usr/share/dotnet
