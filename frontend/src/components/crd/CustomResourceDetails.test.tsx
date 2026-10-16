@@ -179,6 +179,40 @@ describe('CustomResourceDetails', () => {
     expect(screen.queryByText('Invalid Date')).not.toBeInTheDocument();
   });
 
+  it('shows a printer column whose JSONPath escapes dots in a label key', async () => {
+    const mockCrd = setupMocks('v1');
+    mockCrd.jsonData.spec.versions[0].additionalPrinterColumns.push({
+      name: 'Cluster',
+      jsonPath: '.metadata.labels.cluster\\.x-k8s\\.io/cluster-name',
+      type: 'string',
+    });
+    const cr: any = mockCrd.makeCRClassOrNull().useGet()[0];
+    mockCrd.makeCRClassOrNull = () => ({
+      useGet: vi.fn(() => [
+        {
+          ...cr,
+          jsonData: {
+            ...cr.jsonData,
+            metadata: {
+              ...cr.jsonData.metadata,
+              labels: { 'cluster.x-k8s.io/cluster-name': 'prod-eu' },
+            },
+          },
+        },
+        null,
+      ]),
+    });
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+      </TestContext>
+    );
+
+    const clusterRow = await screen.findByTestId('extra-info-Cluster');
+    expect(clusterRow.querySelector('.info-value')).toHaveTextContent('prod-eu');
+  });
+
   it('renders an empty state when makeCRClassOrNull() returns null (incomplete CRD spec, #4824)', async () => {
     const mockCrd = {
       metadata: { name: 'my-crd' },
