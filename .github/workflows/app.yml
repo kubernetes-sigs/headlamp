@@ -34,16 +34,16 @@ jobs:
       matrix:
         node-version: [22.x]
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.*'
         cache-dependency-path: |
@@ -102,22 +102,22 @@ jobs:
             node-version: 22.x
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.*'
         cache-dependency-path: |
           backend/go.sum
     - name: Dependencies
-      uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
+      uses: crazy-max/ghaction-chocolatey@dfdcf5bba9c0a16358a21c13a06ec5c89024b3ac # v4.1.0
       with:
         args: install make
     - name: Run tests
@@ -142,16 +142,16 @@ jobs:
       matrix:
         node-version: [22.x]
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.*'
         cache-dependency-path: |
