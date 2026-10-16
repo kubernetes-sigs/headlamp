@@ -8,17 +8,40 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // ExportedRunWatcher exposes runWatcher for testing.
 func ExportedRunWatcher(
 	ctx context.Context,
+	cancel context.CancelFunc,
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	var watcher *watcherInstance
+	if val, ok := contextCancel.Load(contextKey); ok {
+		watcher, _ = val.(*watcherInstance)
+	}
+
+	if watcher == nil {
+		watcher = &watcherInstance{cancel: cancel}
+	}
+
+	runWatcher(ctx, watcher, k8scache, contextKey, kContext)
+}
+
+// ExportedRunWatcherWithCancel exposes runWatcher with an explicit cancel function for testing replacement scenarios.
+func ExportedRunWatcherWithCancel(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	k8scache cache.Cache[string],
+	contextKey string,
+	kContext kubeconfig.Context,
+) {
+	runWatcher(ctx, &watcherInstance{cancel: cancel}, k8scache, contextKey, kContext)
 }
 
 // ResetRegistries clears both registries for test isolation.
@@ -46,12 +69,12 @@ func ResetRegistries(keys ...string) {
 // StoreTestRegistry populates both registries for test setup.
 func StoreTestRegistry(key string, cancel context.CancelFunc) {
 	watcherRegistry.Store(key, struct{}{})
-	contextCancel.Store(key, cancel)
+	contextCancel.Store(key, &watcherInstance{cancel: cancel})
 }
 
 // StoreTestContextCancel stores a cancel function in the registry for tests.
 func StoreTestContextCancel(contextKey string, cancel context.CancelFunc) {
-	contextCancel.Store(contextKey, cancel)
+	contextCancel.Store(contextKey, &watcherInstance{cancel: cancel})
 }
 
 // RegistryLoaded checks if a key exists in both registries.
@@ -194,4 +217,19 @@ func ExportedClientsetPrefixBlocked(prefix string) bool {
 	_, blocked := blockedClientsetPrefixes[prefix]
 
 	return blocked
+}
+
+// SetDiscoveryClientCreator sets a custom discovery client creator for testing.
+// It returns a function to restore the original creator.
+func SetDiscoveryClientCreator(fn func(*rest.Config) (discovery.DiscoveryInterface, error)) func() {
+	hookMu.Lock()
+	original := discoveryClientCreator
+	discoveryClientCreator = fn
+	hookMu.Unlock()
+
+	return func() {
+		hookMu.Lock()
+		discoveryClientCreator = original
+		hookMu.Unlock()
+	}
 }
