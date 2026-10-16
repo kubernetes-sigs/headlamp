@@ -57,8 +57,14 @@ export default function CreateNamespaceButton() {
         const response = await Namespace.apiEndpoint.post(newNamespaceData, {}, clusterData || '');
         setNamespaceName('');
         return response;
-      } catch (error: any) {
-        const statusCode = error?.status;
+      } catch (error: unknown) {
+        const statusCode =
+          typeof error === 'object' &&
+          error !== null &&
+          'status' in error &&
+          typeof (error as { status: unknown }).status === 'number'
+            ? (error as { status: number }).status
+            : undefined;
         console.error('Error creating namespace:', error);
         if (statusCode === 409) {
           setNamespaceDialogOpen(true);

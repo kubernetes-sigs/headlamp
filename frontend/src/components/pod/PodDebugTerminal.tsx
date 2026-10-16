@@ -22,6 +22,7 @@ import { useSnackbar } from 'notistack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_POD_DEBUG_IMAGE, loadClusterSettings } from '../../helpers/clusterSettings';
+import { getThrownMessage } from '../../helpers/thrownError';
 import { getCluster } from '../../lib/cluster';
 import { KubeContainer, KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
@@ -161,9 +162,9 @@ async function debugPod(
     }
 
     throw new Error('Timeout waiting for ephemeral container to start');
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Error:DebugPod: creating ephemeral container', e);
-    onError(e.message || 'Failed to create debug container');
+    onError(getThrownMessage(e) || 'Failed to create debug container');
     return {};
   }
 }
