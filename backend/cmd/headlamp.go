@@ -189,6 +189,7 @@ type clientConfig struct {
 	Clusters                  []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
+	DisableTokenLogin         bool      `json:"disableTokenLogin"`
 	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
 	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
 	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
@@ -2670,6 +2671,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
+		DisableTokenLogin:         c.DisableTokenLogin,
 		DefaultPodDebugImage:      c.PodDebugImage,
 		DefaultNodeShellImage:     c.NodeShellImage,
 		DefaultNodeShellNamespace: c.NodeShellNamespace,
@@ -3622,6 +3624,16 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		nil, "handleNodeDrainStatus completed")
 }
 
+// isOIDCCluster reports whether the named cluster authenticates through OIDC.
+func (c *HeadlampConfig) isOIDCCluster(cluster string) bool {
+	kContext, err := c.KubeConfigStore.GetContext(cluster)
+	if err != nil {
+		return false
+	}
+
+	return kContext.AuthType() == "oidc"
+}
+
 // handlerSetToken sets the authentication token in a cookie.
 // If the token is an empty string, the cookie is cleared.
 func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) {
@@ -3645,6 +3657,11 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	if req.Token == "" {
 		auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
 	} else {
+		if c.DisableTokenLogin && c.isOIDCCluster(cluster) {
+			http.Error(w, "Token login is disabled for this cluster", http.StatusForbidden)
+			return
+		}
+
 		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL); err != nil {
 			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 			return

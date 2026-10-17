@@ -92,6 +92,7 @@ type Config struct {
 	MeGroupsPath                 string `koanf:"me-groups-path"`
 	MeUserInfoURL                string `koanf:"me-user-info-url"`
 	OidcUsePKCE                  bool   `koanf:"oidc-use-pkce"`
+	DisableTokenLogin            bool   `koanf:"disable-token-login"`
 	ProxyAuthEnabled             bool   `koanf:"proxy-auth"`
 	ProxyAuthUsernameHeader      string `koanf:"proxy-auth-username-header"`
 	ProxyAuthGroupHeader         string `koanf:"proxy-auth-group-header"`
@@ -676,6 +677,9 @@ func addOIDCFlags(f *flag.FlagSet) {
 			"default. Preconditions and caveats: "+
 			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("disable-token-login", false,
+		"Disable logging in with a pasted token for clusters that use OIDC. "+
+			"Clusters without OIDC are not affected, since the token is their only login method")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
