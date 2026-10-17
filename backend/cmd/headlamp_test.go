@@ -491,6 +491,94 @@ func TestGetConfigIncludesDefaultNodeShellImage(t *testing.T) {
 	assert.Equal(t, "registry.example.com/shell:latest", config.DefaultNodeShellImage)
 }
 
+func TestGetConfigIncludesDisableTokenLogin(t *testing.T) {
+	for _, disabled := range []bool{true, false} {
+		c := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore:   kubeconfig.NewContextStore(),
+					DisableTokenLogin: disabled,
+				},
+			},
+		}
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+		recorder := httptest.NewRecorder()
+
+		c.getConfig(recorder, req)
+
+		var body map[string]interface{}
+
+		require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+		assert.Equal(t, disabled, body["disableTokenLogin"])
+	}
+}
+
+// The frontend hides the token option of the clusters marked here, so the mark has to
+// follow what set-token refuses: only clusters that sign in with OIDC, and never because
+// of a user's own stateless cluster.
+func TestGetConfigMarksClustersThatRefuseTokens(t *testing.T) {
+	const publicCluster = "prodalice"
+
+	newContext := func(name string, authInfo *api.AuthInfo) *kubeconfig.Context {
+		return &kubeconfig.Context{
+			Name:        name,
+			KubeContext: &api.Context{},
+			Cluster:     &api.Cluster{Server: "https://example.invalid"},
+			AuthInfo:    authInfo,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		disabled bool
+		want     []string
+	}{
+		{name: "token login disabled", disabled: true, want: []string{"sso"}},
+		{name: "token login enabled", disabled: false, want: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sso := newContext("sso", &api.AuthInfo{})
+			sso.OidcConf = &kubeconfig.OidcConfig{IdpIssuerURL: "https://idp.example.invalid", ClientID: "test-client"}
+
+			cfg := newSetTokenConfig(t, tt.disabled,
+				sso,
+				newContext("gke", &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{Name: "gcp"}}),
+				newContext(publicCluster, &api.AuthInfo{}),
+				// A cluster that failed to load has no metadata to mark, even when
+				// its cookie name is the one of an OIDC cluster.
+				&kubeconfig.Context{Name: "sso.", Error: "failed to load"},
+			)
+			require.NoError(t, cfg.setKeyInCache(statelessContextKey("prod", "alice"), *sso))
+
+			recorder := httptest.NewRecorder()
+			cfg.getConfig(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil))
+
+			var body struct {
+				Clusters []Cluster `json:"clusters"`
+			}
+
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+
+			listed := make([]string, 0, len(body.Clusters))
+			marked := []string{}
+
+			for _, cluster := range body.Clusters {
+				listed = append(listed, cluster.Name)
+
+				if cluster.Metadata["tokenLoginDisabled"] == true {
+					marked = append(marked, cluster.Name)
+				}
+			}
+
+			require.ElementsMatch(t, []string{"sso", "gke", publicCluster, "sso."}, listed)
+			assert.ElementsMatch(t, tt.want, marked)
+		})
+	}
+}
+
 func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{

@@ -199,6 +199,7 @@ type clientConfig struct {
 	Clusters                  []Cluster       `json:"clusters"`
 	IsDynamicClusterEnabled   bool            `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges    bool            `json:"allowKubeconfigChanges"`
+	DisableTokenLogin         bool            `json:"disableTokenLogin"`
 	DefaultPodDebugImage      string          `json:"defaultPodDebugImage"`
 	DefaultNodeShellImage     string          `json:"defaultNodeShellImage"`
 	DefaultNodeShellNamespace string          `json:"defaultNodeShellNamespace"`
@@ -2720,6 +2721,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
+		DisableTokenLogin:         c.DisableTokenLogin,
 		DefaultPodDebugImage:      c.PodDebugImage,
 		DefaultNodeShellImage:     c.NodeShellImage,
 		DefaultNodeShellNamespace: c.NodeShellNamespace,
@@ -2728,6 +2730,8 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		ForceTheme:                c.ForceTheme,
 		OidcAutoLogin:             c.OidcAutoLogin,
 	}
+
+	c.markTokenLoginDisabled(cc.Clusters)
 
 	if c.AdminSettings != nil {
 		cc.AdminSettings = c.AdminSettings
@@ -3693,6 +3697,82 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		nil, "handleNodeDrainStatus completed")
 }
 
+// isTokenLoginDisabled reports whether a pasted token must be refused for the cluster.
+// A cluster's token is read from a cookie named after its sanitized name, so the token is
+// refused when that name matches any OIDC cluster's, not only the exact cluster. This way
+// aliases such as "name;" or "name " cannot store a token that is used for "name".
+func (c *HeadlampConfig) isTokenLoginDisabled(cluster string) bool {
+	if !c.DisableTokenLogin {
+		return false
+	}
+
+	contexts, err := c.KubeConfigStore.GetContexts()
+	if err != nil {
+		return true
+	}
+
+	_, disabled := oidcCookieNames(contexts)[auth.SanitizeClusterName(cluster)]
+
+	return disabled
+}
+
+// oidcCookieNames returns the cookie names of the clusters that users sign in to with OIDC.
+// Internal contexts are left out: they belong to a single user and are stored under a key
+// that also holds the user ID, so their name is not the name of a cluster's cookie and must
+// not decide what other users can do.
+func oidcCookieNames(contexts []*kubeconfig.Context) map[string]struct{} {
+	names := map[string]struct{}{}
+
+	for _, kContext := range contexts {
+		if kContext.Internal || !isOIDCContext(kContext) {
+			continue
+		}
+
+		names[auth.SanitizeClusterName(kContext.Name)] = struct{}{}
+	}
+
+	return names
+}
+
+// isOIDCContext reports whether users sign in to the context with OIDC. AuthType() cannot
+// tell: it is "oidc" for any auth provider, such as gcp or azure.
+func isOIDCContext(kContext *kubeconfig.Context) bool {
+	if kContext.OidcConf != nil {
+		return true
+	}
+
+	authInfo := kContext.AuthInfo
+
+	return authInfo != nil && authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "oidc"
+}
+
+// markTokenLoginDisabled tells the frontend which clusters refuse a pasted token, so that it
+// only hides the option for them. The auth_type of a cluster is not enough for that, since it
+// is "oidc" for any auth provider.
+func (c *HeadlampConfig) markTokenLoginDisabled(clusters []Cluster) {
+	if !c.DisableTokenLogin {
+		return
+	}
+
+	contexts, err := c.KubeConfigStore.GetContexts()
+	if err != nil {
+		return
+	}
+
+	names := oidcCookieNames(contexts)
+
+	for _, cluster := range clusters {
+		// A cluster that failed to load has no metadata, and cannot be logged in to anyway.
+		if cluster.Metadata == nil {
+			continue
+		}
+
+		if _, disabled := names[auth.SanitizeClusterName(cluster.Name)]; disabled {
+			cluster.Metadata["tokenLoginDisabled"] = true
+		}
+	}
+}
+
 // handlerSetToken sets the authentication token in a cookie.
 // If the token is an empty string, the cookie is cleared.
 func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) {
@@ -3716,6 +3796,11 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	if req.Token == "" {
 		auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
 	} else {
+		if c.isTokenLoginDisabled(cluster) {
+			http.Error(w, "Token login is disabled for this cluster", http.StatusForbidden)
+			return
+		}
+
 		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL); err != nil {
 			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 			return
