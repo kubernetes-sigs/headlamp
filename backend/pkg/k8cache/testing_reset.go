@@ -22,6 +22,7 @@ func ResetForTesting() {
 	clientsetCache = make(map[string]*CachedClientSet)
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 	inFlight = make(map[string]*inFlightEntry)
+	maxClientsets = defaultMaxClientsets
 
 	mu.Unlock()
 
