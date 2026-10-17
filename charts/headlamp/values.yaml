@@ -98,6 +98,8 @@ config:
     useCookie: false
     # -- Enable automatic redirect to the OIDC provider
     autoLogin: false
+    # -- Disable token login for clusters that use OIDC (hides "Use A Token" and the backend refuses pasted tokens)
+    disableTokenLogin: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
