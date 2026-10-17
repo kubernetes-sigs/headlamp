@@ -35,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -43,6 +44,10 @@ import (
 const clientsetTTL = 10 * time.Minute
 
 const unknownVerb = "unknown"
+
+// defaultMaxClientsets bounds the total number of cached clientsets to prevent
+// memory exhaustion from high volumes of unique tokens.
+const defaultMaxClientsets = 256
 
 // janitorInterval is how often the background goroutine sweeps the
 // cache for expired entries.
@@ -65,6 +70,7 @@ type blockedPrefixEntry struct {
 
 var (
 	clientsetCache = make(map[string]*CachedClientSet)
+	maxClientsets  = defaultMaxClientsets
 	// blockedClientsetPrefixes holds context keys whose clientsets must not be
 	// re-cached after context removal. Entries are cleared when SyncWatchers sees
 	// the context active again, or by the janitor once clientsetTTL has elapsed
@@ -257,6 +263,51 @@ func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 	return cs.clientset, true
 }
 
+// evictOldestClientsetLocked removes the least recently used clientset from clientsetCache,
+// skipping any entries that are currently being created in inFlight.
+// It reports whether an entry was evicted. mu must be held.
+func evictOldestClientsetLocked() bool {
+	var (
+		oldestKey  string
+		oldestTime time.Time
+		found      bool
+	)
+
+	for k, cs := range clientsetCache {
+		// Avoid evicting entries that are currently being created.
+		if _, creating := inFlight[k]; creating {
+			continue
+		}
+
+		if !found || cs.lastUsed.Before(oldestTime) {
+			oldestKey = k
+			oldestTime = cs.lastUsed
+			found = true
+		}
+	}
+
+	if found {
+		delete(clientsetCache, oldestKey)
+		return true
+	}
+
+	return false
+}
+
+// evictClientsetIfMatch removes a cached clientset by context key and token only if
+// the cached entry matches the provided clientset pointer. This prevents a delayed 401
+// response from an older request from evicting a newer clientset created under the same key.
+func evictClientsetIfMatch(headlampContextKey, token string, cs *kubernetes.Clientset) {
+	cacheKey := headlampContextKey + "\x00" + token
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if entry, found := clientsetCache[cacheKey]; found && entry.clientset == cs {
+		delete(clientsetCache, cacheKey)
+	}
+}
+
 // createAndCacheClientSet creates a new clientset and stores it in the cache.
 func createAndCacheClientSet(
 	k *kubeconfig.Context,
@@ -293,6 +344,14 @@ func createAndCacheClientSet(
 	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
 	if _, blocked := blockedClientsetPrefixes[prefix]; blocked {
 		return cs, nil
+	}
+
+	if _, exists := clientsetCache[cacheKey]; !exists && maxClientsets > 0 && len(clientsetCache) >= maxClientsets {
+		if !evictOldestClientsetLocked() {
+			// All cached entries are currently in-flight; return cs without caching
+			// to strictly preserve the capacity limit without evicting active creations.
+			return cs, nil
+		}
 	}
 
 	clientsetCache[cacheKey] = &CachedClientSet{
@@ -554,6 +613,10 @@ func IsAllowed(
 		metav1.CreateOptions{},
 	)
 	if err != nil {
+		if apierrors.IsUnauthorized(err) {
+			evictClientsetIfMatch(headlampContextKey, token, clientset)
+		}
+
 		return false, err
 	}
 
