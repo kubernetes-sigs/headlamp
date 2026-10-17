@@ -95,6 +95,11 @@ export interface ConfigState {
    * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
    */
   oidcAutoLogin: boolean | null;
+  /**
+   * Whether logging in with a pasted token is disabled for clusters that use OIDC.
+   * Clusters without OIDC are not affected, since the token is their only login method.
+   */
+  disableTokenLogin: boolean;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
@@ -178,6 +183,7 @@ export const initialState: ConfigState = {
   defaultNodeShellImage: '',
   defaultNodeShellNamespace: '',
   oidcAutoLogin: null,
+  disableTokenLogin: false,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
@@ -210,12 +216,16 @@ const configSlice = createSlice({
         defaultDarkTheme?: string;
         forceTheme?: string;
         oidcAutoLogin?: boolean;
+        disableTokenLogin?: boolean;
       }>
     ) {
       state.clusters = action.payload.clusters;
 
       if (action.payload.oidcAutoLogin !== undefined) {
         state.oidcAutoLogin = action.payload.oidcAutoLogin;
+      }
+      if (action.payload.disableTokenLogin !== undefined) {
+        state.disableTokenLogin = action.payload.disableTokenLogin;
       }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;

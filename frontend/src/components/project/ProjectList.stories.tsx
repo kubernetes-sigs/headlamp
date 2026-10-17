@@ -69,6 +69,7 @@ const customGroupingStore = configureStore({
       defaultNodeShellImage: '',
       defaultNodeShellNamespace: '',
       oidcAutoLogin: null,
+      disableTokenLogin: false,
     },
     projects: {
       headerActions: {},
