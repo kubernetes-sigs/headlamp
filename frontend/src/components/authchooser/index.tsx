@@ -70,13 +70,19 @@ function AuthChooser({ children }: AuthChooserProps) {
     {}) as ReactRouterLocationStateIface;
   const clusterName = getCluster() as string;
   const oidcAutoLogin = useTypedSelector(state => state.config.oidcAutoLogin);
+  const tokenLoginDisabledByServer = useTypedSelector(state => state.config.disableTokenLogin);
   const { t } = useTranslation();
   const clustersRef = React.useRef<typeof clusters>(null);
   const cancelledRef = React.useRef(false);
 
   let clusterAuthType = '';
+  // The backend marks the clusters it refuses a pasted token for. auth_type cannot tell
+  // them apart: it is 'oidc' for any auth provider, not only for OIDC.
+  let disableTokenLogin = false;
   if (clusters && clusters[clusterName]) {
     clusterAuthType = clusters[clusterName].auth_type;
+    disableTokenLogin =
+      tokenLoginDisabledByServer && clusters[clusterName].meta_data?.tokenLoginDisabled === true;
   }
 
   // Whether the last OIDC sign-in was rejected by the cluster's API server.
@@ -277,6 +283,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       oauthUrl={`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}&popup=true`}
       clusterAuthType={clusterAuthType}
       oidcTokenRejected={oidcTokenRejected}
+      disableTokenLogin={disableTokenLogin}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
         if (clusterName) {
@@ -320,6 +327,8 @@ export interface PureAuthChooserProps {
   oauthUrl: string;
   clusterAuthType: string;
   oidcTokenRejected?: boolean;
+  /** Hides the token login option for OIDC clusters. */
+  disableTokenLogin?: boolean;
   handleOidcAuth: () => void;
   handleTokenAuth: () => void;
   handleTryAgain: () => void;
@@ -336,6 +345,7 @@ export function PureAuthChooser({
   oauthUrl,
   clusterAuthType,
   oidcTokenRejected,
+  disableTokenLogin,
   handleOidcAuth,
   handleTokenAuth,
   handleTryAgain,
@@ -386,9 +396,11 @@ export function PureAuthChooser({
                   </OauthPopup>
                 </Box>
               ) : null}
-              <Box m={2}>
-                <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
-              </Box>
+              {clusterAuthType === 'oidc' && disableTokenLogin ? null : (
+                <Box m={2}>
+                  <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
+                </Box>
+              )}
               <Box m={2} textAlign="center">
                 <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
