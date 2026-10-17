@@ -115,6 +115,8 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   );
   const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [lines, setLines] = useState<number>(100);
+  // Time window in seconds. 0 means all time (no limit).
+  const [sinceSeconds, setSinceSeconds] = useState<number>(0);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
   const [storedSeverities, setStoredSeverities] = useLocalStorageState<LogSeverity[]>(
@@ -203,6 +205,11 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   // Event handlers for log viewing options
   function handleLinesChange(event: any) {
     setLines(event.target.value);
+  }
+
+  function handleSinceChange(event: any) {
+    setSinceSeconds(event.target.value);
+    clearLogs();
   }
 
   function handleTimestampsChange() {
@@ -337,6 +344,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           },
           {
             tailLines: lines,
+            sinceSeconds: sinceSeconds || undefined,
             showPrevious,
             showTimestamps,
             follow,
@@ -350,7 +358,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
       return () => cleanups.forEach(cleanup => cleanup());
     },
-    [clearLogs, lines, showPrevious, showTimestamps, follow]
+    [clearLogs, lines, sinceSeconds, showPrevious, showTimestamps, follow]
   );
 
   // Effect for fetching and updating logs
@@ -419,6 +427,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           },
           {
             tailLines: lines,
+            sinceSeconds: sinceSeconds || undefined,
             showPrevious,
             showTimestamps,
             follow,
@@ -443,6 +452,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
     selectedPodIndex,
     selectedContainer,
     lines,
+    sinceSeconds,
     showPrevious,
     showTimestamps,
     follow,
@@ -558,6 +568,25 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
             </MenuItem>
           ))}
           <MenuItem value={-1}>{t('translation|All')}</MenuItem>
+        </Select>
+      </FormControl>
+
+      {/* Since (time window) selector */}
+      <FormControl sx={{ minWidth: 140 }}>
+        <InputLabel id={`${selectLabelId}-since-label`}>{t('translation|Since')}</InputLabel>
+        <Select
+          labelId={`${selectLabelId}-since-label`}
+          id={`${selectLabelId}-since`}
+          label={t('translation|Since')}
+          value={sinceSeconds}
+          onChange={handleSinceChange}
+        >
+          <MenuItem value={0}>{t('translation|All time')}</MenuItem>
+          <MenuItem value={300}>{t('translation|Last 5 minutes')}</MenuItem>
+          <MenuItem value={900}>{t('translation|Last 15 minutes')}</MenuItem>
+          <MenuItem value={3600}>{t('translation|Last hour')}</MenuItem>
+          <MenuItem value={21600}>{t('translation|Last 6 hours')}</MenuItem>
+          <MenuItem value={86400}>{t('translation|Last 24 hours')}</MenuItem>
         </Select>
       </FormControl>
 
