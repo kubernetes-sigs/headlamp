@@ -70,13 +70,31 @@ function AuthChooser({ children }: AuthChooserProps) {
     {}) as ReactRouterLocationStateIface;
   const clusterName = getCluster() as string;
   const oidcAutoLogin = useTypedSelector(state => state.config.oidcAutoLogin);
+  const tokenLoginDisabledByServer = useTypedSelector(state => state.config.disableTokenLogin);
+  // The backend marks the clusters it refuses a pasted token for, by name. Read from the
+  // store: useClustersConf keeps the old mark while the cluster names stay the same.
+  const tokenLoginDisabledForCluster = useTypedSelector(state => {
+    const { allClusters, clusters, statelessClusters } = state.config;
+
+    return [clusters, allClusters, statelessClusters].some(
+      source => source?.[clusterName]?.meta_data?.tokenLoginDisabled === true
+    );
+  });
   const { t } = useTranslation();
   const clustersRef = React.useRef<typeof clusters>(null);
   const cancelledRef = React.useRef(false);
 
+  // The mark alone decides, not auth_type: that is 'oidc' for any auth provider, not only
+  // for OIDC, and it can be stale.
+  const disableTokenLogin = tokenLoginDisabledByServer && tokenLoginDisabledForCluster;
+
   let clusterAuthType = '';
   if (clusters && clusters[clusterName]) {
     clusterAuthType = clusters[clusterName].auth_type;
+  }
+  // A marked cluster can only sign in with OIDC.
+  if (disableTokenLogin) {
+    clusterAuthType = 'oidc';
   }
 
   // Whether the last OIDC sign-in was rejected by the cluster's API server.
@@ -239,7 +257,7 @@ function AuthChooser({ children }: AuthChooserProps) {
               }
             }
           });
-      } else if (cluster.useToken) {
+      } else if (cluster.useToken && !disableTokenLogin) {
         history.replace({
           pathname: generatePath(getClusterPrefixedPath('token'), {
             cluster: clusterName as string,
@@ -277,6 +295,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       oauthUrl={`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}&popup=true`}
       clusterAuthType={clusterAuthType}
       oidcTokenRejected={oidcTokenRejected}
+      disableTokenLogin={disableTokenLogin}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
         if (clusterName) {
@@ -329,6 +348,8 @@ export interface PureAuthChooserProps {
   oauthUrl: string;
   clusterAuthType: string;
   oidcTokenRejected?: boolean;
+  /** Hides the token login option: the backend refuses a token for the cluster. */
+  disableTokenLogin?: boolean;
   handleOidcAuth: () => void;
   handleTokenAuth: () => void;
   handleTryAgain: () => void;
@@ -345,6 +366,7 @@ export function PureAuthChooser({
   oauthUrl,
   clusterAuthType,
   oidcTokenRejected,
+  disableTokenLogin,
   handleOidcAuth,
   handleTokenAuth,
   handleTryAgain,
@@ -395,9 +417,11 @@ export function PureAuthChooser({
                   </OauthPopup>
                 </Box>
               ) : null}
-              <Box m={2}>
-                <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
-              </Box>
+              {disableTokenLogin ? null : (
+                <Box m={2}>
+                  <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
+                </Box>
+              )}
               <Box m={2} textAlign="center">
                 <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
