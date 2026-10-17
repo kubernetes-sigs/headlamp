@@ -491,6 +491,29 @@ func TestGetConfigIncludesDefaultNodeShellImage(t *testing.T) {
 	assert.Equal(t, "registry.example.com/shell:latest", config.DefaultNodeShellImage)
 }
 
+func TestGetConfigIncludesDisableTokenLogin(t *testing.T) {
+	for _, disabled := range []bool{true, false} {
+		c := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore:   kubeconfig.NewContextStore(),
+					DisableTokenLogin: disabled,
+				},
+			},
+		}
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+		recorder := httptest.NewRecorder()
+
+		c.getConfig(recorder, req)
+
+		var body map[string]interface{}
+
+		require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+		assert.Equal(t, disabled, body["disableTokenLogin"])
+	}
+}
+
 func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
