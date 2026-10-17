@@ -191,3 +191,10 @@ func TestCreateHeadlampConfig_CacheMaxClientsetsPrecedence(t *testing.T) {
 		assert.Equal(t, 256, k8cache.MaxClientsets())
 	})
 }
+
+func TestBuildHeadlampCFG_DisableTokenLogin(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	assert.False(t, buildHeadlampCFG(&config.Config{}, store).DisableTokenLogin)
+	assert.True(t, buildHeadlampCFG(&config.Config{DisableTokenLogin: true}, store).DisableTokenLogin)
+}
