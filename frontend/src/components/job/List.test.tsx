@@ -15,6 +15,8 @@
  */
 
 import { render } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TestContext } from '../../test';
 import { JobsListRenderer } from './List';
 
 const { MockJobSuspendButton, mockResourceListView } = vi.hoisted(() => ({
@@ -23,7 +25,10 @@ const { MockJobSuspendButton, mockResourceListView } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../lib/k8s/job', () => ({
-  default: { kind: 'Job' },
+  default: {
+    kind: 'Job',
+    useList: () => ({ items: [], errors: null }),
+  },
 }));
 
 vi.mock('./JobSuspendButton', () => ({
@@ -60,7 +65,11 @@ describe('JobsListRenderer', () => {
   });
 
   it('adds a suspend row action to the jobs table', () => {
-    render(<JobsListRenderer jobs={[fakeJob]} />);
+    render(
+      <TestContext>
+        <JobsListRenderer jobs={[fakeJob]} />
+      </TestContext>
+    );
 
     const props = mockResourceListView.mock.calls[0][0];
     const suspendAction = props.actions.find((action: any) => action.id === 'suspend');
@@ -71,5 +80,119 @@ describe('JobsListRenderer', () => {
     expect(button.props.item).toBe(fakeJob);
     expect(button.props.buttonStyle).toBe('menu');
     expect(button.props.afterConfirm).toBe(closeMenu);
+  });
+
+  it('renders the expected columns including completions', () => {
+    render(
+      <TestContext>
+        <JobsListRenderer jobs={[]} />
+      </TestContext>
+    );
+
+    expect(mockResourceListView).toHaveBeenCalled();
+    const props = mockResourceListView.mock.calls[0][0];
+    const columnIds = props.columns.map((c: any) => (typeof c === 'string' ? c : c.id));
+    expect(columnIds).toContain('completions');
+  });
+
+  it('computes completions column value as status.succeeded / spec.completions', () => {
+    render(
+      <TestContext>
+        <JobsListRenderer jobs={[]} />
+      </TestContext>
+    );
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const completionsCol = props.columns.find((c: any) => c?.id === 'completions');
+    expect(completionsCol).toBeDefined();
+
+    // Divergent values: succeeded=2, completions=5, parallelism=3 -> should be 2/5 (not 5/3)
+    const divergentJob: any = {
+      spec: { completions: 5, parallelism: 3 },
+      status: { succeeded: 2 },
+    };
+    expect(completionsCol.getValue(divergentJob)).toBe('2/5');
+
+    // Omitted spec.completions defaults to 1
+    const omittedCompletionsJob: any = {
+      spec: { parallelism: 2 },
+      status: { succeeded: 1 },
+    };
+    expect(completionsCol.getValue(omittedCompletionsJob)).toBe('1/1');
+
+    // Omitted status.succeeded defaults to 0
+    const runningJob: any = {
+      spec: { completions: 4 },
+      status: { active: 1 },
+    };
+    expect(completionsCol.getValue(runningJob)).toBe('0/4');
+
+    // Completely empty status and spec fallback safely
+    const emptyJob: any = {};
+    expect(completionsCol.getValue(emptyJob)).toBe('0/1');
+  });
+
+  it('sorts completions by succeeded count then by desired completions', () => {
+    render(
+      <TestContext>
+        <JobsListRenderer jobs={[]} />
+      </TestContext>
+    );
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const completionsCol = props.columns.find((c: any) => c?.id === 'completions');
+    expect(completionsCol).toBeDefined();
+
+    const jobA: any = {
+      status: { succeeded: 0 },
+      spec: { completions: 1, parallelism: 4 },
+    };
+    const jobB: any = {
+      status: { succeeded: 1 },
+      spec: { completions: 3, parallelism: 1 },
+    };
+    const jobC: any = {
+      status: { succeeded: 1 },
+      spec: { completions: 5, parallelism: 2 },
+    };
+    const jobD: any = {
+      status: { succeeded: 2 },
+      spec: { completions: 2, parallelism: 1 },
+    };
+
+    // jobA (0/1) should come before jobB (1/3)
+    expect(completionsCol.sort(jobA, jobB)).toBeLessThan(0);
+    expect(completionsCol.sort(jobB, jobA)).toBeGreaterThan(0);
+
+    // jobB (1/3) and jobC (1/5) have equal succeeded (1), so jobB with fewer desired completions comes first
+    expect(completionsCol.sort(jobB, jobC)).toBeLessThan(0);
+    expect(completionsCol.sort(jobC, jobB)).toBeGreaterThan(0);
+
+    // Equal jobs return 0
+    expect(completionsCol.sort(jobB, jobB)).toBe(0);
+
+    // Array sort should produce [jobA, jobB, jobC, jobD]
+    const sorted = [jobD, jobA, jobC, jobB].sort(completionsCol.sort);
+    expect(sorted).toEqual([jobA, jobB, jobC, jobD]);
+
+    // Omitted spec.completions defaults to 1 during sort
+    const jobOmittedSpec: any = {
+      status: { succeeded: 1 },
+      spec: {},
+    };
+    // jobOmittedSpec (1/1) vs jobB (1/3) -> jobOmittedSpec comes first
+    expect(completionsCol.sort(jobOmittedSpec, jobB)).toBeLessThan(0);
+
+    // Omitted status.succeeded defaults to 0 during sort
+    const jobOmittedStatus: any = {
+      status: {},
+      spec: { completions: 2 },
+    };
+    // jobOmittedStatus (0/2) vs jobA (0/1) -> jobA comes first
+    expect(completionsCol.sort(jobOmittedStatus, jobA)).toBeGreaterThan(0);
+
+    // Parallelism differences do not affect sort order
+    // jobA has parallelism 4, jobB has parallelism 1, but jobA has fewer succeeded
+    expect(completionsCol.sort(jobA, jobB)).toBeLessThan(0);
   });
 });
