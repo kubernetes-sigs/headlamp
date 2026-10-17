@@ -70,3 +70,10 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Empty(t, headlampCFG.ProxyURLs)
 	})
 }
+
+func TestBuildHeadlampCFG_DisableTokenLogin(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	assert.False(t, buildHeadlampCFG(&config.Config{}, store).DisableTokenLogin)
+	assert.True(t, buildHeadlampCFG(&config.Config{DisableTokenLogin: true}, store).DisableTokenLogin)
+}
