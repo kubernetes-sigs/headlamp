@@ -437,6 +437,20 @@ describe('KubeObjectNodeComponent', () => {
     expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
   });
 
+  it('expands after sustained hover and collapses immediately on pointer leave', () => {
+    mocks.node = { id: 'hovered', label: 'Hovered' };
+    render(<KubeObjectNodeComponent {...nodeProps('hovered')} />);
+    const button = screen.getByRole('button');
+
+    fireEvent.pointerEnter(button);
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.getByTestId('node-glance')).toHaveTextContent('hovered');
+
+    fireEvent.pointerLeave(button);
+    expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
+    expect(button).not.toHaveClass('kube-object-node--expanded');
+  });
+
   it('cancels pending expansion when the pointer leaves', () => {
     mocks.node = { id: 'hovered', label: 'Hovered' };
     render(<KubeObjectNodeComponent {...nodeProps('hovered')} />);
@@ -448,5 +462,24 @@ describe('KubeObjectNodeComponent', () => {
     act(() => vi.advanceTimersByTime(450));
 
     expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
+  });
+
+  it('stays collapsed when the expand timer fires before the hover cleanup runs', () => {
+    mocks.node = { id: 'hovered', label: 'Hovered' };
+    render(<KubeObjectNodeComponent {...nodeProps('hovered')} />);
+    const button = screen.getByRole('button');
+
+    fireEvent.pointerEnter(button);
+    act(() => vi.advanceTimersByTime(449));
+
+    // A single act() defers the re-render, so the timer fires after the pointer
+    // has left but before the effect cleanup had a chance to clear it.
+    act(() => {
+      fireEvent.pointerLeave(button);
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
+    expect(button).not.toHaveClass('kube-object-node--expanded');
   });
 });
