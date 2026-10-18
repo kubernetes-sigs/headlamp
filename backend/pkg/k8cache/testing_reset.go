@@ -38,6 +38,8 @@ func ResetForTesting() {
 	clientsetLRUList = list.New()
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 	inFlight = make(map[string]*inFlightEntry)
+	maxClientsets = defaultMaxClientsets
+	maxClientsetsExplicit = false
 
 	mu.Unlock()
 

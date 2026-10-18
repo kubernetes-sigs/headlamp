@@ -18,6 +18,7 @@ package k8cache
 
 import (
 	"container/list"
+	"strings"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -34,12 +35,18 @@ func ResetClientsetCache() {
 	clientsetCache = make(map[string]*list.Element)
 	clientsetLRUList = list.New()
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
+	maxClientsets = defaultMaxClientsets
+	maxClientsetsExplicit = false
 }
 
 // SeedClientsetCache populates the clientset cache with dummy entries for testing.
 func SeedClientsetCache(key string, lastUsed time.Time) {
 	mu.Lock()
 	defer mu.Unlock()
+
+	if oldElem, exists := clientsetCache[key]; exists {
+		clientsetLRUList.Remove(oldElem)
+	}
 
 	cachedCS := &CachedClientSet{
 		clientset: &kubernetes.Clientset{},
@@ -160,4 +167,116 @@ func ExportedClientsetPrefixBlocked(prefix string) bool {
 	_, blocked := blockedClientsetPrefixes[prefix]
 
 	return blocked
+}
+
+// SetMaxClientsetsForTesting sets maxClientsets and returns a restore function.
+func SetMaxClientsetsForTesting(limit int) func() {
+	mu.Lock()
+	old := maxClientsets
+	oldExplicit := maxClientsetsExplicit
+	maxClientsets = limit
+	maxClientsetsExplicit = true
+	mu.Unlock()
+
+	return func() {
+		mu.Lock()
+		maxClientsets = old
+		maxClientsetsExplicit = oldExplicit
+		mu.Unlock()
+	}
+}
+
+// HasCachedClientset reports whether a key is currently in clientsetCache.
+func HasCachedClientset(headlampContextKey, token string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	exactKey := headlampContextKey + "\x00" + token
+	if _, found := clientsetCache[exactKey]; found {
+		return true
+	}
+
+	prefix := headlampContextKey + "\x00"
+	suffix := "\x00" + token
+
+	for key := range clientsetCache {
+		if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, suffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ExportedEvictClientsetIfMatch exposes evictClientsetIfMatch for testing.
+func ExportedEvictClientsetIfMatch(headlampContextKey, token string, cs *kubernetes.Clientset) {
+	evictClientsetIfMatch(headlampContextKey, token, cs)
+}
+
+// SeedClientsetCacheWithClientset populates the cache with a specific clientset for testing.
+func SeedClientsetCacheWithClientset(key string, cs *kubernetes.Clientset, lastUsed time.Time) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if oldElem, exists := clientsetCache[key]; exists {
+		clientsetLRUList.Remove(oldElem)
+	}
+
+	cachedCS := &CachedClientSet{
+		clientset: cs,
+		lastUsed:  lastUsed,
+	}
+	entry := &lruEntry{
+		key: key,
+		cs:  cachedCS,
+	}
+	elem := clientsetLRUList.PushFront(entry)
+	clientsetCache[key] = elem
+}
+
+// GetCachedClientsetForTesting returns the clientset pointer stored in clientsetCache, or nil.
+func GetCachedClientsetForTesting(headlampContextKey, token string) *kubernetes.Clientset {
+	mu.Lock()
+	defer mu.Unlock()
+
+	exactKey := headlampContextKey + "\x00" + token
+	if elem, found := clientsetCache[exactKey]; found {
+		return elem.Value.(*lruEntry).cs.clientset
+	}
+
+	prefix := headlampContextKey + "\x00"
+	suffix := "\x00" + token
+
+	for key, elem := range clientsetCache {
+		if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, suffix) {
+			return elem.Value.(*lruEntry).cs.clientset
+		}
+	}
+
+	return nil
+}
+
+// SetTestingBeforeFinishInFlight sets a hook called before finishInFlightClientset and returns a restore function.
+func SetTestingBeforeFinishInFlight(fn func(cacheKey string)) func() {
+	hookMu.Lock()
+	original := testingBeforeFinishInFlight
+	testingBeforeFinishInFlight = fn
+	hookMu.Unlock()
+
+	return func() {
+		hookMu.Lock()
+		testingBeforeFinishInFlight = original
+		hookMu.Unlock()
+	}
+}
+
+// FinishInFlightClientsetForTesting completes an in-flight entry registered via SeedInFlightClientsetKey.
+func FinishInFlightClientsetForTesting(cacheKey string, cs *kubernetes.Clientset, err error) {
+	mu.Lock()
+	entry, ok := inFlight[cacheKey]
+	mu.Unlock()
+
+	if ok {
+		finishInFlightClientset(cacheKey, entry, cs, err)
+	}
 }
