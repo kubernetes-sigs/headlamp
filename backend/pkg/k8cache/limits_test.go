@@ -52,6 +52,7 @@ func TestStoreK8sResponseInCache_SkipsResponseOverEntryLimit(t *testing.T) {
 	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
 
 	c := cache.New[string]()
+
 	t.Cleanup(func() { _ = c.Close() })
 
 	storeBody(t, c, "small", 100)
@@ -66,6 +67,7 @@ func TestStoreK8sResponseInCache_StopsAtTotalBudget(t *testing.T) {
 	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
 
 	c := cache.New[string]()
+
 	t.Cleanup(func() { _ = c.Close() })
 
 	storeBody(t, c, "first", 900)
@@ -92,6 +94,7 @@ func TestStoreK8sResponseInCache_ReplacingAKeyDoesNotCountTwice(t *testing.T) {
 	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
 
 	c := cache.New[string]()
+
 	t.Cleanup(func() { _ = c.Close() })
 
 	storeBody(t, c, "pods", 900)
@@ -107,6 +110,7 @@ func TestSetLimits_NonPositiveKeepsDefaults(t *testing.T) {
 	k8cache.SetLimits(0, -1)
 
 	c := cache.New[string]()
+
 	t.Cleanup(func() { _ = c.Close() })
 
 	storeBody(t, c, "typical", 100_000)
