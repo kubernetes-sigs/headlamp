@@ -18,9 +18,11 @@ package k8cache_test
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -115,4 +117,72 @@ func TestSetLimits_NonPositiveKeepsDefaults(t *testing.T) {
 
 	storeBody(t, c, "typical", 100_000)
 	assert.True(t, cached(t, c, "typical"))
+}
+
+func TestStoreK8sResponseInCache_EntryCountBoundary(t *testing.T) {
+	k8cache.SetLimits(10_000, 1<<30)
+	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
+
+	c := cache.New[string]()
+
+	t.Cleanup(func() { _ = c.Close() })
+
+	const maxEntries = 1024
+
+	for i := range maxEntries {
+		storeBody(t, c, fmt.Sprintf("key-%d", i), 1)
+	}
+
+	storeBody(t, c, "one-too-many", 1)
+	assert.False(t, cached(t, c, "one-too-many"), "a new key past the entry cap must not be cached")
+
+	storeBody(t, c, "key-0", 2)
+
+	value, err := c.Get(context.Background(), "key-0")
+	require.NoError(t, err)
+	assert.Contains(t, value, "aa", "an existing key can be replaced at capacity")
+
+	require.NoError(t, c.Delete(context.Background(), "key-1"))
+	storeBody(t, c, "after-delete", 1)
+	assert.True(t, cached(t, c, "after-delete"), "deleting an entry frees room for a new key")
+}
+
+func TestStoreK8sResponseInCache_ConcurrentWritersStayWithinLimits(t *testing.T) {
+	const (
+		bodySize   = 900
+		totalLimit = 5000
+		writers    = 64
+	)
+
+	k8cache.SetLimits(10_000, totalLimit)
+	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
+
+	c := cache.New[string]()
+
+	t.Cleanup(func() { _ = c.Close() })
+
+	var wg sync.WaitGroup
+
+	for i := range writers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			storeBody(t, c, fmt.Sprintf("key-%d", i), bodySize)
+		}()
+	}
+
+	wg.Wait()
+
+	all, err := c.GetAll(context.Background(), nil)
+	require.NoError(t, err)
+
+	var total int
+	for _, value := range all {
+		total += len(value)
+	}
+
+	assert.LessOrEqual(t, total, totalLimit, "concurrent writers must not overshoot the total budget")
+	assert.NotEmpty(t, all)
 }
