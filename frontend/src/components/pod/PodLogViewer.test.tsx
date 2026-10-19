@@ -27,12 +27,14 @@ vi.mock('../globalSearch/useLocalStorageState', () => ({
   useLocalStorageState: (_key: string, defaultValue: any) => [defaultValue, vi.fn()],
 }));
 
+const { mockXTermWrite } = vi.hoisted(() => ({ mockXTermWrite: vi.fn() }));
+
 vi.mock('@xterm/xterm', () => ({
   Terminal: vi.fn().mockImplementation(function () {
     return {
       open: vi.fn(),
       clear: vi.fn(),
-      write: vi.fn(),
+      write: mockXTermWrite,
       focus: vi.fn(),
       onData: vi.fn(),
       onResize: vi.fn(),
@@ -142,6 +144,117 @@ describe('PodLogViewer', () => {
         expect.objectContaining({ showPrevious: true })
       );
       expect(screen.queryByText('Reconnect')).not.toBeInTheDocument();
+    });
+
+    it('restarts the stream with the current options when Reconnect is clicked', () => {
+      let capturedOnReconnectStop: (() => void) | undefined;
+      const getLogs = vi.fn((_container: string, _onLogs: any, options: any) => {
+        capturedOnReconnectStop = options.onReconnectStop;
+        return vi.fn();
+      });
+
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs, 1)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      act(() => {
+        capturedOnReconnectStop?.();
+      });
+      const callsBeforeReconnect = getLogs.mock.calls.length;
+      const [, , stoppedOptions] = getLogs.mock.calls[callsBeforeReconnect - 1];
+      const cancelStoppedStream = getLogs.mock.results[callsBeforeReconnect - 1].value;
+
+      fireEvent.click(screen.getByText('Reconnect'));
+
+      expect(cancelStoppedStream).toHaveBeenCalledTimes(1);
+      expect(getLogs).toHaveBeenCalledTimes(callsBeforeReconnect + 1);
+      const [container, , reconnectOptions] = getLogs.mock.lastCall!;
+      expect(container).toBe('nginx');
+      expect({ ...reconnectOptions, onReconnectStop: undefined }).toEqual({
+        ...stoppedOptions,
+        onReconnectStop: undefined,
+      });
+      expect(screen.queryByText('Reconnect')).not.toBeInTheDocument();
+    });
+
+    it('stops the reconnected stream when switching to previous logs', () => {
+      let capturedOnReconnectStop: (() => void) | undefined;
+      const getLogs = vi.fn((_container: string, _onLogs: any, options: any) => {
+        capturedOnReconnectStop = options.onReconnectStop;
+        return vi.fn();
+      });
+
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs, 1)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      act(() => {
+        capturedOnReconnectStop?.();
+      });
+      fireEvent.click(screen.getByText('Reconnect'));
+      const cancelReconnectedStream = getLogs.mock.results.at(-1)!.value;
+      expect(cancelReconnectedStream).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByLabelText('Previous'));
+
+      expect(cancelReconnectedStream).toHaveBeenCalledTimes(1);
+      expect(getLogs).toHaveBeenLastCalledWith(
+        'nginx',
+        expect.any(Function),
+        expect.objectContaining({ showPrevious: true })
+      );
+      expect(screen.queryByText('Reconnect')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('stopped stream', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mockXTermWrite.mockClear();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ['Reconnect is clicked', () => fireEvent.click(screen.getByText('Reconnect'))],
+      ['switching to previous logs', () => fireEvent.click(screen.getByLabelText('Previous'))],
+    ])('does not write its pending logs after %s', (_name, restartStream) => {
+      let capturedOnLogs: ((logs: { logs: string[]; hasJsonLogs: boolean }) => void) | undefined;
+      let capturedOnReconnectStop: (() => void) | undefined;
+      const getLogs = vi.fn((_container: string, onLogs: any, options: any) => {
+        capturedOnLogs = onLogs;
+        capturedOnReconnectStop = options.onReconnectStop;
+        return vi.fn();
+      });
+
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs, 1)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      // The second batch arrives inside the debounce window, so its write is
+      // still pending when the stream closes.
+      const stoppedOnLogs = capturedOnLogs!;
+      act(() => {
+        stoppedOnLogs({ logs: ['old line 1\n'], hasJsonLogs: false });
+        stoppedOnLogs({ logs: ['old line 1\n', 'old line 2\n'], hasJsonLogs: false });
+        capturedOnReconnectStop?.();
+      });
+
+      restartStream();
+      mockXTermWrite.mockClear();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(mockXTermWrite).not.toHaveBeenCalledWith(expect.stringContaining('old line'));
     });
   });
 });
