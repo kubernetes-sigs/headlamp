@@ -1285,6 +1285,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 	// Inject error for evicting pod-fail
 	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
 		createAction := action.(k8stesting.CreateAction)
+
 		eviction, ok := createAction.GetObject().(*policyv1.Eviction)
 		if action.GetSubresource() == "eviction" && ok && eviction.Name == "pod-fail" {
 			return true, nil, fmt.Errorf("eviction webhook denied the request")
