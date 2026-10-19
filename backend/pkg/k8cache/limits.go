@@ -66,7 +66,9 @@ func SetLimits(maxEntryBytes, maxTotalBytes int64) {
 // leave the cache when their TTL expires or when they are invalidated, which frees room again.
 func hasRoomFor(k8scache cache.Cache[string], key string, size int64) bool {
 	limitsMu.RLock()
+
 	current := cacheLimits
+
 	limitsMu.RUnlock()
 
 	if size > current.maxEntryBytes {
