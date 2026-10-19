@@ -19,6 +19,7 @@ package k8cache
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -40,6 +41,9 @@ type limits struct {
 }
 
 var (
+	// admitMu makes the room check and the insert in storeWithinLimits one step, so concurrent
+	// writers cannot all pass the check against the same snapshot and overshoot the limits.
+	admitMu     sync.Mutex
 	limitsMu    sync.RWMutex
 	cacheLimits = limits{maxEntryBytes: DefaultMaxEntryBytes, maxTotalBytes: DefaultMaxTotalBytes}
 )
@@ -59,6 +63,24 @@ func SetLimits(maxEntryBytes, maxTotalBytes int64) {
 	if maxTotalBytes > 0 {
 		cacheLimits.maxTotalBytes = maxTotalBytes
 	}
+}
+
+// storeWithinLimits stores value under key with the given TTL unless it does not fit in the cache
+// limits. It reports whether the value was stored. Checking and inserting happen under admitMu so
+// the limits hold with concurrent writers.
+func storeWithinLimits(k8scache cache.Cache[string], key, value string, ttl time.Duration) (bool, error) {
+	admitMu.Lock()
+	defer admitMu.Unlock()
+
+	if !hasRoomFor(k8scache, key, int64(len(value))) {
+		return false, nil
+	}
+
+	if err := k8scache.SetWithTTL(context.Background(), key, value, ttl); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // hasRoomFor reports whether a response of size bytes stored under key fits in the cache limits.
