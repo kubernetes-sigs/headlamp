@@ -587,6 +587,7 @@ func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	addGeneralFlags(f, appName)
+	addCacheFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -608,11 +609,6 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"If unset, it is derived from the kube-system/kubeadm-config ConfigMap (treating \"kubernetes\" as unset), "+
 			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
-	f.Bool("cache-enabled", false, "K8s cache in backend")
-	f.Int64("cache-max-entry-mb", 16,
-		"Largest Kubernetes response, in MiB, that the backend cache stores. Larger responses are not cached")
-	f.Int64("cache-max-total-mb", 256,
-		"Memory budget, in MiB, for all Kubernetes responses in the backend cache. Responses that do not fit are not cached")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
@@ -660,6 +656,14 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+}
+
+func addCacheFlags(f *flag.FlagSet) {
+	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Int64("cache-max-entry-mb", 16,
+		"Largest Kubernetes response, in MiB, that the backend cache stores. Larger responses are not cached")
+	f.Int64("cache-max-total-mb", 256,
+		"Memory budget, in MiB, for all Kubernetes responses in the backend cache. Responses that do not fit are not cached")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
