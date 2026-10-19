@@ -3528,6 +3528,31 @@ func (c *HeadlampConfig) drainNodePods(
 		}
 	}
 
+	evictErrors, done := evictPending(ctx, clientset, pending)
+	if !done {
+		return
+	}
+
+	if len(evictErrors) > 0 {
+		errMsg := fmt.Sprintf("error: failed to evict %d pod(s)", len(evictErrors))
+		logger.Log(logger.LevelError, nil, nil,
+			fmt.Sprintf("node drain: failed to evict %d pod(s): %s",
+				len(evictErrors), strings.Join(evictErrors, "; ")))
+
+		_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
+	} else {
+		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
+	}
+}
+
+// evictPending evicts the given pods, retrying those refused by a
+// PodDisruptionBudget until drainEvictTimeout. It returns the errors for the pods
+// that could not be evicted, and false if the context ended before it finished.
+func evictPending(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	pending []*corev1.Pod,
+) ([]string, bool) {
 	deadline := time.Now().Add(drainEvictTimeout)
 
 	var evictErrors []string
@@ -3536,7 +3561,7 @@ func (c *HeadlampConfig) drainNodePods(
 
 	for len(pending) > 0 {
 		if ctx.Err() != nil {
-			return
+			return nil, false
 		}
 
 		var retry []*corev1.Pod
@@ -3547,7 +3572,7 @@ func (c *HeadlampConfig) drainNodePods(
 			switch {
 			case err == nil:
 			case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
-				return
+				return nil, false
 			case apierrors.IsTooManyRequests(err):
 				// Refused, typically by a PodDisruptionBudget. Retry until the timeout.
 				retry = append(retry, pod)
@@ -3564,13 +3589,13 @@ func (c *HeadlampConfig) drainNodePods(
 
 		select {
 		case <-ctx.Done():
-			return
+			return nil, false
 		case <-time.After(drainEvictRetryInterval):
 		}
 	}
 
 	if ctx.Err() != nil {
-		return
+		return nil, false
 	}
 
 	// Pods that are still refused when the timeout is reached also fail the drain.
@@ -3578,16 +3603,7 @@ func (c *HeadlampConfig) drainNodePods(
 		evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, lastRefusal[pod]))
 	}
 
-	if len(evictErrors) > 0 {
-		errMsg := fmt.Sprintf("error: failed to evict %d pod(s)", len(evictErrors))
-		logger.Log(logger.LevelError, nil, nil,
-			fmt.Sprintf("node drain: failed to evict %d pod(s): %s",
-				len(evictErrors), strings.Join(evictErrors, "; ")))
-
-		_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
-	} else {
-		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
-	}
+	return evictErrors, true
 }
 
 func isDaemonSetPod(pod *corev1.Pod) bool {
