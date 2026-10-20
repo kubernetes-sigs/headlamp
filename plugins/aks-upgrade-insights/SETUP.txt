@@ -1,0 +1,192 @@
+AKS Upgrade Insights for Headlamp / AKS Desktop
+==============================================
+
+LOCAL PREVIEW
+
+  cd "/Users/griffith/Documents/Microsoft Scout/aks-upgrade-insights"
+  npm ci
+  npm run demo
+
+Open http://127.0.0.1:5178. The preview and plugin share the same React components,
+domain logic, API adapters, and synthetic fixtures. No cloud access is needed.
+The production preview is built with npm run demo:build into demo-dist/.
+Serve that directory over HTTP; do not open its index.html as a file URL.
+
+DEMO WALKTHROUGH (about 2 minutes)
+
+1. Start on Fleet readiness. Eight synthetic clusters cover blocked, warning,
+   ready, expired, and not-yet-evaluated states.
+2. Click Blocked, then inspect aks-checkout-prod. The right-hand panel keeps the
+   fleet list and filters in place.
+3. Open Disruption budgets. Show the affected storefront/checkout-api budget and
+   the explanation of why surge capacity alone does not fix drain eligibility.
+4. Click Simulate remediation. This simulates resolving ALL issues on the selected
+   cluster; no Kubernetes or Azure resources change. The old snapshot remains blocked.
+5. Click Re-check readiness, inspect the exact POST body, and run the simulation.
+   The cluster is now Ready for the evaluated scope/target.
+   If the Blocked filter is active, it leaves that filtered list; click Ready.
+6. Explore cluster: show per-scope breakdown, separate node image evaluations,
+   maintenance context, and the API response.
+7. Data source settings > Reset demo scenarios restores the initial story.
+
+HEADLAMP PLUGIN
+
+  npm run build
+  npm run package
+
+The SDK produces dist/main.js and aks-upgrade-insights-0.1.0.tar.gz.
+The SDK refuses to overwrite an existing archive. Remove only the previous
+generated aks-upgrade-insights-0.1.0.tar.gz before packaging a revised build.
+The package uses Headlamp's supported UMD/pluginLib format. The archive root is
+aks-upgrade-insights/, containing main.js, package.json, and any generated assets.
+
+Extract into the plugin directory appropriate for YOUR installed desktop app:
+
+  Headlamp:
+    ~/Library/Application Support/Headlamp/plugins/
+  Packaged AKS Desktop:
+    ~/Library/Application Support/AKS Desktop/plugins/
+
+Current upstream desktop code uses these native macOS Application Support paths,
+with a Library/Preferences fallback when the product directory does not exist.
+Older Headlamp versions may instead use ~/.config/Headlamp/plugins/.
+Confirm the plugin directory from your build before installing. Do not overwrite
+an existing plugin with the same name without backing it up. Restart the desktop
+app after installation.
+
+The global/Home sidebar gets "Upgrade readiness". A selected-cluster sidebar gets
+"Upgrade Insights". Global path: /aks-upgrade-fleet. Cluster path:
+/c/<context>/aks-upgrade-insights. Registering a global route with noAuthRequired
+only permits the demo page to render without a Kubernetes context; it does not
+grant Azure or Kubernetes access.
+
+The demo deliberately does NOT impersonate an arbitrary connected Headlamp context.
+Select a synthetic cluster explicitly when the context does not match a fixture.
+In live mode, always select the correct ARM cluster; kubeconfig names are not
+reliable ARM identifiers, especially across subscriptions with duplicate names.
+
+This plugin is built with @kinvolk/headlamp-plugin 0.14.0 / React 18 / MUI 5.
+AKS Desktop packaging is not identical to Headlamp watch mode. npm start targets
+the Headlamp development profile, NOT necessarily the AKS Desktop product profile.
+Use the packaged artifact for AKS Desktop. SDK packages are compile-time tools;
+the installed desktop host must provide compatible runtime pluginLib APIs.
+
+LIVE ARM CONNECTION (OPT-IN; NOT NEEDED FOR DEMO)
+
+Prerequisites:
+- Azure CLI installed and signed in with your organization's approved process.
+- Access to the selected subscriptions and AKS resources.
+- Upgrade Insights preview deployed/enabled for those resources. The implementation
+  currently checks the AKSUpgradeInsightsPreview feature registration as well as
+  rollout flags. Do not register features or change subscriptions just for this demo
+  without the resource owner's approval.
+- Appropriate ARM permissions for cluster reads and upgradeInsights reads.
+  Generating an evaluation additionally requires the corresponding managedClusters
+  generateUpgradeInsights action permission. This plugin does not grant RBAC.
+
+Start the bridge in your own terminal:
+
+  npm run bridge -- --subscriptions <subscription-id>[,<subscription-id>]
+
+It binds ONLY to 127.0.0.1:4319 and is read-only by default. It invokes `az rest`
+without a shell, uses your existing CLI authentication, and never returns an Azure
+access token to the frontend. Copy the printed LOCAL PAIRING KEY into Data source
+settings along with the allowed subscription IDs. Do not paste keys into chat,
+commit them, or share them. Keys are memory-only and rotate when the bridge restarts.
+
+The default allowed browser origins are exactly http://127.0.0.1:5178 and
+http://localhost:5178. For the desktop app, inspect its actual loopback frontend
+origin, then set BRIDGE_ALLOWED_ORIGINS to that exact origin before starting the
+bridge. Only localhost/127.0.0.1/IPv6-loopback origins are accepted.
+
+  BRIDGE_ALLOWED_ORIGINS="http://localhost:<actual-port>" \
+    npm run bridge -- --subscriptions <subscription-id>
+
+Hosts using file:// or non-loopback custom schemes cannot use this development
+bridge. They need a native authenticated ARM transport. The ArmProvider accepts an
+ArmTransport callback for that integration; no bearer-token UI is provided.
+Browser private-network/CSP policies may also require host integration.
+
+To deliberately permit generating readiness (NOT performing upgrades):
+
+  npm run bridge -- --subscriptions <subscription-id> --allow-generate
+
+Each live Generate dialog shows the exact resource path and request body and
+requires approval in the UI. Cluster PUT/PATCH/DELETE, upgrade operations, arbitrary
+ARM endpoints, arbitrary origins, and other subscriptions are never supported by
+this bridge. Do not expose it on a network interface or deploy it as a service.
+Stop its terminal process when finished. No bridge is needed for synthetic mode.
+
+API CONTRACT AND IMPORTANT SEMANTICS
+
+Reference design: aks-handbook/api/2026-08-02-preview/upgrade-insights.md.
+Wire shape cross-checked against the RP v20260802preview upgrade insight model.
+
+  GET  {managedClusterId}/upgradeInsights?api-version=2026-08-02-preview
+  POST {managedClusterId}/generateUpgradeInsights?api-version=2026-08-02-preview
+
+LIST returns { value: UpgradeInsight[], nextLink?: string }. Pagination is followed
+with bounded requests and validated destinations. Fleet is client-side aggregation
+of per-cluster LIST calls (four concurrent insight requests), NOT a Fleet API.
+Inventory is subscription-scoped managedClusters LIST using the same API version.
+Server-controlled resource names are preserved; the client never constructs live
+GET names from assumptions about singular/plural agentPool naming.
+
+Generation is SYNCHRONOUS in this contract. GET/LIST never regenerate results.
+provisioningState=Failed means compute failure, not readiness blocking.
+evaluation.status=Failed means a readiness blocker.
+Missing evaluations, missing expected combined scopes, failed requests, unknown
+status/severity/upgrade types, stale results, and changed source versions never
+become Ready. Expiration uses server expiresAt. This UI additionally applies a
+24-hour re-check policy, checking both resource and scope evaluation timestamps.
+The 24-hour policy is a client UX choice, not the API's 14-day retention.
+
+Fleet cards use the latest combined Kubernetes evaluation for each cluster.
+If subscription inventory is partially unavailable, reachable subscriptions remain
+visible with an explicit warning; counts cover only that reachable subset.
+Targets may differ and are shown per cluster; they are not merged into a fictional
+single fleet-wide target. Overlapping single-pool and combined results are not
+double-counted. NodeImage checks are separate.
+
+The API's extensible enum values are preserved and unknown values display
+conservatively. Recommended documentation links are limited to HTTPS official
+Microsoft/Kubernetes domains. CSV exports escape formula prefixes. All data exports
+are local downloads; live identifiers may be private and must be reviewed before
+sharing. No telemetry, remote fonts, remote images, or analytics are added.
+
+PR #5747 REFERENCE
+
+https://github.com/kubernetes-sigs/headlamp/pull/5747
+
+That PR reconstructs node execution stages from Kubernetes Events. This plugin
+addresses readiness BEFORE an upgrade; it neither fabricates active progress nor
+requires that upstream PR to be installed. Event detection is not proof of readiness
+or durable operation status. Real-time execution integration is explicitly deferred.
+
+STATUS / LIMITATIONS
+
+- Synthetic walkthrough is usable without a cluster.
+- Live adapter/bridge is implemented but not validated against a preview-enabled
+  customer cluster. API access, rollout flags, CSP, and actual desktop build must
+  be confirmed before representing it as a live integration.
+- The packaged plugin was loaded in an isolated instance of the locally installed
+  Headlamp 0.35.0 runtime using an empty kubeconfig. No user plugin profile or
+  existing kubeconfig was changed. AKS Desktop-specific host integration remains
+  unvalidated because AKS Desktop is not installed on this machine.
+- No upgrade execution, automatic remediation, fleet write API, Azure sign-in UI,
+  auto-discovery of ARM IDs from kubeconfig, polling, or background reevaluation.
+- Synthetic state is in memory. Reloading the page resets it.
+- English demo copy; localization and production-scale virtualization are deferred.
+- The bridge has a 100-page safety cap and a 90-second CLI timeout.
+
+DEVELOPMENT
+
+  npm run typecheck
+  npm test
+  npm run build
+  npm run demo:build
+  npm run package
+
+Tests cover freshness and readiness semantics, contract parsing, ARM pagination,
+generation bodies, error propagation, demo reset/remediation, safe link/CSV handling,
+and the local bridge's origin/authentication/endpoint restrictions.

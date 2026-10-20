@@ -1,0 +1,5 @@
+node_modules/
+dist/
+demo-dist/
+*.tar.gz
+.DS_Store
