@@ -40,6 +40,7 @@ export default defineConfig({
     'runCommand.spec.ts',
     'updateChecks.spec.ts',
     'oauthProvider.spec.ts',
+    'githubOAuth.spec.ts',
     'protocolScheme.spec.ts',
     'frontendBuild.spec.ts',
     'runtimeProductIdentity.spec.ts',
