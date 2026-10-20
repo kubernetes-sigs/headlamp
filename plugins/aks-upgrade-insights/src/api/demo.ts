@@ -14,7 +14,7 @@ export const demoClusters: Cluster[] = [
   ['aks-sandbox-dev', 'westus3', 'Development', '1.33.5'],
 ].map(([name, location, environment, version]) => ({
   id: armId(name), name, contextName: name, location, environment,
-  subscription: 'KubeCon demo', resourceGroup: 'rg-demo', kubernetesVersion: version,
+  subscription: 'Demo subscription', resourceGroup: 'rg-demo', kubernetesVersion: version,
   pools: [{ name: 'system', version, nodeImageVersion: 'AKSUbuntu-2204gen2containerd-202609.01.0' }, { name: 'workloads', version, nodeImageVersion: 'AKSUbuntu-2204gen2containerd-202609.01.0' }],
 }));
 

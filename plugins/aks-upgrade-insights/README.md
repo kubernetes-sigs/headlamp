@@ -1,6 +1,6 @@
 # AKS Upgrade Insights for Headlamp
 
-**A KubeCon-ready prototype for discovering upgrade risk across AKS clusters.**
+**An interactive prototype for discovering upgrade risk across AKS clusters.**
 
 This initial draft adds a Headlamp plugin with a fleet readiness overview and a
 single-cluster workspace. It is grounded in the AKS Upgrade Insights preview API
