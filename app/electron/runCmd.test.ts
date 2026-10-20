@@ -2633,6 +2633,150 @@ describe('setupRunCmdHandlers', () => {
   });
 });
 
+describe('GitHub OAuth command-capability grant', () => {
+  async function registerGrantedPlugins() {
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-github-oauth-grant-'));
+    const sourceDigest = (bundleName: string) => {
+      const source = `console.log(${JSON.stringify(bundleName)});`;
+      fs.mkdirSync(path.join(pluginRoot, bundleName));
+      fs.writeFileSync(
+        path.join(pluginRoot, bundleName, 'package.json'),
+        JSON.stringify({ name: `@example/${bundleName}` })
+      );
+      fs.writeFileSync(path.join(pluginRoot, bundleName, 'main.js'), source);
+      return crypto.createHash('sha256').update(source).digest('hex');
+    };
+    const registrations = ['oauth-plugin', 'other-plugin'].map(bundleName => ({
+      bundleName,
+      packageName: `@example/${bundleName}`,
+      path: `static-plugins/${bundleName}`,
+      source: 'shipped',
+      type: 'shipped',
+      sourceDigest: sourceDigest(bundleName),
+    }));
+    const invokeHandlers = new Map<string, (...args: any[]) => any>();
+    const webContentsHandlers = new Map<string, (...args: any[]) => void>();
+    const webContents = {
+      id: 7,
+      mainFrame: { url: 'https://headlamp.test/' },
+      on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+        webContentsHandlers.set(event, handler);
+      }),
+      send: vi.fn(),
+    };
+    let destroyed = false;
+    const mainWindow = { webContents, on: vi.fn(), isDestroyed: () => destroyed } as any;
+    const ipcMain = {
+      on: vi.fn(),
+      handle: vi.fn((channel: string, handler: (...args: any[]) => any) => {
+        invokeHandlers.set(channel, handler);
+      }),
+      off: vi.fn(),
+      removeHandler: vi.fn(),
+    } as any;
+    const grants = [{ tool: 'examplectl', args: ['list'] }];
+    const privateCapabilities = setupRunCmdHandlers(
+      mainWindow,
+      ipcMain,
+      [
+        {
+          bundleName: 'oauth-plugin',
+          packageName: '@example/oauth-plugin',
+          source: 'shipped',
+          grants,
+          githubOAuth: true,
+        },
+        {
+          bundleName: 'other-plugin',
+          packageName: '@example/other-plugin',
+          source: 'shipped',
+          grants,
+        },
+      ],
+      'https://headlamp.test/',
+      { development: pluginRoot, user: pluginRoot, shipped: pluginRoot }
+    )!;
+    webContentsHandlers.get('did-frame-navigate')!({}, 'https://headlamp.test/', 200, 'OK', true);
+    const event = { sender: webContents, senderFrame: webContents.mainFrame } as any;
+    const capabilities = await invokeHandlers.get('register-plugin-command-capabilities')!(
+      event,
+      registrations
+    );
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+    return {
+      capabilities,
+      event,
+      privateCapabilities,
+      webContents,
+      webContentsHandlers,
+      destroy: () => (destroyed = true),
+    };
+  }
+
+  it('publishes the optional grant only for the granted identity', async () => {
+    const { capabilities } = await registerGrantedPlugins();
+
+    expect(capabilities).toHaveLength(2);
+    expect(capabilities[0]).toMatchObject({ bundleName: 'oauth-plugin', githubOAuth: true });
+    expect(capabilities[1]).not.toHaveProperty('githubOAuth');
+  });
+
+  it('authorizes only the granted capability from the trusted main frame', async () => {
+    const { capabilities, event, privateCapabilities, webContents } =
+      await registerGrantedPlugins();
+    const [oauth, other] = capabilities.map((capability: any) => capability.capability);
+
+    expect(privateCapabilities.authorizeGitHubOAuth(event, oauth)).toBe(true);
+    expect(privateCapabilities.isGitHubOAuthCapabilityLive(oauth)).toBe(true);
+    expect(privateCapabilities.authorizeGitHubOAuth(event, other)).toBe(false);
+    expect(privateCapabilities.isGitHubOAuthCapabilityLive(other)).toBe(false);
+    expect(privateCapabilities.authorizeGitHubOAuth(event, 'f'.repeat(64))).toBe(false);
+    expect(privateCapabilities.authorizeGitHubOAuth(event, undefined as never)).toBe(false);
+    expect(
+      privateCapabilities.authorizeGitHubOAuth(
+        { sender: webContents, senderFrame: { url: 'https://headlamp.test/' } } as any,
+        oauth
+      )
+    ).toBe(false);
+    expect(
+      privateCapabilities.authorizeGitHubOAuth(
+        { sender: { id: 7 }, senderFrame: webContents.mainFrame } as any,
+        oauth
+      )
+    ).toBe(false);
+    webContents.mainFrame.url = 'https://attacker.example/';
+    expect(privateCapabilities.authorizeGitHubOAuth(event, oauth)).toBe(false);
+    expect(privateCapabilities.isGitHubOAuthCapabilityLive(oauth)).toBe(false);
+  });
+
+  it.each(['main-frame navigation', 'window destruction'])(
+    'reports the grant as no longer live after %s',
+    async lifecycle => {
+      const {
+        capabilities,
+        event,
+        privateCapabilities,
+        webContents,
+        webContentsHandlers,
+        destroy,
+      } = await registerGrantedPlugins();
+      const oauth = capabilities[0].capability;
+
+      if (lifecycle === 'window destruction') destroy();
+      else
+        webContentsHandlers.get('did-start-navigation')!({}, 'https://headlamp.test/', false, true);
+
+      expect(privateCapabilities.isGitHubOAuthCapabilityLive(oauth)).toBe(false);
+      if (lifecycle !== 'window destruction') {
+        webContents.mainFrame.url = 'https://attacker.example/';
+        webContents.mainFrame.url = 'https://headlamp.test/';
+        expect(privateCapabilities.authorizeGitHubOAuth(event, oauth)).toBe(false);
+        expect(privateCapabilities.isGitHubOAuthCapabilityLive(oauth)).toBe(false);
+      }
+    }
+  );
+});
+
 describe('command consent', () => {
   const fakeMainWindow = { id: 1 } as any;
   const permissionSecrets = { 'runCmd-gh': 99 };
