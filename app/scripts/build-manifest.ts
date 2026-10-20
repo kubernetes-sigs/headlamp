@@ -32,6 +32,9 @@ export type BuildManifest = {
   /** URL glob patterns the packaged backend may proxy. */
   'proxy-urls'?: string[];
 
+  /** Optional GitHub App public-client identity for browser sign-in. */
+  githubOAuth?: { clientId: string; clientSecret: string };
+
   /** Reusable command grant arrays referenced by command policies. */
   commandSets?: Record<string, RunCommandGrant[]>;
 
@@ -128,6 +131,8 @@ export interface ProductPluginRunCommands {
   commandSets?: string[];
   /** Native cluster registration providers granted to these exact plugin identities. */
   clusterRegistrationProviders?: ProductClusterRegistrationProvider[];
+  /** Grants these exact plugin identities the product's GitHub OAuth client. */
+  githubOAuth?: boolean;
 }
 
 /** Validated command policy for one plugin identity and inventory. */
@@ -155,6 +160,8 @@ export interface ProductPluginCommandPolicy {
   grants: RunCommandGrant[];
   /** Native cluster registration providers granted to this verified plugin identity. */
   clusterRegistrationProviders: ProductClusterRegistrationProvider[];
+  /** Present and true when this verified plugin identity may use GitHub OAuth. */
+  githubOAuth?: boolean;
 }
 
 const COMMAND_POLICY_DOCS_FILE = 'docs/development/plugins/command-capabilities.md';
@@ -378,6 +385,22 @@ export function validateBuildManifest(value: unknown): BuildManifest {
   }
 
   const manifest = value as BuildManifest;
+  const githubOAuth = manifest.githubOAuth as unknown;
+  if (githubOAuth !== undefined) {
+    const credential = /^[A-Za-z0-9._-]{1,256}$/;
+    if (
+      typeof githubOAuth !== 'object' ||
+      githubOAuth === null ||
+      Array.isArray(githubOAuth) ||
+      Object.keys(githubOAuth).some(key => !['clientId', 'clientSecret'].includes(key)) ||
+      ['clientId', 'clientSecret'].some(key => {
+        const value = (githubOAuth as Record<string, unknown>)[key];
+        return typeof value !== 'string' || !credential.test(value);
+      })
+    ) {
+      throw new Error('Build manifest githubOAuth must contain clientId and clientSecret strings');
+    }
+  }
   const externalTools = manifest['external-tools'];
   if (externalTools !== undefined) {
     if (
@@ -553,6 +576,7 @@ export function productPluginCommandPolicies(
             'commands',
             'commandSets',
             'clusterRegistrationProviders',
+            'githubOAuth',
           ].includes(key)
       )
     ) {
@@ -676,6 +700,14 @@ export function productPluginCommandPolicies(
         `Build manifest runCommands[${index}] cannot grant cluster registration to user plugins`
       );
     }
+    if (policy.githubOAuth !== undefined && typeof policy.githubOAuth !== 'boolean') {
+      throw new Error(`Invalid build manifest runCommands[${index}].githubOAuth`);
+    }
+    if (policy.pluginLocation === 'user' && policy.githubOAuth === true) {
+      throw new Error(
+        `Build manifest runCommands[${index}] cannot grant GitHub OAuth to user plugins`
+      );
+    }
     for (const tool of pluginExecutables) {
       if (!parsedGrants.some(grant => grant.tool === tool)) {
         throw new Error(`Unused build manifest runCommands[${index}] plugin executable ${tool}`);
@@ -770,6 +802,7 @@ export function productPluginCommandPolicies(
           }),
           grants,
           clusterRegistrationProviders,
+          ...(policy.githubOAuth === true && { githubOAuth: true }),
         });
       }
     }

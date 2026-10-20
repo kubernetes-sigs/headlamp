@@ -98,6 +98,8 @@ export interface ProductPluginCommandPolicy {
     /** Verified external-tool IDs consumed by this provider. */
     tools: Record<string, string>;
   }>;
+  /** Whether this exact plugin identity may use the product's GitHub OAuth client. */
+  githubOAuth?: boolean;
 }
 
 // Keep these IPC contract interfaces in sync with frontend/src/plugin/commandCapabilities.ts.
@@ -165,6 +167,8 @@ export interface PluginCommandCapability {
   capability: string;
   /** Provider IDs this exact plugin identity may invoke. */
   clusterRegistrationProviders: string[];
+  /** Present and true only when this plugin identity may use GitHub OAuth. */
+  githubOAuth?: boolean;
 }
 
 /** Command capability state retained only by Electron's main process. */
@@ -856,6 +860,7 @@ export function createProductCommandCapabilities(
       clusterRegistrationProviders: (policy.clusterRegistrationProviders ?? []).map(
         provider => provider.id
       ),
+      ...(policy.githubOAuth === true && { githubOAuth: true }),
     });
     capabilityRegistry.set(capability, { ...policy, webContentsId });
   }
@@ -1274,6 +1279,13 @@ export interface PrivatePluginCapabilities {
     providerId: string,
     capability: string
   ): NonNullable<ProductPluginCommandPolicy['clusterRegistrationProviders']>[number] | undefined;
+  /** Authenticates a trusted main-frame request for a capability granted GitHub OAuth. */
+  authorizeGitHubOAuth(event: Electron.IpcMainInvokeEvent, capability: string): boolean;
+  /**
+   * Reports whether a capability still holds the GitHub OAuth grant for the current
+   * main-window document, for asynchronous completions without a live IPC sender.
+   */
+  isGitHubOAuthCapabilityLive(capability: string): boolean;
 }
 
 /**
@@ -1409,6 +1421,30 @@ export function setupRunCmdHandlers(
         return undefined;
       }
       return registered.clusterRegistrationProviders?.find(provider => provider.id === providerId);
+    },
+    authorizeGitHubOAuth(event, capability) {
+      const registered =
+        typeof capability === 'string' ? capabilityRegistry.get(capability) : undefined;
+      return (
+        registered?.githubOAuth === true &&
+        registered.webContentsId === event.sender.id &&
+        event.sender === mainWindow.webContents &&
+        event.senderFrame === mainWindow.webContents.mainFrame &&
+        (trustedStartUrl === undefined ||
+          isTrustedDocumentUrl(event.senderFrame.url, trustedStartUrl))
+      );
+    },
+    isGitHubOAuthCapabilityLive(capability) {
+      // Reads the current registry and document; navigation and window close revoke.
+      const registered =
+        typeof capability === 'string' ? capabilityRegistry.get(capability) : undefined;
+      return (
+        registered?.githubOAuth === true &&
+        !mainWindow.isDestroyed() &&
+        registered.webContentsId === mainWindow.webContents.id &&
+        (trustedStartUrl === undefined ||
+          isTrustedDocumentUrl(mainWindow.webContents.mainFrame.url, trustedStartUrl))
+      );
     },
   };
 }
