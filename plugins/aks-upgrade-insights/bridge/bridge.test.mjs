@@ -2,6 +2,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { validateRequest } from './validation.mjs';
 
 const subscription = '00000000-0000-0000-0000-000000000000';
 let child, base, key;
@@ -67,6 +68,19 @@ test('rejects any cluster upgrade or resource modification endpoint', async () =
 test('rejects requests to other subscriptions', async () => {
   const response = await request({ method: 'GET', path: '/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.ContainerService/managedClusters?api-version=2026-08-02-preview' });
   assert.equal(response.status, 400);
+});
+test('allows read-only Fleet inventory and member endpoints without issuing cloud requests', () => {
+  for (const path of [
+    `/subscriptions/${subscription}/providers/Microsoft.ContainerService/fleets?api-version=2025-03-01`,
+    `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/fleets/production/members?api-version=2025-03-01`,
+    `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/managedClusters/test/upgradeProfiles/default?api-version=2024-10-01`,
+  ]) {
+    assert.deepEqual(validateRequest({ method: 'GET', path }, [subscription]), { method: 'GET', path });
+  }
+  assert.throws(() => validateRequest({
+    method: 'POST',
+    path: `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/fleets/production/members/member?api-version=2025-03-01`,
+  }, [subscription]), /read-only/);
 });
 test('rejects absolute URLs and other API versions', async () => {
   for (const path of ['https://evil.example', `/subscriptions/${subscription}/providers/Microsoft.ContainerService/managedClusters?api-version=2025-01-01`]) {

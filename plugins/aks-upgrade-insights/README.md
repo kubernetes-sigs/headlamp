@@ -2,7 +2,7 @@
 
 **An interactive prototype for discovering upgrade risk across AKS clusters.**
 
-This initial draft adds a Headlamp plugin with a fleet readiness overview and a
+This initial draft adds a Headlamp plugin with a cluster readiness overview and a
 single-cluster workspace. It is grounded in the AKS Upgrade Insights preview API
 contract and uses clearly labeled, synthetic scenarios for its out-of-the-box demo.
 The standalone preview and Headlamp plugin share the same UI and data adapters.
@@ -14,14 +14,15 @@ The standalone preview and Headlamp plugin share the same UI and data adapters.
 
 ## Screenshots
 
-### Fleet readiness
+### Cluster readiness
 
 Prioritize blockers and warnings, filter by issue category, and inspect a cluster
-in a side panel without losing the fleet list.
+in a side panel without losing your place. Fleet membership is shown only when it
+can be discovered.
 
-![AKS Upgrade Insights fleet readiness view](docs/images/fleet-readiness.png)
+![AKS Upgrade Insights cluster readiness view](docs/images/fleet-readiness.png)
 
-### Cluster readiness
+### Single-cluster workspace
 
 Inspect the evaluated upgrade scope, affected resources, remediation guidance, and
 the exact stored API response.
@@ -54,13 +55,18 @@ evaluation states. Try the two-minute walkthrough:
 
 ## What is included
 
-- **Fleet readiness:** rollup counts, filters, issue categories, sorting, search,
-  export, and an in-context cluster inspector.
+- **Cluster readiness:** paged cluster inventory, per-page readiness counts and
+  filters, issue categories, sorting, search, export, and an in-context inspector.
+- **Optional Fleet membership:** discovered through Azure Fleet resources in the
+  configured subscriptions. Missing or inaccessible membership data is shown as
+  unavailable, never interpreted as proof that a cluster is standalone.
 - **Cluster workspace:** readiness and freshness, control-plane and agent-pool
   breakdowns, affected resources, safe remediation links, maintenance context,
   selectable stored scopes, and API response inspection.
 - **Evaluation dialog:** review the exact `generateUpgradeInsights` request. Demo
-  requests are simulated. Live requests require an explicit confirmation.
+  requests are simulated. For Kubernetes upgrade scopes, target versions are loaded
+  from the cluster upgrade profile and selected from a dropdown. Live requests
+  require an explicit confirmation.
 - **Typed API adapter:** subscription-scoped cluster inventory, per-cluster
   `upgradeInsights` LIST, server-provided pagination, and synchronous generation.
 - **Offline fixtures:** separate Kubernetes version and node OS image scenarios,
@@ -70,16 +76,21 @@ evaluation states. Try the two-minute walkthrough:
 
 ## API and readiness behavior
 
-The implementation targets the `2026-08-02-preview` API:
+Upgrade Insights targets the `2026-08-02-preview` API:
 
 ```text
 GET  {managedClusterId}/upgradeInsights?api-version=2026-08-02-preview
 POST {managedClusterId}/generateUpgradeInsights?api-version=2026-08-02-preview
 ```
 
-Fleet view aggregates per-cluster LIST results in the client; it does not assume a
-fleet API exists. Cluster targets can differ and remain visible per row. Kubernetes
-version and node OS image evaluations are separate scopes.
+There is no Upgrade Insights fleet-readiness endpoint. Readiness is aggregated from
+each cluster's stored LIST results. Optional membership is discovered through the
+stable `Microsoft.ContainerService/fleets` and `members` APIs (`2025-03-01`) within
+the configured subscriptions. Access failures and partial discovery are surfaced;
+the plugin does not presume every cluster is in a fleet. A cluster with no matching
+membership in the configured subscriptions is not guaranteed to be outside a fleet
+whose owning subscription was not configured. Cluster targets can differ and remain
+visible per row. Kubernetes version and node OS image evaluations are separate scopes.
 
 GET/LIST read stored evaluations and do not compute readiness. Generation is
 synchronous and stores a fresh result; it **does not start an upgrade**. The plugin
@@ -87,6 +98,15 @@ uses the server-provided `expiresAt` and also applies a clearly client-side
 24-hour freshness threshold. Missing/incomplete scopes, failed requests, unknown
 statuses, expired snapshots, and changed source versions are never called **Ready**.
 The 24-hour threshold is a demo client policy, not the server retention period.
+
+The UI shows 25 clusters per page and reads readiness only for those visible
+clusters. Inventory is fetched through ARM continuation pages so search can span
+the configured subscriptions; readiness/issue filters and counts are scoped to the
+current page. Retrieved readiness is cached in memory for up to 60 seconds, shared
+across plugin routes in the current browser session. **Refresh current page**
+bypasses that cache. No readiness data is written to browser storage or disk.
+The selected data provider and its bridge pairing remain in memory across plugin
+route changes; reloading the host clears them.
 
 The linked Headlamp [PR #5747](https://github.com/kubernetes-sigs/headlamp/pull/5747)
 visualizes node upgrade execution from Kubernetes Events. Execution progress is
@@ -135,12 +155,13 @@ enabling it. In brief:
 
 ## Limitations
 
-- No fleet-native API, upgrade execution, automatic remediation, node-event
+- No fleet-native readiness API, upgrade execution, automatic remediation, node-event
   progress display, polling, or background re-evaluation.
 - No Azure sign-in UI, identity/token storage, or automatic mapping of kubeconfig
   contexts to ARM resources.
-- Live inventory is scoped to explicitly configured subscriptions. Partial
-  inventory failures are surfaced; counts cover reachable subscriptions only.
+- Live inventory and Fleet membership discovery are scoped to explicitly configured
+  subscriptions. Partial inventory and membership failures are surfaced; readiness
+  counts cover the current page and inventory totals cover reachable subscriptions.
 - Demo state is in-memory and resets when the page reloads.
 - English-only interface; production-scale virtualization is not implemented.
 
@@ -150,10 +171,12 @@ enabling it. In brief:
 src/api/types.ts          Validated API/domain schemas
 src/api/arm.ts            Per-cluster ARM API provider
 src/api/demo.ts           Clearly labeled synthetic provider
+src/api/session.ts        In-memory provider shared across routes
 src/domain.ts             Freshness, scopes, conservative readiness
-src/App.tsx               Shared fleet and single-cluster experience
+src/App.tsx               Shared cluster-list and single-cluster experience
 src/index.tsx             Headlamp route and sidebar registration
 bridge/server.mjs         Optional loopback-only Azure CLI bridge
+bridge/validation.mjs     Read-only ARM endpoint allowlist
 demo/                     Standalone local preview
 docs/images/              Screenshots shown above
 ```

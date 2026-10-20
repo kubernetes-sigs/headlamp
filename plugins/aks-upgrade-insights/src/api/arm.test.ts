@@ -15,13 +15,69 @@ describe('ARM contract', () => {
     expect(transport.mock.calls[1][0]).toContain('$skiptoken=abc');
   });
   it('aggregates clusters client-side with source versions and pools', async () => {
-    const transport = vi.fn().mockResolvedValue({ value: [{
+    const transport = vi.fn(async (path: string) => path.includes('/managedClusters?') ? { value: [{
       id: demoClusters[0].id, name: 'test', location: 'eastus',
       properties: { kubernetesVersion: '1.33.1', currentKubernetesVersion: '1.33.2', agentPoolProfiles: [{ name: 'system', orchestratorVersion: '1.33.2', nodeImageVersion: 'old-image' }] },
-    }] });
+    }] } : { value: [] });
     const { clusters } = await new ArmProvider(transport, [subscription]).listClusters();
     expect(clusters[0].kubernetesVersion).toBe('1.33.2'); expect(clusters[0].pools[0].name).toBe('system');
     expect(transport.mock.calls[0][0]).toContain(`/subscriptions/${subscription}/providers/Microsoft.ContainerService/managedClusters?`);
+    expect(clusters[0].fleetMembershipKnown).toBe(true);
+    expect(clusters[0].fleets).toEqual([]);
+  });
+  it('associates clusters with optional Fleet members across subscriptions', async () => {
+    const fleetId = `/subscriptions/${subscription}/resourceGroups/rg-fleet/providers/Microsoft.ContainerService/fleets/production`;
+    const transport = vi.fn(async (path: string) => {
+      if (path.includes('/managedClusters?')) return { value: [{ id: demoClusters[0].id, name: 'test', location: 'eastus', properties: {} }] };
+      if (path.includes('/fleets?')) return { value: [{ id: fleetId, name: 'production' }] };
+      if (path.includes('/members?')) return { value: [{ properties: { clusterResourceId: demoClusters[0].id } }] };
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const { clusters, fleetWarnings } = await new ArmProvider(transport, [subscription]).listClusters();
+    expect(clusters[0].fleets).toEqual([{ id: fleetId, name: 'production' }]);
+    expect(clusters[0].fleetMembershipKnown).toBe(true);
+    expect(fleetWarnings).toEqual([]);
+  });
+  it('does not report standalone when Fleet membership cannot be read', async () => {
+    const transport = vi.fn(async (path: string) => {
+      if (path.includes('/managedClusters?')) return { value: [{ id: demoClusters[0].id, name: 'test', location: 'eastus', properties: {} }] };
+      throw new Error('Forbidden');
+    });
+    const result = await new ArmProvider(transport, [subscription]).listClusters();
+    expect(result.clusters[0].fleetMembershipKnown).toBe(false);
+    expect(result.clusters[0].fleets).toEqual([]);
+    expect(result.fleetWarnings[0]).toContain('Forbidden');
+  });
+  it('caches stored insight reads briefly and supports explicit refresh', async () => {
+    const cacheCluster = {
+      ...demoClusters[0],
+      id: `${demoClusters[0].id}-cache-test`,
+      name: 'cache-test',
+    };
+    const transport = vi.fn().mockResolvedValue({ value: [resource] });
+    const provider = new ArmProvider(transport, [subscription]);
+    const first = await provider.listInsights(cacheCluster);
+    const cached = await provider.listInsights(cacheCluster);
+    expect(cached).toEqual(first);
+    expect(transport).toHaveBeenCalledTimes(1);
+    await provider.listInsights(cacheCluster, undefined, true);
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+  it('loads available Kubernetes upgrade targets for dropdown selection', async () => {
+    const transport = vi.fn().mockResolvedValue({
+      controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }, { kubernetesVersion: '1.34.2' }] },
+      agentPoolProfiles: [{ upgrades: [{ kubernetesVersion: '1.36.0' }] }],
+    });
+    const targets = await new ArmProvider(transport, [subscription]).listUpgradeTargets(demoClusters[0]);
+    expect(targets).toEqual(['1.34.2', '1.35.1', '1.36.0']);
+    expect(transport.mock.calls[0][0]).toBe(`${demoClusters[0].id}/upgradeProfiles/default?api-version=2024-10-01`);
+  });
+  it('caches upgrade targets briefly per cluster', async () => {
+    const transport = vi.fn().mockResolvedValue({ controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }] } });
+    const provider = new ArmProvider(transport, [subscription]);
+    await provider.listUpgradeTargets(demoClusters[0]);
+    await provider.listUpgradeTargets(demoClusters[0]);
+    expect(transport).toHaveBeenCalledTimes(1);
   });
   it('preserves reachable subscriptions and reports partial inventory failures', async () => {
     const transport = vi.fn().mockResolvedValueOnce({ value: [] }).mockRejectedValueOnce(new Error('Forbidden'));

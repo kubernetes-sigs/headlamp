@@ -14,10 +14,10 @@ Serve that directory over HTTP; do not open its index.html as a file URL.
 
 DEMO WALKTHROUGH (about 2 minutes)
 
-1. Start on Fleet readiness. Eight synthetic clusters cover blocked, warning,
+1. Start on Cluster readiness. Eight synthetic clusters cover blocked, warning,
    ready, expired, and not-yet-evaluated states.
 2. Click Blocked, then inspect aks-checkout-prod. The right-hand panel keeps the
-   fleet list and filters in place.
+   cluster list and filters in place.
 3. Open Disruption budgets. Show the affected storefront/checkout-api budget and
    the explanation of why surge capacity alone does not fix drain eligibility.
 4. Click Simulate remediation. This simulates resolving ALL issues on the selected
@@ -80,7 +80,8 @@ Prerequisites:
   currently checks the AKSUpgradeInsightsPreview feature registration as well as
   rollout flags. Do not register features or change subscriptions just for this demo
   without the resource owner's approval.
-- Appropriate ARM permissions for cluster reads and upgradeInsights reads.
+- Appropriate ARM permissions for cluster reads, upgradeInsights reads, and (for
+  optional membership labels) Fleet list/member reads in the configured subscriptions.
   Generating an evaluation additionally requires the corresponding managedClusters
   generateUpgradeInsights action permission. This plugin does not grant RBAC.
 
@@ -126,9 +127,22 @@ Wire shape cross-checked against the RP v20260802preview upgrade insight model.
   POST {managedClusterId}/generateUpgradeInsights?api-version=2026-08-02-preview
 
 LIST returns { value: UpgradeInsight[], nextLink?: string }. Pagination is followed
-with bounded requests and validated destinations. Fleet is client-side aggregation
-of per-cluster LIST calls (four concurrent insight requests), NOT a Fleet API.
-Inventory is subscription-scoped managedClusters LIST using the same API version.
+with bounded requests and validated destinations. Readiness is aggregated from
+per-cluster LIST calls, with at most 25 visible clusters loaded at a time (four
+concurrent insight requests). Inventory is a subscription-scoped managedClusters
+LIST using the Upgrade Insights API version.
+
+Optional Fleet membership is discovered separately using
+Microsoft.ContainerService/fleets and Fleet members LIST with API version 2025-03-01.
+Discovery is limited to the configured subscriptions; a missing membership there
+does not prove the cluster is not in a Fleet owned by another subscription. If fleet
+reads are denied or partial, the UI says membership is unavailable instead of
+marking affected clusters standalone.
+
+When generating Kubernetes-version evaluations, the target version dropdown is
+loaded from managedClusters/upgradeProfiles/default (API version 2024-10-01). If
+that read fails, generation is blocked until targets can be read.
+
 Server-controlled resource names are preserved; the client never constructs live
 GET names from assumptions about singular/plural agentPool naming.
 
@@ -141,12 +155,23 @@ become Ready. Expiration uses server expiresAt. This UI additionally applies a
 24-hour re-check policy, checking both resource and scope evaluation timestamps.
 The 24-hour policy is a client UX choice, not the API's 14-day retention.
 
-Fleet cards use the latest combined Kubernetes evaluation for each cluster.
+The cluster overview uses the latest combined Kubernetes evaluation for each cluster.
 If subscription inventory is partially unavailable, reachable subscriptions remain
-visible with an explicit warning; counts cover only that reachable subset.
+visible with an explicit warning; inventory totals cover only that reachable subset.
 Targets may differ and are shown per cluster; they are not merged into a fictional
 single fleet-wide target. Overlapping single-pool and combined results are not
 double-counted. NodeImage checks are separate.
+
+The UI pages clusters 25 at a time; readiness counts, issue categories, and
+readiness filters apply only to the current page. Search and environment filters
+apply across loaded inventory. Live stored evaluations are held in an in-memory
+cache for up to 60 seconds. Refresh current page bypasses it. No API results are
+written to local storage or disk, and merely reading an evaluation never triggers
+generation.
+
+The selected provider and pairing key remain in memory across Headlamp plugin route
+changes for the current host session. Reloading the host clears the plugin-side
+state; Azure CLI authentication remains managed by `az`.
 
 The API's extensible enum values are preserved and unknown values display
 conservatively. Recommended documentation links are limited to HTTPS official

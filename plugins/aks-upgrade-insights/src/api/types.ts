@@ -83,6 +83,8 @@ export interface Cluster {
   environment?: string;
   kubernetesVersion?: string;
   poolInventoryKnown?: boolean;
+  fleetMembershipKnown?: boolean;
+  fleets?: { id: string; name: string }[];
   pools: { name: string; version?: string; nodeImageVersion?: string }[];
 }
 export interface ClusterRecord {
@@ -93,11 +95,13 @@ export interface ClusterRecord {
 export interface ClusterInventory {
   clusters: Cluster[];
   warnings: string[];
+  fleetWarnings: string[];
 }
 export interface InsightsProvider {
   readonly mode: 'demo' | 'live';
   listClusters(signal?: AbortSignal): Promise<ClusterInventory>;
-  listInsights(cluster: Cluster, signal?: AbortSignal): Promise<Insight[]>;
+  listInsights(cluster: Cluster, signal?: AbortSignal, forceRefresh?: boolean): Promise<Insight[]>;
+  listUpgradeTargets(cluster: Cluster, signal?: AbortSignal): Promise<string[]>;
   generate(cluster: Cluster, request: GenerateRequest, signal?: AbortSignal): Promise<Insight>;
 }
 

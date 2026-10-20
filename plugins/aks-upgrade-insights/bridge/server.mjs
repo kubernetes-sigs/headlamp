@@ -2,7 +2,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { z } from 'zod';
+import { validateRequest } from './validation.mjs';
 
 const argv = process.argv.slice(2);
 const subscriptionArg = argv.indexOf('--subscriptions');
@@ -23,39 +23,6 @@ const key = randomBytes(32).toString('hex');
 const port = Number(process.env.BRIDGE_PORT ?? '4319');
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid bridge port.');
 const az = existsSync('/opt/homebrew/bin/az') ? '/opt/homebrew/bin/az' : 'az';
-const kubernetesTarget = z.string().regex(/^\d+\.\d+\.\d+$/);
-const pool = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
-const generationSchema = z.discriminatedUnion('upgradeType', [
-  z.object({ upgradeType: z.literal('ControlPlaneAndAgentPools'), targetKubernetesVersion: kubernetesTarget }).strict(),
-  z.object({ upgradeType: z.literal('ControlPlane'), targetKubernetesVersion: kubernetesTarget }).strict(),
-  z.object({ upgradeType: z.literal('AgentPool'), agentPoolName: pool, targetKubernetesVersion: kubernetesTarget }).strict(),
-  z.object({ upgradeType: z.literal('NodeImage'), agentPoolName: pool, targetNodeImageVersion: z.string().min(1).max(256).optional() }).strict(),
-]);
-const envelopeSchema = z.object({
-  path: z.string().max(4096),
-  method: z.enum(['GET', 'POST']),
-  body: generationSchema.optional(),
-}).strict();
-const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const allowedSubscriptions = subscriptions.map(escape).join('|');
-const prefix = `/subscriptions/(${allowedSubscriptions})`;
-const clusterList = new RegExp(`^${prefix}/providers/Microsoft\\.ContainerService/managedClusters$`, 'i');
-const clusterPath = `${prefix}/resourceGroups/[^/]+/providers/Microsoft\\.ContainerService/managedClusters/[^/]+`;
-const insightList = new RegExp(`^${clusterPath}/upgradeInsights$`, 'i');
-const generate = new RegExp(`^${clusterPath}/generateUpgradeInsights$`, 'i');
-
-export function validateRequest(input) {
-  const request = envelopeSchema.parse(input);
-  const url = new URL(request.path, 'https://management.azure.com');
-  if (!request.path.startsWith('/subscriptions/') || url.origin !== 'https://management.azure.com' ||
-      url.hash || url.searchParams.get('api-version') !== '2026-08-02-preview' ||
-      [...url.searchParams.keys()].some(k => !['api-version', '$skiptoken', '$skipToken', 'skipToken', '$top'].includes(k))) {
-    throw new Error('Only approved ARM API paths and API version are permitted.');
-  }
-  if (request.method === 'GET' && !request.body && (clusterList.test(url.pathname) || insightList.test(url.pathname))) return request;
-  if (request.method === 'POST' && allowGenerate && request.body && generate.test(url.pathname)) return request;
-  throw new Error('Request denied. Bridge is read-only unless started with --allow-generate. Cluster upgrades and resource changes are never supported.');
-}
 function send(res, status, body, origin) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
@@ -92,7 +59,7 @@ const server = http.createServer(async (req, res) => {
       raw += chunk.toString();
       if (raw.length > 16_384) { send(res, 413, { error: 'Request too large.' }, origin); return; }
     }
-    const request = validateRequest(JSON.parse(raw));
+    const request = validateRequest(JSON.parse(raw), subscriptions, allowGenerate);
     const args = ['rest', '--method', request.method.toLowerCase(), '--url', `https://management.azure.com${request.path}`, '--output', 'json', '--only-show-errors'];
     if (request.body) args.push('--headers', 'Content-Type=application/json', '--body', JSON.stringify(request.body));
     const child = execFile(az, args, { timeout: 90_000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {

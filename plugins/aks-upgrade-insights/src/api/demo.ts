@@ -15,6 +15,10 @@ export const demoClusters: Cluster[] = [
 ].map(([name, location, environment, version]) => ({
   id: armId(name), name, contextName: name, location, environment,
   subscription: 'Demo subscription', resourceGroup: 'rg-demo', kubernetesVersion: version,
+  fleetMembershipKnown: true,
+  fleets: ['aks-checkout-prod', 'aks-platform-prod', 'aks-payments-prod', 'aks-analytics-prod'].includes(name)
+    ? [{ id: '/subscriptions/demo/resourceGroups/rg-fleet/providers/Microsoft.ContainerService/fleets/production', name: 'production' }]
+    : [],
   pools: [{ name: 'system', version, nodeImageVersion: 'AKSUbuntu-2204gen2containerd-202609.01.0' }, { name: 'workloads', version, nodeImageVersion: 'AKSUbuntu-2204gen2containerd-202609.01.0' }],
 }));
 
@@ -131,6 +135,7 @@ export class DemoProvider implements InsightsProvider {
   readonly mode = 'demo';
   private records = new Map<string, Insight[]>();
   private resolved = new Set<string>();
+  private readonly demoTargets = ['1.34.2', '1.35.1', '1.36.0'];
   constructor() { this.reset(); }
   reset() {
     this.resolved.clear();
@@ -145,9 +150,13 @@ export class DemoProvider implements InsightsProvider {
     });
   }
   simulateRemediation(cluster: Cluster) { this.resolved.add(cluster.id); }
-  async listClusters(signal?: AbortSignal) { await wait(signal); return { clusters: structuredClone(demoClusters), warnings: [] }; }
+  async listClusters(signal?: AbortSignal) { await wait(signal); return { clusters: structuredClone(demoClusters), warnings: [], fleetWarnings: [] }; }
   async listInsights(cluster: Cluster, signal?: AbortSignal) {
     await wait(signal); return structuredClone(this.records.get(cluster.id) ?? []);
+  }
+  async listUpgradeTargets(_cluster: Cluster, signal?: AbortSignal) {
+    await wait(signal);
+    return structuredClone(this.demoTargets);
   }
   async generate(cluster: Cluster, request: GenerateRequest, signal?: AbortSignal) {
     await wait(signal);

@@ -3,6 +3,8 @@ import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { Cluster, InsightsProvider } from './api/types';
+import { getActiveProvider, setActiveProvider } from './api/session';
 
 declare global { var IS_REACT_ACT_ENVIRONMENT: boolean; }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -20,7 +22,7 @@ afterEach(async () => {
 });
 async function render(context?: string) {
   await act(async () => root.render(<App singleClusterContext={context} />));
-  await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+  for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 }
 function button(label: string) {
   const result = [...container.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === label || b.textContent?.trim() === label);
@@ -35,7 +37,7 @@ describe('source and context UI regressions', () => {
     expect(container.querySelectorAll('tbody tr')).toHaveLength(8);
     await click('Data source settings');
     await click('Use demo data');
-    await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+    for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(container.querySelectorAll('tbody tr')).toHaveLength(8);
     expect(container.textContent).not.toContain('No AKS clusters found');
   });
@@ -59,5 +61,52 @@ describe('source and context UI regressions', () => {
     expect(container.querySelector('.cluster-hero')).toBeNull();
     expect(container.textContent).toContain('Choose a cluster');
     expect(container.textContent).toContain('Demo clusters are synthetic, not this connected context.');
+  });
+  it('pages large inventories and loads readiness only for the visible page', async () => {
+    const clusters: Cluster[] = Array.from({ length: 31 }, (_, index) => ({
+      id: `/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster-${index}`,
+      name: `cluster-${String(index).padStart(2, '0')}`,
+      subscription: 'Test subscription',
+      resourceGroup: 'rg',
+      location: 'eastus',
+      pools: [],
+    }));
+    const provider: InsightsProvider = {
+      mode: 'live',
+      listClusters: vi.fn().mockResolvedValue({ clusters, warnings: [], fleetWarnings: [] }),
+      listInsights: vi.fn().mockResolvedValue([]),
+      listUpgradeTargets: vi.fn().mockResolvedValue(['1.35.1']),
+      generate: vi.fn(),
+    };
+    await act(async () => root.render(<App initialProvider={provider} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(25);
+    expect(container.textContent).toContain('Page 1 of 2');
+    expect(provider.listInsights).toHaveBeenCalledTimes(25);
+    await act(async () => { button('Next cluster page').click(); await Promise.resolve(); });
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(6);
+    expect(provider.listInsights).toHaveBeenCalledTimes(31);
+  });
+  it('reuses the active provider when a plugin route remounts in the same session', async () => {
+    const original = getActiveProvider();
+    const provider: InsightsProvider = {
+      mode: 'live',
+      listClusters: vi.fn().mockResolvedValue({ clusters: [], warnings: [], fleetWarnings: [] }),
+      listInsights: vi.fn().mockResolvedValue([]),
+      listUpgradeTargets: vi.fn().mockResolvedValue(['1.35.1']),
+      generate: vi.fn(),
+    };
+    setActiveProvider(provider);
+    try {
+      await act(async () => { root.render(<App />); await Promise.resolve(); });
+      expect(provider.listClusters).toHaveBeenCalledTimes(1);
+      await act(async () => root.unmount());
+      root = createRoot(container);
+      await act(async () => { root.render(<App singleClusterContext="test-context" />); await Promise.resolve(); });
+      expect(provider.listClusters).toHaveBeenCalledTimes(2);
+      expect(container.textContent).toContain('Azure API');
+    } finally {
+      setActiveProvider(original);
+    }
   });
 });

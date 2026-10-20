@@ -1,17 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArmProvider, bridgeTransport, clusterBase } from './api/arm';
 import { DemoProvider } from './api/demo';
-import { API_VERSION, ClusterRecord, GenerateRequest, Insight, InsightsProvider, issueLabels, scopeLabels, UpgradeType, upgradeTypes } from './api/types';
+import { demoProvider, getActiveProvider, setActiveProvider } from './api/session';
+import { API_VERSION, Cluster, ClusterRecord, GenerateRequest, Insight, InsightsProvider, issueLabels, scopeLabels, UpgradeType, upgradeTypes } from './api/types';
 import { csvCell, formatTime, freshness, issuesFor, latestCombined, readiness, readinessOrder, Readiness, recordReadiness, safeDocumentationUrl, ScopedIssue, scopes } from './domain';
 import { Icon } from './components/Icon';
 import { Modal } from './components/Modal';
 import './styles.css';
 
-const demo = new DemoProvider();
+const PAGE_SIZE = 25;
 const statuses: Readiness[] = ['Blocked', 'Review warnings', 'Ready', 'Re-check required', 'Not evaluated', 'Unavailable'];
 const tone = (status: string) => status === 'Ready' || status === 'Passed' ? 'success'
   : status === 'Blocked' || status === 'Blocking' || status === 'Failed' ? 'danger'
   : status === 'Review warnings' || status === 'Warning' || status === 'Re-check required' ? 'warning' : 'neutral';
+function fleetLabel(cluster: Cluster) {
+  if (cluster.fleets?.length) {
+    const names = cluster.fleets.map(fleet => fleet.name).join(', ');
+    return `Fleet: ${names}${cluster.fleetMembershipKnown === false ? ' · discovery incomplete' : ''}`;
+  }
+  if (cluster.fleetMembershipKnown === false || cluster.fleetMembershipKnown === undefined) return 'Fleet status unavailable';
+  return cluster.subscription === 'Demo subscription' ? 'Not in a fleet' : 'No fleet found in configured subscriptions';
+}
 function Badge({ value }: { value: string }) {
   return <span className={`badge ${tone(value)}`}><span className="status-dot" />{value}</span>;
 }
@@ -24,18 +33,30 @@ function download(name: string, content: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function App({ singleClusterContext, hostTheme, embedded = false }: { singleClusterContext?: string; hostTheme?: 'light' | 'dark'; embedded?: boolean }) {
-  const [provider, setProvider] = useState<InsightsProvider>(demo);
-  const [records, setRecords] = useState<ClusterRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+export function App({ singleClusterContext, hostTheme, embedded = false, initialProvider }: {
+  singleClusterContext?: string;
+  hostTheme?: 'light' | 'dark';
+  embedded?: boolean;
+  initialProvider?: InsightsProvider;
+}) {
+  const [provider, setProvider] = useState<InsightsProvider>(initialProvider ?? getActiveProvider());
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [recordsById, setRecordsById] = useState<Record<string, ClusterRecord>>({});
+  const [inventoryLoaded, setInventoryLoaded] = useState(false);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [inventoryWarnings, setInventoryWarnings] = useState<string[]>([]);
+  const [fleetWarnings, setFleetWarnings] = useState<string[]>([]);
+  const [inventoryReload, setInventoryReload] = useState(0);
   const [reload, setReload] = useState(0);
+  const forceRefresh = useRef(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [environment, setEnvironment] = useState('all');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('risk');
+  const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string>();
   const [view, setView] = useState<'fleet' | 'cluster'>(singleClusterContext ? 'cluster' : 'fleet');
   const [settings, setSettings] = useState(false);
@@ -46,7 +67,7 @@ export function App({ singleClusterContext, hostTheme, embedded = false }: { sin
   const [theme, setTheme] = useState<'light' | 'dark'>(hostTheme ?? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'));
   const [, tick] = useState(0);
   useEffect(() => { if (hostTheme) setTheme(hostTheme); }, [hostTheme]);
-  useEffect(() => { setSelected(undefined); }, [singleClusterContext]);
+  useEffect(() => { setSelected(undefined); setPage(0); }, [singleClusterContext]);
   useEffect(() => { const timer = setInterval(() => tick(t => t + 1), 60_000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     if (!toast) return;
@@ -54,61 +75,99 @@ export function App({ singleClusterContext, hostTheme, embedded = false }: { sin
   }, [toast]);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setLoadError(''); setInventoryWarnings([]);
+    setInventoryLoading(true); setInventoryLoaded(false); setLoadError('');
+    setInventoryWarnings([]); setFleetWarnings([]);
     async function load() {
       try {
-        const { clusters, warnings } = await provider.listClusters(controller.signal);
-        const results: ClusterRecord[] = [];
-        for (let index = 0; index < clusters.length; index += 4) {
-          results.push(...await Promise.all(clusters.slice(index, index + 4).map(async cluster => {
-            try { return { cluster, insights: await provider.listInsights(cluster, controller.signal) }; }
-            catch (error) {
-              if (controller.signal.aborted) throw error;
-              return { cluster, insights: [], error: errorText(error) };
-            }
-          })));
-        }
+        const inventory = await provider.listClusters(controller.signal);
         if (controller.signal.aborted) return;
-        setRecords(results);
-        setInventoryWarnings(warnings);
+        setClusters(inventory.clusters);
+        setRecordsById({});
+        setInventoryWarnings(inventory.warnings);
+        setFleetWarnings(inventory.fleetWarnings);
         if (singleClusterContext) {
-          const match = provider.mode === 'demo' ? results.find(r => r.cluster.contextName === singleClusterContext) : undefined;
-          setSelected(previous => previous ?? match?.cluster.id);
+          const index = provider.mode === 'demo' ? inventory.clusters.findIndex(cluster => cluster.contextName === singleClusterContext) : -1;
+          if (index >= 0) {
+            setSelected(inventory.clusters[index].id);
+            setPage(Math.floor(index / PAGE_SIZE));
+          }
         }
+        setInventoryLoaded(true);
       } catch (error) {
-        if (!controller.signal.aborted) { setRecords([]); setLoadError(errorText(error)); }
-      } finally { if (!controller.signal.aborted) setLoading(false); }
+        if (!controller.signal.aborted) { setClusters([]); setInventoryLoaded(true); setLoadError(errorText(error)); }
+      } finally { if (!controller.signal.aborted) setInventoryLoading(false); }
     }
     void load();
     return () => controller.abort();
-  }, [provider, reload, singleClusterContext]);
+  }, [provider, inventoryReload, singleClusterContext]);
 
-  const selectedRecord = records.find(r => r.cluster.id === selected);
+  const searchableClusters = useMemo(() => clusters.filter(cluster =>
+    (environment === 'all' || (cluster.environment ?? 'Unspecified') === environment) &&
+    `${cluster.name} ${cluster.subscription} ${cluster.location} ${cluster.resourceGroup}`.toLowerCase().includes(query.toLowerCase())
+  ).sort((a, b) => sort === 'region'
+    ? a.location.localeCompare(b.location) || a.name.localeCompare(b.name)
+    : a.name.localeCompare(b.name)), [clusters, environment, query, sort]);
+  const pageCount = Math.max(1, Math.ceil(searchableClusters.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageClusters = useMemo(
+    () => searchableClusters.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [currentPage, searchableClusters]
+  );
+  const records = pageClusters.map(cluster => recordsById[cluster.id]).filter((record): record is ClusterRecord => !!record);
+  const loading = inventoryLoading || pageLoading;
+  useEffect(() => {
+    if (!inventoryLoaded || loadError) return;
+    const controller = new AbortController();
+    if (!pageClusters.length) { setPageLoading(false); return () => controller.abort(); }
+    const bypassCache = forceRefresh.current;
+    forceRefresh.current = false;
+    setPageLoading(true);
+    async function loadPage() {
+      const results: ClusterRecord[] = [];
+      for (let index = 0; index < pageClusters.length; index += 4) {
+        results.push(...await Promise.all(pageClusters.slice(index, index + 4).map(async cluster => {
+          try { return { cluster, insights: await provider.listInsights(cluster, controller.signal, bypassCache) }; }
+          catch (error) {
+            if (controller.signal.aborted) throw error;
+            return { cluster, insights: [], error: errorText(error) };
+          }
+        })));
+      }
+      if (!controller.signal.aborted) {
+        setRecordsById(Object.fromEntries(results.map(record => [record.cluster.id, record])));
+      }
+    }
+    void loadPage().catch(error => {
+      if (!controller.signal.aborted) setLoadError(errorText(error));
+    }).finally(() => { if (!controller.signal.aborted) setPageLoading(false); });
+    return () => controller.abort();
+  }, [inventoryLoaded, loadError, pageClusters, provider, reload]);
+
+  const selectedRecord = selected ? recordsById[selected] : undefined;
   const counts = Object.fromEntries(statuses.map(status => [status, records.filter(r => recordReadiness(r) === status).length]));
   const filtered = records.filter(record => {
     const insight = latestCombined(record);
     return (filter === 'all' || recordReadiness(record) === filter ||
         (filter === 'needs-evaluation' && ['Re-check required', 'Not evaluated', 'Unavailable'].includes(recordReadiness(record))))
-      && (environment === 'all' || (record.cluster.environment ?? 'Unspecified') === environment)
-      && (category === 'all' || issuesFor(insight).some(i => i.issue.issueType === category))
-      && `${record.cluster.name} ${record.cluster.subscription} ${record.cluster.location} ${record.cluster.resourceGroup}`.toLowerCase().includes(query.toLowerCase());
+      && (category === 'all' || issuesFor(insight).some(i => i.issue.issueType === category));
   }).sort((a, b) => sort === 'name' ? a.cluster.name.localeCompare(b.cluster.name)
     : sort === 'region' ? a.cluster.location.localeCompare(b.cluster.location)
     : readinessOrder[recordReadiness(a)] - readinessOrder[recordReadiness(b)] || a.cluster.name.localeCompare(b.cluster.name));
   const categoryCounts = Object.entries(issueLabels).map(([name, label]) => ({
     name, label, count: records.filter(r => issuesFor(latestCombined(r)).some(i => i.issue.issueType === name)).length,
   })).filter(c => c.count);
-  const filteredSelected = selectedRecord && filtered.some(r => r.cluster.id === selectedRecord.cluster.id) ? selectedRecord : undefined;
+  const filteredSelected = selectedRecord && records.some(r => r.cluster.id === selectedRecord.cluster.id) ? selectedRecord : undefined;
   const changeProvider = (next: InsightsProvider) => {
-    setProvider(next); setLoading(true); setReload(r => r + 1); setRecords([]); setSelected(undefined); setQuery(''); setFilter('all');
-    setEnvironment('all'); setCategory('all'); setSettings(false);
+    setActiveProvider(next); setProvider(next); setInventoryLoaded(false); setClusters([]); setRecordsById({}); setSelected(undefined); setPage(0);
+    setQuery(''); setFilter('all'); setEnvironment('all'); setCategory('all'); setSettings(false);
+    setInventoryReload(r => r + 1);
   };
   const openCluster = (record: ClusterRecord) => { setSelected(record.cluster.id); setView('cluster'); };
   const exportFleet = () => {
-    const rows = [['Cluster', 'Subscription', 'Region', 'Current Kubernetes version', 'Evaluated target', 'Readiness', 'Blocking issues', 'Warnings', 'Last evaluated']];
+    const rows = [['Cluster', 'Subscription', 'Region', 'Fleet membership', 'Current Kubernetes version', 'Evaluated target', 'Readiness', 'Blocking issues', 'Warnings', 'Last evaluated']];
     filtered.forEach(record => {
       const insight = latestCombined(record), issues = issuesFor(insight);
-      rows.push([record.cluster.name, record.cluster.subscription, record.cluster.location, record.cluster.kubernetesVersion ?? '',
+      rows.push([record.cluster.name, record.cluster.subscription, record.cluster.location, fleetLabel(record.cluster), record.cluster.kubernetesVersion ?? '',
         insight?.properties.targetKubernetesVersion ?? '', recordReadiness(record),
         String(issues.filter(i => i.issue.severity === 'Blocking').length), String(issues.filter(i => i.issue.severity === 'Warning').length),
         insight?.properties.lastEvaluatedAt ?? '']);
@@ -119,7 +178,7 @@ export function App({ singleClusterContext, hostTheme, embedded = false }: { sin
   return <div className={`upgrade-insights ${embedded ? 'embedded' : ''}`} data-theme={theme}>
     <header className="app-bar">
       <div className="brand"><span className="brand-mark"><Icon name="layers" size={24} /></span><strong>{embedded ? 'Upgrade Insights' : 'AKS Desktop'}</strong>{!embedded && <><span className="brand-divider" /><span>Upgrade Insights</span></>}<span className="preview-label">PREVIEW</span></div>
-      {embedded && !singleClusterContext && <nav className="embedded-nav" aria-label="Upgrade Insights navigation"><button className={view === 'fleet' ? 'active' : ''} onClick={() => setView('fleet')}>Fleet readiness</button><button className={view === 'cluster' ? 'active' : ''} onClick={() => { setView('cluster'); if (!selected && records.length) setSelected(records[0].cluster.id); }}>Cluster insights</button></nav>}
+      {embedded && !singleClusterContext && <nav className="embedded-nav" aria-label="Upgrade Insights navigation"><button className={view === 'fleet' ? 'active' : ''} onClick={() => setView('fleet')}>Cluster readiness</button><button className={view === 'cluster' ? 'active' : ''} onClick={() => { setView('cluster'); if (!selected && pageClusters.length) setSelected(pageClusters[0].id); }}>Cluster insights</button></nav>}
       <div className="toolbar">
         <span className={`source-indicator ${provider.mode}`}><span className="status-dot" />{provider.mode === 'demo' ? 'Demo data' : 'Azure API'}</span>
         <button className="icon-button" title="Switch appearance" aria-label="Switch appearance" onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}><Icon name="sun" /></button>
@@ -129,55 +188,56 @@ export function App({ singleClusterContext, hostTheme, embedded = false }: { sin
     <div className="app-body">
       {!singleClusterContext && !embedded && <nav className="rail" aria-label="Upgrade Insights navigation">
         <span className="rail-label">OPERATIONS</span>
-        <button className={view === 'fleet' ? 'active' : ''} onClick={() => setView('fleet')}><Icon name="layers" />Fleet readiness</button>
-        <button className={view === 'cluster' ? 'active' : ''} onClick={() => { setView('cluster'); if (!selected && records.length) setSelected(records[0].cluster.id); }}><Icon name="shield" />Cluster insights</button>
+        <button className={view === 'fleet' ? 'active' : ''} onClick={() => setView('fleet')}><Icon name="layers" />Cluster readiness</button>
+        <button className={view === 'cluster' ? 'active' : ''} onClick={() => { setView('cluster'); if (!selected && pageClusters.length) setSelected(pageClusters[0].id); }}><Icon name="shield" />Cluster insights</button>
         <div className="rail-bottom"><div className="rail-note"><Icon name="shield" size={18} /><strong>Know before you upgrade.</strong><p>Surface risk. Resolve blockers. Re-check readiness.</p></div><button onClick={() => setAbout(true)}><Icon name="code" />API & demo guide</button></div>
       </nav>}
       <main className="main-content">
         <div className="breadcrumbs">Operations <span>/</span> Upgrade Insights {view === 'cluster' && <><span>/</span> {selectedRecord?.cluster.name ?? 'Select a cluster'}</>}</div>
         <div className="page-heading">
-          <div><div className="eyebrow">UPGRADE WITH CONFIDENCE</div><h1>{view === 'fleet' ? 'Your fleet, ready for what’s next.' : 'Cluster upgrade readiness'}</h1><p>{view === 'fleet' ? 'Find what needs attention before your next Kubernetes upgrade.' : 'Understand the risk, the affected resources, and the next best action.'}</p></div>
-          <div className="toolbar"><button className="button" onClick={() => setReload(r => r + 1)} disabled={loading}><Icon name="refresh" />{loading ? 'Refreshing…' : 'Refresh stored results'}</button>{view === 'fleet' && <button className="button" onClick={exportFleet} disabled={loading || !filtered.length}><Icon name="download" />Export</button>}</div>
+          <div><div className="eyebrow">UPGRADE WITH CONFIDENCE</div><h1>Cluster upgrade readiness</h1><p>{view === 'fleet' ? 'Review stored readiness across your AKS clusters. Fleet membership is shown when available.' : 'Understand the risk, the affected resources, and the next best action.'}</p></div>
+          <div className="toolbar"><button className="button" onClick={() => { forceRefresh.current = true; setReload(r => r + 1); }} disabled={loading}><Icon name="refresh" />{loading ? 'Refreshing…' : 'Refresh current page'}</button>{view === 'fleet' && <button className="button" onClick={exportFleet} disabled={loading || !filtered.length}><Icon name="download" />Export page</button>}</div>
         </div>
         <div className="notice source-notice"><Icon name={provider.mode === 'demo' ? 'layers' : 'shield'} size={18} /><span>{provider.mode === 'demo'
           ? <><strong>Synthetic demo.</strong> No clusters are connected or changed. All evaluations and remediation are simulated.</>
-          : <><strong>Live, stored evaluations.</strong> Refresh only reads the API. Generating a new evaluation requires review; this plugin never starts upgrades.</>}</span><button className="text-button" onClick={() => setSettings(true)}>Data source <Icon name="arrow" size={16} /></button></div>
+          : <><strong>Live, stored evaluations.</strong> Results are kept in a 60-second in-memory cache; refresh bypasses it and reads the API. Nothing is written to local storage. Generating a new evaluation requires review; this plugin never starts upgrades.</>}</span><button className="text-button" onClick={() => setSettings(true)}>Data source <Icon name="arrow" size={16} /></button></div>
         {singleClusterContext && <div className="context-note">Headlamp context: <code>{singleClusterContext}</code>. {provider.mode === 'demo' ? 'Demo clusters are synthetic, not this connected context.' : 'Select the matching ARM cluster below; context names are not authoritative ARM identifiers.'}</div>}
-        {loadError && <div className="notice error" role="alert"><Icon name="alert" /><div><strong>Could not load clusters</strong><p>{loadError}</p><button className="text-button" onClick={() => setReload(r => r + 1)}>Retry</button></div></div>}
-        {!!inventoryWarnings.length && <div className="notice error" role="alert"><Icon name="alert" /><div><strong>Partial fleet inventory — some subscriptions could not be read</strong>{inventoryWarnings.map(warning => <p key={warning}>{warning}</p>)}<p>Counts cover reachable subscriptions only. Refresh to retry.</p></div></div>}
-        {loading ? <div className="loading-panel" role="status"><span className="spinner" /><h2>Gathering upgrade readiness</h2><p>Reading each cluster’s stored evaluations. No checks or upgrades are triggered.</p></div>
+        {loadError && <div className="notice error" role="alert"><Icon name="alert" /><div><strong>Could not load clusters</strong><p>{loadError}</p><button className="text-button" onClick={() => setInventoryReload(r => r + 1)}>Retry</button></div></div>}
+        {!!inventoryWarnings.length && <div className="notice error" role="alert"><Icon name="alert" /><div><strong>Partial cluster inventory — some subscriptions could not be read</strong>{inventoryWarnings.map(warning => <p key={warning}>{warning}</p>)}<p>Counts cover reachable subscriptions only. Refresh to retry.</p></div></div>}
+        {!!fleetWarnings.length && <div className="notice"><Icon name="layers" /><div><strong>Fleet membership is incomplete</strong>{fleetWarnings.map(warning => <p key={warning}>{warning}</p>)}<p>Visible fleet associations may be partial; clusters without a listed fleet are not treated as confirmed standalone.</p></div></div>}
+        {loading ? <div className="loading-panel" role="status"><span className="spinner" /><h2>{inventoryLoading ? 'Loading cluster inventory' : 'Loading this page’s readiness'}</h2><p>{inventoryLoading ? 'Reading AKS clusters and optional fleet membership.' : 'Reading stored evaluations for visible clusters only. No checks or upgrades are triggered.'}</p></div>
           : view === 'fleet' ? <>
-            <section className="metrics" aria-label="Fleet readiness filters">
-              <Metric label="Total clusters" value={records.length} note="Latest combined evaluations" selected={filter === 'all'} onClick={() => setFilter('all')} />
-              <Metric label="Blocked" value={counts.Blocked} note="Resolve before upgrading" variant="danger" selected={filter === 'Blocked'} onClick={() => setFilter(filter === 'Blocked' ? 'all' : 'Blocked')} />
-              <Metric label="Review warnings" value={counts['Review warnings']} note="Potential workload risk" variant="warning" selected={filter === 'Review warnings'} onClick={() => setFilter(filter === 'Review warnings' ? 'all' : 'Review warnings')} />
-              <Metric label="Ready" value={counts.Ready} note="No issues in the snapshot" variant="success" selected={filter === 'Ready'} onClick={() => setFilter(filter === 'Ready' ? 'all' : 'Ready')} />
-              <Metric label="Needs evaluation" value={counts['Re-check required'] + counts['Not evaluated'] + counts.Unavailable} note="Stale, missing, or unavailable" selected={filter === 'needs-evaluation'} onClick={() => setFilter(filter === 'needs-evaluation' ? 'all' : 'needs-evaluation')} />
+            <section className="metrics" aria-label="Cluster inventory and current page readiness">
+              <Metric label="Clusters in inventory" value={clusters.length} note="Across connected subscriptions" selected={filter === 'all'} onClick={() => setFilter('all')} />
+              <Metric label="Blocked on page" value={counts.Blocked} note="Resolve before upgrading" variant="danger" selected={filter === 'Blocked'} onClick={() => setFilter(filter === 'Blocked' ? 'all' : 'Blocked')} />
+              <Metric label="Review warnings" value={counts['Review warnings']} note="On this page" variant="warning" selected={filter === 'Review warnings'} onClick={() => setFilter(filter === 'Review warnings' ? 'all' : 'Review warnings')} />
+              <Metric label="Ready on page" value={counts.Ready} note="No issues in the snapshot" variant="success" selected={filter === 'Ready'} onClick={() => setFilter(filter === 'Ready' ? 'all' : 'Ready')} />
+              <Metric label="Needs evaluation" value={counts['Re-check required'] + counts['Not evaluated'] + counts.Unavailable} note="On this page" selected={filter === 'needs-evaluation'} onClick={() => setFilter(filter === 'needs-evaluation' ? 'all' : 'needs-evaluation')} />
             </section>
-            <section className="category-bar" aria-label="Filter by issue category"><span>RISK SIGNALS</span>{categoryCounts.map(c => <button key={c.name} className={category === c.name ? 'active' : ''} aria-pressed={category === c.name} onClick={() => setCategory(category === c.name ? 'all' : c.name)}>{c.label}<strong>{c.count}</strong></button>)}{!categoryCounts.length && <span>No issues in available snapshots</span>}</section>
+            <section className="category-bar" aria-label="Filter current page by issue category"><span>RISK SIGNALS · CURRENT PAGE</span>{categoryCounts.map(c => <button key={c.name} className={category === c.name ? 'active' : ''} aria-pressed={category === c.name} onClick={() => setCategory(category === c.name ? 'all' : c.name)}>{c.label}<strong>{c.count}</strong></button>)}{!categoryCounts.length && <span>No issues on this page</span>}</section>
             <div className={`fleet-workspace ${filteredSelected ? 'with-inspector' : ''}`}>
               <section className="panel cluster-list" aria-label="Cluster readiness list">
-                <div className="panel-heading"><div><h2>Cluster readiness <span className="count">{filtered.length}</span></h2><p>Kubernetes version upgrades · latest combined check per cluster · targets may differ</p></div></div>
+                <div className="panel-heading"><div><h2>Cluster readiness <span className="count">{filtered.length}</span></h2><p>Page {currentPage + 1} of {pageCount} · latest combined check per cluster · targets may differ</p></div></div>
                 <div className="filter-bar">
-                  <div className="search-field"><Icon name="search" size={18} /><input aria-label="Search clusters" placeholder="Search clusters, regions, subscriptions…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+                  <div className="search-field"><Icon name="search" size={18} /><input aria-label="Search clusters" placeholder="Search clusters, regions, subscriptions…" value={query} onChange={e => { setQuery(e.target.value); setPage(0); }} /></div>
                   <select aria-label="Readiness filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All readiness</option><option value="needs-evaluation">Needs evaluation</option>{statuses.map(s => <option key={s}>{s}</option>)}</select>
-                  <select aria-label="Environment filter" value={environment} onChange={e => setEnvironment(e.target.value)}><option value="all">All environments</option>{[...new Set(records.map(r => r.cluster.environment ?? 'Unspecified'))].map(e => <option key={e}>{e}</option>)}</select>
+                  <select aria-label="Environment filter" value={environment} onChange={e => { setEnvironment(e.target.value); setPage(0); }}><option value="all">All environments</option>{[...new Set(clusters.map(c => c.environment ?? 'Unspecified'))].map(e => <option key={e}>{e}</option>)}</select>
                   <select aria-label="Sort clusters" value={sort} onChange={e => setSort(e.target.value)}><option value="risk">Risk first</option><option value="name">Name</option><option value="region">Region</option></select>
                 </div>
-                {(filter !== 'all' || environment !== 'all' || category !== 'all' || query) && <div className="active-filters"><span>Filtered results{category !== 'all' ? ` · ${issueLabels[category] ?? category}` : ''}</span><button className="text-button" onClick={() => { setFilter('all'); setEnvironment('all'); setCategory('all'); setQuery(''); }}>Clear filters</button></div>}
+                {(filter !== 'all' || environment !== 'all' || category !== 'all' || query) && <div className="active-filters"><span>Filtered results{category !== 'all' ? ` · ${issueLabels[category] ?? category}` : ''}</span><button className="text-button" onClick={() => { setFilter('all'); setEnvironment('all'); setCategory('all'); setQuery(''); setPage(0); }}>Clear filters</button></div>}
                 <div className="table-scroll"><table><thead><tr><th>Cluster</th><th>Readiness</th><th>Version → target</th><th>Issues</th><th>Last evaluated</th></tr></thead><tbody>{filtered.map(record => {
                   const insight = latestCombined(record), issues = issuesFor(insight);
                   const blocking = issues.filter(i => i.issue.severity === 'Blocking').length;
                   const warnings = issues.filter(i => i.issue.severity === 'Warning').length;
                   return <tr key={record.cluster.id} className={selected === record.cluster.id ? 'selected-row' : ''}>
-                    <td><button className="cluster-name" aria-label={`Inspect ${record.cluster.name}`} onClick={() => setSelected(selected === record.cluster.id ? undefined : record.cluster.id)}><span className="cluster-icon"><Icon name="layers" size={18} /></span><span><strong>{record.cluster.name}</strong><small>{record.cluster.location} <span>·</span> {record.cluster.environment ?? record.cluster.resourceGroup}</small></span></button></td>
+                    <td><button className="cluster-name" aria-label={`Inspect ${record.cluster.name}`} onClick={() => setSelected(selected === record.cluster.id ? undefined : record.cluster.id)}><span className="cluster-icon"><Icon name="layers" size={18} /></span><span><strong>{record.cluster.name}</strong><small>{record.cluster.location} <span>·</span> {record.cluster.environment ?? record.cluster.resourceGroup}</small><small>{fleetLabel(record.cluster)}</small></span></button></td>
                     <td><Badge value={recordReadiness(record)} /></td><td><span className="version-path">{record.cluster.kubernetesVersion ?? 'Unknown'}<span>→</span>{insight?.properties.targetKubernetesVersion ?? 'Not evaluated'}</span></td>
                     <td><div className="issue-counts"><span className={blocking ? 'danger-text' : 'muted'}>{blocking} blockers</span><span className={warnings ? 'warning-text' : 'muted'}>{warnings} warnings</span></div></td>
                     <td><span className="small muted">{insight ? formatTime(insight.properties.lastEvaluatedAt) : 'No stored result'}</span></td>
                   </tr>;
                 })}</tbody></table></div>
-                {!filtered.length && <Empty title={records.length ? 'No clusters match your filters' : 'No AKS clusters found'} text={records.length ? 'Try a different readiness state, category, or search.' : 'Check the selected subscriptions and access, or switch to demo data.'} />}
-                <div className="table-footer"><span>{filtered.length} of {records.length} clusters</span><span>Readiness is a snapshot, not an upgrade guarantee.</span></div>
+                {!filtered.length && <Empty title={searchableClusters.length ? 'No clusters match on this page' : 'No AKS clusters found'} text={searchableClusters.length ? 'Readiness and issue filters apply to the current page. Try another page or clear a filter.' : 'Check the selected subscriptions and access, or switch to demo data.'} />}
+                <div className="table-footer"><span>Showing {searchableClusters.length ? currentPage * PAGE_SIZE + 1 : 0}–{Math.min((currentPage + 1) * PAGE_SIZE, searchableClusters.length)} of {searchableClusters.length} clusters · counts reflect the current page</span><div className="table-pagination"><button className="button" aria-label="Previous cluster page" disabled={currentPage === 0 || loading} onClick={() => { setPage(currentPage - 1); setSelected(undefined); }}>Previous</button><span>Page {currentPage + 1} of {pageCount}</span><button className="button" aria-label="Next cluster page" disabled={currentPage + 1 >= pageCount || loading} onClick={() => { setPage(currentPage + 1); setSelected(undefined); }}>Next</button></div></div>
               </section>
               {filteredSelected && <aside className="panel inspector" aria-label={`Insights for ${filteredSelected.cluster.name}`}>
                 <div className="inspector-header"><span className="eyebrow">CLUSTER SNAPSHOT</span><button className="icon-button" aria-label="Close cluster inspector" onClick={() => setSelected(undefined)}><Icon name="close" size={18} /></button></div>
@@ -188,8 +248,17 @@ export function App({ singleClusterContext, hostTheme, embedded = false }: { sin
               </aside>}
             </div>
           </> : <>
-            <div className="cluster-nav">{!singleClusterContext && <button className="text-button" onClick={() => setView('fleet')}><Icon name="back" size={18} />Fleet readiness</button>}
-              <label>Cluster <select aria-label="Select cluster" value={selected ?? ''} onChange={e => setSelected(e.target.value)}><option value="" disabled>Select a {provider.mode === 'demo' ? 'demo ' : ''}cluster</option>{records.map(r => <option key={r.cluster.id} value={r.cluster.id}>{r.cluster.name} · {r.cluster.location}</option>)}</select></label>
+            <div className="cluster-nav">{!singleClusterContext && <button className="text-button" onClick={() => setView('fleet')}><Icon name="back" size={18} />Cluster readiness</button>}
+              <label>Cluster <select aria-label="Select cluster" value={selected ?? ''} onChange={e => {
+                const id = e.target.value;
+                setQuery(''); setEnvironment('all');
+                const orderedClusters = [...clusters].sort((a, b) => sort === 'region'
+                  ? a.location.localeCompare(b.location) || a.name.localeCompare(b.name)
+                  : a.name.localeCompare(b.name));
+                const index = orderedClusters.findIndex(cluster => cluster.id === id);
+                if (index >= 0) setPage(Math.floor(index / PAGE_SIZE));
+                setSelected(id);
+              }}><option value="" disabled>Select a {provider.mode === 'demo' ? 'demo ' : ''}cluster</option>{clusters.map(cluster => <option key={cluster.id} value={cluster.id}>{cluster.name} · {cluster.location}</option>)}</select></label>
             </div>
             {selectedRecord ? <ClusterDetail key={selectedRecord.cluster.id} record={selectedRecord} onIssue={setIssue} onGenerate={() => setGenerateFor(selectedRecord)} onToast={setToast} /> : <Empty title="Choose a cluster" text="Select a cluster to inspect readiness for its control plane, node pools, and node OS images." />}
           </>}
@@ -197,10 +266,13 @@ export function App({ singleClusterContext, hostTheme, embedded = false }: { sin
       </main>
     </div>
     {toast && <div className="toast" role="status"><Icon name="check" size={18} />{toast}<button className="icon-button" aria-label="Dismiss notification" onClick={() => setToast('')}><Icon name="close" size={16} /></button></div>}
-    {settings && <Settings mode={provider.mode} onClose={() => setSettings(false)} onDemo={() => changeProvider(demo)} onLive={(subscriptions, key) => changeProvider(new ArmProvider(bridgeTransport(key), subscriptions))} onReset={() => { demo.reset(); setReload(r => r + 1); setSettings(false); setToast('Demo scenarios reset. No live resources were changed.'); }} />}
-    {about && <Modal title="Know before you upgrade" onClose={() => setAbout(false)} wide><div className="modal-body guide-grid"><div><span className="step-number">01</span><h3>Scan the fleet</h3><p>Start with blocked clusters. Filter by risk signal, then inspect a cluster without losing your place.</p></div><div><span className="step-number">02</span><h3>Understand the impact</h3><p>Open an issue for the affected resources and recommended actions. Kubernetes version and node OS image readiness are separate.</p></div><div><span className="step-number">03</span><h3>Resolve, then re-check</h3><p>In demo mode, simulate remediation and generate a fresh evaluation. A clean snapshot is not a guarantee of a successful upgrade.</p></div></div><div className="modal-body api-note"><h3>Grounded in the API</h3><p>Fleet readiness aggregates each cluster’s latest combined evaluation. There is no assumed fleet endpoint. GET/LIST read stored results; POST <code>generateUpgradeInsights</code> computes and stores a new result, but does not upgrade a cluster. Results expire at the server-provided <code>expiresAt</code>. This UI also marks snapshots older than 24 hours for re-checking; that is a client policy, not the API retention period.</p><p>Upstream <a href="https://github.com/kubernetes-sigs/headlamp/pull/5747" target="_blank" rel="noreferrer">Headlamp PR #5747</a> visualizes node upgrade execution from Kubernetes Events. That is separate from pre-upgrade readiness and is not fabricated here.</p><p className="muted">Demo walkthrough: inspect aks-checkout-prod → open Disruption budgets → simulate remediation → re-check readiness → review the newly generated result.</p></div></Modal>}
+    {settings && <Settings mode={provider.mode} onClose={() => setSettings(false)} onDemo={() => changeProvider(demoProvider)} onLive={(subscriptions, key) => changeProvider(new ArmProvider(bridgeTransport(key), subscriptions))} onReset={() => { demoProvider.reset(); setReload(r => r + 1); setSettings(false); setToast('Demo scenarios reset. No live resources were changed.'); }} />}
+    {about && <Modal title="Know before you upgrade" onClose={() => setAbout(false)} wide><div className="modal-body guide-grid"><div><span className="step-number">01</span><h3>Scan clusters</h3><p>Start with blocked clusters. Filter by risk signal, then inspect a cluster without losing your place.</p></div><div><span className="step-number">02</span><h3>Understand the impact</h3><p>Open an issue for the affected resources and recommended actions. Kubernetes version and node OS image readiness are separate.</p></div><div><span className="step-number">03</span><h3>Resolve, then re-check</h3><p>In demo mode, simulate remediation and generate a fresh evaluation. A clean snapshot is not a guarantee of a successful upgrade.</p></div></div><div className="modal-body api-note"><h3>Grounded in the API</h3><p>Readiness aggregates each cluster’s latest combined evaluation. Fleet memberships are discovered from Fleet resources in configured subscriptions and shown only when available; a cluster is never assumed to be in a fleet. GET/LIST read stored results; POST <code>generateUpgradeInsights</code> computes and stores a new result, but does not upgrade a cluster. Results expire at the server-provided <code>expiresAt</code>. This UI also marks snapshots older than 24 hours for re-checking; that is a client policy, not the API retention period.</p><p>Stored evaluations are cached in memory for up to 60 seconds. Manual refresh bypasses that cache; nothing is written to browser storage. The inventory is presented 25 clusters at a time, and readiness is fetched only for the visible page. Readiness and issue filters apply to the current page.</p><p>Upstream <a href="https://github.com/kubernetes-sigs/headlamp/pull/5747" target="_blank" rel="noreferrer">Headlamp PR #5747</a> visualizes node upgrade execution from Kubernetes Events. That is separate from pre-upgrade readiness and is not fabricated here.</p><p className="muted">Demo walkthrough: inspect aks-checkout-prod → open Disruption budgets → simulate remediation → re-check readiness → review the newly generated result.</p></div></Modal>}
     {generateFor && <GenerateDialog record={generateFor} provider={provider} onClose={() => setGenerateFor(undefined)} onComplete={insight => {
-      setRecords(previous => previous.map(r => r.cluster.id !== generateFor.cluster.id ? r : { ...r, error: undefined, insights: [...r.insights.filter(i => i.name !== insight.name), insight] }));
+      setRecordsById(previous => ({ ...previous, [generateFor.cluster.id]: {
+        ...previous[generateFor.cluster.id], cluster: generateFor.cluster, error: undefined,
+        insights: [...(previous[generateFor.cluster.id]?.insights ?? []).filter(i => i.name !== insight.name), insight],
+      } }));
       setGenerateFor(undefined); setToast(`${provider.mode === 'demo' ? 'Simulated' : 'New'} evaluation completed. No upgrade was started.`);
     }} />}
     {issue && <IssueDialog item={issue} onClose={() => setIssue(undefined)} canSimulate={provider instanceof DemoProvider && !!selectedRecord} onSimulate={() => {
@@ -247,7 +319,7 @@ function ClusterDetail({ record, onIssue, onGenerate, onToast }: { record: Clust
   return <div className="cluster-detail">
     <section className="panel cluster-hero">
       <div className="cluster-hero-heading"><span className="cluster-icon large"><Icon name="layers" size={28} /></span><div><h2>{record.cluster.name}</h2><p>{record.cluster.resourceGroup} <span>·</span> {record.cluster.location}</p></div><button className="button primary" onClick={onGenerate}><Icon name="refresh" size={18} />Evaluate a target</button></div>
-      <div className="cluster-facts"><div><span>Current Kubernetes</span><strong>{record.cluster.kubernetesVersion ?? 'Unknown'}</strong></div><div><span>Node pools</span><strong>{record.cluster.pools.length}</strong></div><div><span>Subscription</span><strong>{record.cluster.subscription}</strong></div><div><span>Environment</span><strong>{record.cluster.environment ?? 'Not provided'}</strong></div></div>
+      <div className="cluster-facts"><div><span>Current Kubernetes</span><strong>{record.cluster.kubernetesVersion ?? 'Unknown'}</strong></div><div><span>Node pools</span><strong>{record.cluster.pools.length}</strong></div><div><span>Subscription</span><strong>{record.cluster.subscription}</strong></div><div><span>Environment</span><strong>{record.cluster.environment ?? 'Not provided'}</strong></div><div><span>Fleet membership</span><strong>{fleetLabel(record.cluster)}</strong></div></div>
     </section>
     <div className="detail-tabs" role="tablist" aria-label="Cluster insight sections">{[['readiness', 'Readiness & actions'], ['scopes', 'Scope breakdown'], ['api', 'API response']].map(([id, label]) => <button key={id} role="tab" id={`tab-${id}`} aria-controls={`panel-${id}`} aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onKeyDown={e => {
       const ids = ['readiness', 'scopes', 'api'];
@@ -275,16 +347,45 @@ function IssueDialog({ item, onClose, canSimulate, onSimulate }: { item: ScopedI
 
 function GenerateDialog({ record, provider, onClose, onComplete }: { record: ClusterRecord; provider: InsightsProvider; onClose: () => void; onComplete: (insight: Insight) => void }) {
   const [type, setType] = useState<UpgradeType>('ControlPlaneAndAgentPools');
-  const [target, setTarget] = useState(latestCombined(record)?.properties.targetKubernetesVersion ?? '');
+  const [target, setTarget] = useState('');
   const [pool, setPool] = useState(record.cluster.pools[0]?.name ?? '');
   const [image, setImage] = useState('');
+  const [targets, setTargets] = useState<string[]>([]);
+  const [targetsLoading, setTargetsLoading] = useState(true);
+  const [targetsError, setTargetsError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    setTargetsLoading(true);
+    setTargetsError('');
+    async function loadTargets() {
+      try {
+        const available = await provider.listUpgradeTargets(record.cluster, controller.signal);
+        if (controller.signal.aborted) return;
+        setTargets(available);
+        const preferred = latestCombined(record)?.properties.targetKubernetesVersion;
+        const fallback = available[0] ?? '';
+        setTarget(current => current && available.includes(current) ? current
+          : preferred && available.includes(preferred) ? preferred : fallback);
+      } catch (loadError) {
+        if (controller.signal.aborted) return;
+        setTargets([]);
+        setTarget('');
+        setTargetsError(errorText(loadError));
+      } finally {
+        if (!controller.signal.aborted) setTargetsLoading(false);
+      }
+    }
+    void loadTargets();
+    return () => controller.abort();
+  }, [provider, record]);
   const request: GenerateRequest = type === 'NodeImage' ? { upgradeType: type, agentPoolName: pool, ...(image.trim() ? { targetNodeImageVersion: image.trim() } : {}) }
     : type === 'AgentPool' ? { upgradeType: type, agentPoolName: pool, targetKubernetesVersion: target.trim() }
     : { upgradeType: type, targetKubernetesVersion: target.trim() };
-  const valid = (type === 'NodeImage' || /^\d+\.\d+\.\d+$/.test(target.trim())) &&
+  const targetRequired = type !== 'NodeImage';
+  const valid = (!targetRequired || !!target.trim()) &&
     (!['AgentPool', 'NodeImage'].includes(type) || record.cluster.pools.some(p => p.name === pool));
   const path = `${clusterBase(record.cluster)}/generateUpgradeInsights?api-version=${API_VERSION}`;
   const submit = async () => {
@@ -292,9 +393,10 @@ function GenerateDialog({ record, provider, onClose, onComplete }: { record: Clu
     try { onComplete(await provider.generate(record.cluster, request)); }
     catch (error) { setError(errorText(error)); setBusy(false); }
   };
+  const canSubmit = !busy && valid && !targetsLoading && !targetsError && (provider.mode !== 'live' || confirmed);
   return <Modal title="Evaluate upgrade readiness" onClose={() => { if (!busy) onClose(); }} wide>
-    <div className="modal-body"><div className="notice"><Icon name="shield" size={20} /><span>{provider.mode === 'demo' ? 'Simulated evaluation. No Azure API calls are made.' : 'This POST computes and stores readiness. It does not upgrade your cluster, but it does update the stored insight.'}</span></div><p>Cluster: <strong>{record.cluster.name}</strong></p><div className="form-grid"><label>Upgrade scope<select disabled={busy} value={type} onChange={e => { setType(e.target.value as UpgradeType); setConfirmed(false); }}>{upgradeTypes.map(t => <option key={t} value={t}>{scopeLabels[t]}</option>)}</select></label>{['AgentPool', 'NodeImage'].includes(type) && <label>Node pool<select disabled={busy} value={pool} onChange={e => { setPool(e.target.value); setConfirmed(false); }}>{record.cluster.pools.map(p => <option key={p.name}>{p.name}</option>)}</select></label>}{type !== 'NodeImage' ? <label>Target Kubernetes version<input disabled={busy} value={target} onChange={e => { setTarget(e.target.value); setConfirmed(false); }} placeholder="e.g. 1.34.2" /><small>Enter an available upgrade target. The API validates eligibility.</small></label> : <label>Target node image (optional)<input disabled={busy} value={image} onChange={e => { setImage(e.target.value); setConfirmed(false); }} placeholder="Latest available image" /><small>When omitted, the server resolves the latest image and returns the actual target.</small></label>}</div><h3>Review the exact request</h3><div className="request-line"><span>POST</span><code>{path}</code></div><pre className="request-json">{JSON.stringify(request, null, 2)}</pre>{provider.mode === 'live' && <label className="confirm-check"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} /><span>I approve sending this request to Azure for <strong>{record.cluster.name}</strong>. It contains a private resource identifier and will update the stored evaluation.</span></label>}{error && <div className="notice error" role="alert">{error}</div>}</div>
-    <div className="modal-actions"><button className="button" disabled={busy} onClick={onClose}>Cancel</button><button className="button primary" disabled={busy || !valid || (provider.mode === 'live' && !confirmed)} onClick={() => void submit()}>{busy ? <><span className="spinner small-spinner" />Evaluating…</> : <><Icon name="shield" size={18} />{provider.mode === 'demo' ? 'Run simulated evaluation' : 'Generate evaluation'}</>}</button></div>
+    <div className="modal-body"><div className="notice"><Icon name="shield" size={20} /><span>{provider.mode === 'demo' ? 'Simulated evaluation. No Azure API calls are made.' : 'This POST computes and stores readiness. It does not upgrade your cluster, but it does update the stored insight.'}</span></div><p>Cluster: <strong>{record.cluster.name}</strong></p><div className="form-grid"><label>Upgrade scope<select disabled={busy} value={type} onChange={e => { setType(e.target.value as UpgradeType); setConfirmed(false); }}>{upgradeTypes.map(t => <option key={t} value={t}>{scopeLabels[t]}</option>)}</select></label>{['AgentPool', 'NodeImage'].includes(type) && <label>Node pool<select disabled={busy} value={pool} onChange={e => { setPool(e.target.value); setConfirmed(false); }}>{record.cluster.pools.map(p => <option key={p.name}>{p.name}</option>)}</select></label>}{targetRequired ? <label>Target Kubernetes version<select aria-label="Target Kubernetes version" disabled={busy || targetsLoading || !!targetsError} value={target} onChange={e => { setTarget(e.target.value); setConfirmed(false); }}>{!targets.length && <option value="">No upgrade targets available</option>}{targets.map(version => <option key={version} value={version}>{version}</option>)}</select>{targetsLoading && <small>Checking available cluster upgrade targets…</small>}{targetsError && <small className="danger-text">Could not load available targets: {targetsError}</small>}{!targetsLoading && !targetsError && !!targets.length && <small>Loaded from cluster upgrade profile.</small>}</label> : <label>Target node image (optional)<input disabled={busy} value={image} onChange={e => { setImage(e.target.value); setConfirmed(false); }} placeholder="Latest available image" /><small>When omitted, the server resolves the latest image and returns the actual target.</small></label>}</div><h3>Review the exact request</h3><div className="request-line"><span>POST</span><code>{path}</code></div><pre className="request-json">{JSON.stringify(request, null, 2)}</pre>{provider.mode === 'live' && <label className="confirm-check"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} /><span>I approve sending this request to Azure for <strong>{record.cluster.name}</strong>. It contains a private resource identifier and will update the stored evaluation.</span></label>}{error && <div className="notice error" role="alert">{error}</div>}</div>
+    <div className="modal-actions"><button className="button" disabled={busy} onClick={onClose}>Cancel</button><button className="button primary" disabled={!canSubmit} onClick={() => void submit()}>{busy ? <><span className="spinner small-spinner" />Evaluating…</> : <><Icon name="shield" size={18} />{provider.mode === 'demo' ? 'Run simulated evaluation' : 'Generate evaluation'}</>}</button></div>
   </Modal>;
 }
 
