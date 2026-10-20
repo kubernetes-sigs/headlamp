@@ -222,6 +222,61 @@ containing both a single quote and a backtick when they additionally contain
 either a double quote or a literal backslash-`n`/backslash-`r` sequence, because
 no dotenv quote delimiter can represent them without changing the value.
 
+### GitHub browser authentication
+
+Desktop products can optionally configure a GitHub App client for browser sign-in
+and token refresh by trusted product plugins. Standard Headlamp builds omit this
+configuration and do not provide a GitHub sign-in service.
+
+```json
+{
+  "githubOAuth": {
+    "clientId": "example-client-id",
+    "clientSecret": "example-public-client-credential"
+  },
+  "runCommands": [
+    {
+      "environment": "production",
+      "pluginLocation": "shipped",
+      "plugins": [{ "bundleName": "example-plugin", "packageName": "@example/plugin" }],
+      "commands": [],
+      "githubOAuth": true
+    }
+  ]
+}
+```
+
+Both client fields must be 1–256 characters using letters, digits, `.`, `_`, or
+`-`. The client credential ships with the native application and is extractable;
+`clientSecret` is GitHub's field name, not a promise of confidentiality. Do not
+reuse a credential whose confidentiality is required by another service.
+User access and refresh tokens remain confidential and must not be logged.
+
+Register the product's `<protocol-scheme>://oauth/callback` redirect with the
+GitHub App. Electron development builds instead use the historical
+`http://localhost:48321/oauth/callback` redirect and listen only on
+`127.0.0.1:48321`; packaged builds do not open that loopback server. Enable
+expiring user access tokens for the GitHub App: this integration requires an
+access token, refresh token, and positive expiry. A non-expiring token response
+is rejected with a configuration diagnostic.
+
+Authorization uses single-use state and per-flow S256 PKCE. The verifier stays
+in the main process until code exchange. Sign-in waits up to ten minutes for a
+callback; token requests time out after thirty seconds. A new sign-in replaces
+an older pending flow, while overlapping browser-launch requests are rejected.
+Navigation, window close, and capability revocation prevent stale token delivery.
+Pending state is not persisted, so restarting the app requires a new sign-in.
+
+Each plugin needs an explicit `githubOAuth: true` grant for its exact package,
+bundle, inventory, and runtime environment. Only `shipped` and `development`
+inventories can receive this grant; `user` inventory grants are rejected.
+For Electron development, declare a separate `environment: "development"` policy.
+An OAuth-only policy uses `commands: []`; it does not authorize command execution.
+
+See the [private plugin OAuth API](./plugins/command-capabilities.md#private-github-oauth)
+for the injected facade and compatibility requirements. The host does not change
+token persistence; the plugin continues to own its scoped secure-storage entry.
+
 ### Build manifest resources
 
 The `resources` field appends common or platform-specific files and directories
