@@ -17,6 +17,7 @@
 import CertificateSigningRequest from './certificateSigningRequest';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
+import ClusterTrustBundle from './clusterTrustBundle';
 import CompositePodGroup from './compositePodGroup';
 import ConfigMap from './configMap';
 import ControllerRevision from './controllerRevision';
@@ -72,6 +73,7 @@ export const ResourceClasses = {
   ClusterRole,
   ClusterRoleBinding,
   CertificateSigningRequest,
+  ClusterTrustBundle,
   ConfigMap,
   ControllerRevision,
   get CustomResourceDefinition() {
