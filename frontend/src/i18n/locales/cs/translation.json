@@ -251,6 +251,8 @@
   "Failed to get authentication information: {{ errorMessage }}": "Nepovedlo se získat informace o ověřování: {{ errorMessage }}.",
   "Try Again": "Zkusit znovu",
   "Back": "Zpět",
+  "Signer": "",
+  "Certificates": "",
   "Memory Usage": "Využití paměti",
   "{{ available }} units": "Počet jednotek: {{ available }}",
   "CPU Usage": "Využití procesoru",

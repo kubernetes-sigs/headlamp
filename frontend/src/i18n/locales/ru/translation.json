@@ -251,6 +251,8 @@
   "Failed to get authentication information: {{ errorMessage }}": "Не удалось получить информацию для аутентификации: {{ errorMessage }}.",
   "Try Again": "Попробуйте ещё раз",
   "Back": "Назад",
+  "Signer": "",
+  "Certificates": "",
   "Memory Usage": "Использование памяти",
   "{{ available }} units": "{{ available }} единиц",
   "CPU Usage": "Использование ЦП",

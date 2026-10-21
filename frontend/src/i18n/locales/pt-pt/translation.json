@@ -251,6 +251,8 @@
   "Failed to get authentication information: {{ errorMessage }}": "",
   "Try Again": "",
   "Back": "",
+  "Signer": "",
+  "Certificates": "",
   "Memory Usage": "",
   "{{ available }} units": "",
   "CPU Usage": "",

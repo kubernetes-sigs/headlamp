@@ -251,6 +251,8 @@
   "Failed to get authentication information: {{ errorMessage }}": "Nie można pobrać informacji o uwierzytelnieniu: {{ errorMessage }}",
   "Try Again": "Spróbuj ponownie",
   "Back": "Wstecz",
+  "Signer": "",
+  "Certificates": "",
   "Memory Usage": "Użycie pamięci",
   "{{ available }} units": "Liczba jednostek: {{ available }}",
   "CPU Usage": "Użycie procesora",

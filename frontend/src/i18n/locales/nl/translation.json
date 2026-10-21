@@ -251,6 +251,8 @@
   "Failed to get authentication information: {{ errorMessage }}": "Kan verificatiegegevens niet ophalen: {{ errorMessage }}",
   "Try Again": "Opnieuw proberen",
   "Back": "Vorige",
+  "Signer": "",
+  "Certificates": "",
   "Memory Usage": "Geheugengebruik",
   "{{ available }} units": "{{ available }} eenheden",
   "CPU Usage": "CPU-gebruik",
