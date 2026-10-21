@@ -34,6 +34,8 @@ type Cache[T any] interface {
 	Get(ctx context.Context, key string) (T, error)
 	GetAll(ctx context.Context, selectFunc Matcher) (map[string]T, error)
 	UpdateTTL(ctx context.Context, key string, ttl time.Duration) error
+	// DeleteExpired removes the expired values now, instead of at the next periodic cleanup.
+	DeleteExpired()
 	SetOnEvicted(f func(key string, value T))
 	Close() error
 }
@@ -141,7 +143,7 @@ func (c *cache[T]) GetAll(ctx context.Context, selectFunc Matcher) (map[string]T
 	return values, nil
 }
 
-// cleanUp removes expired values from the cache.
+// cleanUp periodically removes expired values from the cache.
 func (c *cache[T]) cleanUp() {
 	ticker := time.NewTicker(c.cleanUpInterval)
 	defer ticker.Stop()
@@ -149,43 +151,51 @@ func (c *cache[T]) cleanUp() {
 	for {
 		select {
 		case <-ticker.C:
-			var (
-				evictedKeys   []string
-				evictedValues []T
-			)
-
-			now := time.Now()
-
-			c.lock.Lock()
-			for key, value := range c.store {
-				if !value.expiresAt.IsZero() && value.expiresAt.Before(now) {
-					evictedKeys = append(evictedKeys, key)
-					evictedValues = append(evictedValues, value.value)
-
-					delete(c.store, key)
-				}
-			}
-
-			// Copy the callback under lock to avoid data race
-			callback := c.onEvicted
-			c.lock.Unlock()
-
-			if callback != nil {
-				for i, key := range evictedKeys {
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								logger.Log(logger.LevelError, nil, r, "cache: onEvicted callback panicked")
-							}
-						}()
-
-						callback(key, evictedValues[i])
-					}()
-				}
-			}
+			c.DeleteExpired()
 		case <-c.stop:
 			return
 		}
+	}
+}
+
+// DeleteExpired removes the expired values from the cache and calls the eviction callback for each.
+// Expired values are not returned by Get and GetAll, but they stay in memory until removed.
+func (c *cache[T]) DeleteExpired() {
+	var (
+		evictedKeys   []string
+		evictedValues []T
+	)
+
+	now := time.Now()
+
+	c.lock.Lock()
+	for key, value := range c.store {
+		if !value.expiresAt.IsZero() && value.expiresAt.Before(now) {
+			evictedKeys = append(evictedKeys, key)
+			evictedValues = append(evictedValues, value.value)
+
+			delete(c.store, key)
+		}
+	}
+
+	// Copy the callback under lock to avoid data race
+	callback := c.onEvicted
+	c.lock.Unlock()
+
+	if callback == nil {
+		return
+	}
+
+	for i, key := range evictedKeys {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Log(logger.LevelError, nil, r, "cache: onEvicted callback panicked")
+				}
+			}()
+
+			callback(key, evictedValues[i])
+		}()
 	}
 }
 

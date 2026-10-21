@@ -103,6 +103,10 @@ func (m *MockCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration
 	return nil
 }
 
+// DeleteExpired Mocks removing the expired values, which this mock never has.
+func (m *MockCache) DeleteExpired() {
+}
+
 // SetOnEvicted Mocks setting a callback function to be called when an item is evicted.
 func (m *MockCache) SetOnEvicted(f func(key string, value string)) {
 }
