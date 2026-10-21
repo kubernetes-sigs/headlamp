@@ -253,6 +253,8 @@
   "Back": "Kembali",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Pemakaian Memori",
   "{{ available }} units": "{{ available }} unit",
   "CPU Usage": "Penggunaan CPU",

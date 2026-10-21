@@ -253,6 +253,8 @@
   "Back": "Vissza",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Memóriahasználat",
   "{{ available }} units": "{{ available }} egység",
   "CPU Usage": "CPU-használat",

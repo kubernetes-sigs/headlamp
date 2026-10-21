@@ -253,6 +253,8 @@
   "Back": "واپس",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "میموری کا استعمال",
   "{{ available }} units": "{{ available }} یونٹس",
   "CPU Usage": "سی پی یو کا استعمال",

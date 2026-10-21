@@ -253,6 +253,8 @@
   "Back": "Zpět",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Využití paměti",
   "{{ available }} units": "Počet jednotek: {{ available }}",
   "CPU Usage": "Využití procesoru",

@@ -253,6 +253,8 @@
   "Back": "",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "",
   "{{ available }} units": "",
   "CPU Usage": "",

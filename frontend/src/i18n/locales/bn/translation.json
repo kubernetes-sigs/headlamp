@@ -253,6 +253,8 @@
   "Back": "পিছনে",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "ব্যবহৃত memory",
   "{{ available }} units": "{{ available }} units",
   "CPU Usage": "ব্যবহৃত CPU",

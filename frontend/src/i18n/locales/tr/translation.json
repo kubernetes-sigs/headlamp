@@ -253,6 +253,8 @@
   "Back": "Geri",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Bellek Kullanımı",
   "{{ available }} units": "{{ available }} birim",
   "CPU Usage": "CPU Kullanımı",

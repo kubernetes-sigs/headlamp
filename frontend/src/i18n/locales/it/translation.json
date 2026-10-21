@@ -253,6 +253,8 @@
   "Back": "Indietro",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Utilizzo Memoria",
   "{{ available }} units": "{{ available }} unità",
   "CPU Usage": "Utilizzo CPU",

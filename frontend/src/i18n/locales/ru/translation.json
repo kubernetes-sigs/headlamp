@@ -253,6 +253,8 @@
   "Back": "Назад",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Использование памяти",
   "{{ available }} units": "{{ available }} единиц",
   "CPU Usage": "Использование ЦП",

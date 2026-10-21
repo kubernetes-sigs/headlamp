@@ -253,6 +253,8 @@
   "Back": "Tillbaka",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "Minnesanvändning",
   "{{ available }} units": "{{ available }} enheter",
   "CPU Usage": "CPU-användning",

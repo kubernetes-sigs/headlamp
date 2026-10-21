@@ -253,6 +253,8 @@
   "Back": "பின்",
   "Signer": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "நினைவக பயன்பாடு",
   "{{ available }} units": "{{ available }} அலகுகள்",
   "CPU Usage": "CPU பயன்பாடு",
