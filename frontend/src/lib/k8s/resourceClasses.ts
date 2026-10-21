@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import CertificateSigningRequest from './certificateSigningRequest';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
 import CompositePodGroup from './compositePodGroup';
@@ -67,6 +68,7 @@ import VolumeAttributesClass from './volumeAttributesClass';
 export const ResourceClasses = {
   ClusterRole,
   ClusterRoleBinding,
+  CertificateSigningRequest,
   ConfigMap,
   ControllerRevision,
   get CustomResourceDefinition() {
