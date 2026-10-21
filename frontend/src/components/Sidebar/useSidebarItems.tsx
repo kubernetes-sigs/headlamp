@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
@@ -84,6 +85,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   }
 
   const schedulingWorkloadsEnabled = useSchedulingApisEnabled();
+
+  // Trust bundles sit behind their own feature gate, so only offer them on clusters
+  // that actually serve the resource.
+  const clusterTrustBundlesEnabled = useIsResourceServed(ClusterTrustBundle);
 
   // Dynamic resource allocation is stable from Kubernetes 1.34, so only show the
   // Devices section on clusters that serve resource.k8s.io/v1.
@@ -407,6 +412,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'serviceAccounts',
             label: t('glossary|Service Accounts'),
           },
+          ...(clusterTrustBundlesEnabled
+            ? [
+                {
+                  name: 'clusterTrustBundles',
+                  label: t('glossary|Cluster Trust Bundles'),
+                },
+              ]
+            : []),
           {
             name: 'roles',
             label: t('glossary|Roles'),
@@ -648,6 +661,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     allClustersConf,
     crdsSidebarEntries,
     gatewayKinds,
+    clusterTrustBundlesEnabled,
     devicesEnabled,
     schedulingWorkloadsEnabled,
     compositePodGroupsEnabled,
