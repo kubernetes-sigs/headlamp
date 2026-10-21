@@ -64,6 +64,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
@@ -1279,6 +1280,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 	}
 
 	fakeClient := fake.NewClientset(node, podOk, podDaemonset, podFail)
+	evictionRemovesPod(fakeClient)
 
 	// Inject error for evicting pod-fail
 	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
@@ -1344,6 +1346,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientset(node, pod1)
+	evictionRemovesPod(fakeClient)
 
 	testCache := cache.New[interface{}]()
 	c := &HeadlampConfig{
@@ -1383,7 +1386,7 @@ func drainTestSetup(t *testing.T) (*fake.Clientset, *HeadlampConfig, cache.Cache
 
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "original-uid"},
 		Spec:       corev1.PodSpec{NodeName: "test-node"},
 	}
 	testCache := cache.New[interface{}]()
@@ -1393,6 +1396,7 @@ func drainTestSetup(t *testing.T) (*fake.Clientset, *HeadlampConfig, cache.Cache
 	return fake.NewClientset(node, pod), c, testCache, cacheKey
 }
 
+// waitForDrainStatus waits for the drain to finish and returns its final status.
 func waitForDrainStatus(t *testing.T, testCache cache.Cache[interface{}], cacheKey string) string {
 	t.Helper()
 
@@ -1406,16 +1410,32 @@ func waitForDrainStatus(t *testing.T, testCache cache.Cache[interface{}], cacheK
 
 		status, _ = item.(string)
 
-		return status != ""
+		return status != "" && status != drainStatusInProgress
 	}, 5*time.Second, 10*time.Millisecond)
 
 	return status
+}
+
+// evictionRemovesPod makes an accepted eviction delete the pod, which is what the API server ends up
+// doing once the pod has terminated. The fake clientset does not do that by itself.
+func evictionRemovesPod(fakeClient *fake.Clientset) {
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		eviction, ok := action.(k8stesting.CreateAction).GetObject().(*policyv1.Eviction)
+		if action.GetSubresource() != "eviction" || !ok {
+			return false, nil, nil
+		}
+
+		_ = fakeClient.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), eviction.Namespace, eviction.Name)
+
+		return true, nil, nil
+	})
 }
 
 // TestDrainNodeEvictsInsteadOfDeleting checks that the drain goes through the Eviction API, so that
 // PodDisruptionBudgets and eviction webhooks apply, and never deletes pods directly.
 func TestDrainNodeEvictsInsteadOfDeleting(t *testing.T) {
 	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+	evictionRemovesPod(fakeClient)
 
 	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
@@ -1425,6 +1445,11 @@ func TestDrainNodeEvictsInsteadOfDeleting(t *testing.T) {
 	for _, action := range fakeClient.Actions() {
 		if action.GetSubresource() == "eviction" {
 			evictions++
+
+			eviction := action.(k8stesting.CreateAction).GetObject().(*policyv1.Eviction)
+			require.NotNil(t, eviction.DeleteOptions)
+			require.NotNil(t, eviction.DeleteOptions.Preconditions)
+			assert.Equal(t, k8stypes.UID("original-uid"), *eviction.DeleteOptions.Preconditions.UID)
 		}
 
 		if action.GetVerb() == "delete" && action.GetResource().Resource == "pods" {
@@ -1443,6 +1468,7 @@ func TestDrainNodeRetriesEvictionBlockedByPDB(t *testing.T) {
 	t.Cleanup(func() { drainEvictRetryInterval = oldInterval })
 
 	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+	evictionRemovesPod(fakeClient)
 
 	var attempts atomic.Int32
 
@@ -1574,6 +1600,158 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for drain request to reach Kubernetes API")
 	}
+}
+
+// An accepted eviction only starts graceful termination, so the drain is not done, and must not report
+// success, until the pod is gone.
+func TestDrainNodeWaitsForEvictedPodToTerminate(t *testing.T) {
+	oldPoll := drainTerminationPollInterval
+	drainTerminationPollInterval = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainTerminationPollInterval = oldPoll })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	// accepted, but the pod stays around, terminating
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return action.GetSubresource() == "eviction", nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+
+	assert.Never(t, func() bool {
+		item, err := testCache.Get(context.Background(), cacheKey)
+		status, _ := item.(string)
+
+		return err != nil || status != drainStatusInProgress
+	}, 200*time.Millisecond, 10*time.Millisecond, "the drain must stay in progress while the pod is terminating")
+
+	require.NoError(t, fakeClient.Tracker().Delete(
+		corev1.SchemeGroupVersion.WithResource("pods"), "default", "pdb-pod"))
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+func TestDrainNodeFailsWhenEvictedPodNeverTerminates(t *testing.T) {
+	oldPoll, oldTimeout := drainTerminationPollInterval, drainTerminationTimeout
+	drainTerminationPollInterval, drainTerminationTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainTerminationPollInterval, drainTerminationTimeout = oldPoll, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return action.GetSubresource() == "eviction", nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+// A pod that was recreated under the same name, with a different UID, is not the pod being drained:
+// the drain is finished with it, and does not evict it.
+func TestDrainNodeDoesNotEvictReplacementPod(t *testing.T) {
+	oldInterval := drainEvictRetryInterval
+	drainEvictRetryInterval = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval = oldInterval })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		if attempts.Add(1) == 1 {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		// Between the attempts the pod was deleted and recreated, so the UID precondition fails.
+		_ = fakeClient.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "replacement-uid"},
+			Spec:       corev1.PodSpec{NodeName: "other-node"},
+		}, "default")
+
+		return true, nil, apierrors.NewConflict(
+			corev1.Resource("pods"), "pdb-pod", errors.New("precondition failed: UID mismatch"))
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(2), attempts.Load(), "the replacement pod must not be evicted")
+}
+
+// The timeout is checked inside the pass over the pods, so slow evictions can't keep the drain going.
+func TestDrainNodeStopsEvictingAtTheDeadline(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	for _, name := range []string{"second", "third"} {
+		require.NoError(t, fakeClient.Tracker().Add(&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default", UID: k8stypes.UID(name)},
+			Spec:       corev1.PodSpec{NodeName: "test-node"},
+		}))
+	}
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		attempts.Add(1)
+		time.Sleep(150 * time.Millisecond) // longer than the whole drain timeout
+
+		return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "error: failed to evict 3 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(1), attempts.Load(), "no eviction may be started after the deadline")
+}
+
+// The drain can outlive the cache TTL, so a status has to exist from the moment it starts and be
+// renewed while it runs, or clients polling for it would get a 404 and give up.
+func TestDrainNodeReportsInProgressWhileBlocked(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 400*time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() == "eviction" {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		return false, nil, nil
+	})
+
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	item, err := testCache.Get(ctx, cacheKey)
+	require.NoError(t, err, "a status must exist as soon as the drain is started")
+	assert.Equal(t, drainStatusInProgress, item)
+
+	assert.Never(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+
+		return err != nil || item != drainStatusInProgress
+	}, 150*time.Millisecond, 10*time.Millisecond, "the status must stay in progress while evictions are blocked")
+
+	// let the drain finish, so that it is not still running when the timings are restored
+	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
 func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
