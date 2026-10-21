@@ -302,6 +302,7 @@ describe('useClustersVersion', () => {
 
 const notNamespacedClasses = [
   'ClusterRole',
+  'ClusterTrustBundle',
   'ClusterRoleBinding',
   'CustomResourceDefinition',
   'DeviceClass',
