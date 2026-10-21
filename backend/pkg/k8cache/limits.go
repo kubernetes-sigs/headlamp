@@ -72,6 +72,10 @@ func storeWithinLimits(k8scache cache.Cache[string], key, value string, ttl time
 	admitMu.Lock()
 	defer admitMu.Unlock()
 
+	// Expired responses are no longer listed, but they keep their memory until they are removed.
+	// Free it first, or a refill before the next periodic cleanup could hold two generations at once.
+	k8scache.DeleteExpired()
+
 	if !hasRoomFor(k8scache, key, int64(len(value))) {
 		return false, nil
 	}
