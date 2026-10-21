@@ -44,6 +44,7 @@ export const supportedKinds = [
   'CertificateSigningRequest',
   'ClusterRole',
   'ClusterRoleBinding',
+  'ClusterTrustBundle',
   'Role',
   'RoleBinding',
   'RuntimeClass',

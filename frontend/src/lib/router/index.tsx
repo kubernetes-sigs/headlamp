@@ -29,6 +29,8 @@ import AuthChooser from '../../components/authchooser';
 import CertificateSigningRequestDetails from '../../components/certificatesigningrequest/Details';
 import CertificateSigningRequestList from '../../components/certificatesigningrequest/List';
 import Overview from '../../components/cluster/Overview';
+import ClusterTrustBundleDetails from '../../components/clustertrustbundle/Details';
+import ClusterTrustBundleList from '../../components/clustertrustbundle/List';
 import { PageGrid } from '../../components/common/Resource/Resource';
 import CompositePodGroupDetails from '../../components/compositePodGroup/Details';
 import CompositePodGroupList from '../../components/compositePodGroup/List';
@@ -681,6 +683,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'certificateSigningRequests',
     component: () => <CertificateSigningRequestDetails />,
+  },
+  clusterTrustBundles: {
+    path: '/clustertrustbundles',
+    exact: true,
+    name: 'Cluster Trust Bundles',
+    sidebar: 'clusterTrustBundles',
+    component: () => <ClusterTrustBundleList />,
+  },
+  clusterTrustBundle: {
+    path: '/clustertrustbundles/:name',
+    exact: true,
+    sidebar: 'clusterTrustBundles',
+    component: () => <ClusterTrustBundleDetails />,
   },
   roles: {
     path: '/roles',
