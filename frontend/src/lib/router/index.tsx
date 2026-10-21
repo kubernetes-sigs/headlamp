@@ -26,6 +26,8 @@ import Settings from '../../components/App/Settings';
 import SettingsCluster from '../../components/App/Settings/SettingsCluster';
 import SettingsClusters from '../../components/App/Settings/SettingsClusters';
 import AuthChooser from '../../components/authchooser';
+import CertificateSigningRequestDetails from '../../components/certificatesigningrequest/Details';
+import CertificateSigningRequestList from '../../components/certificatesigningrequest/List';
 import Overview from '../../components/cluster/Overview';
 import { PageGrid } from '../../components/common/Resource/Resource';
 import CompositePodGroupDetails from '../../components/compositePodGroup/Details';
@@ -660,6 +662,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'serviceAccounts',
     component: () => <ServiceAccountDetails />,
+  },
+  certificateSigningRequests: {
+    path: '/certificatesigningrequests',
+    exact: true,
+    name: 'Certificate Signing Requests',
+    sidebar: 'certificateSigningRequests',
+    component: () => <CertificateSigningRequestList />,
+  },
+  certificateSigningRequest: {
+    path: '/certificatesigningrequests/:name',
+    exact: true,
+    sidebar: 'certificateSigningRequests',
+    component: () => <CertificateSigningRequestDetails />,
   },
   roles: {
     path: '/roles',
