@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
@@ -185,4 +186,44 @@ func TestStoreK8sResponseInCache_ConcurrentWritersStayWithinLimits(t *testing.T)
 
 	assert.LessOrEqual(t, total, totalLimit, "concurrent writers must not overshoot the total budget")
 	assert.NotEmpty(t, all)
+}
+
+// Expired responses are not listed by the cache, but they keep their memory until the periodic
+// cleanup removes them. Admission must free them first, so that refilling the cache does not hold two
+// generations of responses at once.
+func TestStoreK8sResponseInCache_FreesExpiredResponsesBeforeAdmission(t *testing.T) {
+	k8cache.SetLimits(10_000, 2000)
+	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
+
+	c := cache.New[string]()
+
+	t.Cleanup(func() { _ = c.Close() })
+
+	var (
+		mu      sync.Mutex
+		evicted []string
+	)
+
+	c.SetOnEvicted(func(key string, _ string) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		evicted = append(evicted, key)
+	})
+
+	// two responses that fill the budget, and that expire quickly
+	for _, key := range []string{"old-1", "old-2"} {
+		require.NoError(t, c.SetWithTTL(context.Background(), key, strings.Repeat("a", 900), time.Millisecond))
+	}
+
+	time.Sleep(20 * time.Millisecond)
+
+	storeBody(t, c, "new", 900)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.ElementsMatch(t, []string{"old-1", "old-2"}, evicted,
+		"the expired responses must be removed when a response is admitted, not left until the next cleanup")
+	assert.True(t, cached(t, c, "new"))
 }

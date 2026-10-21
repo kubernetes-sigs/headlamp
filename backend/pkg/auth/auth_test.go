@@ -453,6 +453,10 @@ func (cacheStub) UpdateTTL(ctx context.Context, k string, ttl time.Duration) err
 	return nil
 }
 
+func (cacheStub) DeleteExpired() {
+	// No-op for stub
+}
+
 func (cacheStub) SetOnEvicted(callback func(key string, value interface{})) {
 	// No-op for stub
 }
