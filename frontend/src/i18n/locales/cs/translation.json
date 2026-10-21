@@ -270,6 +270,7 @@
   "Usages": "",
   "Requested Duration": "",
   "Issued Certificate": "",
+  "Certificates": "",
   "Memory Usage": "Využití paměti",
   "{{ available }} units": "Počet jednotek: {{ available }}",
   "CPU Usage": "Využití procesoru",

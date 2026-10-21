@@ -270,6 +270,7 @@
   "Usages": "",
   "Requested Duration": "",
   "Issued Certificate": "",
+  "Certificates": "",
   "Memory Usage": "ব্যবহৃত memory",
   "{{ available }} units": "{{ available }} units",
   "CPU Usage": "ব্যবহৃত CPU",

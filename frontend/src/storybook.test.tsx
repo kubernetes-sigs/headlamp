@@ -255,6 +255,11 @@ describe('Storybook Tests', () => {
               }
             });
 
+            const waitForStoryState = story.parameters?.storyshots?.waitForState;
+            if (waitForStoryState) {
+              await waitFor(waitForStoryState);
+            }
+
             // Cleanup listeners
             worker.events.removeListener('request:start', onStart);
             worker.events.removeListener('request:end', onEnd);

@@ -270,6 +270,7 @@
   "Usages": "",
   "Requested Duration": "",
   "Issued Certificate": "",
+  "Certificates": "",
   "Memory Usage": "استخدام الذاكرة",
   "{{ available }} units": "{{ available }} وحدة",
   "CPU Usage": "استخدام المعالج",

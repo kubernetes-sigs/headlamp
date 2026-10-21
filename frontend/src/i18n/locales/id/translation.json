@@ -270,6 +270,7 @@
   "Usages": "",
   "Requested Duration": "",
   "Issued Certificate": "",
+  "Certificates": "",
   "Memory Usage": "Pemakaian Memori",
   "{{ available }} units": "{{ available }} unit",
   "CPU Usage": "Penggunaan CPU",

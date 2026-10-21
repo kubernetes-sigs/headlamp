@@ -270,6 +270,7 @@
   "Usages": "",
   "Requested Duration": "",
   "Issued Certificate": "",
+  "Certificates": "",
   "Memory Usage": "Uso de la memoria",
   "{{ available }} units": "{{ available }} unidades",
   "CPU Usage": "Uso de la CPU",
