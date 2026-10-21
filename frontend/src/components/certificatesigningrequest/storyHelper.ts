@@ -50,7 +50,7 @@ export const CSR_DUMMY_DATA: KubeCertificateSigningRequest[] = [
       username: 'system:node:node-1',
       groups: ['system:nodes', 'system:authenticated'],
       usages: ['digital signature', 'key encipherment', 'server auth'],
-      expirationSeconds: 86400,
+      expirationSeconds: 172799,
     },
     status: {},
   },
@@ -102,7 +102,6 @@ export const CSR_DUMMY_DATA: KubeCertificateSigningRequest[] = [
         {
           type: 'Denied',
           status: 'True',
-          reason: 'NotAuthorized',
           message: 'User may not request a client certificate for this signer',
           lastUpdateTime: '2022-01-01T00:02:00Z',
         },
