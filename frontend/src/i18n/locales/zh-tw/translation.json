@@ -271,6 +271,8 @@
   "Requested Duration": "",
   "Issued Certificate": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "記憶體使用",
   "{{ available }} units": "{{ available }} 單位",
   "CPU Usage": "CPU 使用",

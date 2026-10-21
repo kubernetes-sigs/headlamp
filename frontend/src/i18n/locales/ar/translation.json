@@ -271,6 +271,8 @@
   "Requested Duration": "",
   "Issued Certificate": "",
   "Certificates": "",
+  "Certificate {{ index }}": "",
+  "This bundle carries no certificates.": "",
   "Memory Usage": "استخدام الذاكرة",
   "{{ available }} units": "{{ available }} وحدة",
   "CPU Usage": "استخدام المعالج",
