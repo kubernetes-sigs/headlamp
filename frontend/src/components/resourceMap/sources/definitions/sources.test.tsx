@@ -161,6 +161,7 @@ describe('useGetAllSources', () => {
       'rbac.authorization.k8s.io/RoleBinding',
       'rbac.authorization.k8s.io/ClusterRole',
       'rbac.authorization.k8s.io/ClusterRoleBinding',
+      'certificates.k8s.io/CertificateSigningRequest',
     ]);
   });
 
