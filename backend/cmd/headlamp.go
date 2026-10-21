@@ -3419,34 +3419,53 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	responsePayload.Cluster = drainPayload.Cluster
 	responsePayload.Message = "Drain node request submitted successfully"
 
+	serverCtx := c.ServerCtx
+	if serverCtx == nil {
+		serverCtx = context.Background()
+	}
+
+	// The drain can take minutes. Publish a status before acknowledging the request, so that the
+	// client's first poll finds one instead of a 404.
+	c.setDrainStatus(serverCtx, drainCacheKey(drainPayload.NodeName, contextKey), drainStatusInProgress)
+
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
 		c.handleError(w, ctx, span, err, "writing response", http.StatusInternalServerError)
 
 		return
 	}
 
-	serverCtx := c.ServerCtx
-	if serverCtx == nil {
-		serverCtx = context.Background()
-	}
-
 	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
+}
+
+// drainCacheKey is the cache key under which the status of draining a node is kept.
+func drainCacheKey(nodeName, contextKey string) string {
+	return uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+contextKey)).String()
+}
+
+// setDrainStatus stores the status of a drain. Until the drain finishes, the status is
+// drainStatusInProgress, which clients treat as "keep polling".
+func (c *HeadlampConfig) setDrainStatus(ctx context.Context, cacheKey, status string) {
+	_ = c.Cache.SetWithTTL(ctx, cacheKey, status, DrainNodeCacheTTL*time.Second)
 }
 
 func (c *HeadlampConfig) drainNode(
 	ctx context.Context,
 	clientset kubernetes.Interface,
 	nodeName string,
-	cluster string,
+	contextKey string,
 ) {
-	go func() {
-		if ctx.Err() != nil {
-			return
-		}
+	if ctx.Err() != nil {
+		return
+	}
 
+	cacheKey := drainCacheKey(nodeName, contextKey)
+	cacheItemTTL := DrainNodeCacheTTL * time.Second
+
+	// Replaces the result of an earlier drain of the same node, which would otherwise be reported.
+	c.setDrainStatus(ctx, cacheKey, drainStatusInProgress)
+
+	go func() {
 		nodeClient := clientset.CoreV1().Nodes()
-		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+cluster)).String()
-		cacheItemTTL := DrainNodeCacheTTL * time.Second
 
 		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
 		if err != nil {
@@ -3489,6 +3508,9 @@ func (c *HeadlampConfig) drainNode(
 	}()
 }
 
+// drainStatusInProgress is the status of a drain that has not finished yet.
+const drainStatusInProgress = "draining"
+
 // Variables so that tests can shorten them.
 var (
 	// drainEvictRetryInterval is how long to wait before retrying pods whose eviction was refused,
@@ -3496,20 +3518,57 @@ var (
 	drainEvictRetryInterval = 5 * time.Second
 	// drainEvictTimeout is how long the drain keeps retrying refused evictions.
 	drainEvictTimeout = 5 * time.Minute
+	// drainTerminationPollInterval is how often the drain checks whether evicted pods are gone.
+	drainTerminationPollInterval = 2 * time.Second
+	// drainTerminationTimeout is how long the drain waits for evicted pods to terminate.
+	drainTerminationTimeout = 5 * time.Minute
 )
 
 // evictPod asks the API server to evict the pod through the Eviction API. This is what
 // `kubectl drain` does: it honours PodDisruptionBudgets, runs eviction admission webhooks and uses
-// the pod's own termination grace period. A pod that is already gone is not an error.
-func evictPod(ctx context.Context, clientset kubernetes.Interface, pod *corev1.Pod) error {
-	err := clientset.CoreV1().Pods(pod.Namespace).EvictV1(ctx, &policyv1.Eviction{
+// the pod's own termination grace period. The pod's UID is a precondition, so that a retry never
+// evicts a different pod that was recreated under the same name. It returns true if the pod is
+// already gone, or was replaced, and so needs no further waiting.
+func evictPod(ctx context.Context, clientset kubernetes.Interface, pod *corev1.Pod) (bool, error) {
+	eviction := &policyv1.Eviction{
 		ObjectMeta: v1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace},
-	})
-	if apierrors.IsNotFound(err) {
-		return nil
+	}
+	if pod.UID != "" {
+		eviction.DeleteOptions = &v1.DeleteOptions{Preconditions: &v1.Preconditions{UID: &pod.UID}}
 	}
 
-	return err
+	err := clientset.CoreV1().Pods(pod.Namespace).EvictV1(ctx, eviction)
+
+	switch {
+	case err == nil:
+		return false, nil
+	case apierrors.IsNotFound(err):
+		return true, nil
+	case apierrors.IsConflict(err):
+		// Either the UID precondition failed because the pod was replaced, or something else conflicted.
+		gone, getErr := podGone(ctx, clientset, pod)
+		if getErr == nil && gone {
+			return true, nil
+		}
+
+		return false, err
+	}
+
+	return false, err
+}
+
+// podGone reports whether the pod no longer exists, or exists only as a different pod with the same name.
+func podGone(ctx context.Context, clientset kubernetes.Interface, pod *corev1.Pod) (bool, error) {
+	current, err := clientset.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, v1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return true, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return current.UID != pod.UID, nil
 }
 
 func (c *HeadlampConfig) drainNodePods(
@@ -3528,10 +3587,22 @@ func (c *HeadlampConfig) drainNodePods(
 		}
 	}
 
-	evictErrors, done := evictPending(ctx, clientset, pending)
+	// The status is only valid for cacheItemTTL, so keep renewing it while the drain runs.
+	keepAlive := func() { _ = c.Cache.SetWithTTL(ctx, cacheKey, drainStatusInProgress, cacheItemTTL) }
+
+	accepted, evictErrors, done := evictPending(ctx, clientset, pending, keepAlive)
 	if !done {
 		return
 	}
+
+	// An accepted eviction only starts graceful termination, so wait for the pods to be gone before
+	// reporting success, which lets the node be shut down.
+	stuck, done := waitForPodsGone(ctx, clientset, accepted, keepAlive)
+	if !done {
+		return
+	}
+
+	evictErrors = append(evictErrors, stuck...)
 
 	if len(evictErrors) > 0 {
 		errMsg := fmt.Sprintf("error: failed to evict %d pod(s)", len(evictErrors))
@@ -3545,36 +3616,50 @@ func (c *HeadlampConfig) drainNodePods(
 	}
 }
 
-// evictPending evicts the given pods, retrying those refused by a
-// PodDisruptionBudget until drainEvictTimeout. It returns the errors for the pods
-// that could not be evicted, and false if the context ended before it finished.
+// evictPending evicts the given pods, retrying those refused by a PodDisruptionBudget until
+// drainEvictTimeout. The timeout is a deadline on the requests too, not just between passes. It
+// returns the pods whose eviction was accepted and are still terminating, the errors for the pods
+// that could not be evicted, and false if ctx ended before it finished.
 func evictPending(
 	ctx context.Context,
 	clientset kubernetes.Interface,
 	pending []*corev1.Pod,
-) ([]string, bool) {
-	deadline := time.Now().Add(drainEvictTimeout)
+	keepAlive func(),
+) ([]*corev1.Pod, []string, bool) {
+	evictCtx, cancel := context.WithTimeout(ctx, drainEvictTimeout)
+	defer cancel()
 
-	var evictErrors []string
+	var (
+		accepted    []*corev1.Pod
+		evictErrors []string
+	)
 
 	lastRefusal := map[*corev1.Pod]error{}
 
-	for len(pending) > 0 {
-		if ctx.Err() != nil {
-			return nil, false
-		}
-
+	for len(pending) > 0 && evictCtx.Err() == nil {
 		var retry []*corev1.Pod
 
-		for _, pod := range pending {
-			err := evictPod(ctx, clientset, pod)
+		for i, pod := range pending {
+			if evictCtx.Err() != nil {
+				retry = append(retry, pending[i:]...)
+				break
+			}
+
+			keepAlive()
+
+			gone, err := evictPod(evictCtx, clientset, pod)
+
+			if ctx.Err() != nil {
+				return nil, nil, false
+			}
 
 			switch {
 			case err == nil:
-			case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
-				return nil, false
-			case apierrors.IsTooManyRequests(err):
-				// Refused, typically by a PodDisruptionBudget. Retry until the timeout.
+				if !gone {
+					accepted = append(accepted, pod)
+				}
+			case evictCtx.Err() != nil || apierrors.IsTooManyRequests(err):
+				// Refused, typically by a PodDisruptionBudget, or cut short by the drain's deadline.
 				retry = append(retry, pod)
 				lastRefusal[pod] = err
 			default:
@@ -3583,27 +3668,90 @@ func evictPending(
 		}
 
 		pending = retry
-		if len(pending) == 0 || time.Now().Add(drainEvictRetryInterval).After(deadline) {
+		if len(pending) == 0 {
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-			return nil, false
-		case <-time.After(drainEvictRetryInterval):
+		sleepCtx(evictCtx, drainEvictRetryInterval)
+	}
+
+	if ctx.Err() != nil {
+		return nil, nil, false
+	}
+
+	// Pods that are still refused when the timeout is reached also fail the drain.
+	return accepted, append(evictErrors, unevictedErrors(pending, lastRefusal)...), true
+}
+
+// sleepCtx waits for d, or until ctx ends.
+func sleepCtx(ctx context.Context, d time.Duration) {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
+
+// unevictedErrors describes why each of the pods could not be evicted before the deadline.
+func unevictedErrors(pods []*corev1.Pod, lastRefusal map[*corev1.Pod]error) []string {
+	errs := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		reason := lastRefusal[pod]
+		if reason == nil {
+			reason = errors.New("timed out before the eviction was attempted")
 		}
+
+		errs = append(errs, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, reason))
+	}
+
+	return errs
+}
+
+// waitForPodsGone waits, up to drainTerminationTimeout, until each pod is gone or has been replaced
+// by a pod with a different UID. It returns an error for each pod that is still there, and false if
+// ctx ended before it finished.
+func waitForPodsGone(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	pods []*corev1.Pod,
+	keepAlive func(),
+) ([]string, bool) {
+	waitCtx, cancel := context.WithTimeout(ctx, drainTerminationTimeout)
+	defer cancel()
+
+	for len(pods) > 0 && waitCtx.Err() == nil {
+		keepAlive()
+
+		var remaining []*corev1.Pod
+
+		for _, pod := range pods {
+			if gone, _ := podGone(waitCtx, clientset, pod); !gone {
+				remaining = append(remaining, pod)
+			}
+		}
+
+		pods = remaining
+		if len(pods) == 0 {
+			break
+		}
+
+		sleepCtx(waitCtx, drainTerminationPollInterval)
 	}
 
 	if ctx.Err() != nil {
 		return nil, false
 	}
 
-	// Pods that are still refused when the timeout is reached also fail the drain.
-	for _, pod := range pending {
-		evictErrors = append(evictErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, lastRefusal[pod]))
+	var stuck []string
+	for _, pod := range pods {
+		stuck = append(stuck, fmt.Sprintf("%s/%s: still terminating after %s",
+			pod.Namespace, pod.Name, drainTerminationTimeout))
 	}
 
-	return evictErrors, true
+	return stuck, true
 }
 
 func isDaemonSetPod(pod *corev1.Pod) bool {
@@ -3663,7 +3811,7 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+"\x00"+contextKey)).String()
+	cacheKey := drainCacheKey(drainPayload.NodeName, contextKey)
 
 	cacheItem, err := c.Cache.Get(ctx, cacheKey)
 	if err != nil {
