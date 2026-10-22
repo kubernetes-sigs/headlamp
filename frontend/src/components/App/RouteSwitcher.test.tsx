@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
+import { DefaultSidebars } from '../Sidebar/sidebarSlice';
 
 vi.mock('../../lib/k8s', () => ({
   useCluster: vi.fn(() => null),
@@ -33,8 +37,19 @@ vi.mock('../../lib/k8s/event', () => ({
 }));
 vi.mock('../common/ObjectEventList', () => ({ default: () => null }));
 vi.mock('./Home', () => ({ default: () => null }));
+vi.mock('../../lib/k8s/api/v1/clusterApi', () => ({
+  testAuth: vi.fn(() => Promise.reject({ status: 401 })),
+}));
+vi.mock('../project/ProjectList', () => ({
+  default: () => null,
+  ProjectListPage: () => <div>project-list-page</div>,
+}));
+vi.mock('../project/ProjectDetails', () => ({
+  default: () => <div>project-details-page</div>,
+}));
 
 import { useCluster } from '../../lib/k8s';
+import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
 import RouteSwitcher from './RouteSwitcher';
 
 // Verify RouteSwitcher renders stable route keys and handles an unset cluster.
@@ -118,5 +133,61 @@ describe('RouteSwitcher', () => {
     );
 
     await waitFor(() => expect(document.title).toBe('cluster-a - Choose a cluster - Headlamp'));
+  });
+
+  it.each([
+    { path: '/projects', content: 'project-list-page' },
+    { path: '/project/demo', content: 'project-details-page' },
+  ])(
+    'selects the global Projects sidebar on $path without a cluster',
+    async ({ path, content }) => {
+      const store = configureStore({ reducer: reducers });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const previousPath = window.location.pathname;
+      window.history.pushState({}, '', path);
+
+      try {
+        render(
+          <QueryClientProvider client={queryClient}>
+            <TestContext store={store} urlPrefix={path}>
+              <RouteSwitcher requiresToken={() => false} />
+            </TestContext>
+          </QueryClientProvider>
+        );
+
+        expect(await screen.findByText(content)).toBeInTheDocument();
+        expect(store.getState().sidebar.selected).toEqual({
+          item: 'projects',
+          sidebar: DefaultSidebars.HOME,
+        });
+        expect(testAuth).not.toHaveBeenCalled();
+        expect(createRouteURL('projects', { cluster: 'cluster-a' })).toBe('/projects');
+      } finally {
+        window.history.pushState({}, '', previousPath);
+      }
+    }
+  );
+
+  it('renders the global projects list even if a previously selected cluster rejects auth', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const previousPath = window.location.pathname;
+    // getCluster() reads the cluster from window.location rather than the router.
+    window.history.pushState({}, '', '/projects');
+    vi.mocked(useCluster).mockReturnValue('cluster-a');
+
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <TestContext urlPrefix="/projects">
+            <RouteSwitcher requiresToken={() => false} />
+          </TestContext>
+        </QueryClientProvider>
+      );
+
+      expect(await screen.findByText('project-list-page')).toBeInTheDocument();
+      expect(testAuth).not.toHaveBeenCalled();
+    } finally {
+      window.history.pushState({}, '', previousPath);
+    }
   });
 });
