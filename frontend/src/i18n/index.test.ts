@@ -205,6 +205,7 @@ describe('i18next parser configuration', () => {
 
     expect(parserConfig.contextSeparator).toBe(sharedConfig.contextSeparator);
     expect(parserConfig.locales).toEqual(expect.arrayContaining(['en', 'fr']));
+    expect(parserConfig.locales).not.toContain('pt');
     expect(parserConfig.output).toContain(
       path.join(sharedConfig.localesPath, '$LOCALE', '$NAMESPACE.json')
     );
