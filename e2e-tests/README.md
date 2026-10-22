@@ -165,6 +165,20 @@ cd e2e-tests
 npx playwright test tests/incluster-api.spec.ts
 ```
 
+### Global Projects navigation
+
+The global Projects navigation cases run the full frontend with browser-level
+Kubernetes API fixtures, without requiring live clusters. Start the frontend with
+`npm run frontend:start` from the repository root, then run:
+
+```bash
+cd e2e-tests
+HEADLAMP_TEST_URL=http://localhost:3000 npx playwright test tests/projects.spec.ts --grep "global Projects navigation" --reporter=line
+```
+
+They cover sidebar placement, cross-cluster projects, details selection after a
+reload, the existing Home tab, and an inaccessible cluster.
+
 ### Cluster Inventory
 
 The Cluster Inventory E2E uses the same `test` and `test2` clusters and the same

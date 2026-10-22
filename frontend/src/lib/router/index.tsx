@@ -242,6 +242,22 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'namespaces',
     component: () => <NamespaceDetails />,
   },
+  projects: {
+    path: '/projects',
+    name: 'Projects',
+    exact: true,
+    sidebar: {
+      item: 'projects',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    component: React.lazy(() =>
+      import('../../components/project/ProjectList').then(it => ({
+        default: it.ProjectListPage,
+      }))
+    ),
+  },
   nodes: {
     path: '/nodes',
     name: 'Nodes',

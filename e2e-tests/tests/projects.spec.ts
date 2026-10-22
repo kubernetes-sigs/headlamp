@@ -20,6 +20,158 @@ import { NamespacesPage } from './namespacesPage';
 
 const PROJECT_ID_LABEL = 'headlamp.dev/project-id';
 
+test.describe('global Projects navigation', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('sidebar', JSON.stringify({ shrink: false }));
+    });
+    await page.route('**/config', route =>
+      route.fulfill({
+        json: {
+          clusters: ['cluster-a', 'cluster-b'].map(name => ({
+            name,
+            auth_type: '',
+            useToken: false,
+          })),
+        },
+      })
+    );
+    await page.route('**/plugins', route => route.fulfill({ json: [] }));
+    await page.route('**/clusters/**', async route => {
+      const url = new URL(route.request().url());
+      const [cluster, ...parts] = url.pathname.split('/clusters/')[1].split('/');
+      const path = '/' + parts.join('/');
+
+      if (path === '/api') {
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                metadata: {},
+                versions: [
+                  {
+                    version: 'v1',
+                    resources: [
+                      {
+                        resource: 'namespaces',
+                        verbs: ['get', 'list'],
+                        responseKind: { kind: 'Namespace' },
+                        scope: 'Cluster',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        return;
+      }
+
+      if (path === '/version') {
+        await route.fulfill({ json: { major: '1', minor: '35', gitVersion: 'v1.35.0' } });
+        return;
+      }
+
+      if (path === '/api/v1/namespaces') {
+        const project = cluster === 'cluster-a' ? 'project-a' : 'project-b';
+        const selector = url.searchParams.get('labelSelector');
+        const matches =
+          !selector ||
+          selector === PROJECT_ID_LABEL ||
+          selector === `${PROJECT_ID_LABEL}=${project}`;
+        await route.fulfill({
+          json: {
+            apiVersion: 'v1',
+            kind: 'NamespaceList',
+            metadata: { resourceVersion: '1' },
+            items: matches
+              ? [
+                  {
+                    apiVersion: 'v1',
+                    kind: 'Namespace',
+                    metadata: {
+                      name: `${project}-namespace`,
+                      labels: { [PROJECT_ID_LABEL]: project },
+                      resourceVersion: '1',
+                    },
+                    status: { phase: 'Active' },
+                  },
+                ]
+              : [],
+          },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          apiVersion: 'v1',
+          kind: 'List',
+          metadata: { resourceVersion: '1' },
+          items: [],
+        },
+      });
+    });
+  });
+
+  test('opens cross-cluster projects from the sidebar and keeps details selected', async ({
+    page,
+  }) => {
+    await page.goto('/c/cluster-a/namespaces');
+    const navigation = page.getByRole('navigation', { name: 'Navigation', exact: true });
+    const entries = navigation.locator('ul').first().locator(':scope > li > a');
+    await expect(entries.nth(0)).toHaveText('Home');
+    await expect(entries.nth(1)).toHaveText('Projects');
+    await expect(entries.nth(2)).toContainText('Clusters');
+
+    await navigation.getByRole('button', { name: 'Projects', exact: true }).click();
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(navigation.getByRole('button', { name: 'Projects', exact: true })).toHaveClass(
+      /Mui-selected/
+    );
+    await expect(page.getByRole('link', { name: 'project-a', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'project-b', exact: true }).click();
+    await expect(page).toHaveURL(/\/project\/project-b(?:\?|$)/);
+    await expect(navigation.getByRole('button', { name: 'Projects', exact: true })).toHaveClass(
+      /Mui-selected/
+    );
+
+    await page.reload();
+    await expect(navigation.getByRole('button', { name: 'Projects', exact: true })).toHaveClass(
+      /Mui-selected/
+    );
+    await navigation.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('tab', { name: 'Projects', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'project-b', exact: true })).toBeVisible();
+  });
+
+  test('opens global projects even when another cluster rejects authentication', async ({
+    page,
+  }) => {
+    await page.route('**/clusters/cluster-a/**', route =>
+      route.fulfill({
+        status: 401,
+        json: {
+          apiVersion: 'v1',
+          kind: 'Status',
+          status: 'Failure',
+          reason: 'Unauthorized',
+          code: 401,
+        },
+      })
+    );
+    await page.goto('/projects');
+    await expect(page.getByRole('link', { name: 'project-b', exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Navigation', exact: true })
+        .getByRole('button', { name: 'Projects', exact: true })
+    ).toHaveClass(/Mui-selected/);
+  });
+});
+
 test.describe('project header actions', () => {
   let projectName: string;
   let namespaceCreated = false;
