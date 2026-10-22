@@ -706,7 +706,10 @@ export function useKubeObjectList<K extends KubeObject>({
   /** Return an empty list instead of a loading state when requests were intentionally suppressed. */
   emptyWhenNoRequests?: boolean;
 }): [Array<K> | null, ApiError | null] &
-  QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
+  QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> & {
+    /** Oldest successful query update in the combined list, or zero while unresolved. */
+    dataUpdatedAt: number;
+  } {
   const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
 
   // Get working endpoint from the first cluster
@@ -810,6 +813,10 @@ export function useKubeObjectList<K extends KubeObject>({
 
       return {
         data: results.map(result => result.data),
+        dataUpdatedAt: results.reduce(
+          (oldest, result) => Math.min(oldest, result.dataUpdatedAt),
+          results[0]?.dataUpdatedAt ?? 0
+        ),
         clusterResults,
         items:
           emptyWhenNoRequests && results.length === 0
@@ -1045,6 +1052,7 @@ export function useKubeObjectList<K extends KubeObject>({
   // @ts-ignore - TS compiler gets confused with iterators
   return {
     items: endpointError ? [] : query.items,
+    dataUpdatedAt: query.dataUpdatedAt,
     errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
     error: endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null,
     clusterResults: query.clusterResults,

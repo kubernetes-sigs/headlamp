@@ -25,7 +25,10 @@ import {
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
-import { AllowedNamespacesResolutionContext } from './allowedNamespacesContext';
+import {
+  AllowedNamespacesResolutionContext,
+  AllowedNamespacesSelectorContext,
+} from './allowedNamespacesContext';
 import { post } from './api/v1/clusterRequests';
 import type { DeleteParameters } from './api/v1/deleteParameters';
 import type {
@@ -315,13 +318,85 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     const [objs, setObjs] = React.useState<{ [key: string]: K[] }>({});
     const listCallback = onList as (arg: any[]) => void;
 
+    // Mirrors the objs state synchronously. React may defer state updaters when other
+    // updates are pending, so the merged list delivered to the consumer must be
+    // computed from this ref instead of assuming the updater has run.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const objsRef = React.useRef(objs);
+
+    // Subscribe to the allowed-namespaces resolution context before reading the
+    // restriction (as useList does): the App only updates the context value, its
+    // existing children need not rerender, so without this subscription a
+    // restriction change would not re-evaluate this hook until an unrelated render.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useContext(AllowedNamespacesResolutionContext);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const registerCluster = React.useContext(AllowedNamespacesSelectorContext)?.registerCluster;
+
+    // Track the restriction generation to gate stale callbacks from cancelled streams.
+    // Incremented each time restrictedToNoNamespaces changes.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const restrictionGeneration = React.useRef(0);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const currentRestrictedToNoNamespaces = React.useRef(false);
+
+    // Monotonic revision of the connected namespace streams. Advanced on every
+    // committed reconnect (a cluster or effective namespace change) — including
+    // transitions whose namespace set later repeats (['ns-a'] -> ['ns-b'] ->
+    // ['ns-a']): a set identity matching again must not revive a superseded
+    // stream's callback.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const streamRevisionRef = React.useRef(0);
+
+    // Revision this render's stream thunks are connected under. Stamped when
+    // useConnectApi invokes a thunk — after the layout effect has advanced the
+    // revision for the transition committed by this render — so callbacks bound
+    // to a replacement stream carry the revision they were connected under,
+    // while callbacks bound to superseded streams keep their own older one.
+    const connectRevision = { current: -1 };
+
+    // Capture the generation at render time so each render's callbacks
+    // can check if they're still valid.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const renderGeneration = restrictionGeneration.current;
+
+    function isLiveStream() {
+      const connected =
+        !currentRestrictedToNoNamespaces.current &&
+        renderGeneration === restrictionGeneration.current &&
+        connectRevision.current === streamRevisionRef.current &&
+        namespaceSetKeyRef.current === namespaceSetKey;
+      if (!connected || !selectorCluster) {
+        return connected;
+      }
+      // A suspended consumer may not have committed the latest restriction.
+      const currentNamespaces = getAllowedNamespaces(selectorCluster);
+      return (
+        currentNamespaces.join('\u0000') === namespaceSetKey &&
+        (currentNamespaces.length > 0 || !hasAllowedNamespacesRestriction(selectorCluster))
+      );
+    }
+
+    const errorCallback = onError
+      ? (error: ApiError, cluster?: string) => {
+          if (isLiveStream()) {
+            onError(error, cluster);
+          }
+        }
+      : undefined;
+
     function onObjs(namespace: string, objList: K[]) {
+      if (!isLiveStream()) {
+        return;
+      }
+
       let newObjs: typeof objs = {};
-      // Set the objects so we have them for the next API response...
-      setObjs(previousObjs => {
-        newObjs = { ...previousObjs, [namespace || '']: objList };
-        return newObjs;
-      });
+      // Set the objects so we have them for the next API response. The merge is
+      // computed synchronously from objsRef because React may defer the state
+      // updater when other updates are pending.
+      newObjs = { ...objsRef.current, [namespace || '']: objList };
+      objsRef.current = newObjs;
+      setObjs(newObjs);
 
       let allObjs: K[] = [];
       Object.values(newObjs).map(currentObjs => {
@@ -337,6 +412,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     unset(queryParams, 'namespace');
 
     const cluster = opts?.cluster;
+    const currentCluster = getCluster();
+    const requestCluster = cluster || currentCluster;
 
     if (!!opts?.namespace) {
       if (typeof opts.namespace === 'string') {
@@ -348,32 +425,153 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       }
     }
 
+    namespaces = namespaces.filter(namespace => namespace !== '');
+    const selectorCluster = this.isNamespaced && namespaces.length === 0 ? requestCluster : null;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useEffect(() => {
+      if (selectorCluster) {
+        return registerCluster?.(selectorCluster);
+      }
+    }, [registerCluster, selectorCluster]);
+
     // If the request itself has no namespaces set, we check whether to apply the
     // allowed namespaces.
+    let restrictedToNoNamespaces = false;
     if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
+      // Use the same falsy fallback as the request layer (streamResultsForCluster): an
+      // empty-string cluster there means the current cluster, so an empty opts.cluster
+      // must be checked for restrictions too, not treated as "no cluster".
+      namespaces = getAllowedNamespaces(requestCluster);
+
+      // An active allowed-namespaces restriction that currently resolves to no
+      // namespaces must fail closed: issue no request rather than falling back to an
+      // unrestricted cluster-wide list. This mirrors makeListRequests (see #7361, #7382).
+      // The restriction is checked against the same cluster used for the list request.
+      restrictedToNoNamespaces =
+        namespaces.length === 0 && hasAllowedNamespacesRestriction(requestCluster ?? '');
     }
+
+    // Identity of this render's effective namespace set. Callbacks are bound to
+    // the set they were connected for so results from a superseded set can be
+    // dropped even while cancellation of the old streams is still pending.
+    const namespaceSetKey = namespaces.join('\u0000');
+    // Key of the namespace set whose results are currently live; kept in sync by
+    // the layout effect below, which runs before the new streams connect.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const namespaceSetKeyRef = React.useRef(namespaceSetKey);
+    const connectionKey = JSON.stringify([
+      namespaceSetKey,
+      restrictedToNoNamespaces,
+      requestCluster,
+      currentCluster,
+      selectorCluster,
+    ]);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const committedConnection = React.useRef<{ key: string; cluster: string | null } | null>(null);
+
+    // When the actual restriction state changes — fail-closed (no namespaces) or
+    // remapping between namespace sets — invalidate the results of the previous
+    // state: bump the generation to gate its callbacks, clear the cached objects
+    // so they cannot leak into the next result set, and notify the consumer.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useLayoutEffect(() => {
+      const previousConnection = committedConnection.current;
+      // Suspense reveal replays layout effects without reconnecting passive effects.
+      if (previousConnection?.key === connectionKey) {
+        return;
+      }
+      committedConnection.current = { key: connectionKey, cluster: requestCluster };
+      currentRestrictedToNoNamespaces.current = restrictedToNoNamespaces;
+      if (restrictedToNoNamespaces) {
+        restrictionGeneration.current += 1;
+        // Advance the stream revision too: the fail-closed commit invalidates
+        // every stream connected before it.
+        streamRevisionRef.current += 1;
+        namespaceSetKeyRef.current = namespaceSetKey;
+        objsRef.current = {};
+        setObjs({});
+        listCallback([]);
+      } else if (
+        namespaceSetKeyRef.current !== namespaceSetKey ||
+        (previousConnection && previousConnection.cluster !== requestCluster)
+      ) {
+        // The allowed namespace set changed between two non-empty states (for
+        // example ['ns-a'] -> ['ns-b']). Do NOT bump the generation here: this
+        // render's callbacks already captured the current generation, and they
+        // are the ones that must pass. Instead, advance the stream revision,
+        // which callbacks check from their connection-time stamp rather than a
+        // render-time capture, so only the replacement stream passes after this
+        // transition — including later round trips that repeat an earlier set.
+        streamRevisionRef.current += 1;
+        namespaceSetKeyRef.current = namespaceSetKey;
+        // Only clear and notify when there is something to invalidate: with an
+        // empty cache the consumer already holds an empty list, and clearing
+        // again would only cause a superfluous rerender (and thus a new set of
+        // list-call thunks) without any data change.
+        if (Object.keys(objsRef.current).length > 0) {
+          objsRef.current = {};
+          setObjs({});
+          listCallback([]);
+        }
+      } else {
+        streamRevisionRef.current += 1;
+      }
+      // listCallback intentionally omitted: it's a new function reference every render.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [connectionKey]);
 
     if (namespaces.length > 0) {
       // If we have a namespace set, then we have to make an API call for each
       // namespace and then set the objects once we have all of the responses.
       for (const namespace of namespaces) {
         listCalls.push(
-          this.apiList(objList => onObjs(namespace, objList as K[]), onError, {
+          this.apiList(objList => onObjs(namespace, objList as K[]), errorCallback, {
             namespace,
             queryParams,
             cluster,
           })
         );
       }
-    } else {
+    } else if (!restrictedToNoNamespaces) {
       // If we don't have a namespace set, then we only have one API call
       // response to set and we return it right away.
-      listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
+      // Guard this callback like onObjs: a late unrestricted response must not
+      // deliver objects after the namespace restriction becomes active but
+      // empty, including while cancellation is still pending.
+      const unrestrictedListCallback = (objList: K[]) => {
+        if (!isLiveStream()) {
+          return;
+        }
+
+        // Record the delivered result in the cache mirror too; an unrestricted
+        // result set is the whole namespace space, so a later transition between
+        // restriction states must be able to invalidate it like any other set.
+        objsRef.current = { '': objList };
+
+        listCallback(objList);
+      };
+
+      listCalls.push(
+        this.apiList(unrestrictedListCallback, errorCallback, { queryParams, cluster })
+      );
     }
 
+    // Stamp each thunk with the revision it is connected under: the wrapper
+    // runs when useConnectApi's effect invokes it, after this render's layout
+    // effect has already advanced the revision for the committed transition, so
+    // the replacement stream's callbacks carry the new revision while every
+    // superseded stream keeps the one it was connected under.
+    const connectedCalls = listCalls.map(call => {
+      return () => {
+        connectRevision.current = streamRevisionRef.current;
+        return call();
+      };
+    });
+
+    // Context updates recalculate restrictions, but only an actual request change
+    // should reconnect the streams.
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(...listCalls);
+    useConnectApi(connectedCalls, [connectionKey]);
   }
 
   static useList<K extends KubeObject>(
@@ -533,7 +731,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // the exact signature as get callbacks.
     const getCallback = onGet as (item: K) => void;
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(this.apiGet(getCallback, name, namespace, onError, opts));
+    useConnectApi([this.apiGet(getCallback, name, namespace, onError, opts)]);
   }
 
   _class() {

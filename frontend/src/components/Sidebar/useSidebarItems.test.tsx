@@ -113,6 +113,7 @@ describe('useSidebarItems', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue(
       Object.assign(emptyCRDs, {
         data: null,
+        dataUpdatedAt: 0,
         items: emptyCRDs[0],
         error: null,
         errors: null,

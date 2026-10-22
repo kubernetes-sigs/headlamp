@@ -25,6 +25,7 @@ import {
   loadResolvedAllowedNamespaces,
   storeClusterSettings,
   storeResolvedAllowedNamespaces,
+  subscribeToClusterSettings,
 } from './clusterSettings';
 
 describe('clusterSettings', () => {
@@ -33,6 +34,45 @@ describe('clusterSettings', () => {
   });
 
   describe('storeClusterSettings', () => {
+    it('subscribes to cross-tab namespace settings and cache changes, filters unrelated storage, and cleans up', () => {
+      const listener = vi.fn();
+      const unsubscribe = subscribeToClusterSettings(listener);
+      const storageEvent = (key: string | null, storageArea: Storage = localStorage) => {
+        const event = new StorageEvent('storage', { key });
+        // The test storage is not a native jsdom Storage.
+        Object.defineProperty(event, 'storageArea', { value: storageArea });
+        window.dispatchEvent(event);
+      };
+
+      storageEvent('cluster_settings.prod');
+      storageEvent('cluster_allowed_namespaces_selector_cache.prod');
+      storageEvent(null);
+      const relevantNotifications = listener.mock.calls.length;
+      storageEvent('unrelated');
+      storageEvent('cluster_settings.prod', sessionStorage);
+      const notificationsAfterUnrelatedEvents = listener.mock.calls.length;
+
+      unsubscribe();
+      storageEvent('cluster_settings.prod');
+      storageEvent(null);
+      expect(relevantNotifications).toBe(3);
+      expect(notificationsAfterUnrelatedEvents).toBe(3);
+      expect(listener).toHaveBeenCalledTimes(3);
+    });
+
+    it('notifies subscribers after persisting settings and stops notifying after unsubscribe', () => {
+      const observed: ClusterSettings[] = [];
+      const unsubscribe = subscribeToClusterSettings(() =>
+        observed.push(loadClusterSettings('prod'))
+      );
+
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      unsubscribe();
+      storeClusterSettings('prod', {});
+
+      expect(observed).toEqual([{ allowedNamespacesSelector: 'team=frontend' }]);
+    });
+
     it('writes the settings under cluster_settings.<name>', () => {
       const settings: ClusterSettings = { defaultNamespace: 'kube-system' };
 

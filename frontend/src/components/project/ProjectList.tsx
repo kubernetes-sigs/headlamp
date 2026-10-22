@@ -24,7 +24,9 @@ import Namespace from '../../lib/k8s/namespace';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import type { ProjectDefinition } from '../../redux/projectsSlice';
-import AllowedNamespacesSelectorGate from '../App/AllowedNamespacesSelectorGate';
+import AllowedNamespacesSelectorGate, {
+  AllowedNamespacesSelectorProvider,
+} from '../App/AllowedNamespacesSelectorGate';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
 import Table, { TableColumn } from '../common/Table/Table';
@@ -243,8 +245,10 @@ export default function ProjectList() {
   const clusters = Object.values(clusterConf ?? {}).map(cluster => cluster.name);
 
   return (
-    <AllowedNamespacesSelectorGate clusters={clusters}>
-      <ProjectListContent />
-    </AllowedNamespacesSelectorGate>
+    <AllowedNamespacesSelectorProvider clusters={clusters}>
+      <AllowedNamespacesSelectorGate>
+        <ProjectListContent />
+      </AllowedNamespacesSelectorGate>
+    </AllowedNamespacesSelectorProvider>
   );
 }

@@ -18,8 +18,10 @@ import React from 'react';
 import {
   clearResolvedAllowedNamespaces,
   isResolvedAllowedNamespacesStale,
+  loadClusterSettings,
   loadResolvedAllowedNamespaces,
   storeResolvedAllowedNamespaces,
+  subscribeToClusterSettings,
 } from '../../helpers/clusterSettings';
 import type { ApiError } from './api/v2/ApiError';
 import Namespace from './namespace';
@@ -35,6 +37,10 @@ function sameNamespaces(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
+function isConfiguredSelector(cluster: string, selector: string): boolean {
+  return (loadClusterSettings(cluster).allowedNamespacesSelector || '').trim() === selector;
+}
+
 /**
  * Resolves the namespaces matching a cluster's label selector and keeps the
  * localStorage cache read by getCombinedAllowedNamespaces in sync.
@@ -43,10 +49,14 @@ function sameNamespaces(a: string[], b: string[]): boolean {
  * caching, retry and websocket watching. Because the query is keyed on the
  * selector, results are always tagged to the selector that produced them, which
  * avoids an older in-flight request overwriting a newer one.
+ * Cache writes also check the live configured selector, and successful query
+ * results reconcile a missing cache without requiring another query update.
  *
  * Cache behaviour:
  * - success: the resolved names are cached, stamped with the selector and time;
- * - failure: the cache is cleared (fail closed) so a stale list is not kept;
+ * - failure: a selector-tagged empty list is cached (fail closed), so another
+ *   tab cannot treat the failure as a missing cache and restore older results.
+ *   Only query data updated after the empty cache can replace it;
  * - empty selector: any previously cached list is cleared.
  *
  * @param cluster - The cluster to resolve the namespaces for.
@@ -61,15 +71,22 @@ export function useAllowedNamespacesFromSelector(
   const trimmedSelector = (selector ?? '').trim();
   const enabled = Boolean(cluster && trimmedSelector);
 
-  const { items, error, isError, isFetching } = Namespace.useList({
+  const { items, error, isError, isFetching, dataUpdatedAt } = Namespace.useList({
     clusters: enabled ? [cluster] : [],
     labelSelector: enabled ? trimmedSelector : undefined,
   });
 
   const namespaces = React.useMemo(() => sortedNamespaceNames(items), [items]);
+  const getCacheSnapshot = () =>
+    loadResolvedAllowedNamespaces(cluster)?.selector === trimmedSelector;
+  const cacheIsCurrent = React.useSyncExternalStore(
+    subscribeToClusterSettings,
+    getCacheSnapshot,
+    getCacheSnapshot
+  );
 
   React.useEffect(() => {
-    if (!cluster) {
+    if (!cluster || !isConfiguredSelector(cluster, trimmedSelector)) {
       return;
     }
     // No selector: drop any list left over from a previously configured one.
@@ -79,7 +96,7 @@ export function useAllowedNamespacesFromSelector(
     }
     // Failed resolution (after retries): fail closed rather than keep a stale list.
     if (isError) {
-      clearResolvedAllowedNamespaces(cluster);
+      storeResolvedAllowedNamespaces(cluster, trimmedSelector, []);
       return;
     }
     // Still loading: keep the existing cache to avoid a flash of unrestricted access.
@@ -87,13 +104,38 @@ export function useAllowedNamespacesFromSelector(
       return;
     }
     const cache = loadResolvedAllowedNamespaces(cluster);
+    if (
+      cache?.selector === trimmedSelector &&
+      cache.namespaces.length === 0 &&
+      (dataUpdatedAt ?? 0) <= cache.resolvedAt
+    ) {
+      return;
+    }
     const changed =
       !cache || cache.selector !== trimmedSelector || !sameNamespaces(cache.namespaces, namespaces);
     // Rewrite when the data changed or the cache went stale (refreshes the timestamp).
     if (changed || isResolvedAllowedNamespacesStale(cluster)) {
       storeResolvedAllowedNamespaces(cluster, trimmedSelector, namespaces);
     }
-  }, [cluster, trimmedSelector, isError, items, namespaces]);
+  }, [cluster, trimmedSelector, isError, items, namespaces, dataUpdatedAt]);
+
+  React.useEffect(() => {
+    if (
+      cacheIsCurrent ||
+      !cluster ||
+      !trimmedSelector ||
+      isError ||
+      items === null ||
+      !isConfiguredSelector(cluster, trimmedSelector)
+    ) {
+      return;
+    }
+    // Fill a missing cache without overwriting another resolver's current result.
+    const cache = loadResolvedAllowedNamespaces(cluster);
+    if (!cache || cache.selector !== trimmedSelector) {
+      storeResolvedAllowedNamespaces(cluster, trimmedSelector, namespaces);
+    }
+  }, [cacheIsCurrent, cluster, trimmedSelector, isError, items, namespaces]);
 
   return {
     namespaces: enabled ? namespaces : [],

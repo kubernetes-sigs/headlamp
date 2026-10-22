@@ -49,8 +49,36 @@ export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/busybox:latest'
 export const DEFAULT_NODE_SHELL_NAMESPACE = 'default';
 export const DEFAULT_POD_DEBUG_IMAGE = 'docker.io/library/busybox:latest';
 
+const clusterSettingsListeners = new Set<() => void>();
+
+function notifyClusterSettingsListeners() {
+  for (const listener of clusterSettingsListeners) {
+    listener();
+  }
+}
+
+/** Subscribes to settings and namespace-cache changes in this window and other tabs. */
+export function subscribeToClusterSettings(listener: () => void): () => void {
+  clusterSettingsListeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (
+      event.storageArea === localStorage &&
+      (event.key === null ||
+        event.key.startsWith('cluster_settings.') ||
+        event.key.startsWith('cluster_allowed_namespaces_selector_cache.'))
+    ) {
+      listener();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  return () => {
+    clusterSettingsListeners.delete(listener);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
 /**
- * Stores the cluster settings in local storage.
+ * Stores the cluster settings in local storage and notifies subscribers.
  *
  * @param clusterName - The name of the cluster.
  * @param settings - The cluster settings to be stored.
@@ -61,6 +89,7 @@ export function storeClusterSettings(clusterName: string, settings: ClusterSetti
     return;
   }
   localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
+  notifyClusterSettingsListeners();
 }
 
 /**
@@ -96,7 +125,11 @@ export function loadClusterSettings(clusterName: string): ClusterSettings {
 export interface ResolvedAllowedNamespacesCache {
   /** The label selector this list was resolved from. */
   selector: string;
-  /** The resolved namespace names. */
+  /**
+   * The resolved namespace names. An empty list is a known empty result or a
+   * fail-closed query failure; a missing cache is unresolved and may be reconciled.
+   * Replacing an empty list requires query data newer than resolvedAt.
+   */
   namespaces: string[];
   /** Epoch milliseconds of when the list was last resolved. */
   resolvedAt: number;
@@ -147,7 +180,7 @@ export function loadResolvedAllowedNamespaces(
 
 /**
  * Stores the namespaces resolved from a cluster's label selector, stamped with
- * the selector they were resolved for and the current time.
+ * the selector they were resolved for and the current time, and notifies subscribers.
  *
  * @param clusterName - The name of the cluster.
  * @param selector - The label selector the namespaces were resolved from.
@@ -167,10 +200,11 @@ export function storeResolvedAllowedNamespaces(
     resolvedAt: Date.now(),
   };
   localStorage.setItem(resolvedAllowedNamespacesKey(clusterName), JSON.stringify(entry));
+  notifyClusterSettingsListeners();
 }
 
 /**
- * Removes any cached namespaces resolved from a cluster's label selector.
+ * Removes cached namespaces resolved from a cluster's selector and notifies subscribers.
  *
  * @param clusterName - The name of the cluster.
  */
@@ -179,6 +213,7 @@ export function clearResolvedAllowedNamespaces(clusterName: string) {
     return;
   }
   localStorage.removeItem(resolvedAllowedNamespacesKey(clusterName));
+  notifyClusterSettingsListeners();
 }
 
 /**
