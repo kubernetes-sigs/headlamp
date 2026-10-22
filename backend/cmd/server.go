@@ -198,7 +198,8 @@ func loadOidcCACert(oidcCAFile string) string {
 		return ""
 	}
 
-	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec // CA file path is provided via CLI configuration
+	//nolint:gosec // G304: Path configured via operator --oidc-ca-file CLI flag.
+	caFileContents, err := os.ReadFile(oidcCAFile)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 		os.Exit(1)
@@ -268,7 +269,7 @@ func loadAdminSettings(path string) (json.RawMessage, error) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(path) //nolint:gosec // Settings file path is provided via CLI configuration
+	data, err := os.ReadFile(path) //nolint:gosec // G304: Path configured via operator --settings CLI flag.
 	if err != nil {
 		return nil, fmt.Errorf("reading settings file: %w", err)
 	}

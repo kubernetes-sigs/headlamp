@@ -406,7 +406,8 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA certificate file path is loaded from kubeconfig
+		//nolint:gosec // G304: Path originates from kubeconfig AuthInfo AuthProvider idp-certificate-authority.
+		caFileContents, err := os.ReadFile(caFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -560,7 +561,8 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
-	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec // Kubeconfig file path is provided via configuration
+	//nolint:gosec // G304: Path originates from CLI, environment, or default kubeconfig location.
+	data, err := os.ReadFile(kubeConfigPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}

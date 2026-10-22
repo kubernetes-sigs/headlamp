@@ -319,7 +319,7 @@ func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 
 	packageJSONPath := filepath.Join(pluginPath, "package.json")
 
-	//nolint:gosec // Plugin path is validated to stay within plugins directory
+	//nolint:gosec // G304: Path constrained within plugin directory via preceding isSubdirectory check.
 	content, err := os.ReadFile(packageJSONPath)
 	if err != nil {
 		return false
