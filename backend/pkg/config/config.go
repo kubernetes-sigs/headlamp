@@ -325,7 +325,7 @@ func validateCAFile(path, flagName string) error {
 		return nil
 	}
 
-	caFileContents, err := os.ReadFile(path) //nolint:gosec // path comes from a CLI flag set by the operator
+	caFileContents, err := os.ReadFile(path) //nolint:gosec // G304: Path configured via operator CLI flags.
 	if err != nil {
 		return fmt.Errorf("error reading %s: %w", flagName, err)
 	}
@@ -339,7 +339,7 @@ func validateCAFile(path, flagName string) error {
 }
 
 func readSecretFromFile(path string) (string, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // credential path is configured by the operator
+	data, err := os.ReadFile(path) //nolint:gosec // G304: Credential path configured via operator CLI flags.
 	if err != nil {
 		return "", err
 	}

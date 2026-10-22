@@ -276,7 +276,8 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 // readServiceAccountToken reads the service account token from path, caching the value
 // per path and refreshing it when the file's mtime changes (e.g. kubelet token rotation).
 func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
-	stat, err := os.Stat(path) //nolint:gosec // Service account token file path from cluster config
+	//nolint:gosec // G304: Only read for in-cluster context from mounted token or --service-account-token-path.
+	stat, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("stat service account token file: %w", err)
 	}
@@ -289,7 +290,8 @@ func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
 		return entry.token, nil
 	}
 
-	tokenBytes, err := os.ReadFile(path) //nolint:gosec // Service account token file path from cluster config
+	//nolint:gosec // G304: Only read for in-cluster context from mounted token or --service-account-token-path.
+	tokenBytes, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("reading service account token file: %w", err)
 	}
