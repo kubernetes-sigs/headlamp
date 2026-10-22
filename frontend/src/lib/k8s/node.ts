@@ -93,9 +93,9 @@ class Node extends KubeObject<KubeNode> {
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(
-      metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster)
-    );
+    useConnectApi([
+      metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster),
+    ]);
 
     return [nodeMetrics, error];
   }
@@ -118,7 +118,7 @@ class Node extends KubeObject<KubeNode> {
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(nodeSummaryStats.bind(null, nodeName || '', setStats, setError, cluster));
+    useConnectApi([nodeSummaryStats.bind(null, nodeName || '', setStats, setError, cluster)]);
 
     return [summaryStats, error];
   }

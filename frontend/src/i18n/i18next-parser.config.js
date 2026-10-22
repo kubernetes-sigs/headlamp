@@ -23,7 +23,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const directoryPath = path.join(__dirname, sharedConfig.localesPath);
 const currentLocales = [];
 
-fs.readdirSync(directoryPath).forEach(file => currentLocales.push(file));
+fs.readdirSync(directoryPath).forEach(file => {
+  // `pt` is a fallback alias, not a supported locale with its own translations.
+  if (file !== 'pt') {
+    currentLocales.push(file);
+  }
+});
 
 export default {
   lexers: {
