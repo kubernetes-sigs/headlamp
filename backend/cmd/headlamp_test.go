@@ -1754,6 +1754,78 @@ func TestDrainNodeReportsInProgressWhileBlocked(t *testing.T) {
 	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
+// A request to the API server can take longer than the cache TTL, so the status is renewed on its own
+// timer, not only when a request finishes.
+func TestDrainNodeRenewsStatusWhileARequestIsStalled(t *testing.T) {
+	oldRenew, oldPoll := drainStatusRenewInterval, drainTerminationPollInterval
+	drainStatusRenewInterval, drainTerminationPollInterval = 10*time.Millisecond, 10*time.Millisecond
+
+	t.Cleanup(func() { drainStatusRenewInterval, drainTerminationPollInterval = oldRenew, oldPoll })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		started <- struct{}{}
+
+		<-release
+
+		return true, nil, nil
+	})
+
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	<-started
+
+	// Simulate the TTL running out while the request is stalled.
+	require.NoError(t, testCache.Delete(ctx, cacheKey))
+
+	assert.Eventually(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+
+		return err == nil && item == drainStatusInProgress
+	}, time.Second, 10*time.Millisecond, "the status must be renewed while the eviction request is stalled")
+
+	// The pod is evicted but not gone, so let it disappear for the drain to finish.
+	close(release)
+	require.NoError(t, fakeClient.Tracker().Delete(
+		corev1.SchemeGroupVersion.WithResource("pods"), "default", "pdb-pod"))
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+// When the pods cannot be read, for example without the get permission, the failure says so instead
+// of claiming that the pods are still terminating.
+func TestWaitForPodsGoneReportsReadErrors(t *testing.T) {
+	oldPoll, oldTimeout := drainTerminationPollInterval, drainTerminationTimeout
+	drainTerminationPollInterval, drainTerminationTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainTerminationPollInterval, drainTerminationTimeout = oldPoll, oldTimeout })
+
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "pdb-pod-uid"}}
+	fakeClient := fake.NewClientset(pod)
+
+	fakeClient.PrependReactor("get", "pods", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return true, nil, apierrors.NewForbidden(corev1.Resource("pods"), "pdb-pod", errors.New("no get permission"))
+	})
+
+	stuck, done := waitForPodsGone(context.Background(), fakeClient, []*corev1.Pod{pod})
+
+	require.True(t, done)
+	require.Len(t, stuck, 1)
+	assert.Contains(t, stuck[0], "default/pdb-pod")
+	assert.Contains(t, stuck[0], "could not confirm termination")
+	assert.Contains(t, stuck[0], "no get permission")
+}
+
 func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 	pod1 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
