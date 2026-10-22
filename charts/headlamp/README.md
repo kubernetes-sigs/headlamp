@@ -165,6 +165,7 @@ volume or volume mount.
 | config.oidc.usePKCE | bool | `false` | Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow |
 | config.oidc.useCookie | bool | `false` | Enable using OIDC cookie for authentication outside of cluster |
 | config.oidc.autoLogin | bool | `false` | Enable automatic redirect to the OIDC provider |
+| config.oidc.useTokenBroadcast | bool | `false` | After a login, also set the auth cookie for other kubeconfig contexts with the same issuer URL and client ID. Also applies with `externalSecret` |
 | config.oidc.secret.create | bool | `true` | Create OIDC secret using provided values |
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |
