@@ -36,6 +36,7 @@ export default defineConfig({
     'clusterRegistration.spec.ts',
     'externalBackendToken.spec.ts',
     'pluginSecureStorage.spec.ts',
+    'pluginMenuReload.spec.ts',
     'listenerCleanup.spec.ts',
     'runCommand.spec.ts',
     'updateChecks.spec.ts',
