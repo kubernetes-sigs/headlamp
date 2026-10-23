@@ -92,6 +92,9 @@ type HeadlampConfig struct {
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	// activeDrains holds the cache keys of the drains that are running, so that a node is drained
+	// by one goroutine at a time.
+	activeDrains sync.Map
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -3460,6 +3463,12 @@ func (c *HeadlampConfig) drainNode(
 
 	cacheKey := drainCacheKey(nodeName, contextKey)
 
+	// A drain of this node is already running. It keeps the status up to date, and a second one would
+	// renew it independently and could overwrite or publish a result while the first is still going.
+	if _, running := c.activeDrains.LoadOrStore(cacheKey, struct{}{}); running {
+		return
+	}
+
 	// Replaces the result of an earlier drain of the same node, which would otherwise be reported.
 	c.setDrainStatus(ctx, cacheKey, drainStatusInProgress)
 
@@ -3468,6 +3477,8 @@ func (c *HeadlampConfig) drainNode(
 	finish := c.renewDrainStatus(ctx, cacheKey)
 
 	go func() {
+		defer c.activeDrains.Delete(cacheKey)
+
 		nodeClient := clientset.CoreV1().Nodes()
 
 		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
