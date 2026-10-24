@@ -1727,6 +1727,46 @@ func (c *HeadlampConfig) requestTokenForContext(
 	return token
 }
 
+func (c *HeadlampConfig) applyClusterRequestAuthentication(r *http.Request, kContext *kubeconfig.Context) {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		clearRequestAuthorization(r)
+		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+
+		return
+	}
+
+	clusterName := mux.Vars(r)["clusterName"]
+
+	var token string
+
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+	}
+
+	if token == "" {
+		authorization := r.Header.Get("Authorization")
+
+		parts := strings.Fields(authorization)
+		if len(parts) >= 2 && strings.EqualFold(parts[0], "Bearer") {
+			token = auth.BearerTokenValue(authorization)
+		}
+	}
+
+	if token == "" {
+		token = tokenFromCookie(r, clusterName)
+	}
+
+	if token == "" && kContext != nil && kContext.Name != clusterName {
+		token = tokenFromCookie(r, kContext.Name)
+	}
+
+	if token != "" {
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
+	clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+}
+
 func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
 	// Only promote a cookie token when the request does not already provide Authorization.
 	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
@@ -2345,25 +2385,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
-			clearRequestAuthorization(r)
-		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
-
-			if token == "" {
-				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-			}
-
-			if token != "" {
-				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			}
-		}
-
-		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+		c.applyClusterRequestAuthentication(r, kContext)
 
 		plugins.HandlePluginReload(c.Cache, w)
 

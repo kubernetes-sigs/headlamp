@@ -456,6 +456,7 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 
 	if token != "" {
 		restConf.BearerToken = token
+		restConf.BearerTokenFile = ""
 	}
 
 	return kubernetes.NewForConfig(restConf)
