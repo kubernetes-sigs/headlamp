@@ -294,9 +294,9 @@ func (s *staticRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 
 func TestVerifyUser(t *testing.T) {
 	tests := []struct {
-		name       string
-		req        helm.InstallRequest
-		wantResult bool
+		name    string
+		req     helm.InstallRequest
+		wantErr bool
 	}{
 		{
 			name: "valid user",
@@ -305,7 +305,7 @@ func TestVerifyUser(t *testing.T) {
 					Name: "test-release",
 				},
 			},
-			wantResult: true,
+			wantErr: false,
 		},
 		{
 			name: "invalid user",
@@ -314,7 +314,7 @@ func TestVerifyUser(t *testing.T) {
 					Name: "test-release",
 				},
 			},
-			wantResult: false,
+			wantErr: true,
 		},
 	}
 
@@ -324,7 +324,7 @@ func TestVerifyUser(t *testing.T) {
 
 			var err error
 
-			if tt.wantResult {
+			if !tt.wantErr {
 				k8sClientConfig := GetClient(t, "minikube")
 				actionConfig, err = helm.NewActionConfig(k8sClientConfig, "default")
 				require.NoError(t, err)
@@ -337,8 +337,12 @@ func TestVerifyUser(t *testing.T) {
 				}
 			}
 
-			result := helm.VerifyUser(actionConfig, tt.req)
-			assert.Equal(t, result, tt.wantResult)
+			err = helm.VerifyUser(actionConfig, tt.req)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
