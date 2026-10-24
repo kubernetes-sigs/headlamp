@@ -33,7 +33,13 @@ function buildMessage(channel: number, text: string): ArrayBuffer {
 }
 
 /** Minimal pod-shaped mock for Terminal (no Pod import to avoid k8s chain in isolation). */
-function createMockPod(exec: (c: string, onData: (d: ArrayBuffer) => void) => Promise<unknown>) {
+function createMockPod(
+  exec: (
+    c: string,
+    onData: (d: ArrayBuffer) => void,
+    opts?: { command?: string[]; failCb?: () => void }
+  ) => Promise<unknown>
+) {
   return {
     metadata: { name: 'mock-pod' },
     spec: {
@@ -265,6 +271,200 @@ describe('Terminal', () => {
       const sentBytes = new Uint8Array(sentBuffer);
       expect(sentBytes[0]).toBe(0);
       expect(new TextDecoder().decode(sentBytes.slice(1))).toBe('pasted text');
+    });
+  });
+
+  describe('reconnect and shell cycling', () => {
+    let rafSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+    beforeEach(() => {
+      rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+    });
+
+    afterEach(() => {
+      rafSpy?.mockRestore();
+      rafSpy = null;
+    });
+    it('renders a Reconnect button disabled while connecting', async () => {
+      const pod = createMockPod(async () => ({ cancel: () => {}, getSocket: () => null }));
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      const button = screen.getByRole('button', { name: 'translation|Reconnect' });
+      expect(button).toBeInTheDocument();
+      expect(button).toBeDisabled();
+    });
+
+    it('enables Reconnect button after connection is closed and triggers a new session on click', async () => {
+      let failCallback: (() => void) | undefined;
+      let onDataCallback: ((d: ArrayBuffer) => void) | undefined;
+      const execMock = vi
+        .fn()
+        .mockImplementation(
+          async (
+            _container: string,
+            onData: (d: ArrayBuffer) => void,
+            opts?: { command?: string[]; failCb?: () => void }
+          ) => {
+            onDataCallback = onData;
+            failCallback = opts?.failCb;
+            return {
+              cancel: vi.fn(),
+              getSocket: () => null,
+            };
+          }
+        );
+      const pod = createMockPod(execMock);
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(execMock).toHaveBeenCalledTimes(1);
+      const reconnectButton = screen.getByRole('button', { name: 'translation|Reconnect' });
+      expect(reconnectButton).toBeDisabled();
+
+      // Establish connection
+      await act(async () => {
+        onDataCallback?.(buildMessage(Channel.StdOut, 'user@pod:~$ '));
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(reconnectButton).toBeDisabled();
+
+      // Drop connection
+      await act(async () => {
+        failCallback?.();
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(reconnectButton).toBeEnabled();
+
+      fireEvent.click(reconnectButton);
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(reconnectButton).toBeDisabled();
+    });
+
+    it('does not cycle shells when an already connected session fails', async () => {
+      const executedCommands: string[] = [];
+      let failCallback: (() => void) | undefined;
+      let onDataCallback: ((d: ArrayBuffer) => void) | undefined;
+
+      const pod = createMockPod(
+        async (
+          _container: string,
+          onData: (d: ArrayBuffer) => void,
+          opts?: { command?: string[]; failCb?: () => void }
+        ) => {
+          onDataCallback = onData;
+          failCallback = opts?.failCb;
+          if (opts?.command?.[0]) {
+            executedCommands.push(opts.command[0]);
+          }
+          return { cancel: () => {}, getSocket: () => null };
+        }
+      );
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(executedCommands).toEqual(['bash']);
+
+      // Simulate connection establishment by sending stdout data
+      await act(async () => {
+        onDataCallback?.(buildMessage(Channel.StdOut, 'user@pod:~$ '));
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(screen.getByRole('button', { name: 'translation|Reconnect' })).toBeDisabled();
+
+      // Simulate mid-session connection drop
+      await act(async () => {
+        failCallback?.();
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Should NOT have cycled to '/bin/bash'
+      expect(executedCommands).toEqual(['bash']);
+      expect(screen.getByRole('button', { name: 'translation|Reconnect' })).toBeEnabled();
+
+      // Clicking reconnect should retry with the same shell
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Reconnect' }));
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(executedCommands).toEqual(['bash', 'bash']);
+    });
+
+    it('cycles to next shell when initial shell connection fails', async () => {
+      const executedCommands: string[] = [];
+
+      const pod = createMockPod(
+        async (
+          _container: string,
+          _onData: (d: ArrayBuffer) => void,
+          opts?: { command?: string[]; failCb?: () => void }
+        ) => {
+          if (opts?.command?.[0]) {
+            executedCommands.push(opts.command[0]);
+          }
+          setTimeout(() => opts?.failCb?.(), 10);
+          return { cancel: () => {}, getSocket: () => null };
+        }
+      );
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Should have attempted fallback shells
+      expect(executedCommands.length).toBeGreaterThan(1);
+      expect(executedCommands[0]).toBe('bash');
+      expect(executedCommands[1]).toBe('/bin/bash');
     });
   });
 });

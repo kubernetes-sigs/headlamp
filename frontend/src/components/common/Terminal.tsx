@@ -17,6 +17,7 @@
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
@@ -80,6 +81,22 @@ export default function Terminal(props: TerminalProps) {
     available: getAvailableShells(),
     currentIdx: 0,
   });
+  const [reconnectCount, setReconnectCount] = useState(0);
+  const [isDisconnected, setIsDisconnected] = useState(false);
+
+  function handleReconnect() {
+    setIsDisconnected(false);
+    if (xtermRef.current) {
+      xtermRef.current.reconnectOnEnter = false;
+    }
+    if (isLastShell() && !xtermRef.current?.connected) {
+      setShells(shells => ({
+        ...shells,
+        currentIdx: 0,
+      }));
+    }
+    setReconnectCount(count => count + 1);
+  }
   const [contextMenu, setContextMenu] = React.useState<{
     mouseX: number;
     mouseY: number;
@@ -146,11 +163,8 @@ export default function Terminal(props: TerminalProps) {
 
       if (!isAttach && arg.type === 'keydown' && arg.code === 'Enter') {
         if (xtermRef.current?.reconnectOnEnter) {
-          setShells(shells => ({
-            ...shells,
-            currentIdx: 0,
-          }));
-          xtermRef.current!.reconnectOnEnter = false;
+          xtermRef.current.reconnectOnEnter = false;
+          handleReconnect();
           return false;
         }
       }
@@ -205,11 +219,13 @@ export default function Terminal(props: TerminalProps) {
       if (channel !== Channel.ServerError) {
         xtermc.connected = true;
         firstConnect = true;
+        setIsDisconnected(false);
         console.debug('Terminal is now connected');
       }
     }
 
     if (isSuccessfulExitError(channel, text)) {
+      setIsDisconnected(true);
       if (!!onClose) {
         onClose();
       }
@@ -259,14 +275,22 @@ export default function Terminal(props: TerminalProps) {
   function shellConnectFailed(xtermc: XTerminalConnected) {
     const xterm = xtermc.xterm;
     const command = getCurrentShellCommand();
-    if (isLastShell()) {
-      if (xtermc.connected) {
-        xterm.write(t('Failed to run "{{command}}"…', { command }) + '\r\n');
-      } else {
-        xterm.clear();
-        xterm.write(t('Failed to connect…') + '\r\n');
-      }
 
+    if (xtermc.connected) {
+      xtermc.connected = false;
+      setIsDisconnected(true);
+      xterm.write('\r\n' + t('translation|Connection closed.') + '\r\n');
+      xterm.write(t('translation|Press the enter key to reconnect.') + '\r\n');
+      if (xtermRef.current) {
+        xtermRef.current.reconnectOnEnter = true;
+      }
+      return;
+    }
+
+    if (isLastShell()) {
+      setIsDisconnected(true);
+      xterm.clear();
+      xterm.write(t('Failed to connect…') + '\r\n');
       xterm.write('\r\n' + t('Press the enter key to reconnect.') + '\r\n');
       if (xtermRef.current) {
         xtermRef.current.reconnectOnEnter = true;
@@ -300,6 +324,8 @@ export default function Terminal(props: TerminalProps) {
       if (!props.open) {
         return;
       }
+
+      setIsDisconnected(false);
 
       if (xtermRef.current) {
         xtermRef.current.xterm.dispose();
@@ -363,7 +389,7 @@ export default function Terminal(props: TerminalProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, terminalContainerRef, shells, props.open]
+    [container, terminalContainerRef, shells, reconnectCount, props.open]
   );
 
   React.useEffect(
@@ -398,6 +424,7 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function handleContainerChange(event: any) {
+    setIsDisconnected(false);
     setContainer(event.target.value);
   }
 
@@ -516,7 +543,16 @@ export default function Terminal(props: TerminalProps) {
         },
       })}
     >
-      <Box sx={isMobile ? { px: 1, pt: 1 } : undefined}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+          ...(isMobile && { px: 1, pt: 1 }),
+        }}
+      >
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">
             {t('glossary|Container')}
@@ -559,6 +595,16 @@ export default function Terminal(props: TerminalProps) {
             ))}
           </Select>
         </FormControl>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<Icon icon="mdi:refresh" />}
+          onClick={handleReconnect}
+          disabled={!isDisconnected}
+          aria-label={t('translation|Reconnect')}
+        >
+          {t('translation|Reconnect')}
+        </Button>
       </Box>
       <Box
         sx={theme => ({
