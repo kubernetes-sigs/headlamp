@@ -144,6 +144,8 @@ func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL stri
 }
 
 // TestAddRepositoryToHelm.
+//
+//nolint:funlen
 func TestAddRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
@@ -186,6 +188,42 @@ func TestAddRepository(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		assert.Contains(t, rr.Body.String(), "url is required")
 	})
+
+	t.Run("unsupported_scheme", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), "POST",
+			"/clusters/minikube/helm/repositories/charts",
+			bytes.NewBufferString(`{"name":"headlamp_test_repo","url":"file:///etc/passwd"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.AddRepo(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "url scheme must be http or https")
+	})
+
+	t.Run("oci_scheme", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), "POST",
+			"/clusters/minikube/helm/repositories/charts",
+			bytes.NewBufferString(`{"name":"headlamp_test_repo","url":"oci://registry-1.docker.io/bitnamicharts"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.AddRepo(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "OCI registries can't be added as repositories")
+	})
+
+	t.Run("malformed_url", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), "POST",
+			"/clusters/minikube/helm/repositories/charts",
+			bytes.NewBufferString(`{"name":"headlamp_test_repo","url":"://invalid-url"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.AddRepo(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "invalid url")
+	})
 }
 
 // TestRemoveRepository.
@@ -218,6 +256,8 @@ func TestRemoveRepository(t *testing.T) {
 }
 
 // TestUpdateRepo.
+//
+//nolint:funlen
 func TestUpdateRepo(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
@@ -258,6 +298,30 @@ func TestUpdateRepo(t *testing.T) {
 		helmHandler.UpdateRepository(rr, req)
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		assert.Contains(t, rr.Body.String(), "url is required")
+	})
+
+	t.Run("unsupported_scheme", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), "PUT",
+			"/clusters/minikube/helm/repositories",
+			bytes.NewBufferString(`{"name":"headlamp_test_repo","url":"ftp://charts.example.com"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.UpdateRepository(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "url scheme must be http or https")
+	})
+
+	t.Run("oci_scheme", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), "PUT",
+			"/clusters/minikube/helm/repositories",
+			bytes.NewBufferString(`{"name":"headlamp_test_repo","url":"oci://registry-1.docker.io/bitnamicharts"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.UpdateRepository(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "OCI registries can't be added as repositories")
 	})
 }
 
@@ -598,4 +662,112 @@ func TestCreateFileIfNotThere(t *testing.T) {
 		_, statErr := os.Stat(customSettings.RepositoryConfig)
 		assert.NoError(t, statErr, "repository config file should have been created by createFileIfNotThere")
 	})
+}
+
+//nolint:funlen
+func TestAddUpdateRepoRequest_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		req         helm.AddUpdateRepoRequest
+		expectedErr string
+	}{
+		{
+			name: "valid_https",
+			req: helm.AddUpdateRepoRequest{
+				Name: "bitnami",
+				URL:  "https://charts.bitnami.com/bitnami",
+			},
+		},
+		{
+			name: "valid_http",
+			req: helm.AddUpdateRepoRequest{
+				Name: "local",
+				URL:  "http://localhost:8080/charts",
+			},
+		},
+		{
+			name: "unsupported_scheme_oci",
+			req: helm.AddUpdateRepoRequest{
+				Name: "oci_repo",
+				URL:  "oci://registry-1.docker.io/bitnamicharts",
+			},
+			expectedErr: "OCI registries can't be added as repositories",
+		},
+		{
+			name: "missing_name",
+			req: helm.AddUpdateRepoRequest{
+				Name: "  ",
+				URL:  "https://charts.bitnami.com/bitnami",
+			},
+			expectedErr: "name is required",
+		},
+		{
+			name: "missing_url",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  "   ",
+			},
+			expectedErr: "url is required",
+		},
+		{
+			name: "unsupported_scheme_file",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  "file:///etc/passwd",
+			},
+			expectedErr: "url scheme must be http or https",
+		},
+		{
+			name: "unsupported_scheme_ftp",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  "ftp://example.com/charts",
+			},
+			expectedErr: "url scheme must be http or https",
+		},
+		{
+			name: "missing_scheme",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  "charts.example.com/repo",
+			},
+			expectedErr: "invalid url",
+		},
+		{
+			name: "missing_host",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  "https:///charts",
+			},
+			expectedErr: "url host is required",
+		},
+		{
+			name: "missing_host_port_only",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  "https://:443/charts",
+			},
+			expectedErr: "url host is required",
+		},
+		{
+			name: "url_with_leading_whitespace",
+			req: helm.AddUpdateRepoRequest{
+				Name: "repo",
+				URL:  " https://example.com/charts",
+			},
+			expectedErr: "invalid url",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if tt.expectedErr == "" {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+			}
+		})
+	}
 }
