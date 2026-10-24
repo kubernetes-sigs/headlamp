@@ -66,6 +66,14 @@ headlamp-plugin --help
   headlamp-plugin.js uninstall [pluginName] Uninstall the plugin.
 ```
 
+## TypeScript versions
+
+The default plugin compiler remains TypeScript 5.6.2. Plugin projects can opt into
+stable TypeScript 7 for type-checking while retaining a compatible legacy compiler
+API for linting, Storybook, and i18n extraction. See the
+[TypeScript setup and limitations](../../docs/development/plugins/getting-started.md#typescript-versions).
+Do not globally override `typescript` to version 7.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:
@@ -100,6 +108,28 @@ Developing headlamp-plugin itself? Want to test your changes?
 See test-headlamp-plugin.js for some basic integration tests.
 
 See test-headlamp-plugin-published.js for testing published packages.
+
+Run the fast compiler-selection and upgrade-policy tests with:
+
+```bash
+npm run test:typescript
+```
+
+After building and packing the local tooling, run the standalone compatibility
+matrix (Node 24/npm 11) with:
+
+```bash
+npm run build
+npm pack
+npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.14.0.tgz
+```
+
+Use the tarball filename produced by `npm pack` for the current version. The matrix
+uses clean packed consumers, checks the TypeScript 5 baseline and TypeScript 7
+opt-in, and exercises lint, type-checking, tests, builds, Storybook, i18n, and
+upgrades. It needs registry access, including for the normal upgrade's audit step.
+It is intentionally separate from the default integration harness because it
+performs multiple full installations.
 
 #### linking to use local version of headlamp-plugin
 

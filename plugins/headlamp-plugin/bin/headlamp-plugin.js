@@ -29,6 +29,7 @@ const child_process = require('child_process');
 const validate = require('validate-npm-package-name');
 const yargs = require('yargs/yargs');
 const headlampPluginPkg = require('../package.json');
+const { getNativeTypeScriptCommand, getUpgradeOverrides } = require('./typescript');
 const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl');
 const { table } = require('table');
 const tar = require('tar');
@@ -671,9 +672,10 @@ async function start() {
  * @param scriptName {string} - name of the script to run.
  * @param cmdLine {string} - command line to run.
  * @param env {object} - environment variables to run the command with.
+ * @param {(projectDirectory: string) => { file: string, args: string[] } | undefined} [resolveCommand]
  * @returns {0 | 1} - Exit code, where 0 is success, 1 is failure.
  */
-function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
+function runScriptOnPackages(packageFolder, scriptName, cmdLine, env, resolveCommand) {
   if (!fs.existsSync(packageFolder)) {
     console.error(`"${packageFolder}" does not exist. Not ${scriptName}-ing.`);
     return 1;
@@ -710,55 +712,62 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
       console.log(`Finished npm install.`);
     }
 
-    // See if the cmd is in the:
-    // - package/node_modules/.bin
-    // - package/../node_modules/.bin
-    // - the npx node_modules/.bin
-    // If not, just use the original cmdLine and hope for the best :)
-    let cmdLineToUse = cmdLine;
-    const scriptCmd = cmdLine.split(' ')[0];
-    const scriptCmdRest = cmdLine.split(' ').slice(1).join(' ');
-
-    const nodeModulesBinCmd = path.join('node_modules', '.bin', scriptCmd + binExt);
-    const upNodeModulesBinCmd = path.join('../', nodeModulesBinCmd);
-
-    // When run as npx, find it in the node_modules npx uses
-    const headlampPluginBin = fs.realpathSync(process.argv[1]);
-    const npxBinCmd = path.join(
-      path.dirname(headlampPluginBin),
-      '..',
-      '..',
-      '..',
-      '..',
-      nodeModulesBinCmd
-    );
-
-    if (fs.existsSync(nodeModulesBinCmd)) {
-      cmdLineToUse = nodeModulesBinCmd + ' ' + scriptCmdRest;
-    } else if (fs.existsSync(upNodeModulesBinCmd)) {
-      cmdLineToUse = upNodeModulesBinCmd + ' ' + scriptCmdRest;
-    } else if (fs.existsSync(npxBinCmd)) {
-      cmdLineToUse = npxBinCmd + ' ' + scriptCmdRest;
-    } else {
-      console.warn(
-        `"${scriptCmd}" not found in "${resolve(nodeModulesBinCmd)}" or "${resolve(
-          upNodeModulesBinCmd
-        )}" or "${resolve(npxBinCmd)}".`
-      );
-    }
-
-    console.log(`"${folder}": ${scriptName}-ing, :${cmdLineToUse}:...`);
-
-    const [cmd, ...args] = cmdLineToUse.split(' ');
-
     try {
-      child_process.execFileSync(...viaCmd(cmd, args), {
+      const command = resolveCommand?.(process.cwd());
+      /** @type {[string, string[]]} */
+      let execution;
+      if (command) {
+        execution = [command.file, command.args];
+      } else {
+        // See if the cmd is in the:
+        // - package/node_modules/.bin
+        // - package/../node_modules/.bin
+        // - the npx node_modules/.bin
+        // If not, just use the original cmdLine and hope for the best :)
+        let cmdLineToUse = cmdLine;
+        const scriptCmd = cmdLine.split(' ')[0];
+        const scriptCmdRest = cmdLine.split(' ').slice(1).join(' ');
+
+        const nodeModulesBinCmd = path.join('node_modules', '.bin', scriptCmd + binExt);
+        const upNodeModulesBinCmd = path.join('../', nodeModulesBinCmd);
+
+        // When run as npx, find it in the node_modules npx uses
+        const headlampPluginBin = fs.realpathSync(process.argv[1]);
+        const npxBinCmd = path.join(
+          path.dirname(headlampPluginBin),
+          '..',
+          '..',
+          '..',
+          '..',
+          nodeModulesBinCmd
+        );
+
+        if (fs.existsSync(nodeModulesBinCmd)) {
+          cmdLineToUse = nodeModulesBinCmd + ' ' + scriptCmdRest;
+        } else if (fs.existsSync(upNodeModulesBinCmd)) {
+          cmdLineToUse = upNodeModulesBinCmd + ' ' + scriptCmdRest;
+        } else if (fs.existsSync(npxBinCmd)) {
+          cmdLineToUse = npxBinCmd + ' ' + scriptCmdRest;
+        } else {
+          console.warn(
+            `"${scriptCmd}" not found in "${resolve(nodeModulesBinCmd)}" or "${resolve(
+              upNodeModulesBinCmd
+            )}" or "${resolve(npxBinCmd)}".`
+          );
+        }
+
+        const [cmd, ...args] = cmdLineToUse.split(' ');
+        execution = viaCmd(cmd, args);
+      }
+
+      console.log(`"${folder}": ${scriptName}-ing, :${execution[0]} ${execution[1].join(' ')}:...`);
+      child_process.execFileSync(...execution, {
         stdio: 'inherit',
         encoding: 'utf8',
         env: { ...process.env, ...(env || {}) },
       });
     } catch (e) {
-      console.error(`Problem running ${scriptName} inside of "${folder}"\r\n`);
+      console.error(`Problem running ${scriptName} inside of "${folder}"\r\n`, e.message);
       process.chdir(oldCwd);
       return runOnPackageReturn.issue;
     }
@@ -823,6 +832,7 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
       );
       return 1; // failed
     }
+    return 0;
   }
 
   return exitCode > 0 ? 1 : 0;
@@ -1197,6 +1207,8 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
     // Update these scripts keys to match the template.
     replaceNestedKeys('scripts', ['tsc', 'storybook', 'test', 'storybook-build', 'i18n']);
 
+    templatePackageJson.overrides = getUpgradeOverrides(packageJson, templatePackageJson.overrides);
+
     // replace top level keys
     const checkKeys = ['eslintConfig', 'prettier', 'overrides'];
     checkKeys.forEach(key => {
@@ -1447,7 +1459,7 @@ function lint(packageFolder, fix) {
  */
 function tsc(packageFolder) {
   const script = 'tsc --noEmit';
-  return runScriptOnPackages(packageFolder, 'tsc', script, {});
+  return runScriptOnPackages(packageFolder, 'tsc', script, {}, getNativeTypeScriptCommand);
 }
 
 /**
