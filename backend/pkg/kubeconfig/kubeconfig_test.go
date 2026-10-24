@@ -17,6 +17,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -762,6 +763,56 @@ func TestContextCopyWithNilOidcConf(t *testing.T) {
 	assert.Equal(t, original, copied)
 	assert.NotSame(t, original, copied)
 	assert.Nil(t, copied.OidcConf)
+}
+
+func TestClientSetWithToken_ExplicitTokenOverridesAmbientTokenFile(t *testing.T) {
+	var receivedAuthHeader string
+
+	const ssarResponse = `{"kind":"SelfSubjectAccessReview",` +
+		`"apiVersion":"authorization.k8s.io/v1","status":{"allowed":true}}`
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthHeader = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(ssarResponse))
+	}))
+	defer server.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("ambient-sa-token"), 0o600))
+
+	kContext := &kubeconfig.Context{
+		Name:        "test-context",
+		KubeContext: &api.Context{Cluster: "test-cluster", AuthInfo: "test-user"},
+		Cluster:     &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+		AuthInfo:    &api.AuthInfo{TokenFile: tokenFile},
+	}
+
+	// 1. Explicit token supplied: should use explicit token and clear BearerTokenFile
+	clientset, err := kContext.ClientSetWithToken("explicit-user-token")
+	require.NoError(t, err)
+
+	_, err = clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(
+		context.Background(),
+		&authorizationv1.SelfSubjectAccessReview{},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer explicit-user-token", receivedAuthHeader)
+	assert.Equal(t, tokenFile, kContext.AuthInfo.TokenFile, "shared context TokenFile must remain intact")
+
+	// 2. Empty token supplied: retains ambient BearerTokenFile
+	clientsetAmbient, err := kContext.ClientSetWithToken("")
+	require.NoError(t, err)
+
+	_, err = clientsetAmbient.AuthorizationV1().SelfSubjectAccessReviews().Create(
+		context.Background(),
+		&authorizationv1.SelfSubjectAccessReview{},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer ambient-sa-token", receivedAuthHeader)
 }
 
 func TestContextCopyWithNilNestedStructures(t *testing.T) {
