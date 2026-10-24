@@ -79,6 +79,20 @@ func main() {
 	StartHeadlampServer(headlampConfig)
 }
 
+func parseAllowedFrameAncestors(raw string) []string {
+	var ancestors []string
+
+	if raw != "" {
+		for _, v := range strings.Split(raw, ",") {
+			if t := strings.TrimSpace(v); t != "" {
+				ancestors = append(ancestors, t)
+			}
+		}
+	}
+
+	return ancestors
+}
+
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
@@ -103,6 +117,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
+		AllowedFrameAncestors:  parseAllowedFrameAncestors(conf.AllowedFrameAncestors),
 		ProxyURLs: func() []string {
 			if conf.ProxyURLs == "" {
 				return []string{}
