@@ -21,7 +21,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,8 +65,23 @@ func (r AddUpdateRepoRequest) Validate() error {
 		return errors.New("name is required")
 	}
 
-	if strings.TrimSpace(r.URL) == "" {
+	trimmedURL := strings.TrimSpace(r.URL)
+	if trimmedURL == "" {
 		return errors.New("url is required")
+	}
+
+	u, err := url.ParseRequestURI(trimmedURL)
+	if err != nil {
+		return fmt.Errorf("invalid url: %w", err)
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" && scheme != "oci" {
+		return errors.New("url scheme must be http, https, or oci")
+	}
+
+	if u.Host == "" {
+		return errors.New("url host is required")
 	}
 
 	return nil
