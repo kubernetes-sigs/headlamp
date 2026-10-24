@@ -44,6 +44,7 @@ const dependenciesFrontDoesNotHave = new Set([
   '@storybook/addon-webpack5-compiler-swc',
   '@storybook/react-webpack5',
   'ts-loader',
+  '@typescript-eslint/parser',
   '@headlamp-k8s/pluginctl',
   'path-browserify',
   'process',
@@ -84,6 +85,8 @@ const dependenciesToNotCopy = [
 // which needs @types/node 22 or newer.
 // The toolkit uses Storybook 10 to remove Storybook 9's pinned mocker dependency.
 const differentlyVersionedDependencies = [
+  // Plugin projects can opt into a TS6 compiler API alongside the TS7 CLI.
+  '@typescript-eslint/eslint-plugin',
   'eslint-plugin-react-hooks',
   'vitest',
   '@vitest/coverage-istanbul',
