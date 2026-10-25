@@ -104,7 +104,9 @@ func hasRoomFor(k8scache cache.Cache[string], key string, size int64) bool {
 		return false
 	}
 
-	entries, err := k8scache.GetAll(context.Background(), nil)
+	// Count the expired entries that are still held too: an entry can expire after the cleanup in
+	// storeWithinLimits, and until it is removed it still uses memory.
+	entries, err := k8scache.GetAllIncludingExpired(context.Background())
 	if err != nil {
 		return false
 	}
