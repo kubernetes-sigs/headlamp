@@ -75,6 +75,8 @@
   "Drivers": "",
   "Resource Claims": "",
   "Resource Claim Templates": "",
+  "Resource Slices": "",
+  "Devices": "",
   "Subsets": "المجموعات الفرعية",
   "Endpoint: {{ name }}": "نقطة النهاية: {{ name }}",
   "IP": "عنوان IP",
