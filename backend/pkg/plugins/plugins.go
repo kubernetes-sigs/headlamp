@@ -422,11 +422,12 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 
 		_, err = os.Stat(packageJSONPath)
 		if err != nil {
-			// Only log if it's not a "does not exist" error (which is expected during deletion)
-			if !os.IsNotExist(err) {
-				logger.Log(logger.LevelInfo, map[string]string{"packageJSONPath": packageJSONPath},
-					err, `Not including plugin path, package.json not found.
-				Please run 'headlamp-plugin extract' again with headlamp-plugin >= 0.6.0`)
+			if os.IsNotExist(err) {
+				logger.Log(logger.LevelWarn, map[string]string{"packageJSONPath": packageJSONPath},
+					err, "package.json not found. Please run 'headlamp-plugin extract' again with headlamp-plugin >= 0.6.0")
+			} else {
+				logger.Log(logger.LevelWarn, map[string]string{"packageJSONPath": packageJSONPath},
+					err, "error checking package.json")
 			}
 		}
 
