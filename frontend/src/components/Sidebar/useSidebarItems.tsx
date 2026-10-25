@@ -237,6 +237,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:hexagon-multiple-outline',
         subList: [
           {
+            name: 'cluster',
+            label: t('translation|Overview'),
+          },
+          {
             name: 'namespaces',
             label: t('glossary|Namespaces'),
           },
@@ -260,6 +264,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         label: t('glossary|Workloads'),
         icon: 'mdi:circle-slice-2',
         subList: [
+          {
+            name: 'workloads',
+            label: t('translation|Overview'),
+          },
           {
             name: 'Pods',
             label: t('glossary|Pods'),
@@ -559,6 +567,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     if (crdsSidebarEntries.length !== 0) {
       const sublist: SidebarItemProps[] = [
         {
+          name: 'crds',
+          label: t('translation|Definitions'),
+        },
+        {
           name: 'crs',
           label: t('translation|Instances'),
           divider: true,
@@ -581,6 +593,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:puzzle',
         subList: [
           {
+            name: 'crds',
+            label: t('translation|Definitions'),
+          },
+          {
             name: 'crs',
             label: t('translation|Instances'),
           },
@@ -600,9 +616,19 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     // Lookup map of every sidebar entry
     const entryLookup = new Map<string, SidebarItemProps>();
 
-    // Put all the entries in the map
-    forEachEntry(sidebarsList, item => entryLookup.set(item.name, item));
-    forEachEntry(customEntries, item => entryLookup.set(item.name, item));
+    // Put all the entries in the map, preserving outer groups when a same-named destination child exists
+    forEachEntry(sidebarsList, item => {
+      const existing = entryLookup.get(item.name);
+      if (!existing?.subList || item.subList) {
+        entryLookup.set(item.name, item);
+      }
+    });
+    forEachEntry(customEntries, item => {
+      const existing = entryLookup.get(item.name);
+      if (!existing?.subList || item.subList) {
+        entryLookup.set(item.name, item);
+      }
+    });
 
     // Place all custom entries in the tree
     customEntries.forEach(item => {
@@ -625,6 +651,23 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         }
 
         sidebarEntry.subList?.push(item);
+      }
+    });
+
+    // Ensure URL-bearing parent groups retain navigation via an Overview destination child
+    forEachEntry(sidebarsList, item => {
+      if (item.url && item.subList && item.subList.length > 0) {
+        const hasDestinationChild = item.subList.some(
+          child => child.url === item.url || child.name === item.name
+        );
+        if (!hasDestinationChild) {
+          item.subList.unshift({
+            name: `${item.name}-overview`,
+            label: t('translation|Overview'),
+            url: item.url,
+            useClusterURL: item.useClusterURL,
+          });
+        }
       }
     });
 

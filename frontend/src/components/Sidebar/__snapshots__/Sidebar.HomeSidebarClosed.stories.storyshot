@@ -63,6 +63,7 @@
                   class="css-3knmzx"
                 >
                   <a
+                    aria-expanded="false"
                     aria-label="Settings"
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
                     href="/settings/general"

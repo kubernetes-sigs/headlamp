@@ -104,6 +104,10 @@ export interface SidebarState {
    * Filters to apply to the HOME sidebar entries.
    */
   homeFilters: ((entry: SidebarEntry) => SidebarEntry | null)[];
+  /**
+   * Map of item names to their manual expansion state.
+   */
+  expandedItems?: Record<string, boolean>;
 }
 
 export function setInitialSidebarOpen() {
@@ -158,12 +162,36 @@ export const initialState: SidebarState = {
   entries: {},
   filters: [],
   homeFilters: [],
+  expandedItems: {},
 };
 
 const sidebarSlice = createSlice({
   name: 'sidebar',
   initialState,
   reducers: {
+    /**
+     * Toggles or sets the manual expansion state of a sidebar item.
+     */
+    toggleSidebarItemExpanded(
+      state,
+      action: PayloadAction<{ name: string; expanded?: boolean } | string>
+    ) {
+      if (!state.expandedItems) {
+        state.expandedItems = {};
+      }
+      if (typeof action.payload === 'string') {
+        const itemName = action.payload;
+        state.expandedItems[itemName] = !state.expandedItems[itemName];
+      } else {
+        const { name, expanded } = action.payload;
+        if (expanded !== undefined) {
+          state.expandedItems[name] = expanded;
+        } else {
+          state.expandedItems[name] = !state.expandedItems[name];
+        }
+      }
+    },
+
     /**
      * Sets the selected item in the sidebar.
      */
@@ -221,6 +249,7 @@ const sidebarSlice = createSlice({
 });
 
 export const {
+  toggleSidebarItemExpanded,
   setSidebarSelected,
   setSidebarVisible,
   setSidebarItem,
