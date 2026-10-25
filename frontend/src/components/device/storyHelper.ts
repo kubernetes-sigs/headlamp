@@ -17,6 +17,7 @@
 import type { KubeDeviceClass } from '../../lib/k8s/deviceClass';
 import type { KubeResourceClaim } from '../../lib/k8s/resourceClaim';
 import type { KubeResourceClaimTemplate } from '../../lib/k8s/resourceClaimTemplate';
+import type { KubeResourceSlice } from '../../lib/k8s/resourceSlice';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
@@ -343,3 +344,49 @@ export const PRIORITIZED_RESOURCE_CLAIM_TEMPLATE: KubeResourceClaimTemplate = {
     },
   },
 };
+
+const gpu = (index: number) => ({
+  name: `gpu-${index}`,
+  attributes: {
+    driverVersion: { version: '1.0.0' },
+    index: { int: index },
+    model: { string: 'LATEST-GPU-MODEL' },
+  },
+  capacity: {
+    compute: { value: '100' },
+    memory: { value: '80Gi' },
+  },
+});
+
+export const RESOURCE_SLICE_DUMMY_DATA: KubeResourceSlice[] = [
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'ResourceSlice',
+    metadata: {
+      name: `${worker}-gpu.example.com-87fv4`,
+      creationTimestamp,
+      uid: 'resource-slice-uid-1',
+    },
+    spec: {
+      driver: 'gpu.example.com',
+      pool: { name: worker, generation: 1, resourceSliceCount: 1 },
+      nodeName: worker,
+      devices: [gpu(0), gpu(1), gpu(2), gpu(3)],
+    },
+  },
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'ResourceSlice',
+    metadata: {
+      name: 'network-pool-0',
+      creationTimestamp,
+      uid: 'resource-slice-uid-2',
+    },
+    spec: {
+      driver: 'nic.example.com',
+      pool: { name: 'network-pool', generation: 1, resourceSliceCount: 1 },
+      allNodes: true,
+      devices: [{ name: 'nic-0', attributes: { speed: { string: '100G' } } }],
+    },
+  },
+];
