@@ -28,6 +28,7 @@ import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionS
 import DeviceClassDetails from '../../device/DeviceClassDetails';
 import ResourceClaimDetails from '../../device/ResourceClaimDetails';
 import ResourceClaimTemplateDetails from '../../device/ResourceClaimTemplateDetails';
+import ResourceSliceDetails from '../../device/ResourceSliceDetails';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -102,6 +103,7 @@ const kindComponentMap: Record<
   DeviceClass: DeviceClassDetails,
   ResourceClaim: ResourceClaimDetails,
   ResourceClaimTemplate: ResourceClaimTemplateDetails,
+  ResourceSlice: ResourceSliceDetails,
   ResourceQuota: ResourceQuotaDetails,
   ClusterRole: RoleDetails,
   Role: RoleDetails,
