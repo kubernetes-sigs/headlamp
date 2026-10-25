@@ -75,6 +75,8 @@
   "Drivers": "",
   "Resource Claims": "",
   "Resource Claim Templates": "",
+  "Resource Slices": "",
+  "Devices": "",
   "Subsets": "Alt Kümeler",
   "Endpoint: {{ name }}": "Uç nokta: {{ name }}",
   "IP": "IP",

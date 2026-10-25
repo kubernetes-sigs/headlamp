@@ -706,6 +706,7 @@
   "Requests": "Demandes",
   "Request": "Demande",
   "This template requests no devices.": "Ce modèle ne demande aucun périphérique.",
+  "Pool": "",
   "Selected nodes": "",
   "All nodes": "",
   "Set per device": "",

@@ -75,6 +75,8 @@
   "Drivers": "",
   "Resource Claims": "",
   "Resource Claim Templates": "",
+  "Resource Slices": "",
+  "Devices": "",
   "Subsets": "Delmängder",
   "Endpoint: {{ name }}": "Slutpunkt: {{ name }}",
   "IP": "IP",
