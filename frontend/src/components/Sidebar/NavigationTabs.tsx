@@ -56,7 +56,8 @@ export default function NavigationTabs() {
     () =>
       [
         // If there's a route for the root entry then it should be a Tab
-        getRoute(rootSelectedItem?.name ?? undefined)
+        getRoute(rootSelectedItem?.name ?? undefined) &&
+        !rootSelectedItem?.subList?.some(it => it.name === rootSelectedItem.name)
           ? // we remove subList here because those items are already included in level 1
             { ...rootSelectedItem, subList: [] }
           : undefined,

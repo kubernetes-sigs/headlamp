@@ -16,11 +16,12 @@
 
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import store from '../../redux/stores/store';
+import reducers from '../../redux/reducers/reducers';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 
 export default {
@@ -36,7 +37,17 @@ export default {
   ],
 } as Meta;
 
+const createStoryStore = () =>
+  configureStore({
+    reducer: reducers,
+    middleware: getDefaultMiddleware =>
+      getDefaultMiddleware({
+        serializableCheck: false,
+      }),
+  });
+
 const Template: StoryFn<SidebarItemProps> = args => {
+  const store = React.useMemo(() => createStoryStore(), []);
   return (
     <Provider store={store}>
       <Grid item style={{ backgroundColor: 'rgba(0, 0, 0, 0.87)' }}>
