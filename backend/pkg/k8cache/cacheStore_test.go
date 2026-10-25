@@ -98,6 +98,11 @@ func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[s
 	return nil, nil
 }
 
+// GetAllIncludingExpired Mocks retrieving all the values inside the cache, including the expired ones.
+func (m *MockCache) GetAllIncludingExpired(ctx context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
 // UpdateTTL Mocks updating of time-to-live with the help of its corresponding key string.
 func (m *MockCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration) error {
 	return nil

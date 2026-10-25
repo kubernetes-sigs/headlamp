@@ -33,6 +33,9 @@ type Cache[T any] interface {
 	Delete(ctx context.Context, key string) error
 	Get(ctx context.Context, key string) (T, error)
 	GetAll(ctx context.Context, selectFunc Matcher) (map[string]T, error)
+	// GetAllIncludingExpired is like GetAll, but also returns the expired values that have not been
+	// removed yet, so a caller accounting for memory sees everything the cache still holds.
+	GetAllIncludingExpired(ctx context.Context) (map[string]T, error)
 	UpdateTTL(ctx context.Context, key string, ttl time.Duration) error
 	// DeleteExpired removes the expired values now, instead of at the next periodic cleanup.
 	DeleteExpired()
@@ -138,6 +141,21 @@ func (c *cache[T]) GetAll(ctx context.Context, selectFunc Matcher) (map[string]T
 		if (value.expiresAt.IsZero()) || (!value.expiresAt.IsZero() && value.expiresAt.After(time.Now())) {
 			values[key] = value.value
 		}
+	}
+
+	return values, nil
+}
+
+// GetAllIncludingExpired retrieves all values from the cache, including the expired ones that
+// have not been removed yet.
+func (c *cache[T]) GetAllIncludingExpired(ctx context.Context) (map[string]T, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	values := make(map[string]T, len(c.store))
+
+	for key, value := range c.store {
+		values[key] = value.value
 	}
 
 	return values, nil
