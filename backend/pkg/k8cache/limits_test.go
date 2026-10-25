@@ -227,3 +227,25 @@ func TestStoreK8sResponseInCache_FreesExpiredResponsesBeforeAdmission(t *testing
 		"the expired responses must be removed when a response is admitted, not left until the next cleanup")
 	assert.True(t, cached(t, c, "new"))
 }
+
+// An entry can expire after the cleanup in admission but before the room check. Until it is removed
+// it still uses memory, so the room check must count it.
+func TestHasRoomFor_CountsExpiredEntriesThatAreNotRemovedYet(t *testing.T) {
+	k8cache.SetLimits(10_000, 1000)
+	t.Cleanup(func() { k8cache.SetLimits(0, 0) })
+
+	c := cache.New[string]()
+
+	t.Cleanup(func() { _ = c.Close() })
+
+	require.NoError(t, c.SetWithTTL(context.Background(), "expired", strings.Repeat("a", 900), time.Millisecond))
+
+	time.Sleep(20 * time.Millisecond)
+
+	assert.False(t, k8cache.ExportedHasRoomFor(c, "new", 900),
+		"an expired entry that is still held must count against the budget")
+
+	c.DeleteExpired()
+
+	assert.True(t, k8cache.ExportedHasRoomFor(c, "new", 900), "removing the expired entry frees its room")
+}
