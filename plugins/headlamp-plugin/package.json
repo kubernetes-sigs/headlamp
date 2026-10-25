@@ -7,7 +7,7 @@
   "bin": "bin/headlamp-plugin.js",
   "scripts": {
     "prepack": "(node -e \"if (! require('fs').existsSync('./lib/components')) {process.exit(1)} \" || (echo 'lib dir is empty. Remember to run `npm run build` before packing' && exit 1))",
-    "build": "npm run prepare-bundle && npx shx rm -rf lib types lib/assets lib/components lib/helpers lib/i18n lib/lib lib/plugin lib/redux lib/resources && npx shx cp -r ../../frontend/src/assets ../../frontend/src/components ../../frontend/src/helpers ../../frontend/src/stateless ../../frontend/src/i18n ../../frontend/src/lib ../../frontend/src/plugin ../../frontend/src/redux ../../frontend/src/resources src/ && tsc --build ./tsconfig.json && npx shx cp -r src/additional.d.ts lib/ && npx shx cp -r ../../frontend/src/assets lib/ && npx shx cp -r ../../frontend/src/resources lib/ && npx shx cp -r ../../frontend/src/i18n/locales lib/i18n && node scripts/copy-static-assets.js",
+    "build": "npm run prepare-bundle && npx shx rm -rf lib types lib/assets lib/components lib/helpers lib/i18n lib/lib lib/plugin lib/redux lib/resources && npx shx cp -r ../../frontend/src/assets ../../frontend/src/components ../../frontend/src/helpers ../../frontend/src/stateless ../../frontend/src/i18n ../../frontend/src/lib ../../frontend/src/plugin ../../frontend/src/redux ../../frontend/src/resources src/ && tsc --build ./tsconfig.json && npx shx cp -r src/additional.d.ts lib/ && npx shx cp -r ../../frontend/src/assets lib/ && npx shx cp -r ../../frontend/src/resources lib/ && npx shx cp -r ../../frontend/src/i18n/locales lib/i18n && npx shx cp ../../frontend/src/i18n/i18nextSharedConfig.mjs ../../frontend/src/i18n/i18nextSharedConfig.d.mts lib/i18n && node scripts/copy-static-assets.js",
     "bundle-examples": "node scripts/bundle-examples.js",
     "fetch-official-plugins": "node scripts/fetch-official-plugins.js",
     "prepare-bundle": "npm run bundle-examples && npm run fetch-official-plugins",
@@ -47,7 +47,7 @@
     "@types/js-yaml": "^4.0.3",
     "@types/json-patch": "0.0.30",
     "@types/lodash": "4.17.7",
-    "@types/node": "^20.12.11",
+    "@types/node": "^22.20.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-redux": "^7.1.34",
@@ -57,7 +57,7 @@
     "@types/semver": "^7.3.8",
     "@typescript-eslint/eslint-plugin": "^8.3.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-istanbul": "3.2.7",
+    "@vitest/coverage-istanbul": "^5.0.4",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
     "@xterm/xterm": "^5.5.0",
@@ -122,7 +122,7 @@
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-plugin-static-copy": "^3.1.2",
     "vite-plugin-svgr": "^4.3.0",
-    "vitest": "3.2.7",
+    "vitest": "^5.0.4",
     "yaml": "^2.7.0",
     "yargs": "^17.7.2"
   },
@@ -131,7 +131,8 @@
     "nth-check": "2.0.1",
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
-    "rollup": "^4.59.0"
+    "rollup": "^4.59.0",
+    "webpack-dev-middleware": "^7.4.5"
   },
   "files": [
     "bin",

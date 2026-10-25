@@ -15,8 +15,8 @@
  */
 
 import { getClusterPrefixedPath } from '../cluster';
-import { NotFoundRoute } from '.';
 import { getRouteUseClusterURL } from './getRouteUseClusterURL';
+import { NotFoundRoute } from './notFoundRoute';
 import type { Route } from './Route';
 
 export function getRoutePath(route: Route) {
