@@ -701,6 +701,8 @@
   "Request": "Anfrage",
   "This template requests no devices.": "",
   "Pool": "",
+  "Pool Generation": "",
+  "Slices in Pool": "",
   "Selected nodes": "",
   "All nodes": "",
   "Set per device": "",
