@@ -28,7 +28,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import Namespace from '../../lib/k8s/namespace';
-import { clusterAction } from '../../redux/clusterActionSlice';
+import { clusterAction, waitForAll } from '../../redux/clusterActionSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { AppDispatch } from '../../redux/stores/store';
@@ -71,10 +71,10 @@ export function ProjectDeleteDialog({
         async () => {
           if (deleteNamespaces) {
             // Delete the entire namespaces
-            await Promise.all(projectNamespaces.map(namespace => namespace.delete()));
+            await waitForAll(projectNamespaces.map(namespace => namespace.delete()));
           } else {
             // Just remove the project label from each namespace
-            await Promise.all(
+            await waitForAll(
               projectNamespaces.map(async namespace => {
                 const updatedData = { ...namespace.jsonData };
                 if (updatedData.metadata?.labels) {
