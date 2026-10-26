@@ -1967,11 +1967,35 @@ func TestCalculateBackoff_Progression(t *testing.T) {
 
 func TestCalculateBackoff_MaxDelayCap(t *testing.T) {
 	baseDelay := 30 * time.Second
-	maxDelay := 300 * time.Second
+	maxDelay := 2 * time.Minute
 
 	// Very large attempt count should never exceed maxDelay
 	result := calculateBackoff(100, baseDelay, maxDelay, 0, nil)
 	assert.Equal(t, maxDelay, result)
+}
+
+func TestCalculateBackoff_ProductionSequence(t *testing.T) {
+	zeroJitter := float64(0)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.backoffJitterFactor = &zeroJitter
+
+	expectedSequence := []struct {
+		attempt  int
+		expected time.Duration
+	}{
+		{attempt: 0, expected: 30 * time.Second},
+		{attempt: 1, expected: 60 * time.Second},
+		{attempt: 2, expected: 2 * time.Minute},
+		{attempt: 3, expected: 2 * time.Minute},
+		{attempt: 4, expected: 2 * time.Minute},
+		{attempt: 10, expected: 2 * time.Minute},
+	}
+
+	for _, tc := range expectedSequence {
+		delay := m.nextReconnectDelay(tc.attempt)
+
+		assert.Equal(t, tc.expected, delay, "attempt %d delay mismatch", tc.attempt)
+	}
 }
 
 func TestCalculateBackoff_JitterBounds(t *testing.T) {
