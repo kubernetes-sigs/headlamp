@@ -274,8 +274,10 @@ class Pod extends KubeObject<KubePod> {
        * due to an error, it stops further reconnection attempts.
        */
       failCb: () => {
-        // If it's a reconnection attempt, stop further reconnection attempts
-        if (follow && isReconnecting) {
+        // Previous logs come from a terminated container, so their stream always
+        // closes once the logs are sent. Only offer to reconnect a followed stream
+        // of current logs.
+        if (!showPrevious && follow && isReconnecting) {
           isReconnecting = false;
 
           // If the onReconnectStop callback is provided, call it

@@ -26,6 +26,16 @@ const _dont_delete_me = App;
 // Module-level capture array for addEphemeralContainer patch tests
 const capturedPatchBodies: any[] = [];
 
+const { mockStream } = vi.hoisted(() => ({ mockStream: vi.fn() }));
+
+vi.mock('./api/v1/streamingApi', async importOriginal => {
+  const actual = await importOriginal<typeof import('./api/v1/streamingApi')>();
+  return {
+    ...actual,
+    stream: (...args: any[]) => mockStream(...args),
+  };
+});
+
 vi.mock('./api/v1/clusterRequests', async importOriginal => {
   const actual = await importOriginal<typeof import('./api/v1/clusterRequests')>();
   return {
@@ -255,5 +265,83 @@ describe('Pod.addEphemeralContainer targetContainerName', () => {
     const ephemeralContainers = capturedPatchBodies[0]?.spec?.ephemeralContainers;
     expect(ephemeralContainers).toBeDefined();
     expect(ephemeralContainers[0].targetContainerName).toBeUndefined();
+  });
+});
+
+describe('Pod.getLogs', () => {
+  function makeLogsPod() {
+    return new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default', uid: 'pod-uid-123' },
+      spec: { containers: [{ name: 'nginx' }], nodeName: 'test-node' },
+      status: { containerStatuses: [], phase: 'Running' },
+    } as any);
+  }
+
+  beforeEach(() => {
+    mockStream.mockReset();
+    mockStream.mockReturnValue({ cancel: () => {}, getSocket: () => null });
+  });
+
+  function getFailCb(): () => void {
+    expect(mockStream).toHaveBeenCalledTimes(1);
+    return mockStream.mock.calls[0][2].failCb;
+  }
+
+  describe('failCb / onReconnectStop', () => {
+    it('does not call onReconnectStop when showPrevious is true', () => {
+      const onReconnectStop = vi.fn();
+      makeLogsPod().getLogs('nginx', () => {}, {
+        showPrevious: true,
+        follow: true,
+        onReconnectStop,
+      });
+
+      getFailCb()();
+
+      expect(onReconnectStop).not.toHaveBeenCalled();
+    });
+
+    it('calls onReconnectStop when showPrevious is false', () => {
+      const onReconnectStop = vi.fn();
+      makeLogsPod().getLogs('nginx', () => {}, {
+        showPrevious: false,
+        follow: true,
+        onReconnectStop,
+      });
+
+      getFailCb()();
+
+      expect(onReconnectStop).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call onReconnectStop when follow is false', () => {
+      const onReconnectStop = vi.fn();
+      makeLogsPod().getLogs('nginx', () => {}, {
+        showPrevious: false,
+        follow: false,
+        onReconnectStop,
+      });
+
+      getFailCb()();
+
+      expect(onReconnectStop).not.toHaveBeenCalled();
+    });
+
+    it('only calls onReconnectStop once across repeated failCb invocations', () => {
+      const onReconnectStop = vi.fn();
+      makeLogsPod().getLogs('nginx', () => {}, {
+        showPrevious: false,
+        follow: true,
+        onReconnectStop,
+      });
+
+      const failCb = getFailCb();
+      failCb();
+      failCb();
+
+      expect(onReconnectStop).toHaveBeenCalledTimes(1);
+    });
   });
 });

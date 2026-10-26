@@ -97,7 +97,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
     lastLineShown: -1,
   });
   const [showReconnectButton, setShowReconnectButton] = React.useState(false);
-  const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
+  // Bumped by Reconnect to restart the log effect with the current options.
+  const [reconnectCount, setReconnectCount] = React.useState(0);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
@@ -203,6 +204,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
         xtermRef.current?.clear();
         setLogs({ logs: [], lastLineShown: -1 });
         setHasJsonLogs(false);
+        setShowReconnectButton(false);
 
         callback = item.getLogs(container, debouncedSetState, {
           tailLines: lines,
@@ -225,10 +227,23 @@ export function PodLogViewer(props: PodLogViewerProps) {
         if (callback) {
           callback();
         }
+        // A write from the stopped stream can still be pending; drop it so it
+        // doesn't land in the cleared view.
+        debouncedSetState.cancel();
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues]
+    [
+      container,
+      lines,
+      open,
+      showPrevious,
+      showTimestamps,
+      follow,
+      prettifyLogs,
+      formatJsonValues,
+      reconnectCount,
+    ]
   );
 
   function handleContainerChange(event: any) {
@@ -273,36 +288,11 @@ export function PodLogViewer(props: PodLogViewerProps) {
 
   /**
    * Handle the reconnect button being clicked.
-   * This will start a new log stream and hide the reconnect button.
+   * Restarting the log effect clears the view, hides the button, and starts a
+   * new stream with the current options.
    */
   function handleReconnect() {
-    // If there's an existing log stream, cancel it
-    if (cancelLogsStream) {
-      cancelLogsStream();
-    }
-
-    // Start a new log stream
-    const newCancelLogsStream = item.getLogs(container, debouncedSetState, {
-      tailLines: lines,
-      showPrevious,
-      showTimestamps,
-      follow,
-      prettifyLogs,
-      formatJsonValues,
-      /**
-       * When the connection is lost, show the reconnect button.
-       * This will stop the current log stream.
-       */
-      onReconnectStop: () => {
-        setShowReconnectButton(true);
-      },
-    });
-
-    // Set the cancelLogsStream function to the new one
-    setCancelLogsStream(() => newCancelLogsStream);
-
-    // Hide the reconnect button
-    setShowReconnectButton(false);
+    setReconnectCount(count => count + 1);
   }
 
   return (
