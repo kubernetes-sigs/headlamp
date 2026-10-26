@@ -1,0 +1,22 @@
+# Test case: initContainers, volumeMounts and volumes are rendered through `tpl`,
+# so chart consumers can template values in them (e.g. an image tag derived from
+# .Chart.AppVersion). This mirrors how podLabels is already rendered.
+initContainers:
+  - name: plugin-loader
+    image: "registry.example.com/plugins/portal:{{ .Chart.AppVersion }}"
+    command: ["/bin/sh", "-c", "true"]
+    volumeMounts:
+      - name: plugins
+        mountPath: /build/plugins
+volumes:
+  - name: plugins
+    emptyDir: {}
+  - name: portal-plugin
+    image:
+      reference: "registry.example.com/plugins/portal:{{ .Chart.AppVersion }}"
+      pullPolicy: Always
+volumeMounts:
+  - name: portal-plugin
+    mountPath: /build/plugins/portal
+    subPath: plugins
+    readOnly: true
