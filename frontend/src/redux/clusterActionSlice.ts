@@ -18,6 +18,7 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import i18next from 'i18next';
 import type { OptionsObject as SnackbarProps } from 'notistack';
+import { subscribeToApiWarnings } from '../lib/k8s/api/v1/apiWarnings';
 
 /**
  * See components/common/ActionsNotifier.tsx for a user of cluster actions.
@@ -152,6 +153,9 @@ const controllers = new Map<string, AbortController>();
 /** The amount of time to wait before allowing the action to be cancelled. */
 export const CLUSTER_ACTION_GRACE_PERIOD = 5000;
 
+/** How long a success message that has API server warnings stays, so they can be read. */
+const CLUSTER_ACTION_WARNINGS_DURATION = 15000;
+
 // Splits the body of a K8s "is invalid: [...]" multi-error into one entry per
 // field error. A naive regex split on `, ` followed by `\w+:` falsely splits Go
 // struct value printouts that the API server embeds in `Invalid value:` (e.g.
@@ -243,15 +247,21 @@ export const executeClusterAction = createAsyncThunk(
         })
       );
     }
-    function dispatchSuccess() {
+    function dispatchSuccess(warnings: string[] = []) {
+      const hasWarnings = warnings.length > 0;
+      const message = hasWarnings
+        ? [successMessage, ...warnings.map(warning => `• ${warning}`)].filter(Boolean).join('\n')
+        : successMessage;
+
       dispatch(
         updateClusterAction({
           buttons: undefined,
           dismissSnackbar: actionKey,
           id: actionKey,
-          message: successMessage,
+          message,
           state: 'complete',
-          snackbarProps: successOptions,
+          snackbarProps: hasWarnings ? { ...successOptions, variant: 'warning' } : successOptions,
+          autoHideDuration: hasWarnings ? CLUSTER_ACTION_WARNINGS_DURATION : undefined,
           url: successUrl,
         })
       );
@@ -330,12 +340,22 @@ export const executeClusterAction = createAsyncThunk(
         if (controller.signal.aborted) {
           return rejectWithValue('Action cancelled');
         }
-        if (callbackArgs === undefined) {
-          await Promise.resolve(callback());
-        } else {
-          await Promise.resolve(callback(...callbackArgs));
+        // The API server can accept a request and still warn about it (Pod Security,
+        // admission policies, deprecated APIs, ...). Show those along with the result.
+        const warnings = new Set<string>();
+        const unsubscribe = subscribeToApiWarnings(newWarnings => {
+          newWarnings.forEach(warning => warnings.add(warning));
+        });
+        try {
+          if (callbackArgs === undefined) {
+            await Promise.resolve(callback());
+          } else {
+            await Promise.resolve(callback(...callbackArgs));
+          }
+        } finally {
+          unsubscribe();
         }
-        dispatchSuccess();
+        dispatchSuccess(Array.from(warnings));
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         if (error.message === 'Action cancelled' || controller.signal.aborted) {
