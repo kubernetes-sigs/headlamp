@@ -156,7 +156,7 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 	var handler http.Handler
 
 	require.NotPanics(t, func() {
-		handler = createHeadlampHandler(context.Background(), cfg)
+		handler = createHeadlampHandler(newTestHandlerCtx(t), cfg)
 	})
 	require.NotNil(t, handler)
 
@@ -252,7 +252,6 @@ func TestCreateHeadlampHandlerTracesRequests(t *testing.T) {
 	}
 }
 
-//nolint:funlen
 func TestLoadKubeConfigClustersLogging(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -289,18 +288,7 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var logs []struct {
-				level uint
-				msg   string
-			}
-
-			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
-				logs = append(logs, struct {
-					level uint
-					msg   string
-				}{level: level, msg: msg})
-			})
-			defer logger.SetLogFunc(originalLogFunc)
+			logs := captureLogs(t)
 
 			config := &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -313,9 +301,11 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 
 			loadKubeConfigClusters(config, test.path, nil)
 
-			require.Len(t, logs, 1)
-			assert.Equal(t, test.expectedLevel, logs[0].level)
-			assert.Equal(t, test.expectedMsg, logs[0].msg)
+			entries := logs()
+
+			require.Len(t, entries, 1)
+			assert.Equal(t, test.expectedLevel, entries[0].level)
+			assert.Equal(t, test.expectedMsg, entries[0].msg)
 		})
 	}
 }
@@ -347,18 +337,7 @@ func TestLoadDynamicClustersLogging(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var logs []struct {
-				level uint
-				msg   string
-			}
-
-			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
-				logs = append(logs, struct {
-					level uint
-					msg   string
-				}{level: level, msg: msg})
-			})
-			defer logger.SetLogFunc(originalLogFunc)
+			logs := captureLogs(t)
 
 			config := &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -370,15 +349,17 @@ func TestLoadDynamicClustersLogging(t *testing.T) {
 
 			loadDynamicClusters(config, test.path, nil)
 
+			entries := logs()
+
 			if test.expectedMsg == "" {
-				assert.Empty(t, logs)
+				assert.Empty(t, entries)
 
 				return
 			}
 
-			require.Len(t, logs, 1)
-			assert.Equal(t, test.expectedLevel, logs[0].level)
-			assert.Equal(t, test.expectedMsg, logs[0].msg)
+			require.Len(t, entries, 1)
+			assert.Equal(t, test.expectedLevel, entries[0].level)
+			assert.Equal(t, test.expectedMsg, entries[0].msg)
 		})
 	}
 }
@@ -651,7 +632,7 @@ func TestDynamicClusters(t *testing.T) {
 					TelemetryHandler: &telemetry.RequestHandler{},
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 			var resp *httptest.ResponseRecorder
 
@@ -748,7 +729,7 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -915,7 +896,7 @@ func TestExternalProxy(t *testing.T) {
 
 	tests := []test{
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -928,7 +909,7 @@ func TestExternalProxy(t *testing.T) {
 			useForwardedHeaders: true,
 		},
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -941,7 +922,7 @@ func TestExternalProxy(t *testing.T) {
 			useNoProxyURL: true,
 		},
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -1052,7 +1033,7 @@ func newExternalProxyHandler(t *testing.T, upstream string) http.Handler {
 		t.Fatal(err)
 	}
 
-	return createHeadlampHandler(context.Background(), &HeadlampConfig{
+	return createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -1160,7 +1141,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -1194,7 +1175,7 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 
 	tests := []test{
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -1632,7 +1613,7 @@ func TestDeletePlugin(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	rr, err := getResponseFromRestrictedEndpoint(handler, "DELETE", "/plugins/test-plugin", nil)
 	require.NoError(t, err)
@@ -1839,7 +1820,7 @@ func newRestrictedEndpointsHandler(t *testing.T) http.Handler {
 		},
 	}
 
-	return createHeadlampHandler(context.Background(), &c)
+	return createHeadlampHandler(newTestHandlerCtx(t), &c)
 }
 
 // assertRouteRequiresBackendToken runs the three auth variants (missing,
@@ -1906,7 +1887,7 @@ func TestRestrictedEndpointsBypassedWithoutConfiguredToken(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	routes := []struct {
 		method string
@@ -1956,7 +1937,7 @@ func TestRestrictedEndpointsBypassedInCluster(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	routes := []struct {
 		method string
@@ -2028,7 +2009,7 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	// Create a test request to the cluster API endpoint
 	ctx := context.Background()
@@ -2328,7 +2309,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -3861,7 +3842,7 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 	}
 
 	c, clusterName := newRealK8sHeadlampConfig(t)
-	handler := createHeadlampHandler(context.Background(), c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), c)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
@@ -3900,7 +3881,7 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 	}
 
 	c, clusterName := newRealK8sHeadlampConfig(t)
-	handler := createHeadlampHandler(context.Background(), c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), c)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
@@ -4739,7 +4720,7 @@ func TestExternalProxyOversizeResponse(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -4784,7 +4765,7 @@ func TestExternalProxyOversizeResponseUnknownLength(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -4838,7 +4819,7 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -4940,7 +4921,7 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	createHeadlampHandler(context.Background(), cfg).ServeHTTP(rr, req)
+	createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Len(t, rr.Result().Cookies(), 1)
@@ -4971,7 +4952,7 @@ func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()
-			createHeadlampHandler(context.Background(), cfg).ServeHTTP(rr, req)
+			createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
 
 			require.Equal(t, http.StatusOK, rr.Code)
 			require.Len(t, rr.Result().Cookies(), 1)
@@ -5128,6 +5109,65 @@ func TestOIDCLogoutState(t *testing.T) {
 	assert.False(t, validateOIDCLogoutState(state, "team/cluster", "other-token", now))
 	assert.False(t, validateOIDCLogoutState(state+"tampered", "team/cluster", "id-token", now))
 	assert.False(t, validateOIDCLogoutState(state, "team/cluster", "id-token", now.Add(2*time.Minute)))
+}
+
+// capturedLog is a single entry recorded by captureLogs.
+type capturedLog struct {
+	level uint
+	msg   string
+}
+
+// captureLogs redirects the logger for the duration of the test and returns a
+// function reporting what was logged.
+//
+// The log function is process-wide, and the plugin and kubeconfig watchers each
+// log a line when the context they were started with is cancelled, which
+// happens as tests finish. Those lines can therefore land in an unrelated
+// test's capture, so watcher messages are dropped and the entries are guarded
+// by a mutex because they arrive from those goroutines.
+func captureLogs(t *testing.T) func() []capturedLog {
+	t.Helper()
+
+	var (
+		mu   sync.Mutex
+		logs []capturedLog
+	)
+
+	original := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+		if strings.HasPrefix(msg, "watcher: ") {
+			return
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		logs = append(logs, capturedLog{level: level, msg: msg})
+	})
+
+	t.Cleanup(func() { logger.SetLogFunc(original) })
+
+	return func() []capturedLog {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return append([]capturedLog(nil), logs...)
+	}
+}
+
+// newTestHandlerCtx returns a context that is cancelled when the test ends.
+//
+// createHeadlampHandler starts plugin and kubeconfig watchers bound to the
+// context it is given, and each watcher holds an inotify instance for as long
+// as it runs. Handing it context.Background() keeps those watchers alive for
+// the rest of the test binary, which exhausts the per-user inotify limit and
+// makes watcher tests in other packages fail to create watchers of their own.
+func newTestHandlerCtx(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	return ctx
 }
 
 func setupTestEnv(t *testing.T) {
@@ -5306,7 +5346,7 @@ func runOIDCLogoutTest(t *testing.T, cluster string, tc oidcLogoutTestCase) *htt
 		require.NoError(t, err)
 	}
 
-	handler := createHeadlampHandler(context.Background(), cfg)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), cfg)
 	req := newOIDCLogoutTestRequest(t, cluster, tc)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)

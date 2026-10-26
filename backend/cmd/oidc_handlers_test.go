@@ -207,7 +207,7 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 		opt(c)
 	}
 
-	return createHeadlampHandler(context.Background(), c), clusterName
+	return createHeadlampHandler(newTestHandlerCtx(t), c), clusterName
 }
 
 // driveOIDCStart calls /oidc?cluster=<cluster> against the supplied handler

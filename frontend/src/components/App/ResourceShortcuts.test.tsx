@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// Register default routes so createRouteURL can resolve the navigation targets.
+import '../../lib/router';
 import { configureStore } from '@reduxjs/toolkit';
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
