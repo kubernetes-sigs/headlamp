@@ -225,7 +225,7 @@ func TestDispatchHelmRoute(t *testing.T) {
 		req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
 		ctx, span := telemetry.CreateSpan(context.Background(), req, "helm", "test")
 		rr := httptest.NewRecorder()
-		cfg.dispatchHelmRoute(ctx, span, rr, req, tc.path, tc.clusterName, h)
+		cfg.dispatchHelmRoute(ctx, span, rr, req, tc.path, tc.clusterName, tc.clusterName, h)
 		span.End()
 		assert.Equal(t, tc.want, rr.Code, "%s %s", tc.method, tc.path)
 	}
