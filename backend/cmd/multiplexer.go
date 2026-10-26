@@ -63,7 +63,7 @@ const (
 	// minReconnectBackoff is the minimum backoff interval after a failed reconnect.
 	minReconnectBackoff = 30 * time.Second
 	// maxReconnectBackoff is the maximum backoff interval after repeated failed reconnects.
-	maxReconnectBackoff = 5 * time.Minute
+	maxReconnectBackoff = 2 * time.Minute
 	// backoffJitterFactor is the maximum random jitter fraction (+/- factor) applied to backoff.
 	backoffJitterFactor = 0.2
 )
