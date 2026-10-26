@@ -1642,10 +1642,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			"KUBECONFIG", "X-HEADLAMP-USER-ID",
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
+		// The API server reports warnings in this header, which the frontend
+		// dev server can't read cross-origin unless it is exposed.
+		exposedHeaders := handlers.ExposedHeaders([]string{"Warning"})
 
 		return handlers.CORS(
 			headers,
 			methods,
+			exposedHeaders,
 			handlers.AllowCredentials(),
 			handlers.AllowedOriginValidator(func(s string) bool { return true }),
 		)(r)
