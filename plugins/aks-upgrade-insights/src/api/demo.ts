@@ -1,4 +1,4 @@
-import { Cluster, GenerateRequest, Insight, InsightsProvider, Issue, Scope } from './types';
+import { Cluster, GenerateRequest, Insight, InsightsProvider, Issue, Scope, UpgradeTargetScope } from './types';
 
 const subscriptionId = '00000000-0000-0000-0000-000000000000';
 const hour = 3_600_000;
@@ -154,7 +154,13 @@ export class DemoProvider implements InsightsProvider {
   async listInsights(cluster: Cluster, signal?: AbortSignal) {
     await wait(signal); return structuredClone(this.records.get(cluster.id) ?? []);
   }
-  async listUpgradeTargets(_cluster: Cluster, signal?: AbortSignal) {
+  async getInsight(cluster: Cluster, resourceId: string, signal?: AbortSignal) {
+    await wait(signal);
+    const insight = this.records.get(cluster.id)?.find(item => item.id === resourceId);
+    if (!insight) throw new Error('Stored demo evaluation was not found.');
+    return structuredClone(insight);
+  }
+  async listUpgradeTargets(_cluster: Cluster, _scope: UpgradeTargetScope, signal?: AbortSignal) {
     await wait(signal);
     return structuredClone(this.demoTargets);
   }

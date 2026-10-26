@@ -8,7 +8,7 @@
     "build": "headlamp-plugin build",
     "package": "headlamp-plugin package",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node --test bridge/bridge.test.mjs",
+    "test": "vitest run && node --test bridge/bridge.test.mjs bridge/arm.test.mjs",
     "demo": "vite --config vite.demo.config.ts --host 127.0.0.1",
     "demo:build": "vite build --config vite.demo.config.ts",
     "bridge": "node bridge/server.mjs"

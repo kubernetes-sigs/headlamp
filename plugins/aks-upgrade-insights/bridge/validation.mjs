@@ -22,7 +22,9 @@ export function validateRequest(input, subscriptions, allowGenerate = false) {
   const clusterList = new RegExp(`^${prefix}/providers/Microsoft\\.ContainerService/managedClusters$`, 'i');
   const clusterPath = `${prefix}/resourceGroups/[^/]+/providers/Microsoft\\.ContainerService/managedClusters/[^/]+`;
   const insightList = new RegExp(`^${clusterPath}/upgradeInsights$`, 'i');
+  const insightGet = new RegExp(`^${clusterPath}/upgradeInsights/[^/]+$`, 'i');
   const upgradeProfile = new RegExp(`^${clusterPath}/upgradeProfiles/default$`, 'i');
+  const poolUpgradeProfile = new RegExp(`^${clusterPath}/agentPools/[^/]+/upgradeProfiles/default$`, 'i');
   const generate = new RegExp(`^${clusterPath}/generateUpgradeInsights$`, 'i');
   const fleetList = new RegExp(`^${prefix}/providers/Microsoft\\.ContainerService/fleets$`, 'i');
   const fleetMembers = new RegExp(`^${prefix}/resourceGroups/[^/]+/providers/Microsoft\\.ContainerService/fleets/[^/]+/members$`, 'i');
@@ -32,8 +34,12 @@ export function validateRequest(input, subscriptions, allowGenerate = false) {
     throw new Error('Only approved ARM API paths and API version are permitted.');
   }
   const apiVersion = url.searchParams.get('api-version');
-  const upgradeRead = (apiVersion === '2026-08-02-preview' && (clusterList.test(url.pathname) || insightList.test(url.pathname)))
-    || (apiVersion === '2024-10-01' && upgradeProfile.test(url.pathname));
+  if (/%(?:2f|5c)/i.test(url.pathname) || /\\/.test(request.path) ||
+      /\/(?:\.|%2e){1,2}(?:\/|\?|$)/i.test(request.path)) {
+    throw new Error('Encoded path separators and traversal are not permitted.');
+  }
+  const upgradeRead = (apiVersion === '2026-08-02-preview' && (clusterList.test(url.pathname) || insightList.test(url.pathname) || insightGet.test(url.pathname)))
+    || (apiVersion === '2024-10-01' && (upgradeProfile.test(url.pathname) || poolUpgradeProfile.test(url.pathname)));
   const fleetRead = apiVersion === '2025-03-01' && (fleetList.test(url.pathname) || fleetMembers.test(url.pathname));
   if (request.method === 'GET' && !request.body && (upgradeRead || fleetRead)) return request;
   if (request.method === 'POST' && allowGenerate && request.body && generate.test(url.pathname) && apiVersion === '2026-08-02-preview') return request;

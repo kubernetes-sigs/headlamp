@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArmProvider, bridgeTransport, clusterBase } from './api/arm';
 import { DemoProvider } from './api/demo';
-import { demoProvider, getActiveProvider, setActiveProvider } from './api/session';
-import { API_VERSION, Cluster, ClusterRecord, GenerateRequest, Insight, InsightsProvider, issueLabels, scopeLabels, UpgradeType, upgradeTypes } from './api/types';
+import { demoProvider, getActiveProvider, getContextResource, setActiveProvider, setContextResource } from './api/session';
+import { API_VERSION, Cluster, ClusterRecord, GenerateRequest, Insight, InsightsProvider, issueLabels, scopeLabels, UpgradeType, upgradeTypes, UpgradeTargetScope } from './api/types';
 import { csvCell, formatTime, freshness, issuesFor, latestCombined, readiness, readinessOrder, Readiness, recordReadiness, safeDocumentationUrl, ScopedIssue, scopes } from './domain';
 import { Icon } from './components/Icon';
 import { Modal } from './components/Modal';
@@ -67,7 +67,7 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
   const [theme, setTheme] = useState<'light' | 'dark'>(hostTheme ?? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'));
   const [, tick] = useState(0);
   useEffect(() => { if (hostTheme) setTheme(hostTheme); }, [hostTheme]);
-  useEffect(() => { setSelected(undefined); setPage(0); }, [singleClusterContext]);
+  useEffect(() => { setSelected(undefined); setPage(0); setQuery(''); setEnvironment('all'); }, [singleClusterContext]);
   useEffect(() => { const timer = setInterval(() => tick(t => t + 1), 60_000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     if (!toast) return;
@@ -85,13 +85,6 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
         setRecordsById({});
         setInventoryWarnings(inventory.warnings);
         setFleetWarnings(inventory.fleetWarnings);
-        if (singleClusterContext) {
-          const index = provider.mode === 'demo' ? inventory.clusters.findIndex(cluster => cluster.contextName === singleClusterContext) : -1;
-          if (index >= 0) {
-            setSelected(inventory.clusters[index].id);
-            setPage(Math.floor(index / PAGE_SIZE));
-          }
-        }
         setInventoryLoaded(true);
       } catch (error) {
         if (!controller.signal.aborted) { setClusters([]); setInventoryLoaded(true); setLoadError(errorText(error)); }
@@ -107,6 +100,16 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
   ).sort((a, b) => sort === 'region'
     ? a.location.localeCompare(b.location) || a.name.localeCompare(b.name)
     : a.name.localeCompare(b.name)), [clusters, environment, query, sort]);
+  useEffect(() => {
+    if (!singleClusterContext || !inventoryLoaded || selected) return;
+    const resourceId = provider.mode === 'live' ? getContextResource(provider, singleClusterContext)
+      : clusters.find(cluster => cluster.contextName === singleClusterContext)?.id;
+    const index = searchableClusters.findIndex(cluster => cluster.id === resourceId);
+    if (index >= 0) {
+      setSelected(searchableClusters[index].id);
+      setPage(Math.floor(index / PAGE_SIZE));
+    }
+  }, [singleClusterContext, inventoryLoaded, selected, provider, clusters, searchableClusters]);
   const pageCount = Math.max(1, Math.ceil(searchableClusters.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   const pageClusters = useMemo(
@@ -201,7 +204,7 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
         <div className="notice source-notice"><Icon name={provider.mode === 'demo' ? 'layers' : 'shield'} size={18} /><span>{provider.mode === 'demo'
           ? <><strong>Synthetic demo.</strong> No clusters are connected or changed. All evaluations and remediation are simulated.</>
           : <><strong>Live, stored evaluations.</strong> Results are kept in a 60-second in-memory cache; refresh bypasses it and reads the API. Nothing is written to local storage. Generating a new evaluation requires review; this plugin never starts upgrades.</>}</span><button className="text-button" onClick={() => setSettings(true)}>Data source <Icon name="arrow" size={16} /></button></div>
-        {singleClusterContext && <div className="context-note">Headlamp context: <code>{singleClusterContext}</code>. {provider.mode === 'demo' ? 'Demo clusters are synthetic, not this connected context.' : 'Select the matching ARM cluster below; context names are not authoritative ARM identifiers.'}</div>}
+        {singleClusterContext && <div className="context-note">Headlamp context: <code>{singleClusterContext}</code>. {provider.mode === 'demo' ? 'Demo clusters are synthetic, not this connected context.' : <>{selected ? <>ARM resource: <code>{selected}</code>. This explicit binding is kept only for this provider session.</> : 'Select the matching ARM cluster below to bind this context for this session; names alone are not authoritative.'}</>}</div>}
         {loadError && <div className="notice error" role="alert"><Icon name="alert" /><div><strong>Could not load clusters</strong><p>{loadError}</p><button className="text-button" onClick={() => setInventoryReload(r => r + 1)}>Retry</button></div></div>}
         {!!inventoryWarnings.length && <div className="notice error" role="alert"><Icon name="alert" /><div><strong>Partial cluster inventory — some subscriptions could not be read</strong>{inventoryWarnings.map(warning => <p key={warning}>{warning}</p>)}<p>Counts cover reachable subscriptions only. Refresh to retry.</p></div></div>}
         {!!fleetWarnings.length && <div className="notice"><Icon name="layers" /><div><strong>Fleet membership is incomplete</strong>{fleetWarnings.map(warning => <p key={warning}>{warning}</p>)}<p>Visible fleet associations may be partial; clusters without a listed fleet are not treated as confirmed standalone.</p></div></div>}
@@ -257,8 +260,9 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
                   : a.name.localeCompare(b.name));
                 const index = orderedClusters.findIndex(cluster => cluster.id === id);
                 if (index >= 0) setPage(Math.floor(index / PAGE_SIZE));
+                if (singleClusterContext && provider.mode === 'live') setContextResource(provider, singleClusterContext, id);
                 setSelected(id);
-              }}><option value="" disabled>Select a {provider.mode === 'demo' ? 'demo ' : ''}cluster</option>{clusters.map(cluster => <option key={cluster.id} value={cluster.id}>{cluster.name} · {cluster.location}</option>)}</select></label>
+              }}><option value="" disabled>Select a {provider.mode === 'demo' ? 'demo ' : ''}cluster</option>{clusters.map(cluster => <option key={cluster.id} value={cluster.id}>{cluster.name} · {cluster.location}{provider.mode === 'live' ? ` · ${cluster.resourceGroup} · ${cluster.subscription}` : ''}</option>)}</select></label>
             </div>
             {selectedRecord ? <ClusterDetail key={selectedRecord.cluster.id} record={selectedRecord} onIssue={setIssue} onGenerate={() => setGenerateFor(selectedRecord)} onToast={setToast} /> : <Empty title="Choose a cluster" text="Select a cluster to inspect readiness for its control plane, node pools, and node OS images." />}
           </>}
@@ -358,11 +362,17 @@ function GenerateDialog({ record, provider, onClose, onComplete }: { record: Clu
   const [confirmed, setConfirmed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
+    if (type === 'NodeImage') {
+      setTargetsLoading(false); setTargetsError(''); setTargets([]);
+      return () => controller.abort();
+    }
+    const targetScope: UpgradeTargetScope = type === 'AgentPool'
+      ? { upgradeType: type, agentPoolName: pool } : { upgradeType: type };
     setTargetsLoading(true);
     setTargetsError('');
     async function loadTargets() {
       try {
-        const available = await provider.listUpgradeTargets(record.cluster, controller.signal);
+        const available = await provider.listUpgradeTargets(record.cluster, targetScope, controller.signal);
         if (controller.signal.aborted) return;
         setTargets(available);
         const preferred = latestCombined(record)?.properties.targetKubernetesVersion;
@@ -380,7 +390,7 @@ function GenerateDialog({ record, provider, onClose, onComplete }: { record: Clu
     }
     void loadTargets();
     return () => controller.abort();
-  }, [provider, record]);
+  }, [provider, record, type, pool]);
   const request: GenerateRequest = type === 'NodeImage' ? { upgradeType: type, agentPoolName: pool, ...(image.trim() ? { targetNodeImageVersion: image.trim() } : {}) }
     : type === 'AgentPool' ? { upgradeType: type, agentPoolName: pool, targetKubernetesVersion: target.trim() }
     : { upgradeType: type, targetKubernetesVersion: target.trim() };
@@ -390,10 +400,16 @@ function GenerateDialog({ record, provider, onClose, onComplete }: { record: Clu
   const path = `${clusterBase(record.cluster)}/generateUpgradeInsights?api-version=${API_VERSION}`;
   const submit = async () => {
     setBusy(true); setError('');
-    try { onComplete(await provider.generate(record.cluster, request)); }
+    try {
+      const generated = await provider.generate(record.cluster, request);
+      if (provider.mode === 'live') {
+        if (!generated.id) throw new Error('Generate returned no insight resource ID; the stored evaluation could not be verified.');
+        onComplete(await provider.getInsight(record.cluster, generated.id));
+      } else onComplete(generated);
+    }
     catch (error) { setError(errorText(error)); setBusy(false); }
   };
-  const canSubmit = !busy && valid && !targetsLoading && !targetsError && (provider.mode !== 'live' || confirmed);
+  const canSubmit = !busy && valid && (!targetRequired || (!targetsLoading && !targetsError)) && (provider.mode !== 'live' || confirmed);
   return <Modal title="Evaluate upgrade readiness" onClose={() => { if (!busy) onClose(); }} wide>
     <div className="modal-body"><div className="notice"><Icon name="shield" size={20} /><span>{provider.mode === 'demo' ? 'Simulated evaluation. No Azure API calls are made.' : 'This POST computes and stores readiness. It does not upgrade your cluster, but it does update the stored insight.'}</span></div><p>Cluster: <strong>{record.cluster.name}</strong></p><div className="form-grid"><label>Upgrade scope<select disabled={busy} value={type} onChange={e => { setType(e.target.value as UpgradeType); setConfirmed(false); }}>{upgradeTypes.map(t => <option key={t} value={t}>{scopeLabels[t]}</option>)}</select></label>{['AgentPool', 'NodeImage'].includes(type) && <label>Node pool<select disabled={busy} value={pool} onChange={e => { setPool(e.target.value); setConfirmed(false); }}>{record.cluster.pools.map(p => <option key={p.name}>{p.name}</option>)}</select></label>}{targetRequired ? <label>Target Kubernetes version<select aria-label="Target Kubernetes version" disabled={busy || targetsLoading || !!targetsError} value={target} onChange={e => { setTarget(e.target.value); setConfirmed(false); }}>{!targets.length && <option value="">No upgrade targets available</option>}{targets.map(version => <option key={version} value={version}>{version}</option>)}</select>{targetsLoading && <small>Checking available cluster upgrade targets…</small>}{targetsError && <small className="danger-text">Could not load available targets: {targetsError}</small>}{!targetsLoading && !targetsError && !!targets.length && <small>Loaded from cluster upgrade profile.</small>}</label> : <label>Target node image (optional)<input disabled={busy} value={image} onChange={e => { setImage(e.target.value); setConfirmed(false); }} placeholder="Latest available image" /><small>When omitted, the server resolves the latest image and returns the actual target.</small></label>}</div><h3>Review the exact request</h3><div className="request-line"><span>POST</span><code>{path}</code></div><pre className="request-json">{JSON.stringify(request, null, 2)}</pre>{provider.mode === 'live' && <label className="confirm-check"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} /><span>I approve sending this request to Azure for <strong>{record.cluster.name}</strong>. It contains a private resource identifier and will update the stored evaluation.</span></label>}{error && <div className="notice error" role="alert">{error}</div>}</div>
     <div className="modal-actions"><button className="button" disabled={busy} onClick={onClose}>Cancel</button><button className="button primary" disabled={!canSubmit} onClick={() => void submit()}>{busy ? <><span className="spinner small-spinner" />Evaluating…</> : <><Icon name="shield" size={18} />{provider.mode === 'demo' ? 'Run simulated evaluation' : 'Generate evaluation'}</>}</button></div>
@@ -404,7 +420,7 @@ function Settings({ mode, onClose, onDemo, onLive, onReset }: { mode: 'demo' | '
   const [subscription, setSubscription] = useState('');
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
-  return <Modal title="Data source" onClose={onClose}><div className="modal-body"><h3>Synthetic demo</h3><p>Eight clusters with blockers, warnings, ready, expired, and missing evaluations. Works without Azure, Kubernetes, or authentication.</p><div className="toolbar"><button className="button" onClick={onDemo}>Use demo data</button>{mode === 'demo' && <button className="text-button" onClick={onReset}>Reset demo scenarios</button>}</div><hr /><h3>Live Azure API <span className="preview-label">OPT-IN</span></h3><p>Use the included loopback bridge with your existing Azure CLI sign-in. Azure access tokens stay in the CLI; the pairing key stays in memory and is not saved.</p><label>Subscription IDs (comma-separated)<input value={subscription} onChange={e => setSubscription(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" autoComplete="off" /></label><label>Local bridge pairing key<input type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="Key printed by npm run bridge" autoComplete="off" /></label><p className="small muted">Bridge: http://127.0.0.1:4319. See SETUP.txt for allowed origins, RBAC, preview access, and read-only defaults. No automatic fallback to demo data.</p>{error && <div role="alert" className="notice error">{error}</div>}<button className="button primary" onClick={() => {
+  return <Modal title="Data source" onClose={onClose}><div className="modal-body"><h3>Synthetic demo</h3><p>Eight clusters with blockers, warnings, ready, expired, and missing evaluations. Works without Azure, Kubernetes, or authentication.</p><div className="toolbar"><button className="button" onClick={onDemo}>Use demo data</button>{mode === 'demo' && <button className="text-button" onClick={onReset}>Reset demo scenarios</button>}</div><hr /><h3>Live Azure API <span className="preview-label">OPT-IN</span></h3><p>Use the included loopback bridge with your existing Azure CLI sign-in. Azure access tokens stay in the bridge process, never the browser; the pairing key stays in memory and is not saved.</p><label>Subscription IDs (comma-separated)<input value={subscription} onChange={e => setSubscription(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" autoComplete="off" /></label><label>Local bridge pairing key<input type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="Key printed by npm run bridge" autoComplete="off" /></label><p className="small muted">Bridge: http://127.0.0.1:4319. See SETUP.txt for allowed origins, RBAC, preview access, and read-only defaults. No automatic fallback to demo data.</p>{error && <div role="alert" className="notice error">{error}</div>}<button className="button primary" onClick={() => {
     const subscriptions = subscription.split(',').map(s => s.trim()).filter(Boolean);
     if (!subscriptions.length || subscriptions.some(s => !/^[a-f0-9-]{36}$/i.test(s)) || !/^[a-f0-9]{64}$/i.test(key.trim())) { setError('Enter valid subscription IDs and the 64-character local bridge key.'); return; }
     onLive(subscriptions, key.trim());
