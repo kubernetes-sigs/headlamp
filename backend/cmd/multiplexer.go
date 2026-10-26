@@ -17,10 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -57,7 +60,57 @@ const (
 	SecureWebSocketScheme = "wss"
 	// MultiplexerProtocol is the public subprotocol selected for client connections.
 	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
+	// minReconnectBackoff is the minimum backoff interval after a failed reconnect.
+	minReconnectBackoff = 30 * time.Second
+	// maxReconnectBackoff is the maximum backoff interval after repeated failed reconnects.
+	maxReconnectBackoff = 5 * time.Minute
+	// backoffJitterFactor is the maximum random jitter fraction (+/- factor) applied to backoff.
+	backoffJitterFactor = 0.2
 )
+
+func defaultBackoffJitter() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err == nil {
+		val := binary.LittleEndian.Uint64(b[:])
+
+		return (float64(val)/float64(math.MaxUint64))*2 - 1
+	}
+
+	return 0
+}
+
+// calculateBackoff computes exponential backoff with jitter for reconnect attempts.
+func calculateBackoff(
+	attempt int,
+	minDelay, maxDelay time.Duration,
+	jitterFactor float64,
+	jitterFunc func() float64,
+) time.Duration {
+	multiplier := 1
+	if attempt > 0 {
+		multiplier = 1 << min(attempt, 6)
+	}
+
+	delay := minDelay * time.Duration(multiplier)
+	if delay > maxDelay || delay < 0 {
+		delay = maxDelay
+	}
+
+	if jitterFactor > 0 && jitterFunc != nil {
+		jitterFraction := jitterFactor * jitterFunc()
+		delay = time.Duration(float64(delay) * (1 + jitterFraction))
+	}
+
+	if delay > maxDelay {
+		return maxDelay
+	}
+
+	if delay < 0 {
+		return 0
+	}
+
+	return delay
+}
 
 // ConnectionState represents the current state of a connection.
 type ConnectionState string
@@ -138,6 +191,12 @@ type Multiplexer struct {
 	saTokenCache map[string]saTokenCacheEntry
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
+	// Test overrides (zero value means use production constants)
+	heartbeatInterval   time.Duration
+	minReconnectBackoff time.Duration
+	maxReconnectBackoff time.Duration
+	backoffJitterFactor *float64
+	backoffJitterFunc   func() float64
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -556,10 +615,59 @@ func (m *Multiplexer) dialWebSocket(
 	return conn, nil
 }
 
+func (m *Multiplexer) getHeartbeatInterval() time.Duration {
+	if m.heartbeatInterval > 0 {
+		return m.heartbeatInterval
+	}
+
+	return HeartbeatInterval
+}
+
+func (m *Multiplexer) getMinReconnectBackoff() time.Duration {
+	if m.minReconnectBackoff > 0 {
+		return m.minReconnectBackoff
+	}
+
+	return minReconnectBackoff
+}
+
+func (m *Multiplexer) getMaxReconnectBackoff() time.Duration {
+	if m.maxReconnectBackoff > 0 {
+		return m.maxReconnectBackoff
+	}
+
+	return maxReconnectBackoff
+}
+
+func (m *Multiplexer) getBackoffJitterFactor() float64 {
+	if m.backoffJitterFactor != nil {
+		return *m.backoffJitterFactor
+	}
+
+	return backoffJitterFactor
+}
+
+func (m *Multiplexer) nextReconnectDelay(attempt int) time.Duration {
+	jitterFunc := m.backoffJitterFunc
+	if jitterFunc == nil {
+		jitterFunc = defaultBackoffJitter
+	}
+
+	return calculateBackoff(
+		attempt,
+		m.getMinReconnectBackoff(),
+		m.getMaxReconnectBackoff(),
+		m.getBackoffJitterFactor(),
+		jitterFunc,
+	)
+}
+
 // monitorConnection monitors the health of a connection and attempts to reconnect if necessary.
 func (m *Multiplexer) monitorConnection(conn *Connection) {
-	heartbeat := time.NewTicker(HeartbeatInterval)
-	defer heartbeat.Stop()
+	timer := time.NewTimer(m.getHeartbeatInterval())
+	defer timer.Stop()
+
+	backoffAttempt := 0
 
 	for {
 		select {
@@ -567,15 +675,35 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 			conn.updateStatus(StateClosed, nil)
 
 			return
-		case <-heartbeat.C:
-			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
+		case <-timer.C:
+			if conn.IsClosed() {
+				conn.updateStatus(StateClosed, nil)
 
-				if newConn, err := m.reconnect(conn); err != nil {
-					logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+				return
+			}
+
+			if backoffAttempt == 0 && conn.WSConn != nil {
+				if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 				} else {
-					conn = newConn
+					timer.Reset(m.getHeartbeatInterval())
+
+					continue
 				}
+			}
+
+			if newConn, err := m.reconnect(conn); err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+
+				delay := m.nextReconnectDelay(backoffAttempt)
+				backoffAttempt++
+
+				timer.Reset(delay)
+			} else {
+				backoffAttempt = 0
+				conn = newConn
+
+				timer.Reset(m.getHeartbeatInterval())
 			}
 		}
 	}
