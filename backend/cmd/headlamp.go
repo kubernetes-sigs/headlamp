@@ -966,22 +966,23 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(config.stsTokenMiddleware(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				contextKey, err := config.getContextKeyForRequest(r)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 
-			portforward.StartPortForward(
-				config.KubeConfigStore,
-				config.Cache,
-				config.shouldUseUnsafeServiceAccountToken(),
-				contextKey,
-				w,
-				r,
-			)
-		})),
+				portforward.StartPortForward(
+					config.KubeConfigStore,
+					config.Cache,
+					config.shouldUseUnsafeServiceAccountToken(),
+					contextKey,
+					w,
+					r,
+				)
+			}))),
 	).Methods("POST")
 
 	r.Handle(
@@ -1727,6 +1728,118 @@ func (c *HeadlampConfig) requestTokenForContext(
 	return token
 }
 
+// requestSubjectToken returns the caller's token for a cluster request: the
+// proxy-auth header, then the Authorization header, then the cluster cookie.
+func (c *HeadlampConfig) requestSubjectToken(r *http.Request, clusterName string) string {
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
+			return token
+		}
+	}
+
+	if token := auth.BearerTokenValue(r.Header.Get("Authorization")); token != "" {
+		return token
+	}
+
+	return tokenFromCookie(r, clusterName)
+}
+
+// exchangeSTSToken exchanges token for a token scoped to clusterName when STS
+// is enabled. Otherwise, or for an empty token, it returns token unchanged.
+func (c *HeadlampConfig) exchangeSTSToken(ctx context.Context, clusterName, token string) (string, error) {
+	if !c.OidcStsEnabled || token == "" {
+		return token, nil
+	}
+
+	stsOpts := auth.STSOptions{
+		Enabled:          true,
+		IssuerURL:        c.OidcStsIssuerURL,
+		ClientID:         c.OidcStsClientID,
+		ClientSecret:     c.OidcStsClientSecret,
+		SubjectTokenType: c.OidcStsSubjectTokenType,
+		AudienceMap:      auth.ParseAudienceMap(c.OidcStsAudienceMap),
+	}
+	if stsOpts.IssuerURL == "" {
+		stsOpts.IssuerURL = c.OidcIdpIssuerURL
+	}
+
+	if stsOpts.ClientID == "" {
+		stsOpts.ClientID = c.OidcClientID
+	}
+
+	if stsOpts.ClientSecret == "" && c.OidcStsClientID == "" {
+		stsOpts.ClientSecret = c.OidcClientSecret
+	}
+
+	ctxWithTLS := auth.ConfigureTLSContext(ctx, &c.OidcSkipTLSVerify, &c.OidcCACert)
+
+	exchangedToken, err := auth.ExchangeTokenForCluster(ctxWithTLS, stsOpts, token, clusterName)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err, "STS token exchange failed")
+	}
+
+	return exchangedToken, err
+}
+
+// stsTokenMiddleware replaces the caller's token with the STS-exchanged one
+// before any cluster-bound handler (or the cache's authorization check) runs.
+// The cluster's auth cookies are dropped from the request so handlers that
+// prefer cookies use the exchanged Authorization header instead.
+func (c *HeadlampConfig) stsTokenMiddleware(next http.Handler) http.Handler {
+	if !c.OidcStsEnabled {
+		return next
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clusterName := mux.Vars(r)["clusterName"]
+
+		// Look up on a clone: the lookup strips the WebSocket identity
+		// subprotocol, which the downstream handler still needs.
+		contextKey, err := c.getContextKeyForRequest(r.Clone(r.Context()))
+		if err != nil {
+			next.ServeHTTP(w, r) // next reports the context error.
+			return
+		}
+
+		_, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
+		if err != nil || c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		processWebSocketProtocolHeader(r)
+
+		token, err := c.exchangeSTSToken(r.Context(), clusterName, c.requestSubjectToken(r, clusterName))
+		if err != nil {
+			http.Error(w, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
+			return
+		}
+
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+
+		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+		dropClusterAuthCookies(r, clusterName)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// dropClusterAuthCookies removes the cluster's chunked auth cookies from r.
+func dropClusterAuthCookies(r *http.Request, clusterName string) {
+	prefix := fmt.Sprintf("headlamp-auth-%s.", auth.SanitizeClusterName(clusterName))
+	cookies := r.Cookies()
+
+	r.Header.Del("Cookie")
+
+	for _, cookie := range cookies {
+		if !strings.HasPrefix(cookie.Name, prefix) {
+			r.AddCookie(cookie)
+		}
+	}
+}
+
 func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
 	// Only promote a cookie token when the request does not already provide Authorization.
 	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
@@ -2094,15 +2207,18 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 // to proxy requests to in-cluster services.
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
-		}))).Queries("request", "{request}").
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(c.stsTokenMiddleware(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
+			})))).Queries("request", "{request}").
 		Methods("GET")
 }
 
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").Handler(
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(c.stsTokenMiddleware(http.HandlerFunc(func(
+			w http.ResponseWriter, r *http.Request,
+		) {
 			ctx := r.Context()
 			path := r.URL.Path
 			clusterName := mux.Vars(r)["clusterName"]
@@ -2123,7 +2239,7 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 			}
 
 			c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, helmHandler)
-		})))
+		}))))
 }
 
 func (c *HeadlampConfig) helmRouteReleaseHandler(
@@ -2347,20 +2463,8 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			clearRequestAuthorization(r)
-		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
-
-			if token == "" {
-				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-			}
-
-			if token != "" {
-				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			}
+		} else if token := c.requestSubjectToken(r, mux.Vars(r)["clusterName"]); token != "" {
+			r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		}
 
 		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
@@ -2400,6 +2504,10 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	if c.CacheEnabled {
 		handler = CacheMiddleWare(c)(handler)
 	}
+
+	// STS must run before the cache middleware so its authorization check
+	// uses the exchanged token.
+	handler = c.stsTokenMiddleware(handler)
 
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
 }
@@ -3393,7 +3501,12 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+	token, err := c.exchangeSTSToken(ctx, drainPayload.Cluster,
+		c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy))
+	if err != nil {
+		c.handleError(w, ctx, span, err, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
+		return
+	}
 
 	if token == "" && c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
 		!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {

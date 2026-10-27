@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -1934,4 +1935,52 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+func TestClusterConnectionTokenUsesSTSExchange(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.exchangeToken = func(_ context.Context, clusterName, token string) (string, error) {
+		return clusterName + ":" + token, nil
+	}
+
+	subject := "subject-token"
+
+	token, err := m.clusterConnectionToken("cluster-a", &kubeconfig.Context{}, &subject)
+	require.NoError(t, err)
+	assert.Equal(t, "cluster-a:subject-token", *token)
+}
+
+func TestReconnectWithSTSExchangesSubjectToken(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	var exchanged []string
+
+	m.exchangeToken = func(_ context.Context, _ string, token string) (string, error) {
+		exchanged = append(exchanged, token)
+		return "exchanged-" + token, nil
+	}
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	subject := "subject-token"
+
+	conn, err := m.establishClusterConnection("test-cluster", "test-user", "/api/v1/pods", "watch=true",
+		clientConn, &subject)
+	require.NoError(t, err)
+
+	newConn, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{subject, subject}, exchanged, "reconnect must exchange the original subject token")
+	assert.Equal(t, subject, *newConn.Token)
 }

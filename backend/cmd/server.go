@@ -221,6 +221,12 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcStsEnabled:            conf.OidcStsEnabled,
+		OidcStsIssuerURL:          conf.OidcStsIssuerURL,
+		OidcStsClientID:           conf.OidcStsClientID,
+		OidcStsClientSecret:       conf.OidcStsClientSecret,
+		OidcStsSubjectTokenType:   conf.OidcStsSubjectTokenType,
+		OidcStsAudienceMap:        conf.OidcStsAudienceMap,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,
@@ -243,10 +249,16 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+
+	if cfg.OidcStsEnabled {
+		multiplexer.exchangeToken = headlampConfig.exchangeSTSToken
+	}
+
+	return headlampConfig
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
