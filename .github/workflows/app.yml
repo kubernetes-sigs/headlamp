@@ -70,7 +70,7 @@ jobs:
     - name: Test production frontend runtime
       run: xvfb-run --auto-servernum npm run app:test:e2e:frontend-build
     - name: Test desktop OAuth callbacks
-      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts tests/githubOAuth.spec.ts
     - name: Test external backend token
       run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/externalBackendToken.spec.ts
     - name: Verify Linux build
