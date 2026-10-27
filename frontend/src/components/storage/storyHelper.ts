@@ -84,6 +84,29 @@ export const BASE_PVC: KubePersistentVolumeClaim = {
   },
 };
 
+export const MODERN_PVC: KubePersistentVolumeClaim = {
+  ...BASE_PVC,
+  spec: {
+    ...BASE_PVC.spec,
+    dataSourceRef: {
+      apiGroup: 'snapshot.storage.k8s.io',
+      kind: 'VolumeSnapshot',
+      name: 'daily-backup',
+      namespace: 'default',
+    },
+  },
+  status: {
+    ...BASE_PVC.status,
+    allocatedResources: {
+      storage: '10Gi',
+    },
+    allocatedResourceStatuses: {
+      storage: 'NodeResizePending',
+      'example.com/iops': 'ControllerResizeInProgress',
+    },
+  },
+};
+
 export const BASE_PV: KubePersistentVolume = {
   apiVersion: 'v1',
   kind: 'PersistentVolume',
