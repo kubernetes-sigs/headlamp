@@ -902,6 +902,7 @@
   "Start Debug": "Démarrer le débogage",
   "Pod debug is disabled in settings": "Le débogage des pods est désactivé dans les paramètres",
   "Attaching to existing debug container...": "Connexion au conteneur de débogage existant...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Création du conteneur de débogage éphémère...",
   "Targeting container: {{container}}": "Conteneur ciblé : {{container}}",
   "Failed to create debug container: {{message}}": "Échec de la création du conteneur de débogage : {{message}}",
