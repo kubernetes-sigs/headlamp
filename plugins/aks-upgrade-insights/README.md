@@ -80,6 +80,7 @@ Upgrade Insights targets the `2026-08-02-preview` API:
 
 ```text
 GET  {managedClusterId}/upgradeInsights?api-version=2026-08-02-preview
+GET  {insightResourceId}?api-version=2026-08-02-preview
 POST {managedClusterId}/generateUpgradeInsights?api-version=2026-08-02-preview
 ```
 
@@ -94,6 +95,15 @@ visible per row. Kubernetes version and node OS image evaluations are separate s
 
 GET/LIST read stored evaluations and do not compute readiness. Generation is
 synchronous and stores a fresh result; it **does not start an upgrade**. The plugin
+verifies each live Generate result with GET using its server-returned resource ID.
+A failed or stale GET is shown as an error rather than a verified evaluation.
+Kubernetes targets are read from the raw ARM upgrade profile's `properties`
+envelope. Control-plane targets use the cluster upgrade profile; pool targets use
+the selected `agentPools/{name}/upgradeProfiles/default` endpoint because the
+cluster profile may return `agentPoolProfiles: null`. Nullable upgrade arrays
+mean no available targets, not a parsing failure. Targets are not unioned across
+scopes. NodeImage evaluation does not require Kubernetes upgrade-profile access.
+The plugin
 uses the server-provided `expiresAt` and also applies a clearly client-side
 24-hour freshness threshold. Missing/incomplete scopes, failed requests, unknown
 statuses, expired snapshots, and changed source versions are never called **Ready**.
@@ -141,17 +151,37 @@ silently matched to a synthetic cluster. Select a demo cluster explicitly.
 Live access is **not required** for the demo. See [`SETUP.txt`](SETUP.txt) before
 enabling it. In brief:
 
-- The local bridge listens only on loopback and uses the operator's existing
-  `az rest` authentication.
+- The local bridge listens only on loopback and obtains an ARM token through
+  `az account get-access-token --subscription <validated-subscription>`. The
+  token stays in the bridge process and is never returned to the browser.
 - It defaults to read-only, allowlists explicit subscriptions and read endpoints,
   validates browser origin and a short-lived in-memory pairing key, and does not
   expose Azure bearer tokens to the UI.
 - Readiness generation can be enabled deliberately with `--allow-generate`; the
   UI then requires approval of the exact POST request. It still cannot execute
   upgrades or other cluster-resource writes.
+- For an owner-approved internal preview test subscription only, add
+  `--preview-opt-in` to inject the exact Upgrade Insights custom-feature header
+  on Generate, named GET, LIST and continuation requests. It defaults off,
+  does not register a feature, and does not bypass Azure permissions or rollout
+  gates. Client-supplied custom headers are not accepted.
+- ARM errors retain their actual HTTP status, structured error code/message,
+  request ID and retry metadata. They are not all converted into HTTP 502.
+- In a selected Headlamp context, explicitly choose an ARM cluster by its
+  resource group and subscription. Its full ID is shown and the binding is
+  retained only in memory for that provider session; names are never used to
+  infer a live mapping.
 - The bridge and live API have not been validated with a preview-enabled AKS
   cluster. Feature registration, service rollout, permissions, browser policy,
   and AKS Desktop support must be confirmed by the environment owner.
+
+## Integration validation
+
+See [ARM integration test results](docs/arm-integration-test-results.md) for
+automated checks, sanitized real-cluster results, and browser screenshots.
+The real ARM run validates the client data adapter and authenticated bridge.
+The browser screenshots use synthetic responses and do not establish native
+AKS Desktop or live-browser integration.
 
 ## Limitations
 

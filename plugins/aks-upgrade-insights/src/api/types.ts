@@ -72,6 +72,9 @@ export type GenerateRequest =
   | { upgradeType: 'ControlPlaneAndAgentPools'; targetKubernetesVersion: string }
   | { upgradeType: 'AgentPool'; agentPoolName: string; targetKubernetesVersion: string }
   | { upgradeType: 'NodeImage'; agentPoolName: string; targetNodeImageVersion?: string };
+export type UpgradeTargetScope =
+  | { upgradeType: 'ControlPlane' | 'ControlPlaneAndAgentPools' }
+  | { upgradeType: 'AgentPool'; agentPoolName: string };
 
 export interface Cluster {
   id: string;
@@ -101,7 +104,8 @@ export interface InsightsProvider {
   readonly mode: 'demo' | 'live';
   listClusters(signal?: AbortSignal): Promise<ClusterInventory>;
   listInsights(cluster: Cluster, signal?: AbortSignal, forceRefresh?: boolean): Promise<Insight[]>;
-  listUpgradeTargets(cluster: Cluster, signal?: AbortSignal): Promise<string[]>;
+  getInsight(cluster: Cluster, resourceId: string, signal?: AbortSignal): Promise<Insight>;
+  listUpgradeTargets(cluster: Cluster, scope: UpgradeTargetScope, signal?: AbortSignal): Promise<string[]>;
   generate(cluster: Cluster, request: GenerateRequest, signal?: AbortSignal): Promise<Insight>;
 }
 

@@ -80,7 +80,8 @@ Prerequisites:
   currently checks the AKSUpgradeInsightsPreview feature registration as well as
   rollout flags. Do not register features or change subscriptions just for this demo
   without the resource owner's approval.
-- Appropriate ARM permissions for cluster reads, upgradeInsights reads, and (for
+- Appropriate ARM permissions for cluster and upgrade-profile reads, including
+  agent-pool upgrade-profile reads, upgradeInsights reads, and (for
   optional membership labels) Fleet list/member reads in the configured subscriptions.
   Generating an evaluation additionally requires the corresponding managedClusters
   generateUpgradeInsights action permission. This plugin does not grant RBAC.
@@ -89,9 +90,12 @@ Start the bridge in your own terminal:
 
   npm run bridge -- --subscriptions <subscription-id>[,<subscription-id>]
 
-It binds ONLY to 127.0.0.1:4319 and is read-only by default. It invokes `az rest`
-without a shell, uses your existing CLI authentication, and never returns an Azure
-access token to the frontend. Copy the printed LOCAL PAIRING KEY into Data source
+It binds ONLY to 127.0.0.1:4319 and is read-only by default. It invokes
+`az account get-access-token --subscription <validated-subscription>` without a
+shell, then calls ARM from the bridge process. The Azure token never goes to the
+frontend. Each request selects its subscription explicitly, including across
+tenants. AZURE_CLI_PATH can select an operator-managed Azure CLI executable or
+wrapper when it is not available on PATH. Copy the printed LOCAL PAIRING KEY into Data source
 settings along with the allowed subscription IDs. Do not paste keys into chat,
 commit them, or share them. Keys are memory-only and rotate when the bridge restarts.
 
@@ -112,6 +116,20 @@ To deliberately permit generating readiness (NOT performing upgrades):
 
   npm run bridge -- --subscriptions <subscription-id> --allow-generate
 
+For owner-approved internal preview testing only, the operator can also enable:
+
+  npm run bridge -- --subscriptions <subscription-id> --allow-generate --preview-opt-in
+
+This injects AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSUpgradeInsightsPreview
+only on Upgrade Insights Generate, GET, LIST and continuation calls. It defaults
+off and does not register subscription features or bypass permissions/rollout.
+Use actual preview registration for normal use. The browser cannot supply this
+header or change the operator's opt-in configuration.
+
+ARM HTTP status and structured code/message are preserved for both standard
+ARM error envelopes and bare RP error bodies. The browser receives
+only safe diagnostic headers (request/correlation ID and Retry-After), not tokens.
+
 Each live Generate dialog shows the exact resource path and request body and
 requires approval in the UI. Cluster PUT/PATCH/DELETE, upgrade operations, arbitrary
 ARM endpoints, arbitrary origins, and other subscriptions are never supported by
@@ -124,6 +142,7 @@ Reference design: aks-handbook/api/2026-08-02-preview/upgrade-insights.md.
 Wire shape cross-checked against the RP v20260802preview upgrade insight model.
 
   GET  {managedClusterId}/upgradeInsights?api-version=2026-08-02-preview
+  GET  {insightResourceId}?api-version=2026-08-02-preview
   POST {managedClusterId}/generateUpgradeInsights?api-version=2026-08-02-preview
 
 LIST returns { value: UpgradeInsight[], nextLink?: string }. Pagination is followed
@@ -140,11 +159,26 @@ reads are denied or partial, the UI says membership is unavailable instead of
 marking affected clusters standalone.
 
 When generating Kubernetes-version evaluations, the target version dropdown is
-loaded from managedClusters/upgradeProfiles/default (API version 2024-10-01). If
-that read fails, generation is blocked until targets can be read.
+loaded from managedClusters/upgradeProfiles/default (API version 2024-10-01).
+Raw ARM wraps controlPlaneProfile in properties; the CLI bridge does not flatten
+the response. The cluster profile can return agentPoolProfiles: null.
+ControlPlane/combined requests use its control-plane targets, while AgentPool
+reads agentPools/{name}/upgradeProfiles/default (also API 2024-10-01) for the
+selected pool. Nullable upgrades arrays mean no available targets. If that read
+fails, Kubernetes-version generation is blocked until targets can be read.
+NodeImage generation does not depend on that read.
 
 Server-controlled resource names are preserved; the client never constructs live
 GET names from assumptions about singular/plural agentPool naming.
+Live Generate is followed by a named GET using the returned ID. A 404 or other
+GET error remains visible and does not present the generated snapshot as verified;
+a stale GET also invalidates the provider's LIST cache.
+
+In live single-context views, selecting an ARM cluster explicitly binds its full
+ID to that Headlamp context for the current provider session. The selector shows
+resource group and subscription so duplicate names are not silently matched.
+The binding survives route remounts but is not written to browser storage and is
+not reused by a different provider/connection.
 
 Generation is SYNCHRONOUS in this contract. GET/LIST never regenerate results.
 provisioningState=Failed means compute failure, not readiness blocking.

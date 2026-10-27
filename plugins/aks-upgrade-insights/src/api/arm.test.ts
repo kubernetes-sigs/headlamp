@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArmProvider, clusterBase, bridgeTransport } from './arm';
+import { ArmProvider, ArmRequestError, clusterBase, bridgeTransport } from './arm';
 import { demoClusters } from './demo';
 import { API_VERSION, insightListSchema, insightSchema } from './types';
 
@@ -64,20 +64,77 @@ describe('ARM contract', () => {
     expect(transport).toHaveBeenCalledTimes(2);
   });
   it('loads available Kubernetes upgrade targets for dropdown selection', async () => {
-    const transport = vi.fn().mockResolvedValue({
-      controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }, { kubernetesVersion: '1.34.2' }] },
-      agentPoolProfiles: [{ upgrades: [{ kubernetesVersion: '1.36.0' }] }],
-    });
-    const targets = await new ArmProvider(transport, [subscription]).listUpgradeTargets(demoClusters[0]);
-    expect(targets).toEqual(['1.34.2', '1.35.1', '1.36.0']);
+    const clusterProfile = {
+      id: `${demoClusters[0].id}/upgradeProfiles/default`, name: 'default',
+      properties: {
+        controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }, { kubernetesVersion: '1.34.2' }] },
+        agentPoolProfiles: null,
+      },
+    };
+    const transport = vi.fn(async (path: string) => path.includes('/agentPools/')
+      ? { properties: { upgrades: [{ kubernetesVersion: path.includes('/workloads/') ? '1.36.0' : '1.34.2' }] } }
+      : clusterProfile);
+    const provider = new ArmProvider(transport, [subscription]);
+    const targets = await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'ControlPlane' });
+    expect(targets).toEqual(['1.34.2', '1.35.1']);
+    expect(await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'ControlPlaneAndAgentPools' })).toEqual(targets);
+    expect(await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'AgentPool', agentPoolName: 'workloads' })).toEqual(['1.36.0']);
+    expect(await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'AgentPool', agentPoolName: 'system' })).toEqual(['1.34.2']);
     expect(transport.mock.calls[0][0]).toBe(`${demoClusters[0].id}/upgradeProfiles/default?api-version=2024-10-01`);
+    expect(transport).toHaveBeenCalledWith(`${demoClusters[0].id}/agentPools/workloads/upgradeProfiles/default?api-version=2024-10-01`, 'GET', undefined, undefined);
+  });
+  it('rejects flattened or incomplete upgrade profiles instead of silently returning no targets', async () => {
+    for (const response of [
+      { controlPlaneProfile: { upgrades: [] } }, { properties: {} },
+    ]) {
+      const provider = new ArmProvider(vi.fn().mockResolvedValue(response), [subscription]);
+      await expect(provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'ControlPlane' })).rejects.toThrow();
+    }
+  });
+  it('reports a missing selected pool without falling back to another scope', async () => {
+    const provider = new ArmProvider(vi.fn().mockResolvedValue({
+      properties: { controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }] } },
+    }), [subscription]);
+    await expect(provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'AgentPool', agentPoolName: 'missing' })).rejects.toThrow('selected node pool');
+  });
+  it('treats nullable upgrade arrays as no available targets, not a wire-shape failure', async () => {
+    const transport = vi.fn(async (path: string) => path.includes('/agentPools/')
+      ? { properties: { kubernetesVersion: '1.35.8', upgrades: null } }
+      : { properties: { controlPlaneProfile: { upgrades: null }, agentPoolProfiles: null } });
+    const provider = new ArmProvider(transport, [subscription]);
+    expect(await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'ControlPlane' })).toEqual([]);
+    expect(await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'AgentPool', agentPoolName: 'system' })).toEqual([]);
   });
   it('caches upgrade targets briefly per cluster', async () => {
-    const transport = vi.fn().mockResolvedValue({ controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }] } });
+    const transport = vi.fn().mockResolvedValue({ properties: { controlPlaneProfile: { upgrades: [{ kubernetesVersion: '1.35.1' }] } } });
     const provider = new ArmProvider(transport, [subscription]);
-    await provider.listUpgradeTargets(demoClusters[0]);
-    await provider.listUpgradeTargets(demoClusters[0]);
+    await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'ControlPlane' });
+    await provider.listUpgradeTargets(demoClusters[0], { upgradeType: 'ControlPlane' });
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it('GETs the exact server-returned insight ID without inventing a name', async () => {
+    const id = `${demoClusters[0].id}/upgradeInsights/server-controlled-name`;
+    const transport = vi.fn().mockResolvedValue({ ...resource, id });
+    const provider = new ArmProvider(transport, [subscription]);
+    expect((await provider.getInsight(demoClusters[0], id)).id).toBe(id);
+    expect(transport).toHaveBeenCalledWith(`${id}?api-version=${API_VERSION}`, 'GET', undefined, undefined);
+    for (const invalid of [
+      `${demoClusters[1].id}/upgradeInsights/name`, `${demoClusters[0].id}/upgradeInsights/name/child`,
+      `${demoClusters[0].id}/upgradeInsights/..`, `${id}?override=true`, 'https://evil.example/name',
+    ]) {
+      await expect(provider.getInsight(demoClusters[0], invalid)).rejects.toThrow('selected AKS cluster');
+    }
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it('invalidates the LIST cache when a stored GET is no longer current', async () => {
+    const transport = vi.fn().mockResolvedValueOnce({ value: [resource] })
+      .mockRejectedValueOnce(new ArmRequestError(404, 'Snapshot is no longer current.', 'NotFound'))
+      .mockResolvedValueOnce({ value: [] });
+    const provider = new ArmProvider(transport, [subscription]);
+    await provider.listInsights(demoClusters[0]);
+    await expect(provider.getInsight(demoClusters[0], `${demoClusters[0].id}/upgradeInsights/stale`)).rejects.toMatchObject({ status: 404 });
+    expect(await provider.listInsights(demoClusters[0])).toEqual([]);
+    expect(transport).toHaveBeenCalledTimes(3);
   });
   it('preserves reachable subscriptions and reports partial inventory failures', async () => {
     const transport = vi.fn().mockResolvedValueOnce({ value: [] }).mockRejectedValueOnce(new Error('Forbidden'));
@@ -115,8 +172,30 @@ describe('ARM contract', () => {
   it('validates cluster resource IDs', () => expect(() => clusterBase({ ...demoClusters[0], id: 'https://evil.example' })).toThrow('Invalid AKS'));
   it('validates subscription IDs', () => expect(() => new ArmProvider(vi.fn(), ['invalid'])).toThrow('valid Azure'));
   it('surfaces pairing and CLI errors', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'Pairing expired' }) }));
-    await expect(bridgeTransport('key')('/subscriptions/x', 'GET')).rejects.toThrow('Pairing expired');
-    vi.unstubAllGlobals();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Pairing expired' }), { status: 401 })));
+    try { await expect(bridgeTransport('key')('/subscriptions/x', 'GET')).rejects.toThrow('Pairing expired'); }
+    finally { vi.unstubAllGlobals(); }
+  });
+  it.each([400, 403, 404, 429, 500])('preserves ARM status %s, code, request ID and retry metadata', async status => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { code: 'ArmTestError', message: 'The ARM operation could not complete.' },
+    }), { status, headers: { 'x-ms-request-id': 'request-123', 'retry-after': '15' } })));
+    try {
+      await expect(bridgeTransport('key')('/subscriptions/x', 'GET')).rejects.toMatchObject({
+        name: 'ArmRequestError', status, code: 'ArmTestError', requestId: 'request-123', retryAfter: '15',
+      });
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it('preserves a bare RP error body as well as the standard ARM error envelope', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      code: 'NotFound', message: 'The stored evaluation was not found.',
+      subcode: 'MissingStoredEvaluation', details: [{ code: 'Unspecified', message: 'entity not found' }],
+    }), { status: 404, headers: { 'x-ms-request-id': 'bare-rp-error-request' } })));
+    try {
+      await expect(bridgeTransport('key')('/subscriptions/x', 'GET')).rejects.toMatchObject({
+        status: 404, code: 'NotFound', requestId: 'bare-rp-error-request',
+        message: expect.stringContaining('The stored evaluation was not found.'),
+      });
+    } finally { vi.unstubAllGlobals(); }
   });
 });

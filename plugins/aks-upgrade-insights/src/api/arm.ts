@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { API_VERSION, Cluster, ClusterInventory, GenerateRequest, Insight, InsightsProvider, insightSchema } from './types';
+import { API_VERSION, Cluster, ClusterInventory, GenerateRequest, Insight, InsightsProvider, insightSchema, UpgradeTargetScope } from './types';
 
 const FLEET_API_VERSION = '2025-03-01';
 const UPGRADE_PROFILE_API_VERSION = '2024-10-01';
@@ -20,15 +20,25 @@ const clusterSchema = z.object({
     })).optional(),
   }),
 });
-const upgradeProfileSchema = z.object({
-  controlPlaneProfile: z.object({
-    upgrades: z.array(z.object({ kubernetesVersion: z.string() }).passthrough()).optional(),
-  }).optional(),
-  agentPoolProfiles: z.array(z.object({
-    name: z.string().optional(),
-    upgrades: z.array(z.object({ kubernetesVersion: z.string() }).passthrough()).optional(),
-  }).passthrough()).optional(),
+const targetProfileSchema = z.object({
+  upgrades: z.array(z.object({ kubernetesVersion: z.string() }).passthrough()).nullish(),
 }).passthrough();
+const upgradeProfileSchema = z.object({
+  properties: z.object({ controlPlaneProfile: targetProfileSchema }).passthrough(),
+}).passthrough();
+const agentPoolUpgradeProfileSchema = z.object({ properties: targetProfileSchema }).passthrough();
+export class ArmRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: string,
+    readonly requestId?: string,
+    readonly retryAfter?: string
+  ) {
+    super(`${code ? `${code}: ` : ''}${message} (HTTP ${status})${requestId ? ` Request ID: ${requestId}` : ''}`);
+    this.name = 'ArmRequestError';
+  }
+}
 export function clusterBase(cluster: Cluster) {
   if (!/^\/subscriptions\/[a-zA-Z0-9-]+\/resourceGroups\/[^/]+\/providers\/Microsoft\.ContainerService\/managedClusters\/[^/?#]+$/i.test(cluster.id)) {
     throw new Error('Invalid AKS resource ID.');
@@ -149,17 +159,46 @@ export class ArmProvider implements InsightsProvider {
     this.insightCache.set(key, { expiresAt: now + INSIGHT_CACHE_TTL_MS, insights });
     return structuredClone(insights);
   }
-  async listUpgradeTargets(cluster: Cluster, signal?: AbortSignal): Promise<string[]> {
+  async getInsight(cluster: Cluster, resourceId: string, signal?: AbortSignal): Promise<Insight> {
+    const prefix = `${cluster.id}/upgradeInsights/`;
+    const name = resourceId.slice(prefix.length);
+    if (!resourceId.toLowerCase().startsWith(prefix.toLowerCase()) || !name ||
+        /[/?#\\]/.test(name) || name === '.' || name === '..') {
+      throw new Error('Insight resource ID must belong to the selected AKS cluster.');
+    }
+    try {
+      return insightSchema.parse(await this.transport(
+        `${clusterBase(cluster)}/upgradeInsights/${encodeURIComponent(name)}?api-version=${API_VERSION}`,
+        'GET', undefined, signal
+      ));
+    } catch (error) {
+      if (error instanceof ArmRequestError && error.status === 404) {
+        this.insightCache.delete(cluster.id.toLowerCase());
+      }
+      throw error;
+    }
+  }
+  async listUpgradeTargets(cluster: Cluster, scope: UpgradeTargetScope, signal?: AbortSignal): Promise<string[]> {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const key = cluster.id.toLowerCase();
+    const key = `${cluster.id.toLowerCase()}/${scope.upgradeType}/${scope.upgradeType === 'AgentPool' ? scope.agentPoolName : ''}`;
     const cached = this.upgradeTargetCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return structuredClone(cached.targets);
-    const profile = upgradeProfileSchema.parse(
-      await this.transport(`${clusterBase(cluster)}/upgradeProfiles/default?api-version=${UPGRADE_PROFILE_API_VERSION}`, 'GET', undefined, signal)
-    );
-    const targets = new Set<string>();
-    profile.controlPlaneProfile?.upgrades?.forEach(upgrade => targets.add(upgrade.kubernetesVersion));
-    profile.agentPoolProfiles?.forEach(pool => pool.upgrades?.forEach(upgrade => targets.add(upgrade.kubernetesVersion)));
+    let selected: z.infer<typeof targetProfileSchema>;
+    if (scope.upgradeType === 'AgentPool') {
+      if (!cluster.pools.some(pool => pool.name === scope.agentPoolName)) {
+        throw new Error('The selected node pool is not present in the cluster inventory.');
+      }
+      selected = agentPoolUpgradeProfileSchema.parse(await this.transport(
+        `${clusterBase(cluster)}/agentPools/${encodeURIComponent(scope.agentPoolName)}/upgradeProfiles/default?api-version=${UPGRADE_PROFILE_API_VERSION}`,
+        'GET', undefined, signal
+      )).properties;
+    } else {
+      selected = upgradeProfileSchema.parse(await this.transport(
+        `${clusterBase(cluster)}/upgradeProfiles/default?api-version=${UPGRADE_PROFILE_API_VERSION}`,
+        'GET', undefined, signal
+      )).properties.controlPlaneProfile;
+    }
+    const targets = new Set((selected.upgrades ?? []).map(upgrade => upgrade.kubernetesVersion));
     const sorted = [...targets].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
     const now = Date.now();
     for (const [cacheKey, entry] of this.upgradeTargetCache) {
@@ -183,8 +222,19 @@ export function bridgeTransport(pairingKey: string): ArmTransport {
     });
     const data: unknown = await response.json();
     if (!response.ok) {
-      const error = z.object({ error: z.string() }).safeParse(data);
-      throw new Error(error.success ? error.data.error : `Bridge request failed (${response.status}).`);
+      const detailSchema = z.object({ code: z.string().optional(), message: z.string() }).passthrough();
+      const envelope = z.object({
+        error: z.union([z.string(), detailSchema]),
+      }).passthrough().safeParse(data);
+      const bare = detailSchema.safeParse(data);
+      const detail = envelope.success ? envelope.data.error : bare.success ? bare.data : undefined;
+      throw new ArmRequestError(
+        response.status,
+        typeof detail === 'string' ? detail : detail?.message ?? 'ARM bridge request failed.',
+        typeof detail === 'object' ? detail.code : undefined,
+        response.headers.get('x-ms-request-id') ?? response.headers.get('x-ms-correlation-request-id') ?? undefined,
+        response.headers.get('retry-after') ?? undefined
+      );
     }
     return data;
   };

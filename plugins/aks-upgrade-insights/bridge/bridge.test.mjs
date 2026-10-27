@@ -53,6 +53,10 @@ test('supports scoped preflight', async () => {
   assert.equal(response.status, 204);
   assert.equal(response.headers.get('access-control-allow-origin'), 'http://127.0.0.1:5178');
 });
+test('exposes only the ARM diagnostics needed by the paired browser', async () => {
+  const response = await request({}, { ...headers(), 'X-Bridge-Key': 'wrong' });
+  assert.equal(response.headers.get('access-control-expose-headers'), 'x-ms-request-id, x-ms-correlation-request-id, retry-after');
+});
 test('rejects live generation in default read-only mode', async () => {
   const response = await request({
     method: 'POST', path: `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/managedClusters/test/generateUpgradeInsights?api-version=2026-08-02-preview`,
@@ -74,6 +78,7 @@ test('allows read-only Fleet inventory and member endpoints without issuing clou
     `/subscriptions/${subscription}/providers/Microsoft.ContainerService/fleets?api-version=2025-03-01`,
     `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/fleets/production/members?api-version=2025-03-01`,
     `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/managedClusters/test/upgradeProfiles/default?api-version=2024-10-01`,
+    `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/managedClusters/test/agentPools/system/upgradeProfiles/default?api-version=2024-10-01`,
   ]) {
     assert.deepEqual(validateRequest({ method: 'GET', path }, [subscription]), { method: 'GET', path });
   }
@@ -86,6 +91,24 @@ test('rejects absolute URLs and other API versions', async () => {
   for (const path of ['https://evil.example', `/subscriptions/${subscription}/providers/Microsoft.ContainerService/managedClusters?api-version=2025-01-01`]) {
     assert.equal((await request({ method: 'GET', path })).status, 400);
   }
+});
+test('allows opaque named insight GETs and continuation tokens only within the allowlisted scope', () => {
+  const cluster = `/subscriptions/${subscription}/resourceGroups/demo/providers/Microsoft.ContainerService/managedClusters/test`;
+  for (const path of [
+    `${cluster}/upgradeInsights/server-controlled-name?api-version=2026-08-02-preview`,
+    `${cluster}/upgradeInsights?api-version=2026-08-02-preview&$skipToken=opaque`,
+  ]) {
+    assert.deepEqual(validateRequest({ method: 'GET', path }, [subscription]), { method: 'GET', path });
+  }
+  for (const suffix of ['name/child', 'name%2fchild', 'name%5cchild', '%2e%2e/upgrade']) {
+    assert.throws(() => validateRequest({
+      method: 'GET', path: `${cluster}/upgradeInsights/${suffix}?api-version=2026-08-02-preview`,
+    }, [subscription]));
+  }
+  assert.throws(() => validateRequest({
+    method: 'GET', path: `${cluster}/upgradeInsights/name?api-version=2026-08-02-preview`,
+    headers: { AKSHTTPCustomFeatures: 'unapproved-client-value' },
+  }, [subscription]));
 });
 test('rejects unknown request fields and incomplete generation bodies', async () => {
   const response = await request({ method: 'POST', path: '/subscriptions/test', body: { upgradeType: 'AgentPool' }, unexpected: true });

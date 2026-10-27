@@ -3,7 +3,9 @@ import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import { Cluster, InsightsProvider } from './api/types';
+import { Cluster, Insight, InsightsProvider } from './api/types';
+import { ArmRequestError } from './api/arm';
+import { demoClusters } from './api/demo';
 import { getActiveProvider, setActiveProvider } from './api/session';
 
 declare global { var IS_REACT_ACT_ENVIRONMENT: boolean; }
@@ -20,8 +22,8 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove(); vi.useRealTimers();
 });
-async function render(context?: string) {
-  await act(async () => root.render(<App singleClusterContext={context} />));
+async function render(context?: string, provider?: InsightsProvider) {
+  await act(async () => root.render(<App singleClusterContext={context} initialProvider={provider} />));
   for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 }
 function button(label: string) {
@@ -30,6 +32,24 @@ function button(label: string) {
   return result;
 }
 async function click(label: string) { await act(async () => button(label).click()); }
+async function select(label: string, value: string) {
+  const input = container.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`);
+  if (!input) throw new Error(`Select not found: ${label}`);
+  await act(async () => {
+    input.value = value; input.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+function liveProvider(clusters: Cluster[] = demoClusters): InsightsProvider {
+  return {
+    mode: 'live',
+    listClusters: vi.fn().mockResolvedValue({ clusters, warnings: [], fleetWarnings: [] }),
+    listInsights: vi.fn().mockResolvedValue([]),
+    getInsight: vi.fn(),
+    listUpgradeTargets: vi.fn().mockResolvedValue(['1.35.1']),
+    generate: vi.fn(),
+  };
+}
 
 describe('source and context UI regressions', () => {
   it('reloads inventory when choosing the already-selected demo provider', async () => {
@@ -75,6 +95,7 @@ describe('source and context UI regressions', () => {
       mode: 'live',
       listClusters: vi.fn().mockResolvedValue({ clusters, warnings: [], fleetWarnings: [] }),
       listInsights: vi.fn().mockResolvedValue([]),
+      getInsight: vi.fn(),
       listUpgradeTargets: vi.fn().mockResolvedValue(['1.35.1']),
       generate: vi.fn(),
     };
@@ -93,6 +114,7 @@ describe('source and context UI regressions', () => {
       mode: 'live',
       listClusters: vi.fn().mockResolvedValue({ clusters: [], warnings: [], fleetWarnings: [] }),
       listInsights: vi.fn().mockResolvedValue([]),
+      getInsight: vi.fn(),
       listUpgradeTargets: vi.fn().mockResolvedValue(['1.35.1']),
       generate: vi.fn(),
     };
@@ -108,5 +130,78 @@ describe('source and context UI regressions', () => {
     } finally {
       setActiveProvider(original);
     }
+  });
+  it('binds an explicit ARM ID to a live context and restores it only for the same provider', async () => {
+    const first = { ...demoClusters[0], name: 'duplicate' };
+    const second = { ...demoClusters[1], name: 'duplicate' };
+    const provider = liveProvider([first, second]);
+    await render('duplicate', provider);
+    expect(container.querySelector('.cluster-hero')).toBeNull();
+    await select('Select cluster', second.id);
+    expect(container.querySelector('.context-note')?.textContent).toContain(second.id);
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await render('duplicate', provider);
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Select cluster"]')?.value).toBe(second.id);
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await render('duplicate', liveProvider([first, second]));
+    expect(container.querySelector('.cluster-hero')).toBeNull();
+  });
+  it('reloads upgrade targets for the selected Kubernetes scope and pool', async () => {
+    const provider = liveProvider();
+    await render('live-context', provider);
+    await select('Select cluster', demoClusters[0].id);
+    await click('Evaluate a target');
+    expect(provider.listUpgradeTargets).toHaveBeenLastCalledWith(demoClusters[0], { upgradeType: 'ControlPlaneAndAgentPools' }, expect.any(AbortSignal));
+    const scope = container.querySelector<HTMLSelectElement>('dialog .form-grid select');
+    if (!scope) throw new Error('Scope selector not found');
+    await act(async () => { scope.value = 'AgentPool'; scope.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(provider.listUpgradeTargets).toHaveBeenLastCalledWith(demoClusters[0], { upgradeType: 'AgentPool', agentPoolName: 'system' }, expect.any(AbortSignal));
+  });
+  it('generates NodeImage and verifies its exact GET even when Kubernetes target discovery fails', async () => {
+    const provider = liveProvider();
+    vi.mocked(provider.listUpgradeTargets).mockRejectedValue(new Error('Upgrade profile forbidden'));
+    const insight: Insight = {
+      id: `${demoClusters[0].id}/upgradeInsights/nodeImage-system-server-version`,
+      name: 'nodeImage-system-server-version',
+      properties: { upgradeType: 'NodeImage', agentPoolName: 'system', provisioningState: 'Succeeded' },
+    };
+    vi.mocked(provider.generate).mockResolvedValue(insight);
+    vi.mocked(provider.getInsight).mockResolvedValue(insight);
+    await render('live-context', provider);
+    await select('Select cluster', demoClusters[0].id);
+    await click('Evaluate a target');
+    expect(container.textContent).toContain('Upgrade profile forbidden');
+    const scope = container.querySelector<HTMLSelectElement>('dialog .form-grid select');
+    if (!scope) throw new Error('Scope selector not found');
+    await act(async () => { scope.value = 'NodeImage'; scope.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(provider.listUpgradeTargets).toHaveBeenCalledTimes(1);
+    expect(button('Generate evaluation').disabled).toBe(true);
+    const confirmation = container.querySelector<HTMLInputElement>('dialog input[type="checkbox"]');
+    if (!confirmation) throw new Error('Live confirmation not found');
+    await act(async () => confirmation.click());
+    expect(button('Generate evaluation').disabled).toBe(false);
+    await click('Generate evaluation');
+    expect(provider.generate).toHaveBeenCalledWith(demoClusters[0], { upgradeType: 'NodeImage', agentPoolName: 'system' });
+    expect(provider.getInsight).toHaveBeenCalledWith(demoClusters[0], insight.id);
+    expect(container.textContent).toContain('New evaluation completed');
+  });
+  it('surfaces a stale named GET instead of presenting an unverified generated snapshot', async () => {
+    const provider = liveProvider();
+    vi.mocked(provider.generate).mockResolvedValue({
+      id: `${demoClusters[0].id}/upgradeInsights/controlPlane-server-target`,
+      name: 'controlPlane-server-target', properties: { upgradeType: 'ControlPlane' },
+    });
+    vi.mocked(provider.getInsight).mockRejectedValue(new ArmRequestError(404, 'Snapshot is no longer current; refresh or re-evaluate.', 'NotFound', 'request-404'));
+    await render('live-context', provider);
+    await select('Select cluster', demoClusters[0].id);
+    await click('Evaluate a target');
+    const confirmation = container.querySelector<HTMLInputElement>('dialog input[type="checkbox"]');
+    if (!confirmation) throw new Error('Live confirmation not found');
+    await act(async () => confirmation.click());
+    await click('Generate evaluation');
+    expect(container.querySelector('dialog [role="alert"]')?.textContent).toContain('request-404');
+    expect(container.textContent).not.toContain('New evaluation completed');
   });
 });
