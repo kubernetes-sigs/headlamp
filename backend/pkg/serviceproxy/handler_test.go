@@ -254,7 +254,7 @@ func TestRequestHandlerSendsNoCacheHeaders(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = mux.SetURLVars(r, map[string]string{"clusterName": "unknown", "namespace": "default", "name": "svc"})
-		RequestHandler(store, false, w, r)
+		RequestHandler(store, false, "", w, r)
 	}))
 	defer server.Close()
 
