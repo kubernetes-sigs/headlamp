@@ -35,6 +35,10 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 	kubeConfigStore := kubeconfig.NewContextStore()
 
+	// Perform initial load as done by the Headlamp server
+	err := kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, path, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Ensure the watcher goroutine is stopped when the test ends
 
@@ -42,9 +46,6 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 	// Test adding a context
 	t.Run("Add context", func(t *testing.T) {
-		// Sleep to ensure watcher is ready
-		time.Sleep(2 * time.Second)
-
 		// Read existing config
 		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
 		require.NoError(t, err)
@@ -55,21 +56,21 @@ func TestWatchAndLoadFiles(t *testing.T) {
 			AuthInfo: "docker-desktop", // reuse existing auth
 		}
 
-		// Write back to file
-		err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
-		require.NoError(t, err)
-
-		// Wait for context to be added
+		// Periodically rewrite file until watcher detects event
 		found := false
 
-		for i := 0; i < 20; i++ {
+		for i := 0; i < 30; i++ {
+			err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
+			require.NoError(t, err)
+
 			context, err := kubeConfigStore.GetContext("random-cluster-4")
 			if err == nil && context != nil {
 				found = true
+
 				break
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 		}
 
 		require.True(t, found, "Context should have been added")
@@ -345,4 +346,192 @@ func TestReAddMissingFilesLoadsCreatedFile(t *testing.T) {
 
 	_, err = store.GetContext("minikube")
 	require.Error(t, err, "a retry should not reload when no file was missing")
+}
+
+// TestReAddMissingFilesReloadsRecreatedCredentialFile covers a remove-and-recreate
+// credential rotation: once the replaced file's stale watch is dropped, re-adding
+// the recreated file must reload the contexts so the new credentials apply.
+func TestReAddMissingFilesReloadsRecreatedCredentialFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tokenPath := filepath.Join(tempDir, "token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("old-token"), 0o600))
+
+	kubeConfigPath := filepath.Join(tempDir, "kubeconfig")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{Server: "https://127.0.0.1:6443"}
+	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{TokenFile: tokenPath}
+	config.Contexts["test-context"] = &clientcmdapi.Context{Cluster: "test-cluster", AuthInfo: "test-user"}
+	require.NoError(t, clientcmd.WriteToFile(*config, kubeConfigPath))
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	watcher, err := fsnotify.NewWatcher()
+	require.NoError(t, err)
+
+	defer func() { _ = watcher.Close() }()
+
+	kubeconfig.ReAddMissingFiles(watcher, store, kubeConfigPath, kubeconfig.KubeConfig, nil)
+	require.Contains(t, watcher.WatchList(), tokenPath)
+
+	// Rotate the token by removing and recreating it. The watcher drops the
+	// removed file's watch when it handles the Remove event; fsnotify may have
+	// dropped it already, so the error is ignored as in the watcher.
+	require.NoError(t, os.Remove(tokenPath))
+
+	_ = watcher.Remove(tokenPath)
+	require.NoError(t, os.WriteFile(tokenPath, []byte("new-token"), 0o600))
+
+	reloads := make(chan struct{}, 10)
+
+	store.AddListener(func() {
+		select {
+		case reloads <- struct{}{}:
+		default:
+		}
+	})
+
+	kubeconfig.ReAddMissingFiles(watcher, store, kubeConfigPath, kubeconfig.KubeConfig, nil)
+
+	require.Contains(t, watcher.WatchList(), tokenPath, "the recreated file should be watched again")
+
+	select {
+	case <-reloads:
+	default:
+		t.Fatal("re-adding the recreated credential file should reload the contexts")
+	}
+}
+
+//nolint:funlen
+func TestWatchAndLoadReferencedCredentialFiles(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test")
+	}
+
+	// Create a temp directory for the test files
+	tempDir, err := os.MkdirTemp("", "headlamp-watcher-test")
+	require.NoError(t, err)
+
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// Create a mock token file
+	tokenPath := filepath.Join(tempDir, "token")
+	err = os.WriteFile(tokenPath, []byte("initial-token"), 0o600)
+	require.NoError(t, err)
+
+	// Create a mock kubeconfig referencing the token file
+	kubeconfigPath := filepath.Join(tempDir, "kubeconfig")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{
+		Server: "https://127.0.0.1:6443",
+	}
+	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{
+		TokenFile: tokenPath,
+	}
+	config.Contexts["test-context"] = &clientcmdapi.Context{
+		Cluster:  "test-cluster",
+		AuthInfo: "test-user",
+	}
+	config.CurrentContext = "test-context"
+
+	err = clientcmd.WriteToFile(*config, kubeconfigPath)
+	require.NoError(t, err)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	// Perform initial load as done by the Headlamp server
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go kubeconfig.LoadAndWatchFiles(ctx, kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
+
+	// Verify context exists
+	_, err = kubeConfigStore.GetContext("test-context")
+	require.NoError(t, err)
+
+	// Add listener to track notifications
+	reloadChan := make(chan struct{}, 10)
+
+	kubeConfigStore.AddListener(func() {
+		select {
+		case reloadChan <- struct{}{}:
+		default:
+		}
+	})
+
+	// Modify the referenced token file with retry sync until reload triggers
+	reloaded := false
+
+	for i := 0; i < 30; i++ {
+		err = os.WriteFile(tokenPath, []byte("updated-token"), 0o600)
+		require.NoError(t, err)
+
+		select {
+		case <-reloadChan:
+			reloaded = true
+		case <-time.After(200 * time.Millisecond):
+		}
+
+		if reloaded {
+			break
+		}
+	}
+
+	require.True(t, reloaded, "Timeout waiting for watcher to trigger reload on credential file change")
+}
+
+func TestRemoveContextWithSharedCluster(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test")
+	}
+
+	tempDir := t.TempDir()
+	kubeconfigPath := filepath.Join(tempDir, "kubeconfig")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["shared-cluster"] = &clientcmdapi.Cluster{Server: "https://127.0.0.1:6443"}
+	config.AuthInfos["user-1"] = &clientcmdapi.AuthInfo{Token: "token-1"}
+	config.AuthInfos["user-2"] = &clientcmdapi.AuthInfo{Token: "token-2"}
+	config.Contexts["ctx-1"] = &clientcmdapi.Context{Cluster: "shared-cluster", AuthInfo: "user-1"}
+	config.Contexts["ctx-2"] = &clientcmdapi.Context{Cluster: "shared-cluster", AuthInfo: "user-2"}
+
+	require.NoError(t, clientcmd.WriteToFile(*config, kubeconfigPath))
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go kubeconfig.LoadAndWatchFiles(ctx, kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
+
+	_, err1 := kubeConfigStore.GetContext("ctx-1")
+	_, err2 := kubeConfigStore.GetContext("ctx-2")
+
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+
+	delete(config.Contexts, "ctx-1")
+
+	removed := false
+
+	for i := 0; i < 30; i++ {
+		require.NoError(t, clientcmd.WriteToFile(*config, kubeconfigPath))
+
+		if _, err := kubeConfigStore.GetContext("ctx-1"); err != nil {
+			removed = true
+
+			break
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	require.True(t, removed, "ctx-1 should have been removed by watcher")
+
+	_, err := kubeConfigStore.GetContext("ctx-2")
+	require.NoError(t, err, "ctx-2 should still exist in store")
 }
