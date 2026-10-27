@@ -102,6 +102,21 @@ describe('parseRam', () => {
     expect(parseRam('289.9Mi')).toBeCloseTo(289.9 * 1024 * 1024, 5);
   });
 
+  it('should parse a quantity written with a leading decimal point', () => {
+    // Kubernetes accepts a leading '.' (resource.ParseQuantity('.5Gi') is
+    // 536870912). Without the leading digit the number used to be read as
+    // '5', making the value ten times too large.
+    expect(parseRam('.5Gi')).toBe(0.5 * 1024 ** 3);
+    expect(parseRam('.5Ki')).toBe(512);
+    expect(parseRam('.25Gi')).toBe(0.25 * 1024 ** 3);
+    expect(parseRam('.5k')).toBe(500);
+    expect(parseRam('.5G')).toBe(500000000);
+    expect(parseRam('.5')).toBe(0.5);
+    // The fractional suffixes already took this path and keep working.
+    expect(parseRam('.5m')).toBeCloseTo(0.0005, 10);
+    expect(parseRam('.5n')).toBeCloseTo(0.5e-9, 15);
+  });
+
   it('should parse decimal values with decimal units', () => {
     expect(parseRam('1.5K')).toBe(1500);
     expect(parseRam('2.5M')).toBe(2500000);

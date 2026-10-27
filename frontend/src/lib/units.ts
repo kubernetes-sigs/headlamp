@@ -49,7 +49,9 @@ function parseUnitsOfBytes(value: string): number {
   // (m | "" | k | M | G | T | P | E), so 1k is 1000 while 1Ki is 1024. The
   // uppercase K is not a valid suffix, but it has been read as kilo here for a
   // long time, so it stays accepted.
-  const groups = value.match(/(\d+(?:\.\d+)?)([BkKMGTPEe])?(i)?(\d+)?/) || [];
+  // The number also matches a leading decimal point (".5Gi"), which Kubernetes
+  // accepts and which would otherwise be read as "5Gi".
+  const groups = value.match(/(\d+(?:\.\d*)?|\.\d+)([BkKMGTPEe])?(i)?(\d+)?/) || [];
   const number = parseFloat(groups[1]);
 
   // number ex. 1000
