@@ -333,6 +333,7 @@
   "Uncapped Target": "Mål utan tak",
   "Vertical Pod Autoscalers": "Vertikala poddautoskalningar",
   "Checking if Vertical Pod Autoscaler is enabled…": "Kontrollerar om vertikal poddautoskalning är aktiverat…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Vertikal poddautoskalning är inte aktiverad. <1>Mer information</1>",
   "Webhooks": "Webhook-metoder",
   "Client Config: Ca Bundle": "Klientkonfiguration: CA-paket",

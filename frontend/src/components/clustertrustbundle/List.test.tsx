@@ -17,7 +17,7 @@
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import { TestContext } from '../../test';
 import ClusterTrustBundleList from './List';
 
@@ -28,7 +28,7 @@ vi.mock('../../lib/k8s/clusterTrustBundle', () => ({
 }));
 
 vi.mock('../../lib/k8s/resourceAvailability', () => ({
-  useClustersServing: vi.fn(),
+  useClustersServingStatus: vi.fn(),
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
@@ -54,7 +54,7 @@ function renderList() {
 describe('ClusterTrustBundleList', () => {
   beforeEach(() => {
     mockListView.mockReset();
-    vi.mocked(useClustersServing).mockReturnValue(['ctb']);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: ['ctb'], isChecking: false });
   });
 
   it('renders the expected columns', () => {
@@ -83,13 +83,33 @@ describe('ClusterTrustBundleList', () => {
   });
 
   it('asks only the clusters that serve the API, not every selected one', () => {
-    vi.mocked(useClustersServing).mockReturnValue(['ctb', 'other-ctb']);
+    vi.mocked(useClustersServingStatus).mockReturnValue({
+      clusters: ['ctb', 'other-ctb'],
+      isChecking: false,
+    });
 
     expect(renderList().clusters).toEqual(['ctb', 'other-ctb']);
   });
 
+  it('offers creation once every selected cluster has answered', () => {
+    const props = renderList();
+
+    expect(props.headerProps).toBeUndefined();
+    expect(props.emptyActions).toBeUndefined();
+  });
+
+  it('offers no creation while another cluster may still turn out to serve the API', () => {
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: ['ctb'], isChecking: true });
+
+    const props = renderList();
+
+    expect(props.clusters).toEqual(['ctb']);
+    expect(props.headerProps).toEqual({ titleSideActions: [] });
+    expect(props.emptyActions).toBeNull();
+  });
+
   it('shows loading instead of querying or offering creation until discovery has answered', () => {
-    vi.mocked(useClustersServing).mockReturnValue(undefined);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: undefined, isChecking: true });
     render(
       <TestContext>
         <ClusterTrustBundleList />

@@ -20,8 +20,9 @@ import Typography from '@mui/material/Typography';
 import { Trans, useTranslation } from 'react-i18next';
 import { getTopCondition } from '../../lib/k8s/conditions';
 import JobSet from '../../lib/k8s/jobSet';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import Empty from '../common/EmptyContent';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 import SectionBox from '../common/SectionBox';
 
@@ -31,8 +32,9 @@ const conditionPriority = ['Failed', 'Completed', 'Suspended', 'StartupPolicyCom
 export default function JobSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
   // Only some of the selected clusters may have JobSet installed, so ask each of them and
-  // list only from those that do.
-  const servingClusters = useClustersServing(JobSet);
+  // list only from those that do. While another cluster may still turn out to serve it, no
+  // create action is offered, since it could only target the first cluster known so far.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(JobSet);
 
   return (
     <>
@@ -51,6 +53,8 @@ export default function JobSetList() {
           title={t('glossary|Job Sets')}
           resourceClass={JobSet}
           clusters={servingClusters}
+          headerProps={isChecking ? { titleSideActions: [] } : undefined}
+          emptyActions={isChecking ? <EmptyStateActions /> : undefined}
           columns={[
             'name',
             'namespace',

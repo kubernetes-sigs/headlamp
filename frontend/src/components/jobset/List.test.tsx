@@ -17,7 +17,7 @@
 import '../../i18n/config';
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import { TestContext } from '../../test';
 import { theme } from '../TestHelpers/theme';
 import JobSetList from './List';
@@ -29,7 +29,7 @@ vi.mock('../../lib/k8s/jobSet', () => ({
 }));
 
 vi.mock('../../lib/k8s/resourceAvailability', () => ({
-  useClustersServing: vi.fn(),
+  useClustersServingStatus: vi.fn(),
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
@@ -55,7 +55,7 @@ describe('JobSetList', () => {
   });
 
   it('renders disabled state with safe external documentation link attributes', () => {
-    vi.mocked(useClustersServing).mockReturnValue([]);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: [], isChecking: false });
 
     renderJobSetList();
 
@@ -70,16 +70,36 @@ describe('JobSetList', () => {
   });
 
   it('lists only from the selected clusters that have JobSet', () => {
-    vi.mocked(useClustersServing).mockReturnValue(['cluster-b']);
+    vi.mocked(useClustersServingStatus).mockReturnValue({
+      clusters: ['cluster-b'],
+      isChecking: false,
+    });
 
     renderJobSetList();
 
     expect(screen.queryByText(/JobSet is not enabled/i)).not.toBeInTheDocument();
-    expect(mockListView.mock.calls[0][0].clusters).toEqual(['cluster-b']);
+    const props = mockListView.mock.calls[0][0];
+    expect(props.clusters).toEqual(['cluster-b']);
+    expect(props.headerProps).toBeUndefined();
+    expect(props.emptyActions).toBeUndefined();
+  });
+
+  it('offers no creation while another cluster may still turn out to have JobSet', () => {
+    vi.mocked(useClustersServingStatus).mockReturnValue({
+      clusters: ['cluster-b'],
+      isChecking: true,
+    });
+
+    renderJobSetList();
+
+    const props = mockListView.mock.calls[0][0];
+    expect(props.clusters).toEqual(['cluster-b']);
+    expect(props.headerProps).toEqual({ titleSideActions: [] });
+    expect(props.emptyActions).toBeDefined();
   });
 
   it('shows that it is checking until the selected clusters have answered', () => {
-    vi.mocked(useClustersServing).mockReturnValue(undefined);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: undefined, isChecking: true });
 
     renderJobSetList();
 

@@ -333,6 +333,7 @@
   "Uncapped Target": "上限なしターゲット",
   "Vertical Pod Autoscalers": "垂直ポッドオートスケーラー",
   "Checking if Vertical Pod Autoscaler is enabled…": "垂直ポッドオートスケーラーが有効かどうか確認中…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "垂直ポッドオートスケーラーが有効になっていません。<1>詳細を見る</1>",
   "Webhooks": "ウェブフック",
   "Client Config: Ca Bundle": "クライアント設定: CA 証明書",

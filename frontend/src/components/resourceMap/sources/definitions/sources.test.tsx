@@ -26,6 +26,7 @@ import CRD from '../../../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../../../lib/k8s/gatewayL4RouteAvailability';
 import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
+import { useClustersServing } from '../../../../lib/k8s/resourceAvailability';
 import ResourceClaim from '../../../../lib/k8s/resourceClaim';
 import {
   useCompositePodGroupClustersByVersion,
@@ -52,6 +53,10 @@ vi.mock('../../../../redux/filterSlice', async importOriginal => ({
 }));
 vi.mock('../../../../lib/k8s/gatewayL4RouteAvailability', () => ({
   useGatewayL4RouteAvailability: vi.fn(),
+}));
+vi.mock('../../../../lib/k8s/resourceAvailability', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../lib/k8s/resourceAvailability')>()),
+  useClustersServing: vi.fn(),
 }));
 vi.mock('../../../../lib/k8s/schedulingApis', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../lib/k8s/schedulingApis')>()),
@@ -120,6 +125,7 @@ describe('useGetAllSources', () => {
     vi.mocked(useNamespaces).mockReturnValue(['namespace-a']);
     vi.mocked(useCluster).mockReturnValue('cluster-a');
     vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a']);
+    vi.mocked(useClustersServing).mockReturnValue([]);
     vi.mocked(useQuery).mockReturnValue({
       data: [],
     } as ReturnType<typeof useQuery>);
@@ -156,14 +162,8 @@ describe('useGetAllSources', () => {
     let servingClusters: string[] | undefined;
     const bundleSourceId = 'certificates.k8s.io/ClusterTrustBundle';
     vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a', 'cluster-b']);
-    vi.mocked(useQuery).mockImplementation(
-      ({ queryKey }) =>
-        ({
-          data:
-            queryKey[0] === 'clustersServing' && queryKey[2] === ClusterTrustBundle.apiName
-              ? servingClusters
-              : [],
-        } as ReturnType<typeof useQuery>)
+    vi.mocked(useClustersServing).mockImplementation(resourceClass =>
+      resourceClass.apiName === ClusterTrustBundle.apiName ? servingClusters : []
     );
     const { result, rerender } = renderHook(() => useGetAllSources());
 
@@ -434,12 +434,7 @@ describe('useGetAllSources', () => {
   });
   it('adds the Devices group, listing only the clusters that serve DRA', () => {
     vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a', 'cluster-b']);
-    vi.mocked(useQuery).mockImplementation(
-      ({ queryKey }) =>
-        ({ data: queryKey[0] === 'clustersServing' ? ['cluster-b'] : [] } as ReturnType<
-          typeof useQuery
-        >)
-    );
+    vi.mocked(useClustersServing).mockReturnValue(['cluster-b']);
     const useList = vi.spyOn(ResourceClaim, 'useList').mockReturnValue([null] as any);
 
     const { result } = renderHook(() => useGetAllSources());

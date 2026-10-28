@@ -27,7 +27,7 @@ const { mockListView } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../lib/k8s/resourceAvailability', () => ({
-  useClustersServing: () => undefined,
+  useClustersServingStatus: () => ({ clusters: undefined, isChecking: true }),
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({

@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import Loader from '../common/Loader';
 import ResourceListView from '../common/Resource/ResourceListView';
 import SectionBox from '../common/SectionBox';
@@ -26,8 +26,9 @@ export default function ClusterTrustBundleList() {
   // Only some of the selected clusters may serve the API, and asking the others
   // would report errors for clusters that simply do not have the feature. Until
   // the probe has answered the list stays on every selected cluster, and offers no
-  // create action, since that could only target the first of them.
-  const servingClusters = useClustersServing(ClusterTrustBundle);
+  // create action, since that could only target the first of them. The same goes while
+  // another cluster may still turn out to serve it, as that changes the first one.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(ClusterTrustBundle);
 
   if (servingClusters === undefined) {
     return (
@@ -37,7 +38,7 @@ export default function ClusterTrustBundleList() {
     );
   }
 
-  const canCreate = servingClusters.length > 0;
+  const canCreate = servingClusters.length > 0 && !isChecking;
 
   return (
     <ResourceListView

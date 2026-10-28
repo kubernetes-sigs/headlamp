@@ -17,7 +17,7 @@
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import { TestContext } from '../../test';
 import ResourceClaimList from './ResourceClaimList';
 
@@ -28,7 +28,7 @@ const _dont_delete_me = App;
 const { mockListView } = vi.hoisted(() => ({ mockListView: vi.fn() }));
 
 vi.mock('../../lib/k8s/resourceAvailability', () => ({
-  useClustersServing: vi.fn(),
+  useClustersServingStatus: vi.fn(),
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
@@ -50,31 +50,44 @@ function renderList() {
 describe('ResourceClaimList', () => {
   beforeEach(() => {
     mockListView.mockReset();
-    vi.mocked(useClustersServing).mockReturnValue(['dra']);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: ['dra'], isChecking: false });
   });
 
   it('asks only the clusters that serve the API, not every selected one', () => {
-    vi.mocked(useClustersServing).mockReturnValue(['dra', 'other-dra']);
+    vi.mocked(useClustersServingStatus).mockReturnValue({
+      clusters: ['dra', 'other-dra'],
+      isChecking: false,
+    });
 
     expect(renderList().clusters).toEqual(['dra', 'other-dra']);
   });
 
   it('asks every selected cluster, and offers no create action, until the probe has answered', () => {
-    vi.mocked(useClustersServing).mockReturnValue(undefined);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: undefined, isChecking: false });
     const props = renderList();
 
     expect(props.clusters).toBeUndefined();
-    expect(props.headerProps).toEqual({ titleSideActions: [] });
+    expect(props.emptyActions).toBeDefined();
+  });
+
+  it('offers no create action while another cluster may still turn out to serve the API', () => {
+    // One cluster has answered, so the list shows it, but a later answer could change
+    // which cluster Create targets.
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: ['dra'], isChecking: true });
+    const props = renderList();
+
+    expect(props.clusters).toEqual(['dra']);
+    expect(props.emptyActions).toBeDefined();
   });
 
   it('leaves the create action to the list once the probe has answered', () => {
-    vi.mocked(useClustersServing).mockReturnValue(['dra']);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: ['dra'], isChecking: false });
 
     expect(renderList().headerProps).toBeUndefined();
   });
 
   it('asks no cluster once the probe finds that none serves the API', () => {
-    vi.mocked(useClustersServing).mockReturnValue([]);
+    vi.mocked(useClustersServingStatus).mockReturnValue({ clusters: [], isChecking: false });
 
     expect(renderList().clusters).toEqual([]);
   });
