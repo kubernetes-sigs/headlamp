@@ -92,15 +92,14 @@ describe('getStatus for a CompositePodGroup', () => {
     ).toBe('warning');
   });
 
-  it('warns about an invalid layout, which is reported as Invalid with a True status', () => {
+  it.each([
+    { status: 'False', reason: 'CompositePodGroupError' },
+    { status: 'True', reason: 'Invalid' },
+  ])('warns about an invalid layout reported as $reason with a $status status', condition => {
     expect(
       getStatus(
         compositePodGroup([
-          {
-            type: COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION,
-            status: 'True',
-            reason: 'Invalid',
-          },
+          { type: COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION, ...condition },
         ])
       )
     ).toBe('warning');
