@@ -102,10 +102,22 @@ describe('parseRam', () => {
     expect(parseRam('289.9Mi')).toBeCloseTo(289.9 * 1024 * 1024, 5);
   });
 
+  it('should parse a quantity written with a trailing decimal point', () => {
+    // '1.Gi' survives the API server verbatim, so it reaches the UI as written.
+    // The old pattern needed a digit after the '.', so the match stopped at '1'
+    // and the suffix was dropped entirely: 1.Gi was read as 1 byte.
+    expect(parseRam('1.Gi')).toBe(1024 ** 3);
+    expect(parseRam('2.Gi')).toBe(2 * 1024 ** 3);
+    expect(parseRam('1.Mi')).toBe(1024 ** 2);
+    expect(parseRam('3.G')).toBe(3000000000);
+    expect(parseRam('1.')).toBe(1);
+  });
+
   it('should parse a quantity written with a leading decimal point', () => {
     // Kubernetes accepts a leading '.' (resource.ParseQuantity('.5Gi') is
     // 536870912). Without the leading digit the number used to be read as
-    // '5', making the value ten times too large.
+    // '5', making the value ten times too large. The API server normalises
+    // these to '512Mi' on write, so they mostly arrive already canonical.
     expect(parseRam('.5Gi')).toBe(0.5 * 1024 ** 3);
     expect(parseRam('.5Ki')).toBe(512);
     expect(parseRam('.25Gi')).toBe(0.25 * 1024 ** 3);
