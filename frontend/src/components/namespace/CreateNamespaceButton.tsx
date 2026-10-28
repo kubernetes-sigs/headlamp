@@ -52,12 +52,9 @@ export default function CreateNamespaceButton() {
     queries: clusters.map(cluster => ({
       queryKey: ['namespaceCreateAuth', cluster],
       queryFn: async () => {
-        try {
-          const res = await Namespace.getAuthorization('create', {}, cluster || undefined);
-          return !!res?.status?.allowed;
-        } catch {
-          return false;
-        }
+        // Let request failures reject so the query client's retry policy applies.
+        const res = await Namespace.getAuthorization('create', {}, cluster || undefined);
+        return !!res?.status?.allowed;
       },
     })),
   });
@@ -153,6 +150,8 @@ export default function CreateNamespaceButton() {
         description={t('translation|Create Namespace')}
         icon={'mdi:plus-circle'}
         onClick={() => {
+          // Keep the cluster shown on open, even if other authorization responses arrive later.
+          setSelectedCluster(targetCluster);
           setNamespaceDialogOpen(true);
         }}
       />
@@ -197,7 +196,11 @@ export default function CreateNamespaceButton() {
                   id="create-namespace-cluster-select"
                   label={t('glossary|Cluster')}
                   value={targetCluster}
-                  onChange={event => setSelectedCluster(event.target.value as string)}
+                  onChange={event => {
+                    setSelectedCluster(event.target.value as string);
+                    // The "already exists" error only applies to the cluster it came from.
+                    setNamespaceExistsError(false);
+                  }}
                 >
                   {allowedClusters.map(cluster => (
                     <MenuItem key={cluster} value={cluster}>

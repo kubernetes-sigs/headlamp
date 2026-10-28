@@ -112,6 +112,69 @@ describe('CreateNamespaceButton', () => {
     expect(screen.getByRole('option', { name: 'cluster-b' })).toBeInTheDocument();
   });
 
+  it('keeps the cluster shown on open when authorization responses arrive out of order', async () => {
+    const resolvers: Record<string, () => void> = {};
+    vi.spyOn(Namespace, 'getAuthorization').mockImplementation(
+      (_verb, _attrs, cluster) =>
+        new Promise(resolve => {
+          resolvers[cluster ?? ''] = () => resolve({ status: { allowed: true } } as any);
+        })
+    );
+    renderButton('cluster-a+cluster-b');
+
+    await waitFor(() => expect(Object.keys(resolvers)).toHaveLength(2));
+    resolvers['cluster-b']();
+    fireEvent.click(await screen.findByLabelText(OPEN_BUTTON_LABEL));
+    await screen.findByRole('textbox');
+    resolvers['cluster-a']();
+    await waitFor(() => expect(screen.getByRole('combobox').textContent).toContain('cluster-b'));
+    await userEvent.type(screen.getByRole('textbox'), 'demo');
+    fireEvent.click(screen.getByTestId('create-namespace-dialog-create-button'));
+    await capturedAction.current!();
+
+    expect(post.mock.calls[0][2]).toBe('cluster-b');
+  });
+
+  it('clears the already exists error when switching cluster', async () => {
+    post.mockRejectedValueOnce({ status: 409 });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderButton('cluster-a+cluster-b');
+
+    fireEvent.click(await screen.findByLabelText(OPEN_BUTTON_LABEL));
+    await userEvent.type(await screen.findByRole('textbox'), 'demo');
+    fireEvent.click(screen.getByTestId('create-namespace-dialog-create-button'));
+    await expect(capturedAction.current!()).rejects.toBeDefined();
+
+    const createButton = await screen.findByTestId('create-namespace-dialog-create-button');
+    await waitFor(() => expect(createButton).toBeDisabled());
+    fireEvent.mouseDown(screen.getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'cluster-b' }));
+
+    await waitFor(() => expect(createButton).toBeEnabled());
+  });
+
+  it('retries failed authorization requests', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: 1, retryDelay: 0 } },
+    });
+    let calls = 0;
+    vi.spyOn(Namespace, 'getAuthorization').mockImplementation(async () => {
+      if (calls++ === 0) throw new Error('network');
+      return { status: { allowed: true } } as any;
+    });
+    window.history.pushState({}, '', '/c/cluster-a');
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TestContext urlPrefix="/c" routerMap={{ cluster: 'cluster-a' }}>
+          <CreateNamespaceButton />
+        </TestContext>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByLabelText(OPEN_BUTTON_LABEL)).toBeInTheDocument();
+    expect(calls).toBe(2);
+  });
+
   it('hides the button when no selected cluster allows creating namespaces', async () => {
     allowedClusters = [];
     renderButton('cluster-a+cluster-b');
