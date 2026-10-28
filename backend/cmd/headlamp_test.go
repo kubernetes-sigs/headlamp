@@ -2403,6 +2403,107 @@ func TestHandleClusterRename_NameCollision(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+// TestCheckClusterRenamable checks that only contexts held in memory, with no
+// kubeconfig file behind them, are rejected for renaming.
+func TestCheckClusterRenamable(t *testing.T) {
+	tests := []struct {
+		name      string
+		source    int
+		stored    bool
+		expectErr bool
+	}{
+		{name: "kubeconfig", source: kubeconfig.KubeConfig, stored: true, expectErr: false},
+		{name: "dynamic cluster", source: kubeconfig.DynamicCluster, stored: true, expectErr: false},
+		{name: "in-cluster", source: kubeconfig.InCluster, stored: true, expectErr: true},
+		{name: "cluster inventory", source: kubeconfig.ClusterInventory, stored: true, expectErr: true},
+		{name: "not in store", stored: false, expectErr: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			kubeConfigStore := kubeconfig.NewContextStore()
+			if tc.stored {
+				require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+					Name:   "test-cluster",
+					Source: tc.source,
+				}))
+			}
+
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeConfigStore,
+					},
+				},
+			}
+
+			err := c.checkClusterRenamable("test-cluster")
+			if tc.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestRenameCluster_UnrenamableSources checks that renaming an in-cluster or
+// Cluster Inventory context fails with 400 and leaves the context stored, also
+// for stateless requests, which would otherwise remove it from the store.
+func TestRenameCluster_UnrenamableSources(t *testing.T) {
+	tests := []struct {
+		name      string
+		source    int
+		stateless bool
+	}{
+		{name: "in-cluster", source: kubeconfig.InCluster},
+		{name: "in-cluster stateless", source: kubeconfig.InCluster, stateless: true},
+		{name: "cluster inventory", source: kubeconfig.ClusterInventory},
+		{name: "cluster inventory stateless", source: kubeconfig.ClusterInventory, stateless: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			kubeConfigStore := kubeconfig.NewContextStore()
+			require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+				Name:   "test-cluster",
+				Source: tc.source,
+			}))
+
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    false,
+						KubeConfigPath:  "./headlamp_testdata/kubeconfig",
+						KubeConfigStore: kubeConfigStore,
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+
+			body, err := json.Marshal(RenameClusterRequest{
+				NewClusterName: "new-name",
+				Stateless:      tc.stateless,
+			})
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+				"/cluster/test-cluster", bytes.NewReader(body))
+			r = mux.SetURLVars(r, map[string]string{"name": "test-cluster"})
+
+			c.renameCluster(w, r)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+
+			_, err = kubeConfigStore.GetContext("test-cluster")
+			assert.NoError(t, err, "expected the context to still be stored")
+		})
+	}
+}
+
 // TestHandleClusterRename_BackToOriginalName renames a cluster and then renames
 // it back to its original context name. The second rename must succeed and
 // clear the custom name instead of saving one that matches the original.
