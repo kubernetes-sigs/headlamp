@@ -48,4 +48,7 @@ export const BUILT_IN_RELATION_IDS = [
   'backendtrafficpolicy-service',
   'podgroup-workload',
   'pod-podgroup',
+  'compositepodgroup-workload',
+  'compositepodgroup-parent',
+  'podgroup-compositepodgroup',
 ];
