@@ -1315,6 +1315,38 @@ func TestLoadContextsFromMultipleFilesResolvesRelativeToEachFile(t *testing.T) {
 	assert.Equal(t, filepath.Join(dirB, "pki", "token"), byName["cluster-b"].AuthInfo.TokenFile)
 }
 
+func TestLoadContextsFromBase64StringRejectsExecInDynamicCluster(t *testing.T) {
+	t.Parallel()
+
+	content := `apiVersion: v1
+clusters:
+- cluster:
+    server: https://127.0.0.1:6443
+  name: dynamic-cluster
+contexts:
+- context:
+    cluster: dynamic-cluster
+    user: exec-user
+  name: dynamic-context
+current-context: dynamic-context
+kind: Config
+users:
+- name: exec-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: /bin/sh
+      args: ["-c", "echo test"]
+`
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(encoded, kubeconfig.DynamicCluster)
+	require.NoError(t, err)
+	require.Len(t, contexts, 0)
+	require.Len(t, contextErrors, 1)
+	assert.Contains(t, contextErrors[0].Error.Error(), "exec credential plugins are not permitted in dynamic clusters")
+}
+
 func TestLoadContextsFromBase64StringLeavesRelativePKIPathsUnresolved(t *testing.T) {
 	t.Parallel()
 
