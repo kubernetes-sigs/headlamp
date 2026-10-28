@@ -22,6 +22,7 @@ import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -59,6 +60,7 @@ import RoleBinding from '../../../../lib/k8s/roleBinding';
 import { RuntimeClass } from '../../../../lib/k8s/runtime';
 import {
   ClustersByVersion,
+  useCompositePodGroupClustersByVersion,
   useListPerVersion,
   usePodGroupClustersByVersion,
   useSchedulingWorkloadClustersByVersion,
@@ -191,7 +193,9 @@ export function useGetAllSources(): GraphSource[] {
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
   const podGroupClusters = usePodGroupClustersByVersion();
   const workloadClusters = useSchedulingWorkloadClustersByVersion();
+  const compositePodGroupClusters = useCompositePodGroupClustersByVersion();
   const schedulingEnabled = Object.keys(podGroupClusters).length > 0;
+  const compositePodGroupsEnabled = Object.keys(compositePodGroupClusters).length > 0;
   const gatewayEnabled =
     (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
     !!availableGatewayL4RouteKinds?.length;
@@ -335,6 +339,9 @@ export function useGetAllSources(): GraphSource[] {
               isEnabledByDefault: false,
               sources: [
                 makeVersionedKubeSource(SchedulingWorkload, workloadClusters),
+                ...(compositePodGroupsEnabled
+                  ? [makeVersionedKubeSource(CompositePodGroup, compositePodGroupClusters)]
+                  : []),
                 makeVersionedKubeSource(PodGroup, podGroupClusters),
               ],
             },
@@ -411,6 +418,8 @@ export function useGetAllSources(): GraphSource[] {
     schedulingEnabled,
     podGroupClusters,
     workloadClusters,
+    compositePodGroupsEnabled,
+    compositePodGroupClusters,
     t,
   ]);
 }
