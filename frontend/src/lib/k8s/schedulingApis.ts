@@ -18,6 +18,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useSelectedClusters } from '.';
 import { request } from './api/v1/clusterRequests';
+import CompositePodGroup from './compositePodGroup';
 import type { KubeObject, KubeObjectClass } from './KubeObject';
 import PodGroup from './podGroup';
 import SchedulingWorkload from './schedulingWorkload';
@@ -105,11 +106,31 @@ export function useSchedulingWorkloadClustersByVersion(): ClustersByVersion {
 }
 
 /**
+ * The selected clusters that serve CompositePodGroup, per version.
+ *
+ * It needs the CompositePodGroup feature gate on top of the ones the flat scheduling
+ * APIs need, so a cluster that serves Workload and PodGroup may still not serve it.
+ * @returns The serving clusters per version, empty while none is known.
+ */
+export function useCompositePodGroupClustersByVersion(): ClustersByVersion {
+  return useClustersByVersion(CompositePodGroup);
+}
+
+/**
  * The selected clusters that serve the workload aware scheduling APIs, in any version.
  * @returns The clusters known to serve the APIs, empty while none is.
  */
 export function useSchedulingApiClusters(): string[] {
   const clustersByVersion = usePodGroupClustersByVersion();
+  return useMemo(() => Object.values(clustersByVersion).flat(), [clustersByVersion]);
+}
+
+/**
+ * The selected clusters that serve CompositePodGroup, in any version.
+ * @returns The clusters known to serve CompositePodGroup, empty while none is.
+ */
+export function useCompositePodGroupClusters(): string[] {
+  const clustersByVersion = useCompositePodGroupClustersByVersion();
   return useMemo(() => Object.values(clustersByVersion).flat(), [clustersByVersion]);
 }
 

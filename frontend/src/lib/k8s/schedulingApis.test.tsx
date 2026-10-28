@@ -21,6 +21,7 @@ import App from '../../App';
 import { useSelectedClusters } from './api/v1/hooks';
 import PodGroup from './podGroup';
 import {
+  useCompositePodGroupClusters,
   useListPerVersion,
   usePodGroupClustersByVersion,
   useSchedulingApiClusters,
@@ -54,7 +55,11 @@ function serve(versionsPerCluster: Record<string, string[]>) {
     if (!versionsPerCluster[cluster]?.includes(version)) {
       throw new Error('404');
     }
-    return { resources: [{ name: 'workloads' }, { name: 'podgroups' }] };
+    const resources = ['workloads', 'podgroups'];
+    if (version === V1ALPHA3) {
+      resources.push('compositepodgroups');
+    }
+    return { resources: resources.map(name => ({ name })) };
   });
 }
 
@@ -109,6 +114,17 @@ describe('useSchedulingApiClusters', () => {
 
     await waitFor(() => expect(mockRequest).toHaveBeenCalled());
     expect(result.current).toEqual([]);
+  });
+});
+
+describe('useCompositePodGroupClusters', () => {
+  it('keeps only the selected clusters that serve CompositePodGroup', async () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['flat', 'composite']);
+    serve({ flat: [V1BETA1], composite: [V1ALPHA3] });
+
+    const { result } = renderHook(() => useCompositePodGroupClusters(), { wrapper });
+
+    await waitFor(() => expect(result.current).toEqual(['composite']));
   });
 });
 
