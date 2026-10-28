@@ -286,6 +286,27 @@ describe('SettingsCluster states and namespaces', () => {
     await waitFor(() => expect(mockDeleteCluster).toHaveBeenCalledWith(clusterName));
   });
 
+  it('renders the cluster name editor for a kubeconfig cluster', () => {
+    mockState.electron = true;
+    renderSettings();
+
+    expect(screen.getByText('Cluster name editor')).toBeInTheDocument();
+  });
+
+  it.each(['cluster_inventory', 'incluster'])(
+    'hides the cluster name editor for a %s cluster',
+    source => {
+      mockState.electron = true;
+      mockState.clustersConf[clusterName].meta_data.source = source;
+      renderSettings();
+
+      expect(
+        screen.getByRole('button', { name: 'Appearance Accent color Choose Color' })
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Cluster name editor')).not.toBeInTheDocument();
+    }
+  );
+
   it('handles a dynamic cluster removal failure', async () => {
     mockState.electron = true;
     mockState.clustersConf[clusterName].meta_data.source = 'dynamic_cluster';

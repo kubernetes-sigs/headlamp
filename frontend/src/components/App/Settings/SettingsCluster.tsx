@@ -110,6 +110,17 @@ export default function SettingsCluster() {
     return clusterInfo?.meta_data?.source === 'dynamic_cluster';
   }, [cluster, clusterConf]);
 
+  // In-cluster and Cluster Inventory clusters are not backed by a kubeconfig file,
+  // so there is nowhere to store a custom name for them.
+  const renamableCluster = React.useMemo(() => {
+    if (!cluster) {
+      return false;
+    }
+
+    const source = clusterConf?.[cluster]?.meta_data?.source;
+    return source !== 'incluster' && source !== 'cluster_inventory';
+  }, [cluster, clusterConf]);
+
   const appearanceAccentColor = sanitizeCssColor(clusterSettings.appearance?.accentColor) || '';
   const appearanceIcon = clusterSettings.appearance?.icon || '';
 
@@ -261,7 +272,7 @@ export default function SettingsCluster() {
             {t('translation|Go to cluster')}
           </Link>
         </Box>
-        {isElectron() && (
+        {renamableCluster && isElectron() && (
           <ClusterNameEditor
             cluster={cluster}
             clusterConf={clusterConf}
