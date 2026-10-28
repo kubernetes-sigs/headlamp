@@ -92,7 +92,6 @@ export const MODERN_PVC: KubePersistentVolumeClaim = {
       apiGroup: 'snapshot.storage.k8s.io',
       kind: 'VolumeSnapshot',
       name: 'daily-backup',
-      namespace: 'default',
     },
   },
   status: {

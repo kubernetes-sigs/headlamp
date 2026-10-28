@@ -24,16 +24,18 @@ import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
-function formatObjectReference(
-  reference?: KubeTypedLocalObjectReference | KubeTypedObjectReference
+export function formatObjectReference(
+  reference?: KubeTypedLocalObjectReference | KubeTypedObjectReference,
+  fallbackNamespace?: string
 ) {
   if (!reference) {
     return '';
   }
 
   const apiGroup = reference.apiGroup ? `${reference.apiGroup}/` : '';
-  const namespace =
-    'namespace' in reference && reference.namespace ? ` (${reference.namespace})` : '';
+  const referenceNamespace =
+    'namespace' in reference && reference.namespace ? reference.namespace : fallbackNamespace;
+  const namespace = referenceNamespace ? ` (${referenceNamespace})` : '';
 
   return `${apiGroup}${reference.kind}/${reference.name}${namespace}`;
 }
@@ -125,7 +127,10 @@ export default function VolumeClaimDetails(props: {
           },
           {
             name: t('Source'),
-            value: formatObjectReference(item.spec?.dataSourceRef ?? item.spec?.dataSource),
+            value: formatObjectReference(
+              item.spec?.dataSourceRef ?? item.spec?.dataSource,
+              item.metadata.namespace
+            ),
             hide: value => !value,
           },
           {
