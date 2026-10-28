@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -128,6 +129,9 @@ type Multiplexer struct {
 	connections map[string]*Connection
 	// mutex is a mutex to synchronize access to the connections.
 	mutex sync.RWMutex
+	// inFlight tracks the upstream dials in progress, indexed like connections, so concurrent
+	// requests for the same key share one dial. It is guarded by mutex.
+	inFlight map[string]*inFlightDial
 	// upgrader is the WebSocket upgrader.
 	upgrader websocket.Upgrader
 	// kubeConfigStore is the kubeconfig store.
@@ -138,6 +142,17 @@ type Multiplexer struct {
 	saTokenCache map[string]saTokenCacheEntry
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
+}
+
+// errDialIncomplete is what waiters get if the dial they wait on never finished, e.g. it panicked.
+var errDialIncomplete = errors.New("connection dial did not complete")
+
+// inFlightDial is an upstream dial that concurrent callers for the same key wait on.
+type inFlightDial struct {
+	// done is closed once conn and err are set.
+	done chan struct{}
+	conn *Connection
+	err  error
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -212,6 +227,7 @@ func (conn *WSConnLock) Close() error {
 func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
 	return &Multiplexer{
 		connections:                  make(map[string]*Connection),
+		inFlight:                     make(map[string]*inFlightDial),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
@@ -774,9 +790,12 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	m.mutex.RUnlock()
 
 	if !exists {
-		var err error
+		var (
+			err     error
+			created bool
+		)
 
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+		conn, created, err = m.establishSharedConnection(connKey, msg, clientConn, token)
 		if err != nil {
 			logger.Log(
 				logger.LevelError,
@@ -788,12 +807,59 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 			return nil, err
 		}
 
-		go m.handleClusterMessages(conn, clientConn)
+		if created {
+			go m.handleClusterMessages(conn, clientConn)
+		} else if err := m.refreshConnectionToken(conn, token); err != nil {
+			return nil, err
+		}
 	} else if err := m.refreshConnectionToken(conn, token); err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// establishSharedConnection dials the cluster for connKey, or waits for the dial another
+// caller already started for it. created is true only for the caller that dialed.
+// mutex is not held during the dial so other clusters are not blocked.
+func (m *Multiplexer) establishSharedConnection(
+	connKey string,
+	msg Message,
+	clientConn *WSConnLock,
+	token *string,
+) (conn *Connection, created bool, err error) {
+	m.mutex.Lock()
+
+	// The dial may have finished since the caller last checked connections.
+	if existing, exists := m.connections[connKey]; exists {
+		m.mutex.Unlock()
+
+		return existing, false, nil
+	}
+
+	if call, exists := m.inFlight[connKey]; exists {
+		m.mutex.Unlock()
+		<-call.done
+
+		return call.conn, false, call.err
+	}
+
+	// err stays set unless the dial returns, so waiters never get a nil connection with no error.
+	call := &inFlightDial{done: make(chan struct{}), err: errDialIncomplete}
+	m.inFlight[connKey] = call
+	m.mutex.Unlock()
+
+	defer func() {
+		m.mutex.Lock()
+		delete(m.inFlight, connKey)
+		m.mutex.Unlock()
+		close(call.done)
+	}()
+
+	call.conn, call.err = m.establishClusterConnection(
+		msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+
+	return call.conn, true, call.err
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {
