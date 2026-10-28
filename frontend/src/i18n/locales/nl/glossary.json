@@ -316,6 +316,7 @@
   "Uncapped Target": "Onbenut doel",
   "Vertical Pod Autoscalers": "Verticale automatische schaalaanpassingen van pods",
   "Checking if Vertical Pod Autoscaler is enabled…": "Controleren of verticale automatische schaalaanpassing van pods is ingeschakeld…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Verticale automatische schaalaanpassing van pods is niet ingeschakeld. <1>Meer informatie</1>",
   "API Version": "API-versie",
   "Webhooks": "Webhooks",

@@ -316,6 +316,7 @@
   "Uncapped Target": "هدف غير مقيد",
   "Vertical Pod Autoscalers": "المقاييس العمودية للـ Pods",
   "Checking if Vertical Pod Autoscaler is enabled…": "جارٍ التحقق من تفعيل VPA…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "لم يتم تفعيل VPA. <1>اعرف المزيد</1>",
   "API Version": "إصدار API",
   "Webhooks": "Webhooks",

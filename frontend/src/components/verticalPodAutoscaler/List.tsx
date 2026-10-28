@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+import LinearProgress from '@mui/material/LinearProgress';
 import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import VPA from '../../lib/k8s/vpa';
 import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -26,19 +27,13 @@ import SectionBox from '../common/SectionBox';
 
 export default function VpaList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const [vpaEnabled, setVpaEnabled] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const vpaStatus = async () => {
-      const enabled = await VPA.isEnabled();
-      setVpaEnabled(enabled);
-    };
-    vpaStatus();
-  }, []);
+  // Only some of the selected clusters may serve the API, so ask each of them and
+  // list only from those that do.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(VPA);
 
   return (
     <>
-      {vpaEnabled === null ? (
+      {servingClusters === undefined ? (
         <SectionBox title={t('glossary|Vertical Pod Autoscalers')}>
           <Paper variant="outlined">
             <Empty>
@@ -48,33 +43,45 @@ export default function VpaList() {
             </Empty>
           </Paper>
         </SectionBox>
-      ) : vpaEnabled ? (
-        <ResourceListView
-          title={t('glossary|Vertical Pod Autoscalers')}
-          resourceClass={VPA}
-          columns={[
-            'name',
-            'namespace',
-            'cluster',
-            {
-              id: 'cpu',
-              label: t('glossary|CPU'),
-              getValue: item => item?.targetRecommendations?.cpu ?? null,
-            },
-            {
-              id: 'memory',
-              label: t('glossary|Memory'),
-              getValue: item => item?.targetRecommendations?.memory ?? null,
-            },
-            {
-              id: 'provided',
-              label: t('translation|Provided'),
-              getValue: item => item?.status?.conditions?.[0]?.status ?? null,
-            },
-            'labels',
-            'age',
-          ]}
-        />
+      ) : servingClusters.length > 0 ? (
+        <>
+          {isChecking && (
+            <LinearProgress
+              data-testid="vpa-checking-clusters"
+              aria-label={t('glossary|Checking the other clusters for Vertical Pod Autoscaler…')}
+            />
+          )}
+          <ResourceListView
+            title={t('glossary|Vertical Pod Autoscalers')}
+            resourceClass={VPA}
+            clusters={servingClusters}
+            // Create targets the first serving cluster, which can still change until every
+            // selected cluster has answered, so leave it out until then.
+            headerProps={isChecking ? { titleSideActions: [] } : undefined}
+            columns={[
+              'name',
+              'namespace',
+              'cluster',
+              {
+                id: 'cpu',
+                label: t('glossary|CPU'),
+                getValue: item => item?.targetRecommendations?.cpu ?? null,
+              },
+              {
+                id: 'memory',
+                label: t('glossary|Memory'),
+                getValue: item => item?.targetRecommendations?.memory ?? null,
+              },
+              {
+                id: 'provided',
+                label: t('translation|Provided'),
+                getValue: item => item?.status?.conditions?.[0]?.status ?? null,
+              },
+              'labels',
+              'age',
+            ]}
+          />
+        </>
       ) : (
         <SectionBox title={t('glossary|Vertical Pod Autoscalers')}>
           <Paper variant="outlined">

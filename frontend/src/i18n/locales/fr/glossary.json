@@ -316,6 +316,7 @@
   "Uncapped Target": "Cible non plafonnée",
   "Vertical Pod Autoscalers": "Vertical Pod Autoscalers",
   "Checking if Vertical Pod Autoscaler is enabled…": "Vérification si le Vertical Pod Autoscaler est activé…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Le Vertical Pod Autoscaler n'est pas activé. <1>En savoir plus</1>",
   "API Version": "Version de l'API",
   "Webhooks": "Webhooks",

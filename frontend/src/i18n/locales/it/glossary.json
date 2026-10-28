@@ -316,6 +316,7 @@
   "Uncapped Target": "Obiettivo Non Limitato",
   "Vertical Pod Autoscalers": "Vertical Pod Autoscaler",
   "Checking if Vertical Pod Autoscaler is enabled…": "Verifica se Vertical Pod Autoscaler è abilitato…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Vertical Pod Autoscaler non è abilitato. <1>Per saperne di più</1>",
   "API Version": "Versione API",
   "Webhooks": "Webhook",

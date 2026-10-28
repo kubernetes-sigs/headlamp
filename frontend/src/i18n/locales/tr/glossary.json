@@ -316,6 +316,7 @@
   "Uncapped Target": "Sınırsız Hedef",
   "Vertical Pod Autoscalers": "Dikey Pod Otomatik Ölçeklendiricileri",
   "Checking if Vertical Pod Autoscaler is enabled…": "Dikey Pod Otomatik Ölçekleyicinin etkin olup olmadığı kontrol ediliyor…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Dikey Pod Otomatik Ölçeklendiricisi etkinleştirilmedi. <1>Daha Fazla Bilgi</1>",
   "API Version": "API Sürümü",
   "Webhooks": "Web Kancaları",

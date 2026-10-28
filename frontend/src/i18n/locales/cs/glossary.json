@@ -316,6 +316,7 @@
   "Uncapped Target": "Cíl bez omezení",
   "Vertical Pod Autoscalers": "Vertikální automatické škálování podů",
   "Checking if Vertical Pod Autoscaler is enabled…": "Kontroluje se, zda je povoleno automatické vertikální škálování podů...",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Automatické vertikální škálování podů není povolené. <1>Další informace</1>",
   "API Version": "Verze rozhraní API",
   "Webhooks": "Webhooky",

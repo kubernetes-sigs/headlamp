@@ -316,6 +316,7 @@
   "Uncapped Target": "Target Tidak Tercapai",
   "Vertical Pod Autoscalers": "Vertical Pod Autoscalers",
   "Checking if Vertical Pod Autoscaler is enabled…": "Memeriksa apakah Vertical Pod Autoscaler diaktifkan…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Vertical Pod Autoscaler tidak diaktifkan. <1>Pelajari selengkapnya</1>",
   "API Version": "Versi API",
   "Webhooks": "Webhook",

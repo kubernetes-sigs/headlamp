@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { request } from './api/v1/clusterRequests';
 import { useSelectedClusters } from './api/v1/hooks';
 
@@ -59,36 +60,76 @@ export interface ServedResourceClass {
   isEnabled(cluster: string): Promise<boolean>;
 }
 
+/** What is known about which selected clusters serve a resource. */
+export interface ClustersServingStatus {
+  /**
+   * The clusters that serve the resource as soon as one is known to, empty when every
+   * selected cluster has answered and none does, or undefined until then.
+   */
+  clusters: string[] | undefined;
+  /** True while some selected cluster has not given its answer yet, or is being checked again. */
+  isChecking: boolean;
+}
+
 /**
- * The selected clusters that serve the given resource.
+ * The selected clusters that serve the given resource, and whether all of them have answered.
  *
  * The clusters are kept rather than reduced to a flag, because a list resolves
  * its endpoint against the first cluster it is given, so views built on an
  * optional API have to be asked only for the clusters that serve it.
+ *
+ * Each cluster is probed on its own, so a cluster that is slow to answer does not
+ * hold back one that has already confirmed the resource. The probes are repeated
+ * whenever the view is opened, so installing the API, or a probe that failed
+ * earlier, is picked up without waiting for the cache to expire. While they run,
+ * an earlier negative answer is not trusted: `clusters` stays undefined, and
+ * `isChecking` tells views that already have some clusters that more may follow.
  * @param resourceClass - The class whose `isEnabled` probes a cluster.
- * @returns The clusters that serve the resource, empty when none does, or
- * undefined until the selected clusters have answered.
+ * @returns The clusters serving the resource and whether the check is still going on.
  */
-export function useClustersServing(resourceClass: ServedResourceClass): string[] | undefined {
+export function useClustersServingStatus(
+  resourceClass: ServedResourceClass
+): ClustersServingStatus {
   const selectedClusters = useSelectedClusters();
 
-  const { data: servingClusters } = useQuery({
-    queryKey: [
-      'clustersServing',
-      resourceClass.apiVersion,
-      resourceClass.apiName,
-      ...selectedClusters,
-    ],
-    queryFn: async () => {
-      const servedPerCluster = await Promise.all(
-        selectedClusters.map(cluster => resourceClass.isEnabled(cluster))
-      );
-      return selectedClusters.filter((_, index) => servedPerCluster[index]);
-    },
-    enabled: selectedClusters.length > 0,
+  const probes = useQueries({
+    queries: selectedClusters.map(cluster => ({
+      queryKey: ['clusterServing', resourceClass.apiVersion, resourceClass.apiName, cluster],
+      queryFn: () => resourceClass.isEnabled(cluster),
+      refetchOnMount: 'always' as const,
+    })),
   });
 
-  return servingClusters;
+  const serving = selectedClusters.filter((_, index) => probes[index]?.data === true);
+  // A probe is unresolved while it has no answer, or while it is fetching or paused,
+  // because a cached answer from an earlier visit may be out of date.
+  const isChecking = probes.some(probe => probe.isPending || probe.fetchStatus !== 'idle');
+  const servingKey = serving.join('\n');
+
+  // Keep the same array until the answer changes, so views that take it as a prop
+  // are not re-rendered by every probe update.
+  const clusters = useMemo(() => {
+    if (selectedClusters.length === 0) {
+      return undefined;
+    }
+    if (serving.length > 0) {
+      return serving;
+    }
+    return isChecking ? undefined : [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servingKey, isChecking, selectedClusters.length]);
+
+  return useMemo(() => ({ clusters, isChecking }), [clusters, isChecking]);
+}
+
+/**
+ * The selected clusters that serve the given resource.
+ * @param resourceClass - The class whose `isEnabled` probes a cluster.
+ * @returns The clusters that serve the resource as soon as one is known to, empty
+ * when every selected cluster has answered and none does, or undefined until then.
+ */
+export function useClustersServing(resourceClass: ServedResourceClass): string[] | undefined {
+  return useClustersServingStatus(resourceClass).clusters;
 }
 
 /**
