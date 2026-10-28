@@ -110,9 +110,17 @@ interface ProxyChildEntry {
   port: number;
   readyResult?: StartProxyResult;
   stderrTail: string;
-  windowsProcessIdentity?: WindowsProcessIdentity;
+  windowsLauncherProcessIdentity?: WindowsProcessIdentity;
+  windowsLauncherIdentityLookup?: Promise<void>;
+  windowsListenerProcessIdentity?: WindowsProcessIdentity;
+  windowsListenerIdentityLookup?: Promise<WindowsProcessIdentityLookup>;
   termination?: Promise<boolean>;
   releaseOnTerminationFailure?: boolean;
+}
+
+function windowsSystem32Path(...segments: string[]): string {
+  const windowsRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+  return path.win32.join(windowsRoot, 'System32', ...segments);
 }
 
 interface WindowsProcessIdentity {
@@ -206,8 +214,10 @@ export function buildProxySpawnSpec(
   target: ClusterProxyTarget,
   port: number,
   platform: NodeJS.Platform = process.platform,
-  commandShell: string = process.env.ComSpec || 'cmd.exe'
+  commandShell: string = windowsSystem32Path('cmd.exe')
 ): ProxySpawnSpec {
+  // The allocator reserves adjacent ports: Azure's client proxy uses the lower one.
+  const clientProxyPort = port - 1;
   const proxyArgs = [
     'connectedk8s',
     'proxy',
@@ -217,6 +227,8 @@ export function buildProxySpawnSpec(
     target.resourceGroup,
     '--name',
     target.cluster,
+    '--client-proxy-port',
+    String(clientProxyPort),
     '--port',
     String(port),
   ];
@@ -232,13 +244,15 @@ export function buildProxySpawnSpec(
       quoteWindowsCommandArg(target.resourceGroup),
       '--name',
       quoteWindowsCommandArg(target.cluster),
+      '--client-proxy-port',
+      quoteWindowsCommandArg(String(clientProxyPort)),
       '--port',
       quoteWindowsCommandArg(String(port)),
     ];
     return {
       command: commandShell,
       args: ['/d', '/s', '/c', ['az.cmd', ...windowsProxyArgs].join(' ')],
-      options: { ...options, windowsVerbatimArguments: true },
+      options: { ...options, detached: false, windowsVerbatimArguments: true },
     };
   }
 
@@ -331,7 +345,7 @@ function isProxyEndpointReachable(port: number): Promise<boolean> {
 function queryWindowsProcessIdentity(script: string): Promise<WindowsProcessIdentityLookup> {
   return new Promise(resolve => {
     execFile(
-      'powershell.exe',
+      windowsSystem32Path('WindowsPowerShell', 'v1.0', 'powershell.exe'),
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
       {
         encoding: 'utf8',
@@ -368,25 +382,51 @@ function queryWindowsProcessIdentity(script: string): Promise<WindowsProcessIden
   });
 }
 
-/** Resolves the actual process listening on a ready Windows proxy port. */
-function windowsListenerProcessIdentity(port: number): Promise<WindowsProcessIdentityLookup> {
-  return queryWindowsProcessIdentity(
-    `$connection = Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction Stop | Select-Object -First 1; ` +
+/** Resolves a loopback listener that descends from the captured Windows launcher. */
+async function windowsListenerProcessIdentity(
+  port: number,
+  launcherIdentity: WindowsProcessIdentity
+): Promise<WindowsProcessIdentityLookup> {
+  const lookup = await queryWindowsProcessIdentity(
+    `$connection = Get-NetTCPConnection -State Listen -LocalAddress '127.0.0.1' -LocalPort ${port} -ErrorAction Stop | Select-Object -First 1; ` +
       '$process = Get-CimInstance Win32_Process -Filter "ProcessId = $($connection.OwningProcess)" -ErrorAction Stop; ' +
+      `$launcher = Get-CimInstance Win32_Process -Filter "ProcessId = ${launcherIdentity.pid}" -ErrorAction Stop; ` +
+      '$ancestor = $process; $owned = $false; ' +
+      `while ($null -ne $ancestor) { if ([int]$ancestor.ProcessId -eq ${launcherIdentity.pid}) { $owned = $true; break }; ` +
+      '$parentId = [int]$ancestor.ParentProcessId; if ($parentId -le 0 -or $parentId -eq [int]$ancestor.ProcessId) { break }; ' +
+      '$ancestor = Get-CimInstance Win32_Process -Filter "ProcessId = $parentId" -ErrorAction SilentlyContinue }; ' +
+      'if (-not $owned) { throw "Listener is not owned by the proxy launcher" }; ' +
       '$process | Select-Object @{Name="pid";Expression={[int]$_.ProcessId}},' +
       '@{Name="creationDate";Expression={[string]$_.CreationDate}},' +
-      '@{Name="executablePath";Expression={[string]$_.ExecutablePath}} | ConvertTo-Json -Compress'
+      '@{Name="executablePath";Expression={[string]$_.ExecutablePath}},' +
+      '@{Name="launcherCreationDate";Expression={[string]$launcher.CreationDate}},' +
+      '@{Name="launcherExecutablePath";Expression={[string]$launcher.ExecutablePath}} | ConvertTo-Json -Compress'
   );
+  if (lookup.status !== 'found') {
+    return lookup;
+  }
+  const identity = lookup.identity as WindowsProcessIdentity & {
+    launcherCreationDate?: string;
+    launcherExecutablePath?: string;
+  };
+  if (
+    identity.launcherCreationDate !== launcherIdentity.creationDate ||
+    identity.launcherExecutablePath !== launcherIdentity.executablePath
+  ) {
+    return { status: 'failed' };
+  }
+  return lookup;
 }
 
 /** Resolves a Windows process identity by PID for reuse-safe termination. */
-function windowsProcessIdentity(pid: number): Promise<WindowsProcessIdentityLookup> {
-  return queryWindowsProcessIdentity(
+async function windowsProcessIdentity(pid: number): Promise<WindowsProcessIdentityLookup> {
+  const lookup = await queryWindowsProcessIdentity(
     `$process = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" -ErrorAction Stop; ` +
       '$process | Select-Object @{Name="pid";Expression={[int]$_.ProcessId}},' +
       '@{Name="creationDate";Expression={[string]$_.CreationDate}},' +
       '@{Name="executablePath";Expression={[string]$_.ExecutablePath}} | ConvertTo-Json -Compress'
   );
+  return lookup.status === 'found' && lookup.identity.pid !== pid ? { status: 'failed' } : lookup;
 }
 
 /** Returns whether Node has observed the launcher exit by code or signal. */
@@ -514,27 +554,55 @@ async function signalChildEntry(
   }
   try {
     if (process.platform === 'win32') {
-      let targetPid = pid;
-      if (entry.windowsProcessIdentity) {
-        const lookup = await windowsProcessIdentity(entry.windowsProcessIdentity.pid);
-        if (lookup.status === 'failed') {
+      let targetIdentity = childHasExited(child)
+        ? entry.windowsListenerProcessIdentity
+        : entry.windowsLauncherProcessIdentity;
+      if (!targetIdentity && childHasExited(child) && entry.windowsListenerIdentityLookup) {
+        await entry.windowsListenerIdentityLookup;
+        targetIdentity = entry.windowsListenerProcessIdentity;
+      }
+      if (!targetIdentity) {
+        return 'failed';
+      }
+      const targetingLauncher = targetIdentity === entry.windowsLauncherProcessIdentity;
+      let lookup = await windowsProcessIdentity(targetIdentity.pid);
+      if (
+        targetingLauncher &&
+        (lookup.status === 'absent' ||
+          (lookup.status === 'found' &&
+            (lookup.identity.creationDate !== targetIdentity.creationDate ||
+              lookup.identity.executablePath !== targetIdentity.executablePath)))
+      ) {
+        if (!childHasExited(child)) {
           return 'failed';
         }
-        if (lookup.status === 'absent') {
-          return 'gone';
+        await entry.windowsListenerIdentityLookup;
+        targetIdentity = entry.windowsListenerProcessIdentity;
+        if (!targetIdentity) {
+          return 'failed';
         }
-        const currentIdentity = lookup.identity;
-        if (
-          currentIdentity.creationDate !== entry.windowsProcessIdentity.creationDate ||
-          currentIdentity.executablePath !== entry.windowsProcessIdentity.executablePath
-        ) {
-          return 'gone';
-        }
-        targetPid = currentIdentity.pid;
-      } else if (childHasExited(child)) {
-        return 'gone';
+        lookup = await windowsProcessIdentity(targetIdentity.pid);
       }
-      const killer = spawn('taskkill', ['/pid', String(targetPid), '/T', '/F']);
+      if (lookup.status === 'failed') {
+        return 'failed';
+      }
+      if (lookup.status === 'absent') {
+        return targetIdentity === entry.windowsListenerProcessIdentity ? 'gone' : 'failed';
+      }
+      const currentIdentity = lookup.identity;
+      if (
+        currentIdentity.creationDate !== targetIdentity.creationDate ||
+        currentIdentity.executablePath !== targetIdentity.executablePath
+      ) {
+        return targetIdentity === entry.windowsListenerProcessIdentity ? 'gone' : 'failed';
+      }
+      const targetPid = currentIdentity.pid;
+      const killer = spawn(windowsSystem32Path('taskkill.exe'), [
+        '/pid',
+        String(targetPid),
+        '/T',
+        '/F',
+      ]);
       return new Promise(resolve => {
         const finish = (result: 'signaled' | 'failed') => {
           clearTimeout(timer);
@@ -592,9 +660,15 @@ function waitForChildExit(child: ChildProcessWithoutNullStreams): {
 
 /** Signals a proxy tree and reports whether its child terminated. */
 async function terminateChildEntryOnce(entry: ProxyChildEntry): Promise<boolean> {
+  if (entry.windowsLauncherIdentityLookup) {
+    await entry.windowsLauncherIdentityLookup;
+  }
+  if (process.platform === 'win32' && childHasExited(entry.child)) {
+    await entry.windowsListenerIdentityLookup;
+  }
   const { child } = entry;
   const launcherExited = childHasExited(child);
-  if (!entry.group && launcherExited) {
+  if (process.platform !== 'win32' && !entry.group && launcherExited) {
     proxyChildren.delete(entry);
     return true;
   }
@@ -659,6 +733,12 @@ async function startProxy<TTarget extends ManagedProxyTarget>(
       ...(await getEnvironment()),
       PYTHONUNBUFFERED: '1',
     });
+    const executablePaths = Object.entries(env)
+      .filter(([name]) => name.toLowerCase() === 'path')
+      .map(([, value]) => value);
+    if (executablePaths.length === 0 || executablePaths.every(value => !value)) {
+      throw new Error('The cluster proxy executable search path is empty.');
+    }
     if (isShuttingDown) {
       return { result: { success: false, error: 'The app is shutting down.' } };
     }
@@ -675,7 +755,7 @@ async function startProxy<TTarget extends ManagedProxyTarget>(
     };
   }
 
-  const entry = {
+  const entry: ProxyChildEntry = {
     child,
     group: !!spec.options.detached,
     providerId: provider.id,
@@ -685,6 +765,13 @@ async function startProxy<TTarget extends ManagedProxyTarget>(
     stderrTail: '',
   };
   proxyChildren.add(entry);
+  if (process.platform === 'win32' && child.pid) {
+    entry.windowsLauncherIdentityLookup = windowsProcessIdentity(child.pid).then(lookup => {
+      if (lookup.status === 'found') {
+        entry.windowsLauncherProcessIdentity = lookup.identity;
+      }
+    });
+  }
   if (isShuttingDown) {
     await terminateChildEntry(entry, true);
     return { result: { success: false, error: 'The app is shutting down.' } };
@@ -692,7 +779,7 @@ async function startProxy<TTarget extends ManagedProxyTarget>(
   child.stderr.on('data', data => {
     entry.stderrTail = (entry.stderrTail + data.toString()).slice(-STDERR_TAIL_CHARS);
   });
-  if (!entry.group) {
+  if (!entry.group && process.platform !== 'win32') {
     const untrack = () => proxyChildren.delete(entry);
     child.once('exit', untrack);
     child.once('error', untrack);
@@ -819,10 +906,19 @@ export function setupManagedProxyHandler<TTarget extends ManagedProxyTarget>(
       }
       if (result.success) {
         if (process.platform === 'win32') {
-          const lookup = await windowsListenerProcessIdentity(port);
-          if (lookup.status === 'found') {
-            entry.windowsProcessIdentity = lookup.identity;
-          } else {
+          await entry.windowsLauncherIdentityLookup;
+          const launcherIdentity = entry.windowsLauncherProcessIdentity;
+          const listenerIdentityLookup = launcherIdentity
+            ? windowsListenerProcessIdentity(port, launcherIdentity)
+            : Promise.resolve<WindowsProcessIdentityLookup>({ status: 'failed' });
+          entry.windowsListenerIdentityLookup = listenerIdentityLookup.then(lookup => {
+            if (lookup.status === 'found') {
+              entry.windowsListenerProcessIdentity = lookup.identity;
+            }
+            return lookup;
+          });
+          const lookup = await entry.windowsListenerIdentityLookup;
+          if (lookup.status !== 'found') {
             result = {
               success: false,
               error: startupError('Cluster proxy listener process could not be identified.', entry),
