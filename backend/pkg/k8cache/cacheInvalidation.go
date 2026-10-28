@@ -40,20 +40,57 @@ import (
 	watchCache "k8s.io/client-go/tools/cache"
 )
 
-// DeleteKeys deletes keys from the cache if data is present
-// in cache, this delete keys having namespace non-empty and
-// also empty namespace.
+// DeleteKeys removes every query variant for the given resource key from the
+// cache, including its all-namespace variant when the key is namespaced.
 func DeleteKeys(key string, k8scache cache.Cache[string]) {
+	deleteCacheKeyVariants(key, k8scache, true)
+}
+
+func deleteCacheKeyVariants(key string, k8scache cache.Cache[string], includeAllNamespaces bool) {
 	_ = k8scache.Delete(context.Background(), key)
 
-	keyPart := strings.Split(key, "+")
-	if len(keyPart) < 4 {
+	keyParts, ok := parseCacheKey(key)
+	if !ok {
 		return // malformed key; nothing to namespace-strip
 	}
 
-	keyPart[2] = ""
-	key = strings.Join(keyPart, "+")
-	_ = k8scache.Delete(context.Background(), key)
+	prefix := strings.TrimSuffix(
+		buildCacheKey(keyParts.apiGroup, keyParts.kind, keyParts.namespace, ""), "+",
+	) + "+"
+
+	keys, err := k8scache.GetByPrefix(context.Background(), prefix)
+	if err != nil {
+		return
+	}
+
+	if includeAllNamespaces && keyParts.namespace != "" {
+		allNamespacesPrefix := strings.TrimSuffix(
+			buildCacheKey(keyParts.apiGroup, keyParts.kind, "", ""), "+",
+		) + "+"
+
+		allNamespaceKeys, allNamespaceErr := k8scache.GetByPrefix(context.Background(), allNamespacesPrefix)
+		if allNamespaceErr == nil {
+			for candidate, value := range allNamespaceKeys {
+				keys[candidate] = value
+			}
+		}
+	}
+
+	for candidate := range keys {
+		candidateParts, valid := parseCacheKey(candidate)
+
+		if !valid || candidateParts.apiGroup != keyParts.apiGroup ||
+			candidateParts.kind != keyParts.kind || candidateParts.context != keyParts.context {
+			continue
+		}
+
+		if candidateParts.namespace != keyParts.namespace &&
+			(!includeAllNamespaces || candidateParts.namespace != "") {
+			continue
+		}
+
+		_ = k8scache.Delete(context.Background(), candidate)
+	}
 }
 
 // handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
@@ -389,7 +426,5 @@ func invalidateCacheKeysForResourceEvent(
 	}
 
 	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
-	}
+	deleteCacheKeyVariants(namedKey, k8scache, false)
 }
