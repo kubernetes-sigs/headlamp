@@ -42,7 +42,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var k8sResponseCache = cache.New[string]()
+var k8sResponseCache = cache.NewWithPrefixIndex[string]()
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
