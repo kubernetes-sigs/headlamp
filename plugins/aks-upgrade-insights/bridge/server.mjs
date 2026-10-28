@@ -24,6 +24,14 @@ const key = randomBytes(32).toString('hex');
 const port = Number(process.env.BRIDGE_PORT ?? '4319');
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid bridge port.');
 const az = process.env.AZURE_CLI_PATH ?? (existsSync('/opt/homebrew/bin/az') ? '/opt/homebrew/bin/az' : 'az');
+// Desktop plugin hosts (e.g. Headlamp.app / AKS Desktop) can load plugin code
+// into a context where `fetch` does not attach a browser-style Origin header
+// at all (unlike a real browser tab, which always sends Origin on a
+// cross-origin request). The Origin check is normally a second layer of
+// defense on top of the pairing key; this explicit opt-in relaxes it ONLY for
+// requests with no Origin header, for exactly that desktop-host scenario,
+// while a browser request presenting a DISALLOWED Origin is still rejected.
+const allowMissingOrigin = process.env.BRIDGE_ALLOW_MISSING_ORIGIN === '1';
 function send(res, status, body, origin, headers = {}) {
   if (res.destroyed) return;
   res.writeHead(status, {
@@ -44,7 +52,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   const origin = req.headers.origin;
-  if (!origin || !origins.has(origin)) { send(res, 403, { error: 'Origin not allowed.' }); return; }
+  if (origin ? !origins.has(origin) : !allowMissingOrigin) {
+    send(res, 403, { error: 'Origin not allowed.' }); return;
+  }
   if (req.method === 'OPTIONS' && req.url === '/arm') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST',
@@ -94,6 +104,7 @@ server.listen(port, '127.0.0.1', () => {
   console.log(`Upgrade Insights ARM bridge: http://127.0.0.1:${server.address().port}`);
   console.log(`Mode: ${allowGenerate ? 'read + readiness evaluation (no upgrades)' : 'read-only'}`);
   console.log(`Preview opt-in: ${previewOptIn ? 'enabled for approved test subscriptions' : 'disabled'}`);
+  console.log(`Allow requests with no Origin header: ${allowMissingOrigin ? 'enabled (desktop plugin host mode)' : 'disabled'}`);
   console.log(`Allowed subscriptions: ${subscriptions.join(', ')}`);
   console.log(`Pairing key (keep local; never commit): ${key}`);
 });

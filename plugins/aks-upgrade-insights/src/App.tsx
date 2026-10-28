@@ -159,7 +159,6 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
   const categoryCounts = Object.entries(issueLabels).map(([name, label]) => ({
     name, label, count: records.filter(r => issuesFor(latestCombined(r)).some(i => i.issue.issueType === name)).length,
   })).filter(c => c.count);
-  const filteredSelected = selectedRecord && records.some(r => r.cluster.id === selectedRecord.cluster.id) ? selectedRecord : undefined;
   const changeProvider = (next: InsightsProvider) => {
     setActiveProvider(next); setProvider(next); setInventoryLoaded(false); setClusters([]); setRecordsById({}); setSelected(undefined); setPage(0);
     setQuery(''); setFilter('all'); setEnvironment('all'); setCategory('all'); setSettings(false);
@@ -218,8 +217,7 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
               <Metric label="Needs evaluation" value={counts['Re-check required'] + counts['Not evaluated'] + counts.Unavailable} note="On this page" selected={filter === 'needs-evaluation'} onClick={() => setFilter(filter === 'needs-evaluation' ? 'all' : 'needs-evaluation')} />
             </section>
             <section className="category-bar" aria-label="Filter current page by issue category"><span>RISK SIGNALS · CURRENT PAGE</span>{categoryCounts.map(c => <button key={c.name} className={category === c.name ? 'active' : ''} aria-pressed={category === c.name} onClick={() => setCategory(category === c.name ? 'all' : c.name)}>{c.label}<strong>{c.count}</strong></button>)}{!categoryCounts.length && <span>No issues on this page</span>}</section>
-            <div className={`fleet-workspace ${filteredSelected ? 'with-inspector' : ''}`}>
-              <section className="panel cluster-list" aria-label="Cluster readiness list">
+            <section className="panel cluster-list" aria-label="Cluster readiness list">
                 <div className="panel-heading"><div><h2>Cluster readiness <span className="count">{filtered.length}</span></h2><p>Page {currentPage + 1} of {pageCount} · latest combined check per cluster · targets may differ</p></div></div>
                 <div className="filter-bar">
                   <div className="search-field"><Icon name="search" size={18} /><input aria-label="Search clusters" placeholder="Search clusters, regions, subscriptions…" value={query} onChange={e => { setQuery(e.target.value); setPage(0); }} /></div>
@@ -232,24 +230,26 @@ export function App({ singleClusterContext, hostTheme, embedded = false, initial
                   const insight = latestCombined(record), issues = issuesFor(insight);
                   const blocking = issues.filter(i => i.issue.severity === 'Blocking').length;
                   const warnings = issues.filter(i => i.issue.severity === 'Warning').length;
-                  return <tr key={record.cluster.id} className={selected === record.cluster.id ? 'selected-row' : ''}>
-                    <td><button className="cluster-name" aria-label={`Inspect ${record.cluster.name}`} onClick={() => setSelected(selected === record.cluster.id ? undefined : record.cluster.id)}><span className="cluster-icon"><Icon name="layers" size={18} /></span><span><strong>{record.cluster.name}</strong><small>{record.cluster.location} <span>·</span> {record.cluster.environment ?? record.cluster.resourceGroup}</small><small>{fleetLabel(record.cluster)}</small></span></button></td>
-                    <td><Badge value={recordReadiness(record)} /></td><td><span className="version-path">{record.cluster.kubernetesVersion ?? 'Unknown'}<span>→</span>{insight?.properties.targetKubernetesVersion ?? 'Not evaluated'}</span></td>
-                    <td><div className="issue-counts"><span className={blocking ? 'danger-text' : 'muted'}>{blocking} blockers</span><span className={warnings ? 'warning-text' : 'muted'}>{warnings} warnings</span></div></td>
-                    <td><span className="small muted">{insight ? formatTime(insight.properties.lastEvaluatedAt) : 'No stored result'}</span></td>
-                  </tr>;
+                  const isSelected = selected === record.cluster.id;
+                  return <React.Fragment key={record.cluster.id}>
+                    <tr className={isSelected ? 'selected-row' : ''}>
+                      <td><button className="cluster-name" aria-expanded={isSelected} aria-label={`Inspect ${record.cluster.name}`} onClick={() => setSelected(isSelected ? undefined : record.cluster.id)}><span className="cluster-icon"><Icon name="layers" size={18} /></span><span><strong>{record.cluster.name}</strong><small>{record.cluster.location} <span>·</span> {record.cluster.environment ?? record.cluster.resourceGroup}</small><small>{fleetLabel(record.cluster)}</small></span></button></td>
+                      <td><Badge value={recordReadiness(record)} /></td><td><span className="version-path">{record.cluster.kubernetesVersion ?? 'Unknown'}<span>→</span>{insight?.properties.targetKubernetesVersion ?? 'Not evaluated'}</span></td>
+                      <td><div className="issue-counts"><span className={blocking ? 'danger-text' : 'muted'}>{blocking} blockers</span><span className={warnings ? 'warning-text' : 'muted'}>{warnings} warnings</span></div></td>
+                      <td><span className="small muted">{insight ? formatTime(insight.properties.lastEvaluatedAt) : 'No stored result'}</span></td>
+                    </tr>
+                    {isSelected && <tr className="inspector-row"><td colSpan={5}>
+                      <div className="panel inspector" aria-label={`Insights for ${record.cluster.name}`}>
+                        <ReadinessSummary record={record} insight={insight} compact />
+                        <div className="inspector-issues"><h3>What needs attention</h3><IssueList insight={insight} onIssue={setIssue} limit={3} /></div>
+                        <div className="inspector-actions"><button className="button primary" onClick={() => openCluster(record)}>Explore cluster <Icon name="arrow" size={18} /></button><button className="button" onClick={() => setGenerateFor(record)}><Icon name="refresh" size={18} />Re-check readiness</button></div>
+                      </div>
+                    </td></tr>}
+                  </React.Fragment>;
                 })}</tbody></table></div>
                 {!filtered.length && <Empty title={searchableClusters.length ? 'No clusters match on this page' : 'No AKS clusters found'} text={searchableClusters.length ? 'Readiness and issue filters apply to the current page. Try another page or clear a filter.' : 'Check the selected subscriptions and access, or switch to demo data.'} />}
                 <div className="table-footer"><span>Showing {searchableClusters.length ? currentPage * PAGE_SIZE + 1 : 0}–{Math.min((currentPage + 1) * PAGE_SIZE, searchableClusters.length)} of {searchableClusters.length} clusters · counts reflect the current page</span><div className="table-pagination"><button className="button" aria-label="Previous cluster page" disabled={currentPage === 0 || loading} onClick={() => { setPage(currentPage - 1); setSelected(undefined); }}>Previous</button><span>Page {currentPage + 1} of {pageCount}</span><button className="button" aria-label="Next cluster page" disabled={currentPage + 1 >= pageCount || loading} onClick={() => { setPage(currentPage + 1); setSelected(undefined); }}>Next</button></div></div>
               </section>
-              {filteredSelected && <aside className="panel inspector" aria-label={`Insights for ${filteredSelected.cluster.name}`}>
-                <div className="inspector-header"><span className="eyebrow">CLUSTER SNAPSHOT</span><button className="icon-button" aria-label="Close cluster inspector" onClick={() => setSelected(undefined)}><Icon name="close" size={18} /></button></div>
-                <h2>{filteredSelected.cluster.name}</h2><p className="muted small">{filteredSelected.cluster.location} · {filteredSelected.cluster.subscription}</p>
-                <ReadinessSummary record={filteredSelected} insight={latestCombined(filteredSelected)} compact />
-                <h3>What needs attention</h3><IssueList insight={latestCombined(filteredSelected)} onIssue={setIssue} limit={3} />
-                <div className="inspector-actions"><button className="button primary" onClick={() => openCluster(filteredSelected)}>Explore cluster <Icon name="arrow" size={18} /></button><button className="button" onClick={() => setGenerateFor(filteredSelected)}><Icon name="refresh" size={18} />Re-check readiness</button></div>
-              </aside>}
-            </div>
           </> : <>
             <div className="cluster-nav">{!singleClusterContext && <button className="text-button" onClick={() => setView('fleet')}><Icon name="back" size={18} />Cluster readiness</button>}
               <label>Cluster <select aria-label="Select cluster" value={selected ?? ''} onChange={e => {

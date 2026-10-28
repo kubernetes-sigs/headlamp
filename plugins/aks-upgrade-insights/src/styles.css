@@ -131,8 +131,6 @@
 .upgrade-insights .category-bar button { display: flex; align-items: center; gap: 10px; border: 1px solid var(--cp-border); border-radius: 6px; padding: 5px 10px; color: var(--cp-text-muted); background: var(--cp-surface); font-size: 11px; }
 .upgrade-insights .category-bar button strong { font-size: 10px; background: var(--cp-surface-soft); border-radius: 4px; padding: 0 5px; }
 .upgrade-insights .category-bar button.active { color: var(--cp-accent); border-color: var(--cp-accent); }
-.upgrade-insights .fleet-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
-.upgrade-insights .fleet-workspace.with-inspector { grid-template-columns: minmax(0, 1fr) 330px; }
 .upgrade-insights .panel { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 14px; overflow: hidden; }
 .upgrade-insights .panel-heading { padding: 22px 24px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .upgrade-insights .panel-heading h2 { display: flex; align-items: center; gap: 10px; }
@@ -178,12 +176,14 @@
 .upgrade-insights .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--cp-border); color: var(--cp-text-muted); font-size: 10px; }
 .upgrade-insights .table-pagination { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .upgrade-insights .table-pagination .button { min-height: 30px; padding: 5px 10px; font-size: 10px; }
-.upgrade-insights .inspector { padding: 18px 20px 20px; }
+.upgrade-insights .inspector-row > td { padding: 0; border-bottom: 1px solid var(--cp-border); background: var(--cp-bg-elevated); white-space: normal; }
+.upgrade-insights .inspector { padding: 20px 24px 24px; border: 0; border-radius: 0; background: transparent; }
 .upgrade-insights .inspector-header { display: flex; align-items: center; justify-content: space-between; }
 .upgrade-insights .inspector-header .eyebrow { font-size: 9px; margin: 0; }
 .upgrade-insights .inspector > h2 { margin: 14px 0 4px; font-size: 17px; overflow-wrap: anywhere; }
-.upgrade-insights .inspector > h3 { margin: 22px 0 12px; font-size: 12px; }
-.upgrade-insights .inspector-actions { display: grid; gap: 8px; margin-top: 20px; }
+.upgrade-insights .inspector-issues { margin-top: 16px; }
+.upgrade-insights .inspector-issues h3 { margin: 0 0 12px; font-size: 12px; }
+.upgrade-insights .inspector-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; max-width: 420px; }
 .upgrade-insights .readiness-summary { display: flex; align-items: flex-start; gap: 16px; padding: 24px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-left: 4px solid var(--cp-border-strong); border-radius: 12px; margin-bottom: 20px; }
 .upgrade-insights .readiness-summary.danger { border-left-color: var(--cp-danger); }
 .upgrade-insights .readiness-summary.success { border-left-color: var(--cp-success); }
@@ -295,7 +295,6 @@
 .upgrade-insights .guide-grid h3 { margin: 12px 0; }
 .upgrade-insights .guide-grid p { font-size: 12px; color: var(--cp-text-muted); line-height: 1.8; }
 .upgrade-insights .api-note { border-top: 1px solid var(--cp-border); }
-@media (min-width: 1800px) { .upgrade-insights .fleet-workspace.with-inspector { grid-template-columns: minmax(0, 1fr) 370px; } }
 @media (max-width: 1350px) {
   .upgrade-insights .rail { width: 184px; padding-left: 10px; padding-right: 10px; }
   .upgrade-insights .main-content { padding: 24px; }
@@ -303,13 +302,11 @@
   .upgrade-insights .metrics { gap: 8px; }
   .upgrade-insights .metric { padding: 14px; }
   .upgrade-insights .metric > small { font-size: 9px; }
-  .upgrade-insights .fleet-workspace.with-inspector { grid-template-columns: minmax(0, 1fr) 300px; }
   .upgrade-insights .evaluation-selector { align-items: flex-start; flex-direction: column; }
 }
 @media (max-width: 1050px) {
   .upgrade-insights .rail { width: 176px; }
-  .upgrade-insights .fleet-workspace.with-inspector, .upgrade-insights .detail-grid { grid-template-columns: minmax(0, 1fr); }
-  .upgrade-insights .inspector { order: -1; }
+  .upgrade-insights .detail-grid { grid-template-columns: minmax(0, 1fr); }
   .upgrade-insights .inspector-actions { grid-template-columns: 1fr 1fr; }
   .upgrade-insights .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .upgrade-insights .metric > small { font-size: 10px; }

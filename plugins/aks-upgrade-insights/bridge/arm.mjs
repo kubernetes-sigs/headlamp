@@ -69,6 +69,7 @@ export async function requestArm(request, {
   } catch (error) {
     if (error instanceof ArmBridgeError) throw error;
     if (signal?.aborted) throw new ArmBridgeError(504, 'ArmRequestTimeout', 'ARM request timed out or was canceled.');
+    console.error(`ArmConnectionFailed for ${request.method} ${url.pathname}: ${error?.name ?? 'Error'}: ${error?.message ?? error}${error?.cause ? ` (cause: ${error.cause})` : ''}`);
     throw new ArmBridgeError(502, 'ArmConnectionFailed', 'Could not connect to Azure Resource Manager.');
   }
   const diagnostics = {};
