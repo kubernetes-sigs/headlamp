@@ -61,6 +61,7 @@ type HeadlampCFG struct {
 	AllowKubeconfigChanges bool
 	WatchPluginsChanges    bool
 	Port                   uint
+	ServerIdleTimeout      time.Duration
 	KubeConfigPath         string
 	KubeConfigDir          string
 	SkippedKubeContexts    string

@@ -153,8 +153,6 @@ const OidcStateTTL = 60 * time.Minute
 const (
 	// serverReadHeaderTimeout is the maximum time to read the request headers.
 	serverReadHeaderTimeout = 10 * time.Second
-	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
-	serverIdleTimeout = 120 * time.Second
 	// serviceAccountNamespacePath contains the namespace of an in-cluster pod.
 	serviceAccountNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
@@ -1931,18 +1929,23 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	runServer(config, cancel, handler)
 }
 
-// runServer creates the HTTP server, sets up graceful shutdown, starts
-// listening (TLS or plain), and handles the server completion and errors.
-func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler) {
+// newHTTPServer applies the backend's configured HTTP connection settings.
+func newHTTPServer(config *HeadlampConfig, handler http.Handler) *http.Server {
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
 	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
 
-	server := &http.Server{
+	return &http.Server{
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
-		IdleTimeout:       serverIdleTimeout,
+		IdleTimeout:       config.ServerIdleTimeout,
 	}
+}
+
+// runServer starts listening and handles graceful shutdown and server errors.
+func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler) {
+	server := newHTTPServer(config, handler)
+	addr := server.Addr
 
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)

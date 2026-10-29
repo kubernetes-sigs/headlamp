@@ -27,6 +27,17 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+## HTTP keep-alive idle timeout
+
+The backend closes an idle HTTP keep-alive connection after 120 seconds by
+default. If a load balancer reuses backend connections for longer than this,
+set `--server-idle-timeout=650s` or
+`HEADLAMP_CONFIG_SERVER_IDLE_TIMEOUT=650s` to a duration longer than the load
+balancer's connection reuse window. The flag takes precedence over the
+environment variable. Values use Go duration syntax (for example `11m`);
+`0` disables the idle timeout, and negative values are rejected. The request
+header timeout remains unchanged.
+
 ## Backend token protection
 
 `HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend

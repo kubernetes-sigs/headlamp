@@ -17,12 +17,33 @@ limitations under the License.
 package main
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestHTTPServerIdleTimeout(t *testing.T) {
+	for _, timeout := range []time.Duration{120 * time.Second, 650 * time.Second, 0} {
+		t.Run(timeout.String(), func(t *testing.T) {
+			conf := &config.Config{ListenAddr: "::1", Port: 4466, ServerIdleTimeout: timeout}
+			cfg := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: buildHeadlampCFG(conf, kubeconfig.NewContextStore()),
+			}}
+			handler := http.NewServeMux()
+			server := newHTTPServer(cfg, handler)
+
+			assert.Equal(t, timeout, server.IdleTimeout)
+			assert.Equal(t, 10*time.Second, server.ReadHeaderTimeout)
+			assert.Equal(t, "[::1]:4466", server.Addr)
+			assert.Same(t, handler, server.Handler)
+		})
+	}
+}
 
 func TestBuildHeadlampCFG(t *testing.T) {
 	store := kubeconfig.NewContextStore()

@@ -68,6 +68,8 @@ type Config struct {
 	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
 
+	ServerIdleTimeout time.Duration `koanf:"server-idle-timeout"`
+
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
 	ClusterInventoryNamespaces            string        `koanf:"cluster-inventory-namespaces"`
@@ -128,6 +130,10 @@ func (c *Config) warnRedundantThemeDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if c.ServerIdleTimeout < 0 {
+		return errors.New("server-idle-timeout cannot be negative")
+	}
+
 	if err := c.validateAppName(); err != nil {
 		return err
 	}
@@ -624,6 +630,8 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
 	f.String("user-plugins-dir", defaultUserPluginDir(), "Specify the user-installed plugins directory")
 	f.String("base-url", "", "Base URL path. eg. /headlamp")
+	f.Duration("server-idle-timeout", 120*time.Second,
+		"Maximum idle time between requests on a keep-alive connection (0 disables the timeout)")
 	f.Int("session-ttl", defaultSessionTTL, "The time in seconds for the session to be valid"+
 		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
 	f.String("pod-debug-image", "", "Default image to use when creating pod debug containers")

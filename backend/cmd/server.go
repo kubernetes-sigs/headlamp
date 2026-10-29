@@ -91,6 +91,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
 		Port:                   conf.Port,
+		ServerIdleTimeout:      conf.ServerIdleTimeout,
 		DevMode:                conf.DevMode,
 		StaticDir:              conf.StaticDir,
 		Insecure:               conf.InsecureSsl,
