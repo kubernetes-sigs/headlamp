@@ -3427,17 +3427,16 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		serverCtx = context.Background()
 	}
 
-	// The drain can take minutes. Publish a status before acknowledging the request, so that the
-	// client's first poll finds one instead of a 404.
-	c.setDrainStatus(serverCtx, drainCacheKey(drainPayload.NodeName, contextKey), drainStatusInProgress)
+	// The drain can take minutes and runs in the background. drainNode publishes its status before it
+	// returns, so the client's first poll finds one instead of a 404. Starting it before the response is
+	// written also means a request that joins a running drain does not touch that drain's status.
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
 
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
 		c.handleError(w, ctx, span, err, "writing response", http.StatusInternalServerError)
 
 		return
 	}
-
-	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
 }
 
 // drainCacheKey is the cache key under which the status of draining a node is kept.
