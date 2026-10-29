@@ -5681,6 +5681,12 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 				return
 			}
 
+			// The STS credentials must be used, never the login client's.
+			if user, pass, ok := r.BasicAuth(); !ok || user != "sts-client" || pass != "sts-secret" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"access_token": "exchanged-sts-token-456"}`))
 
@@ -5738,12 +5744,16 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 				UseInCluster:    false,
 				KubeConfigStore: kubeConfigStore,
 			},
-			OidcStsEnabled:     true,
-			OidcStsIssuerURL:   stsServer.URL,
-			OidcStsAudienceMap: fmt.Sprintf("%s=sts-audience-value", cluster),
-			Cache:              cache.New[interface{}](),
-			TelemetryConfig:    GetDefaultTestTelemetryConfig(),
-			TelemetryHandler:   &telemetry.RequestHandler{},
+			OidcClientID:        "login-client",
+			OidcClientSecret:    "login-secret",
+			OidcStsEnabled:      true,
+			OidcStsIssuerURL:    stsServer.URL,
+			OidcStsClientID:     "sts-client",
+			OidcStsClientSecret: "sts-secret",
+			OidcStsAudienceMap:  fmt.Sprintf("%s=sts-audience-value", cluster),
+			Cache:               cache.New[interface{}](),
+			TelemetryConfig:     GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:    &telemetry.RequestHandler{},
 		},
 	}
 

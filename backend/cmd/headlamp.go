@@ -1763,14 +1763,6 @@ func (c *HeadlampConfig) exchangeSTSToken(ctx context.Context, clusterName, toke
 		stsOpts.IssuerURL = c.OidcIdpIssuerURL
 	}
 
-	if stsOpts.ClientID == "" {
-		stsOpts.ClientID = c.OidcClientID
-	}
-
-	if stsOpts.ClientSecret == "" && c.OidcStsClientID == "" {
-		stsOpts.ClientSecret = c.OidcClientSecret
-	}
-
 	ctxWithTLS := auth.ConfigureTLSContext(ctx, &c.OidcSkipTLSVerify, &c.OidcCACert)
 
 	exchangedToken, err := auth.ExchangeTokenForCluster(ctxWithTLS, stsOpts, token, clusterName)

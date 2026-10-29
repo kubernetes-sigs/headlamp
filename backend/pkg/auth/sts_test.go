@@ -139,7 +139,8 @@ func TestExchangeTokenForCluster(t *testing.T) {
 			clientAssertionType := r.FormValue("client_assertion_type")
 			clientID := r.FormValue("client_id")
 
-			if hasBasicAuth {
+			switch {
+			case hasBasicAuth:
 				if username != "mock-client-id" || password != "mock-client-secret" {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusUnauthorized)
@@ -147,14 +148,18 @@ func TestExchangeTokenForCluster(t *testing.T) {
 
 					return
 				}
-			} else if clientAssertion != "" {
-				isInvalidAssertion := clientID != "mock-client-id" ||
+			case clientAssertion != "":
+				// client_id is optional with an assertion (RFC 7521 §4.2) but must match when sent.
+				isInvalidAssertion := (clientID != "" && clientID != "mock-client-id") ||
 					clientAssertionType != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" ||
 					clientAssertion != "mock-sa-token"
 				if isInvalidAssertion {
 					http.Error(w, "invalid client assertion details", http.StatusUnauthorized)
 					return
 				}
+			default:
+				http.Error(w, "missing client authentication", http.StatusUnauthorized)
+				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
@@ -307,6 +312,36 @@ func TestExchangeTokenForCluster(t *testing.T) {
 		}
 	})
 
+	t.Run("client assertion without client ID or secret", func(t *testing.T) {
+		auth.ResetSTSCache()
+
+		tokenFile := filepath.Join(t.TempDir(), "token")
+
+		err := os.WriteFile(tokenFile, []byte("mock-sa-token"), 0o600)
+		if err != nil {
+			t.Fatalf("failed to write mock token file: %v", err)
+		}
+
+		assertionOpts := opts
+		assertionOpts.ClientID = ""
+		assertionOpts.ClientSecret = ""
+		assertionOpts.ServiceAccountTokenPath = tokenFile
+
+		token, err := auth.ExchangeTokenForCluster(
+			context.Background(),
+			assertionOpts,
+			"mock-subject-token",
+			"cluster-a",
+		)
+		if err != nil {
+			t.Fatalf("expected successful exchange using client assertion, got error: %v", err)
+		}
+
+		if token != "exchanged-cluster-token-123" {
+			t.Errorf("expected 'exchanged-cluster-token-123', got '%s'", token)
+		}
+	})
+
 	// 8. Test Workload Identity token read failure returns 500
 	t.Run("workload identity token file read error returns 500", func(t *testing.T) {
 		auth.ResetSTSCache()
@@ -440,9 +475,11 @@ func TestExchangeTokenForClusterWithoutExpiryIsNotCached(t *testing.T) {
 	auth.ResetSTSCache()
 
 	opts := auth.STSOptions{
-		Enabled:     true,
-		IssuerURL:   server.URL,
-		AudienceMap: map[string]string{"cluster-a": "aud-a"},
+		Enabled:      true,
+		IssuerURL:    server.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		AudienceMap:  map[string]string{"cluster-a": "aud-a"},
 	}
 
 	for range 2 {
@@ -476,9 +513,11 @@ func TestExchangeTokenForClusterRejectsHTTPTokenEndpointFromHTTPSIssuer(t *testi
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, server.Client())
 	opts := auth.STSOptions{
-		Enabled:     true,
-		IssuerURL:   server.URL,
-		AudienceMap: map[string]string{"cluster-a": "aud-a"},
+		Enabled:      true,
+		IssuerURL:    server.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		AudienceMap:  map[string]string{"cluster-a": "aud-a"},
 	}
 
 	if _, err := auth.ExchangeTokenForCluster(ctx, opts, "subject-token", "cluster-a"); err == nil {

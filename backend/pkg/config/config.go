@@ -219,6 +219,10 @@ func (c *Config) validateOidcSts() error {
 		return errors.New("oidc-sts-enabled requires oidc-sts-issuer-url or oidc-idp-issuer-url")
 	}
 
+	if c.OidcStsClientSecret != "" && c.OidcStsClientID == "" {
+		return errors.New("oidc-sts-client-secret requires oidc-sts-client-id")
+	}
+
 	audienceMap := ParseAudienceMap(c.OidcStsAudienceMap)
 	if len(audienceMap) == 0 {
 		return errors.New(
@@ -744,9 +748,9 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-sts-enabled", false, "Enable RFC 8693 OAuth 2.0 Token Exchange (STS)")
 	f.String("oidc-sts-issuer-url", "",
 		"Override Identity provider issuer URL for OIDC STS (falls back to oidc-idp-issuer-url)")
-	f.String("oidc-sts-client-id", "", "ClientID for OIDC STS (falls back to oidc-client-id)")
+	f.String("oidc-sts-client-id", "", "ClientID for OIDC STS (optional with service account token auth)")
 	f.String("oidc-sts-client-secret", "",
-		"Client secret for OIDC STS (falls back to oidc-client-secret only when oidc-sts-client-id is unset)")
+		"Client secret for OIDC STS (if unset, the pod's service account token is used as an RFC 7523 client assertion)")
 	f.String("oidc-sts-subject-token-type", "",
 		"Subject token type for STS token exchange (falls back to urn:ietf:params:oauth:token-type:jwt)")
 	f.String("oidc-sts-audience-map", "",

@@ -368,7 +368,9 @@ func performTokenExchange(
 
 	var useClientAssertion bool
 
-	if opts.ClientID != "" && opts.ClientSecret == "" {
+	// Without a client secret, authenticate with the pod's service account token
+	// (RFC 7523). client_id is optional here: the STS takes it from the JWT's sub.
+	if opts.ClientSecret == "" {
 		tokenPath := opts.ServiceAccountTokenPath
 		if tokenPath == "" {
 			tokenPath = saTokenPath

@@ -1363,6 +1363,17 @@ func TestValidateOidcSts(t *testing.T) {
 				"configured via oidc-sts-audience-map (e.g. cluster1=aud1)",
 		},
 		{
+			name: "sts enabled with client secret but no client id",
+			config: config.Config{
+				SessionTTL:          86400,
+				OidcStsEnabled:      true,
+				OidcStsIssuerURL:    "https://sts.example.com",
+				OidcStsClientSecret: "sts-secret",
+				OidcStsAudienceMap:  "c1=a1",
+			},
+			expectedErr: "oidc-sts-client-secret requires oidc-sts-client-id",
+		},
+		{
 			name: "sts enabled with malformed audience map only",
 			config: config.Config{
 				SessionTTL:         86400,
