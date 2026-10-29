@@ -198,15 +198,15 @@ The following parameters configure STS:
 - `-oidc-sts-enabled`: Enable RFC 8693 Token Exchange (env var `HEADLAMP_CONFIG_OIDC_STS_ENABLED`).
 - `-oidc-sts-audience-map`: Comma-separated key-value pairs mapping cluster IDs to their target audiences, e.g. `cluster-1=https://api.cluster-1.k8s,cluster-2=https://api.cluster-2.k8s` (env var `HEADLAMP_CONFIG_OIDC_STS_AUDIENCE_MAP`). Required when STS is enabled.
 - `-oidc-sts-issuer-url`: Override STS issuer URL if different from the primary OIDC provider (defaults to `-oidc-idp-issuer-url` or env var `HEADLAMP_CONFIG_OIDC_STS_ISSUER_URL`).
-- `-oidc-sts-client-id`: Client ID for STS token exchange requests (defaults to `-oidc-client-id` or env var `HEADLAMP_CONFIG_OIDC_STS_CLIENT_ID`).
-- `-oidc-sts-client-secret`: Client Secret for STS token exchange requests (falls back to `-oidc-client-secret` only when `-oidc-sts-client-id` is also unset; with an explicit STS client ID, leaving this empty selects Kubernetes Workload Identity; env var `HEADLAMP_CONFIG_OIDC_STS_CLIENT_SECRET`).
+- `-oidc-sts-client-id`: Client ID for STS token exchange requests. Optional when using Workload Identity (env var `HEADLAMP_CONFIG_OIDC_STS_CLIENT_ID`).
+- `-oidc-sts-client-secret`: Client Secret for STS token exchange requests. Requires `-oidc-sts-client-id`; leaving it empty selects Kubernetes Workload Identity (env var `HEADLAMP_CONFIG_OIDC_STS_CLIENT_SECRET`).
 - `-oidc-sts-subject-token-type`: Subject token type for STS token exchange (e.g. `urn:ietf:params:oauth:token-type:jwt`, `urn:ietf:params:oauth:token-type:access_token`, or `urn:ietf:params:oauth:token-type:id_token`; defaults to `urn:ietf:params:oauth:token-type:jwt`; env var `HEADLAMP_CONFIG_OIDC_STS_SUBJECT_TOKEN_TYPE`).
 
 #### Authentication & Workload Identity
 
 When authenticating token exchange requests with the STS provider:
-- **Client Secret**: If `-oidc-sts-client-secret` (or `-oidc-client-secret` when `-oidc-sts-client-id` is unset) is provided, HTTP Basic Authentication is used.
-- **Kubernetes Workload Identity (RFC 7523)**: If a client ID is provided without a client secret, Headlamp automatically reads the in-cluster Pod service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token` and sends a JWT client assertion (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`).
+- **Client Secret**: If `-oidc-sts-client-id` and `-oidc-sts-client-secret` are provided, HTTP Basic Authentication is used.
+- **Kubernetes Workload Identity (RFC 7523)**: If no client secret is provided, Headlamp automatically reads the in-cluster Pod service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token` and sends a JWT client assertion (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`). The client ID is optional here, since the STS takes it from the token's `sub` claim (e.g. `system:serviceaccount:<namespace>:<service-account>`); if `-oidc-sts-client-id` is set, it is sent as well and must match.
 
 Because these requests carry the user's token and the client credentials, an HTTPS issuer must advertise an HTTPS `token_endpoint` in its discovery document, and Headlamp does not follow redirects from the token endpoint.
 
