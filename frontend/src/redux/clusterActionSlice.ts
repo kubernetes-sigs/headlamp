@@ -77,6 +77,11 @@ export interface ClusterAction {
    * The props to pass to the snackbar. Could be { variant: 'success' }.
    */
   snackbarProps?: SnackbarProps;
+  /**
+   * Shows a close button on the snackbar. Used for messages with API server warnings,
+   * which stay on screen longer and can be tall enough to cover the buttons below them.
+   */
+  dismissible?: boolean;
 }
 
 export interface CallbackAction extends CallbackActionOptions {
@@ -286,6 +291,7 @@ export const executeClusterAction = createAsyncThunk(
           state: 'complete',
           snackbarProps: hasWarnings ? { ...successOptions, variant: 'warning' } : successOptions,
           autoHideDuration: hasWarnings ? CLUSTER_ACTION_WARNINGS_DURATION : undefined,
+          dismissible: hasWarnings,
           url: successUrl,
         })
       );
@@ -366,6 +372,7 @@ export const executeClusterAction = createAsyncThunk(
           state: 'error',
           snackbarProps: errorOptions,
           autoHideDuration: hasWarnings ? CLUSTER_ACTION_WARNINGS_DURATION : undefined,
+          dismissible: hasWarnings,
           url: errorUrl,
         })
       );
