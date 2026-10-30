@@ -5697,9 +5697,11 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 	}))
 	t.Cleanup(stsServer.Close)
 
-	// Mock Kubernetes API
+	// Mock Kubernetes API. With caching enabled, the cache's background
+	// watcher sends its own unauthenticated requests here, so only the test's
+	// pod list request is recorded, and atomically.
 	var (
-		receivedAuth string
+		receivedAuth atomic.Value
 		ssarAuth     atomic.Value
 	)
 
@@ -5720,7 +5722,9 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 			return
 		}
 
-		receivedAuth = r.Header.Get("Authorization")
+		if r.URL.Path == "/api/v1/pods" && r.URL.RawQuery == "" {
+			receivedAuth.Store(r.Header.Get("Authorization"))
+		}
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
@@ -5782,7 +5786,7 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
 		assert.Equal(t, 1, stsRequestCount)
 	}
 
@@ -5790,7 +5794,8 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 	{
 		auth.ResetSTSCache()
 
-		receivedAuth = ""
+		receivedAuth.Store("")
+
 		req := httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
@@ -5809,14 +5814,15 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-		assert.Empty(t, receivedAuth) // Kube API shouldn't have been called
+		assert.Empty(t, receivedAuth.Load()) // Kube API shouldn't have been called
 	}
 
 	// Test 3: STS Exchange with Authorization header (regression test for Authorization header bearer token)
 	{
 		auth.ResetSTSCache()
 
-		receivedAuth = ""
+		receivedAuth.Store("")
+
 		stsRequestCount = 0
 
 		req := httptest.NewRequestWithContext(
@@ -5831,13 +5837,14 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
 		assert.Equal(t, 1, stsRequestCount)
 	}
 
 	// Test 4: Upstream discovery/STS server failure returns 502 (not 401)
 	{
-		receivedAuth = ""
+		receivedAuth.Store("")
+
 		cBad := &HeadlampConfig{
 			HeadlampConfig: &headlampconfig.HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{
@@ -5867,14 +5874,15 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 		routerBad.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusBadGateway, rr.Code)
-		assert.Empty(t, receivedAuth)
+		assert.Empty(t, receivedAuth.Load())
 	}
 
 	// Test 5: Authorization header (any scheme case) wins over a stale cookie
 	{
 		auth.ResetSTSCache()
 
-		receivedAuth = ""
+		receivedAuth.Store("")
+
 		req := httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
@@ -5894,14 +5902,15 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
 	}
 
 	// Test 6: With caching enabled, the cache's SSAR uses the exchanged token
 	{
 		auth.ResetSTSCache()
 
-		receivedAuth = ""
+		receivedAuth.Store("")
+
 		cCached := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{}}
 		*cCached.HeadlampConfig = *c.HeadlampConfig
 		cCached.HeadlampCFG = &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore, CacheEnabled: true}
@@ -5928,7 +5937,7 @@ func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, "Bearer exchanged-sts-token-456", ssarAuth.Load())
-		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
 	}
 }
 
