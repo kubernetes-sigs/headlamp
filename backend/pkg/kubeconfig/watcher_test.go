@@ -313,10 +313,12 @@ func TestReAddMissingFilesLoadsCreatedFile(t *testing.T) {
 
 	kubeConfigPath := filepath.Join(t.TempDir(), "config")
 
-	watcher, err := fsnotify.NewWatcher()
+	fsWatcher, err := fsnotify.NewWatcher()
 	require.NoError(t, err)
 
-	defer func() { _ = watcher.Close() }()
+	defer func() { _ = fsWatcher.Close() }()
+
+	watcher := kubeconfig.NewFileWatcher(fsWatcher)
 
 	store := kubeconfig.NewContextStore()
 
@@ -367,10 +369,12 @@ func TestReAddMissingFilesReloadsRecreatedCredentialFile(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
 
-	watcher, err := fsnotify.NewWatcher()
+	fsWatcher, err := fsnotify.NewWatcher()
 	require.NoError(t, err)
 
-	defer func() { _ = watcher.Close() }()
+	defer func() { _ = fsWatcher.Close() }()
+
+	watcher := kubeconfig.NewFileWatcher(fsWatcher)
 
 	kubeconfig.ReAddMissingFiles(watcher, store, kubeConfigPath, kubeconfig.KubeConfig, nil)
 	require.Contains(t, watcher.WatchList(), tokenPath)
@@ -534,4 +538,85 @@ func TestRemoveContextWithSharedCluster(t *testing.T) {
 
 	_, err := kubeConfigStore.GetContext("ctx-2")
 	require.NoError(t, err, "ctx-2 should still exist in store")
+}
+
+// TestReAddMissingFilesFollowsRetargetedCredentialSymlink covers a credential
+// rotated by atomically retargeting a symlink while the old target stays on
+// disk. The watch is attached to the old target, so no event fires; the
+// periodic reconciliation must notice the new target, watch it and reload.
+//
+//nolint:funlen // Covers the full retarget -> reconcile -> watch flow.
+func TestReAddMissingFilesFollowsRetargetedCredentialSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+
+	oldTarget := filepath.Join(tempDir, "token-1")
+	newTarget := filepath.Join(tempDir, "token-2")
+
+	require.NoError(t, os.WriteFile(oldTarget, []byte("token-1"), 0o600))
+	require.NoError(t, os.WriteFile(newTarget, []byte("token-2"), 0o600))
+
+	tokenPath := filepath.Join(tempDir, "token")
+	if err := os.Symlink(oldTarget, tokenPath); err != nil {
+		t.Skipf("symlinks are not supported here: %v", err)
+	}
+
+	kubeConfigPath := filepath.Join(tempDir, "kubeconfig")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{Server: "https://127.0.0.1:6443"}
+	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{TokenFile: tokenPath}
+	config.Contexts["test-context"] = &clientcmdapi.Context{Cluster: "test-cluster", AuthInfo: "test-user"}
+	require.NoError(t, clientcmd.WriteToFile(*config, kubeConfigPath))
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	fsWatcher, err := fsnotify.NewWatcher()
+	require.NoError(t, err)
+
+	defer func() { _ = fsWatcher.Close() }()
+
+	watcher := kubeconfig.NewFileWatcher(fsWatcher)
+
+	kubeconfig.ReAddMissingFiles(watcher, store, kubeConfigPath, kubeconfig.KubeConfig, nil)
+	require.Contains(t, watcher.WatchList(), tokenPath)
+
+	// Retarget the symlink atomically, keeping the old target.
+	tmpLink := filepath.Join(tempDir, "token.tmp")
+	require.NoError(t, os.Symlink(newTarget, tmpLink))
+	require.NoError(t, os.Rename(tmpLink, tokenPath))
+
+	reloads := make(chan struct{}, 10)
+
+	store.AddListener(func() {
+		select {
+		case reloads <- struct{}{}:
+		default:
+		}
+	})
+
+	kubeconfig.ReAddMissingFiles(watcher, store, kubeConfigPath, kubeconfig.KubeConfig, nil)
+
+	select {
+	case <-reloads:
+	default:
+		t.Fatal("retargeting the credential symlink should reload the contexts")
+	}
+
+	// The watch must now follow the new target, so later writes are seen.
+	require.NoError(t, os.WriteFile(newTarget, []byte("token-3"), 0o600))
+
+	timeout := time.After(5 * time.Second)
+
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Name == tokenPath && event.Has(fsnotify.Write) {
+				return
+			}
+		case err := <-watcher.Errors:
+			t.Fatalf("watcher error: %v", err)
+		case <-timeout:
+			t.Fatal("a write to the new symlink target should be watched")
+		}
+	}
 }

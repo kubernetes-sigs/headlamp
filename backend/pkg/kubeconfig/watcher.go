@@ -20,6 +20,18 @@ const watchInterval = 10 * time.Second
 // logFieldPath is the structured-log field name for filesystem paths.
 const logFieldPath = "path"
 
+// fileWatcher is an fsnotify watcher that remembers the file each watched path
+// resolved to when it was added. A watch follows symlinks to the target file,
+// so a symlink retargeted to another file needs a new watch.
+type fileWatcher struct {
+	*fsnotify.Watcher
+	files map[string]os.FileInfo
+}
+
+func newFileWatcher(watcher *fsnotify.Watcher) *fileWatcher {
+	return &fileWatcher{Watcher: watcher, files: make(map[string]os.FileInfo)}
+}
+
 // LoadAndWatchFiles watches kubeconfig files (and any referenced credential files) and reloads contexts on changes.
 // It runs until the provided context is cancelled.
 func LoadAndWatchFiles(
@@ -48,7 +60,9 @@ func LoadAndWatchFiles(
 
 	defer func() { _ = watcher.Close() }()
 
-	updateWatcherPaths(watcher, watchedPaths(kubeConfigStore, paths))
+	watched := newFileWatcher(watcher)
+
+	updateWatcherPaths(watched, watchedPaths(kubeConfigStore, paths))
 
 	for {
 		select {
@@ -57,7 +71,7 @@ func LoadAndWatchFiles(
 
 			return
 		case <-ticker.C:
-			reAddMissingFiles(watcher, kubeConfigStore, paths, source, ignoreFunc)
+			reAddMissingFiles(watched, kubeConfigStore, paths, source, ignoreFunc)
 
 		case event := <-watcher.Events:
 			if isEventTrigger(event.Op) {
@@ -77,7 +91,7 @@ func LoadAndWatchFiles(
 
 				// In a remove-and-recreate rotation the new file can appear
 				// before this point, so reload again if it was re-added.
-				reAddMissingFiles(watcher, kubeConfigStore, paths, source, ignoreFunc)
+				reAddMissingFiles(watched, kubeConfigStore, paths, source, ignoreFunc)
 			}
 
 		case err := <-watcher.Errors:
@@ -87,9 +101,10 @@ func LoadAndWatchFiles(
 }
 
 // reAddMissingFiles watches the kubeconfig and credential files that were
-// missing and reloads the kubeconfig once one of them shows up again.
+// missing or that a symlink now resolves to, and reloads the kubeconfig when
+// it starts watching one.
 func reAddMissingFiles(
-	watcher *fsnotify.Watcher,
+	watcher *fileWatcher,
 	kubeConfigStore ContextStore,
 	paths string,
 	source int,
@@ -276,9 +291,10 @@ func watchedPaths(kubeConfigStore ContextStore, paths string) []string {
 }
 
 // updateWatcherPaths registers desired paths to be watched and deregisters stale ones.
-// It reports whether any path was newly added. A missing file is skipped and is
-// added once it exists.
-func updateWatcherPaths(watcher *fsnotify.Watcher, desiredPaths []string) bool {
+// It reports whether any path was newly added, or re-added because it now
+// resolves to a different file. A missing file is skipped and is added once
+// it exists.
+func updateWatcherPaths(watcher *fileWatcher, desiredPaths []string) bool {
 	desiredPaths = normalizePaths(desiredPaths)
 
 	// Remove any path that is no longer desired (diff against actual watcher state)
@@ -287,17 +303,22 @@ func updateWatcherPaths(watcher *fsnotify.Watcher, desiredPaths []string) bool {
 			if err := watcher.Remove(path); err != nil {
 				logger.Log(logger.LevelError, map[string]string{logFieldPath: path}, err, "removing path from watcher")
 			}
+
+			delete(watcher.files, path)
 		}
 	}
 
 	added := false
 
 	for _, absPath := range desiredPaths {
-		if _, err := os.Stat(absPath); err != nil {
+		info, err := os.Stat(absPath)
+		if err != nil {
 			// Don't keep a stale watch on a file that is gone or unreadable.
 			if slices.Contains(watcher.WatchList(), absPath) {
 				_ = watcher.Remove(absPath)
 			}
+
+			delete(watcher.files, absPath)
 
 			if !errors.Is(err, fs.ErrNotExist) {
 				logger.Log(logger.LevelError, map[string]string{logFieldPath: absPath}, err, "stat path")
@@ -307,7 +328,13 @@ func updateWatcherPaths(watcher *fsnotify.Watcher, desiredPaths []string) bool {
 		}
 
 		if slices.Contains(watcher.WatchList(), absPath) {
-			continue
+			// A retargeted symlink still stats fine, but its watch is on the
+			// old file, which no longer gets the events for this path.
+			if watched, ok := watcher.files[absPath]; !ok || os.SameFile(watched, info) {
+				continue
+			}
+
+			_ = watcher.Remove(absPath)
 		}
 
 		if err := watcher.Add(absPath); err != nil {
@@ -315,6 +342,7 @@ func updateWatcherPaths(watcher *fsnotify.Watcher, desiredPaths []string) bool {
 			continue
 		}
 
+		watcher.files[absPath] = info
 		added = true
 	}
 
