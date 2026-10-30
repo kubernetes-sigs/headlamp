@@ -20,10 +20,6 @@ package clusterinventory
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -55,27 +51,6 @@ const (
 	clusterInventoryTestEventuallyTick    = 20 * time.Millisecond
 )
 
-func writeProviderFile(t *testing.T) string {
-	t.Helper()
-
-	providerJSON := `{
-		"providers": [{
-			"name": "static-token",
-			"execConfig": {
-				"apiVersion": "client.authentication.k8s.io/v1",
-				"command": "/bin/echo",
-				"provideClusterInfo": true
-			}
-		}]
-	}`
-
-	path := filepath.Join(t.TempDir(), "providers.json")
-	err := os.WriteFile(path, []byte(providerJSON), 0o600)
-	require.NoError(t, err)
-
-	return path
-}
-
 func newTestRunner(t *testing.T, opts Options) *Runner {
 	t.Helper()
 
@@ -83,14 +58,23 @@ func newTestRunner(t *testing.T, opts Options) *Runner {
 		opts.Store = kubeconfig.NewContextStore()
 	}
 
-	if opts.ProviderFile == "" {
-		opts.ProviderFile = writeProviderFile(t)
+	if opts.OIDC == nil {
+		opts.OIDC = testOIDCOptions()
 	}
 
 	runner, err := NewRunner(opts)
 	require.NoError(t, err)
 
 	return runner
+}
+
+func testOIDCOptions() *kubeconfig.OidcConfig {
+	return &kubeconfig.OidcConfig{
+		ClientID:     "headlamp",
+		ClientSecret: "secret",
+		IdpIssuerURL: "https://idp.example.com",
+		Scopes:       []string{"profile", "email"},
+	}
 }
 
 func clusterProfile(name, providerName, server string) *apisv1alpha1.ClusterProfile {
@@ -269,41 +253,169 @@ func (s *removeLockDetectingStore) RemoveContext(name string) error {
 	return s.ContextStore.RemoveContext(name)
 }
 
-func TestNewRunnerValidatesProviderFile(t *testing.T) {
+func TestNewRunnerValidatesOptions(t *testing.T) {
 	store := kubeconfig.NewContextStore()
+	_, err := NewRunner(Options{OIDC: testOIDCOptions()})
+	require.ErrorContains(t, err, "context store is required")
 
-	_, err := NewRunner(Options{Store: store})
-	require.ErrorContains(t, err, "provider file is required")
+	for _, opts := range []Options{
+		{Store: store, OIDC: testOIDCOptions(), LabelSelector: "headlamp.dev/ignore in ("},
+		{Store: store, OIDC: testOIDCOptions(), Namespaces: "team-a,Team B"},
+		{Store: store, OIDC: testOIDCOptions(), Namespaces: "team-a,*"},
+	} {
+		_, err = NewRunner(opts)
+		require.Error(t, err)
+	}
+}
 
-	_, err = NewRunner(Options{Store: store, ProviderFile: "/does/not/exist"})
-	require.ErrorContains(t, err, "load cluster inventory provider file")
+func TestNewRunnerOIDCValidatesOptions(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	_, err := NewRunner(Options{Store: store, OIDC: testOIDCOptions()})
+	require.NoError(t, err)
 
-	malformed := filepath.Join(t.TempDir(), "malformed.json")
-	require.NoError(t, os.WriteFile(malformed, []byte("{"), 0o600))
+	tests := []struct {
+		name string
+		opts Options
+	}{
+		{
+			name: "oidc requires config",
+			opts: Options{Store: store},
+		},
+		{
+			name: "oidc requires client id",
+			opts: Options{Store: store, OIDC: &kubeconfig.OidcConfig{
+				IdpIssuerURL: "https://idp.example.com",
+				Scopes:       []string{"profile"},
+			}},
+		},
+		{
+			name: "oidc requires issuer url",
+			opts: Options{Store: store, OIDC: &kubeconfig.OidcConfig{
+				ClientID: "headlamp",
+				Scopes:   []string{"profile"},
+			}},
+		},
+		{
+			name: "oidc requires scopes",
+			opts: Options{Store: store, OIDC: &kubeconfig.OidcConfig{
+				ClientID:     "headlamp",
+				IdpIssuerURL: "https://idp.example.com",
+			}},
+		},
+		{
+			name: "oidc rejects an empty scope",
+			opts: Options{Store: store, OIDC: &kubeconfig.OidcConfig{
+				ClientID:     "headlamp",
+				IdpIssuerURL: "https://idp.example.com",
+				Scopes:       []string{""},
+			}},
+		},
+		{
+			name: "oidc rejects whitespace-only scopes",
+			opts: Options{Store: store, OIDC: &kubeconfig.OidcConfig{
+				ClientID:     "headlamp",
+				IdpIssuerURL: "https://idp.example.com",
+				Scopes:       []string{" ", "\t"},
+			}},
+		},
+	}
 
-	_, err = NewRunner(Options{Store: store, ProviderFile: malformed})
-	require.ErrorContains(t, err, "load cluster inventory provider file")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewRunner(tt.opts)
+			require.ErrorContains(t, err, "cluster inventory requires")
+		})
+	}
+}
 
-	_, err = NewRunner(Options{
-		Store:         store,
-		ProviderFile:  writeProviderFile(t),
-		LabelSelector: "headlamp.dev/ignore in (",
+func TestOIDCContextFromClusterProfile(t *testing.T) {
+	oidcConf := testOIDCOptions()
+
+	cp := clusterProfile("spoke-a", "unmatched-provider", "")
+	cp.Status.AccessProviders = append(cp.Status.AccessProviders, apisv1alpha1.AccessProvider{
+		Name: "with-server",
+		Cluster: clientcmdv1.Cluster{
+			Server:                   "https://spoke-a.example.com",
+			CertificateAuthorityData: []byte("ca-spoke-a"),
+		},
 	})
-	require.ErrorContains(t, err, "invalid cluster-inventory-label-selector")
 
-	_, err = NewRunner(Options{
-		Store:        store,
-		ProviderFile: writeProviderFile(t),
-		Namespaces:   "team-a,Team B",
-	})
-	require.ErrorContains(t, err, "invalid cluster-inventory-namespaces")
+	headlampContext, err := oidcContextFromClusterProfile(cp, "ctx-name", "in-cluster/default/spoke-a", oidcConf)
+	require.NoError(t, err)
 
-	_, err = NewRunner(Options{
-		Store:        store,
-		ProviderFile: writeProviderFile(t),
-		Namespaces:   "team-a,*",
+	assert.Equal(t, "ctx-name", headlampContext.Name)
+	assert.Equal(t, "https://spoke-a.example.com", headlampContext.Cluster.Server)
+	assert.Equal(t, []byte("ca-spoke-a"), headlampContext.Cluster.CertificateAuthorityData)
+	assert.Equal(t, kubeconfig.ClusterInventory, headlampContext.Source)
+	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", headlampContext.ClusterID)
+	assert.Nil(t, headlampContext.AuthInfo.Exec)
+	assert.Equal(t, "oidc", headlampContext.AuthType())
+
+	require.NotNil(t, headlampContext.OidcConf)
+	assert.Equal(t, oidcConf.ClientID, headlampContext.OidcConf.ClientID)
+	assert.Equal(t, oidcConf.IdpIssuerURL, headlampContext.OidcConf.IdpIssuerURL)
+	assert.Equal(t, oidcConf.Scopes, headlampContext.OidcConf.Scopes)
+
+	// The context owns a deep copy of the shared OIDC config.
+	headlampContext.OidcConf.ClientID = "mutated"
+	headlampContext.OidcConf.Scopes[0] = "mutated"
+
+	assert.Equal(t, "headlamp", oidcConf.ClientID)
+	assert.Equal(t, "profile", oidcConf.Scopes[0])
+
+	_, err = oidcContextFromClusterProfile(
+		clusterProfile("no-server", "unmatched-provider", ""),
+		"ctx-name", "in-cluster/default/no-server", oidcConf)
+	require.ErrorContains(t, err, "no access provider carries a server URL")
+}
+
+func TestInformerSyncOIDCMode(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	runner := newTestRunner(t, Options{
+		Store:     store,
+		OIDC:      testOIDCOptions(),
+		HubConfig: &rest.Config{Host: "https://hub.example.com"},
 	})
-	require.ErrorContains(t, err, `"*" must be used on its own`)
+
+	client := ciafake.NewSimpleClientset(
+		// Provider names do not select credentials.
+		clusterProfile("spoke-a", "unmatched-provider", "https://spoke-a.example.com"),
+		clusterProfile("no-access", "", "https://no-access.example.com"),
+	)
+	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
+		return client, nil
+	}
+
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+
+	headlampContext := requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+	assert.Equal(t, "oidc", headlampContext.AuthType())
+	assert.Nil(t, headlampContext.AuthInfo.Exec)
+	require.NotNil(t, headlampContext.OidcConf)
+	assert.Equal(t, "headlamp", headlampContext.OidcConf.ClientID)
+	require.NotNil(t, headlampContext.ClusterInventory)
+
+	requireNoProfileContextEventually(t, store, "in-cluster/default/no-access")
+
+	profile, err := client.ApisV1alpha1().ClusterProfiles("default").Get(ctx, "spoke-a", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	profile.Status.AccessProviders[0].Cluster.Server = "http://insecure.example.com"
+	_, err = client.ApisV1alpha1().ClusterProfiles("default").UpdateStatus(ctx, profile, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	requireNoProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+
+	profile.Status.AccessProviders[0].Cluster.Server = "https://spoke-a.example.com"
+	_, err = client.ApisV1alpha1().ClusterProfiles("default").UpdateStatus(ctx, profile, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+
+	err = client.ApisV1alpha1().ClusterProfiles("default").Delete(
+		context.Background(), "spoke-a", metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	requireNoProfileContextEventually(t, store, "in-cluster/default/spoke-a")
 }
 
 func TestNormalizeNamespaces(t *testing.T) {
@@ -357,51 +469,63 @@ func TestNormalizeNamespaces(t *testing.T) {
 	}
 }
 
-func TestRestConfigToContextPreservesConfig(t *testing.T) {
-	proxyURL, err := url.Parse("http://proxy.example.com:8080")
-	require.NoError(t, err)
-
-	execConfig := &clientcmdapi.ExecConfig{
-		APIVersion:         "client.authentication.k8s.io/v1",
-		Command:            "/bin/token",
-		Args:               []string{"--cluster", "spoke"},
-		Env:                []clientcmdapi.ExecEnvVar{{Name: "TOKEN", Value: "redacted"}},
-		ProvideClusterInfo: true,
-		Config:             &k8sruntime.Unknown{Raw: []byte(`{"kind":"ExecConfig"}`)},
+func TestOIDCContextPreservesOnlyConnectionMetadata(t *testing.T) {
+	cp := clusterProfile("spoke", "provider", "https://spoke.example.com/clusters/spoke")
+	cp.Status.AccessProviders[0].Cluster = clientcmdv1.Cluster{
+		Server:                   "https://spoke.example.com/clusters/spoke",
+		CertificateAuthorityData: []byte("ca-data"),
+		CertificateAuthority:     "/etc/private/ca.pem",
+		TLSServerName:            "spoke.internal",
+		InsecureSkipTLSVerify:    true,
+		ProxyURL:                 "http://proxy.example.com:8080",
+		DisableCompression:       true,
+		Extensions: []clientcmdv1.NamedExtension{{
+			Name:      "client.authentication.k8s.io/exec",
+			Extension: k8sruntime.RawExtension{Raw: []byte(`{"command":"/bin/token"}`)},
+		}},
 	}
 
-	restConfig := &rest.Config{
-		Host: "https://spoke.example.com",
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData:     []byte("ca-data"),
-			CAFile:     "/tmp/ca.pem",
-			Insecure:   true,
-			ServerName: "spoke.internal",
-		},
-		ExecProvider: execConfig,
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			assert.Equal(t, "https://spoke.example.com", req.URL.String())
-
-			return proxyURL, nil
-		},
-	}
-
-	ctx, err := restConfigToContext(restConfig, "ctx-name", "root/ns/spoke")
+	ctx, err := oidcContextFromClusterProfile(cp, "ctx-name", "root/ns/spoke", testOIDCOptions())
 	require.NoError(t, err)
-
-	assert.Equal(t, "ctx-name", ctx.Name)
-	assert.Equal(t, "https://spoke.example.com", ctx.Cluster.Server)
+	assert.Equal(t, cp.Status.AccessProviders[0].Cluster.Server, ctx.Cluster.Server)
 	assert.Equal(t, []byte("ca-data"), ctx.Cluster.CertificateAuthorityData)
-	assert.Equal(t, "/tmp/ca.pem", ctx.Cluster.CertificateAuthority)
+	assert.Empty(t, ctx.Cluster.CertificateAuthority)
 	assert.True(t, ctx.Cluster.InsecureSkipTLSVerify)
 	assert.Equal(t, "spoke.internal", ctx.Cluster.TLSServerName)
 	assert.Equal(t, "http://proxy.example.com:8080", ctx.Cluster.ProxyURL)
-	assert.Equal(t, kubeconfig.ClusterInventory, ctx.Source)
-	assert.Equal(t, "cluster-inventory/root/ns/spoke", ctx.ClusterID)
-	require.NotNil(t, ctx.AuthInfo.Exec)
-	assert.Equal(t, "/bin/token", ctx.AuthInfo.Exec.Command)
-	assert.Equal(t, clientcmdapi.NeverExecInteractiveMode, ctx.AuthInfo.Exec.InteractiveMode)
-	assert.Equal(t, execConfig.Config, ctx.Cluster.Extensions[clusterExecConfigExtensionKey])
+	assert.True(t, ctx.Cluster.DisableCompression)
+	assert.Empty(t, ctx.Cluster.Extensions)
+	assert.Equal(t, &clientcmdapi.AuthInfo{}, ctx.AuthInfo)
+	assert.Equal(t, "oidc", ctx.AuthType())
+	ctx.Cluster.CertificateAuthorityData[0] = 'X'
+	assert.Equal(t, []byte("ca-data"), cp.Status.AccessProviders[0].Cluster.CertificateAuthorityData)
+}
+
+func TestInventoryRejectsInvalidConnectionMetadata(t *testing.T) {
+	for _, server := range []string{
+		"http://spoke.example.com", "https://", "file:///tmp/config",
+		"https://user:password@spoke.example.com", "https://spoke.example.com?token=secret",
+		"https://spoke.example.com#fragment",
+	} {
+		t.Run(server, func(t *testing.T) {
+			cp := clusterProfile("spoke", "provider", server)
+			// An invalid selected endpoint must not fall through to another endpoint.
+			cp.Status.AccessProviders = append(cp.Status.AccessProviders, apisv1alpha1.AccessProvider{
+				Name: "second", Cluster: clientcmdv1.Cluster{Server: "https://second.example.com"},
+			})
+			_, err := oidcContextFromClusterProfile(cp, "ctx-name", "root/ns/spoke", testOIDCOptions())
+			require.ErrorContains(t, err, "server must be an HTTPS URL")
+		})
+	}
+
+	for _, proxy := range []string{"not-a-proxy", "file:///tmp/proxy", "http://"} {
+		t.Run(proxy, func(t *testing.T) {
+			cp := clusterProfile("spoke", "provider", "https://spoke.example.com")
+			cp.Status.AccessProviders[0].Cluster.ProxyURL = proxy
+			_, err := oidcContextFromClusterProfile(cp, "ctx-name", "root/ns/spoke", testOIDCOptions())
+			require.ErrorContains(t, err, "proxy must be an HTTP, HTTPS or SOCKS5 URL")
+		})
+	}
 }
 
 func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
@@ -513,27 +637,6 @@ func TestContextNameFromProfileKeyAvoidsSeparatorCollisions(t *testing.T) {
 		contextNameFromProfileKey("ns/a--b"),
 		contextNameFromProfileKey("ns--a/b"),
 	)
-}
-
-func TestInformerInitialSyncUsesAccessProviders(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	runner := newTestRunner(t, Options{
-		Store:     store,
-		HubConfig: &rest.Config{Host: "https://hub.example.com"},
-	})
-
-	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
-		return ciafake.NewSimpleClientset(
-			clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com"),
-			clusterProfile("no-access", "", "https://no-access.example.com"),
-		), nil
-	}
-
-	ctx := testRunnerContext(t, runner)
-	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
-
-	requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
-	requireNoProfileContextEventually(t, store, "in-cluster/default/no-access")
 }
 
 func TestInformerWatchesNamespaces(t *testing.T) {
@@ -725,7 +828,7 @@ func TestNamespaceSyncFailureOnlyPreservesFailedNamespace(t *testing.T) {
 	requireProfileContextEventually(t, store, "in-cluster/team-b/from-b")
 }
 
-func TestProviderFailureDoesNotPrunePreviousContext(t *testing.T) {
+func TestInformerUpdatesConnectionMetadataAfterProviderNameChange(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	runner := newTestRunner(t, Options{
 		Store:     store,
@@ -733,7 +836,7 @@ func TestProviderFailureDoesNotPrunePreviousContext(t *testing.T) {
 	})
 
 	client := ciafake.NewSimpleClientset(
-		clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com"),
+		clusterProfile("spoke-a", "original-provider", "https://spoke-a.example.com"),
 	)
 
 	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
@@ -742,15 +845,27 @@ func TestProviderFailureDoesNotPrunePreviousContext(t *testing.T) {
 
 	ctx := testRunnerContext(t, runner)
 	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
-	headlampContext := requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
-	require.Equal(t, "https://spoke-a.example.com", headlampContext.Cluster.Server)
+	previousContext := requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+	require.Equal(t, "https://spoke-a.example.com", previousContext.Cluster.Server)
 
-	updated := clusterProfile("spoke-a", "missing-provider", "https://spoke-a-updated.example.com")
+	updated := clusterProfile("spoke-a", "another-provider", "https://spoke-a-updated.example.com")
 	_, err := client.ApisV1alpha1().ClusterProfiles("default").Update(ctx, updated, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
-	headlampContext = requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
-	assert.Equal(t, "https://spoke-a.example.com", headlampContext.Cluster.Server)
+	var headlampContext *kubeconfig.Context
+
+	require.Eventually(t, func() bool {
+		var err error
+
+		headlampContext, err = getProfileContext(store, "in-cluster/default/spoke-a")
+
+		return err == nil && headlampContext.Cluster.Server == updated.Status.AccessProviders[0].Cluster.Server
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
+
+	assert.Equal(t, previousContext.Name, headlampContext.Name)
+	assert.Equal(t, previousContext.ClusterID, headlampContext.ClusterID)
+	assert.Equal(t, "oidc", headlampContext.AuthType())
+	assert.Nil(t, headlampContext.AuthInfo.Exec)
 }
 
 func TestInformerDoesNotDiscoverClusterProfilesFromDiscoveredClusters(t *testing.T) {
