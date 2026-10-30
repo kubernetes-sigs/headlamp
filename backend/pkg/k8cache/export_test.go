@@ -195,3 +195,8 @@ func ExportedClientsetPrefixBlocked(prefix string) bool {
 
 	return blocked
 }
+
+// ExportedHasRoomFor exposes hasRoomFor for testing.
+func ExportedHasRoomFor(k8scache cache.Cache[string], key string, size int64) bool {
+	return hasRoomFor(k8scache, key, size)
+}
