@@ -379,7 +379,8 @@ export interface KubeContainer {
        * this field is used. It makes that resource available inside a container.
        */
       name: string;
-    };
+      request?: string;
+    }[];
     /**
      * Limits describes the maximum amount of compute resources allowed.
      *

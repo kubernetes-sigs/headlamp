@@ -89,7 +89,7 @@ if (globalThis.window) {
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
-  return {
+  const api = {
     getItem: (key: string) => store[key] || null,
     setItem: (key: string, value: string) => {
       store[key] = value.toString();
@@ -101,6 +101,30 @@ const localStorageMock = (() => {
       store = {};
     },
   };
+  // Like a real Storage, property access (e.g. `localStorage.foo = 'bar'`) reads and writes the
+  // same items as getItem/setItem, so clear() also removes values written as properties.
+  return new Proxy(api, {
+    get(target, prop, receiver) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.get(target, prop, receiver);
+      }
+      return store[prop];
+    },
+    set(target, prop, value, receiver) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.set(target, prop, value, receiver);
+      }
+      store[prop] = String(value);
+      return true;
+    },
+    deleteProperty(target, prop) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.deleteProperty(target, prop);
+      }
+      delete store[prop];
+      return true;
+    },
+  });
 })();
 
 if (globalThis.window) {

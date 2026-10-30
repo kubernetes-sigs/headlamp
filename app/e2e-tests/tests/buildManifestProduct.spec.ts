@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,6 +81,10 @@ test('custom product metadata reaches the frontend environment', () => {
       product: {
         productName: 'C# $HOME Desktop',
         version: '1.2.3=build',
+        errorReporting: {
+          githubIssueUrl: 'https://github.com/example/product/issues/new?labels=bug',
+          buttonLabel: 'Contact support',
+        },
       },
     })
   );
@@ -112,6 +116,9 @@ test('custom product metadata reaches the frontend environment', () => {
       REACT_APP_HEADLAMP_GIT_VERSION: '0123456789abcdef=source',
       REACT_APP_HEADLAMP_PRODUCT_NAME: 'C# $HOME Desktop',
       REACT_APP_HEADLAMP_PRODUCT_VERSION: '1.2.3=build',
+      REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL:
+        'https://github.com/example/product/issues/new?labels=bug',
+      REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL: 'Contact support',
     });
   } finally {
     fs.rmSync(manifestDirectory, { recursive: true, force: true });

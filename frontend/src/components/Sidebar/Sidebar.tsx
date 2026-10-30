@@ -35,6 +35,7 @@ import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
+import ThemeToggleButton from './ThemeToggleButton/ThemeToggleButton';
 import { useSidebarItems } from './useSidebarItems';
 import VersionButton from './VersionButton';
 
@@ -98,7 +99,7 @@ function AddClusterButton() {
   );
 }
 
-function SidebarToggleButton() {
+export function SidebarToggleButton() {
   const dispatch = useDispatch();
   const { isOpen, isNarrow, canExpand, isTemporary } = useSidebarInfo();
 
@@ -106,11 +107,18 @@ function SidebarToggleButton() {
   const isNarrowOnly = isNarrow && !canExpand;
 
   if (isTemporary || isNarrowOnly) {
-    return null;
+    return <ThemeToggleButton />;
   }
 
   return (
-    <Box textAlign={isOpen ? 'right' : 'center'}>
+    <Box
+      display="flex"
+      flexDirection={isOpen ? 'row' : 'column'}
+      alignItems="center"
+      justifyContent={isOpen ? 'flex-end' : 'center'}
+      gap={0.5}
+    >
+      <ThemeToggleButton />
       <ActionButton
         iconButtonProps={{
           size: 'small',

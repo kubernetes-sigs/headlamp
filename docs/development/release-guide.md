@@ -76,6 +76,10 @@ The build scripts handle app signing.
 ### 6. Generate Apps
 
 Generate the apps for each the Linux, Windows, and Mac platforms by running the "Build and upload PLATFORM artifact" actions against the "rc-X.Y.Z".
+Use `releaser ci app --build rc-X.Y.Z`, or select `rc-X.Y.Z` both under **Use
+workflow from** and as the build branch. The workflows only generate the build
+provenance for the apps when they run from the branch they build, and the
+assets can't be uploaded to the release without it (see step 8).
 
 ### 7. Download and test Artifacts
 
@@ -92,11 +96,21 @@ the "Build and upload PLATFORM artifact" workflows from step 6. You can list
 those runs with `releaser ci app --list`.
 
 The workflow uploads the assets, updates `checksums.txt`, and **signs it** with
-cosign keyless signing. It uploads the signature as `checksums.txt.sigstore.json`,
-and fails if it is not attached to the release. Users rely on this signature to
+cosign keyless signing. It uploads the signature as `checksums.txt.sigstore.json`.
+It also combines the build provenance from the app build runs into
+`headlamp-X.Y.Z.intoto.jsonl` and uploads it. Uploads to the same release are
+serialized so partial uploads preserve each other's provenance. Before uploading,
+the workflow checks retained assets against their actual bytes and fails if any
+are missing from `checksums.txt` or have a different digest. To repair an
+incomplete manifest after a failed upload, rerun with the build run IDs for all
+affected assets so they are replaced and their checksums restored.
+Release API or retained-asset download failures stop the workflow before uploading.
+The workflow also fails if an asset in `checksums.txt` has no verified build
+provenance, or if the signature or provenance is not attached to the release. Users rely on these to
 verify downloads (see [Verifying Releases](../installation/verify-releases.md)),
 so always use the workflow, and make sure it succeeded before publishing the
-release. `releaser check X.Y.Z` also reports a missing signature (see step 9).
+release. `releaser check X.Y.Z` also reports a missing signature or provenance
+(see step 9).
 
 Do not upload assets manually with `app/scripts/push-release-assets/push-release-assets.js`,
 because that skips signing. If you need to add or replace an asset, re-run the
@@ -160,10 +174,10 @@ the draft from the GitHub UI instead, select the existing `vX.Y.Z` tag.
 
 However you uploaded the assets, created the tag, or published the release, run
 `releaser check X.Y.Z` before publishing and again afterwards. It fails if the
-`checksums.txt` signature is missing, or if the tag is not signed or its
-signature is invalid, e.g. because it was made with an expired key. It warns if
-GitHub can't match the signing key to the tagger's GitHub account, or couldn't
-check the signature at the moment.
+`checksums.txt` signature or the provenance is missing, or if the tag is not
+signed or its signature is invalid, e.g. because it was made with an expired
+key. It warns if GitHub can't match the signing key to the tagger's GitHub
+account, or couldn't check the signature at the moment.
 
 ### 10. Container images and distribution channels (flathub, homebrew)
 

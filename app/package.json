@@ -198,7 +198,7 @@
     "@types/node": "^22.14.0",
     "@types/semver": "^7.7.0",
     "@types/yargs": "^17.0.35",
-    "@vitest/coverage-istanbul": "4.1.11",
+    "@vitest/coverage-istanbul": "4.1.12",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "electron": "^38.8.6",
@@ -207,13 +207,13 @@
     "i18next-parser": "^9.0.0",
     "typescript": "5.5.4",
     "vite": "^7.3.6",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "typescript": "5.5.4",
     "js-yaml": "^4.1.1",
     "langsmith": "0.8.10",
-    "hono": "4.13.2",
+    "hono": "4.13.11",
     "@peculiar/asn1-schema": "2.8.0",
     "@langchain/langgraph-sdk": "1.9.29",
     "@langchain/langgraph-checkpoint": "1.1.3"
