@@ -16,48 +16,58 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import type { KubeVolumeAttachment } from '../../lib/k8s/volumeAttachment';
 import { API_BASE, TestContext } from '../../test';
-import { BASE_VOLUME_ATTACHMENT } from './storyHelper';
+import {
+  BASE_VOLUME_ATTACHMENT,
+  VOLUME_ATTACHMENT_ATTACH_ERROR,
+  VOLUME_ATTACHMENT_DETACH_ERROR,
+} from './storyHelper';
 import Details from './VolumeAttachmentDetails';
 
 export default {
   title: 'VolumeAttachment/DetailsView',
   component: Details,
   argTypes: {},
-  decorators: [
-    Story => {
-      return (
-        <TestContext routerMap={{ name: 'my-volume-attachment' }}>
-          <Story />
-        </TestContext>
-      );
-    },
-  ],
 } as Meta;
 
-const Template: StoryFn = () => {
-  return <Details />;
-};
-
-export const Base = Template.bind({});
-Base.parameters = {
-  msw: {
-    handlers: {
-      story: [
-        http.get(`${API_BASE}/apis/storage.k8s.io/v1/volumeattachments/my-volume-attachment`, () =>
-          HttpResponse.json(BASE_VOLUME_ATTACHMENT)
-        ),
-        http.get(`${API_BASE}/apis/storage.k8s.io/v1/volumeattachments`, () =>
-          HttpResponse.error()
-        ),
-        http.get(`${API_BASE}/api/v1/events`, () =>
-          HttpResponse.json({
-            kind: 'EventList',
-            items: [],
-            metadata: {},
-          })
-        ),
-      ],
+function makeStory(attachment: KubeVolumeAttachment) {
+  const name = attachment.metadata.name;
+  const Template: StoryFn = () => <Details />;
+  const story = Template.bind({});
+  story.decorators = [
+    Story => (
+      <TestContext routerMap={{ name }}>
+        <Story />
+      </TestContext>
+    ),
+  ];
+  story.parameters = {
+    msw: {
+      handlers: {
+        story: [
+          http.get(`${API_BASE}/apis/storage.k8s.io/v1/volumeattachments/${name}`, () =>
+            HttpResponse.json(attachment)
+          ),
+          http.get(`${API_BASE}/apis/storage.k8s.io/v1/volumeattachments`, () =>
+            HttpResponse.error()
+          ),
+          http.get(`${API_BASE}/api/v1/events`, () =>
+            HttpResponse.json({
+              kind: 'EventList',
+              items: [],
+              metadata: {},
+            })
+          ),
+        ],
+      },
     },
-  },
-};
+  };
+  return story;
+}
+
+export const Base = makeStory(BASE_VOLUME_ATTACHMENT);
+
+export const AttachError = makeStory(VOLUME_ATTACHMENT_ATTACH_ERROR);
+
+export const DetachError = makeStory(VOLUME_ATTACHMENT_DETACH_ERROR);

@@ -215,3 +215,35 @@ export const BASE_VOLUME_ATTACHMENT: KubeVolumeAttachment = {
     attached: true,
   },
 };
+
+export const VOLUME_ATTACHMENT_ATTACH_ERROR: KubeVolumeAttachment = {
+  ...BASE_VOLUME_ATTACHMENT,
+  metadata: {
+    ...BASE_VOLUME_ATTACHMENT.metadata,
+    name: 'volume-attachment-attach-error',
+    uid: 'volume-attachment-2',
+  },
+  status: {
+    attached: false,
+    attachError: {
+      message: 'rpc error: code = Internal desc = could not attach volume',
+      time: '2023-04-27T20:32:00Z',
+    },
+  },
+};
+
+export const VOLUME_ATTACHMENT_DETACH_ERROR: KubeVolumeAttachment = {
+  ...BASE_VOLUME_ATTACHMENT,
+  metadata: {
+    ...BASE_VOLUME_ATTACHMENT.metadata,
+    name: 'volume-attachment-detach-error',
+    uid: 'volume-attachment-3',
+  },
+  status: {
+    attached: true,
+    detachError: {
+      message: 'rpc error: code = Internal desc = could not detach volume',
+      time: '2023-04-27T20:33:00Z',
+    },
+  },
+};

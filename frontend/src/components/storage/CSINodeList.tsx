@@ -17,7 +17,6 @@
 import { useTranslation } from 'react-i18next';
 import CSINode from '../../lib/k8s/csiNode';
 import LabelListItem from '../common/LabelListItem';
-import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function CSINodeList() {
@@ -31,20 +30,7 @@ export default function CSINodeList() {
       }}
       resourceClass={CSINode}
       columns={[
-        {
-          id: 'name',
-          label: t('translation|Name'),
-          getValue: item => item.metadata.name,
-          render: item => (
-            <Link
-              routeName="node"
-              params={{ name: item.metadata.name }}
-              activeCluster={item.cluster}
-            >
-              {item.metadata.name}
-            </Link>
-          ),
-        },
+        'name',
         {
           id: 'drivers',
           label: t('Drivers'),
