@@ -431,6 +431,48 @@ func joinSharedToken(w http.ResponseWriter, r *http.Request, kCtx *kubeconfig.Co
 	clearAuthCookie(w, secure, GetCookiePath(baseURL, ""), LogoutMarkerName(LogoutMarkerID(kCtx)))
 }
 
+// StripSharedTokenCookies removes the shared token cookies from the Cookie
+// header, which the cluster proxy forwards to the API server. It runs even
+// with token broadcast off, as browsers keep the cookies until they expire.
+func StripSharedTokenCookies(r *http.Request) {
+	lines := r.Header.Values("Cookie")
+	kept := make([]string, 0, len(lines))
+	stripped := false
+
+	for _, line := range lines {
+		pairs := make([]string, 0, strings.Count(line, ";")+1)
+
+		for _, pair := range strings.Split(line, ";") {
+			pair = strings.TrimSpace(pair)
+			if pair == "" {
+				continue
+			}
+
+			name, _, _ := strings.Cut(pair, "=")
+			if strings.HasPrefix(name, sharedTokenCookiePrefix) {
+				stripped = true
+				continue
+			}
+
+			pairs = append(pairs, pair)
+		}
+
+		if len(pairs) > 0 {
+			kept = append(kept, strings.Join(pairs, "; "))
+		}
+	}
+
+	if !stripped {
+		return
+	}
+
+	r.Header.Del("Cookie")
+
+	for _, line := range kept {
+		r.Header.Add("Cookie", line)
+	}
+}
+
 func authTokenCookiePrefix(sanitizedCluster string) string {
 	return "headlamp-auth-" + sanitizedCluster
 }
