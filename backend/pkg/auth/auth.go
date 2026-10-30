@@ -92,16 +92,12 @@ func BearerTokenValue(token string) string {
 	return strings.TrimSpace(token)
 }
 
-// ParseClusterAndToken extracts the cluster name from the URL path and
-// the Bearer token from the Authorization header of the HTTP request, falling
-// back to the cluster cookie when the header is missing.
-func ParseClusterAndToken(r *http.Request) (string, string) {
-	cluster := ""
-
-	matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
-	if len(matches) > 1 {
-		cluster = matches[1]
-	}
+// ParseClusterAndToken extracts the cluster name from the URL path (below the
+// configured base URL) and the Bearer token from the Authorization header of
+// the HTTP request, falling back to the cluster cookie when the header is
+// missing.
+func ParseClusterAndToken(r *http.Request, baseURL string) (string, string) {
+	cluster := clusterFromPath(r.URL.Path, baseURL)
 
 	// Try Authorization header first (for backward compatibility)
 	token := BearerTokenValue(r.Header.Get("Authorization"))
@@ -121,6 +117,34 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	return cluster, token
+}
+
+// clusterFromPath returns the cluster of a <baseURL>/clusters/<cluster>/...
+// request path, or "".
+func clusterFromPath(path, baseURL string) string {
+	if matches := clusterPathRegex.FindStringSubmatch(trimBaseURL(path, baseURL)); len(matches) > 1 {
+		return matches[1]
+	}
+
+	return ""
+}
+
+// trimBaseURL removes the configured base URL prefix from a request path,
+// matching it at a path boundary only ("/head" is not a prefix of "/headlamp/...").
+// With a base URL configured, every route is served below it, so a path that
+// does not start with it is not a route at all and yields "".
+func trimBaseURL(path, baseURL string) string {
+	base := strings.Trim(baseURL, "/")
+	if base == "" {
+		return path
+	}
+
+	rest, found := strings.CutPrefix(path, "/"+base)
+	if !found || (rest != "" && !strings.HasPrefix(rest, "/")) {
+		return ""
+	}
+
+	return rest
 }
 
 // GetExpiryUnixTimeUTC expiration unix time UTC from a token payload map exp field.
@@ -430,6 +454,8 @@ type MeHandlerOptions struct {
 	ProxyAuthUsernameHeader string
 	ProxyAuthGroupHeader    string
 	ProxyAuthEmailHeader    string
+	// BaseURL is the configured base URL, below which /clusters/<cluster>/ paths live.
+	BaseURL string
 }
 
 // HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
@@ -455,7 +481,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 			return
 		}
 
-		requestCluster, token := ParseClusterAndToken(r)
+		requestCluster, token := ParseClusterAndToken(r, opts.BaseURL)
 
 		if requestCluster == "" {
 			requestCluster = clusterName
