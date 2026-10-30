@@ -356,8 +356,25 @@ func runBroadcastCase(t *testing.T, tc broadcastTestCase) {
 		SessionTTL:      3600,
 	})
 
-	got := broadcastCookies(t, w)
+	got := rekeyByClusterName(broadcastCookies(t, w), tc.contexts)
 	assertBroadcastResult(t, tc, got)
+}
+
+// rekeyByClusterName re-keys cookies (keyed by SanitizeClusterName's output, which is not
+// reversible now that it includes a hash) by the original cluster name, by recomputing
+// SanitizeClusterName for each candidate and matching on that.
+func rekeyByClusterName(
+	got map[string]broadcastCookieInfo, candidates []*kubeconfig.Context,
+) map[string]broadcastCookieInfo {
+	out := make(map[string]broadcastCookieInfo, len(got))
+
+	for _, ctx := range candidates {
+		if info, ok := got[auth.SanitizeClusterName(ctx.Name)]; ok {
+			out[ctx.Name] = info
+		}
+	}
+
+	return out
 }
 
 func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]broadcastCookieInfo) {
@@ -378,12 +395,14 @@ func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]br
 			continue
 		}
 
-		// The broadcast must carry the exact source token (not empty, truncated,
-		// or some other value) and be scoped to the target cluster's cookie path.
+		// The broadcast must carry the exact source token (not empty, truncated, or some
+		// other value) and use this target's cookie path. None of these test contexts use an
+		// in-cluster service account token, so the cookie stays cluster-scoped regardless of
+		// OidcUseImpersonation; see GetCookiePath and TestBroadcastOIDCToken_DeploymentScope.
 		assert.Equalf(t, testBroadcastToken, info.value,
 			"broadcast cookie for %q must carry the source token", e)
-		assert.Equalf(t, "/clusters/"+e, info.path,
-			"broadcast cookie for %q must be scoped to /clusters/%s", e, e)
+		assert.Equalf(t, auth.GetCookiePath("", e, false), info.path,
+			"broadcast cookie for %q must use its cluster-scoped cookie path", e)
 	}
 
 	for _, ctx := range tc.contexts {
@@ -395,6 +414,60 @@ func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]br
 		assert.Falsef(t, unexpected,
 			"did not expect broadcast cookie for %q, got cookies for: %v",
 			ctx.Name, broadcastClusters(got))
+	}
+}
+
+// TestBroadcastOIDCToken_DeploymentScope checks that a broadcast target's cookie only gets the
+// deployment-wide path when impersonation actually applies to it: both OidcUseImpersonation and
+// the target's own in-cluster service account token must be present, not either alone.
+// Unconditionally widening every broadcast target's cookie would grow the Cookie header with
+// every cluster a user logs into, even for deployments that never asked for impersonation.
+func TestBroadcastOIDCToken_DeploymentScope(t *testing.T) {
+	const source = "src"
+
+	newInClusterTarget := func(name string) *kubeconfig.Context {
+		ctx := newOIDCContext(name, testIssuerA, testClientFoo)
+		ctx.Source = kubeconfig.InCluster
+		ctx.AuthInfo.TokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+		return ctx
+	}
+
+	tests := []struct {
+		name                 string
+		oidcUseImpersonation bool
+		wantDeploymentScope  bool
+	}{
+		{name: "impersonation enabled and in-cluster target", oidcUseImpersonation: true, wantDeploymentScope: true},
+		{name: "impersonation disabled", oidcUseImpersonation: false, wantDeploymentScope: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(newOIDCContext(source, testIssuerA, testClientFoo)))
+			require.NoError(t, store.AddContext(newInClusterTarget("dst")))
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+
+			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+				Writer:               w,
+				Request:              r,
+				KubeConfigStore:      store,
+				SourceCluster:        source,
+				Token:                testBroadcastToken,
+				SessionTTL:           3600,
+				OidcUseImpersonation: tt.oidcUseImpersonation,
+			})
+
+			got := broadcastCookies(t, w)
+			info, ok := got[auth.SanitizeClusterName("dst")]
+			require.True(t, ok, "expected a broadcast cookie for dst")
+
+			wantPath := auth.GetCookiePath("", "dst", tt.wantDeploymentScope)
+			assert.Equal(t, wantPath, info.path)
+		})
 	}
 }
 

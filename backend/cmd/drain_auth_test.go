@@ -245,7 +245,7 @@ func TestClusterScopedDrainCredentials(t *testing.T) { //nolint:funlen // creden
 			if tc.cookie != "" {
 				w := httptest.NewRecorder()
 				req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, nil)
-				require.NoError(t, auth.SetTokenCookie(w, req, "main", tc.cookie, "", 3600))
+				require.NoError(t, auth.SetTokenCookie(w, req, "main", tc.cookie, "", 3600, false))
 				jar.SetCookies(origin, w.Result().Cookies())
 			}
 
@@ -424,7 +424,10 @@ func TestClusterScopedDrainRefreshesUserToken(t *testing.T) { //nolint:funlen //
 
 		return err == nil && value == "success"
 	}, 2*time.Second, 10*time.Millisecond)
-	require.Contains(t, response.Header().Get("Set-Cookie"), "renewed-user-token")
+	// SetTokenCookie's ClearTokenCookie pre-step also emits its own clearing Set-Cookie
+	// headers (see cookies.go), so the real, renewed value is not necessarily the first one;
+	// Header().Get only ever returns the first. Check every Set-Cookie header instead.
+	require.Contains(t, strings.Join(response.Header().Values("Set-Cookie"), "\n"), "renewed-user-token")
 }
 
 func TestDrainRejectsClusterMismatch(t *testing.T) {
