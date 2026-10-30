@@ -1120,5 +1120,11 @@
   "Go to Pods": "Go to Pods",
   "Navigate to the Pods list": "Navigate to the Pods list",
   "Go to Deployments": "Go to Deployments",
-  "Navigate to the Deployments list": "Navigate to the Deployments list"
+  "Navigate to the Deployments list": "Navigate to the Deployments list",
+  "All sources": "All sources",
+  "All destinations": "All destinations",
+  "OR": "OR",
+  "Peer {{ number }}": "Peer {{ number }}",
+  "All pods": "All pods",
+  "Both selectors must match (AND).": "Both selectors must match (AND)."
 }
