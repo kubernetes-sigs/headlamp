@@ -2159,3 +2159,93 @@ func TestTerminalSendErrorAfterDetachBuffersFrame(t *testing.T) {
 	require.Len(t, conn.Buffer, 1)
 	assert.Equal(t, []byte("lost?"), conn.Buffer[0].Data)
 }
+
+func TestTerminalReattachRequiresOwnerToken(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	msg := Message{ClusterID: "test-cluster", Path: path, Query: query, UserID: "test-user", Type: "REQUEST"}
+
+	ownerToken := "owner-token"
+	conn := m.createConnection(msg.ClusterID, msg.UserID, path, query, nil, &ownerToken)
+	conn.ownerToken = &ownerToken
+	conn.Buffer = []BufferedMessage{{Type: websocket.BinaryMessage, Data: []byte("secret output")}}
+	conn.BufferBytes = len("secret output")
+	conn.Status.State = StateClosed
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(msg.ClusterID, path, msg.UserID, query)] = conn
+	m.mutex.Unlock()
+
+	otherToken := "other-token"
+
+	for name, token := range map[string]*string{"no token": nil, "other token": &otherToken} {
+		t.Run(name, func(t *testing.T) {
+			clientConn, clientServer := createTestWebSocketConnection()
+			defer clientServer.Close()
+
+			_, err := m.getOrCreateConnection(msg, clientConn, token)
+			require.Error(t, err)
+
+			conn.mu.RLock()
+			defer conn.mu.RUnlock()
+
+			assert.Nil(t, conn.Client)
+			require.Len(t, conn.Buffer, 1)
+			assert.Equal(t, &ownerToken, conn.Token)
+		})
+	}
+
+	t.Run("owner token", func(t *testing.T) {
+		clientConn, clientServer := createTestWebSocketConnection()
+		defer clientServer.Close()
+
+		sameToken := "owner-token"
+
+		reattached, err := m.getOrCreateConnection(msg, clientConn, &sameToken)
+		require.NoError(t, err)
+		assert.Equal(t, conn, reattached)
+
+		conn.mu.RLock()
+		defer conn.mu.RUnlock()
+
+		assert.Equal(t, clientConn, conn.Client)
+		assert.Empty(t, conn.Buffer)
+	})
+}
+
+func TestReconnectKeepsServiceAccountConnectionOwner(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, true)
+	tokenFile := writeTestTokenFile(t)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:     "test-cluster",
+		Cluster:  &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	requestToken := "proxy-token"
+	path := "/api/v1/namespaces/default/pods/test-pod/exec"
+
+	conn, err := m.establishClusterConnection("test-cluster", "test-user", path, "tty=1", clientConn, &requestToken)
+	require.NoError(t, err)
+
+	newConn, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer close(newConn.Done)
+
+	require.NotNil(t, newConn.Token)
+	assert.Equal(t, testServiceAccountToken, *newConn.Token)
+	assert.True(t, newConn.isOwnedBy(&requestToken))
+}

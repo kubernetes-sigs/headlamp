@@ -17,9 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -106,6 +108,9 @@ type Connection struct {
 	usesServiceAccountToken bool
 	// Authentication token.
 	Token *string
+	// ownerToken is the requester's token that opened a terminal session; only a
+	// request presenting the same token may reattach to the session after a disconnect.
+	ownerToken *string
 	// closeOnce is used to ensure the connection is closed only once.
 	closeOnce sync.Once
 	// Buffer for messages when client is disconnected.
@@ -417,6 +422,8 @@ func (m *Multiplexer) establishClusterConnection(
 	}
 
 	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
+	connection.ownerToken = token
+
 	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
 		connection.usesServiceAccountToken = true
 	}
@@ -607,13 +614,20 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
+	// A service account connection re-reads its token file, so pass the requester's
+	// token to keep it as the owner of the new connection.
+	token := conn.Token
+	if conn.usesServiceAccountToken {
+		token = conn.ownerToken
+	}
+
 	newConn, err := m.establishClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
 		conn.Query,
 		conn.Client,
-		conn.Token,
+		token,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
@@ -835,8 +849,11 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 		return m.handleNewConnection(msg, clientConn, token)
 	}
 
-	isTerm := isTerminalPath(conn.Path)
-	if isTerm {
+	if isTerminalPath(conn.Path) {
+		if !conn.isOwnedBy(token) {
+			return nil, errors.New("terminal session belongs to a different authenticated session")
+		}
+
 		if !m.handleTerminalReconnect(conn, clientConn) {
 			return nil, fmt.Errorf("terminal session could not be reattached (busy or flush failed)")
 		}
@@ -847,6 +864,17 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	}
 
 	return conn, nil
+}
+
+// isOwnedBy reports whether requestToken matches the token that opened the terminal session.
+// Without a token on either side there is no principal to tell requesters apart, so any
+// requester can already open a new session with the same credentials.
+func (c *Connection) isOwnedBy(requestToken *string) bool {
+	if c.ownerToken == nil || requestToken == nil {
+		return c.ownerToken == nil && requestToken == nil
+	}
+
+	return subtle.ConstantTimeCompare([]byte(*c.ownerToken), []byte(*requestToken)) == 1
 }
 
 // handleTerminalReconnect handles client reconnection to an existing terminal session,
@@ -1155,20 +1183,20 @@ func (m *Multiplexer) processClusterMessage(
 		return err
 	}
 
-	conn.mu.RLock()
-	currentClient := conn.Client
-	isFlushing := conn.isFlushing
-	conn.mu.RUnlock()
-
 	isTerm := isTerminalPath(conn.Path)
 
-	if isTerm && (currentClient == nil || isFlushing) {
-		conn.mu.Lock()
+	// Decide and enqueue under one lock so a reconnect cannot attach and finish
+	// draining between the check and the append, which would strand this frame.
+	conn.mu.Lock()
+	currentClient := conn.Client
+
+	if isTerm && (currentClient == nil || conn.isFlushing) {
 		conn.enforceBufferCaps([]BufferedMessage{{Type: messageType, Data: message}}, false)
 		conn.mu.Unlock()
 
 		return nil
 	}
+	conn.mu.Unlock()
 
 	var sendErr error
 	if currentClient != nil {
