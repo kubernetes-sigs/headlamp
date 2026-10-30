@@ -20,7 +20,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,57 +46,55 @@ type broadcastCookieInfo struct {
 	path  string
 }
 
-// broadcastCookies reassembles the chunked headlamp-auth-<cluster>.<i> cookies
-// set on w into a per-cluster {value, path}. Clearing cookies (empty value,
-// non-positive MaxAge emitted by SetTokenCookie's ClearTokenCookie pre-step) are
-// ignored. Reassembling the value and path lets tests assert that the broadcast
-// carried the exact source token, scoped to the target cluster — not merely that
-// some cookie was set for the cluster.
-func broadcastCookies(t *testing.T, w *httptest.ResponseRecorder) map[string]broadcastCookieInfo {
+// broadcastCookies resolves the cookies set on w the way a later request sees
+// them: every non-clearing cookie is attached to a request and, for each
+// context in store whose logout marker was cleared by the broadcast (its
+// participation mark), the token GetTokenFromCookie returns for it through
+// the store-backed resolver, with the path of that marker clear. This lets
+// tests assert that the broadcast made the exact source token readable by the
+// target cluster — not merely that some cookie was set for it.
+func broadcastCookies(
+	t *testing.T, w *httptest.ResponseRecorder, store kubeconfig.ContextStore,
+) map[string]broadcastCookieInfo {
 	t.Helper()
 
 	resp := w.Result()
 	defer func() { _ = resp.Body.Close() }()
 
-	type chunk struct {
-		idx int
-		val string
-	}
-
-	chunks := make(map[string][]chunk)
-	paths := make(map[string]string)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/", nil)
+	cleared := make(map[string]string) // sanitized cluster -> path of its marker clear
 
 	for _, ck := range resp.Cookies() {
-		if !strings.HasPrefix(ck.Name, "headlamp-auth-") || ck.Value == "" || ck.MaxAge <= 0 {
+		if ck.Value != "" && ck.MaxAge > 0 {
+			addRequestCookie(req, ck.Name, ck.Value)
 			continue
 		}
 
-		// Split "headlamp-auth-<cluster>.<chunkIndex>" into cluster name + index.
-		name := strings.TrimPrefix(ck.Name, "headlamp-auth-")
-		idx := 0
-
-		if dot := strings.LastIndex(name, "."); dot >= 0 {
-			if n, err := strconv.Atoi(name[dot+1:]); err == nil {
-				idx = n
-				name = name[:dot]
-			}
+		if strings.HasPrefix(ck.Name, "headlamp-auth-") && strings.HasSuffix(ck.Name, ".out") {
+			cleared[strings.TrimSuffix(strings.TrimPrefix(ck.Name, "headlamp-auth-"), ".out")] = ck.Path
 		}
-
-		chunks[name] = append(chunks[name], chunk{idx: idx, val: ck.Value})
-		paths[name] = ck.Path
 	}
 
-	out := make(map[string]broadcastCookieInfo, len(chunks))
+	resolve := storeResolver(store)
+	out := make(map[string]broadcastCookieInfo)
 
-	for name, cs := range chunks {
-		sort.Slice(cs, func(i, j int) bool { return cs[i].idx < cs[j].idx })
+	kContexts, err := store.GetContexts()
+	require.NoError(t, err)
 
-		var b strings.Builder
-		for _, c := range cs {
-			b.WriteString(c.val)
+	for _, kCtx := range kContexts {
+		name := auth.SanitizeClusterName(kCtx.Name)
+
+		path, ok := cleared[name]
+		if !ok {
+			continue
 		}
 
-		out[name] = broadcastCookieInfo{value: b.String(), path: paths[name]}
+		token, _, err := auth.ReadClusterToken(req, kCtx.Name, resolve)
+		require.NoError(t, err)
+
+		if token != "" {
+			out[name] = broadcastCookieInfo{value: token, path: path}
+		}
 	}
 
 	return out
@@ -163,8 +160,7 @@ func newInternalOIDCContext(name, issuer, clientID string) *kubeconfig.Context {
 // newOIDCContextWithUnreadableCA returns a context that advertises OIDC
 // (AuthType()=="oidc") but whose OidcConfig() will return an error because
 // idp-certificate-authority points at a nonexistent file. Used to verify that
-// one misconfigured target does not prevent broadcasting to other matching
-// targets.
+// the shared token eligibility is identity only and never reads the CA file.
 func newOIDCContextWithUnreadableCA(name string) *kubeconfig.Context {
 	return &kubeconfig.Context{
 		Name: name,
@@ -185,7 +181,7 @@ type broadcastTestCase struct {
 	name          string
 	contexts      []*kubeconfig.Context
 	source        string
-	wantBroadcast []string // clusters expected to receive a cookie
+	wantBroadcast []string // clusters expected to be linked to the shared token
 }
 
 func matchingTargetCases() []broadcastTestCase {
@@ -287,14 +283,16 @@ func mixedAndMisconfiguredCases() []broadcastTestCase {
 			wantBroadcast: []string{"match-1", "match-2"},
 		},
 		{
-			name: "target with unreadable OIDC CA is skipped but others still broadcast",
+			// Eligibility is identity only: the CA file matters for that cluster's
+			// own login and refresh, not for reading the shared token.
+			name: "target with unreadable OIDC CA still takes part",
 			contexts: []*kubeconfig.Context{
 				newOIDCContext("src", testIssuerA, testClientFoo),
 				newOIDCContext("dst-good", testIssuerA, testClientFoo),
 				newOIDCContextWithUnreadableCA("dst-bad-ca"),
 			},
 			source:        "src",
-			wantBroadcast: []string{"dst-good"},
+			wantBroadcast: []string{"dst-good", "dst-bad-ca"},
 		},
 		{
 			name: "source with empty issuer or client-id is a no-op",
@@ -347,7 +345,7 @@ func runBroadcastCase(t *testing.T, tc broadcastTestCase) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 
-	auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+	shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
 		Writer:          w,
 		Request:         r,
 		KubeConfigStore: store,
@@ -355,17 +353,30 @@ func runBroadcastCase(t *testing.T, tc broadcastTestCase) {
 		Token:           testBroadcastToken,
 		SessionTTL:      3600,
 	})
+	require.NoError(t, err)
 
-	got := broadcastCookies(t, w)
+	assert.Equal(t, len(tc.wantBroadcast) > 0, shared,
+		"BroadcastOIDCToken must report whether the token was stored in the shared cookie")
+
+	got := broadcastCookies(t, w, store)
 	assertBroadcastResult(t, tc, got)
 }
 
 func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]broadcastCookieInfo) {
 	t.Helper()
 
-	_, gotSource := got[tc.source]
-	assert.Falsef(t, gotSource,
-		"source cluster %s must not receive a broadcast cookie", tc.source)
+	// With at least one target, the source reads the shared token too so that
+	// one cookie carries one refresh lineage. Without targets the source keeps
+	// its own cookie, set by the login handler, and broadcast sets nothing.
+	sourceInfo, gotSource := got[tc.source]
+	if len(tc.wantBroadcast) > 0 {
+		if assert.Truef(t, gotSource, "source cluster %s must be linked to the shared token", tc.source) {
+			assert.Equal(t, testBroadcastToken, sourceInfo.value)
+			assert.Equal(t, "/clusters/"+tc.source, sourceInfo.path)
+		}
+	} else {
+		assert.Falsef(t, gotSource, "source cluster %s must not take part in a broadcast without targets", tc.source)
+	}
 
 	wantSet := make(map[string]bool, len(tc.wantBroadcast))
 
@@ -413,7 +424,7 @@ func TestBroadcastOIDCToken_NoContextsReturnsCleanly(t *testing.T) {
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 
 	// Should not panic even when the source cluster doesn't exist.
-	auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+	shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
 		Writer:          w,
 		Request:         r,
 		KubeConfigStore: store,
@@ -421,8 +432,9 @@ func TestBroadcastOIDCToken_NoContextsReturnsCleanly(t *testing.T) {
 		Token:           testBroadcastToken,
 		SessionTTL:      3600,
 	})
-
-	assert.Empty(t, broadcastCookies(t, w))
+	require.NoError(t, err)
+	assert.False(t, shared)
+	assert.Empty(t, w.Result().Cookies())
 }
 
 // TestBroadcastOIDCToken_InternalContextCannotClobberRealClusterCookie covers
@@ -449,7 +461,7 @@ func TestBroadcastOIDCToken_InternalContextCannotClobberRealClusterCookie(t *tes
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 
-	auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+	_, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
 		Writer:          w,
 		Request:         r,
 		KubeConfigStore: store,
@@ -457,8 +469,9 @@ func TestBroadcastOIDCToken_InternalContextCannotClobberRealClusterCookie(t *tes
 		Token:           testBroadcastToken,
 		SessionTTL:      3600,
 	})
+	require.NoError(t, err)
 
-	got := broadcastCookies(t, w)
+	got := broadcastCookies(t, w, store)
 
 	// broadcastCookies keys by the sanitized cookie name, so a cookie set for
 	// either "prod-other" or "prod\x00-other" would surface under "prod-other".
@@ -468,4 +481,203 @@ func TestBroadcastOIDCToken_InternalContextCannotClobberRealClusterCookie(t *tes
 			"matching context is an internal one that sanitizes to the same cookie name; got: %v",
 		realCluster, broadcastClusters(got))
 	assert.Empty(t, got, "no cluster should receive a broadcast cookie in this scenario")
+}
+
+// setCookieBytes returns the wire size of all Set-Cookie headers on w.
+func setCookieBytes(t *testing.T, w *httptest.ResponseRecorder) int {
+	t.Helper()
+
+	total := 0
+	for _, v := range w.Result().Header.Values("Set-Cookie") {
+		total += len("Set-Cookie: ") + len(v) + len("\r\n")
+	}
+
+	return total
+}
+
+func broadcastWithTargets(t *testing.T, n int, token, baseURL string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(newOIDCContext("src", testIssuerA, testClientFoo)))
+
+	for i := 0; i < n; i++ {
+		require.NoError(t, store.AddContext(newOIDCContext("dst-"+strconv.Itoa(i), testIssuerA, testClientFoo)))
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oidc-callback", nil)
+
+	shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+		Writer:          w,
+		Request:         r,
+		KubeConfigStore: store,
+		SourceCluster:   "src",
+		Token:           token,
+		BaseURL:         baseURL,
+		SessionTTL:      3600,
+	})
+	require.NoError(t, err)
+	require.True(t, shared)
+
+	return w
+}
+
+func TestBroadcastOIDCToken_EmptyTokenIsANoOpAndOversizedIsAnError(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(newOIDCContext("src", testIssuerA, testClientFoo)))
+	require.NoError(t, store.AddContext(newOIDCContext("dst", testIssuerA, testClientFoo)))
+
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oidc-callback", nil)
+
+	w := httptest.NewRecorder()
+	shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+		Writer: w, Request: r, KubeConfigStore: store, SourceCluster: "src", Token: "", SessionTTL: 3600,
+	})
+	require.NoError(t, err, "an empty token is skipped like SetTokenCookie does, not reported")
+	assert.False(t, shared)
+	assert.Empty(t, w.Result().Cookies())
+
+	w = httptest.NewRecorder()
+	shared, err = auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+		Writer: w, Request: r, KubeConfigStore: store, SourceCluster: "src",
+		Token: strings.Repeat("a", 3800*33), SessionTTL: 3600,
+	})
+	require.Error(t, err)
+	assert.False(t, shared)
+}
+
+// TestBroadcastOIDCToken_RefusesClientControlledSource: a dynamic (client-added)
+// or per-user context never resolves a shared key, so sharing its token would
+// leave the just-logged-in cluster without a token. The login handler then
+// falls back to the cluster's own cookie.
+func TestBroadcastOIDCToken_RefusesClientControlledSource(t *testing.T) {
+	for name, src := range map[string]*kubeconfig.Context{
+		"dynamic":  newDynamicOIDCContext("src", testIssuerA, testClientFoo),
+		"internal": newInternalOIDCContext("src", testIssuerA, testClientFoo),
+	} {
+		t.Run(name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(src))
+			require.NoError(t, store.AddContext(newOIDCContext("dst", testIssuerA, testClientFoo)))
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oidc-callback", nil)
+
+			shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+				Writer: w, Request: r, KubeConfigStore: store, SourceCluster: "src",
+				Token: testBroadcastToken, SessionTTL: 3600,
+			})
+			require.NoError(t, err)
+			assert.False(t, shared)
+			assert.Empty(t, w.Result().Cookies(), "nothing is shared from a client-controlled source")
+		})
+	}
+}
+
+// TestBroadcastOIDCToken_KeepsSiblingOwnCookie: only the source's chunk zero is
+// cleared. A sibling with a private (set-token) or older OIDC cookie keeps
+// using it — its own lineage, exactly as before this change.
+func TestBroadcastOIDCToken_KeepsSiblingOwnCookie(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(newOIDCContext("src", testIssuerA, testClientFoo)))
+	require.NoError(t, store.AddContext(newOIDCContext("dst", testIssuerA, testClientFoo)))
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oidc-callback", nil)
+
+	shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+		Writer: w, Request: r, KubeConfigStore: store, SourceCluster: "src",
+		Token: testBroadcastToken, SessionTTL: 3600,
+	})
+	require.NoError(t, err)
+	require.True(t, shared)
+
+	// The browser had a private token for dst before the login; replay it with
+	// everything the broadcast set (clearing cookies drop the matching name).
+	next := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/", nil)
+	cleared := map[string]bool{}
+
+	for _, ck := range w.Result().Cookies() {
+		if ck.MaxAge > 0 {
+			addRequestCookie(next, ck.Name, ck.Value)
+		} else {
+			cleared[ck.Name] = true
+		}
+	}
+
+	assert.True(t, cleared["headlamp-auth-src.0"], "source chunk zero is cleared")
+	assert.False(t, cleared["headlamp-auth-dst.0"], "sibling chunk zero must not be touched")
+
+	if !cleared["headlamp-auth-dst.0"] {
+		addRequestCookie(next, "headlamp-auth-dst.0", "private-dst-token")
+	}
+
+	resolve := storeResolver(store)
+	assert.Equal(t, "private-dst-token", readShared(t, next, "dst", resolve))
+	assert.Equal(t, testBroadcastToken, readShared(t, next, "src", resolve))
+}
+
+// TestBroadcastOIDCToken_HeaderSizeDoesNotScaleWithClusters guards against the
+// /oidc-callback response growing as token size x number of clusters, which
+// exceeds the response header limits of reverse proxies such as Envoy (60KB).
+func TestBroadcastOIDCToken_HeaderSizeDoesNotScaleWithClusters(t *testing.T) {
+	const clusters = 20
+
+	token := strings.Repeat("t", 5000) // two chunks, like an Entra ID access token with groups
+
+	w := broadcastWithTargets(t, clusters, token, "")
+	size := setCookieBytes(t, w)
+	t.Logf("Set-Cookie bytes for %d clusters and a %d-byte token: %d", clusters, len(token), size)
+
+	assert.Less(t, size, 15*1024, "Set-Cookie headers must not carry one token copy per cluster")
+}
+
+func TestBroadcastOIDCToken_SharedCookieLayout(t *testing.T) {
+	for _, baseURL := range []string{"", "/headlamp"} {
+		t.Run("base="+baseURL, func(t *testing.T) {
+			w := broadcastWithTargets(t, 3, testBroadcastToken, baseURL)
+			key := auth.SharedTokenKey(testIssuerA, testClientFoo)
+
+			resp := w.Result()
+			defer func() { _ = resp.Body.Close() }()
+
+			byName := make(map[string]*http.Cookie)
+			for _, ck := range resp.Cookies() {
+				byName[ck.Name] = ck
+			}
+
+			shared := byName["headlamp-auth~shared-"+key+".0"]
+			require.NotNil(t, shared, "the token must be stored once in the shared cookie")
+			assert.Equal(t, testBroadcastToken, shared.Value)
+			assert.Equal(t, baseURL+"/clusters/", shared.Path)
+			assert.Equal(t, 3600, shared.MaxAge)
+			assert.True(t, shared.HttpOnly)
+
+			// Only the source, whose login just happened, has its own chunk zero
+			// cleared; siblings keep whatever private cookie they hold.
+			chunkZero := byName["headlamp-auth-src.0"]
+			require.NotNil(t, chunkZero, "source chunk zero must be cleared")
+			assert.Empty(t, chunkZero.Value)
+			assert.Equal(t, -1, chunkZero.MaxAge)
+			assert.Equal(t, baseURL+"/clusters/src", chunkZero.Path)
+
+			// No per-cluster link cookie exists: the key is resolved on the server
+			// from each cluster's kubeconfig, so a client cannot point a cluster at it.
+			for _, cluster := range []string{"src", "dst-0", "dst-1", "dst-2"} {
+				assert.Nilf(t, byName["headlamp-auth-"+cluster+".shared"], "%s must not get a link cookie", cluster)
+
+				if cluster != "src" {
+					assert.Nilf(t, byName["headlamp-auth-"+cluster+".0"], "%s own cookie must not be touched", cluster)
+				}
+
+				marker := byName["headlamp-auth-"+cluster+".out"]
+				require.NotNilf(t, marker, "%s logout marker must be lifted by a new login", cluster)
+				assert.Equal(t, -1, marker.MaxAge)
+				assert.Equal(t, baseURL+"/clusters/"+cluster, marker.Path)
+
+				assert.Nilf(t, byName["headlamp-auth-"+cluster+".1"], "%s must not get token chunks", cluster)
+			}
+		})
+	}
 }

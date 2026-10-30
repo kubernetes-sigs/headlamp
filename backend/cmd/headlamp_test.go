@@ -5230,6 +5230,90 @@ func TestClusterRoutesNeverSeeSharedTokenCookies(t *testing.T) { //nolint:funlen
 	}
 }
 
+func TestStoreOIDCLoginTokenSharesSourceWhenBroadcast(t *testing.T) { //nolint:funlen
+	const issuer, clientID = "https://idp.example.com", "client-id"
+
+	newCtx := func(name string) *kubeconfig.Context {
+		return &kubeconfig.Context{
+			Name:     name,
+			AuthInfo: &api.AuthInfo{},
+			OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: issuer, ClientID: clientID},
+		}
+	}
+	dynamicCtx := func(name string) *kubeconfig.Context {
+		kCtx := newCtx(name)
+		kCtx.Source = kubeconfig.DynamicCluster
+
+		return kCtx
+	}
+
+	tests := []struct {
+		name      string
+		broadcast bool
+		contexts  []*kubeconfig.Context
+		wantOwn   bool
+	}{
+		{"broadcast with siblings shares the source token", true, []*kubeconfig.Context{newCtx("src"), newCtx("dst")}, false},
+		{"broadcast without siblings keeps the own cookie", true, []*kubeconfig.Context{newCtx("src")}, true},
+		{"no broadcast keeps the own cookie", false, []*kubeconfig.Context{newCtx("src"), newCtx("dst")}, true},
+		{"dynamic source keeps the own cookie", true, []*kubeconfig.Context{dynamicCtx("src"), newCtx("dst")}, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			for _, c := range tc.contexts {
+				require.NoError(t, store.AddContext(c))
+			}
+
+			cfg := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore: store, SessionTTL: 3600, OidcUseTokenBroadcast: tc.broadcast,
+				},
+			}}
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oidc-callback", nil)
+
+			empty := httptest.NewRecorder()
+			require.NoError(t, cfg.storeOIDCLoginToken(empty, req, "src", ""), "empty token is a no-op, as before")
+			assert.Empty(t, empty.Result().Cookies())
+
+			rr := httptest.NewRecorder()
+			require.NoError(t, cfg.storeOIDCLoginToken(rr, req, "src", "the-token"))
+
+			byName := map[string]*http.Cookie{}
+			for _, ck := range rr.Result().Cookies() {
+				byName[ck.Name] = ck
+			}
+
+			own := byName["headlamp-auth-src.0"]
+			require.NotNil(t, own)
+			assert.Nil(t, byName["headlamp-auth-src.shared"], "no link cookies")
+
+			if tc.broadcast {
+				require.NotNil(t, byName["headlamp-auth-src.out"], "a login lifts the logout marker")
+				assert.Equal(t, -1, byName["headlamp-auth-src.out"].MaxAge)
+			} else {
+				assert.Nil(t, byName["headlamp-auth-src.out"], "no new cookies when token broadcast is off")
+			}
+
+			shared := byName["headlamp-auth~shared-"+auth.SharedTokenKey(issuer, clientID)+".0"]
+
+			if tc.wantOwn {
+				assert.Equal(t, "the-token", own.Value)
+				assert.Nil(t, shared)
+				assert.Nil(t, byName["headlamp-auth-dst.out"], "siblings are untouched when nothing is shared")
+			} else {
+				assert.Empty(t, own.Value, "source chunk zero must be cleared when the token is shared")
+				assert.Equal(t, -1, own.MaxAge)
+				require.NotNil(t, shared, "the token must be stored in the shared cookie")
+				assert.Equal(t, "the-token", shared.Value)
+				require.NotNil(t, byName["headlamp-auth-dst.out"], "siblings' logout markers are lifted too")
+			}
+		})
+	}
+}
+
 func getOIDCLogoutRedirectTestCases(testCluster string) []oidcLogoutTestCase {
 	return []oidcLogoutTestCase{
 		{
