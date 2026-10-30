@@ -2772,16 +2772,18 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		switch {
 		case c.shouldUseUnsafeServiceAccountTokenForContext(kContext):
 			// The service account credential is used, so a client must not add its own identity.
-			stripImpersonationHeaders(r)
 			clearRequestAuthorization(r)
 		case impersonation != nil:
-			stripImpersonationHeaders(r)
 			clearRequestAuthorization(r)
 			// Carried via the request's context, not a header: see ContextWithImpersonation.
 			r = r.WithContext(kubeconfig.ContextWithImpersonation(r.Context(), *impersonation))
 		default:
 			var token string
 
+			// Read before stripImpersonationHeaders below: a deployment can configure
+			// ProxyAuthTokenHeader to any trusted-header name its identity-aware proxy uses,
+			// including one that happens to start with "Impersonate-" (nothing requires
+			// otherwise), and that value must still be read as this request's bearer token.
 			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
 				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
 			}
@@ -2794,6 +2796,17 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 			}
 		}
+
+		// Stripped unconditionally, not just as a side effect of the two branches above that go
+		// on to set their own Impersonate-* headers: impersonatingRoundTripper only overwrites
+		// Impersonate-User/Impersonate-Group, and only when an impersonation value is attached
+		// to the request's context at all -- it leaves Impersonate-Extra-*/Impersonate-Uid
+		// untouched even then, and does nothing at all in the plain bearer/cookie-forwarding
+		// case above, where the request is authorized upstream as the caller's own identity. A
+		// client-supplied Impersonate-* header must never reach the API server from any of
+		// these three paths. This runs after the switch (not before it), so the default case
+		// above can still read a same-named ProxyAuthTokenHeader first.
+		stripImpersonationHeaders(r)
 
 		// The Cookie header itself must never reach the upstream API server, in any of the
 		// three cases above. Cookies are scoped to the whole deployment (see

@@ -5212,6 +5212,80 @@ func TestHandleClusterAPI_OIDCImpersonation_ForgedTokenRejected(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// TestHandleClusterAPI_PlainPassthroughStripsClientImpersonationHeaders covers the third branch
+// of clusterRequestHandler's switch: a context that uses neither Headlamp's own service account
+// credential nor impersonation (UsesInClusterServiceAccountToken is false, so both
+// shouldUseUnsafeServiceAccountTokenForContext and shouldUseImpersonationForContext are false),
+// which forwards the caller's own proxy-auth/cookie token as the Bearer credential directly.
+// impersonatingRoundTripper does nothing in this branch (no impersonation value is ever attached
+// to the request's context here), so stripImpersonationHeaders is the only thing standing
+// between a client-supplied Impersonate-* header and the API server; it must still run
+// unconditionally, not just in the other two branches that go on to set their own.
+func TestHandleClusterAPI_PlainPassthroughStripsClientImpersonationHeaders(t *testing.T) {
+	const cluster = "main"
+
+	var (
+		receivedAuth   string
+		receivedUser   string
+		receivedGroups []string
+	)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL},
+		AuthInfo: &api.AuthInfo{Token: "plain-user-token"},
+		// Not kubeconfig.InCluster, and no TokenFile: UsesInClusterServiceAccountToken is false,
+		// so this context never qualifies for the service-account or impersonation branches,
+		// regardless of the global --oidc-use-impersonation setting below.
+		Source: kubeconfig.KubeConfig,
+	})
+	require.NoError(t, err)
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	// This branch forwards whatever is in the cookie directly, unverified -- that is the whole
+	// point of the plain-passthrough path, so a trivial value is enough to exercise it.
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    "raw-cookie-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	// A client-supplied impersonation header must never reach the API server, even on this
+	// plain-passthrough path where the round tripper does nothing to protect against it.
+	req.Header.Set("Impersonate-User", "system:admin")
+	req.Header.Add("Impersonate-Group", "system:masters")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer raw-cookie-token", receivedAuth)
+	assert.Empty(t, receivedUser, "client-supplied Impersonate-User must not reach the API server")
+	assert.Empty(t, receivedGroups, "client-supplied Impersonate-Group must not reach the API server")
+}
+
 // TestHandleClusterAPI_OIDCImpersonation_ConnectionHeaderCannotStripIdentity checks that a
 // client cannot defeat impersonation by naming the trusted Impersonate-* headers in its own
 // Connection header. httputil.ReverseProxy removes any header a client names there before
