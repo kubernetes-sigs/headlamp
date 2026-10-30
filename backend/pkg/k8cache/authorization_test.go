@@ -15,7 +15,6 @@ package k8cache_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -81,19 +80,21 @@ func TestGetClientSet(t *testing.T) {
 			expectedError:      nil,
 		},
 		{
-			name: "return unexpected ClusterID format",
+			// Discovered clusters are not loaded from a kubeconfig, so their ID has no "path+context" shape.
+			name: "ClusterID of a discovered cluster returns a clientset",
 			mockK: MockKubeConfig{
 				&kubeconfig.Context{
-					ClusterID:   "/home/user/.kubeconfig/kind-headlamp-admin",
+					Name:        "inventory-spoke-a",
+					ClusterID:   "cluster-inventory/root/team-a/spoke-a",
 					Cluster:     &api.Cluster{Server: "https://example.com"},
-					AuthInfo:    &api.AuthInfo{Token: "abcdef"},
-					KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
+					AuthInfo:    &api.AuthInfo{},
+					KubeContext: &api.Context{Cluster: "inventory-spoke-a"},
+					Source:      kubeconfig.ClusterInventory,
 				},
 			},
-			headlampContextKey: "kind-headlamp-admin",
+			headlampContextKey: "inventory-spoke-a",
 			token:              "token-54321",
-			expectedError: fmt.Errorf("unexpected ClusterID format in GetClientSet: " +
-				"\"/home/user/.kubeconfig/kind-headlamp-admin\""),
+			expectedError:      nil,
 		},
 	}
 	for _, tc := range tests {
@@ -108,6 +109,10 @@ func TestGetClientSet(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Equal(t, tc.expectedError, err)
+
+				if tc.expectedError == nil {
+					assert.NotNil(t, cs)
+				}
 			}
 		})
 	}
