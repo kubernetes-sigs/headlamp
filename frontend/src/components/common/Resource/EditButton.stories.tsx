@@ -15,12 +15,15 @@
  */
 
 import '../../../i18n/config';
+import { Box } from '@mui/material';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 import { getTestDate } from '../../../helpers/testHelpers';
 import ConfigMap from '../../../lib/k8s/configMap';
 import Pod from '../../../lib/k8s/pod';
 import { API_BASE, TestContext } from '../../../test';
+import { ActivitiesRenderer, Activity } from '../../activity/Activity';
 import EditButton from './EditButton';
 
 const metadata = (name: string) => ({
@@ -54,13 +57,52 @@ const pod = new Pod(
   'minikube'
 );
 
+// Closes the editor Activity a story launched, so it does not carry over to other stories.
+function ActivityCleanup({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    return () => {
+      Activity.reset();
+    };
+  }, []);
+
+  return <>{children}</>;
+}
+
 export default {
   title: 'Resource/EditButton',
   component: EditButton,
   decorators: [
+    // EditButton opens the editor with Activity.launch(), so the stories need an activity host
+    // and the #main container it renders into, laid out as in Activity.stories.tsx.
     Story => (
       <TestContext>
-        <Story />
+        <Box
+          sx={{
+            display: 'grid',
+            overflow: 'hidden',
+            position: 'relative',
+            gridTemplateRows: '1fr min-content',
+            gridTemplateColumns: 'min-content 1fr',
+            width: '100%',
+            height: '90vh',
+          }}
+        >
+          <Box
+            id="main"
+            sx={{
+              overflow: 'auto',
+              position: 'relative',
+              minHeight: '0',
+              gridColumn: '2/3',
+              gridRow: '1/2',
+            }}
+          >
+            <Story />
+          </Box>
+          <ActivityCleanup>
+            <ActivitiesRenderer />
+          </ActivityCleanup>
+        </Box>
       </TestContext>
     ),
   ],
