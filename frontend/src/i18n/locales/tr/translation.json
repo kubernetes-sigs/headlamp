@@ -1144,5 +1144,11 @@
   "Go to Pods": "Podlara Git",
   "Navigate to the Pods list": "Pod listesine git",
   "Go to Deployments": "Dağıtımlara Git",
-  "Navigate to the Deployments list": "Dağıtım listesine git"
+  "Navigate to the Deployments list": "Dağıtım listesine git",
+  "All sources": "",
+  "All destinations": "",
+  "OR": "",
+  "Peer {{ number }}": "",
+  "All pods": "",
+  "Both selectors must match (AND).": ""
 }
