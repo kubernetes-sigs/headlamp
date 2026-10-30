@@ -23,16 +23,20 @@ import DialogContent from '@mui/material/DialogContent';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
 import { useClustersConf } from '../../../lib/k8s';
 import { useCluster } from '../../../lib/k8s/api/v1/hooks';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
+import { setAppSettings } from '../../../redux/configSlice';
 import { Dialog } from '../Dialog';
+import { useGuidedTooltips } from '../TutorialInfoBox/TutorialInfoBox';
 
 export const WELCOME_DISMISSED_STORAGE_KEY = 'headlamp.welcome.dismissed';
 
@@ -96,6 +100,8 @@ export default function Welcome() {
   const { t } = useTranslation();
   const cluster = useCluster();
   const history = useHistory();
+  const dispatch = useDispatch();
+  const tutorialTooltips = useGuidedTooltips();
   const clusters = useClustersConf();
   const [open, setOpen] = React.useState(shouldShowWelcome);
   const [dontShowAgain, setDontShowAgain] = React.useState(false);
@@ -345,6 +351,18 @@ export default function Welcome() {
         </Stack>
       </DialogContent>
       <DialogActions>
+        <Tooltip title={t('Disable helpful tooltips for navigating Headlamp')} describeChild>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!tutorialTooltips}
+                onChange={e => dispatch(setAppSettings({ tutorialTooltips: !e.target.checked }))}
+              />
+            }
+            slotProps={{ typography: { sx: { mt: '2px' } } }}
+            label={t('Disable guided tooltips')}
+          />
+        </Tooltip>
         <FormControlLabel
           control={
             <Checkbox checked={dontShowAgain} onChange={e => setDontShowAgain(e.target.checked)} />
