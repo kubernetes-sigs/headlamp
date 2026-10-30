@@ -142,6 +142,9 @@ type Multiplexer struct {
 	// exchangeToken, when set, exchanges the request token for a cluster-scoped
 	// STS token before connecting to the cluster.
 	exchangeToken func(ctx context.Context, clusterName, token string) (string, error)
+	// subjectToken, when set, selects the caller's token from the handshake
+	// request the same way cluster requests do, including the proxy-auth header.
+	subjectToken func(r *http.Request, clusterName string) string
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -710,6 +713,10 @@ func (m *Multiplexer) processClientMessage(
 		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 
 		return
+	}
+
+	if m.subjectToken != nil {
+		token = m.subjectToken(r, msg.ClusterID)
 	}
 
 	var tokenPtr *string

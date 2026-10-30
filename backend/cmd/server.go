@@ -256,6 +256,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	if cfg.OidcStsEnabled {
 		multiplexer.exchangeToken = headlampConfig.exchangeSTSToken
+		multiplexer.subjectToken = headlampConfig.requestSubjectToken
 	}
 
 	return headlampConfig
