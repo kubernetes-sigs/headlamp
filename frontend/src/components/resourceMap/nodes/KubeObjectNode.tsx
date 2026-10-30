@@ -189,11 +189,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   }
 
   useEffect(() => {
-    if (!isHovered) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsExpanded(false);
-      return;
-    }
+    if (!isHovered) return;
 
     const id = setTimeout(() => setIsExpanded(true), EXPAND_DELAY);
     return () => clearTimeout(id);
@@ -208,6 +204,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const openDetails = () => {
     graph.setNodeSelection(id);
     setHovered(false);
+    setIsExpanded(false);
 
     if (!node || node?.nodes) return;
 
@@ -252,10 +249,14 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
       isExpanded={isExpanded}
       onClick={openDetails}
       onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
+      onBlur={() => {
+        setHovered(false);
+        setIsExpanded(false);
+      }}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => {
         setHovered(false);
+        setIsExpanded(false);
       }}
       onKeyDown={e => {
         if (e.key !== 'Enter' && e.key !== ' ') {
