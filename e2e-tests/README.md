@@ -169,10 +169,23 @@ npx playwright test tests/incluster-api.spec.ts
 
 The Cluster Inventory E2E uses the same `test` and `test2` clusters and the same
 Headlamp Deployment as the regular multi-cluster tests. It installs the v0.1.3
-Cluster Inventory API CRD on `test`, publishes one `ClusterProfile` for
-`test2`, and verifies both discovery and proxy access to a running pod in
-`tests/clusterInventory.spec.ts`. The generated `.env` enables this spec; it is
-otherwise skipped unless `HEADLAMP_CLUSTER_INVENTORY_E2E=true`.
+Cluster Inventory API CRD on `test` and publishes one `ClusterProfile`,
+`kube-system/inventory-test2`, for `test2`. Dex runs on `test`, and the `test2`
+API server is configured to trust it. Headlamp holds no shared credential for
+`test2`, so the signed-in user's own token decides what each request can do.
+
+`tests/clusterInventory.spec.ts` sends requests for the Pods in `inventory-demo`
+on `test2`:
+
+| Caller                      | Permission on `test2`                           | Expected result                                                                     |
+| --------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Unauthenticated request     | none                                            | `401`                                                                               |
+| `headlamp-e2e@example.com`  | `inventory-reader` Role (get, list, watch Pods) | List succeeds, a WebSocket watch delivers an `ADDED` event, creating a Pod is `403` |
+| `forbidden-e2e@example.com` | none                                            | List is `403`                                                                       |
+
+Both Dex users use the fixture password `headlamp-e2e-password`. The generated
+`.env` enables this spec; it is otherwise skipped unless
+`HEADLAMP_CLUSTER_INVENTORY_E2E=true`.
 
 ## Run all tests
 

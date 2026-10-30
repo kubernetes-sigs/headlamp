@@ -22,6 +22,7 @@ spec:
   ports:
     - port: 80
       targetPort: 4466
+      nodePort: 30466
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
@@ -98,38 +99,73 @@ subjects:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: headlamp-cluster-inventory-provider
+  name: headlamp-inventory-dex
   namespace: kube-system
 data:
-  config.json: |
-    {
-      "providers": [
-        {
-          "name": "headlamp-e2e-token",
-          "execConfig": {
-            "apiVersion": "client.authentication.k8s.io/v1",
-            "command": "/etc/cluster-inventory/credential-plugin.sh",
-            "provideClusterInfo": true,
-            "interactiveMode": "Never"
-          }
-        }
-      ]
-    }
-  credential-plugin.sh: |
-    #!/bin/sh
-    set -eu
-
-    token="$(cat /var/run/secrets/cluster-inventory-spoke/token)"
-    printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential","status":{"token":"%s"}}\n' "$token"
+  config.yaml: |
+    issuer: ${INVENTORY_OIDC_ISSUER_URL}
+    storage:
+      type: memory
+    web:
+      https: 0.0.0.0:5556
+      tlsCert: /etc/dex/tls/tls.crt
+      tlsKey: /etc/dex/tls/tls.key
+    oauth2:
+      skipApprovalScreen: true
+    staticClients:
+      - id: headlamp-e2e
+        name: Headlamp Inventory E2E
+        secret: headlamp-e2e-secret
+        redirectURIs:
+          - ${INVENTORY_OIDC_CALLBACK_URL}
+    enablePasswordDB: true
+    staticPasswords:
+      - email: headlamp-e2e@example.com
+        hash: $2y$10$r7HzjBw5FYu9cDE6WwW2/eNL4Y2fenjew.9Jik91uzovWbzTMENtO
+        username: headlamp-e2e
+        userID: headlamp-e2e
+      - email: forbidden-e2e@example.com
+        hash: $2y$10$r7HzjBw5FYu9cDE6WwW2/eNL4Y2fenjew.9Jik91uzovWbzTMENtO
+        username: forbidden-e2e
+        userID: forbidden-e2e
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: headlamp-cluster-inventory-spoke
+  name: headlamp-inventory-dex
   namespace: kube-system
-type: Opaque
-stringData:
-  token: "${INVENTORY_SPOKE_TOKEN}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headlamp-inventory-dex
+  template:
+    metadata:
+      labels:
+        app: headlamp-inventory-dex
+    spec:
+      hostNetwork: true
+      containers:
+        - name: dex
+          image: ghcr.io/dexidp/dex:v2.45.1
+          command: ["/usr/local/bin/dex", "serve", "/etc/dex/config.yaml"]
+          readinessProbe:
+            httpGet:
+              path: /dex/.well-known/openid-configuration
+              port: 5556
+              scheme: HTTPS
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex
+            - name: tls
+              mountPath: /etc/dex/tls
+      volumes:
+        - name: config
+          configMap:
+            name: headlamp-inventory-dex
+        - name: tls
+          secret:
+            secretName: headlamp-inventory-oidc-tls
 ---
 apiVersion: multicluster.x-k8s.io/v1alpha1
 kind: ClusterProfile
@@ -188,7 +224,11 @@ spec:
         - "-in-cluster"
         - "-in-cluster-context-name=main"
         - "-enable-cluster-inventory"
-        - "-cluster-inventory-provider-file=/etc/cluster-inventory/config.json"
+        - "-oidc-client-id=headlamp-e2e"
+        - "-oidc-client-secret=headlamp-e2e-secret"
+        - "-oidc-idp-issuer-url=${INVENTORY_OIDC_ISSUER_URL}"
+        - "-oidc-ca-file=/etc/inventory-oidc/tls.crt"
+        - "-oidc-use-cookie"
         - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
         - "-cluster-inventory-root-reconcile-interval=2s"
         - "-cluster-inventory-no-crd-cache-ttl=2s"
@@ -205,11 +245,8 @@ spec:
           name: headlamp-plugins
         - mountPath: "/home/headlamp/.config/Headlamp/kubeconfigs"
           name: kubeconfig
-        - mountPath: /etc/cluster-inventory
-          name: cluster-inventory-provider
-          readOnly: true
-        - mountPath: /var/run/secrets/cluster-inventory-spoke
-          name: cluster-inventory-spoke
+        - mountPath: /etc/inventory-oidc
+          name: inventory-oidc
           readOnly: true
       nodeSelector:
         'kubernetes.io/os': linux
@@ -223,23 +260,9 @@ spec:
           items:
           - key: config
             path: config
-      - name: cluster-inventory-provider
-        configMap:
-          name: headlamp-cluster-inventory-provider
-          items:
-          - key: config.json
-            path: config.json
-            mode: 0444
-          - key: credential-plugin.sh
-            path: credential-plugin.sh
-            mode: 0555
-      - name: cluster-inventory-spoke
+      - name: inventory-oidc
         secret:
-          secretName: headlamp-cluster-inventory-spoke
-          items:
-          - key: token
-            path: token
-            mode: 0444
+          secretName: headlamp-inventory-oidc-tls
 ---
 kind: Secret
 apiVersion: v1

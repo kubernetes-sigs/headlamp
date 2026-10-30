@@ -26,6 +26,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CREATED_CLUSTERS=false
 REUSED_CLUSTERS=false
 SKIP_IMAGE_BUILD=false
+OIDC_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/headlamp-inventory-oidc.XXXXXX")"
 
 log() {
   printf '\n==> %s\n' "$*"
@@ -95,6 +96,7 @@ print_headlamp_logs() {
 }
 
 cleanup() {
+  rm -rf "${OIDC_WORK_DIR}"
   local status="$1"
 
   if [[ "${status}" -eq 0 ]]; then
@@ -193,7 +195,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-for command in curl docker envsubst grep jq kind kubectl uname; do
+for command in curl docker envsubst grep jq kind kubectl openssl uname; do
   require_command "${command}"
 done
 if [[ "${SKIP_IMAGE_BUILD}" != true ]]; then
@@ -297,13 +299,65 @@ INVENTORY_SPOKE_TOKEN="$(
   kubectl --context="${SPOKE_CONTEXT}" -n kube-system \
     create token headlamp-admin --duration=24h
 )"
-export TEST_CA_DATA TEST_SERVER TEST2_CA_DATA TEST2_SERVER INVENTORY_SPOKE_TOKEN
+INVENTORY_OIDC_ISSUER_URL="https://${HUB_NODE_IP}:5556/dex"
+INVENTORY_OIDC_CALLBACK_URL="http://${HUB_NODE_IP}:30466/oidc-callback"
+export TEST_CA_DATA TEST_SERVER TEST2_CA_DATA TEST2_SERVER
+export INVENTORY_OIDC_ISSUER_URL INVENTORY_OIDC_CALLBACK_URL
+
+log "Configure the Inventory OIDC identity provider"
+if kubectl --context="${HUB_CONTEXT}" -n kube-system get secret headlamp-inventory-oidc-tls >/dev/null 2>&1; then
+  kubectl --context="${HUB_CONTEXT}" -n kube-system get secret headlamp-inventory-oidc-tls \
+    -o jsonpath='{.data.tls\.crt}' | base64 -d >"${OIDC_WORK_DIR}/tls.crt"
+else
+  openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 7 \
+    -subj /CN=headlamp-inventory-oidc \
+    -addext "subjectAltName=IP:${HUB_NODE_IP}" \
+    -keyout "${OIDC_WORK_DIR}/tls.key" -out "${OIDC_WORK_DIR}/tls.crt"
+  kubectl --context="${HUB_CONTEXT}" -n kube-system create secret tls headlamp-inventory-oidc-tls \
+    --cert="${OIDC_WORK_DIR}/tls.crt" --key="${OIDC_WORK_DIR}/tls.key"
+fi
+# kube-apiserver's existing PKI mount makes this test CA available inside the static pod.
+docker exec -i "${SPOKE_CLUSTER}-control-plane" sh -c \
+  'cat > /etc/kubernetes/pki/inventory-oidc.crt' <"${OIDC_WORK_DIR}/tls.crt"
 
 log "Deploy Headlamp and the inventory-test2 ClusterProfile on ${HUB_CLUSTER}"
 envsubst \
-  '${TEST_CA_DATA} ${TEST_SERVER} ${TEST2_CA_DATA} ${TEST2_SERVER} ${INVENTORY_SPOKE_TOKEN}' \
+  '${TEST_CA_DATA} ${TEST_SERVER} ${TEST2_CA_DATA} ${TEST2_SERVER} ${INVENTORY_OIDC_ISSUER_URL} ${INVENTORY_OIDC_CALLBACK_URL}' \
   <"${REPO_ROOT}/e2e-tests/kubernetes-headlamp-ci.yaml" |
   kubectl --context="${HUB_CONTEXT}" apply -f -
+
+kubectl --context="${HUB_CONTEXT}" -n kube-system \
+  rollout status deployment/headlamp-inventory-dex --timeout=180s
+
+docker exec "${SPOKE_CLUSTER}-control-plane" sh -c '
+  sed -i "/--oidc-/d" /etc/kubernetes/manifests/kube-apiserver.yaml
+  sed -i "/    - kube-apiserver/a\\
+    - --oidc-issuer-url='"${INVENTORY_OIDC_ISSUER_URL}"'\\
+    - --oidc-client-id=headlamp-e2e\\
+    - --oidc-ca-file=/etc/kubernetes/pki/inventory-oidc.crt\\
+    - --oidc-username-claim=email\\
+    - \"--oidc-username-prefix=oidc:\"" /etc/kubernetes/manifests/kube-apiserver.yaml
+'
+
+for attempt in $(seq 1 90); do
+  if kubectl --context="${SPOKE_CONTEXT}" -n kube-system \
+    get pod "kube-apiserver-${SPOKE_CLUSTER}-control-plane" \
+    -o jsonpath='{.spec.containers[0].command}' 2>/dev/null | grep -Fq -- --oidc-issuer-url=; then
+    if kubectl --context="${SPOKE_CONTEXT}" get --raw=/readyz >/dev/null 2>&1; then
+      break
+    fi
+  fi
+  if [[ "${attempt}" -eq 90 ]]; then
+    printf 'error: spoke API server did not become ready with OIDC enabled\n' >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+apply_generated "${SPOKE_CONTEXT}" -n inventory-demo create role inventory-reader \
+  --verb=get,list,watch --resource=pods
+apply_generated "${SPOKE_CONTEXT}" -n inventory-demo create rolebinding inventory-reader \
+  --role=inventory-reader --user=oidc:headlamp-e2e@example.com
 
 SPOKE_VERSION="$(
   kubectl --context="${SPOKE_CONTEXT}" version -o json |
@@ -318,7 +372,7 @@ STATUS_PATCH="$(
       status: {
         version: {kubernetes: $version},
         accessProviders: [{
-          name: "headlamp-e2e-token",
+          name: "headlamp-e2e",
           cluster: {
             server: $server,
             "certificate-authority-data": $ca
