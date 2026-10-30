@@ -114,9 +114,11 @@ func broadcastClusters(got map[string]broadcastCookieInfo) []string {
 	return names
 }
 
+// newOIDCContext returns an operator-configured context (Source KubeConfig).
 func newOIDCContext(name, issuer, clientID string) *kubeconfig.Context {
 	return &kubeconfig.Context{
 		Name:     name,
+		Source:   kubeconfig.KubeConfig,
 		AuthInfo: &api.AuthInfo{},
 		OidcConf: &kubeconfig.OidcConfig{
 			IdpIssuerURL: issuer,
@@ -167,7 +169,8 @@ func newInternalOIDCContext(name, issuer, clientID string) *kubeconfig.Context {
 // targets.
 func newOIDCContextWithUnreadableCA(name string) *kubeconfig.Context {
 	return &kubeconfig.Context{
-		Name: name,
+		Name:   name,
+		Source: kubeconfig.KubeConfig,
 		AuthInfo: &api.AuthInfo{
 			AuthProvider: &api.AuthProviderConfig{
 				Name: "oidc",

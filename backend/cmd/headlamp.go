@@ -1096,7 +1096,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			if config.OidcSkipLogout {
 				logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: cluster},
 					nil, "oidc-logout: disabled, clearing cookie and redirecting")
-				auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+				config.clearTokenCookie(w, r, cluster)
 				auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
 				baseURL := strings.TrimRight(config.BaseURL, "/")
 				sendOIDCLogoutRedirect(w, r,
@@ -1118,7 +1118,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				}
 			}
 
-			auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+			config.clearTokenCookie(w, r, cluster)
 
 			if idToken == "" {
 				logoutURL, err := getOIDCLogoutProviderURL(config, r, cluster)
@@ -1880,6 +1880,35 @@ func (c *HeadlampConfig) getContextWithWebSocketFallback(
 	return contextKey, nil, err
 }
 
+// clearTokenCookie logs a cluster out: its own cookie is cleared and, with
+// token broadcast, it is marked out of the shared token.
+func (c *HeadlampConfig) clearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
+	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+
+	if c.OidcUseTokenBroadcast {
+		auth.MarkLoggedOut(w, r, c.logoutMarkerID(cluster), c.BaseURL, c.SessionTTL)
+	}
+}
+
+// clearLogoutMarker lifts the token broadcast logout marker when the user picks
+// a new identity for the cluster; without token broadcast there is none.
+func (c *HeadlampConfig) clearLogoutMarker(w http.ResponseWriter, r *http.Request, cluster string) {
+	if c.OidcUseTokenBroadcast {
+		auth.ClearLogoutMarker(w, r, c.logoutMarkerID(cluster), c.BaseURL)
+	}
+}
+
+// logoutMarkerID returns the auth.LogoutMarkerID of a cluster. A cluster that
+// is not in the store only has the name it was asked for.
+func (c *HeadlampConfig) logoutMarkerID(cluster string) string {
+	kContext, err := c.KubeConfigStore.GetContext(cluster)
+	if err != nil {
+		kContext = &kubeconfig.Context{Name: cluster}
+	}
+
+	return auth.LogoutMarkerID(kContext)
+}
+
 func tokenFromCookie(r *http.Request, clusterName string) string {
 	if cookieToken, err := auth.GetTokenFromCookie(r, clusterName); err == nil && cookieToken != "" {
 		return cookieToken
@@ -1944,6 +1973,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		SessionTTL:                   c.SessionTTL,
 		UseInCluster:                 c.UseInCluster,
 		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+		OidcUseTokenBroadcast:        c.OidcUseTokenBroadcast,
 	}
 
 	return auth.NewOIDCTokenRefreshMiddleware(config)(next)
@@ -2634,7 +2664,7 @@ func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+	c.clearTokenCookie(w, r, cluster)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -4261,12 +4291,15 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Token == "" {
-		auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+		c.clearTokenCookie(w, r, cluster)
 	} else {
 		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL); err != nil {
 			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 			return
 		}
+
+		// A manual token is a new identity for the cluster; lift any logout marker.
+		c.clearLogoutMarker(w, r, cluster)
 	}
 
 	w.WriteHeader(http.StatusOK)
