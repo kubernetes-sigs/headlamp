@@ -18,6 +18,7 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -439,6 +440,137 @@ func TestOIDCTokenRefreshMiddlewareWithoutBroadcastOnlyStrips(t *testing.T) {
 			assert.Equal(t, 0, store.calls, "no token means no context load, as before")
 		})
 	}
+}
+
+func TestRefreshAndSetToken_SharedClusterUpdatesSharedCookie(t *testing.T) {
+	const oldToken = "OLD"
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := clusterRequest(sharedTestCluster)
+	addRequestCookie(req, sharedCookieName(sharedTestKey, 0), oldToken)
+
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          sharedTestCluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		SharedTokenKey:   sharedTestKey,
+	})
+
+	shared := findResponseCookie(t, rr, sharedCookieName(sharedTestKey, 0))
+	require.NotNil(t, shared, "refresh on a shared cluster must update the shared cookie")
+	assert.Equal(t, "NEW", shared.Value)
+	assert.Nil(t, findResponseCookie(t, rr, ownCookieName(sharedTestCluster)))
+	assert.Equal(t, "Bearer NEW", req.Header.Get("Authorization"))
+}
+
+// TestRefreshAndSetToken_SharedClusterRenewsLogoutMarkers: renewing the shared
+// cookie renews the logout markers of the clusters that left it, with the same
+// TTL, so a marker never expires before the shared token it guards.
+func TestRefreshAndSetToken_SharedClusterRenewsLogoutMarkers(t *testing.T) {
+	const oldToken = "OLD"
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	otherOut := "headlamp-auth-" + auth.SanitizeClusterName(sharedTestOther) + ".out"
+
+	req := clusterRequest(sharedTestCluster)
+	addRequestCookie(req, sharedCookieName(sharedTestKey, 0), oldToken)
+	addRequestCookie(req, otherOut, "1")
+
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          sharedTestCluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		SessionTTL:       600,
+		SharedTokenKey:   sharedTestKey,
+	})
+
+	shared := findResponseCookie(t, rr, sharedCookieName(sharedTestKey, 0))
+	require.NotNil(t, shared)
+	assert.Equal(t, 600, shared.MaxAge)
+
+	marker := findResponseCookie(t, rr, otherOut)
+	require.NotNil(t, marker, "the sibling's logout marker must be renewed with the shared cookie")
+	assert.Equal(t, "1", marker.Value)
+	assert.Equal(t, 600, marker.MaxAge, "the marker slides with the shared cookie")
+	assert.Equal(t, shared.Path, marker.Path, "the marker lives on the shared cookie's path")
+}
+
+// TestRenewLogoutMarkersOnlyWellFormedNames: only marker cookies are renewed,
+// with the fixed value, so no cookie from the request is reflected back.
+func TestRenewLogoutMarkersOnlyWellFormedNames(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/headlamp/clusters/"+sharedTestCluster+"/api", nil)
+	req.Header.Set("Cookie", "headlamp-auth-a.out=1; headlamp-auth-b_2.out=whatever; headlamp-auth-c.0=tok; "+
+		"headlamp-auth~shared-"+sharedTestKey+".out=1; other=keep; headlamp-auth-.out=1")
+
+	rr := httptest.NewRecorder()
+	auth.RenewLogoutMarkers(rr, req, "/headlamp", 300)
+
+	cookies := rr.Result().Cookies()
+	require.Len(t, cookies, 2)
+
+	for _, ck := range cookies {
+		assert.Contains(t, []string{"headlamp-auth-a.out", "headlamp-auth-b_2.out"}, ck.Name)
+		assert.Equal(t, "1", ck.Value, "the request value is never reflected")
+		assert.Equal(t, 300, ck.MaxAge)
+		assert.Equal(t, "/headlamp/clusters/", ck.Path)
+		assert.True(t, ck.HttpOnly)
+	}
+}
+
+// TestMarkLoggedOutUsesSharedPathAndSessionTTL: the marker is set where every
+// cluster request sends it, with the session TTL, and lifted from there.
+func TestMarkLoggedOutUsesSharedPathAndSessionTTL(t *testing.T) {
+	req := clusterRequest(sharedTestCluster)
+
+	rr := httptest.NewRecorder()
+	auth.MarkLoggedOut(rr, req, sharedTestCluster, "/headlamp", 900)
+
+	marker := findResponseCookie(t, rr, outCookieName())
+	require.NotNil(t, marker)
+	assert.Equal(t, "1", marker.Value)
+	assert.Equal(t, 900, marker.MaxAge)
+	assert.Equal(t, "/headlamp/clusters/", marker.Path)
+
+	rr = httptest.NewRecorder()
+	auth.ClearLogoutMarker(rr, req, sharedTestCluster, "/headlamp")
+
+	cleared := findResponseCookie(t, rr, outCookieName())
+	require.NotNil(t, cleared)
+	assert.Equal(t, -1, cleared.MaxAge)
+	assert.Equal(t, "/headlamp/clusters/", cleared.Path, "lifted from the path it was set on")
 }
 
 func TestStripSharedTokenCookies(t *testing.T) {
