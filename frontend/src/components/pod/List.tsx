@@ -256,6 +256,16 @@ export function getMaxContainerMemoryLimitPercent(pod: Pod, metric?: PodMetrics)
   return maxPercent;
 }
 
+/**
+ * Returns the table value of a CPU or memory cell. Table cells only re-render when this value
+ * changes, so it also reflects the per-container limit usage behind the cell's alert, which can
+ * change while the pod's total usage does not. Scaling the total by a tiny factor keeps the value
+ * numeric, so the column still sorts largest first on the first click.
+ */
+export function resourceCellValue(usage: number, limitPercent: number): number {
+  return usage * (1 + Math.floor(limitPercent * 10) / 1e9);
+}
+
 function podMetricKey(cluster: string, namespace: string | undefined, name: string) {
   return `${cluster}/${namespace ?? ''}/${name}`;
 }
@@ -515,7 +525,15 @@ export function PodListRenderer(props: PodListProps) {
                     </Box>
                   );
                 },
-                getValue: (pod: Pod) => getCpuUsage(pod) ?? 0,
+                sort: (a: Pod, b: Pod) => (getCpuUsage(a) ?? 0) - (getCpuUsage(b) ?? 0),
+                getValue: (pod: Pod) =>
+                  resourceCellValue(
+                    getCpuUsage(pod) ?? 0,
+                    getMaxContainerCpuLimitPercent(
+                      pod,
+                      metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()))
+                    )
+                  ),
               },
               {
                 id: 'memory',
@@ -614,7 +632,15 @@ export function PodListRenderer(props: PodListProps) {
                     </Box>
                   );
                 },
-                getValue: (pod: Pod) => getMemoryUsage(pod) ?? 0,
+                sort: (a: Pod, b: Pod) => (getMemoryUsage(a) ?? 0) - (getMemoryUsage(b) ?? 0),
+                getValue: (pod: Pod) =>
+                  resourceCellValue(
+                    getMemoryUsage(pod) ?? 0,
+                    getMaxContainerMemoryLimitPercent(
+                      pod,
+                      metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()))
+                    )
+                  ),
               },
             ]
           : []),
