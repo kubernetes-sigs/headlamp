@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 import App from '../../../App';
 import { isElectron } from '../../../helpers/isElectron';
 import { Cluster } from '../../../lib/k8s/cluster';
-import { setConfig } from '../../../redux/configSlice';
+import { setAppSettings, setConfig } from '../../../redux/configSlice';
+import reducers from '../../../redux/reducers/reducers';
 import store from '../../../redux/stores/store';
+import type { DisplayMode } from '../../../settings/adminSettingsSlice';
+import { setAdminSettings } from '../../../settings/adminSettingsSlice';
 import Welcome, { WELCOME_DISMISSED_STORAGE_KEY } from './Welcome';
 
 vi.mock('../../../helpers/isElectron', () => ({ isElectron: vi.fn(() => false) }));
@@ -30,9 +34,9 @@ vi.mock('../../../helpers/isElectron', () => ({ isElectron: vi.fn(() => false) }
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
 
-function renderWelcome() {
+function renderWelcome(welcomeStore: typeof store = store) {
   return render(
-    <Provider store={store}>
+    <Provider store={welcomeStore}>
       <BrowserRouter>
         <Welcome />
       </BrowserRouter>
@@ -41,6 +45,71 @@ function renderWelcome() {
 }
 
 describe('Welcome', () => {
+  beforeEach(() => {
+    vi.mocked(isElectron).mockReturnValue(false);
+    localStorage.clear();
+    store.dispatch(setAppSettings({ tutorialTooltips: true }));
+    store.dispatch(setConfig({ clusters: null }));
+    window.history.pushState({}, '', '/c/my-cluster/cluster');
+  });
+
+  it('disables guided tooltips from the welcome dialog', () => {
+    renderWelcome();
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Disable guided tooltips' });
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+
+    expect(checkbox).toBeChecked();
+    expect(store.getState().config.settings.tutorialTooltips).toBe(false);
+    expect(JSON.parse(localStorage.getItem('settings') || '{}').tutorialTooltips).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect(store.getState().config.settings.tutorialTooltips).toBe(true);
+  });
+
+  function storeWithAdminTooltips(display: DisplayMode) {
+    const adminStore = configureStore({ reducer: reducers }) as typeof store;
+    adminStore.dispatch(setAppSettings({ tutorialTooltips: true }));
+    adminStore.dispatch(
+      setAdminSettings({
+        defaults: { tutorialTooltips: false },
+        display: { tutorialTooltips: display },
+        clusterDefinedSettings: {},
+        clusterDefined: {},
+      })
+    );
+    return adminStore;
+  }
+
+  it('shows the admin value and locks the tooltips checkbox when the admin disables it', () => {
+    renderWelcome(storeWithAdminTooltips('disabled'));
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Disable guided tooltips' });
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeDisabled();
+  });
+
+  it('hides the tooltips checkbox when the admin hides it', () => {
+    renderWelcome(storeWithAdminTooltips('hidden'));
+
+    expect(screen.queryByRole('checkbox', { name: 'Disable guided tooltips' })).toBeNull();
+    expect(screen.queryByText('Disable helpful tooltips for navigating Headlamp')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: "Don't show again" })).toBeInTheDocument();
+  });
+
+  it('describes the guided tooltips checkbox without requiring hover', () => {
+    renderWelcome();
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Disable guided tooltips' });
+
+    expect(checkbox).toHaveAccessibleDescription(
+      'Disable helpful tooltips for navigating Headlamp'
+    );
+    expect(screen.getByText('Disable helpful tooltips for navigating Headlamp')).toBeVisible();
+  });
+
   it('opens with focus on its heading and a unique accessible name', () => {
     renderWelcome();
 
@@ -87,13 +156,6 @@ describe('Welcome', () => {
       getItem.mockRestore();
       warn.mockRestore();
     }
-  });
-
-  beforeEach(() => {
-    vi.mocked(isElectron).mockReturnValue(false);
-    localStorage.clear();
-    store.dispatch(setConfig({ clusters: null }));
-    window.history.pushState({}, '', '/c/my-cluster/cluster');
   });
 
   it('introduces Headlamp and the current cluster on first use', () => {
