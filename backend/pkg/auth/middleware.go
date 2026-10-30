@@ -122,8 +122,9 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 			cluster := clusterFromPath(r.URL.Path, config.BaseURL)
 
 			// The token is resolved once (below) and handed to the next handler; a
-			// refresh updates the Authorization header itself.
-			var token string
+			// refresh updates the Authorization header itself. sharedKey records
+			// that it came from the shared cookie, which the refresh then renews.
+			var token, sharedKey string
 
 			// The context is loaded at most once per request, and only once a token
 			// or a shared cookie makes it necessary: the resolver loads it lazily.
@@ -166,7 +167,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			token, _ = requestToken(r, cluster, resolve)
+			token, sharedKey = requestToken(r, cluster, resolve)
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return
 			}
@@ -217,6 +218,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				SharedTokenKey:            sharedKey,
 			})
 
 			next.ServeHTTP(w, r)
