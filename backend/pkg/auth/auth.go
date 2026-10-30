@@ -92,35 +92,66 @@ func BearerTokenValue(token string) string {
 	return strings.TrimSpace(token)
 }
 
-// ParseClusterAndToken extracts the cluster name from the URL path and
-// the Bearer token from the Authorization header of the HTTP request, falling
-// back to the cluster cookie when the header is missing.
-func ParseClusterAndToken(r *http.Request) (string, string) {
-	cluster := ""
+// ParseClusterAndToken extracts the cluster name from the URL path (below the
+// configured base URL) and the Bearer token from the Authorization header of
+// the HTTP request, falling back to the cluster's own cookie (see
+// GetTokenFromCookie) when the header is missing.
+func ParseClusterAndToken(r *http.Request, baseURL string) (string, string) {
+	cluster := clusterFromPath(r.URL.Path, baseURL)
+	token, _ := requestToken(r, cluster, nil)
 
-	matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
-	if len(matches) > 1 {
-		cluster = matches[1]
-	}
+	return cluster, token
+}
 
-	// Try Authorization header first (for backward compatibility)
-	token := BearerTokenValue(r.Header.Get("Authorization"))
+// requestToken returns the Bearer token of a request for cluster: the
+// Authorization header first (for backward compatibility), then the cluster
+// cookies (see ReadClusterToken). sharedKey is set when the token was read
+// from a shared cookie. Malformed tokens yield "".
+func requestToken(r *http.Request, cluster string, resolve SharedTokenKeyResolver) (token, sharedKey string) {
+	token = BearerTokenValue(r.Header.Get("Authorization"))
 	if strings.Contains(token, ",") {
-		return cluster, ""
+		return "", ""
 	}
 
-	// If no auth header, try cookie
 	if token == "" && cluster != "" {
-		if cookieToken, err := GetTokenFromCookie(r, cluster); err == nil && cookieToken != "" {
-			token = cookieToken
+		if cookieToken, key, err := ReadClusterToken(r, cluster, resolve); err == nil && cookieToken != "" {
+			token, sharedKey = cookieToken, key
 		}
 	}
 
 	if token != "" && !bearerTokenRegex.MatchString(token) {
-		return cluster, ""
+		return "", ""
 	}
 
-	return cluster, token
+	return token, sharedKey
+}
+
+// clusterFromPath returns the cluster of a <baseURL>/clusters/<cluster>/...
+// request path, or "".
+func clusterFromPath(path, baseURL string) string {
+	if matches := clusterPathRegex.FindStringSubmatch(trimBaseURL(path, baseURL)); len(matches) > 1 {
+		return matches[1]
+	}
+
+	return ""
+}
+
+// trimBaseURL removes the configured base URL prefix from a request path,
+// matching it at a path boundary only ("/head" is not a prefix of "/headlamp/...").
+// With a base URL configured, every route is served below it, so a path that
+// does not start with it is not a route at all and yields "".
+func trimBaseURL(path, baseURL string) string {
+	base := strings.Trim(baseURL, "/")
+	if base == "" {
+		return path
+	}
+
+	rest, found := strings.CutPrefix(path, "/"+base)
+	if !found || (rest != "" && !strings.HasPrefix(rest, "/")) {
+		return ""
+	}
+
+	return rest
 }
 
 // GetExpiryUnixTimeUTC expiration unix time UTC from a token payload map exp field.
@@ -430,6 +461,8 @@ type MeHandlerOptions struct {
 	ProxyAuthUsernameHeader string
 	ProxyAuthGroupHeader    string
 	ProxyAuthEmailHeader    string
+	// BaseURL is the configured base URL, below which /clusters/<cluster>/ paths live.
+	BaseURL string
 }
 
 // HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
@@ -455,7 +488,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 			return
 		}
 
-		requestCluster, token := ParseClusterAndToken(r)
+		requestCluster, token := ParseClusterAndToken(r, opts.BaseURL)
 
 		if requestCluster == "" {
 			requestCluster = clusterName
@@ -688,6 +721,10 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	// SharedTokenKey is the key of the broadcast (shared) cookie Token was read
+	// from, or "" when it came from the Authorization header or the cluster's
+	// own cookie.
+	SharedTokenKey string
 }
 
 func setRefreshedIDTokenCookie(
@@ -777,14 +814,18 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		return
 	}
 
-	if err := SetTokenCookie(
-		params.Writer,
-		params.Request,
-		params.Cluster,
-		newTokenString,
-		params.BaseURL,
-		params.SessionTTL,
-	); err != nil {
+	// A token read from a broadcast (shared) cookie is renewed there, for every
+	// cluster using it, instead of diverging into a private copy; any other
+	// token is refreshed into the cluster's own cookie as before.
+	if params.SharedTokenKey != "" {
+		err = SetSharedTokenCookie(params.Writer, params.Request, params.SharedTokenKey,
+			newTokenString, params.BaseURL, params.SessionTTL)
+	} else {
+		err = SetTokenCookie(params.Writer, params.Request, params.Cluster,
+			newTokenString, params.BaseURL, params.SessionTTL)
+	}
+
+	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{clusterLogField: params.Cluster},
 			err, "failed to retain refreshed authentication token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Refreshed token cookie storage failed")
