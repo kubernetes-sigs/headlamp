@@ -4929,37 +4929,98 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	assert.Equal(t, "/clusters/~YWJj", rr.Result().Cookies()[0].Path)
 }
 
-func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
+func TestSetTokenEndpointLiftsLogoutMarkerOnlyWithBroadcast(t *testing.T) {
 	setupTestEnv(t)
 
-	cfg := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
+	for _, broadcast := range []bool{false, true} {
+		t.Run(fmt.Sprintf("broadcast=%t", broadcast), func(t *testing.T) {
+			cfg := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(), SessionTTL: 3600, OidcUseTokenBroadcast: broadcast,
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
 
-	for _, cluster := range []string{"team/cluster", "team/../prod", "~YWJj"} {
-		t.Run(cluster, func(t *testing.T) {
-			req, err := makeJSONReq(http.MethodPost,
-				"/encoded-clusters/"+auth.EncodeClusterForURL(cluster)+"/clear-token", map[string]string{
-					"token": "",
-				})
+			req, err := makeJSONReq(http.MethodPost, "/clusters/main/set-token", map[string]string{"token": "private"})
 			require.NoError(t, err)
-			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()
 			createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
-
 			require.Equal(t, http.StatusOK, rr.Code)
-			require.Len(t, rr.Result().Cookies(), 1)
-			assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0", rr.Result().Cookies()[0].Name)
-			assert.Equal(t, "/clusters/"+cluster, rr.Result().Cookies()[0].Path)
-			assert.Equal(t, -1, rr.Result().Cookies()[0].MaxAge)
+
+			byName := map[string]*http.Cookie{}
+			for _, ck := range rr.Result().Cookies() {
+				byName[ck.Name] = ck
+			}
+
+			require.NotNil(t, byName["headlamp-auth-main.0"])
+			assert.Equal(t, "private", byName["headlamp-auth-main.0"].Value)
+
+			if !broadcast {
+				assert.Nil(t, byName["headlamp-auth-main.out"], "no new cookies when token broadcast is off")
+				return
+			}
+
+			require.NotNil(t, byName["headlamp-auth-main.out"], "a manual token lifts the logout marker")
+			assert.Equal(t, -1, byName["headlamp-auth-main.out"].MaxAge)
+			assert.Equal(t, "/clusters/main", byName["headlamp-auth-main.out"].Path)
 		})
+	}
+}
+
+func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
+	setupTestEnv(t)
+
+	for _, broadcast := range []bool{false, true} {
+		cfg := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore:       kubeconfig.NewContextStore(),
+					OidcUseTokenBroadcast: broadcast,
+				},
+				Cache:            cache.New[interface{}](),
+				TelemetryHandler: &telemetry.RequestHandler{},
+			},
+		}
+
+		for _, cluster := range []string{"team/cluster", "team/../prod", "~YWJj"} {
+			t.Run(fmt.Sprintf("broadcast=%t/%s", broadcast, cluster), func(t *testing.T) {
+				req, err := makeJSONReq(http.MethodPost,
+					"/encoded-clusters/"+auth.EncodeClusterForURL(cluster)+"/clear-token", map[string]string{
+						"token": "",
+					})
+				require.NoError(t, err)
+				req.Header.Set("Content-Type", "application/json")
+
+				rr := httptest.NewRecorder()
+				createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
+				require.Equal(t, http.StatusOK, rr.Code)
+
+				cookies := rr.Result().Cookies()
+				assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0", cookies[0].Name)
+				assert.Equal(t, -1, cookies[0].MaxAge)
+
+				if !broadcast {
+					// Without token broadcast there is no shared token to mark out of.
+					require.Len(t, cookies, 1)
+				} else {
+					// The cluster is marked out of the shared token; the route is under
+					// /encoded-clusters/ yet sets /clusters/ paths.
+					require.Len(t, cookies, 2)
+					assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".out", cookies[1].Name)
+					assert.Equal(t, "1", cookies[1].Value)
+					assert.Equal(t, 30*24*60*60, cookies[1].MaxAge, "the marker must outlive the sliding shared cookie")
+				}
+
+				for _, cookie := range cookies {
+					assert.Equal(t, "/clusters/"+cluster, cookie.Path)
+					assert.True(t, cookie.HttpOnly)
+				}
+			})
+		}
 	}
 }
 

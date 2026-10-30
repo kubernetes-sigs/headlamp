@@ -47,6 +47,9 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
+	// OidcUseTokenBroadcast enables reading the shared (broadcast) token; off,
+	// the middleware behaves as it always did.
+	OidcUseTokenBroadcast bool
 }
 
 // oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
@@ -62,13 +65,36 @@ func SetTokenFromCookie(r *http.Request, clusterName string) {
 	}
 }
 
+// sharedTokenResolver returns the resolver for the request's cluster, backed by
+// its lazily loaded context, or nil without token broadcast: then there is no
+// shared token to read.
+func (c *OIDCTokenRefreshConfig) sharedTokenResolver(load func() *kubeconfig.Context) SharedTokenKeyResolver {
+	if !c.OidcUseTokenBroadcast {
+		return nil
+	}
+
+	return func(name string) (string, bool) {
+		kContext := load()
+		if kContext == nil || kContext.Name != name {
+			return "", false
+		}
+
+		issuer, clientID, ok := SharedTokenIdentity(kContext)
+		if !ok {
+			return "", false
+		}
+
+		return SharedTokenKey(issuer, clientID), true
+	}
+}
+
 // NewOIDCTokenRefreshMiddleware creates an HTTP middleware that checks whether
 // the incoming request carries an OIDC token that is about to expire and, if
 // so, refreshes it transparently using the configured OIDC provider.
 //
 //nolint:funlen
 func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
+	return func(inner http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			start := time.Now()
@@ -76,6 +102,32 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 			// branch sets it before calling next.ServeHTTP. The happy path leaves it as
 			// "success".
 			status := "success"
+
+			cluster := clusterFromPath(r.URL.Path, config.BaseURL)
+
+			var token string
+
+			// The context is loaded at most once per request, and only once a token
+			// or a shared cookie makes it necessary: the resolver loads it lazily.
+			var (
+				kContext  *kubeconfig.Context
+				ctxErr    error
+				ctxLoaded bool
+			)
+
+			loadContext := func() {
+				if !ctxLoaded {
+					kContext, ctxErr = config.KubeConfigStore.GetContext(cluster)
+					ctxLoaded = true
+				}
+			}
+
+			resolve := config.sharedTokenResolver(func() *kubeconfig.Context {
+				loadContext()
+
+				return kContext
+			})
+			next := inner
 
 			var span trace.Span
 			if config.Telemetry != nil {
@@ -96,13 +148,14 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			cluster, token := ParseClusterAndToken(r, config.BaseURL)
+			token, _ = requestToken(r, cluster, resolve)
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return
 			}
 
-			kContext, err := config.KubeConfigStore.GetContext(cluster)
-			if config.handleGetContextError(err, cluster, w, r, span, ctx, &status, next) {
+			loadContext()
+
+			if config.handleGetContextError(ctxErr, cluster, w, r, span, ctx, &status, next) {
 				return
 			}
 
