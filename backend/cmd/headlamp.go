@@ -1728,13 +1728,20 @@ func (c *HeadlampConfig) requestTokenForContext(
 	return token
 }
 
+// proxyAuthToken returns the token from the configured proxy-auth header, if any.
+func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
+	if !c.ProxyAuthEnabled || c.ProxyAuthTokenHeader == "" {
+		return ""
+	}
+
+	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+}
+
 // requestSubjectToken returns the caller's token for a cluster request: the
 // proxy-auth header, then the Authorization header, then the cluster cookie.
 func (c *HeadlampConfig) requestSubjectToken(r *http.Request, clusterName string) string {
-	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
-			return token
-		}
+	if token := c.proxyAuthToken(r); token != "" {
+		return token
 	}
 
 	if token := auth.BearerTokenValue(r.Header.Get("Authorization")); token != "" {
@@ -3493,8 +3500,17 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token, err := c.exchangeSTSToken(ctx, drainPayload.Cluster,
-		c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy))
+	subjectToken := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+
+	// Drain doesn't run behind stsTokenMiddleware, so take the proxy-auth
+	// header first here too, as the middleware does.
+	if c.OidcStsEnabled && !c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {
+		if proxyToken := c.proxyAuthToken(r); proxyToken != "" {
+			subjectToken = proxyToken
+		}
+	}
+
+	token, err := c.exchangeSTSToken(ctx, drainPayload.Cluster, subjectToken)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
 		return
