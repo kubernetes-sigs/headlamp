@@ -2,6 +2,16 @@ package kubeconfig_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -407,57 +417,36 @@ func TestReAddMissingFilesReloadsRecreatedCredentialFile(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+// TestWatchAndLoadReferencedCredentialFiles checks the whole flow: the watcher
+// sees the token file change, reloads the contexts, and the proxy then sends
+// the new token.
 func TestWatchAndLoadReferencedCredentialFiles(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
 		t.Skip("skipping integration test")
 	}
 
-	// Create a temp directory for the test files
-	tempDir, err := os.MkdirTemp("", "headlamp-watcher-test")
-	require.NoError(t, err)
+	seen := make(chan string, 10)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get("Authorization")
+	}))
+	t.Cleanup(server.Close)
 
-	defer func() { _ = os.RemoveAll(tempDir) }()
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("initial-token"), 0o600))
 
-	// Create a mock token file
-	tokenPath := filepath.Join(tempDir, "token")
-	err = os.WriteFile(tokenPath, []byte("initial-token"), 0o600)
-	require.NoError(t, err)
-
-	// Create a mock kubeconfig referencing the token file
-	kubeconfigPath := filepath.Join(tempDir, "kubeconfig")
-	config := clientcmdapi.NewConfig()
-	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{
-		Server: "https://127.0.0.1:6443",
-	}
-	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{
-		TokenFile: tokenPath,
-	}
-	config.Contexts["test-context"] = &clientcmdapi.Context{
-		Cluster:  "test-cluster",
-		AuthInfo: "test-user",
-	}
-	config.CurrentContext = "test-context"
-
-	err = clientcmd.WriteToFile(*config, kubeconfigPath)
-	require.NoError(t, err)
+	kubeConfigPath := writeKubeConfigForServer(t, server, &clientcmdapi.AuthInfo{TokenFile: tokenPath})
 
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	// Perform initial load as done by the Headlamp server
-	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
-	require.NoError(t, err)
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, kubeConfigStore)
+	require.Equal(t, "Bearer initial-token", <-seen)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go kubeconfig.LoadAndWatchFiles(ctx, kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
-
-	// Verify context exists
-	_, err = kubeConfigStore.GetContext("test-context")
-	require.NoError(t, err)
-
-	// Add listener to track notifications
 	reloadChan := make(chan struct{}, 10)
 
 	kubeConfigStore.AddListener(func() {
@@ -467,25 +456,26 @@ func TestWatchAndLoadReferencedCredentialFiles(t *testing.T) {
 		}
 	})
 
-	// Modify the referenced token file with retry sync until reload triggers
+	go kubeconfig.LoadAndWatchFiles(ctx, kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
+
+	// Rewrite the token file until the watcher, which may still be starting,
+	// reloads the contexts.
 	reloaded := false
 
-	for i := 0; i < 30; i++ {
-		err = os.WriteFile(tokenPath, []byte("updated-token"), 0o600)
-		require.NoError(t, err)
+	for i := 0; i < 30 && !reloaded; i++ {
+		require.NoError(t, os.WriteFile(tokenPath, []byte("updated-token"), 0o600))
 
 		select {
 		case <-reloadChan:
 			reloaded = true
 		case <-time.After(200 * time.Millisecond):
 		}
-
-		if reloaded {
-			break
-		}
 	}
 
 	require.True(t, reloaded, "Timeout waiting for watcher to trigger reload on credential file change")
+
+	proxyThroughContext(t, kubeConfigStore)
+	require.Equal(t, "Bearer updated-token", <-seen)
 }
 
 func TestRemoveContextWithSharedCluster(t *testing.T) {
@@ -619,4 +609,126 @@ func TestReAddMissingFilesFollowsRetargetedCredentialSymlink(t *testing.T) {
 			t.Fatal("a write to the new symlink target should be watched")
 		}
 	}
+}
+
+// writeKubeConfigForServer writes a kubeconfig with one context, test-context,
+// for the given TLS server and user.
+func writeKubeConfigForServer(t *testing.T, server *httptest.Server, user *clientcmdapi.AuthInfo) string {
+	t.Helper()
+
+	config := clientcmdapi.NewConfig()
+	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{
+		Server:                   server.URL,
+		CertificateAuthorityData: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}),
+	}
+	config.AuthInfos["test-user"] = user
+	config.Contexts["test-context"] = &clientcmdapi.Context{Cluster: "test-cluster", AuthInfo: "test-user"}
+
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, clientcmd.WriteToFile(*config, path))
+
+	return path
+}
+
+// proxyThroughContext sends one request through test-context's proxy.
+func proxyThroughContext(t *testing.T, store kubeconfig.ContextStore) {
+	t.Helper()
+
+	kContext, err := store.GetContext("test-context")
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/namespaces", nil)
+	require.NoError(t, kContext.ProxyRequest(rr, req))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+}
+
+// writeClientCertificate writes a self-signed client certificate for
+// commonName and its key.
+func writeClientCertificate(t *testing.T, certPath, keyPath, commonName string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: commonName},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0o600))
+	require.NoError(t, os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600))
+}
+
+// TestCredentialReloadSendsRotatedToken checks that once the watcher reloads
+// the contexts after a token file changes, the proxy sends the new token.
+func TestCredentialReloadSendsRotatedToken(t *testing.T) {
+	seen := make(chan string, 10)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get("Authorization")
+	}))
+	t.Cleanup(server.Close)
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("token-1"), 0o600))
+
+	kubeConfigPath := writeKubeConfigForServer(t, server, &clientcmdapi.AuthInfo{TokenFile: tokenPath})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "Bearer token-1", <-seen)
+
+	require.NoError(t, os.WriteFile(tokenPath, []byte("token-2"), 0o600))
+
+	// The watcher reloads the contexts like this when the token file changes.
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "Bearer token-2", <-seen)
+}
+
+// TestCredentialReloadPresentsRotatedClientCertificate checks that once the
+// watcher reloads the contexts after the client certificate and key change,
+// the proxy presents the new certificate.
+func TestCredentialReloadPresentsRotatedClientCertificate(t *testing.T) {
+	seen := make(chan string, 10)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.TLS.PeerCertificates[0].Subject.CommonName
+	}))
+	server.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	certPath := filepath.Join(t.TempDir(), "client.crt")
+	keyPath := filepath.Join(t.TempDir(), "client.key")
+	writeClientCertificate(t, certPath, keyPath, "user-1")
+
+	kubeConfigPath := writeKubeConfigForServer(t, server,
+		&clientcmdapi.AuthInfo{ClientCertificate: certPath, ClientKey: keyPath})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "user-1", <-seen)
+
+	writeClientCertificate(t, certPath, keyPath, "user-2")
+
+	// The watcher reloads the contexts like this when the files change.
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "user-2", <-seen)
 }
