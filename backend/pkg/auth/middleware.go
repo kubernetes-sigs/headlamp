@@ -47,8 +47,8 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
-	// OidcUseTokenBroadcast enables reading the shared (broadcast) token; off,
-	// the middleware behaves as it always did.
+	// OidcUseTokenBroadcast enables reading the shared (broadcast) token and the
+	// hand-off that strips its cookies; off, the middleware behaves as it always did.
 	OidcUseTokenBroadcast bool
 }
 
@@ -88,9 +88,31 @@ func (c *OIDCTokenRefreshConfig) sharedTokenResolver(load func() *kubeconfig.Con
 	}
 }
 
+// handOff returns the handler the middleware passes requests on to. It
+// removes the shared token cookies from the request, so whatever handler
+// forwards the Cookie header to an API server, now or in the future, cannot
+// leak a shared token to a cluster on another identity provider. That happens
+// with token broadcast on or off: shared cookies issued before the flag was
+// turned off stay in the browser until they expire. With token broadcast, the
+// hand-off first puts the token the middleware resolved (read when the
+// hand-off runs: header, own cookie or shared token) in the Authorization
+// header when none is set. Promotion always precedes the strip.
+func (c *OIDCTokenRefreshConfig) handOff(inner http.Handler, token *string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c.OidcUseTokenBroadcast && *token != "" && strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+			r.Header.Set("Authorization", "Bearer "+*token)
+		}
+
+		StripSharedTokenCookies(r)
+		inner.ServeHTTP(w, r)
+	})
+}
+
 // NewOIDCTokenRefreshMiddleware creates an HTTP middleware that checks whether
 // the incoming request carries an OIDC token that is about to expire and, if
-// so, refreshes it transparently using the configured OIDC provider.
+// so, refreshes it transparently using the configured OIDC provider. It is the
+// common entry point of every <baseURL>/clusters/{cluster}/ route, so it also
+// owns the hand-off that strips shared token cookies (handOff).
 //
 //nolint:funlen // Middleware handles token inspection, refresh lifecycle, cookie mutation, and telemetry
 func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Handler) http.Handler {
@@ -105,6 +127,8 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 
 			cluster := clusterFromPath(r.URL.Path, config.BaseURL)
 
+			// The token is resolved once (below) and handed to the next handler; a
+			// refresh updates the Authorization header itself.
 			var token string
 
 			// The context is loaded at most once per request, and only once a token
@@ -127,7 +151,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 
 				return kContext
 			})
-			next := inner
+			next := config.handOff(inner, &token)
 
 			var span trace.Span
 			if config.Telemetry != nil {
