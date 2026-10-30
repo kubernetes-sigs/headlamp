@@ -94,29 +94,36 @@ func BearerTokenValue(token string) string {
 
 // ParseClusterAndToken extracts the cluster name from the URL path (below the
 // configured base URL) and the Bearer token from the Authorization header of
-// the HTTP request, falling back to the cluster cookie when the header is
-// missing.
+// the HTTP request, falling back to the cluster's own cookie (see
+// GetTokenFromCookie) when the header is missing.
 func ParseClusterAndToken(r *http.Request, baseURL string) (string, string) {
 	cluster := clusterFromPath(r.URL.Path, baseURL)
+	token, _ := requestToken(r, cluster, nil)
 
-	// Try Authorization header first (for backward compatibility)
-	token := BearerTokenValue(r.Header.Get("Authorization"))
+	return cluster, token
+}
+
+// requestToken returns the Bearer token of a request for cluster: the
+// Authorization header first (for backward compatibility), then the cluster
+// cookies (see ReadClusterToken). sharedKey is set when the token was read
+// from a shared cookie. Malformed tokens yield "".
+func requestToken(r *http.Request, cluster string, resolve SharedTokenKeyResolver) (token, sharedKey string) {
+	token = BearerTokenValue(r.Header.Get("Authorization"))
 	if strings.Contains(token, ",") {
-		return cluster, ""
+		return "", ""
 	}
 
-	// If no auth header, try cookie
 	if token == "" && cluster != "" {
-		if cookieToken, err := GetTokenFromCookie(r, cluster); err == nil && cookieToken != "" {
-			token = cookieToken
+		if cookieToken, key, err := ReadClusterToken(r, cluster, resolve); err == nil && cookieToken != "" {
+			token, sharedKey = cookieToken, key
 		}
 	}
 
 	if token != "" && !bearerTokenRegex.MatchString(token) {
-		return cluster, ""
+		return "", ""
 	}
 
-	return cluster, token
+	return token, sharedKey
 }
 
 // clusterFromPath returns the cluster of a <baseURL>/clusters/<cluster>/...
