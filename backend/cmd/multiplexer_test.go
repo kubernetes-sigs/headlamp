@@ -2152,3 +2152,46 @@ func TestReconnectAbortsIfConnectionClosedDuringDial(t *testing.T) {
 	m.mutex.RUnlock()
 	assert.False(t, exists, "resurrected connection must not be published to registry")
 }
+
+func TestClientWriteFailureKeepsReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clusterID := "test-cluster"
+	path := "/api/v1/pods"
+	userID := "test-user"
+	connKey := m.createConnectionKey(clusterID, path, userID)
+
+	failedClient, failedServer := createTestWebSocketConnection()
+	defer failedServer.Close()
+
+	require.NoError(t, failedClient.conn.Close())
+
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	oldConn := m.createConnection(clusterID, userID, path, "watch=1", failedClient, nil)
+	oldConn.WSConn = clusterConn
+
+	replacementClient, replacementServer := createTestWebSocketConnection()
+	defer replacementServer.Close()
+
+	// A new client subscribed to the same key after the old one was removed.
+	replacement := m.createConnection(clusterID, userID, path, "watch=1", replacementClient, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = replacement
+	m.mutex.Unlock()
+
+	// The echo server returns this frame, which the old pump then fails to write.
+	require.NoError(t, clusterConn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ADDED"}`)))
+
+	m.handleClusterMessages(oldConn, failedClient)
+
+	m.mutex.RLock()
+	current := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Same(t, replacement, current)
+	assert.False(t, replacement.IsClosed())
+	assert.True(t, oldConn.IsClosed())
+}

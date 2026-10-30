@@ -1048,7 +1048,7 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 						logFieldClusterID: conn.ClusterID,
 						"userID":          conn.UserID,
 					}, err, "writing to client connection failed; stopping client pump")
-					m.CloseConnection(conn.ClusterID, conn.Path, conn.UserID)
+					m.removeConnection(conn)
 
 					return
 				}
@@ -1225,6 +1225,20 @@ func (m *Multiplexer) sendDataMessage(
 	conn.mu.Unlock()
 
 	return nil
+}
+
+// removeConnection closes conn and removes it from the registry. A replacement client may
+// have registered the same key since, so the entry is only removed if it still is conn.
+func (m *Multiplexer) removeConnection(conn *Connection) {
+	m.mutex.Lock()
+
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
+	m.mutex.Unlock()
+
+	conn.safeClose()
 }
 
 // createWrapperMessage creates a wrapper message for a cluster connection.
