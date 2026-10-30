@@ -104,4 +104,27 @@ describe.each(routeDetails)('%s details', (_, RouteDetails) => {
       'fetched-cluster'
     );
   });
+
+  it('uses the fetched Route cluster for backend links', () => {
+    const sections = mockDetailsGrid.mock.calls[0][0].extraSections({
+      cluster: 'fetched-cluster',
+      rules: [{ backendRefs: [{ name: 'api', kind: 'Service', port: 8080 }] }],
+      parentRefs: [],
+    });
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          {sections.map((section: any) => (
+            <div key={section.id}>{section.section}</div>
+          ))}
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(screen.getByRole('link', { name: 'api' })).toHaveAttribute(
+      'data-active-cluster',
+      'fetched-cluster'
+    );
+  });
 });

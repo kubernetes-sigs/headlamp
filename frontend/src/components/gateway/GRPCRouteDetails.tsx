@@ -26,8 +26,8 @@ import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import { GatewayParentRefSection } from './utils';
 
-function GRPCRouteRuleTable(props: { rule: GRPCRouteRule; namespace?: string }) {
-  const { rule, namespace } = props;
+function GRPCRouteRuleTable(props: { rule: GRPCRouteRule; namespace?: string; cluster?: string }) {
+  const { rule, namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   const mainRows = [
@@ -44,7 +44,13 @@ function GRPCRouteRuleTable(props: { rule: GRPCRouteRule; namespace?: string }) 
     },
     {
       name: t('translation|BackendRefs'),
-      value: <GRPCRuleBackendRefs backendRefs={rule?.backendRefs || []} namespace={namespace} />,
+      value: (
+        <GRPCRuleBackendRefs
+          backendRefs={rule?.backendRefs || []}
+          namespace={namespace}
+          cluster={cluster}
+        />
+      ),
       valueFullRow: true,
       hide: (rule.backendRefs?.length || 0) === 0,
     },
@@ -132,11 +138,13 @@ interface GRPCBackendRef {
 
 export interface GRPCRuleBackendRefsProps {
   namespace?: string;
+  /** Cluster of the route, so backend links open in that cluster. */
+  cluster?: string;
   backendRefs?: GRPCBackendRef[];
 }
 
 export function GRPCRuleBackendRefs(props: GRPCRuleBackendRefsProps) {
-  const { backendRefs, namespace } = props;
+  const { backendRefs, namespace, cluster } = props;
   const { t } = useTranslation();
   if (!backendRefs) {
     return null;
@@ -153,6 +161,7 @@ export function GRPCRuleBackendRefs(props: GRPCRuleBackendRefsProps) {
               <Link
                 routeName={kind.toLowerCase()}
                 params={{ namespace: data?.namespace ?? namespace, name: data.name }}
+                activeCluster={cluster}
               >
                 {data.name}
               </Link>
@@ -220,7 +229,12 @@ export default function GRPCRouteDetails(props: {
                   <EmptyContent>{t('No data')}</EmptyContent>
                 ) : (
                   item.rules.map((rule: GRPCRouteRule, index: number) => (
-                    <GRPCRouteRuleTable rule={rule} key={index} namespace={namespace} />
+                    <GRPCRouteRuleTable
+                      rule={rule}
+                      key={index}
+                      namespace={namespace}
+                      cluster={item.cluster ?? cluster}
+                    />
                   ))
                 )}
               </SectionBox>
