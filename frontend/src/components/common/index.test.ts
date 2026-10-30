@@ -30,6 +30,7 @@ const avoidCheck = [
   'DropZoneBox',
   'EventsLifetimeInfo',
   'PasswordForm',
+  'TutorialInfoBox',
   'Welcome',
   // Internal helper used by the LogViewer/Terminal components. Plugins that
   // want to override terminal colors should set the `terminal` field on the
