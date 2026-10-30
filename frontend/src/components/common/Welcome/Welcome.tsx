@@ -26,13 +26,16 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
 import { useClustersConf } from '../../../lib/k8s';
 import { useCluster } from '../../../lib/k8s/api/v1/hooks';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
+import { setAppSettings } from '../../../redux/configSlice';
 import { Dialog } from '../Dialog';
+import { useGuidedTooltips } from '../TutorialInfoBox/TutorialInfoBox';
 
 export const WELCOME_DISMISSED_STORAGE_KEY = 'headlamp.welcome.dismissed';
 
@@ -81,6 +84,7 @@ const actionButtonSx = {
     outlineOffset: 2,
   },
 } as const;
+
 const documentationLinkSx = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -107,9 +111,12 @@ export default function Welcome() {
   const { t } = useTranslation();
   const cluster = useCluster();
   const history = useHistory();
+  const dispatch = useDispatch();
+  const tutorialTooltips = useGuidedTooltips();
   const clusters = useClustersConf();
   const [open, setOpen] = React.useState(shouldShowWelcome);
   const [dontShowAgain, setDontShowAgain] = React.useState(false);
+  const tooltipsDescriptionId = React.useId();
 
   const handleClose = () => {
     if (dontShowAgain) {
@@ -345,12 +352,36 @@ export default function Welcome() {
           </Stack>
         </Stack>
       </DialogContent>
-      <DialogActions>
+      <DialogActions
+        disableSpacing
+        sx={{
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 1,
+          px: 3,
+          py: 2,
+        }}
+      >
+        <Box>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!tutorialTooltips}
+                onChange={e => dispatch(setAppSettings({ tutorialTooltips: !e.target.checked }))}
+                inputProps={{ 'aria-describedby': tooltipsDescriptionId }}
+              />
+            }
+            label={t('Disable guided tooltips')}
+          />
+          <Typography id={tooltipsDescriptionId} variant="body2" color="text.secondary">
+            {t('Disable helpful tooltips for navigating Headlamp')}
+          </Typography>
+        </Box>
         <FormControlLabel
           control={
             <Checkbox checked={dontShowAgain} onChange={e => setDontShowAgain(e.target.checked)} />
           }
-          slotProps={{ typography: { sx: { mt: '2px' } } }}
           label={t("Don't show again")}
         />
       </DialogActions>

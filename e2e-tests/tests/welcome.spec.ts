@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 // The shared config dismisses the Welcome dialog; start from a fresh profile instead.
@@ -36,3 +37,62 @@ test('shows the Welcome dialog on first use and remembers "Don\'t show again"', 
     'true'
   );
 });
+
+for (const { viewport, colorScheme } of [
+  { viewport: { width: 1280, height: 800 }, colorScheme: 'light' },
+  { viewport: { width: 1280, height: 800 }, colorScheme: 'dark' },
+  { viewport: { width: 320, height: 640 }, colorScheme: 'light' },
+  { viewport: { width: 320, height: 640 }, colorScheme: 'dark' },
+] as const) {
+  test.describe(`welcome accessibility at ${viewport.width}px in ${colorScheme} mode`, () => {
+    test.use({ viewport, colorScheme });
+
+    test('supports keyboard navigation, descriptions, reflow, and Escape', async ({ page }) => {
+      await page.goto('/');
+
+      const welcome = page.getByRole('dialog', { name: 'Welcome to Headlamp', exact: true });
+      await expect(welcome).toBeVisible();
+      await expect(
+        welcome.getByRole('heading', { level: 1, name: 'Welcome to Headlamp' })
+      ).toBeFocused();
+
+      await page.keyboard.press('Tab');
+      await expect(welcome.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      const dontShowAgain = welcome.getByRole('checkbox', { name: "Don't show again" });
+      await expect(dontShowAgain).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+
+      const tooltips = welcome.getByRole('checkbox', { name: 'Disable guided tooltips' });
+      await expect(tooltips).toBeFocused();
+      await expect(tooltips).toHaveAccessibleDescription(
+        'Disable helpful tooltips for navigating Headlamp'
+      );
+      await page.keyboard.press('Space');
+      await expect(tooltips).toBeChecked();
+      await expect
+        .poll(() =>
+          page.evaluate(() => JSON.parse(localStorage.getItem('settings') ?? '{}').tutorialTooltips)
+        )
+        .toBe(false);
+
+      expect(await welcome.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(
+        true
+      );
+      expect(
+        (
+          await new AxeBuilder({ page })
+            .include('[role="dialog"]')
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+            .analyze()
+        ).violations
+      ).toEqual([]);
+
+      await page.keyboard.press('Escape');
+      await expect(welcome).toBeHidden();
+      expect(
+        await page.evaluate(() => localStorage.getItem('headlamp.welcome.dismissed'))
+      ).toBeNull();
+    });
+  });
+}

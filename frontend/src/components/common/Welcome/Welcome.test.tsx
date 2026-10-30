@@ -20,7 +20,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from '../../../App';
 import { isElectron } from '../../../helpers/isElectron';
 import { Cluster } from '../../../lib/k8s/cluster';
-import { setConfig } from '../../../redux/configSlice';
+import { setAppSettings, setConfig } from '../../../redux/configSlice';
 import store from '../../../redux/stores/store';
 import Welcome, { WELCOME_DISMISSED_STORAGE_KEY } from './Welcome';
 
@@ -41,6 +41,41 @@ function renderWelcome() {
 }
 
 describe('Welcome', () => {
+  beforeEach(() => {
+    vi.mocked(isElectron).mockReturnValue(false);
+    localStorage.clear();
+    store.dispatch(setAppSettings({ tutorialTooltips: true }));
+    store.dispatch(setConfig({ clusters: null }));
+    window.history.pushState({}, '', '/c/my-cluster/cluster');
+  });
+
+  it('disables guided tooltips from the welcome dialog', () => {
+    renderWelcome();
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Disable guided tooltips' });
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+
+    expect(checkbox).toBeChecked();
+    expect(store.getState().config.settings.tutorialTooltips).toBe(false);
+    expect(JSON.parse(localStorage.getItem('settings') || '{}').tutorialTooltips).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect(store.getState().config.settings.tutorialTooltips).toBe(true);
+  });
+
+  it('describes the guided tooltips checkbox without requiring hover', () => {
+    renderWelcome();
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Disable guided tooltips' });
+
+    expect(checkbox).toHaveAccessibleDescription(
+      'Disable helpful tooltips for navigating Headlamp'
+    );
+    expect(screen.getByText('Disable helpful tooltips for navigating Headlamp')).toBeVisible();
+  });
+
   it('opens with focus on its heading and a unique accessible name', () => {
     renderWelcome();
 
@@ -87,13 +122,6 @@ describe('Welcome', () => {
       getItem.mockRestore();
       warn.mockRestore();
     }
-  });
-
-  beforeEach(() => {
-    vi.mocked(isElectron).mockReturnValue(false);
-    localStorage.clear();
-    store.dispatch(setConfig({ clusters: null }));
-    window.history.pushState({}, '', '/c/my-cluster/cluster');
   });
 
   it('introduces Headlamp and the current cluster on first use', () => {
