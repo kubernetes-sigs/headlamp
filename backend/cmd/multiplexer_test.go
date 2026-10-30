@@ -2123,7 +2123,40 @@ func TestHandleHeartbeatTick_AdoptsNewConnection(t *testing.T) {
 	assert.False(t, stop)
 }
 
+// newPausedHandshakeServer returns a cluster server that holds the WebSocket handshake
+// until releaseDial is closed. dialStarted is closed once a dial reaches it, and
+// dialedSocketClosed once the client closes the socket it dialed.
+func newPausedHandshakeServer() (server *httptest.Server, dialStarted, releaseDial, dialedSocketClosed chan struct{}) {
+	dialStarted = make(chan struct{})
+	releaseDial = make(chan struct{})
+	dialedSocketClosed = make(chan struct{})
+
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(dialStarted)
+		<-releaseDial
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		// ReadMessage only returns once the client closes the socket.
+		_, _, _ = ws.ReadMessage()
+
+		close(dialedSocketClosed)
+	}))
+
+	return server, dialStarted, releaseDial, dialedSocketClosed
+}
+
 func TestReconnectAbortsIfConnectionClosedDuringDial(t *testing.T) {
+	server, dialStarted, releaseDial, dialedSocketClosed := newPausedHandshakeServer()
+	defer server.Close()
+
 	store := kubeconfig.NewContextStore()
 	m := NewMultiplexer(store, false)
 
@@ -2131,22 +2164,50 @@ func TestReconnectAbortsIfConnectionClosedDuringDial(t *testing.T) {
 	path := "/api/v1/pods"
 	userID := "test-user"
 
+	err := store.AddContext(&kubeconfig.Context{
+		Name:    clusterID,
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	})
+	require.NoError(t, err)
+
 	connKey := m.createConnectionKey(clusterID, path, userID)
-	conn := m.createConnection(clusterID, userID, path, "", nil, nil)
+	conn := m.createConnection(clusterID, userID, path, "watch=1", nil, nil)
 
 	m.mutex.Lock()
 	m.connections[connKey] = conn
 	m.mutex.Unlock()
 
-	// Simulate CloseConnection being called while reconnect is dialing
+	reconnectErr := make(chan error, 1)
+
+	go func() {
+		newConn, err := m.reconnect(conn)
+		assert.Nil(t, newConn)
+
+		reconnectErr <- err
+	}()
+
+	select {
+	case <-dialStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not start dialing")
+	}
+
 	m.CloseConnection(clusterID, path, userID)
+	close(releaseDial)
 
-	// Now call reconnect; because conn is closed and removed from registry, reconnect must abort
-	newConn, err := m.reconnect(conn)
-	assert.Error(t, err)
-	assert.Nil(t, newConn)
+	select {
+	case err := <-reconnectErr:
+		require.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not return")
+	}
 
-	// Verify the connection map remains empty and closed
+	select {
+	case <-dialedSocketClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("socket dialed by the aborted reconnect was not closed")
+	}
+
 	m.mutex.RLock()
 	_, exists := m.connections[connKey]
 	m.mutex.RUnlock()
