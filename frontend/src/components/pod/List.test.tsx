@@ -23,9 +23,11 @@ import {
   getMaxContainerMemoryLimitPercent,
   makePodStatusLabel,
   PodListRenderer,
+  resourceCellValue,
 } from './List';
 
-const { mockTranslation } = vi.hoisted(() => ({
+const { mockTranslation, listViewProps } = vi.hoisted(() => ({
+  listViewProps: { current: null as any },
   mockTranslation: vi.fn((key: string, values?: Record<string, string>) => {
     const label = key.split('|').at(-1)!;
     return Object.entries(values ?? {}).reduce(
@@ -54,12 +56,15 @@ vi.mock('../common', () => ({
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
-  default: (props: any) => (
-    <>
-      <div data-testid="title-side-actions">{props.headerProps?.titleSideActions}</div>
-      <div data-testid="header-actions">{props.headerProps?.actions}</div>
-    </>
-  ),
+  default: (props: any) => {
+    listViewProps.current = props;
+    return (
+      <>
+        <div data-testid="title-side-actions">{props.headerProps?.titleSideActions}</div>
+        <div data-testid="header-actions">{props.headerProps?.actions}</div>
+      </>
+    );
+  },
 }));
 
 vi.mock('../common/Resource/ResourceTable', () => ({
@@ -446,5 +451,83 @@ describe('getMaxContainerMemoryLimitPercent', () => {
 
     // app is 10%, init-sidecar is 45Mi / 50Mi = 90% -> returns 90%
     expect(getMaxContainerMemoryLimitPercent(pod, metric)).toBe(90);
+  });
+});
+
+describe('PodListRenderer resource columns', () => {
+  function makePod(name: string) {
+    return {
+      cluster: 'test',
+      getName: () => name,
+      getNamespace: () => 'default',
+      spec: {
+        containers: [
+          { name: 'app', resources: { limits: { cpu: '100m', memory: '100Mi' } } },
+          { name: 'sidecar' },
+        ],
+      },
+    } as unknown as Pod;
+  }
+
+  function makeMetrics(name: string, app: [string, string], sidecar: [string, string]) {
+    return {
+      cluster: 'test',
+      getName: () => name,
+      getNamespace: () => 'default',
+      jsonData: {
+        containers: [
+          { name: 'app', usage: { cpu: app[0], memory: app[1] } },
+          { name: 'sidecar', usage: { cpu: sidecar[0], memory: sidecar[1] } },
+        ],
+      },
+    } as any;
+  }
+
+  function renderColumns(pods: Pod[], metrics: any[]) {
+    render(<PodListRenderer pods={pods} metrics={metrics} hideCreateButton />);
+    const columns = listViewProps.current.columns;
+    return {
+      cpu: columns.find((column: any) => column.id === 'cpu'),
+      memory: columns.find((column: any) => column.id === 'memory'),
+    };
+  }
+
+  it('invalidates cells when usage moves between containers with an unchanged total', () => {
+    const pod = makePod('web');
+    const before = renderColumns([pod], [makeMetrics('web', ['40m', '40Mi'], ['60m', '60Mi'])]);
+    const after = renderColumns([pod], [makeMetrics('web', ['96m', '92Mi'], ['4m', '8Mi'])]);
+
+    expect(after.memory.getValue(pod)).not.toBe(before.memory.getValue(pod));
+    expect(after.cpu.getValue(pod)).not.toBe(before.cpu.getValue(pod));
+    // A numeric value keeps the columns sorting largest first on the first click.
+    expect(typeof after.memory.getValue(pod)).toBe('number');
+    expect(typeof after.cpu.getValue(pod)).toBe('number');
+  });
+
+  it('sorts by total usage', () => {
+    const small = makePod('small');
+    const large = makePod('large');
+    const { cpu, memory } = renderColumns(
+      [small, large],
+      [
+        makeMetrics('small', ['5m', '5Mi'], ['4m', '4Mi']),
+        makeMetrics('large', ['5m', '5Mi'], ['5m', '5Mi']),
+      ]
+    );
+
+    expect(memory.sort(small, large)).toBeLessThan(0);
+    expect(cpu.sort(small, large)).toBeLessThan(0);
+  });
+});
+
+describe('resourceCellValue', () => {
+  it('changes with the displayed limit usage even for very large totals', () => {
+    const usage = 2 ** 50;
+    expect(resourceCellValue(usage, 89.96)).not.toBe(resourceCellValue(usage, 90.04));
+    expect(resourceCellValue(usage, 90.44)).not.toBe(resourceCellValue(usage, 90.56));
+  });
+
+  it('keeps the total for pods without limit usage', () => {
+    expect(resourceCellValue(123, 0)).toBe(123);
   });
 });
