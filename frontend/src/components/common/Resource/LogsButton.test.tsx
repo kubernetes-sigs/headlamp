@@ -491,7 +491,7 @@ describe('LogsButton', () => {
     render(<TestContext>{activityContent}</TestContext>);
 
     await waitFor(() => expect(screen.getByTestId('mock-log-viewer')).toBeInTheDocument());
-    expect(document.querySelectorAll('.MuiSelect-select')[3]).toHaveTextContent('translation|All');
+    expect(document.querySelectorAll('.MuiSelect-select')[4]).toHaveTextContent('translation|All');
   });
 
   it('restores valid severities from storage', async () => {
@@ -507,8 +507,8 @@ describe('LogsButton', () => {
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
-    await waitFor(() => expect(document.querySelectorAll('.MuiSelect-select')[3]).toBeTruthy());
-    expect(document.querySelectorAll('.MuiSelect-select')[3]).toHaveTextContent('ERROR, INFO');
+    await waitFor(() => expect(document.querySelectorAll('.MuiSelect-select')[4]).toBeTruthy());
+    expect(document.querySelectorAll('.MuiSelect-select')[4]).toHaveTextContent('ERROR, INFO');
   });
 
   it('streams logs successfully', async () => {
@@ -666,6 +666,77 @@ describe('LogsButton', () => {
         })
       );
     });
+  });
+
+  it('passes the selected Since window to getLogs and refetches on change', async () => {
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+    Pod.prototype.getLogs = vi.fn(() => () => {}) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(Pod.prototype.getLogs).toHaveBeenCalled());
+    expect(Pod.prototype.getLogs).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(Function),
+      expect.objectContaining({ sinceSeconds: undefined })
+    );
+
+    const callsBefore = vi.mocked(Pod.prototype.getLogs).mock.calls.length;
+    fireEvent.mouseDown(document.querySelectorAll('.MuiSelect-select')[3]);
+    fireEvent.click(await screen.findByText('translation|Last 15 minutes'));
+
+    await waitFor(() => {
+      expect(Pod.prototype.getLogs).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.any(Function),
+        expect.objectContaining({ sinceSeconds: 900, follow: true, showPrevious: false })
+      );
+    });
+    expect(vi.mocked(Pod.prototype.getLogs).mock.calls.length).toBeGreaterThan(callsBefore);
+  });
+
+  it('refetches the selected Since window when logs are populated and Follow is off', async () => {
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
+      const onLogs = args.find(arg => typeof arg === 'function');
+      onLogs({ logs: ['log line 1\n'] });
+      return () => {};
+    }) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('log line 1'));
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'translation|Follow' }));
+
+    // With Follow off and logs already loaded, the stream is paused and not refetched.
+    const callsBefore = vi.mocked(Pod.prototype.getLogs).mock.calls.length;
+    fireEvent.mouseDown(document.querySelectorAll('.MuiSelect-select')[3]);
+    fireEvent.click(await screen.findByText('translation|Last 15 minutes'));
+
+    await waitFor(() => {
+      expect(Pod.prototype.getLogs).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.any(Function),
+        expect.objectContaining({ sinceSeconds: 900, follow: false })
+      );
+    });
+    expect(vi.mocked(Pod.prototype.getLogs).mock.calls.length).toBeGreaterThan(callsBefore);
   });
 
   it('debounces processAllLogs and batches multiple pod updates', async () => {
@@ -880,7 +951,7 @@ describe('LogsButton', () => {
 
     // Now change severity filter by directly clicking the button
     const selects = document.querySelectorAll('.MuiSelect-select');
-    const severitySelect = selects[3];
+    const severitySelect = selects[4];
     fireEvent.mouseDown(severitySelect);
 
     await waitFor(() => {
@@ -942,7 +1013,7 @@ describe('LogsButton', () => {
 
     // 4. Change severity filter directly in the UI
     const selects = document.querySelectorAll('.MuiSelect-select');
-    const severitySelect = selects[3];
+    const severitySelect = selects[4];
     fireEvent.mouseDown(severitySelect);
 
     await waitFor(() => {
