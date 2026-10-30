@@ -29,6 +29,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/singleflight"
 )
 
 // OIDCTokenRefreshConfig holds the configuration needed by the OIDC token
@@ -47,6 +48,14 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
+	OidcUseImpersonation         bool
+	// TokenRefreshGroup coalesces this middleware's proactive refresh with any other
+	// concurrent refresh of the exact same token performed elsewhere in the server -- notably
+	// the WebSocket multiplexer's reactive refresh -- into a single underlying exchange (see
+	// RefreshAndCacheNewToken's doc comment). The caller must pass the same instance that the
+	// other refresh path(s) use, typically a single field owned by the top-level server config
+	// and shared by every piece that can refresh a token.
+	TokenRefreshGroup *singleflight.Group
 }
 
 // oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
@@ -96,7 +105,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			cluster, token := ParseClusterAndToken(r)
+			cluster, token, tokenSource := ParseClusterAndTokenSource(r)
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return
 			}
@@ -131,6 +140,8 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
+			useImpersonation := config.shouldUseImpersonationForContext(kContext)
+
 			RefreshAndSetToken(RefreshAndSetTokenParams{
 				Ctx:                       ctx,
 				OIDCAuthConfig:            oidcAuthConfig,
@@ -146,6 +157,16 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				UseDeploymentCookieScope:  useImpersonation,
+				// A bearer-sourced token refreshed while impersonation is in effect must not
+				// have its cookie written or widened: requestIDToken already treats a raw
+				// bearer token as a pass-through credential for this one request, not a
+				// Headlamp login (see cmd.HeadlampConfig.requestIDToken's idTokenSource), and
+				// this must not contradict that just because the token also happened to need
+				// a refresh. Non-impersonation deployments keep their pre-existing behavior of
+				// also offering a narrow, cluster-scoped cookie on a bearer refresh.
+				SkipCookie:        useImpersonation && tokenSource != TokenSourceCookie,
+				TokenRefreshGroup: config.TokenRefreshGroup,
 			})
 
 			next.ServeHTTP(w, r)
@@ -166,6 +187,17 @@ func (c *OIDCTokenRefreshConfig) shouldUseUnsafeServiceAccountTokenForContext(
 	kContext *kubeconfig.Context,
 ) bool {
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
+}
+
+// shouldUseImpersonationForContext reports whether impersonation applies to the given context,
+// mirroring cmd.HeadlampConfig's method of the same name: it requires --oidc-use-impersonation
+// and that the context authenticates upstream via the mounted in-cluster service account token.
+// The refreshed cookie this package sets must use the same cookie path scope the rest of the
+// backend would use for this context (see auth.GetCookiePath), or the refreshed token would be
+// unreachable on the routes impersonation depends on, or would needlessly widen the Cookie
+// header for a context that never asked for impersonation.
+func (c *OIDCTokenRefreshConfig) shouldUseImpersonationForContext(kContext *kubeconfig.Context) bool {
+	return c.UseInCluster && c.OidcUseImpersonation && kContext.UsesInClusterServiceAccountToken()
 }
 
 // shouldSkipOIDCRefresh checks whether the request path is not a cluster
@@ -216,7 +248,7 @@ func (c *OIDCTokenRefreshConfig) handleGetContextError(
 	span trace.Span, ctx context.Context, status *string, next http.Handler,
 ) bool {
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{clusterLogField: cluster},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 			err, "failed to get context")
 
 		c.TelemetryHandler.RecordError(span, err, "Failed to get context")

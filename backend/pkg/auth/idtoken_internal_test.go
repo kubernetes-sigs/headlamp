@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/internal/testutil"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,4 +111,59 @@ func TestIDTokenVerifier_RecoversAfterStalledJWKS(t *testing.T) {
 	testStalledIssuerRecovery(t, func(issuer *testutil.FakeOIDCIssuer, onStall func(r *http.Request)) {
 		issuer.BeforeKeys = onStall
 	})
+}
+
+func TestRefreshAndCacheNewToken_TimeoutWithoutCustomTLS(t *testing.T) {
+	for _, endpoint := range []string{"discovery", "token"} {
+		t.Run(endpoint, func(t *testing.T) {
+			original := oidcHTTPClientTimeout
+			oidcHTTPClientTimeout = 50 * time.Millisecond
+
+			t.Cleanup(func() { oidcHTTPClientTimeout = original })
+
+			issuer := testutil.NewFakeOIDCIssuer(t)
+
+			var tokenEndpointReached int32
+
+			stall := func(r *http.Request) {
+				select {
+				case <-r.Context().Done():
+				case <-time.After(30 * time.Second):
+				}
+			}
+
+			if endpoint == "discovery" {
+				issuer.BeforeDiscovery = stall
+			} else {
+				issuer.TokenHandler = func(_ http.ResponseWriter, r *http.Request) {
+					atomic.StoreInt32(&tokenEndpointReached, 1)
+					stall(r)
+				}
+			}
+
+			tokenCache := cache.New[interface{}]()
+
+			t.Cleanup(func() { require.NoError(t, tokenCache.Close()) })
+			require.NoError(t, tokenCache.Set(context.Background(), "oidc-token-OLD", "refresh"))
+
+			_, err := RefreshAndCacheNewToken(
+				context.Background(),
+				&kubeconfig.OidcConfig{ClientID: "headlamp", ClientSecret: "secret"},
+				tokenCache,
+				"id_token",
+				"OLD",
+				issuer.URL,
+				"",
+				time.Hour,
+				nil,
+			)
+
+			require.Error(t, err, "stalled %s must be bounded by the default-TLS client timeout", endpoint)
+
+			if endpoint == "token" {
+				require.Equal(t, int32(1), atomic.LoadInt32(&tokenEndpointReached),
+					"the token endpoint must be reached to exercise its timeout")
+			}
+		})
+	}
 }
