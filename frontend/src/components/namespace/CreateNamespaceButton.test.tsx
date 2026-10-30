@@ -153,6 +153,28 @@ describe('CreateNamespaceButton', () => {
     await waitFor(() => expect(createButton).toBeEnabled());
   });
 
+  it('ignores a late already exists response from a cluster that is no longer selected', async () => {
+    post.mockRejectedValueOnce({ status: 409 });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderButton('cluster-a+cluster-b');
+
+    fireEvent.click(await screen.findByLabelText(OPEN_BUTTON_LABEL));
+    await userEvent.type(await screen.findByRole('textbox'), 'demo');
+    fireEvent.click(screen.getByTestId('create-namespace-dialog-create-button'));
+    // The request to cluster-a is still pending while the user reopens the dialog
+    // and picks cluster-b.
+    const pendingRequest = capturedAction.current!;
+
+    fireEvent.click(await screen.findByLabelText(OPEN_BUTTON_LABEL));
+    fireEvent.mouseDown(await screen.findByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'cluster-b' }));
+    await expect(pendingRequest()).rejects.toBeDefined();
+
+    const createButton = await screen.findByTestId('create-namespace-dialog-create-button');
+    await waitFor(() => expect(createButton).toBeEnabled());
+    expect(screen.queryByText(/already exists/)).not.toBeInTheDocument();
+  });
+
   it('retries failed authorization requests', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: 1, retryDelay: 0 } },

@@ -40,7 +40,10 @@ export default function CreateNamespaceButton() {
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceName, setNamespaceName] = useState('');
   const [namespaceDialogOpen, setNamespaceDialogOpen] = useState(false);
-  const [namespaceExistsError, setNamespaceExistsError] = useState(false);
+  const [namespaceConflict, setNamespaceConflict] = useState<{
+    cluster: string;
+    name: string;
+  } | null>(null);
   const [selectedCluster, setSelectedCluster] = useState('');
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -62,6 +65,10 @@ export default function CreateNamespaceButton() {
   const targetCluster = allowedClusters.includes(selectedCluster)
     ? selectedCluster
     : allowedClusters[0] ?? '';
+  // A conflict only applies to the cluster and name it was reported for, since its response
+  // can arrive after the user has picked another cluster or changed the name.
+  const namespaceExistsError =
+    namespaceConflict?.cluster === targetCluster && namespaceConflict?.name === namespaceName;
 
   function createNewNamespace() {
     const clusterData = targetCluster;
@@ -88,7 +95,7 @@ export default function CreateNamespaceButton() {
         console.error('Error creating namespace:', error);
         if (statusCode === 409) {
           setNamespaceDialogOpen(true);
-          setNamespaceExistsError(true);
+          setNamespaceConflict({ cluster: clusterData, name: newNamespaceName });
         }
         throw error;
       }
@@ -120,7 +127,7 @@ export default function CreateNamespaceButton() {
 
   function handleClose() {
     setNamespaceDialogOpen(false);
-    setNamespaceExistsError(false);
+    setNamespaceConflict(null);
   }
 
   const isValidNamespaceFormat = Namespace.isValidNamespaceFormat(namespaceName);
@@ -174,7 +181,7 @@ export default function CreateNamespaceButton() {
               value={namespaceName}
               onChange={event => {
                 setNamespaceName(event.target.value.toLowerCase());
-                setNamespaceExistsError(false);
+                setNamespaceConflict(null);
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
@@ -196,11 +203,7 @@ export default function CreateNamespaceButton() {
                   id="create-namespace-cluster-select"
                   label={t('glossary|Cluster')}
                   value={targetCluster}
-                  onChange={event => {
-                    setSelectedCluster(event.target.value as string);
-                    // The "already exists" error only applies to the cluster it came from.
-                    setNamespaceExistsError(false);
-                  }}
+                  onChange={event => setSelectedCluster(event.target.value as string)}
                 >
                   {allowedClusters.map(cluster => (
                     <MenuItem key={cluster} value={cluster}>
