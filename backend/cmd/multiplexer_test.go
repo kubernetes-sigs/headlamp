@@ -2195,3 +2195,67 @@ func TestClientWriteFailureKeepsReplacementConnection(t *testing.T) {
 	assert.False(t, replacement.IsClosed())
 	assert.True(t, oldConn.IsClosed())
 }
+
+func TestReconnectResumesFromLatestResourceVersion(t *testing.T) {
+	queries := make(chan string, 2)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries <- r.URL.RawQuery
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		_, _, _ = ws.ReadMessage()
+	}))
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/pods"
+	query := "resourceVersion=100&watch=1"
+	conn := m.createConnection("test-cluster", "test-user", path, query, clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(conn.ClusterID, path, conn.UserID)] = conn
+	m.mutex.Unlock()
+
+	lastResourceVersion := ""
+	event := []byte(`{"type":"MODIFIED","object":{"metadata":{"resourceVersion":"250"}}}`)
+	require.NoError(t, m.sendIfNewResourceVersion(event, conn, clientConn, &lastResourceVersion))
+
+	resumed, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer resumed.safeClose()
+
+	assert.Equal(t, "resourceVersion=250&watch=1", <-queries)
+	assert.Equal(t, query, resumed.Query, "messages must keep routing to the subscribed query")
+
+	// The cluster reports the cursor as expired, so the next recovery starts a fresh watch.
+	expired := []byte(`{"type":"ERROR","object":{"kind":"Status","code":410,"reason":"Expired"}}`)
+	require.NoError(t, m.sendIfNewResourceVersion(expired, resumed, clientConn, &lastResourceVersion))
+
+	fresh, err := m.reconnect(resumed)
+	require.NoError(t, err)
+
+	defer fresh.safeClose()
+
+	assert.Equal(t, "watch=1", <-queries)
+	assert.Equal(t, query, fresh.Query)
+}

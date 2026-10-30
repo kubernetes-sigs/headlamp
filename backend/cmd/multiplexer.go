@@ -98,6 +98,12 @@ type Connection struct {
 	writeMu sync.Mutex
 	// clusterWriteMu is a mutex to synchronize writes to the cluster WebSocket connection.
 	clusterWriteMu sync.Mutex
+	// resourceVersion is the last resource version forwarded to the client; a reconnect
+	// resumes the watch from it.
+	resourceVersion string
+	// resourceVersionExpired is true when the cluster reported the watch's resource version
+	// as expired, so a reconnect has to start a fresh watch instead of resuming.
+	resourceVersionExpired bool
 	// closed is a flag to indicate if the connection is closed.
 	closed bool
 	// usesServiceAccountToken is true when Token was loaded from the
@@ -656,6 +662,28 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 	}
 }
 
+// resumeWatchQuery returns the query a reconnecting watch dials with. It resumes from the
+// last forwarded resource version, or drops the resource version when the cluster reported it
+// as expired, so the new watch starts with the current state of every object.
+func resumeWatchQuery(query, resourceVersion string, expired bool) string {
+	if resourceVersion == "" && !expired {
+		return query
+	}
+
+	values, err := url.ParseQuery(query)
+	if err != nil || values.Get("watch") == "" {
+		return query
+	}
+
+	if expired {
+		values.Del("resourceVersion")
+	} else {
+		values.Set("resourceVersion", resourceVersion)
+	}
+
+	return values.Encode()
+}
+
 // handleHeartbeatTick processes a single heartbeat tick and reconnects if disconnected.
 // Returns the newly reconnected Connection (if any) and a boolean indicating if the monitorConnection loop should stop.
 func (m *Multiplexer) handleHeartbeatTick(
@@ -733,19 +761,26 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	conn.mu.RLock()
 	client := conn.Client
 	token := conn.Token
+	resourceVersion := conn.resourceVersion
+	resourceVersionExpired := conn.resourceVersionExpired
 	conn.mu.RUnlock()
 
 	newConn, err := m.dialClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
-		conn.Query,
+		resumeWatchQuery(conn.Query, resourceVersion, resourceVersionExpired),
 		client,
 		token,
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	// Keep the query the client subscribed with, so its messages still route to it.
+	newConn.Query = conn.Query
+	newConn.resourceVersion = resourceVersion
+	newConn.resourceVersionExpired = resourceVersionExpired
 
 	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
@@ -1111,10 +1146,13 @@ func (m *Multiplexer) processClusterMessage(
 // Using a typed struct instead of map[string]interface{} avoids reflect-heavy
 // decoding and reduces allocations by skipping per-field map/interface values.
 type resourceVersionExtractor struct {
+	Type     string `json:"type"`
 	Metadata struct {
 		ResourceVersion string `json:"resourceVersion"`
 	} `json:"metadata"`
 	Object struct {
+		// Code is set on the Status object of a watch ERROR event.
+		Code     int `json:"code"`
 		Metadata struct {
 			ResourceVersion string `json:"resourceVersion"`
 		} `json:"metadata"`
@@ -1151,6 +1189,15 @@ func (m *Multiplexer) sendIfNewResourceVersion(
 		return nil
 	}
 
+	if ext.Type == "ERROR" && ext.Object.Code == http.StatusGone {
+		conn.mu.Lock()
+		conn.resourceVersion = ""
+		conn.resourceVersionExpired = true
+		conn.mu.Unlock()
+
+		return nil
+	}
+
 	// Try to find resourceVersion directly in metadata, then fall back to object.metadata
 	rv := ext.Metadata.ResourceVersion
 	if rv == "" {
@@ -1165,6 +1212,11 @@ func (m *Multiplexer) sendIfNewResourceVersion(
 	// Update version and send complete message if version is different
 	if rv != *lastResourceVersion {
 		*lastResourceVersion = rv
+
+		conn.mu.Lock()
+		conn.resourceVersion = rv
+		conn.resourceVersionExpired = false
+		conn.mu.Unlock()
 
 		return m.sendCompleteMessage(conn, clientConn)
 	}
