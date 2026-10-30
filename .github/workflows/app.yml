@@ -8,6 +8,7 @@ on:
     - '.github/**'
     - 'app/**'
     - 'backend/**'
+    - 'tools/run-backend.js'
   push:
     branches:
       - main
@@ -19,6 +20,7 @@ on:
     - '.github/**'
     - 'app/**'
     - 'backend/**'
+    - 'tools/run-backend.js'
 
 permissions:
   contents: read

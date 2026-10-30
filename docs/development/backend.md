@@ -27,6 +27,9 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+The development launcher forwards `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGBREAK`
+to the backend, matching cross-env's signal handling.
+
 ## Backend token protection
 
 `HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend
@@ -116,6 +119,13 @@ npm run backend:format
 
 ```bash
 npm run backend:test
+```
+
+The development launcher's signal forwarding is tested by the app unit tests
+(`app/electron/run-backend.test.ts`):
+
+```bash
+npm run app:test:unit
 ```
 
 Test coverage with a html report in the browser.
