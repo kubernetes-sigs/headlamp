@@ -336,6 +336,102 @@ describe('Pod class', () => {
 
       cancel();
     });
+    describe('follow reconnects', () => {
+      const lost = (attempt: number) =>
+        `\n\x1b[33m[Connection lost. Reconnecting... (attempt ${attempt}/5)]\x1b[0m\n`;
+      const reconnected = '\n\x1b[32m[Reconnected!]\x1b[0m\n';
+
+      function startLogs(options: { showTimestamps?: boolean; follow?: boolean } = {}) {
+        vi.useFakeTimers();
+        const urls: string[] = [];
+        let onResults: any = null;
+        let failCb: any = null;
+        vi.mocked(stream).mockImplementation((url, cb, args) => {
+          urls.push(url);
+          onResults = cb;
+          failCb = args?.failCb;
+          return { cancel: vi.fn(), getSocket: vi.fn(() => null) };
+        });
+        const onLogs = vi.fn();
+        const cancel = new Pod(mockPodData as any).getLogs('container-1', onLogs, {
+          follow: true,
+          ...options,
+        });
+        return {
+          urls,
+          send: (text: string) => onResults(Base64.encode(text)),
+          reconnect: () => {
+            failCb();
+            vi.advanceTimersByTime(3000);
+          },
+          shown: () => onLogs.mock.lastCall?.[0].logs.join(''),
+          stop: () => {
+            cancel();
+            vi.useRealTimers();
+          },
+        };
+      }
+
+      it('strips only the requested timestamp prefix', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z   indented\r\n');
+        expect(logs.shown()).toBe('  indented\r\n');
+        logs.stop();
+      });
+
+      it('keeps application timestamps when no prefix was requested', () => {
+        const logs = startLogs({ follow: false });
+        expect(logs.urls[0]).toContain('timestamps=false');
+        logs.send('2026-06-30T10:00:00Z app message\n');
+        expect(logs.shown()).toBe('2026-06-30T10:00:00Z app message\n');
+        logs.stop();
+      });
+
+      it('does not reset the retry budget for replayed records', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z line 1\n');
+        logs.reconnect();
+        logs.send('2026-06-30T10:00:00.1Z line 1\n');
+        logs.reconnect();
+        expect(logs.shown()).toBe('line 1\n' + lost(1) + reconnected + lost(2));
+        logs.stop();
+      });
+
+      it('shows an unterminated fragment and completes it after a reconnect', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z line 1\n2026-06-30T10:00:00.2Z par');
+        expect(logs.shown()).toBe('line 1\npar');
+        logs.send('t');
+        expect(logs.shown()).toBe('line 1\npart');
+
+        logs.reconnect();
+        expect(logs.urls[1]).toContain('sinceTime=2026-06-30T10%3A00%3A00.1Z');
+        logs.send('2026-06-30T10:00:00.1Z line 1\n2026-06-30T10:00:00.2Z partial\n');
+        expect(logs.shown()).toBe('line 1\npart' + lost(1) + reconnected + 'ial\n');
+        logs.stop();
+      });
+
+      it('suppresses a replay that spans several callbacks', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z a\n2026-06-30T10:00:00.2Z b\n');
+        logs.reconnect();
+        // The kubelet resumes from the start of the second, replaying both records.
+        logs.send('2026-06-30T10:00:00.1Z a\n');
+        logs.send('2026-06-30T10:00:00.2Z b\n2026-06-30T10:00:01Z c\n');
+        expect(logs.shown()).toBe('a\nb\n' + lost(1) + reconnected + 'c\n');
+        logs.stop();
+      });
+
+      it('drops replayed records when the saved boundary is gone', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.5Z b\n');
+        logs.reconnect();
+        logs.send('2026-06-30T10:00:00.1Z rotated\n2026-06-30T10:00:00.50Z other\n');
+        logs.send('2026-06-30T10:00:00.51Z c\n');
+        expect(logs.shown()).toBe('b\n' + lost(1) + reconnected + 'c\n');
+        logs.stop();
+      });
+    });
   });
 });
 

@@ -276,10 +276,18 @@ class Pod extends KubeObject<KubePod> {
     let activeCancel: (() => void) | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let partialLineBuffer = '';
+    // Display text and raw text of an unterminated record already rendered before it completed.
+    let shownPartial = '';
+    let shownPartialRaw = '';
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     let lastProcessedLine = '';
-    let isFirstResultOfStream = true;
+    // True after a reconnect until the records replayed from sinceTime have been skipped.
+    let isReplaying = false;
+    // Kubernetes only prefixes records with a timestamp when it was requested.
+    const hasTimestampPrefix = follow || showTimestamps;
+    const timestampPrefix =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})) /;
 
     function unescapeStringLiterals(str: string): string {
       return str
@@ -320,30 +328,62 @@ class Pod extends KubeObject<KubePod> {
       }
     }
 
-    function processLogLines(lines: string[]): string[] {
-      return lines.map(line => {
-        let processed = line;
-        const match = line.match(
-          /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s+(.*)$/
-        );
-        if (match) {
-          lastTimestamp = match[1];
-          if (!showTimestamps) {
-            processed = match[2];
-          }
-        }
+    function splitTimestamp(line: string): [timestamp: string, text: string] {
+      const match = hasTimestampPrefix ? line.match(timestampPrefix) : null;
+      return match ? [match[1], line.slice(match[0].length)] : ['', line];
+    }
 
-        // Check if this line contains JSON
-        const trimmed = processed.trim();
-        const jsonMatch = trimmed.match(/(\{.*\})/);
-        if (jsonMatch) {
-          hasJsonLogs = true;
-          if (prettifyLogs) {
-            processed = prettifyLogLine(processed);
-          }
+    function displayLine(line: string, allowPrettify: boolean): string {
+      let processed = showTimestamps ? line : splitTimestamp(line)[1];
+
+      // Check if this line contains JSON
+      if (processed.trim().match(/(\{.*\})/)) {
+        hasJsonLogs = true;
+        if (prettifyLogs && allowPrettify) {
+          processed = prettifyLogLine(processed);
         }
-        return processed + '\n';
-      });
+      }
+      return processed;
+    }
+
+    /** Splits an RFC 3339 timestamp so it can be ordered at nanosecond precision. */
+    function timestampKey(timestamp: string): [seconds: number, fraction: string] {
+      const [, seconds, fraction = '', zone] =
+        timestamp.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/) || [];
+      return [Date.parse(seconds + zone), fraction.padEnd(9, '0')];
+    }
+
+    function isAfterResumePoint(timestamp: string): boolean {
+      const [seconds, fraction] = timestampKey(timestamp);
+      const [lastSeconds, lastFraction] = timestampKey(lastTimestamp);
+      return seconds !== lastSeconds ? seconds > lastSeconds : fraction > lastFraction;
+    }
+
+    /**
+     * Reports whether a record is part of the replay a reconnect receives. sinceTime is
+     * sent to the kubelet with second precision, so the replay can start with records
+     * from earlier in that second and may span several callbacks.
+     */
+    function isReplayed(line: string): boolean {
+      if (!isReplaying) return false;
+      if (line === lastProcessedLine) {
+        isReplaying = false;
+        return true;
+      }
+      // Fall back to the timestamp when the last rendered record is no longer available.
+      const [timestamp] = splitTimestamp(line);
+      if (timestamp && !isAfterResumePoint(timestamp)) return true;
+      isReplaying = false;
+      return false;
+    }
+
+    /** Returns the part of a record's display text that is not rendered yet. */
+    function unshown(line: string, text: string): string {
+      if (!shownPartial) return text;
+      if (line.startsWith(shownPartialRaw)) return text.slice(shownPartial.length);
+      if (shownPartialRaw.startsWith(line)) return '';
+      // The rendered fragment never completed, so end it before the next record.
+      return '\n' + text;
     }
 
     function onResults(item: string) {
@@ -352,34 +392,47 @@ class Pod extends KubeObject<KubePod> {
       const decodedLog = Base64.decode(item);
       if (!decodedLog) return;
 
-      reconnectAttempts = 0; // Reset attempts on successful data receive
-
-      const fullContent = partialLineBuffer + decodedLog;
-      const linesList = fullContent.split('\n');
+      const linesList = (partialLineBuffer + decodedLog).split('\n');
 
       // The last element is either empty (if it ended with \n) or the partial line
       partialLineBuffer = linesList.pop() || '';
 
-      if (linesList.length === 0) return;
+      const newLines = linesList.filter(line => !isReplayed(line));
+      const rendered: string[] = [];
 
-      if (isFirstResultOfStream) {
-        isFirstResultOfStream = false;
-        if (lastTimestamp && lastProcessedLine) {
-          const duplicateIdx = linesList.indexOf(lastProcessedLine);
-          if (duplicateIdx >= 0) {
-            // Drop everything up to and including the last line we already rendered.
-            linesList.splice(0, duplicateIdx + 1);
-          }
+      for (const line of newLines) {
+        rendered.push(unshown(line, displayLine(line, !shownPartial) + '\n'));
+        shownPartial = '';
+        shownPartialRaw = '';
+      }
+
+      if (newLines.length > 0) {
+        // Only records that survive replay suppression count as progress.
+        reconnectAttempts = 0;
+        lastProcessedLine = newLines[newLines.length - 1];
+        lastTimestamp = splitTimestamp(lastProcessedLine)[0] || lastTimestamp;
+      }
+
+      // Render a followed record before its newline arrives, without making it the resume point.
+      if (
+        follow &&
+        partialLineBuffer &&
+        !isReplaying &&
+        (!hasTimestampPrefix || timestampPrefix.test(partialLineBuffer))
+      ) {
+        const text = displayLine(partialLineBuffer, false);
+        const pending = unshown(partialLineBuffer, text);
+        if (pending) {
+          rendered.push(pending);
+          shownPartial = text;
+          shownPartialRaw = partialLineBuffer;
         }
       }
 
-      if (linesList.length === 0) return;
+      const toRender = rendered.filter(Boolean);
+      if (toRender.length === 0) return;
 
-      lastProcessedLine = linesList[linesList.length - 1];
-
-      const processedLines = processLogLines(linesList);
-
-      logs.push(...processedLines);
+      logs.push(...toRender);
       onLogs({ logs, hasJsonLogs });
     }
 
@@ -396,8 +449,8 @@ class Pod extends KubeObject<KubePod> {
         currentUrl += `&tailLines=${tailLines}`;
       }
 
-      isFirstResultOfStream = true;
       const isReconnectAttempt = Boolean(lastTimestamp);
+      isReplaying = isReconnectAttempt;
       let reconnectBannerShown = false;
 
       const { cancel } = stream(
@@ -420,13 +473,13 @@ class Pod extends KubeObject<KubePod> {
             if (!follow) {
               // Flush a final log line that arrived without a trailing newline.
               if (partialLineBuffer) {
-                logs.push(...processLogLines([partialLineBuffer]));
+                logs.push(displayLine(partialLineBuffer, true) + '\n');
                 partialLineBuffer = '';
                 onLogs({ logs, hasJsonLogs });
               }
               return;
             }
-            // Drop any partial line fragment so we don't corrupt the first line after reconnect.
+            // The reconnect replays this record in full; shownPartial tracks what is already rendered.
             partialLineBuffer = '';
 
             if (reconnectAttempts < maxReconnectAttempts) {
