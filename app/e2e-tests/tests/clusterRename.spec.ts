@@ -21,6 +21,7 @@ import os from 'os';
 import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
+import { dismissWelcome } from './welcome';
 
 // Electron setup
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
@@ -98,6 +99,7 @@ test.beforeAll(async () => {
   });
 
   electronPage = await electronApp.firstWindow();
+  await dismissWelcome(electronPage);
 });
 
 // The app holds a single-instance lock, so it must be closed or the next spec

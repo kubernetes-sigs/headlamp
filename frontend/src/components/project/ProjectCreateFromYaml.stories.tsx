@@ -52,6 +52,7 @@ const makeStore = () => {
           sidebarSortAlphabetically: false,
           useEvict: true,
           expandLargeGraph: false,
+          tutorialTooltips: true,
         },
       },
       projects: {

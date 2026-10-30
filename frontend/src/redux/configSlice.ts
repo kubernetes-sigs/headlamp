@@ -89,6 +89,10 @@ export interface ConfigState {
     sidebarSortAlphabetically: boolean;
     useEvict: boolean;
     expandLargeGraph: boolean;
+    /**
+     * tutorialTooltips shows guided tooltips that help new users navigate Headlamp.
+     */
+    tutorialTooltips: boolean;
     [key: string]: any;
   };
   /**
@@ -159,6 +163,9 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.expandLargeGraph)) {
       sanitizedSettings.expandLargeGraph = parsedSettings.expandLargeGraph;
     }
+    if (isBoolean(parsedSettings.tutorialTooltips)) {
+      sanitizedSettings.tutorialTooltips = parsedSettings.tutorialTooltips;
+    }
 
     return sanitizedSettings;
   } catch {
@@ -185,6 +192,7 @@ export const initialState: ConfigState = {
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
     expandLargeGraph: storedSettings.expandLargeGraph ?? false,
     useEvict: storedSettings.useEvict ?? true,
+    tutorialTooltips: storedSettings.tutorialTooltips ?? true,
   },
 };
 

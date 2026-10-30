@@ -32,6 +32,7 @@ import ActionButton from '../../common/ActionButton';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
+import { useGuidedTooltips } from '../../common/Tooltip/GuidedTooltip';
 import { PreferredThemeSelectors } from '../../Sidebar/ThemeToggleButton/PreferredThemeSelectors';
 import { rememberThemeChoiceIfEnabled } from '../../Sidebar/ThemeToggleButton/ThemeToggleButton';
 import { setTheme, useAppThemes } from '../themeSlice';
@@ -61,6 +62,7 @@ export default function Settings() {
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
   const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const tutorialTooltips = useGuidedTooltips();
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SETTINGS_VIEW);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function Settings() {
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
   const expandGraphID = 'expand-graph-label';
+  const tutorialTooltipsID = 'tutorial-tooltips-label';
 
   return (
     <SectionBox
@@ -238,6 +241,20 @@ export default function Settings() {
               />
             ),
             nameID: expandGraphID,
+          },
+          {
+            name: t('translation|Enable guided tooltips'),
+            value: (
+              <Switch
+                color="primary"
+                checked={tutorialTooltips}
+                onChange={e => dispatch(setAppSettings({ tutorialTooltips: e.target.checked }))}
+                inputProps={{
+                  'aria-labelledby': tutorialTooltipsID,
+                }}
+              />
+            ),
+            nameID: tutorialTooltipsID,
           },
         ]}
       />

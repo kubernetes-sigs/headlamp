@@ -19,6 +19,7 @@ import { devices } from '@playwright/test';
 
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim();
 const pomeriumDexHost = process.env.HEADLAMP_POMERIUM_DEX_HOST;
+const baseURL = process.env.HEADLAMP_TEST_URL || 'http://localhost:3000';
 
 /**
  * Read environment variables from file.
@@ -56,7 +57,19 @@ const config: PlaywrightTestConfig = {
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.HEADLAMP_TEST_URL || 'http://localhost:3000',
+    baseURL,
+
+    /* Every context starts with the first-run Welcome dialog dismissed, so its modal
+     * doesn't block other flows. tests/welcome.spec.ts covers the dialog itself. */
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: new URL(baseURL).origin,
+          localStorage: [{ name: 'headlamp.welcome.dismissed', value: 'true' }],
+        },
+      ],
+    },
 
     ignoreHTTPSErrors: process.env.HEADLAMP_POMERIUM_E2E === 'true',
 
