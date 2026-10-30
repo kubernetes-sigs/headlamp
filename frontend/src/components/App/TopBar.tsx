@@ -37,6 +37,8 @@ import { getDisplayVersion, getProductName } from '../../helpers/getProductInfo'
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { ClusterUserInfo, getClusterUserInfo } from '../../lib/k8s/api/v1/clusterApi';
+import { canLogoutFromProvider } from '../../lib/k8s/clusterAuthType';
+import { redirectToOIDCLogout } from '../../lib/oidcLogout';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import {
   AppBarAction,
@@ -118,23 +120,37 @@ export default function TopBar({}: TopBarProps) {
   // The logout callback
   const logoutCallback = useCallback(
     async (clusterToLogout?: string) => {
-      if (clusterToLogout) {
-        await logout(clusterToLogout);
-      } else {
-        if (selectedClusters.length > 0) {
-          await Promise.all(
-            selectedClusters.map(async c => {
-              await logout(c);
-            })
-          );
-        } else if (cluster) {
-          await logout(cluster);
-        }
+      const clustersToLogout = clusterToLogout
+        ? [clusterToLogout]
+        : selectedClusters.length > 0
+        ? selectedClusters
+        : cluster
+        ? [cluster]
+        : [];
+      const oidcClusterToRedirect = clustersToLogout.find(canLogoutFromProvider);
+      const results = await Promise.allSettled(
+        clustersToLogout.map(clusterName => logout(clusterName, true))
+      );
+
+      const failures = results.flatMap((result, index) =>
+        result.status === 'rejected' && clustersToLogout[index] !== oidcClusterToRedirect
+          ? [result.reason]
+          : []
+      );
+      if (!oidcClusterToRedirect && failures.length > 0) {
+        throw new AggregateError(failures, 'Failed to clear one or more cluster tokens');
       }
 
       handleLogoutPathUpdate(clusterToLogout, history.location.pathname, (path: string) =>
         history.push(path)
       );
+
+      if (oidcClusterToRedirect) {
+        await redirectToOIDCLogout(oidcClusterToRedirect);
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Failed to clear one or more cluster tokens');
+      }
     },
     [cluster, selectedClusters, history]
   );
@@ -276,7 +292,7 @@ export const PureTopBar = memo(
   ({
     appBarActions,
     appBarActionsProcessors = [],
-    logout,
+    logout: onLogout,
     cluster,
     selectedClusters,
     clusters,
@@ -359,7 +375,7 @@ export const PureTopBar = memo(
       >
         <MenuItem
           onClick={async () => {
-            await logout();
+            await onLogout();
             handleMenuClose();
           }}
         >

@@ -88,6 +88,24 @@ export interface Activity {
   temporary?: boolean;
   /** Cluster of the launched activity */
   cluster?: string;
+  /**
+   * Optional tag identifying the kind of activity. `'details'` marks a
+   * resource-details drawer so that navigation-driven minimize and the
+   * skip of click-outside close only apply to that flow, not to unrelated
+   * temporary or split-right activities launched by plugins.
+   */
+  kind?: 'details';
+  /**
+   * Optional close interceptor. When set, user-initiated close actions
+   * (the title-bar X, the taskbar close buttons, Close All and clicking
+   * outside a temporary activity) call this
+   * instead of closing the activity directly, so the content can e.g. ask
+   * for confirmation about unsaved changes. The handler is then responsible
+   * for eventually calling Activity.close(id) itself. Programmatic
+   * Activity.close() calls are unaffected, and temporary activities are
+   * still replaced without calling this when another activity launches.
+   */
+  onCloseRequest?: () => void;
 }
 
 export const Activity = {
@@ -98,6 +116,18 @@ export const Activity = {
   /** Closes activity */
   close(id: string) {
     store.dispatch(activitySlice.actions.close(id));
+  },
+  /**
+   * Closes the activity unless it has an onCloseRequest handler, in which
+   * case the handler is called and decides whether/when to close.
+   */
+  requestClose(id: string) {
+    const activity = store.getState().activity.activities[id];
+    if (activity?.onCloseRequest) {
+      activity.onCloseRequest();
+    } else {
+      Activity.close(id);
+    }
   },
   /** Update existing activity with a partial changes */
   update(id: string, diff: Partial<Activity>) {
@@ -325,6 +355,11 @@ export function SingleActivityRenderer({
     !!selectedResource && isDetailDrawerEnabled && !isDetailsDrawerSmallScreen;
 
   useEffect(() => {
+    // Details drawers use the navigation-driven minimize flow instead of
+    // click-outside close, so a sidebar click doesn't destroy them and the
+    // user always gets a taskbar entry regardless of the drawer position.
+    const isDetailsActivity = activity.kind === 'details';
+
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
       const isClickInside = activityElementRef.current?.contains(target);
@@ -337,18 +372,18 @@ export function SingleActivityRenderer({
         !isClickInside &&
         !isDetailsDrawerOpen
       ) {
-        Activity.close(id);
+        Activity.requestClose(id);
       }
     }
 
-    if (activity.temporary && !minimized && !isOverview) {
+    if (activity.temporary && !minimized && !isOverview && !isDetailsActivity) {
       document.addEventListener('mousedown', handleClickOutside);
 
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [activity.temporary, minimized, isOverview, id, location, isDetailsDrawerOpen]);
+  }, [activity.temporary, activity.kind, minimized, isOverview, id, location, isDetailsDrawerOpen]);
 
   return (
     <ActivityContext.Provider value={activity}>
@@ -368,7 +403,9 @@ export function SingleActivityRenderer({
               e.stopPropagation();
               e.preventDefault();
             }
-            Activity.update(id, { temporary: false });
+            // Keep the current minimized state: pointer events from portaled
+            // content (e.g. a confirmation dialog) must not refocus a hidden activity.
+            Activity.update(id, { temporary: false, minimized });
             onClick(e);
           }}
           sx={theme => ({
@@ -733,7 +770,11 @@ export function SingleActivityRenderer({
                   >
                     <Icon icon="mdi:minimize" />
                   </IconButton>
-                  <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
+                  <IconButton
+                    onClick={() => Activity.requestClose(id)}
+                    size="small"
+                    title={t('Close')}
+                  >
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </>
@@ -1043,8 +1084,11 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const location = useLocation();
   const locationRef = useRef(location.pathname);
 
-  // Minimize activities that block the main content on route change.
-  // Right-side activities are kept visible since they leave main content visible.
+  // Route-change minimize: give resource-details drawers a taskbar entry
+  // instead of letting them silently vanish. Applies to any drawer position
+  // (right/left/bottom) for consistency. Unrelated activities that block
+  // the main content still minimize as before; ordinary right-side plugin
+  // activities are left visible.
   useEffect(() => {
     activities.forEach(activity => {
       // If we were triggered just because of the activities changing but the
@@ -1053,11 +1097,10 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
         return;
       }
 
-      if (
-        activity.location !== 'split-right' &&
-        activity.location !== 'split-right-wide' &&
-        !activity.minimized
-      ) {
+      const isDetails = activity.kind === 'details';
+      const blocksMainContent =
+        activity.location !== 'split-right' && activity.location !== 'split-right-wide';
+      if ((isDetails || blocksMainContent) && !activity.minimized) {
         Activity.update(activity.id, { minimized: true });
       }
     });
@@ -1149,7 +1192,9 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
             variant="contained"
             startIcon={<Icon icon="mdi:close-box-multiple-outline" />}
             onClick={() => {
-              Activity.reset();
+              // Not Activity.reset(): each activity's close guard must get a
+              // chance to intercept, e.g. to confirm discarding unsaved edits.
+              activities.forEach(it => Activity.requestClose(it.id));
               setIsOverview(false);
             }}
             sx={{
@@ -1233,7 +1278,7 @@ export const ActivityBar = React.memo(function ({
             }}
             onMouseDown={e => {
               if (e.button === 1) {
-                Activity.close(it.id);
+                Activity.requestClose(it.id);
               }
             }}
           >
@@ -1299,7 +1344,7 @@ export const ActivityBar = React.memo(function ({
             onClick={e => {
               e.preventDefault();
               e.stopPropagation();
-              Activity.close(it.id);
+              Activity.requestClose(it.id);
             }}
             sx={{ width: '42px', height: '100%', borderRadius: 1, flexShrink: 0 }}
             aria-label={t('Close')}

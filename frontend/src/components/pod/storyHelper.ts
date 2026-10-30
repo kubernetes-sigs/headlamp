@@ -774,3 +774,32 @@ export const podList: KubePod[] = [
   nominatedNode,
   readinessGate,
 ];
+
+export const podWithResourceClaims: KubePod = {
+  ...running,
+  metadata: { ...running.metadata, name: 'trainer-0', uid: 'trainer-0-uid' },
+  spec: {
+    ...running.spec,
+    resourceClaims: [
+      { name: 'shared', resourceClaimName: 'shared-gpu' },
+      { name: 'gpu', resourceClaimTemplateName: 'single-gpu' },
+      { name: 'scratch', resourceClaimTemplateName: 'scratch-nvme' },
+    ],
+    containers: running.spec.containers.map(container => ({
+      ...container,
+      resources: { claims: [{ name: 'shared' }, { name: 'gpu' }] },
+    })),
+  },
+  status: {
+    ...running.status,
+    resourceClaimStatuses: [{ name: 'gpu', resourceClaimName: 'trainer-0-gpu-x7k2q' }],
+    extendedResourceClaimStatus: {
+      resourceClaimName: 'trainer-0-extended-resources-p26fr',
+      requestMappings: running.spec.containers.map(container => ({
+        containerName: container.name,
+        resourceName: 'example.com/gpu',
+        requestName: 'container-0',
+      })),
+    },
+  },
+} as KubePod;

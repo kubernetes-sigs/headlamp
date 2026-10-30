@@ -25,6 +25,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { ReactNode, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShortcut } from '../../lib/useShortcut';
@@ -66,6 +67,7 @@ export function LogViewer(props: LogViewerProps) {
     ...other
   } = props;
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const muiTheme = useTheme();
   const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
   const xtermRef = React.useRef<XTerminal | null>(null);
@@ -89,6 +91,66 @@ export function LogViewer(props: LogViewerProps) {
     // Required for FireFox
     document.body.appendChild(element);
     element.click();
+  }
+
+  /** Reads back what's actually rendered in the terminal, so filtering/formatting applied by callers (e.g. severity filters) is preserved in the copy. Falls back to the raw logs if the terminal isn't available. */
+  function getRenderedLogsText() {
+    const buffer = xtermRef.current?.buffer?.active;
+    if (!buffer) {
+      return logs.join('');
+    }
+
+    // Rows below the cursor are the unused viewport unless they hold text (for
+    // example after a cursor-up escape), so extend to the last populated row but
+    // never stop before the cursor row, which keeps a trailing newline.
+    let lastRow = buffer.baseY + buffer.cursorY;
+    for (let i = buffer.length - 1; i > lastRow; i--) {
+      if (buffer.getLine(i)?.translateToString(true)) {
+        lastRow = i;
+        break;
+      }
+    }
+
+    const lines: string[] = [];
+    for (let i = 0; i <= lastRow; i++) {
+      const line = buffer.getLine(i);
+      // Only trim the last physical row of a logical line so spaces at a wrap
+      // boundary survive when the rows are joined back together.
+      const continuesOnNextRow = buffer.getLine(i + 1)?.isWrapped ?? false;
+      const text = line?.translateToString(!continuesOnNextRow) ?? '';
+      if (line?.isWrapped && lines.length > 0) {
+        lines[lines.length - 1] += text;
+      } else {
+        lines.push(text);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  async function copyLogs() {
+    const text = getRenderedLogsText();
+
+    if (!navigator.clipboard) {
+      console.error(
+        'Failed to copy logs to clipboard: navigator.clipboard is unavailable (Headlamp is likely being served over an insecure, non-HTTPS connection).'
+      );
+      enqueueSnackbar(
+        t(
+          'translation|Clipboard is not available. This can happen when Headlamp is served over an insecure (non-HTTPS) connection.'
+        ),
+        { variant: 'error' }
+      );
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      enqueueSnackbar(t('translation|Copied to clipboard'), { variant: 'success' });
+    } catch (err) {
+      console.error('Failed to copy logs to clipboard:', err);
+      enqueueSnackbar(t('translation|Failed to copy to clipboard'), { variant: 'error' });
+    }
   }
 
   React.useEffect(() => {
@@ -216,6 +278,13 @@ export function LogViewer(props: LogViewerProps) {
             icon="mdi:file-download-outline"
           />
         </Grid>
+        <Grid item xs>
+          <ActionButton
+            description={t('translation|Copy to clipboard')}
+            onClick={copyLogs}
+            icon="mdi:content-copy"
+          />
+        </Grid>
       </Grid>
       <Box
         sx={theme => ({
@@ -334,6 +403,11 @@ export function SearchPopover(props: SearchPopoverProps) {
       return;
     }
 
+    // findNext emits results synchronously, so subscribe before starting the search.
+    const disposable = searchAddonRef.current?.onDidChangeResults(args => {
+      setSearchResult(args);
+    });
+
     try {
       searchAddonRef.current?.findNext(searchText, {
         regex: regexChecked,
@@ -346,10 +420,6 @@ export function SearchPopover(props: SearchPopoverProps) {
       console.error('Error searching logs: ', e);
       searchAddonRef.current?.findNext('');
     }
-
-    const disposable = searchAddonRef.current?.onDidChangeResults(args => {
-      setSearchResult(args);
-    });
 
     return function cleanup() {
       disposable?.dispose();

@@ -25,13 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: write # needed for publishing the container image
+      id-token: write # needed for cosign keyless signing via GitHub OIDC
     steps:
     - name: Check out the repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
     - name: Figure out the tag based on event trigger
       env:
         TRIGGER: ${{ github.event_name }}
@@ -44,8 +45,8 @@ jobs:
             CONTAINER_TAGS=$BUILD_TAG
           fi
         else
-          # on push to a tag, use the latest tag starting with v and latest as the build tag
-          BUILD_TAG="$(git tag --list --sort=version:refname 'v*' | tail -1)"
+          # on push to a tag, build the tag that triggered this run (and tag it latest)
+          BUILD_TAG="$GITHUB_REF_NAME"
           if [ -z $CONTAINER_TAGS ]; then
             CONTAINER_TAGS="$BUILD_TAG,latest"
           fi
@@ -72,13 +73,14 @@ jobs:
         git checkout ${{ env.BUILD_TAG }}
         echo "HEADLAMP_SOURCE_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
     - name: Log in to the Container registry
-      uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GHCR_IMAGES }}
     - name: Build and push Docker image
-      uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9 # v4.2.1
+      id: build
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: .
         build-args: |
@@ -91,3 +93,18 @@ jobs:
         provenance: true
         cache-from: type=gha
         cache-to: type=gha,mode=max
+    # Only sign images built by a release tag push. Manual (workflow_dispatch)
+    # runs can be launched from a tag while building any buildTag, so they must
+    # not produce an image that passes the documented verification.
+    - name: Install Cosign
+      if: github.event_name == 'push' && github.ref_type == 'tag'
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+    - name: Check Cosign install
+      if: github.event_name == 'push' && github.ref_type == 'tag'
+      run: cosign version
+    - name: Sign the container image with cosign (keyless)
+      if: github.event_name == 'push' && github.ref_type == 'tag'
+      env:
+        DIGEST: ${{ steps.build.outputs.digest }}
+      run: |
+        cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"

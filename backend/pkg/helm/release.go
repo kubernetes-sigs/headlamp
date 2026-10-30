@@ -225,6 +225,12 @@ func decodeGetReleaseRequest(r *http.Request) (GetReleaseRequest, error) {
 	return req, req.Validate()
 }
 
+func releaseExists(actionConfig *action.Configuration, name string) error {
+	_, err := actionConfig.Releases.Last(name)
+
+	return err
+}
+
 func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req, err := decodeGetReleaseRequest(r)
@@ -246,7 +252,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	err = releaseExists(actionConfig, req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetRelease},
 			err, "release not found")
@@ -313,7 +319,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	err = releaseExists(actionConfig, req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetReleaseHistory},
 			err, "release not found")
@@ -392,7 +398,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	err = releaseExists(actionConfig, req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opUninstallRelease},
 			err, "release not found")
@@ -489,7 +495,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	err = releaseExists(actionConfig, req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name},
 			err, "release not found")
@@ -809,7 +815,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
+	err = releaseExists(actionConfig, req.Name)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
 		return

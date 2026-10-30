@@ -25,12 +25,14 @@ import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
+import CompositePodGroup from './compositePodGroup';
 import ConfigMap from './configMap';
 import ControllerRevision from './controllerRevision';
 import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
+import DeviceClass from './deviceClass';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
@@ -55,6 +57,8 @@ import PodDisruptionBudget from './podDisruptionBudget';
 import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
 import ReplicaSet from './replicaSet';
+import ResourceClaim from './resourceClaim';
+import ResourceClaimTemplate from './resourceClaimTemplate';
 import ResourceQuota from './resourceQuota';
 import Role from './role';
 import RoleBinding from './roleBinding';
@@ -78,6 +82,7 @@ export const ResourceClasses = {
   CronJob,
   DaemonSet,
   Deployment,
+  DeviceClass,
   Endpoint: Endpoints,
   Endpoints,
   EndpointSlice,
@@ -87,6 +92,7 @@ export const ResourceClasses = {
   HorizontalPodAutoscaler: HPA,
   PodDisruptionBudget,
   PodGroup,
+  CompositePodGroup,
   PriorityClass,
   Ingress,
   IngressClass,
@@ -100,6 +106,8 @@ export const ResourceClasses = {
   PersistentVolumeClaim,
   Pod,
   ReplicaSet,
+  ResourceClaim,
+  ResourceClaimTemplate,
   Role,
   RoleBinding,
   RuntimeClass,
@@ -359,6 +367,7 @@ export * as cronJob from './cronJob';
 export * as controllerRevision from './controllerRevision';
 export * as daemonSet from './daemonSet';
 export * as deployment from './deployment';
+export * as deviceClass from './deviceClass';
 export * as event from './event';
 export * as ingress from './ingress';
 export * as ingressClass from './ingressClass';
@@ -370,7 +379,10 @@ export * as node from './node';
 export * as persistentVolume from './persistentVolume';
 export * as persistentVolumeClaim from './persistentVolumeClaim';
 export * as pod from './pod';
+export * as compositePodGroup from './compositePodGroup';
 export * as podGroup from './podGroup';
+export * as resourceClaim from './resourceClaim';
+export * as resourceClaimTemplate from './resourceClaimTemplate';
 export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';
 export * as role from './role';

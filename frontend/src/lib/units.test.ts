@@ -15,7 +15,14 @@
  */
 
 import * as fc from 'fast-check';
-import { divideK8sResources, parseCpu, parseRam, unparseCpu, unparseRam } from './units';
+import {
+  divideK8sResources,
+  parseCpu,
+  parseDiskSpace,
+  parseRam,
+  unparseCpu,
+  unparseRam,
+} from './units';
 
 describe('parseRam', () => {
   it('should parse simple numbers', () => {
@@ -39,12 +46,53 @@ describe('parseRam', () => {
     expect(parseRam('1000m')).toBe(1);
     expect(parseRam('11973899059200m')).toBe(11973899059.2);
     expect(parseRam('14712779571200m')).toBe(14712779571.2);
+    expect(parseRam('2687146666666m')).toBeCloseTo(2687146666.666, 3);
     expect(parseRam('1.5m')).toBeCloseTo(0.0015, 10);
+  });
+
+  it('should parse micro-bytes suffix (u)', () => {
+    expect(parseRam('1000000u')).toBe(1);
+    expect(parseRam('1000u')).toBe(0.001);
+    expect(parseRam('1.5u')).toBeCloseTo(0.0000015, 12);
+    expect(parseRam('0u')).toBe(0);
+  });
+
+  it('should parse nano-bytes suffix (n)', () => {
+    expect(parseRam('1000000000n')).toBe(1);
+    expect(parseRam('1000n')).toBe(0.000001);
+    expect(parseRam('1.5n')).toBeCloseTo(0.0000000015, 15);
+    expect(parseRam('0n')).toBe(0);
+  });
+
+  it.each<[string, number]>([
+    ['.5m', 0.0005],
+    ['.5u', 0.0000005],
+    ['.5n', 0.0000000005],
+    ['-1u', -0.000001],
+    ['+1u', 0.000001],
+    ['-.5u', -0.0000005],
+    ['+.5m', 0.0005],
+    ['1.u', 0.000001],
+  ])('should parse fractional byte quantity %s', (quantity, expected) => {
+    expect(parseRam(quantity)).toBe(expected);
+    expect(parseDiskSpace(quantity)).toBe(expected);
   });
 
   it('should parse exponential notation', () => {
     expect(parseRam('1e3')).toBe(1000);
     expect(parseRam('1e6')).toBe(1000000);
+  });
+
+  it('should parse the lowercase decimal kilo suffix', () => {
+    expect(parseRam('1k')).toBe(1000);
+    expect(parseRam('64k')).toBe(64000);
+    expect(parseRam('1.5k')).toBe(1500);
+  });
+
+  it('should not treat the lowercase ki as a binary suffix', () => {
+    // Kubernetes binary suffixes are Ki, Mi, Gi and so on. There is no
+    // lowercase ki, so it must not be read as 1024.
+    expect(parseRam('1ki')).toBe(1);
   });
 
   it('should parse decimal values with binary units', () => {
@@ -98,6 +146,14 @@ describe('parseRam', () => {
         expect(result).toBeGreaterThanOrEqual(0);
       })
     );
+  });
+});
+
+describe('parseDiskSpace', () => {
+  it('should use the same fractional byte scaling', () => {
+    expect(parseDiskSpace('1000m')).toBe(1);
+    expect(parseDiskSpace('1000000u')).toBe(1);
+    expect(parseDiskSpace('1000000000n')).toBe(1);
   });
 });
 
@@ -216,6 +272,25 @@ describe('divideK8sResources', () => {
   it('should handle mixed units', () => {
     // 1Gi = 1073741824 bytes, 1G = 1000000000 bytes
     expect(divideK8sResources('1Gi', '1G')).toBeCloseTo(1.073741824, 5);
+  });
+
+  it('should divide memory with milli, micro, and nano byte units', () => {
+    expect(divideK8sResources('1000m', '1', 'memory')).toBe(1);
+    expect(divideK8sResources('1000u', '1m', 'memory')).toBe(1);
+    expect(divideK8sResources('1000n', '1u', 'memory')).toBe(1);
+    expect(divideK8sResources('1', '1000m', 'memory')).toBe(1);
+  });
+
+  it('should divide fractional memory quantities with leading decimals and signs', () => {
+    expect(divideK8sResources('.5u', '1u')).toBe(0.5);
+    expect(divideK8sResources('1u', '+.5u')).toBe(2);
+    expect(divideK8sResources('-1u', '+1u')).toBe(-1);
+  });
+
+  it('should keep memory usage ratios consistent across metric formats', () => {
+    const expected = 2687146666.666 / (8 * 1024 ** 3);
+    expect(divideK8sResources('2687146666666m', '8Gi')).toBeCloseTo(expected, 10);
+    expect(divideK8sResources('2687146666.666', '8Gi')).toBeCloseTo(expected, 10);
   });
 
   it('should handle CPU units when resourceType is cpu', () => {

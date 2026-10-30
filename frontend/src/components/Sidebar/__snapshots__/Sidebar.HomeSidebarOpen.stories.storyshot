@@ -201,8 +201,19 @@
                     class="MuiBox-root css-0"
                   >
                     <div
-                      class="MuiBox-root css-s2uf1z"
+                      class="MuiBox-root css-pl9xhh"
                     >
+                      <button
+                        aria-label="Switch to dark mode"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
                       <button
                         aria-label="Shrink sidebar"
                         class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"

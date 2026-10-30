@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
-import { getClusterAuthType } from '../v1/clusterRequests';
+import { getClusterAuthType } from '../../clusterAuthType';
 import { BASE_HTTP_URL, clusterFetch } from './fetch';
 
 vi.mock('../../../auth', () => ({
@@ -35,7 +35,7 @@ vi.mock('../../../../stateless/getUserIdFromLocalStorage', () => ({
   getUserIdFromLocalStorage: vi.fn(),
 }));
 
-vi.mock('../v1/clusterRequests', () => ({
+vi.mock('../../clusterAuthType', () => ({
   getClusterAuthType: vi.fn(),
 }));
 

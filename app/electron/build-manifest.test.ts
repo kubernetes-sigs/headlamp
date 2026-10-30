@@ -439,6 +439,149 @@ describe('platform metadata', () => {
     });
     expect(config.mac).toMatchObject({ appId: 'io.example.headlamp' });
     expect(config.win).toMatchObject({ icon: 'build/icons/example.ico' });
+    expect(config).toMatchObject({
+      beforeBuild: expect.any(Function),
+      afterPack: expect.any(Function),
+      afterSign: expect.any(Function),
+      artifactBuildStarted: expect.any(Function),
+      artifactBuildCompleted: expect.any(Function),
+    });
+    expect(config).not.toHaveProperty('beforePack');
+  });
+
+  it('times assembly after backend completion and labels skipped signing as post-pack work', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    let now = Date.parse('2026-10-07T10:00:00.000Z');
+    let finishBackend!: () => void;
+    const existingBeforeBuild = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          finishBackend = resolve;
+        })
+    );
+    const existingAfterPack = vi.fn(async () => {});
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild,
+      existingAfterPack,
+      now: () => now,
+      log,
+    });
+
+    const backend = hooks.beforeBuild({} as Parameters<typeof hooks.beforeBuild>[0]);
+    expect(log).not.toHaveBeenCalled();
+    now += 2_000;
+    finishBackend();
+    await backend;
+    expect(log).toHaveBeenLastCalledWith(
+      '[build-timing] Electron app assembly started at 2026-10-07T10:00:02.000Z'
+    );
+
+    now += 3_000;
+    await hooks.afterPack({
+      arch: 'x64',
+      targets: [{ name: 'dmg' }],
+    } as unknown as Parameters<typeof hooks.afterPack>[0]);
+    expect(existingAfterPack).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith('[build-timing] Electron app assembly completed in 3.000s');
+    expect(log).toHaveBeenCalledWith(
+      '[build-timing] Electron post-pack processing started at 2026-10-07T10:00:05.000Z'
+    );
+
+    now += 1_000;
+    hooks.afterSign({ arch: 'x64' } as unknown as Parameters<typeof hooks.afterSign>[0]);
+    expect(log).toHaveBeenLastCalledWith(
+      '[build-timing] Electron post-pack processing completed in 1.000s'
+    );
+    expect(log.mock.calls.flat().join('\n')).not.toContain('signing');
+  });
+
+  it('reports only paired artifact completions and consumes their timing', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    let now = Date.parse('2026-10-07T10:00:00.000Z');
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild: vi.fn(),
+      existingAfterPack: vi.fn(),
+      now: () => now,
+      log,
+    });
+
+    hooks.artifactBuildStarted({
+      targetPresentableName: 'dmg',
+      file: '/tmp/headlamp.dmg',
+      arch: null,
+    });
+    now += 2_000;
+    hooks.artifactBuildCompleted({ file: '/tmp/unmatched.dmg', target: { name: 'dmg' } });
+    hooks.artifactBuildCompleted({ file: '/tmp/headlamp.dmg', target: { name: 'dmg' } });
+    hooks.artifactBuildCompleted({ file: '/tmp/headlamp.dmg', target: { name: 'dmg' } });
+
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenLastCalledWith(
+      '[build-timing] Electron artifact dmg completed in 2.000s'
+    );
+  });
+
+  it('completes Linux post-pack timing when each architecture starts its first artifact', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    let now = Date.parse('2026-10-07T10:00:00.000Z');
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild: vi.fn(),
+      existingAfterPack: vi.fn(),
+      now: () => now,
+      log,
+    });
+    const packContext = (arch: string) =>
+      ({ arch, targets: [{ name: 'AppImage' }] } as unknown as Parameters<
+        typeof hooks.afterPack
+      >[0]);
+
+    await hooks.afterPack(packContext('x64'));
+    now += 1_000;
+    await hooks.afterPack(packContext('arm64'));
+    now += 2_000;
+    hooks.artifactBuildStarted({
+      targetPresentableName: 'AppImage',
+      file: '/tmp/headlamp-x64.AppImage',
+      arch: 'x64',
+    });
+    now += 1_000;
+    hooks.artifactBuildStarted({
+      targetPresentableName: 'AppImage',
+      file: '/tmp/headlamp-arm64.AppImage',
+      arch: 'arm64',
+    });
+    hooks.afterSign(packContext('x64'));
+
+    expect(log.mock.calls.flat()).toEqual([
+      '[build-timing] Electron post-pack processing started at 2026-10-07T10:00:00.000Z',
+      '[build-timing] Electron post-pack processing started at 2026-10-07T10:00:01.000Z',
+      '[build-timing] Electron post-pack processing completed in 3.000s',
+      '[build-timing] Electron artifact AppImage started at 2026-10-07T10:00:03.000Z',
+      '[build-timing] Electron post-pack processing completed in 3.000s',
+      '[build-timing] Electron artifact AppImage started at 2026-10-07T10:00:04.000Z',
+    ]);
+  });
+
+  it('does not start post-pack timing for a directory-only build', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild: vi.fn(),
+      existingAfterPack: vi.fn(),
+      log,
+    });
+    const context = {
+      arch: 'x64',
+      targets: [{ name: 'dir' }],
+    } as unknown as Parameters<typeof hooks.afterPack>[0];
+
+    await hooks.afterPack(context);
+    hooks.afterSign(context);
+
+    expect(log).not.toHaveBeenCalled();
   });
 });
 
@@ -517,7 +660,7 @@ describe('product metadata', () => {
     });
   });
 
-  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName'])(
+  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName', 'trayIcon'])(
     'rejects a non-string product.%s',
     field => {
       expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
@@ -537,6 +680,17 @@ describe('product metadata', () => {
     });
     expect(validate({ product: { companyName: 'Example Company' } })).toBe(true);
     expect(validate({ product: { companyName: 1 } })).toBe(false);
+  });
+
+  it('requires a non-empty product tray icon in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+
+    expect(validate({ product: { trayIcon: 'assets/tray.png' } })).toBe(true);
+    expect(validate({ product: { trayIcon: '' } })).toBe(false);
+    expect(validate({ product: { trayIcon: 1 } })).toBe(false);
   });
 
   it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
@@ -921,6 +1075,67 @@ describe('build manifest selection', () => {
     expect(argumentPattern.test('list\0all')).toBe(false);
   });
 
+  it('validates explicit approval lists consistently in the schema and runtime', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    for (const pluginLocation of ['development', 'shipped', 'user']) {
+      const approval = { tool: 'examplectl', args: ['project', 'list'], allowTrailingArgs: true };
+      const exactApproval = { tool: 'examplectl', args: ['project', 'list'] };
+      const equivalentApprovals = [exactApproval, { ...exactApproval, allowTrailingArgs: false }];
+      for (const [approvedCommands, valid] of [
+        [undefined, true],
+        [[], true],
+        [[approval], true],
+        [[{ tool: 'examplectl', args: [] }], true],
+        [[{ tool: 'examplectl', args: [], allowTrailingArgs: true }], false],
+        [[approval, approval], false],
+        [equivalentApprovals, true],
+        [Array(65).fill(approval), false],
+        [[{ ...approval, executable: { source: 'plugin', path: 'bin/examplectl' } }], false],
+        [[{ ...approval, args: [' '] }], false],
+        [[{ ...approval, tool: '/bin/sh' }], false],
+        [null, false],
+        [true, false],
+        ['all', false],
+      ] as const) {
+        const policy = {
+          environment: 'development',
+          pluginLocation,
+          ...(approvedCommands !== undefined && { approvedCommands }),
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands:
+            Array.isArray(approvedCommands) &&
+            approvedCommands.some(
+              command =>
+                typeof command === 'object' &&
+                command !== null &&
+                'args' in command &&
+                Array.isArray(command.args) &&
+                command.args.length === 0
+            )
+              ? [{ tool: 'examplectl', args: [] }]
+              : [{ tool: 'examplectl', args: ['project', 'list'] }],
+        };
+        const allowed = valid && (approvedCommands === undefined || pluginLocation !== 'user');
+        const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+        expect(validate(manifest)).toBe(allowed);
+        if (allowed) {
+          const [parsed] = productPluginCommandPolicies(manifest, 'development');
+          expect(parsed.approvedCommands).toEqual(
+            approvedCommands === equivalentApprovals
+              ? [exactApproval, exactApproval]
+              : approvedCommands
+          );
+          expect(parsed.source).toBe(pluginLocation);
+        } else {
+          expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+        }
+      }
+    }
+  });
+
   it('rejects duplicate command grants in the schema', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
@@ -944,6 +1159,32 @@ describe('build manifest selection', () => {
       expect.arrayContaining([expect.objectContaining({ keyword: 'uniqueItems' })])
     );
   });
+
+  it.each(['commands', 'approvedCommands'] as const)(
+    'rejects no-argument scriptjs %s in the schema and runtime',
+    field => {
+      const schema = JSON.parse(
+        fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+      );
+      const validate = addFormats(new Ajv()).compile(schema);
+      const policy = {
+        environment: 'development',
+        pluginLocation: 'development',
+        plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+        commands:
+          field === 'commands'
+            ? [{ tool: 'scriptjs', args: [] }]
+            : [{ tool: 'examplectl', args: ['list'] }],
+        ...(field === 'approvedCommands' && {
+          approvedCommands: [{ tool: 'scriptjs', args: [] }],
+        }),
+      };
+      const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+
+      expect(validate(manifest)).toBe(false);
+      expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+    }
+  );
 
   it('matches production identity and plugin executable runtime requirements', () => {
     const schema = JSON.parse(

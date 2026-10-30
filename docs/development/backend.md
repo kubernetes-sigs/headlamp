@@ -46,6 +46,20 @@ backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
 
+## Node drain authentication
+
+The frontend submits node drains and polls their status through
+`/clusters/<cluster>/drain-node` and `/clusters/<cluster>/drain-node-status`.
+These paths receive the existing cluster-scoped authentication cookie and OIDC
+refresh middleware; the current drain uses the refreshed user credential.
+Kubernetes RBAC and audit events therefore use the caller's identity.
+
+In-cluster requests without a user credential are rejected unless the existing
+unsafe service-account mode was explicitly enabled. Drain does not implicitly
+fall back to the pod's service account or forward that credential to an external
+context. Legacy unscoped routes remain available for existing callers, but
+cookie-only browser clients should use the cluster-scoped routes.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.

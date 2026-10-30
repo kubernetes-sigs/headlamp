@@ -41,6 +41,13 @@ Note, it runs the development servers for the backend and the frontend as well. 
 - `npm run verify-build-mac`: Verifies the macOS build artifacts and binaries (requires built app in dist/).
 - `npm run verify-build-windows`: Verifies the Windows build artifacts and binaries (requires built app in dist/).
 
+## MCP debug logging
+
+MCP debug logging is disabled by default. Set `HEADLAMP_MCP_DEBUG=true` when
+starting the desktop app to enable it. Debug details redact string values,
+including server names and cluster identifiers; tool arguments are not logged.
+Error reporting remains enabled independently of the debug flag.
+
 ## Build manifest
 
 Desktop packages use `app-build-manifest.json` to configure product-specific

@@ -7,7 +7,13 @@
     "esModuleInterop": true,
     "allowJs": true,
     "checkJs": true,
-    "types": ["vite/client", "vite-plugin-svgr/client", "vitest/globals", "lodash"],
+    "types": [
+      "vite/client",
+      "vite-plugin-svgr/client",
+      "vitest/globals",
+      "@testing-library/jest-dom/vitest",
+      "lodash"
+    ],
     "paths": {
       "@iconify/react": [
         "../../../../node_modules/@kinvolk/headlamp-plugin/node_modules/@iconify/react/src/icon.js"

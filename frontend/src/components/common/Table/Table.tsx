@@ -26,6 +26,7 @@ import { visuallyHidden } from '@mui/utils';
 import {
   MRT_BottomToolbar,
   MRT_Cell,
+  MRT_Column,
   MRT_ColumnDef as MaterialTableColumn,
   MRT_Header,
   MRT_TableBodyCell,
@@ -172,6 +173,181 @@ const StyledBody = styled('tbody')({ display: 'contents' });
  * Approximate minimum width (px) used to decide whether a column still fits.
  */
 const DEFAULT_MIN_COLUMN_WIDTH = 100;
+
+/**
+ * Upper bound for the options of a single select filter. MRT renders one unvirtualized menu
+ * item per option, so a high-cardinality column (Node on a large cluster) is served its most
+ * common values. This bounds what the menu has to render, it does not make a thousand items
+ * cheap to open.
+ */
+const MAX_FILTER_OPTIONS = 1000;
+
+/** Served when a column has no options to offer, which is what MRT reads as "no dropdown". */
+const NO_FACETED_VALUES = new Map<any, number>();
+
+/**
+ * The maps MAX_FILTER_OPTIONS truncated, so the dropdown can say that it lists only part of
+ * the values. Marked by identity rather than remembered per column, so a column definition
+ * that changes at runtime cannot leave a stale verdict behind.
+ */
+const truncatedFacetedValues = new WeakSet<Map<any, number>>();
+
+/**
+ * Faceted values per row model and column. MRT rebuilds its column array on every render
+ * (prepareColumns is not memoized), and TanStack binds one closure per column object along
+ * with a freshly spread column definition, so neither can hold or validate a cache across
+ * renders. The row model is the one identity that lives exactly as long as the values it
+ * yields: TanStack freezes row.getUniqueValues per row and column for the model's lifetime,
+ * so recomputing any sooner could not even observe a changed accessor.
+ */
+type FacetedEntry = {
+  /** Every value the rows carry, independent of what the column is filtered by. */
+  values: Map<any, number>;
+  /** The shortened view of those values, kept per filter it was built for. */
+  view?: Map<any, number>;
+  viewFor?: string;
+};
+
+const facetedValuesByRows = new WeakMap<object, Map<string, FacetedEntry>>();
+
+/**
+ * The options a column offers: all of its values, or the most common ones plus whatever is
+ * filtered for once there are more than MRT can render. The walk behind `entry.values` does
+ * not depend on the filter, so only this last step is redone when the filter moves, and the
+ * shortened map keeps its identity meanwhile, which is what MRT memoizes its dropdown on.
+ */
+function facetedView(entry: FacetedEntry, column: { getFilterValue: () => unknown }) {
+  if (entry.values.size <= MAX_FILTER_OPTIONS) {
+    return entry.values;
+  }
+  const viewFor = filterSignature(column);
+  if (entry.view && entry.viewFor === viewFor) {
+    return entry.view;
+  }
+  // MRT renders one unvirtualized menu item per option, so keep the most common values,
+  // which are the ones worth offering as a filter. What is filtered for right now comes
+  // along whatever its count, because MRT reads the label of a selected value back from
+  // these options and would render it blank once the value is gone.
+  const byCount = [...entry.values].sort(([, a], [, b]) => b - a);
+  const active = new Set(activeFilterValues(column));
+  // Selected values come first, but they are capped too: the limit exists to bound what
+  // MRT renders, and it cannot be raised by selecting more.
+  const kept = byCount.filter(([value]) => active.has(value)).slice(0, MAX_FILTER_OPTIONS);
+  for (const candidate of byCount) {
+    if (kept.length >= MAX_FILTER_OPTIONS) {
+      break;
+    }
+    if (!active.has(candidate[0])) {
+      kept.push(candidate);
+    }
+  }
+  entry.view = new Map(kept);
+  entry.viewFor = viewFor;
+  truncatedFacetedValues.add(entry.view);
+  return entry.view;
+}
+
+/** Whether a column's options were truncated by MAX_FILTER_OPTIONS. */
+function isTruncated<RowItem extends Record<string, any>>(column: MRT_Column<RowItem>) {
+  return truncatedFacetedValues.has(column.getFacetedUniqueValues());
+}
+
+/** A stable key for the values a column is filtered by, to tell one walk's basis from another. */
+function filterSignature(column: { getFilterValue: () => unknown }) {
+  return JSON.stringify(activeFilterValues(column).map(String).sort());
+}
+
+/** The values a column is filtered by right now, one for select, several for multi-select. */
+function activeFilterValues(column: { getFilterValue: () => unknown }) {
+  const value = column.getFilterValue();
+  if (Array.isArray(value)) {
+    return value.filter(entry => entry !== null && entry !== undefined && entry !== '');
+  }
+  return value === null || value === undefined || value === '' ? [] : [value];
+}
+
+/**
+ * Select-filter dropdowns get their options from MRT's faceted values, but callers turn
+ * faceting off above a dataset threshold (TanStack's default builds a unique-value map for
+ * every column), which left those dropdowns empty on large lists. This walks the dropdown
+ * columns only, and only while their options are on screen, since MRT reads faceted values
+ * on every header render. It relies on two undocumented MRT behaviors, pinned in
+ * Table.facetedFilterOptions.test.tsx: caller options win over MRT's own
+ * `enableFacetedValues ? ... : undefined`, and the dropdown reads faceted values regardless
+ * of that flag.
+ */
+const getDropdownFacetedUniqueValues: NonNullable<
+  MaterialTableOptions<Record<string, any>>['getFacetedUniqueValues']
+> = (table, columnId) => {
+  // TanStack types the option's table without MRT's additions; at runtime it is the
+  // MRT instance.
+  const mrtTable = table as unknown as MRT_TableInstance<Record<string, any>>;
+  return () => {
+    const column = table.getColumn(columnId);
+    const columnDef = column?.columnDef as TableColumn<Record<string, any>> | undefined;
+    const filterVariant = columnDef?.filterVariant;
+    if (
+      !column ||
+      (filterVariant !== 'select' &&
+        filterVariant !== 'multi-select' &&
+        filterVariant !== 'autocomplete') ||
+      // Caller options win in MRT, which then also drops the value counts these feed.
+      columnDef?.filterSelectOptions
+    ) {
+      return NO_FACETED_VALUES;
+    }
+    // Faceting on: the column's faceted row model. Faceting off: TanStack falls back to
+    // the pre-filtered rows (post-filterFunction), so the options are a superset of what
+    // the table shows and the counts MRT renders next to them are dataset-wide. Narrowing
+    // them would need the per-column faceted row models the guard turned off.
+    const { flatRows } = column.getFacetedRowModel();
+    const cachedColumns = facetedValuesByRows.get(flatRows);
+    const cached = cachedColumns?.get(columnId);
+    if (cached) {
+      return facetedView(cached, column);
+    }
+    // Nobody can see the options while the filter UI is hidden and no filter is active,
+    // so do not walk the rows for them. Showing the UI re-renders the headers and lands
+    // here again with the walk allowed. From there every data update walks again, which
+    // measured around 8 ms per dropdown column per 10k rows.
+    // Only the subheader mode ties the filter UI to showColumnFilters. The popover and custom
+    // modes render it on their own terms, and the popover's open state lives inside MRT's
+    // filter label, which asks for these values on every header render either way, so there is
+    // nothing here to gate on. The cap and the per-row-model cache bound that idle cost.
+    const optionsAreVisible =
+      mrtTable.getState().showColumnFilters ||
+      (mrtTable.options.columnFilterDisplayMode ?? 'subheader') !== 'subheader' ||
+      column.getIsFiltered();
+    if (!optionsAreVisible) {
+      return NO_FACETED_VALUES;
+    }
+    const values = new Map<any, number>();
+    // MRT sorts the options with localeCompare, so anything but a string throws during
+    // the header render. Such a column keeps the empty dropdown it had before.
+    let sortable = true;
+    for (const row of flatRows) {
+      for (const value of row.getUniqueValues(columnId) ?? []) {
+        // MRT drops these before rendering the options, so they must not count either.
+        if (value === null || value === undefined) {
+          continue;
+        }
+        if (typeof value !== 'string') {
+          sortable = false;
+          break;
+        }
+        values.set(value, (values.get(value) ?? 0) + 1);
+      }
+      if (!sortable) {
+        break;
+      }
+    }
+    const entry: FacetedEntry = { values: sortable ? values : NO_FACETED_VALUES };
+    const perColumn = cachedColumns ?? new Map();
+    perColumn.set(columnId, entry);
+    facetedValuesByRows.set(flatRows, perColumn);
+    return facetedView(entry, column);
+  };
+};
 
 /**
  * Tracks the current width of an element using a ResizeObserver.
@@ -357,10 +533,67 @@ export default function Table<RowItem extends Record<string, any>>({
     [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
   );
 
+  // With faceting on, MRT installs TanStack's own implementation for every column, so ours
+  // is only needed to fill the gap it leaves behind when faceting is off.
+  const ownFacetedValues = !tableProps.enableFacetedValues && !tableProps.getFacetedUniqueValues;
+
   const table = useMaterialReactTable({
     ...tableProps,
     columns: tableColumns ?? [],
     data: tableData,
+    // The key has to be absent, not undefined: MRT applies caller options over its own
+    // wiring, so an undefined value would drop TanStack's default and its faceting contract.
+    // The implementation only reads generic column metadata, so the erased row type is safe.
+    ...(ownFacetedValues
+      ? {
+          getFacetedUniqueValues:
+            getDropdownFacetedUniqueValues as MaterialTableOptions<RowItem>['getFacetedUniqueValues'],
+        }
+      : {}),
+    // Say so when the dropdown lists only part of the values. MRT renders this text field
+    // for every filter variant, so all three dropdowns carry the note in the same place.
+    muiFilterTextFieldProps: args => {
+      const callerProps =
+        (typeof tableProps.muiFilterTextFieldProps === 'function'
+          ? tableProps.muiFilterTextFieldProps(args)
+          : tableProps.muiFilterTextFieldProps) ?? {};
+      // Only the implementation above marks a map as truncated.
+      if (!ownFacetedValues || !isTruncated(args.column)) {
+        return callerProps;
+      }
+      // That spot already carries MRT's filter-mode label where modes are enabled, and saying
+      // which mode is active beats saying that the list is shortened. MRT decides that from
+      // the table-level flag, with the column able to opt out only. A caller-provided
+      // helperText keeps precedence too, as it did before the note existed.
+      const columnDef = args.column.columnDef as TableColumn<RowItem>;
+      const filterModeOptions =
+        columnDef.columnFilterModeOptions ?? tableProps.columnFilterModeOptions;
+      const showsFilterMode =
+        tableProps.enableColumnFilterModes &&
+        columnDef.enableColumnFilterModes !== false &&
+        (filterModeOptions === undefined || !!filterModeOptions?.length);
+      if (showsFilterMode || callerProps.helperText !== undefined) {
+        return callerProps;
+      }
+      const callerSx = callerProps.FormHelperTextProps?.sx;
+      return {
+        ...callerProps,
+        // MRT keeps its helper text on one line, which this note is too long for in a column
+        // that starts at 120px, so it may wrap here.
+        FormHelperTextProps: {
+          ...callerProps.FormHelperTextProps,
+          // An sx can be an object, a callback or an array of those, so the caller's goes on
+          // top as another entry rather than being spread into this one.
+          sx: [
+            { fontSize: '0.75rem', lineHeight: '1rem', whiteSpace: 'normal' },
+            ...(Array.isArray(callerSx) ? callerSx : [callerSx]),
+          ],
+        },
+        helperText: t('Showing {{max}} values, some less common ones are not listed', {
+          max: MAX_FILTER_OPTIONS,
+        }),
+      };
+    },
     enablePagination: tableData.length > rowsPerPageOptions[0],
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,

@@ -19,6 +19,8 @@ import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import Deployment from '../../lib/k8s/deployment';
 import Event from '../../lib/k8s/event';
 import Pod from '../../lib/k8s/pod';
+import ReplicaSet from '../../lib/k8s/replicaSet';
+import type { Workload } from '../../lib/k8s/Workload';
 import { TestContext } from '../../test';
 import { PodDiagnosticsSection, WorkloadDiagnosticsSection } from './Diagnostics';
 import {
@@ -26,6 +28,7 @@ import {
   failingPod,
   healthyDeployment,
   healthyPod,
+  quotaBlockedReplicaSet,
   warningEvents,
 } from './storyHelper';
 
@@ -61,7 +64,7 @@ PodWithIssues.args = {
 
 // Workload diagnostics. Owned pods and errors are passed directly as props.
 const WorkloadTemplate: StoryFn<{
-  workload: Deployment;
+  workload: Workload;
   pods?: Pod[] | null;
   errors?: ApiError[] | null;
 }> = args => <WorkloadDiagnosticsSection {...args} />;
@@ -89,4 +92,10 @@ WorkloadPodsError.args = {
   workload: new Deployment(healthyDeployment, 'minikube'),
   pods: null,
   errors: [new ApiError('pods is forbidden: User cannot list resource "pods"', { status: 403 })],
+};
+
+export const WorkloadQuotaBlocked = WorkloadTemplate.bind({});
+WorkloadQuotaBlocked.args = {
+  workload: new ReplicaSet(quotaBlockedReplicaSet, 'minikube'),
+  pods: [],
 };

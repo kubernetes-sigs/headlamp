@@ -14,10 +14,20 @@
  * limitations under the License.
  */
 
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { loadSettings, saveSettings } from '../settings';
 import { expandEnvAndResolvePaths, loadMCPSettings, saveMCPSettings } from './MCPSettings';
 import * as MCP from './MCPSettings';
+
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn().mockReturnValue('/tmp'),
+  },
+  dialog: {
+    showMessageBox: vi.fn(),
+  },
+}));
 
 vi.mock('../settings', () => ({
   loadSettings: vi.fn(),
@@ -136,13 +146,13 @@ describe('expandEnvAndResolvePaths', () => {
 
 describe('MultiServerMCPClient', () => {
   beforeEach(() => {
-    // ensure predictable env for merging tests
-    process.env.TEST_ORIG_ENV = 'orig';
+    vi.stubEnv('HEADLAMP_MCP_DEBUG', undefined);
     vi.resetAllMocks();
   });
 
   afterEach(() => {
-    delete process.env.TEST_ORIG_ENV;
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('returns empty when no mcp settings', () => {
@@ -209,14 +219,211 @@ describe('MultiServerMCPClient', () => {
     expect(entry.transport).toBe('stdio');
     expect(entry.command).toBe('cmd');
     expect(entry.args).toEqual(['arg1']);
-    // env should include process.env and server.env overrides
-    expect(entry.env.MCP_VAR).toBe('mcp');
-    expect(entry.env.TEST_ORIG_ENV).toBe('orig');
+    // the explicit server env is passed through as-is; the MCP SDK's
+    // StdioClientTransport merges its own per-platform baseline env
+    // underneath it, so we don't duplicate that allowlist here.
+    expect(entry.env).toEqual({ MCP_VAR: 'mcp' });
     // restart settings
     expect(entry.restart).toBeDefined();
     expect(entry.restart.enabled).toBe(true);
     expect(entry.restart.maxAttempts).toBe(3);
     expect(entry.restart.delayMs).toBe(2000);
+  });
+
+  it('passes undefined env when no explicit server env is configured', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    const entry = result['valid'] as any;
+    expect(entry.env).toBeUndefined();
+  });
+
+  it('keeps explicit string overrides without inheriting unrelated parent variables', () => {
+    vi.stubEnv('HEADLAMP_MCP_TEST_SECRET', 'parent-only');
+    vi.stubEnv('HEADLAMP_MCP_TEST_OVERRIDE', 'parent-value');
+    (loadSettings as Mock).mockReturnValue({
+      mcp: {
+        enabled: true,
+        servers: [
+          {
+            name: 'valid',
+            command: 'cmd',
+            args: [],
+            enabled: true,
+            env: { HEADLAMP_MCP_TEST_OVERRIDE: 'explicit-value', EMPTY: '' },
+          },
+        ],
+      },
+    });
+
+    const entry = MCP.makeMcpServersFromSettings('/cfg', [])['valid'];
+    expect(entry).toHaveProperty('env', {
+      HEADLAMP_MCP_TEST_OVERRIDE: 'explicit-value',
+      EMPTY: '',
+    });
+  });
+
+  it('reports and removes non-string environment values without discarding valid entries', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    (loadSettings as Mock).mockReturnValue({
+      mcp: {
+        enabled: true,
+        servers: [
+          {
+            name: 'valid',
+            command: 'cmd',
+            args: [],
+            enabled: true,
+            env: { VALID: 'value', EMPTY: '', NUMBER: 123, NULL: null, OBJECT: {}, BOOLEAN: false },
+          },
+        ],
+      },
+    });
+
+    const entry = MCP.makeMcpServersFromSettings('/cfg', [])['valid'];
+    expect(entry).toHaveProperty('env', { VALID: 'value', EMPTY: '' });
+    expect(errorSpy).toHaveBeenCalledWith('Ignoring non-string MCP server environment values.');
+  });
+
+  it('normalizes Windows overrides so Path replaces the SDK baseline PATH', () => {
+    (loadSettings as Mock).mockReturnValue({
+      mcp: {
+        enabled: true,
+        servers: [
+          {
+            name: 'valid',
+            command: 'cmd',
+            args: [],
+            enabled: true,
+            env: { Path: 'explicit-path' },
+          },
+        ],
+      },
+    });
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      expect(MCP.makeMcpServersFromSettings('/cfg', [])['valid']).toHaveProperty('env', {
+        PATH: 'explicit-path',
+      });
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
+
+  it.each([false, true])(
+    'isolates a real child process (explicit env=%s)',
+    async grant => {
+      vi.stubEnv('HEADLAMP_MCP_TEST_SECRET', 'parent-only');
+      vi.stubEnv('HEADLAMP_MCP_TEST_OVERRIDE', 'parent-value');
+      (loadSettings as Mock).mockReturnValue({
+        mcp: {
+          enabled: true,
+          servers: [
+            {
+              name: 'probe',
+              command: process.execPath,
+              args: [
+                '-e',
+                `
+            process.stdout.write(JSON.stringify({
+              jsonrpc: '2.0', method: 'env-probe', params: {
+                parentLeaked: process.env.HEADLAMP_MCP_TEST_SECRET !== undefined,
+                granted: process.env.HEADLAMP_MCP_TEST_OVERRIDE === 'explicit-value',
+                hasPath: Boolean(process.env.PATH)
+              }
+            }) + String.fromCharCode(10));
+            setInterval(() => {}, 1000);
+          `,
+              ],
+              enabled: true,
+              env: grant ? { HEADLAMP_MCP_TEST_OVERRIDE: 'explicit-value' } : undefined,
+            },
+          ],
+        },
+      });
+      // Exercise Windows argument normalization even when this test runs on macOS/Linux.
+      const originalPlatform = process.platform;
+      let entry: ReturnType<typeof MCP.makeMcpServersFromSettings>[string];
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      try {
+        entry = MCP.makeMcpServersFromSettings('/cfg', [])['probe'];
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
+      }
+      if (entry.transport !== 'stdio') {
+        throw new Error('Expected a stdio MCP configuration');
+      }
+      const transport = new StdioClientTransport(entry);
+      let observed: unknown;
+      transport.onmessage = message => {
+        if ('params' in message) {
+          observed = message.params;
+        }
+      };
+      try {
+        await transport.start();
+        await vi.waitFor(
+          () =>
+            expect(observed).toEqual({
+              parentLeaked: false,
+              granted: grant,
+              hasPath: Boolean(process.env.PATH),
+            }),
+          { timeout: 10_000 }
+        );
+      } finally {
+        await transport.close();
+      }
+    },
+    15_000
+  );
+
+  it('does not throw when server env is null or not a plain object, and drops it', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'nullEnv',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: null,
+        },
+        {
+          name: 'arrayEnv',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: ['not', 'an', 'object'],
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    expect(() => MCP.makeMcpServersFromSettings('/cfg', ['clusterA'])).not.toThrow();
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+    expect((result['nullEnv'] as any).env).toBeUndefined();
+    expect((result['arrayEnv'] as any).env).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Ignoring invalid MCP server environment: expected an object.'
+    );
   });
 
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
@@ -240,6 +447,35 @@ describe('MultiServerMCPClient', () => {
     const entry = result['withCluster'] as any;
     // the expand function should have replaced the placeholder
     expect(entry.args).toEqual(['connect', 'my-current-cluster']);
+  });
+
+  it('redacts expanded args when MCP debug logging is enabled', () => {
+    process.env.HEADLAMP_MCP_DEBUG = 'true';
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const mcpSettings = {
+        enabled: true,
+        servers: [
+          {
+            name: 'withSecret',
+            command: 'cmd',
+            args: ['--token=secret-value', 'HEADLAMP_CURRENT_CLUSTER'],
+            enabled: true,
+          },
+        ],
+      };
+
+      (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+      MCP.makeMcpServersFromSettings('/cfg', ['prod-cluster']);
+
+      expect(logSpy).toHaveBeenCalledWith('Expanded args for MCP server:', {
+        serverName: '[REDACTED]',
+        expandedArgs: ['[REDACTED]', '[REDACTED]'],
+      });
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
 

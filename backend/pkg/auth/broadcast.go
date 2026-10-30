@@ -238,7 +238,21 @@ func broadcastToTarget(
 		return
 	}
 
-	SetTokenCookie(params.Writer, params.Request, kCtx.Name, params.Token, params.BaseURL, params.SessionTTL)
+	if err := SetTokenCookie(
+		params.Writer,
+		params.Request,
+		kCtx.Name,
+		params.Token,
+		params.BaseURL,
+		params.SessionTTL,
+	); err != nil {
+		logger.Log(logger.LevelError,
+			map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
+			err, "failed to broadcast OIDC token")
+
+		return
+	}
+
 	logger.Log(logger.LevelInfo,
 		map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
 		nil, "broadcasted OIDC token to cluster")

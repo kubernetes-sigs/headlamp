@@ -19,7 +19,9 @@
           cx="100"
           cy="100"
           height="160"
+          role="application"
           style="width: 100%; height: 100%;"
+          tabindex="0"
           viewBox="0 0 160 160"
           width="160"
         >
@@ -45,12 +47,15 @@
               class="recharts-layer recharts-pie-sector"
               tabindex="-1"
             >
-              <path
-                aria-label="50.0 %"
-                class="recharts-sector"
-                cx="85"
-                cy="85"
-                d="M 85,21
+              <g
+                class="recharts-layer recharts-active-shape"
+              >
+                <path
+                  aria-label="ready: 5 (50%)"
+                  class="recharts-sector"
+                  cx="85"
+                  cy="85"
+                  d="M 85,21
     A 64,64,0,
     0,1,
     85,149
@@ -58,23 +63,25 @@
             A 48,48,0,
             0,0,
             85,37 Z"
-                fill="#000"
-                name="ready"
-                role="img"
-                stroke="#e0e0e0"
-                tabindex="-1"
-              />
+                  fill="#000"
+                  role="img"
+                  stroke="#e0e0e0"
+                />
+              </g>
             </g>
             <g
               class="recharts-layer recharts-pie-sector"
               tabindex="-1"
             >
-              <path
-                aria-label="50.0 %"
-                class="recharts-sector"
-                cx="85"
-                cy="85"
-                d="M 85,149
+              <g
+                class="recharts-layer recharts-active-shape"
+              >
+                <path
+                  aria-label="notReady: 5 (50%)"
+                  class="recharts-sector"
+                  cx="85"
+                  cy="85"
+                  d="M 85,149
     A 64,64,0,
     0,1,
     84.99999999999999,21
@@ -82,12 +89,11 @@
             A 48,48,0,
             0,0,
             85,133 Z"
-                fill="#f44336"
-                name="notReady"
-                role="img"
-                stroke="#e0e0e0"
-                tabindex="-1"
-              />
+                  fill="#f44336"
+                  role="img"
+                  stroke="#e0e0e0"
+                />
+              </g>
             </g>
             <g
               class="recharts-layer recharts-pie-sector"

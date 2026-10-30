@@ -32,6 +32,7 @@ const wrappedListeners = new WeakMap<
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
+  oidcLogout: (cluster: string) => ipcRenderer.invoke('oidc-logout', cluster),
   isDevelopment: Boolean(process.env.ELECTRON_DEV),
   getDevelopmentPluginsEnabled: () => ipcRenderer.invoke('get-development-plugins'),
   send: (channel: string, data: unknown) => {

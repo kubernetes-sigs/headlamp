@@ -25,6 +25,7 @@ describe('parseRunCommandGrants', () => {
   it('normalizes valid grants', () => {
     expect(
       parseRunCommandGrants([
+        { tool: 'noargs', args: [] },
         { tool: 'examplectl', args: ['project', 'list'] },
         {
           tool: 'kubectl',
@@ -33,6 +34,7 @@ describe('parseRunCommandGrants', () => {
         },
       ])
     ).toEqual([
+      { tool: 'noargs', args: [] },
       { tool: 'examplectl', args: ['project', 'list'] },
       {
         tool: 'kubectl',
@@ -54,7 +56,7 @@ describe('parseRunCommandGrants', () => {
     ],
     [{ tool: '', args: ['list'] }],
     [{ tool: '/usr/bin/examplectl', args: ['list'] }],
-    [{ tool: 'examplectl', args: [] }],
+    [{ tool: 'examplectl', args: [], allowTrailingArgs: true }],
     [{ tool: 'examplectl', args: [''] }],
     [{ tool: 'examplectl', args: ['  '] }],
     [{ tool: 'examplectl', args: ['list'], allowTrailingArgs: 'yes' }],
@@ -88,6 +90,19 @@ describe('parseRunCommandGrants', () => {
   it('rejects duplicate grants', () => {
     const grant = { tool: 'examplectl', args: ['project', 'list'] };
     expect(() => parseRunCommandGrants([grant, grant])).toThrow('Duplicate');
+  });
+
+  it('rejects an exact no-argument scriptjs grant', () => {
+    expect(() => parseRunCommandGrants([{ tool: 'scriptjs', args: [] }])).toThrow('Invalid args');
+  });
+
+  it('accepts schema-distinct grants with an explicit false default', () => {
+    const grant = { tool: 'examplectl', args: ['project', 'list'] };
+
+    expect(parseRunCommandGrants([grant, { ...grant, allowTrailingArgs: false }])).toEqual([
+      grant,
+      grant,
+    ]);
   });
 });
 

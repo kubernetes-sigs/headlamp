@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "engines": {
     "npm": ">=11.0.0",
-    "node": ">=22.6.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "install:all": "npm install && npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
@@ -33,10 +33,10 @@
     "backend:coverage": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -func=coverage.out",
     "backend:coverage:html": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -html=coverage.out",
     "backend:format": "cd backend && go fmt ./cmd/ ./pkg/**",
-    "backend:start": "echo 'Warning: Running with Helm and dynamic-clusters endpoints enabled.' && HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1",
+    "backend:start": "echo 'Warning: Running with Helm and dynamic-clusters endpoints enabled.' && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls \"https://artifacthub.io/*\" -listen-addr=127.0.0.1",
     "backend:dev": "echo 'Starting Headlamp backend in dev mode with Air...' && cd backend && air",
-    "backend:start:metrics": "echo 'Running backend with Prometheus metrics enabled' && HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_METRICS_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1",
-    "backend:start:traces": "echo 'Running backend with distributed tracing enabled' && HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_TRACING_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1",
+    "backend:start:metrics": "echo 'Running backend with Prometheus metrics enabled' && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_METRICS_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls \"https://artifacthub.io/*\" -listen-addr=127.0.0.1",
+    "backend:start:traces": "echo 'Running backend with distributed tracing enabled' && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_TRACING_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls \"https://artifacthub.io/*\" -listen-addr=127.0.0.1",
     "frontend:install": "cd frontend && npm install",
     "frontend:install:ci": "cd frontend && npm ci",
     "frontend:build": "cd frontend && npm run build",
@@ -68,6 +68,7 @@
     "app:test": "npm run app:test:unit && npm run app:test:e2e",
     "app:test:unit": "cd app && npm run test",
     "app:test:e2e": "cd app/e2e-tests && npm run test-app --",
+    "app:test:e2e:frontend-build": "npm run frontend:build && npm run backend:build && cd app/e2e-tests && npm run test-app -- frontendBuild.spec.ts",
     "app:tsc": "cd app && npm run tsc",
     "app:i18n-check": "cd app && npm run i18n-check",
     "app:format": "cd app && npm run format",
@@ -91,6 +92,7 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "tsx": "4.23.1"
   },
   "keywords": [

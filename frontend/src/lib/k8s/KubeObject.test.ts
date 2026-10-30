@@ -119,4 +119,35 @@ describe('KubeObject', () => {
       })
     );
   });
+
+  it('uses an explicit cluster for instance authorization checks', async () => {
+    class MyResource extends KubeObject {
+      static apiVersion = 'example.headlamp.dev/v1';
+      static apiName = 'myresources';
+    }
+    const getAuthorization = vi
+      .spyOn(MyResource, 'getAuthorization')
+      .mockResolvedValue({ status: { allowed: true } } as any);
+    const resource = new MyResource(
+      {
+        apiVersion: 'example.headlamp.dev/v1',
+        metadata: { name: 'my-resource', namespace: 'default' },
+      },
+      'original-cluster'
+    );
+
+    await resource.getAuthorization('get', undefined, 'explicit-cluster');
+
+    expect(getAuthorization).toHaveBeenCalledWith(
+      'get',
+      {
+        group: 'example.headlamp.dev',
+        name: 'my-resource',
+        namespace: 'default',
+        verb: 'get',
+        version: 'v1',
+      },
+      'explicit-cluster'
+    );
+  });
 });

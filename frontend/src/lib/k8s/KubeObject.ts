@@ -731,7 +731,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
   }
 
-  async getAuthorization(verb: string, reqResourseAttrs?: AuthRequestResourceAttrs) {
+  async getAuthorization(
+    verb: string,
+    reqResourseAttrs?: AuthRequestResourceAttrs,
+    cluster?: string
+  ) {
     const resourceAttrs: AuthRequestResourceAttrs = {
       name: this.getName(),
       verb,
@@ -757,7 +761,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       resourceAttrs['version'] = version;
     }
 
-    return this._class().getAuthorization(verb, resourceAttrs, this.cluster);
+    return this._class().getAuthorization(verb, resourceAttrs, cluster ?? this.cluster);
   }
 
   static getErrorMessage(err: ApiError | null) {

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Base64 } from 'js-base64';
 import { without } from 'lodash';
 import { matchPath } from 'react-router';
 import { getBaseUrl } from '../helpers/getBaseUrl';
@@ -29,7 +30,17 @@ export function getClusterPrefixedPath(path?: string | null) {
   if (!path) {
     return baseClusterPath;
   }
+
   return baseClusterPath + (path[0] === '/' ? '' : '/') + path;
+}
+
+function decodeClusterPath(encodedCluster: string): string | undefined {
+  if (!Base64.isValid(encodedCluster)) {
+    return undefined;
+  }
+
+  const cluster = Base64.decode(encodedCluster);
+  return cluster && Base64.encodeURI(cluster) === encodedCluster ? cluster : undefined;
 }
 
 /**
@@ -66,7 +77,18 @@ export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
     path: getClusterPrefixedPath(),
   });
 
-  return clusterURLMatch?.params?.cluster;
+  if (clusterURLMatch?.params?.cluster) {
+    return clusterURLMatch.params.cluster;
+  }
+
+  const encodedClusterURLMatch = matchPath<{ encodedCluster?: string }>(urlPath, {
+    path: '/encoded-clusters/:encodedCluster/login',
+    exact: true,
+  });
+
+  return encodedClusterURLMatch?.params?.encodedCluster
+    ? decodeClusterPath(encodedClusterURLMatch.params.encodedCluster)
+    : undefined;
 }
 
 /**

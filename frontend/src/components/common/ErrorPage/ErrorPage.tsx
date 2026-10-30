@@ -31,6 +31,8 @@ import headlampBrokenImage from '../../../assets/headlamp-broken.svg';
 import {
   getErrorPageGraphic,
   getErrorPageTitle,
+  getErrorReportButtonLabel,
+  getErrorReportGitHubUrl,
   getVersion,
 } from '../../../helpers/getProductInfo';
 
@@ -56,9 +58,10 @@ export interface ErrorComponentProps {
 
 const MAX_STACK_LENGTH = 1000;
 const MAX_TITLE_LENGTH = 100;
-const GITHUB_REPO_URL = 'https://github.com/kubernetes-sigs/headlamp';
+const DEFAULT_GITHUB_ISSUE_URL =
+  'https://github.com/kubernetes-sigs/headlamp/issues/new?labels=kind/bug';
 
-function handleOpenGitHubIssue(
+function handleOpenIssue(
   error: Error,
   t: (key: string) => string,
   enqueueSnackbar: (
@@ -67,6 +70,13 @@ function handleOpenGitHubIssue(
   ) => void
 ) {
   const version = getVersion();
+  const showOpenWarning = () =>
+    enqueueSnackbar(
+      t(
+        'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.'
+      ),
+      { variant: 'warning' }
+    );
 
   // Truncate stack trace to prevent URL length limits
   const truncatedStack =
@@ -79,35 +89,43 @@ function handleOpenGitHubIssue(
     .replace(/[\r\n]+/g, ' ') // Replace newlines with spaces
     .substring(0, MAX_TITLE_LENGTH); // Limit title length
 
-  const issueTitle = encodeURIComponent(`Crash Report: ${sanitizedMessage}`);
-  const issueBody = encodeURIComponent(
+  const issueTitle = `Crash Report: ${sanitizedMessage}`;
+  const issueBody =
     `## Crash Summary\n${error.message || 'An error occurred in the application'}\n\n` +
-      `## Error Stack\n\`\`\`\n${truncatedStack}\n\`\`\`\n\n` +
-      `## Headlamp Version\n${version.VERSION || 'Unknown'}\n\n` +
-      `## Git Commit\n${version.GIT_VERSION || 'Unknown'}\n\n` +
-      `## System Information\n` +
-      `- User Agent: ${navigator.userAgent}\n` +
-      `- Platform: ${navigator.platform}\n` +
-      `- Language: ${navigator.language}\n\n` +
-      `## Additional Context\n<!-- Please add any additional context about the crash here -->`
-  );
-  const githubUrl = `${GITHUB_REPO_URL}/issues/new?title=${issueTitle}&body=${issueBody}&labels=kind/bug`;
+    `## Error Stack\n\`\`\`\n${truncatedStack}\n\`\`\`\n\n` +
+    `## Headlamp Version\n${version.VERSION || 'Unknown'}\n\n` +
+    `## Git Commit\n${version.GIT_VERSION || 'Unknown'}\n\n` +
+    `## System Information\n` +
+    `- User Agent: ${navigator.userAgent}\n` +
+    `- Platform: ${navigator.platform}\n` +
+    `- Language: ${navigator.language}\n\n` +
+    `## Additional Context\n<!-- Please add any additional context about the crash here -->`;
+  let githubUrl: URL;
+  try {
+    githubUrl = new URL(getErrorReportGitHubUrl()?.trim() || DEFAULT_GITHUB_ISSUE_URL);
+  } catch {
+    showOpenWarning();
+    return;
+  }
+  if (githubUrl.protocol !== 'https:' && githubUrl.protocol !== 'http:') {
+    showOpenWarning();
+    return;
+  }
+  githubUrl.searchParams.set('title', issueTitle);
+  githubUrl.searchParams.set('body', issueBody);
 
   // Handle popup blocker - window.open returns null if blocked
-  const newWindow = window.open(githubUrl, '_blank');
+  const newWindow = window.open(githubUrl.toString(), '_blank');
   if (!newWindow) {
-    enqueueSnackbar(
-      t(
-        'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.'
-      ),
-      { variant: 'warning' }
-    );
+    showOpenWarning();
   }
 }
 
 export default function ErrorComponent(props: ErrorComponentProps) {
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const errorReportButtonLabel =
+    getErrorReportButtonLabel()?.trim() || t('translation|Open Issue on GitHub');
   const {
     title = getErrorPageTitle('error') || t('Uh-oh! Something went wrong.'),
     message = '',
@@ -186,9 +204,9 @@ export default function ErrorComponent(props: ErrorComponentProps) {
                   </Button>
                   <Button
                     color="primary"
-                    onClick={() => handleOpenGitHubIssue(error, t, enqueueSnackbar)}
+                    onClick={() => handleOpenIssue(error, t, enqueueSnackbar)}
                   >
-                    {t('translation|Open Issue on GitHub')}
+                    {errorReportButtonLabel}
                   </Button>
                 </Box>
                 <Typography

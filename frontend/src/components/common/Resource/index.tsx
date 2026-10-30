@@ -41,6 +41,8 @@ export * from '../../job/CreateJobForm';
 export { default as CreateJobForm } from '../../job/CreateJobForm';
 export * from '../../service/CreateServiceForm';
 export { default as CreateServiceForm } from '../../service/CreateServiceForm';
+export * from '../../endpoints/CreateEndpointsForm';
+export { default as CreateEndpointsForm } from '../../endpoints/CreateEndpointsForm';
 export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';

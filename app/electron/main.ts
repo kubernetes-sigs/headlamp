@@ -38,6 +38,7 @@ import { hideBin } from 'yargs/helpers';
 import {
   loadBuildManifest,
   productPluginCommandPolicies,
+  readProductMetadata,
   resolveBuildManifestPath,
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
@@ -273,6 +274,7 @@ const productPluginCommandPolicy = productPluginCommandPolicies(
   appBuildManifest,
   isDev ? 'development' : 'production'
 );
+const productMetadata = readProductMetadata(appBuildManifest);
 
 /** Successful post-bind startup of an internal backend process. */
 interface InternalBackendReadyOutcome {
@@ -1842,6 +1844,19 @@ function startElectron() {
       setMenu(mainWindow, currentMenu);
     });
 
+    ipcMain.handle('oidc-logout', async (event, cluster: unknown) => {
+      if (!mainWindow || !isFromMainWindowFrame(event, mainWindow)) {
+        throw new Error('OIDC logout IPC request rejected');
+      }
+      const { openOIDCLogout } = await import('./oidcLogout');
+      await openOIDCLogout(
+        mainWindow,
+        `http://${INTERNAL_BACKEND_HOST}:${actualPort}`,
+        backendToken,
+        cluster
+      );
+    });
+
     ipcMain.on('appConfig', event => {
       if (!isFromMainWindowFrame(event, mainWindow)) {
         return;
@@ -1984,6 +1999,7 @@ function startElectron() {
       getMainWindow: () => mainWindow,
       isBackendAvailable: () => backendCredentialsAvailable,
       isDev,
+      trayIcon: productMetadata?.trayIcon,
       quit: () => {
         isQuitting = true;
         app.quit();

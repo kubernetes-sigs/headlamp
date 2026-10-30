@@ -110,6 +110,33 @@ describe('Service class', () => {
       const service = new Service(data);
       expect(service.getExternalAddresses()).toBe('');
     });
+
+    it('returns the external name for an ExternalName service', () => {
+      const data = JSON.parse(JSON.stringify(mockServiceData));
+      data.spec.type = 'ExternalName';
+      data.spec.externalName = 'example.com';
+      data.spec.externalIPs = [];
+      delete data.status;
+      const service = new Service(data);
+      expect(service.getExternalAddresses()).toBe('example.com');
+    });
+
+    it('returns <pending> for a LoadBalancer with no ingress yet', () => {
+      const data = JSON.parse(JSON.stringify(mockServiceData));
+      data.spec.type = 'LoadBalancer';
+      data.spec.externalIPs = [];
+      delete data.status;
+      const service = new Service(data);
+      expect(service.getExternalAddresses()).toBe('<pending>');
+    });
+
+    it('returns externalIPs for a LoadBalancer with no ingress yet', () => {
+      const data = JSON.parse(JSON.stringify(mockServiceData));
+      data.spec.type = 'LoadBalancer';
+      delete data.status;
+      const service = new Service(data);
+      expect(service.getExternalAddresses()).toBe('203.0.113.1');
+    });
   });
 
   describe('getPorts', () => {

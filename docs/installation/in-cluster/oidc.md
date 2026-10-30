@@ -12,6 +12,7 @@ To use OIDC, Headlamp needs to know how to configure it, so you have to provide 
 - the client ID: `-oidc-client-id` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ID`
 - the client secret: `-oidc-client-secret` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`
 - the issuer URL: `-oidc-idp-issuer-url` or env var `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`
+- (optionally) the callback URL: `-oidc-callback-url` or env var `HEADLAMP_CONFIG_OIDC_CALLBACK_URL`
 - (optionally) the OpenId scopes: `-oidc-scopes` or env var `HEADLAMP_CONFIG_OIDC_SCOPES`
 
 and you have to tell the OIDC provider about the callback URL, which in Headlamp it is your URL + the `/oidc-callback` path, e.g.:
@@ -33,6 +34,52 @@ https://YOUR_URL/oidc-callback
 > nginx.ingress.kubernetes.io/configuration-snippet: |
 >   proxy_set_header X-Forwarded-Proto $scheme;
 > ```
+
+### Provider logout
+
+Provider logout targets Headlamp's server-owned OIDC contexts, including the
+single-provider in-cluster configuration. Stateless kubeconfig contexts retain
+local-only logout; their user-scoped provider redirect flow and sequencing
+multiple independent providers are outside this feature's scope.
+
+When the OIDC provider advertises an `end_session_endpoint`, Headlamp uses it to end the
+provider session during logout. This prevents the next sign-in from silently reusing the
+previous provider session.
+
+In the desktop app, logout opens an isolated window using the backend's cookie
+session. Provider pages have no desktop preload or Node.js access; the main
+Headlamp window stays on its trusted application page.
+
+Logout hints are retained for the configured session lifetime, rather than the
+shorter access-token lifetime. Logout invalidates the first token-cookie chunk
+and clears any other chunks visible to that endpoint. Cookies hidden by their
+path expire naturally; readers cannot authenticate without the first chunk, and
+new tokens use terminal markers to exclude stale suffixes. This avoids emitting
+the maximum possible number of deletion headers on every logout response.
+Large provider tokens still require appropriately sized proxy response-header
+buffers; chunking is not a guarantee that every token fits a 4 KiB response.
+
+Set `-oidc-callback-url` to the registered Headlamp login callback URL, for example:
+
+```
+-oidc-callback-url=https://YOUR_URL/oidc-callback
+```
+
+Headlamp uses this configured URL as the trusted origin for the post-logout return. Register
+`https://YOUR_URL/encoded-clusters/<base64url-cluster>/login` as an allowed post-logout
+redirect URI with the provider for each OIDC cluster. For example, the cluster name `main`
+uses `https://YOUR_URL/encoded-clusters/bWFpbg/login`. If Headlamp uses a base path, include
+it in both URLs; for example, a base path of `/headlamp` uses
+`https://YOUR_URL/headlamp/oidc-callback` and
+`https://YOUR_URL/headlamp/encoded-clusters/bWFpbg/login`.
+
+If `-oidc-callback-url` is not configured, Headlamp still ends the provider session but does
+not request an automatic redirect back to Headlamp. Providers without an
+`end_session_endpoint` retain the existing local-only logout behavior.
+
+To clear the local Headlamp session without ending the provider session, set
+`-oidc-skip-logout=true` or the `HEADLAMP_CONFIG_OIDC_SKIP_LOGOUT` environment variable to
+`true`.
 
 ### Troubleshooting: Real time updates not working, Large JWT Tokens with Ingress NGINX
 
@@ -64,6 +111,15 @@ then add them all to the option:
 **Note:** Before Headlamp 0.3.0, a scope _groups_ was also included, as it's
 used by Dex and other services, but since it's not part of the default spec,
 it was removed in the mentioned version.
+
+
+### Auto-login
+
+By default, Headlamp shows a "Sign in" button for OIDC clusters. To bypass this screen and redirect users to your Identity Provider (IDP) you can use the auto-login flag.
+
+- `-oidc-auto-login=true` OR env var `HEADLAMP_CONFIG_OIDC_AUTO_LOGIN`
+
+> **ℹ️ Note:** This will only cause a redirect if the user is not currently authenticated and the selected cluster is configured in OIDC.
 
 ### Token Validation Overrides
 
@@ -118,7 +174,7 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`
-
+- Set `-oidc-auto-login=true` (optional to skip the "Sign in" screen)
 
 ### Example: OIDC with Dex
 

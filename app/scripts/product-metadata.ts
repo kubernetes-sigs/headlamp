@@ -22,6 +22,7 @@ export type ProductMetadata = {
   version?: string;
   appId?: string;
   artifactName?: string;
+  trayIcon?: string;
   protocols?: Record<string, unknown>;
 };
 
@@ -53,6 +54,7 @@ export function readProductMetadata(manifest: unknown): ProductMetadata | undefi
     'version',
     'appId',
     'artifactName',
+    'trayIcon',
   ] as const;
   for (const field of scalarFields) {
     if (metadata[field] !== undefined && typeof metadata[field] !== 'string') {
