@@ -194,7 +194,15 @@ func TestInventoryOIDCLoginForwardsTheSignedInUser(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, callback.Code, callback.Body.String())
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/clusters/"+cluster+"/api/v1/pods", nil)
+	// A real browser's cookie jar keeps only the last Set-Cookie per name; the login response
+	// also clears any pre-existing session under the same name before setting the real one, so
+	// naively replaying every Set-Cookie here (in response order) would attach the empty,
+	// clearing value instead of the real token.
 	for _, cookie := range callback.Result().Cookies() {
+		if cookie.Value == "" {
+			continue
+		}
+
 		req.AddCookie(cookie)
 	}
 
@@ -215,13 +223,13 @@ func TestInventoryMultiplexerRejectsMissingCredentialsOnReusedConnection(t *test
 	m.connections[m.createConnectionKey(message.ClusterID, message.Path, message.UserID)] = &Connection{}
 
 	for _, token := range []*string{nil, new(string)} {
-		_, err := m.getOrCreateConnection(message, nil, token)
+		_, err := m.getOrCreateConnection(message, nil, token, nil)
 		require.ErrorContains(t, err, "user authentication is required")
 	}
 
 	require.NoError(t, store.AddContext(&kubeconfig.Context{Name: "inventory", Source: kubeconfig.KubeConfig}))
 
-	_, err := m.getOrCreateConnection(message, nil, nil)
+	_, err := m.getOrCreateConnection(message, nil, nil, nil)
 	require.NoError(t, err)
 }
 

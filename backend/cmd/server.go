@@ -118,20 +118,21 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 
 			return proxyURLs
 		}(),
-		TLSCertPath:                  conf.TLSCertPath,
-		TLSKeyPath:                   conf.TLSKeyPath,
-		SessionTTL:                   conf.SessionTTL,
-		PodDebugImage:                conf.PodDebugImage,
-		NodeShellImage:               conf.NodeShellImage,
-		NodeShellNamespace:           conf.NodeShellNamespace,
-		BackstageOrigin:              conf.BackstageOrigin,
-		OidcUseCookie:                conf.OidcUseCookie,
-		OidcUseTokenBroadcast:        conf.OidcUseTokenBroadcast,
-		DefaultLightTheme:            conf.DefaultLightTheme,
-		DefaultDarkTheme:             conf.DefaultDarkTheme,
-		ForceTheme:                   conf.ForceTheme,
-		UnsafeUseServiceAccountToken: conf.UnsafeUseServiceAccountToken,
-		ServiceAccountTokenPath:      conf.ServiceAccountTokenPath,
+		TLSCertPath:                           conf.TLSCertPath,
+		TLSKeyPath:                            conf.TLSKeyPath,
+		SessionTTL:                            conf.SessionTTL,
+		PodDebugImage:                         conf.PodDebugImage,
+		NodeShellImage:                        conf.NodeShellImage,
+		NodeShellNamespace:                    conf.NodeShellNamespace,
+		BackstageOrigin:                       conf.BackstageOrigin,
+		OidcUseCookie:                         conf.OidcUseCookie,
+		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
+		DefaultLightTheme:                     conf.DefaultLightTheme,
+		DefaultDarkTheme:                      conf.DefaultDarkTheme,
+		ForceTheme:                            conf.ForceTheme,
+		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
+		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
+		OidcUseImpersonation:                  conf.OidcUseImpersonation,
 	}
 }
 
@@ -277,10 +278,20 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+
+	// The multiplexer calls this once per client message with no per-message response of its
+	// own (see impersonationForRequest's doc comment), so w is always nil here.
+	multiplexer.resolveImpersonation = func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error) {
+		return headlampConfig.impersonationForRequest(nil, r, clusterName, kContext)
+	}
+
+	return headlampConfig
 }
 
 // loadAdminSettings reads and validates the admin settings JSON file.
@@ -373,6 +384,13 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 	resolved := resolvedClusterContext{key: contextKey, context: kContext}
 	r = r.WithContext(context.WithValue(r.Context(), resolvedClusterContextKey{}, resolved))
 	c.normalizeClusterCredentials(r, mux.Vars(r)["clusterName"], kContext)
+
+	// Cache entries are keyed by cluster and URL, not by identity. A request that acts as a
+	// verified user must neither read another identity's response nor store its own.
+	if c.shouldUseImpersonationForContext(kContext) {
+		next.ServeHTTP(w, r)
+		return
+	}
 
 	connection, err := k8cache.ContextCacheKey(contextKey, kContext)
 	if err != nil {
