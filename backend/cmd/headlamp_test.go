@@ -5973,3 +5973,72 @@ func TestSTSTokenMiddlewarePreservesWebSocketIdentity(t *testing.T) {
 
 	assert.Equal(t, statelessKey, downstreamKey)
 }
+
+func TestPortForwardTokenSourceReexchangesSubjectToken(t *testing.T) { //nolint:funlen // STS integration.
+	var exchanges atomic.Int32
+
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec
+
+			return
+		}
+
+		if r.FormValue("subject_token") != "subject-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		_, _ = fmt.Fprintf(w, `{"access_token": "exchanged-%d", "expires_in": 3600}`, exchanges.Add(1))
+	}))
+	t.Cleanup(sts.Close)
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "sts-pf",
+		Cluster: &api.Cluster{Server: "https://sts-pf.example.com"},
+	}))
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:         &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+		OidcStsEnabled:      true,
+		OidcStsIssuerURL:    sts.URL,
+		OidcStsClientID:     "sts-client",
+		OidcStsClientSecret: "sts-secret",
+		OidcStsAudienceMap:  "sts-pf=sts-pf-audience",
+	}}
+
+	newRequest := func(subjectToken string) *http.Request {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/clusters/sts-pf/portforward", nil)
+		req.Header.Set("Authorization", "Bearer "+subjectToken)
+
+		return mux.SetURLVars(req, map[string]string{"clusterName": "sts-pf"})
+	}
+
+	auth.ResetSTSCache()
+
+	tokenSource, err := c.portForwardTokenSource(newRequest("subject-token"), "sts-pf")
+	require.NoError(t, err)
+	require.NotNil(t, tokenSource)
+
+	token, err := tokenSource(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "exchanged-1", token, "the up-front exchange is cached")
+
+	// Once the exchanged token expires, the original subject token is exchanged again.
+	auth.ResetSTSCache()
+
+	token, err = tokenSource(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "exchanged-2", token)
+
+	_, err = c.portForwardTokenSource(newRequest("rejected-token"), "sts-pf")
+	require.Error(t, err)
+	assert.Equal(t, http.StatusUnauthorized, auth.GetSTSErrorStatusCode(err))
+
+	c.OidcStsEnabled = false
+
+	tokenSource, err = c.portForwardTokenSource(newRequest("subject-token"), "sts-pf")
+	require.NoError(t, err)
+	assert.Nil(t, tokenSource)
+}

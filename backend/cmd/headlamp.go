@@ -966,11 +966,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(config.stsTokenMiddleware(http.HandlerFunc(
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				contextKey, err := config.getContextKeyForRequest(r)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				tokenSource, err := config.portForwardTokenSource(r, contextKey)
+				if err != nil {
+					http.Error(w, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
 					return
 				}
 
@@ -981,8 +987,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 					contextKey,
 					w,
 					r,
+					tokenSource,
 				)
-			}))),
+			})),
 	).Methods("POST")
 
 	r.Handle(
@@ -1778,6 +1785,43 @@ func (c *HeadlampConfig) exchangeSTSToken(ctx context.Context, clusterName, toke
 	}
 
 	return exchangedToken, err
+}
+
+// portForwardTokenSource returns the cluster credential for a port-forward
+// when STS is enabled: a function that exchanges the caller's token on every
+// call, so the forward keeps working after the first exchanged token expires.
+// The STS cache keeps repeated calls cheap. The token is exchanged once up
+// front so a rejected token fails the request. It returns nil when there is
+// nothing to exchange.
+func (c *HeadlampConfig) portForwardTokenSource(
+	r *http.Request,
+	contextKey string,
+) (func(context.Context) (string, error), error) {
+	if !c.OidcStsEnabled {
+		return nil, nil
+	}
+
+	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err != nil || c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		return nil, nil // StartPortForward reports a missing context.
+	}
+
+	clusterName := mux.Vars(r)["clusterName"]
+
+	subjectToken := c.requestSubjectToken(r, clusterName)
+	if subjectToken == "" {
+		return nil, nil
+	}
+
+	tokenSource := func(ctx context.Context) (string, error) {
+		return c.exchangeSTSToken(ctx, clusterName, subjectToken)
+	}
+
+	if _, err := tokenSource(r.Context()); err != nil {
+		return nil, err
+	}
+
+	return tokenSource, nil
 }
 
 // stsTokenMiddleware replaces the caller's token with the STS-exchanged one
