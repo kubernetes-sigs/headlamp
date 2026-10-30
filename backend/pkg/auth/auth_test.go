@@ -242,6 +242,21 @@ func TestBearerTokenValue(t *testing.T) {
 	}
 }
 
+func TestParseClusterAndTokenHonoursBaseURL(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/headlamp/clusters/c1/api/v1/pods", nil)
+	//nolint:gosec // Request cookie fixture; response security attributes do not apply.
+	req.AddCookie(&http.Cookie{Name: "headlamp-auth-c1.0", Value: "cookie-token"})
+
+	cluster, token := auth.ParseClusterAndToken(req, "/headlamp")
+	assert.Equal(t, "c1", cluster)
+	assert.Equal(t, "cookie-token", token)
+
+	// A base URL is matched at a path boundary only.
+	cluster, token = auth.ParseClusterAndToken(req, "/head")
+	assert.Empty(t, cluster)
+	assert.Empty(t, token)
+}
+
 func TestParseClusterAndToken(t *testing.T) {
 	for _, tt := range parseClusterAndTokenTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -258,7 +273,7 @@ func TestParseClusterAndToken(t *testing.T) {
 				req.AddCookie(cookie)
 			}
 
-			cluster, token := auth.ParseClusterAndToken(req)
+			cluster, token := auth.ParseClusterAndToken(req, "")
 			if cluster != tt.wantCluster {
 				t.Errorf("ParseClusterAndToken() got cluster %q, want %q", cluster, tt.wantCluster)
 			}
