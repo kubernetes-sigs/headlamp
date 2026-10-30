@@ -211,6 +211,19 @@ describe('configSlice', () => {
       const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
       expect(storedSettings.expandLargeGraph).toBe(true);
     });
+
+    it('should enable tutorialTooltips by default', () => {
+      expect(initialState.settings.tutorialTooltips).toBe(true);
+    });
+
+    it('should handle setAppSettings with tutorialTooltips and update localStorage', () => {
+      const nextState = configReducer(initialState, setAppSettings({ tutorialTooltips: false }));
+
+      expect(nextState.settings.tutorialTooltips).toBe(false);
+
+      const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+      expect(storedSettings.tutorialTooltips).toBe(false);
+    });
   });
 
   it('should not modify the original state', () => {
