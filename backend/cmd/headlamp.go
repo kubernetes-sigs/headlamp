@@ -1071,7 +1071,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			if config.OidcSkipLogout {
 				logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: cluster},
 					nil, "oidc-logout: disabled, clearing cookie and redirecting")
-				auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+				config.clearTokenCookie(w, r, cluster)
 				auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
 				baseURL := strings.TrimRight(config.BaseURL, "/")
 				sendOIDCLogoutRedirect(w, r,
@@ -1093,7 +1093,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				}
 			}
 
-			auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+			config.clearTokenCookie(w, r, cluster)
 
 			if idToken == "" {
 				logoutURL, err := getOIDCLogoutProviderURL(config, r, cluster)
@@ -1722,6 +1722,24 @@ func (c *HeadlampConfig) getContextWithWebSocketFallback(
 	return contextKey, nil, err
 }
 
+// clearTokenCookie logs a cluster out: its own cookie is cleared and, with
+// token broadcast, it is marked out of the shared token.
+func (c *HeadlampConfig) clearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
+	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+
+	if c.OidcUseTokenBroadcast {
+		auth.MarkLoggedOut(w, r, cluster, c.BaseURL, c.SessionTTL)
+	}
+}
+
+// clearLogoutMarker lifts the token broadcast logout marker when the user picks
+// a new identity for the cluster; without token broadcast there is none.
+func (c *HeadlampConfig) clearLogoutMarker(w http.ResponseWriter, r *http.Request, cluster string) {
+	if c.OidcUseTokenBroadcast {
+		auth.ClearLogoutMarker(w, r, cluster, c.BaseURL)
+	}
+}
+
 func tokenFromCookie(r *http.Request, clusterName string) string {
 	if cookieToken, err := auth.GetTokenFromCookie(r, clusterName); err == nil && cookieToken != "" {
 		return cookieToken
@@ -1786,6 +1804,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		SessionTTL:                   c.SessionTTL,
 		UseInCluster:                 c.UseInCluster,
 		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+		OidcUseTokenBroadcast:        c.OidcUseTokenBroadcast,
 	}
 
 	return auth.NewOIDCTokenRefreshMiddleware(config)(next)
@@ -2442,7 +2461,7 @@ func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+	c.clearTokenCookie(w, r, cluster)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -3018,6 +3037,16 @@ func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 	return defaultHeadlampKubeConfigFile(c.KubeConfigDir)
 }
 
+// kubeConfigSourceType returns the source of the contexts in the kubeconfig
+// file getKubeConfigPath picks for source.
+func kubeConfigSourceType(source string) int {
+	if source == kubeConfigSource {
+		return kubeconfig.KubeConfig
+	}
+
+	return kubeconfig.DynamicCluster
+}
+
 // Handler for renaming a stateless cluster.
 func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *http.Request, clusterName string) {
 	ctx := r.Context()
@@ -3090,14 +3119,20 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 	return nil
 }
 
-// updateCustomContextToCache updates the custom context to the cache.
-func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string) []error {
+// updateCustomContextToCache updates the custom context to the cache. source is
+// where the contexts of config come from; the contexts are rebuilt from the
+// file, so they would otherwise lose it.
+func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string, source int) []error {
 	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, false)
 	if len(contexts) == 0 {
 		logger.Log(logger.LevelError, nil, errs, "no contexts found in kubeconfig")
 		errs = append(errs, errors.New("no contexts found in kubeconfig"))
 
 		return errs
+	}
+
+	for i := range contexts {
+		contexts[i].Source = source
 	}
 
 	for _, context := range contexts {
@@ -3222,7 +3257,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
+	if errs := c.updateCustomContextToCache(config, clusterName, kubeConfigSourceType(reqBody.Source)); len(errs) > 0 {
 		cacheErr := errors.Join(errs...)
 		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
 
@@ -3685,12 +3720,15 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Token == "" {
-		auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+		c.clearTokenCookie(w, r, cluster)
 	} else {
 		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL); err != nil {
 			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 			return
 		}
+
+		// A manual token is a new identity for the cluster; lift any logout marker.
+		c.clearLogoutMarker(w, r, cluster)
 	}
 
 	w.WriteHeader(http.StatusOK)

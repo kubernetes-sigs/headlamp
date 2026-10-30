@@ -17,13 +17,17 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 )
 
 const (
@@ -32,7 +36,67 @@ const (
 	// maxIDTokenChunks bounds client-controlled chunk-count metadata.
 	maxIDTokenChunks   = 16
 	maxAuthTokenChunks = 32
+
+	// sharedTokenCookiePrefix names the cookies holding a token shared by every
+	// cluster that trusts the same OIDC issuer + client-id (token broadcast).
+	// SanitizeClusterName strips "~", so no cluster name can produce this prefix.
+	sharedTokenCookiePrefix = "headlamp-auth~shared-" //nolint:gosec // cookie name, not a credential
+	// logoutMarkerPrefix names the per-cluster cookie that keeps a logged-out
+	// cluster from reading the shared token until its next login. The marker
+	// lives on the shared cookie's path, not the cluster's, so that every
+	// request that renews the shared cookie sees the markers and renews them
+	// too (RenewLogoutMarkers): the shared cookie slides on each refresh, and a
+	// marker that expired first would silently re-admit the cluster.
+	logoutMarkerPrefix = "headlamp-auth~out-"
 )
+
+// logoutMarkerNameRegex matches the marker cookies MarkLoggedOut sets.
+var logoutMarkerNameRegex = regexp.MustCompile(`^headlamp-auth~out-[a-f0-9]{16}$`)
+
+// sharedTokenKeyRegex matches keys produced by SharedTokenKey.
+var sharedTokenKeyRegex = regexp.MustCompile(`^[a-f0-9]{16}$`)
+
+// SharedTokenKeyResolver returns the shared token key a cluster may read, or
+// ok=false when the cluster has no shared token. Keys are resolved on the
+// server from the cluster's own kubeconfig (SharedTokenIdentity), never from
+// anything the client sends, so a client cannot point a cluster at a shared
+// token.
+type SharedTokenKeyResolver func(cluster string) (key string, ok bool)
+
+// SharedTokenIdentity returns the OIDC issuer + client-id a context may share
+// a token under: an OIDC auth-provider with both values set, on an
+// operator-configured context. It is the one eligibility rule of token
+// broadcast, for reading the shared token and for receiving it alike.
+// Client-added (dynamic) and per-user (internal) contexts never qualify: their
+// kubeconfig is client-controlled and must not be able to claim an issuer.
+// Neither does a context whose source is unset or unknown, so one that is
+// rebuilt without its provenance fails closed.
+// Nothing is read from disk: the CA file matters for that cluster's own login
+// and refresh, not for reading the shared token.
+func SharedTokenIdentity(kCtx *kubeconfig.Context) (issuer, clientID string, ok bool) {
+	if kCtx == nil || kCtx.Internal || !operatorConfigured(kCtx.Source) || !isOIDCAuthContext(kCtx) {
+		return "", "", false
+	}
+
+	issuer, clientID = oidcIssuerAndClientID(kCtx)
+	if issuer == "" || clientID == "" {
+		return "", "", false
+	}
+
+	return issuer, clientID, true
+}
+
+// operatorConfigured reports whether a context from this source is set up by
+// the operator rather than by a client. It is an allow-list: a source that is
+// unset, or added later, is not trusted until it is listed here.
+func operatorConfigured(source int) bool {
+	switch source {
+	case kubeconfig.KubeConfig, kubeconfig.InCluster, kubeconfig.ClusterInventory:
+		return true
+	default:
+		return false
+	}
+}
 
 // GetCookiePath returns the full cookie path including baseURL.
 func GetCookiePath(baseURL, cluster string) string {
@@ -129,95 +193,127 @@ func SetTokenCookie(
 		return nil
 	}
 
-	secure := IsSecureContext(r)
-	cookiePath := GetCookiePath(baseURL, cluster)
-
-	chunks, sizeErr := boundedAuthTokenChunks(token)
-	for i, chunk := range chunks {
-		// G124: Secure is set from IsSecureContext so localhost development still works;
-		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
-			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
-			Value:    chunk,
-			HttpOnly: true,
-			Secure:   secure,
-			SameSite: http.SameSiteStrictMode,
-			Path:     cookiePath,
-			MaxAge:   sessionTTL,
-		}
-
-		http.SetCookie(w, cookie)
-	}
-
-	if len(chunks) < maxAuthTokenChunks {
-		clearAuthTokenChunkCookie(w, secure, cookiePath, sanitizedCluster, len(chunks))
-	}
-
-	return sizeErr
+	return setAuthTokenChunks(w, IsSecureContext(r), GetCookiePath(baseURL, cluster),
+		authTokenCookiePrefix(sanitizedCluster), token, sessionTTL)
 }
 
-// GetTokenFromCookie retrieves an authentication cookie for a specific cluster.
-func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
-	sanitizedCluster := SanitizeClusterName(cluster)
-	if sanitizedCluster == "" {
-		return "", errors.New("invalid cluster name")
-	}
-
-	// check for chunked cookies first
-	var token strings.Builder
-
-	for i := 0; i < maxAuthTokenChunks; i++ {
-		cookie, err := r.Cookie(fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i))
-		if err != nil {
-			break
-		}
-
-		if cookie.Value == "" {
-			break
-		}
-
-		token.WriteString(cookie.Value)
-	}
-
-	if token.Len() > 0 {
-		return token.String(), nil
-	}
-
-	return "", nil
-}
-
-// ClearTokenCookie clears an authentication cookie for a specific cluster.
-func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
-	sanitizedCluster := SanitizeClusterName(cluster)
-	if sanitizedCluster == "" {
+// ClearLogoutMarker lifts the logout marker set by MarkLoggedOut. Called when
+// the user picks a new identity for the cluster (login, set-token).
+func ClearLogoutMarker(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
+	if cluster == "" {
 		return
 	}
 
-	secure := IsSecureContext(r)
+	clearAuthCookie(w, IsSecureContext(r), GetCookiePath(baseURL, ""), LogoutMarkerName(cluster))
+}
 
-	// clear chunked cookies
-	for i := 0; ; i++ {
-		cookieName := fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)
+// LogoutMarkerName returns the logout marker cookie name of a cluster. Unlike
+// the sanitized names of the cluster's own cookies, it is derived from the full
+// cluster name: the markers share one path, so clusters whose names sanitize
+// alike (prod.eu and prodeu) must not share a marker.
+func LogoutMarkerName(cluster string) string {
+	sum := sha256.Sum256([]byte(cluster))
 
-		_, err := r.Cookie(cookieName)
-		if err != nil {
-			// No more cookies for this cluster
+	return logoutMarkerPrefix + hex.EncodeToString(sum[:8])
+}
+
+// GetTokenFromCookie retrieves the authentication cookie of a specific cluster.
+// Handlers only ever see the cluster's own cookie: the shared token is resolved
+// by the OIDC refresh middleware (ReadClusterToken) and handed to them in the
+// Authorization header, with the shared cookies stripped from the request.
+func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
+	token, _, err := ReadClusterToken(r, cluster, nil)
+
+	return token, err
+}
+
+// ReadClusterToken retrieves the token a cluster may use from the request
+// cookies. The cluster's own cookie wins. Otherwise, unless the cluster is
+// marked as logged out, the shared token of the key resolve derives for the
+// cluster is returned together with that key. The token is not inspected: the
+// key binds it to the cluster's issuer + client-id and the API server is the
+// verifier, so opaque access tokens work too. A nil resolve reads the own
+// cookie only. sharedKey is "" whenever the token did not come from a shared
+// cookie.
+func ReadClusterToken(
+	r *http.Request, cluster string, resolve SharedTokenKeyResolver,
+) (token, sharedKey string, err error) {
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return "", "", errors.New("invalid cluster name")
+	}
+
+	namePrefix := authTokenCookiePrefix(sanitizedCluster)
+	cookies := parseRequestCookies(r)
+
+	if token := cookies.chunks(namePrefix); token != "" {
+		return token, "", nil
+	}
+
+	if resolve == nil || cookies.has(LogoutMarkerName(cluster)) || !cookies.hasPrefix(sharedTokenCookiePrefix) {
+		return "", "", nil
+	}
+
+	key, ok := resolve(cluster)
+	if !ok {
+		return "", "", nil
+	}
+
+	token = cookies.chunks(sharedTokenCookiePrefix + key)
+	if token == "" {
+		return "", "", nil
+	}
+
+	return token, key, nil
+}
+
+// requestCookies is the request's Cookie header parsed once, first value wins
+// as with http.Request.Cookie.
+type requestCookies map[string]string
+
+func parseRequestCookies(r *http.Request) requestCookies {
+	all := r.Cookies()
+	cookies := make(requestCookies, len(all))
+
+	for _, cookie := range all {
+		if _, dup := cookies[cookie.Name]; !dup {
+			cookies[cookie.Name] = cookie.Value
+		}
+	}
+
+	return cookies
+}
+
+func (c requestCookies) has(name string) bool {
+	_, ok := c[name]
+
+	return ok
+}
+
+func (c requestCookies) hasPrefix(prefix string) bool {
+	for name := range c {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// chunks reassembles the <namePrefix>.<i> chunk cookies.
+func (c requestCookies) chunks(namePrefix string) string {
+	var token strings.Builder
+
+	for i := 0; i < maxAuthTokenChunks; i++ {
+		value, ok := c[fmt.Sprintf("%s.%d", namePrefix, i)]
+		if !ok || value == "" {
 			break
 		}
 
-		// G124: Secure is set from IsSecureContext so localhost development still works;
-		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
-			Name:     cookieName,
-			Value:    "",
-			HttpOnly: true,
-			Secure:   secure,
-			SameSite: http.SameSiteStrictMode,
-			Path:     GetCookiePath(baseURL, cluster),
-			MaxAge:   -1,
-		}
-		http.SetCookie(w, cookie)
+		token.WriteString(value)
 	}
+
+	return token.String()
 }
 
 // ClearTokenCookieBounded invalidates chunk zero and clears other visible chunks.
@@ -230,14 +326,139 @@ func ClearTokenCookieBounded(w http.ResponseWriter, r *http.Request, cluster, ba
 
 	secure := IsSecureContext(r)
 	cookiePath := GetCookiePath(baseURL, cluster)
+	namePrefix := authTokenCookiePrefix(sanitizedCluster)
 
 	for i := 0; i < maxAuthTokenChunks; i++ {
-		if _, err := r.Cookie(fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)); i > 0 && err != nil {
+		if _, err := r.Cookie(fmt.Sprintf("%s.%d", namePrefix, i)); i > 0 && err != nil {
 			continue
 		}
 
-		clearAuthTokenChunkCookie(w, secure, cookiePath, sanitizedCluster, i)
+		clearAuthTokenChunkCookie(w, secure, cookiePath, namePrefix, i)
 	}
+}
+
+// MarkLoggedOut marks a cluster as logged out of the shared (broadcast) token
+// until its next login or set-token; the shared token itself stays for the
+// other clusters and expires with the session. Used with token broadcast
+// only. A forged marker only logs the forger out of that cluster, which is
+// harmless. The marker gets the session TTL, like the shared cookie, and is
+// renewed whenever the shared cookie is (RenewLogoutMarkers), so it cannot
+// expire before the shared token it guards.
+func MarkLoggedOut(w http.ResponseWriter, r *http.Request, cluster, baseURL string, sessionTTL int) {
+	if cluster == "" {
+		return
+	}
+
+	setLogoutMarker(w, IsSecureContext(r), GetCookiePath(baseURL, ""), LogoutMarkerName(cluster), sessionTTL)
+}
+
+// RenewLogoutMarkers re-sets every logout marker the request carries with the
+// session TTL. Called when the shared cookie is renewed, so the markers slide
+// with it. Only well-formed marker names are renewed, and only with the fixed
+// value, so nothing from the request is reflected into the response.
+func RenewLogoutMarkers(w http.ResponseWriter, r *http.Request, baseURL string, sessionTTL int) {
+	secure := IsSecureContext(r)
+	cookiePath := GetCookiePath(baseURL, "")
+
+	for name := range parseRequestCookies(r) {
+		if logoutMarkerNameRegex.MatchString(name) {
+			setLogoutMarker(w, secure, cookiePath, name, sessionTTL)
+		}
+	}
+}
+
+func setLogoutMarker(w http.ResponseWriter, secure bool, cookiePath, name string, sessionTTL int) {
+	// G124: Secure is set from IsSecureContext so localhost development still works;
+	// HttpOnly and SameSite are set unconditionally.
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
+		Name:     name,
+		Value:    "1",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		Path:     cookiePath,
+		MaxAge:   sessionTTL,
+	})
+}
+
+// SharedTokenKey derives the shared cookie key for an OIDC issuer + client-id.
+func SharedTokenKey(issuer, clientID string) string {
+	sum := sha256.Sum256([]byte(issuer + "\x00" + clientID))
+	return hex.EncodeToString(sum[:8])
+}
+
+// SetSharedTokenCookie stores a token once, under headlamp-auth~shared-<key>,
+// for every cluster whose kubeconfig resolves to key. Like SetTokenCookie, an
+// empty token stores nothing.
+func SetSharedTokenCookie(
+	w http.ResponseWriter,
+	r *http.Request,
+	key, token, baseURL string,
+	sessionTTL int,
+) error {
+	if !sharedTokenKeyRegex.MatchString(key) {
+		return errors.New("invalid shared token key")
+	}
+
+	if token == "" {
+		return nil
+	}
+
+	// Scoped to <baseURL>/clusters/: visible to every cluster.
+	return setAuthTokenChunks(w, IsSecureContext(r), GetCookiePath(baseURL, ""),
+		sharedTokenCookiePrefix+key, token, sessionTTL)
+}
+
+// joinSharedToken makes a cluster read the shared token: its own chunk zero is
+// cleared so a stale private token cannot shadow it, and its logout marker is
+// lifted.
+func joinSharedToken(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return
+	}
+
+	secure := IsSecureContext(r)
+	namePrefix := authTokenCookiePrefix(sanitizedCluster)
+
+	clearAuthTokenChunkCookie(w, secure, GetCookiePath(baseURL, cluster), namePrefix, 0)
+	clearAuthCookie(w, secure, GetCookiePath(baseURL, ""), LogoutMarkerName(cluster))
+}
+
+func authTokenCookiePrefix(sanitizedCluster string) string {
+	return "headlamp-auth-" + sanitizedCluster
+}
+
+// setAuthTokenChunks writes token as <namePrefix>.<i> chunk cookies and clears
+// the chunk following the last one.
+func setAuthTokenChunks(
+	w http.ResponseWriter,
+	secure bool,
+	cookiePath, namePrefix, token string,
+	sessionTTL int,
+) error {
+	chunks, sizeErr := boundedAuthTokenChunks(token)
+	for i, chunk := range chunks {
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
+			Name:     fmt.Sprintf("%s.%d", namePrefix, i),
+			Value:    chunk,
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     cookiePath,
+			MaxAge:   sessionTTL,
+		}
+
+		http.SetCookie(w, cookie)
+	}
+
+	if len(chunks) < maxAuthTokenChunks {
+		clearAuthTokenChunkCookie(w, secure, cookiePath, namePrefix, len(chunks))
+	}
+
+	return sizeErr
 }
 
 func boundedAuthTokenChunks(token string) ([]string, error) {
@@ -249,11 +470,15 @@ func boundedAuthTokenChunks(token string) ([]string, error) {
 	return chunks, nil
 }
 
-func clearAuthTokenChunkCookie(w http.ResponseWriter, secure bool, cookiePath, sanitizedCluster string, index int) {
+func clearAuthTokenChunkCookie(w http.ResponseWriter, secure bool, cookiePath, namePrefix string, index int) {
+	clearAuthCookie(w, secure, cookiePath, fmt.Sprintf("%s.%d", namePrefix, index))
+}
+
+func clearAuthCookie(w http.ResponseWriter, secure bool, cookiePath, name string) {
 	// G124: Secure is set from IsSecureContext so localhost development still works;
 	// HttpOnly and SameSite are set unconditionally.
 	cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
-		Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, index),
+		Name:     name,
 		Value:    "",
 		HttpOnly: true,
 		Secure:   secure,
