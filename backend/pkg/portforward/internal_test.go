@@ -294,6 +294,152 @@ func TestPortForwardRequestValidate(t *testing.T) {
 
 	err = req.Validate()
 	assert.NoError(t, err)
+
+	for _, address := range []string{"localhost", "127.0.0.1", "0.0.0.0"} {
+		req.Address = address
+		assert.NoError(t, req.Validate(), "address %q should be allowed", address)
+	}
+
+	for _, address := range []string{"192.168.1.10", "::", "example.com"} {
+		req.Address = address
+		assert.EqualError(t, req.Validate(), "address must be one of localhost, 127.0.0.1 or 0.0.0.0",
+			"address %q should be rejected", address)
+	}
+}
+
+// fakeStreamConn is a port-forward connection that never carries traffic, so a
+// forwarder can start listening without a cluster.
+type fakeStreamConn struct {
+	closeChan chan bool
+}
+
+func (c *fakeStreamConn) CreateStream(http.Header) (httpstream.Stream, error) {
+	return nil, errors.New("streams are not supported")
+}
+
+func (c *fakeStreamConn) Close() error { return nil }
+
+func (c *fakeStreamConn) CloseChan() <-chan bool { return c.closeChan }
+
+func (c *fakeStreamConn) SetIdleTimeout(time.Duration) {}
+
+func (c *fakeStreamConn) RemoveStreams(...httpstream.Stream) {}
+
+type fakeStreamDialer struct{}
+
+func (fakeStreamDialer) Dial(...string) (httpstream.Connection, string, error) {
+	return &fakeStreamConn{closeChan: make(chan bool)}, portforward.PortForwardProtocolV1Name, nil
+}
+
+// TestNewPortForwarderListenAddress checks that the forwarder listens on the
+// requested address, e.g. 0.0.0.0 so the Docker Desktop extension can reach it
+// through the container's published ports.
+func TestNewPortForwarderListenAddress(t *testing.T) {
+	tests := []struct {
+		address string
+		want    string
+		notWant string
+	}{
+		{address: "0.0.0.0", want: "Forwarding from 0.0.0.0:", notWant: "Forwarding from 127.0.0.1:"},
+		{address: "127.0.0.1", want: "Forwarding from 127.0.0.1:", notWant: "Forwarding from 0.0.0.0:"},
+		{address: "localhost", want: "Forwarding from 127.0.0.1:", notWant: "Forwarding from 0.0.0.0:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			out := new(bytes.Buffer)
+
+			forwarder, stopChan, readyChan, _, err := newPortForwarder(fakeStreamDialer{}, tt.address, ":80", out)
+			require.NoError(t, err)
+
+			errChan := make(chan error, 1)
+
+			go func() { errChan <- forwarder.ForwardPorts() }()
+
+			select {
+			case <-readyChan:
+			case err := <-errChan:
+				t.Fatalf("forwarder stopped before it was ready: %v", err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for the forwarder to be ready")
+			}
+
+			listening := out.String()
+
+			close(stopChan)
+			require.NoError(t, <-errChan)
+
+			assert.Contains(t, listening, tt.want)
+			assert.NotContains(t, listening, tt.notWant)
+		})
+	}
+}
+
+// TestTryReconnectOnceKeepsListenAddress checks that a service forward started on
+// 0.0.0.0 listens on 0.0.0.0 again after it reconnects to a new pod, so the Docker
+// Desktop extension can still reach it through the container's published ports.
+func TestTryReconnectOnceKeepsListenAddress(t *testing.T) {
+	ready := true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/apis/discovery.k8s.io/v1/namespaces/default/endpointslices" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(&discoveryv1.EndpointSliceList{
+				Items: []discoveryv1.EndpointSlice{{
+					Endpoints: []discoveryv1.Endpoint{{
+						Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+						TargetRef:  &corev1.ObjectReference{Kind: "Pod", Name: "web-1", Namespace: "default"},
+					}},
+				}},
+			})
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	// Forward without an API server, but keep the real forwarder, to see which address
+	// the reconnect asks for and where the new forwarder listens.
+	var gotAddress string
+
+	out := new(bytes.Buffer)
+	orig := createPortForwarder
+	createPortForwarder = func(_ httpstream.Dialer, address, portMapping string, _ *bytes.Buffer) (
+		*portforward.PortForwarder, chan struct{}, chan struct{}, *bytes.Buffer, error,
+	) {
+		gotAddress = address
+
+		return orig(fakeStreamDialer{}, address, portMapping, out)
+	}
+
+	t.Cleanup(func() { createPortForwarder = orig })
+
+	rConf := &rest.Config{Host: srv.URL}
+	cs, err := kubernetes.NewForConfig(rConf)
+	require.NoError(t, err)
+
+	pf := &portForward{
+		ID: "pf-address", Cluster: "c1", Pod: "web-0", Namespace: "default",
+		Service: "svc", ServiceNamespace: "default", Port: "0", TargetPort: "80", Address: "0.0.0.0",
+		rConf: rConf, mu: &sync.Mutex{}, closeChan: make(chan struct{}),
+	}
+
+	// Stop the new forwarder and its pod monitor when the test ends.
+	t.Cleanup(func() {
+		pf.mu.Lock()
+		defer pf.mu.Unlock()
+
+		safeCloseChan(pf.closeChan)
+	})
+
+	ok, abort := tryReconnectOnce(cs, cache.New[interface{}](), pf, map[string]string{"id": "pf-address"})
+	require.True(t, ok)
+	require.False(t, abort)
+
+	assert.Equal(t, "web-1", pf.Pod)
+	assert.Equal(t, "0.0.0.0", gotAddress)
+	assert.Contains(t, out.String(), "Forwarding from 0.0.0.0:")
 }
 
 func TestPortForwardRequestValidate_Allowlists(t *testing.T) {
@@ -883,6 +1029,43 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
 }
 
+// TestStartPortForward_RejectsInvalidAddress checks that a port forward can't be
+// asked to listen on an address other than the allowed ones.
+func TestStartPortForward_RejectsInvalidAddress(t *testing.T) {
+	const (
+		clusterName = "test-cluster"
+		contextKey  = clusterName + "\x00user"
+	)
+
+	reqPayload := map[string]interface{}{
+		"id":         "invalid-address",
+		"pod":        "some-pod",
+		"namespace":  "default",
+		"targetPort": "8080",
+		"address":    "192.168.1.10",
+	}
+	jsonReq, err := json.Marshal(reqPayload)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(jsonReq))
+	r.Header.Set("X-HEADLAMP-USER-ID", "user")
+	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
+
+	kContext := &kubeconfig.Context{Name: contextKey}
+	startPortForwardForOwner(kContext, cache.New[interface{}](), false, contextKey, contextKey, w, r)
+
+	res := w.Result()
+
+	defer func() { _ = res.Body.Close() }()
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+	assert.Contains(t, string(body), "address must be one of localhost, 127.0.0.1 or 0.0.0.0")
+}
+
 // TestStartPortForward_ConcurrentRequests verifies the in-flight lock deterministically:
 // G1 blocks in the upstream permission check while G2 gets a conflict.
 //
@@ -1154,7 +1337,7 @@ func TestCheckIfPodIsRunning(t *testing.T) {
 
 func TestInitPortForwarder(t *testing.T) {
 	fwd, stopChan, readyChan, errOut, err := initPortForwarder(
-		&rest.Config{Host: "https://127.0.0.1:6443"}, "default", "web-0", "8080:80", "80",
+		&rest.Config{Host: "https://127.0.0.1:6443"}, "default", "web-0", "localhost", "8080:80", "80",
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, fwd)
@@ -1163,7 +1346,7 @@ func TestInitPortForwarder(t *testing.T) {
 	assert.NotNil(t, errOut)
 
 	fwd, stopChan, readyChan, errOut, err = initPortForwarder(
-		&rest.Config{Host: "://bad"}, "default", "web-0", "8080:80", "80",
+		&rest.Config{Host: "://bad"}, "default", "web-0", "localhost", "8080:80", "80",
 	)
 	require.Error(t, err)
 	assert.Nil(t, fwd)
