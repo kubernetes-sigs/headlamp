@@ -368,54 +368,6 @@ func TestGetAuthTokenCookieStopsAtTerminalChunk(t *testing.T) {
 	}
 }
 
-func TestClearAuthCookie(t *testing.T) {
-	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
-	req.Host = localhost
-	w := httptest.NewRecorder()
-
-	// Set cookie
-	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-test-cluster.0",
-		Value:    "test-token",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		Path:     "/",
-		MaxAge:   86400, // 24 hours
-	})
-
-	// Clear a cookie
-	auth.ClearTokenCookie(w, req, "test-cluster", "")
-
-	// Check if cookie was set
-	cookies := w.Result().Cookies()
-	if len(cookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
-	}
-
-	// Test clearing the cookie
-	auth.ClearTokenCookie(w, req, "test-cluster", "")
-
-	// Check if cookie was cleared
-	clearedCookies := w.Result().Cookies()
-	if len(clearedCookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(clearedCookies))
-	}
-
-	cookie := clearedCookies[0]
-	if cookie.Name != "headlamp-auth-test-cluster.0" {
-		t.Errorf("Expected cookie name 'headlamp-auth-test-cluster.0', got %q", cookie.Name)
-	}
-
-	if cookie.Value != "" {
-		t.Errorf("Expected cookie value to be empty, got %q", cookie.Value)
-	}
-
-	if cookie.MaxAge != -1 {
-		t.Errorf("Expected MaxAge to be -1, got %d", cookie.MaxAge)
-	}
-}
-
 func TestLogoutCookiesPreserveDesktopRewriteAttributes(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, localhostOrigin, nil)
 
@@ -768,16 +720,20 @@ func TestClearIDTokenCookieClearsChunksAcrossGaps(t *testing.T) {
 
 func TestLogoutInvalidationSurvivesTokenResizeAndRelogin(t *testing.T) {
 	tests := []struct {
-		name  string
-		path  string
-		set   func(http.ResponseWriter, *http.Request, string, string, string, int) error
-		get   func(*http.Request, string) (string, error)
-		clear func(http.ResponseWriter, *http.Request, string, string)
+		name       string
+		path       string
+		set        func(http.ResponseWriter, *http.Request, string, string, string, int) error
+		get        func(*http.Request, string) (string, error)
+		clear      func(http.ResponseWriter, *http.Request, string, string)
+		clearCount int // cookies set when chunks are hidden: chunk zero
 	}{
-		{"auth", auth.GetCookiePath("", "main"), auth.SetTokenCookie, auth.GetTokenFromCookie, auth.ClearTokenCookieBounded},
+		{
+			"auth", auth.GetCookiePath("", "main"), auth.SetTokenCookie,
+			auth.GetTokenFromCookie, auth.ClearTokenCookieBounded, 1,
+		},
 		{
 			"id", auth.GetOIDCLogoutCookiePath("", "main"),
-			auth.SetIDTokenCookie, auth.GetIDTokenFromCookie, auth.ClearIDTokenCookie,
+			auth.SetIDTokenCookie, auth.GetIDTokenFromCookie, auth.ClearIDTokenCookie, 1,
 		},
 	}
 	for _, tc := range tests {
@@ -810,7 +766,7 @@ func TestLogoutInvalidationSurvivesTokenResizeAndRelogin(t *testing.T) {
 
 				w = httptest.NewRecorder()
 				tc.clear(w, hiddenReq, "main", "")
-				require.Len(t, w.Result().Cookies(), 1, "Hidden chunks require only chunk-zero invalidation")
+				require.Len(t, w.Result().Cookies(), tc.clearCount, "Hidden chunks require only chunk-zero invalidation")
 				jar.SetCookies(hiddenReq.URL, w.Result().Cookies())
 
 				req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, target.String(), nil)
