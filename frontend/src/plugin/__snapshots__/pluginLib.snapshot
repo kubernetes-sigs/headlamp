@@ -488,6 +488,9 @@
   "Iconify": "Present",
   "K8s": {
     "ResourceClasses": {
+      "CSIDriver": [Function],
+      "CSINode": [Function],
+      "CSIStorageCapacity": [Function],
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
       "CompositePodGroup": [Function],
@@ -536,6 +539,7 @@
       "StorageClass": [Function],
       "TCPRoute": [Function],
       "UDPRoute": [Function],
+      "VolumeAttachment": [Function],
       "VolumeAttributesClass": [Function],
       "Workload": [Function],
     },
@@ -566,6 +570,15 @@
       "makeCustomResourceClass": [Function],
     },
     "cronJob": {
+      "default": [Function],
+    },
+    "csiDriver": {
+      "default": [Function],
+    },
+    "csiNode": {
+      "default": [Function],
+    },
+    "csiStorageCapacity": {
       "default": [Function],
     },
     "daemonSet": {
@@ -696,6 +709,9 @@
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
     "useSelectedClusters": [Function],
+    "volumeAttachment": {
+      "default": [Function],
+    },
     "volumeAttributesClass": {
       "default": [Function],
     },
