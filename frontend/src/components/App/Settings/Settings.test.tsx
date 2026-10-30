@@ -17,13 +17,13 @@
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComponentProps, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../../App';
 import { createMuiTheme } from '../../../lib/themes';
-import { setConfig } from '../../../redux/configSlice';
+import { setAppSettings, setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
 import reducers from '../../../redux/reducers/reducers';
 import store from '../../../redux/stores/store';
@@ -452,3 +452,24 @@ describe(
     });
   }
 );
+
+describe('Settings guided tooltips', () => {
+  it('toggles the guided tooltips setting as the last general option', () => {
+    store.dispatch(setAppSettings({ tutorialTooltips: true }));
+    renderWithProviders(<Settings />);
+
+    const toggle = screen.getByRole('checkbox', { name: 'Enable guided tooltips' });
+    expect(toggle).toBeChecked();
+
+    const switches = screen.getAllByRole('checkbox');
+    const expandGraphIndex = switches.indexOf(
+      screen.getByRole('checkbox', { name: 'Keep Large Graph Groups Expanded' })
+    );
+    expect(switches.indexOf(toggle)).toBe(expandGraphIndex + 1);
+
+    fireEvent.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(store.getState().config.settings.tutorialTooltips).toBe(false);
+  });
+});

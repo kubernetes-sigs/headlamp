@@ -191,6 +191,7 @@
   "Use evict for pod deletion": "使用驱逐方式删除 Pod",
   "Show system tray icon": "",
   "Keep Large Graph Groups Expanded": "",
+  "Enable guided tooltips": "",
   "Theme": "主题",
   "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "",
