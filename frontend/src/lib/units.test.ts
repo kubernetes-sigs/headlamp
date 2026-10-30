@@ -88,6 +88,28 @@ describe('parseRam', () => {
     expect(parseRam('1e6')).toBe(1000000);
   });
 
+  it('should parse an exponent written with a sign', () => {
+    // The grammar is <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber>,
+    // and the API server returns these verbatim: a limit written as 1e+9 comes
+    // back as '1e+9'. The sign used to stop the exponent from matching, so the
+    // value fell through to the suffix branch and was divided by 1000 instead:
+    // 1e+9 read as 0.001 bytes rather than a gigabyte.
+    expect(parseRam('1e+3')).toBe(1000);
+    expect(parseRam('1E+3')).toBe(1000);
+    expect(parseRam('1e+9')).toBe(1e9);
+    expect(parseRam('1e+18')).toBe(1e18);
+    expect(parseRam('2e-6')).toBeCloseTo(2e-6, 12);
+    expect(parseRam('1E-6')).toBeCloseTo(1e-6, 12);
+    // A trailing decimal point in front of the exponent is legal too, and the
+    // wider number group added for '1.Gi' makes it match: '1.e+0' takes '1.'
+    // and 'e', so without a sign in the exponent group it fell through to the
+    // same /1000 branch and read as 0.001 instead of 1.
+    expect(parseRam('1.e+0')).toBe(1);
+    expect(parseRam('1.e-0')).toBe(1);
+    expect(parseRam('1.e+3')).toBe(1000);
+    expect(parseRam('.5e+3')).toBe(500);
+  });
+
   it('should parse the lowercase decimal kilo suffix', () => {
     expect(parseRam('1k')).toBe(1000);
     expect(parseRam('64k')).toBe(64000);

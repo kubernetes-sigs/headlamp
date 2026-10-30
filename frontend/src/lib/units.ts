@@ -53,7 +53,11 @@ function parseUnitsOfBytes(value: string): number {
   // which Kubernetes accepts. "1.Gi" reaches the UI verbatim and would otherwise
   // match only "1", dropping the suffix and reading it as one byte; ".5Gi" would
   // be read as "5Gi".
-  const groups = value.match(/(\d+(?:\.\d*)?|\.\d+)([BkKMGTPEe])?(i)?(\d+)?/) || [];
+  // The exponent takes a sign, because the grammar is
+  // <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber>. Without it
+  // "1e+9" fell through to the suffix branch, where "e" is not a unit, and was
+  // divided by 1000 instead of multiplied by a billion.
+  const groups = value.match(/(\d+(?:\.\d*)?|\.\d+)([BkKMGTPEe])?(i)?([+-]?\d+)?/) || [];
   const number = parseFloat(groups[1]) * (value.startsWith('-') ? -1 : 1);
 
   // number ex. 1000
