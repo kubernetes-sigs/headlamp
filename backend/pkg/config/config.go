@@ -33,6 +33,20 @@ const (
 	DefaultMeEmailPath    = "email"
 	DefaultMeGroupsPath   = "groups,realm_access.roles"
 	DefaultMeUserInfoURL  = ""
+	// DefaultImpersonationUsernamePath is the username claim chain impersonation falls back to
+	// when --me-username-path was never explicitly configured, instead of inheriting
+	// DefaultMeUsernamePath as-is. DefaultMeUsernamePath ends in the display-oriented `name`
+	// claim, which is fine for /me's purpose -- a label the browser shows the signed-in user --
+	// but not for impersonation, which grants the resolved username's actual Kubernetes RBAC
+	// authority: two different users can share a mutable, non-unique display name, and OIDC
+	// does not require `name` to be unique at all. This chain keeps the same stable-handle
+	// claims first, but ends in `join('#', [iss, sub])` instead of `name`: `sub` is the one
+	// claim OIDC guarantees is unique and never reassigned for a given user at its issuer, and
+	// qualifying it with `iss` keeps it unique even if a deployment is ever reconfigured to
+	// trust more than one issuer. An operator who explicitly configured --me-username-path
+	// (even to something unusual) has made an informed choice, so that is honored as-is --
+	// this fallback only applies when the flag was left at its default.
+	DefaultImpersonationUsernamePath = "preferred_username,upn,username,join('#', [iss, sub])"
 )
 
 type Config struct {
@@ -693,7 +707,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"Disables per-user auth; only safe behind an auth proxy")
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
-			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+			"Only used when --unsafe-use-service-account-token or --oidc-use-impersonation is set and in-cluster")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

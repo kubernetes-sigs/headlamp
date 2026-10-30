@@ -44,6 +44,7 @@ func FuzzSanitizeClusterName(f *testing.F) {
 	f.Add("MixedCase123")
 
 	validCharsRegex := regexp.MustCompile(`^[a-zA-Z0-9\-_]*$`)
+	invalidCharRegex := regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
 
 	f.Fuzz(func(t *testing.T, input string) {
 		if len(input) > 256 {
@@ -52,9 +53,13 @@ func FuzzSanitizeClusterName(f *testing.F) {
 
 		result := auth.SanitizeClusterName(input)
 
-		// Invariant 1: Result should never be longer than 50 characters
-		if len(result) > 50 {
-			t.Errorf("SanitizeClusterName(%q) returned result with length %d, expected <= 50", input, len(result))
+		// Invariant 1: the human-readable prefix is bounded at 50 characters, plus a fixed
+		// "-" + 32 hex character (128-bit) hash suffix, except when the input sanitizes to
+		// nothing.
+		const maxLen = 50 + 1 + 32
+		if len(result) > maxLen {
+			t.Errorf("SanitizeClusterName(%q) returned result with length %d, expected <= %d",
+				input, len(result), maxLen)
 		}
 
 		// Invariant 2: Result should only contain alphanumeric characters, hyphens, and underscores
@@ -67,21 +72,16 @@ func FuzzSanitizeClusterName(f *testing.F) {
 			t.Errorf("SanitizeClusterName(%q) = %q is not valid UTF-8", input, result)
 		}
 
-		// Invariant 4: If input is empty, result should be empty
-		if input == "" && result != "" {
+		// Invariant 4: an input that sanitizes to nothing (including the empty string) still
+		// produces an empty result, preserving callers' "invalid cluster name" check.
+		if invalidCharRegex.ReplaceAllString(input, "") == "" && result != "" {
 			t.Errorf("SanitizeClusterName(%q) = %q, expected empty string", input, result)
 		}
 
-		// Invariant 5: Result should be idempotent - sanitizing the result again should give the same result
-		result2 := auth.SanitizeClusterName(result)
-		if result != result2 {
-			t.Errorf("SanitizeClusterName is not idempotent: first=%q, second=%q", result, result2)
-		}
-
-		// Invariant 6: Result length should never exceed input length (sanitization only removes characters)
-		if len(input) > 0 && len(result) > len(input) {
-			t.Errorf("SanitizeClusterName(%q) returned result longer than input: input_len=%d, result_len=%d",
-				input, len(input), len(result))
-		}
+		// Invariant 5 (not idempotent by design): a result is not meant to be re-sanitized --
+		// the hash suffix makes two different non-colliding original inputs still collide if
+		// fed back through SanitizeClusterName a second time, since a result containing a
+		// "-" is itself a valid cluster name shape. Note: this is only ever called once, on
+		// the original cluster name.
 	})
 }
