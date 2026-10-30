@@ -2048,6 +2048,18 @@ func TestMonitorConnection_CancellationDuringBackoff(t *testing.T) {
 	m.minReconnectBackoff = 10 * time.Minute
 	m.maxReconnectBackoff = 30 * time.Minute
 
+	backoffReached := make(chan struct{})
+
+	var signalOnce sync.Once
+
+	m.backoffJitterFunc = func() float64 {
+		signalOnce.Do(func() {
+			close(backoffReached)
+		})
+
+		return 0.0
+	}
+
 	done := make(chan struct{})
 
 	go func() {
@@ -2055,10 +2067,14 @@ func TestMonitorConnection_CancellationDuringBackoff(t *testing.T) {
 		close(done)
 	}()
 
-	// Wait briefly for monitorConnection to fire first tick, fail reconnect, and enter 10m backoff
-	time.Sleep(25 * time.Millisecond)
+	// Wait for reconnect failure and backoff calculation to be reached
+	select {
+	case <-backoffReached:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect backoff to be calculated")
+	}
 
-	// Close conn.Done to verify cancellation responsiveness
+	// Close conn.Done to verify cancellation responsiveness during backoff
 	close(conn.Done)
 
 	// monitorConnection must exit promptly, NOT waiting for the 10-minute backoff
