@@ -262,22 +262,28 @@ describe('PortForward stop handler', () => {
     expect(mockListPortForward).not.toHaveBeenCalled();
   });
 
-  it('disables starting a service port forward when none of its pods are ready', async () => {
-    mockListPortForward.mockResolvedValue([]);
-    mockUsePodList.mockReturnValue([
+  it.each([
+    [
+      'none of its pods are ready',
       [
         makeServicePod('pending-pod', { phase: 'Pending', ready: false }),
         makeServicePod('unready-pod', { ready: false }),
       ],
-      null,
-    ]);
+    ],
+    ['it has no pods', []],
+  ])('disables starting a service port forward when %s', async (_, pods) => {
+    mockListPortForward.mockResolvedValue([]);
+    mockUsePodList.mockReturnValue([pods, null]);
 
     renderServicePortForward({ app: 'my-service' });
 
     expect(await screen.findByLabelText(/Start port forward/i)).toBeDisabled();
   });
 
-  it('keeps a reconnecting service port forward stoppable while no pod is ready', async () => {
+  it.each([
+    ['no pod is ready', [makeServicePod('new-pod', { ready: false })]],
+    ['the service has no pods yet', []],
+  ])('keeps a reconnecting service port forward stoppable while %s', async (_, pods) => {
     mockListPortForward.mockResolvedValue([
       {
         ...runningPortForward,
@@ -288,7 +294,7 @@ describe('PortForward stop handler', () => {
         status: 'Reconnecting',
       },
     ]);
-    mockUsePodList.mockReturnValue([[makeServicePod('new-pod', { ready: false })], null]);
+    mockUsePodList.mockReturnValue([pods, null]);
 
     renderServicePortForward({ app: 'my-service' });
 
