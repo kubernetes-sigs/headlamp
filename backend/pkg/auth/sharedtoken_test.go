@@ -26,6 +26,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -175,6 +176,24 @@ func TestSharedTokenIdentityOverStore(t *testing.T) {
 			assert.Equal(t, tc.wantKey, key)
 		})
 	}
+}
+
+func TestSharedCookieNamespaceCannotCollideWithClusterName(t *testing.T) {
+	// A cluster literally named "shared-<key>" must keep its own cookies.
+	cluster := "shared-" + sharedTestKey
+
+	assert.NotContains(t, auth.SanitizeClusterName("a~shared-b"), "~",
+		"SanitizeClusterName must strip the shared namespace separator")
+
+	req := clusterRequest(cluster)
+	req.Header.Set("Cookie", ownCookieName(cluster)+"=own-token; "+sharedCookieName(sharedTestKey, 0)+"=shared-token")
+
+	token, err := auth.GetTokenFromCookie(req, cluster)
+	require.NoError(t, err)
+	assert.Equal(t, "own-token", token)
+
+	auth.StripSharedTokenCookies(req)
+	assert.Equal(t, ownCookieName(cluster)+"=own-token", req.Header.Get("Cookie"))
 }
 
 func TestGetTokenFromCookieFallsBackToSharedToken(t *testing.T) {
@@ -331,4 +350,131 @@ func TestSharedTokenIdentity(t *testing.T) {
 
 	_, _, ok = auth.SharedTokenIdentity(newNonOIDCContext("static"))
 	assert.False(t, ok)
+}
+
+func TestOIDCTokenRefreshMiddlewareHandsOffWithoutSharedCookies(t *testing.T) {
+	for _, baseURL := range []string{"", "/headlamp"} {
+		t.Run("base="+baseURL, func(t *testing.T) {
+			store := &countingStore{ContextStore: sharedTestStore(t)}
+
+			var seenAuth, seenCookie string
+
+			handler := auth.NewOIDCTokenRefreshMiddleware(auth.OIDCTokenRefreshConfig{
+				KubeConfigStore:       store,
+				TelemetryHandler:      &telemetry.RequestHandler{},
+				BaseURL:               baseURL,
+				OidcUseTokenBroadcast: true,
+			})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seenAuth = r.Header.Get("Authorization")
+				seenCookie = r.Header.Get("Cookie")
+			}))
+
+			serve := func(path, cookie string) {
+				seenAuth, seenCookie = "", ""
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+path, nil)
+				req.Header.Set("Cookie", cookie)
+				handler.ServeHTTP(httptest.NewRecorder(), req)
+			}
+
+			// No token and no shared cookie: the context is never loaded.
+			serve("/clusters/unknown/api", "other=keep")
+			assert.Equal(t, 0, store.calls)
+			assert.Empty(t, seenAuth)
+			assert.Equal(t, "other=keep", seenCookie)
+
+			// Own cookie: a token is present, so the context is loaded once for the
+			// refresh check (not again by the resolver) and the token is promoted.
+			serve("/clusters/"+sharedTestCluster+"/api", ownCookieName(sharedTestCluster)+"=own")
+			assert.Equal(t, 1, store.calls)
+			assert.Equal(t, "Bearer own", seenAuth)
+
+			// Shared cookie: context loaded once more, token promoted, shared cookie stripped.
+			serve("/clusters/"+sharedTestCluster+"/api", "other=keep; "+sharedCookieName(sharedTestKey, 0)+"="+sharedTestToken)
+			assert.Equal(t, 2, store.calls)
+			assert.Equal(t, "Bearer "+sharedTestToken, seenAuth)
+			assert.Equal(t, "other=keep", seenCookie)
+
+			// Logged-out cluster: nothing promoted, shared cookie still stripped.
+			serve("/clusters/"+sharedTestCluster+"/api", outCookieName()+"=1; "+sharedCookieName(sharedTestKey, 0)+"=s")
+			assert.Empty(t, seenAuth)
+			assert.Equal(t, outCookieName()+"=1", seenCookie)
+		})
+	}
+}
+
+// TestOIDCTokenRefreshMiddlewareWithoutBroadcastIsUnchanged: with the flag off
+// nothing new happens: no shared cookie is read, nothing is promoted, nothing is
+// stripped and no cookie is set, byte for byte as before token broadcast.
+func TestOIDCTokenRefreshMiddlewareWithoutBroadcastIsUnchanged(t *testing.T) {
+	for _, baseURL := range []string{"", "/headlamp"} {
+		t.Run("base="+baseURL, func(t *testing.T) {
+			store := &countingStore{ContextStore: sharedTestStore(t)}
+
+			var seenAuth, seenCookie string
+
+			handler := auth.NewOIDCTokenRefreshMiddleware(auth.OIDCTokenRefreshConfig{
+				KubeConfigStore:  store,
+				TelemetryHandler: &telemetry.RequestHandler{},
+				BaseURL:          baseURL,
+			})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seenAuth = r.Header.Get("Authorization")
+				seenCookie = r.Header.Get("Cookie")
+			}))
+
+			cookie := "other=keep; " + sharedCookieName(sharedTestKey, 0) + "=" + sharedTestToken +
+				"; " + outCookieName() + "=1"
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				baseURL+"/clusters/"+sharedTestCluster+"/api", nil)
+			req.Header.Set("Cookie", cookie)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Empty(t, seenAuth, "no promotion without the flag")
+			assert.Equal(t, cookie, seenCookie, "cookies forwarded untouched without the flag")
+			assert.Empty(t, rr.Result().Cookies())
+			assert.Equal(t, 0, store.calls, "no token means no context load, as before")
+		})
+	}
+}
+
+func TestStripSharedTokenCookies(t *testing.T) {
+	tests := []struct {
+		name   string
+		cookie string
+		want   string
+	}{
+		{
+			name: "removes shared cookies and keeps the rest",
+			cookie: "headlamp-auth-main.0=own; headlamp-auth~shared-" + sharedTestKey + ".0=s0; " +
+				"headlamp-auth~shared-" + sharedTestKey + ".1=s1; other=keep; headlamp-auth-main.out=1",
+			want: "headlamp-auth-main.0=own; other=keep; headlamp-auth-main.out=1",
+		},
+		{
+			name:   "drops the header when only shared cookies were sent",
+			cookie: "headlamp-auth~shared-" + sharedTestKey + ".0=s0",
+			want:   "",
+		},
+		{
+			name:   "leaves the header untouched without shared cookies",
+			cookie: "headlamp-auth-main.0=own;  other=keep",
+			want:   "headlamp-auth-main.0=own;  other=keep",
+		},
+		{
+			name:   "keeps quoted values and bare pairs verbatim",
+			cookie: `q="b c"; bare; headlamp-auth~shared-` + sharedTestKey + `.0=s0; weird=a=b; headlamp-auth-shared-prod.0=own`,
+			want:   `q="b c"; bare; weird=a=b; headlamp-auth-shared-prod.0=own`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := clusterRequest("main")
+			req.Header.Set("Cookie", tc.cookie)
+
+			auth.StripSharedTokenCookies(req)
+
+			assert.Equal(t, tc.want, req.Header.Get("Cookie"))
+		})
+	}
 }

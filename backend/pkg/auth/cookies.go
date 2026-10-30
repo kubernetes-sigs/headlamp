@@ -381,6 +381,49 @@ func joinSharedToken(w http.ResponseWriter, r *http.Request, cluster, baseURL st
 	clearAuthCookie(w, secure, cookiePath, namePrefix+logoutMarkerSuffix)
 }
 
+// StripSharedTokenCookies removes the shared token cookies from the request's
+// Cookie header. The cluster proxy forwards that header to the API server, and
+// a shared token must not reach clusters that use another identity provider.
+// The header is filtered textually so every other pair is forwarded verbatim.
+func StripSharedTokenCookies(r *http.Request) {
+	lines := r.Header.Values("Cookie")
+	kept := make([]string, 0, len(lines))
+	stripped := false
+
+	for _, line := range lines {
+		pairs := make([]string, 0, strings.Count(line, ";")+1)
+
+		for _, pair := range strings.Split(line, ";") {
+			pair = strings.TrimSpace(pair)
+			if pair == "" {
+				continue
+			}
+
+			name, _, _ := strings.Cut(pair, "=")
+			if strings.HasPrefix(name, sharedTokenCookiePrefix) {
+				stripped = true
+				continue
+			}
+
+			pairs = append(pairs, pair)
+		}
+
+		if len(pairs) > 0 {
+			kept = append(kept, strings.Join(pairs, "; "))
+		}
+	}
+
+	if !stripped {
+		return
+	}
+
+	r.Header.Del("Cookie")
+
+	for _, line := range kept {
+		r.Header.Add("Cookie", line)
+	}
+}
+
 func authTokenCookiePrefix(sanitizedCluster string) string {
 	return "headlamp-auth-" + sanitizedCluster
 }
