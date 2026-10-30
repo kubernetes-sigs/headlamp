@@ -222,7 +222,7 @@ function PortForwardContent(props: PortForwardProps) {
   const shouldRender =
     isElectron() &&
     !(!isPod && podsFetchError) &&
-    !(!isPod && (!serviceHasSelector || !pods || pods.length === 0)) &&
+    !(!isPod && (!serviceHasSelector || !pods)) &&
     !(isPod && (!resource || (resource as Pod).status.phase === 'Failed'));
 
   React.useEffect(() => {
