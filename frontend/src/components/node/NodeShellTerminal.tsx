@@ -111,6 +111,9 @@ function uniqueString() {
  *
  * @param item - Node to open a shell on
  * @param cluster - Cluster the node belongs to, already resolved by the caller
+ * @param podName - Name of the debugger pod, kept across reconnects to reattach to the same pod
+ * @param isRetry - Whether this reattaches after a dropped connection; failures are then
+ *                  rethrown so the caller keeps retrying instead of reporting them
  * @param onExec - Stream results callback
  * @param onError - Error handler callback, called with the pod creation failure message when the
  *                  thrown value carries one, and with undefined otherwise so the caller can supply a
@@ -121,6 +124,7 @@ async function shell(
   item: Node,
   cluster: string,
   podName: string,
+  isRetry: boolean,
   onExec: StreamResultsCb,
   onError: (message?: string) => void
 ) {
@@ -136,6 +140,9 @@ async function shell(
   } catch (e: any) {
     const status = e?.status || e?.statusCode;
     if (status !== 409 && !e?.message?.includes('already exists')) {
+      if (isRetry) {
+        throw e;
+      }
       console.error('Error:DebugNode: creating pod', e);
       onError(e instanceof Error ? e.message : undefined);
       return {};
@@ -186,6 +193,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
         };
       }
 
+      const isRetry = podNameRef.current !== null;
       if (!podNameRef.current) {
         podNameRef.current = `node-debugger-${item.getName()}-${uniqueString()}`;
       }
@@ -195,6 +203,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
         item,
         cluster,
         podNameRef.current,
+        isRetry,
         onDataCallback,
         (errorMessage?: string) => {
           const message = errorMessage || t('translation|Failed to create node shell pod');
