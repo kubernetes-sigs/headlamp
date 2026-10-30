@@ -2048,16 +2048,14 @@ func TestMonitorConnection_CancellationDuringBackoff(t *testing.T) {
 	m.minReconnectBackoff = 10 * time.Minute
 	m.maxReconnectBackoff = 30 * time.Minute
 
-	backoffReached := make(chan struct{})
+	backoffScheduled := make(chan struct{})
 
 	var signalOnce sync.Once
 
-	m.backoffJitterFunc = func() float64 {
+	m.backoffScheduledFunc = func(attempt int, delay time.Duration) {
 		signalOnce.Do(func() {
-			close(backoffReached)
+			close(backoffScheduled)
 		})
-
-		return 0.0
 	}
 
 	done := make(chan struct{})
@@ -2067,11 +2065,11 @@ func TestMonitorConnection_CancellationDuringBackoff(t *testing.T) {
 		close(done)
 	}()
 
-	// Wait for reconnect failure and backoff calculation to be reached
+	// Wait for reconnect failure and backoff timer to be scheduled
 	select {
-	case <-backoffReached:
+	case <-backoffScheduled:
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for reconnect backoff to be calculated")
+		t.Fatal("timed out waiting for reconnect backoff to be scheduled")
 	}
 
 	// Close conn.Done to verify cancellation responsiveness during backoff
@@ -2140,27 +2138,127 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 	assert.LessOrEqual(t, attempts, int64(3), "reconnect attempts should be throttled by backoff")
 }
 
-func TestMonitorConnection_ResetBackoffOnSuccess(t *testing.T) {
+func createToggleableTestServer(serverFail *atomic.Bool, upgrades *atomic.Int32) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serverFail.Load() {
+			http.Error(w, "server error", http.StatusInternalServerError)
+
+			return
+		}
+
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		upgrades.Add(1)
+
+		go func() {
+			defer func() { _ = ws.Close() }()
+
+			for {
+				if _, _, err := ws.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+	}))
+}
+
+type backoffEvent struct {
+	attempt int
+	delay   time.Duration
+}
+
+func assertBackoffEvent(t *testing.T, ch <-chan backoffEvent, expectedAttempt int, expectedDelay time.Duration) {
+	t.Helper()
+
+	select {
+	case ev := <-ch:
+		assert.Equal(t, expectedAttempt, ev.attempt)
+		assert.Equal(t, expectedDelay, ev.delay)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for backoff event")
+	}
+}
+
+func cleanUpTestConnection(t *testing.T, done <-chan struct{}, conns ...*Connection) {
+	t.Helper()
+
+	for _, c := range conns {
+		if c != nil && c.Done != nil {
+			select {
+			case <-c.Done:
+			default:
+				close(c.Done)
+			}
+		}
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("monitorConnection did not exit promptly after done channel closure")
+	}
+}
+
+func setupTestMultiplexerWithBackoff(
+	t *testing.T,
+	clusterURL string,
+	clientConn *WSConnLock,
+) (*Multiplexer, *Connection) {
+	t.Helper()
+
 	store := kubeconfig.NewContextStore()
 	m := NewMultiplexer(store, false)
 
-	mockServer := createMockKubeAPIServer()
-	defer mockServer.Close()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                clusterURL,
+			InsecureSkipTLSVerify: true,
+		},
+	}))
 
-	err := store.AddContext(&kubeconfig.Context{
-		Name:    "working-cluster",
-		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
-	})
-	require.NoError(t, err)
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn.Status.State = StateError
+
+	zeroJitter := float64(0)
+	m.heartbeatInterval = 10 * time.Millisecond
+	m.minReconnectBackoff = 20 * time.Millisecond
+	m.maxReconnectBackoff = 200 * time.Millisecond
+	m.backoffJitterFactor = &zeroJitter
+
+	return m, conn
+}
+
+func TestMonitorConnection_ResetBackoffOnSuccess(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server := createToggleableTestServer(&serverFail, &upgrades)
+	defer server.Close()
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
 
-	conn := m.createConnection("working-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
-	conn.Status.State = StateError
+	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn)
+	backoffEvents := make(chan backoffEvent, 10)
 
-	m.heartbeatInterval = 20 * time.Millisecond
-	m.minReconnectBackoff = 20 * time.Millisecond
+	m.backoffScheduledFunc = func(attempt int, delay time.Duration) {
+		backoffEvents <- backoffEvent{attempt: attempt, delay: delay}
+	}
+
+	// 1. Initial reconnect fails -> triggers backoff attempt 0
+	serverFail.Store(true)
 
 	done := make(chan struct{})
 
@@ -2169,32 +2267,33 @@ func TestMonitorConnection_ResetBackoffOnSuccess(t *testing.T) {
 		close(done)
 	}()
 
-	connKey := m.createConnectionKey("working-cluster", "/api/v1/pods", "test-user")
+	assertBackoffEvent(t, backoffEvents, 0, 20*time.Millisecond)
+
+	// 2. Allow reconnect to succeed (recovery)
+	serverFail.Store(false)
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
 
 	require.Eventually(t, func() bool {
 		m.mutex.RLock()
 		defer m.mutex.RUnlock()
 
-		return m.connections[connKey] != nil
-	}, 1*time.Second, 5*time.Millisecond)
+		return m.connections[connKey] != nil && upgrades.Load() > 0
+	}, 2*time.Second, 5*time.Millisecond)
 
 	m.mutex.RLock()
 	activeConn := m.connections[connKey]
 	m.mutex.RUnlock()
 
-	close(conn.Done)
+	// 3. Drop connection and fail server again to verify backoff was reset to 0
+	serverFail.Store(true)
 
-	if activeConn != nil && activeConn != conn {
-		close(activeConn.Done)
+	if activeConn != nil && activeConn.WSConn != nil {
+		_ = activeConn.WSConn.Close()
 	}
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("monitorConnection did not exit promptly after done channel closure")
-	}
+	assertBackoffEvent(t, backoffEvents, 0, 20*time.Millisecond)
 
-	if activeConn != nil {
-		assert.Equal(t, StateClosed, activeConn.Status.State)
-	}
+	// Clean up
+	cleanUpTestConnection(t, done, conn, activeConn)
 }

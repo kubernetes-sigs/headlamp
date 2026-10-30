@@ -192,11 +192,12 @@ type Multiplexer struct {
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
 	// Test overrides (zero value means use production constants)
-	heartbeatInterval   time.Duration
-	minReconnectBackoff time.Duration
-	maxReconnectBackoff time.Duration
-	backoffJitterFactor *float64
-	backoffJitterFunc   func() float64
+	heartbeatInterval    time.Duration
+	minReconnectBackoff  time.Duration
+	maxReconnectBackoff  time.Duration
+	backoffJitterFactor  *float64
+	backoffJitterFunc    func() float64
+	backoffScheduledFunc func(attempt int, delay time.Duration)
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -434,8 +435,8 @@ func (c *Connection) safeClose() {
 	})
 }
 
-// establishClusterConnection creates a new WebSocket connection to a Kubernetes cluster.
-func (m *Multiplexer) establishClusterConnection(
+// createClusterConnection creates and connects a new WebSocket connection to a Kubernetes cluster.
+func (m *Multiplexer) createClusterConnection(
 	clusterID,
 	userID,
 	path,
@@ -446,6 +447,7 @@ func (m *Multiplexer) establishClusterConnection(
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: clusterID}, err, "getting cluster config")
+
 		return nil, err
 	}
 
@@ -482,6 +484,23 @@ func (m *Multiplexer) establishClusterConnection(
 
 	connection.WSConn = conn
 	connection.updateStatus(StateConnected, nil)
+
+	return connection, nil
+}
+
+// establishClusterConnection creates a new WebSocket connection to a Kubernetes cluster.
+func (m *Multiplexer) establishClusterConnection(
+	clusterID,
+	userID,
+	path,
+	query string,
+	clientConn *WSConnLock,
+	token *string,
+) (*Connection, error) {
+	connection, err := m.createClusterConnection(clusterID, userID, path, query, clientConn, token)
+	if err != nil {
+		return nil, err
+	}
 
 	m.mutex.Lock()
 	connKey := m.createConnectionKey(clusterID, path, userID)
@@ -695,10 +714,15 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 			if newConn, err := m.reconnect(conn); err != nil {
 				logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
 
-				delay := m.nextReconnectDelay(backoffAttempt)
+				attempt := backoffAttempt
+				delay := m.nextReconnectDelay(attempt)
 				backoffAttempt++
 
 				timer.Reset(delay)
+
+				if m.backoffScheduledFunc != nil {
+					m.backoffScheduledFunc(attempt, delay)
+				}
 			} else {
 				backoffAttempt = 0
 				conn = newConn
@@ -719,7 +743,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
-	newConn, err := m.establishClusterConnection(
+	newConn, err := m.createClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
