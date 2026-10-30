@@ -721,6 +721,10 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	// SharedTokenKey is the key of the broadcast (shared) cookie Token was read
+	// from, or "" when it came from the Authorization header or the cluster's
+	// own cookie.
+	SharedTokenKey string
 }
 
 func setRefreshedIDTokenCookie(
@@ -810,14 +814,18 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		return
 	}
 
-	if err := SetTokenCookie(
-		params.Writer,
-		params.Request,
-		params.Cluster,
-		newTokenString,
-		params.BaseURL,
-		params.SessionTTL,
-	); err != nil {
+	// A token read from a broadcast (shared) cookie is renewed there, for every
+	// cluster using it, instead of diverging into a private copy; any other
+	// token is refreshed into the cluster's own cookie as before.
+	if params.SharedTokenKey != "" {
+		err = SetSharedTokenCookie(params.Writer, params.Request, params.SharedTokenKey,
+			newTokenString, params.BaseURL, params.SessionTTL)
+	} else {
+		err = SetTokenCookie(params.Writer, params.Request, params.Cluster,
+			newTokenString, params.BaseURL, params.SessionTTL)
+	}
+
+	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{clusterLogField: params.Cluster},
 			err, "failed to retain refreshed authentication token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Refreshed token cookie storage failed")

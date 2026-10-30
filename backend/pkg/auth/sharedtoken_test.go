@@ -18,6 +18,7 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -436,6 +437,43 @@ func TestOIDCTokenRefreshMiddlewareWithoutBroadcastIsUnchanged(t *testing.T) {
 			assert.Equal(t, 0, store.calls, "no token means no context load, as before")
 		})
 	}
+}
+
+func TestRefreshAndSetToken_SharedClusterUpdatesSharedCookie(t *testing.T) {
+	const oldToken = "OLD"
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := clusterRequest(sharedTestCluster)
+	addRequestCookie(req, sharedCookieName(sharedTestKey, 0), oldToken)
+
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          sharedTestCluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		SharedTokenKey:   sharedTestKey,
+	})
+
+	shared := findResponseCookie(t, rr, sharedCookieName(sharedTestKey, 0))
+	require.NotNil(t, shared, "refresh on a shared cluster must update the shared cookie")
+	assert.Equal(t, "NEW", shared.Value)
+	assert.Nil(t, findResponseCookie(t, rr, ownCookieName(sharedTestCluster)))
+	assert.Equal(t, "Bearer NEW", req.Header.Get("Authorization"))
 }
 
 func TestStripSharedTokenCookies(t *testing.T) {
