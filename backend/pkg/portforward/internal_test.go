@@ -244,6 +244,85 @@ func TestPortForwardRequestValidate(t *testing.T) {
 
 	err = req.Validate()
 	assert.NoError(t, err)
+
+	for _, address := range []string{"localhost", "127.0.0.1", "0.0.0.0"} {
+		req.Address = address
+		assert.NoError(t, req.Validate(), "address %q should be allowed", address)
+	}
+
+	for _, address := range []string{"192.168.1.10", "::", "example.com"} {
+		req.Address = address
+		assert.EqualError(t, req.Validate(), "address must be one of localhost, 127.0.0.1 or 0.0.0.0",
+			"address %q should be rejected", address)
+	}
+}
+
+// fakeStreamConn is a port-forward connection that never carries traffic, so a
+// forwarder can start listening without a cluster.
+type fakeStreamConn struct {
+	closeChan chan bool
+}
+
+func (c *fakeStreamConn) CreateStream(http.Header) (httpstream.Stream, error) {
+	return nil, errors.New("streams are not supported")
+}
+
+func (c *fakeStreamConn) Close() error { return nil }
+
+func (c *fakeStreamConn) CloseChan() <-chan bool { return c.closeChan }
+
+func (c *fakeStreamConn) SetIdleTimeout(time.Duration) {}
+
+func (c *fakeStreamConn) RemoveStreams(...httpstream.Stream) {}
+
+type fakeStreamDialer struct{}
+
+func (fakeStreamDialer) Dial(...string) (httpstream.Connection, string, error) {
+	return &fakeStreamConn{closeChan: make(chan bool)}, portforward.PortForwardProtocolV1Name, nil
+}
+
+// TestNewPortForwarderListenAddress checks that the forwarder listens on the
+// requested address, e.g. 0.0.0.0 so the Docker Desktop extension can reach it
+// through the container's published ports.
+func TestNewPortForwarderListenAddress(t *testing.T) {
+	tests := []struct {
+		address string
+		want    string
+		notWant string
+	}{
+		{address: "0.0.0.0", want: "Forwarding from 0.0.0.0:", notWant: "Forwarding from 127.0.0.1:"},
+		{address: "127.0.0.1", want: "Forwarding from 127.0.0.1:", notWant: "Forwarding from 0.0.0.0:"},
+		{address: "localhost", want: "Forwarding from 127.0.0.1:", notWant: "Forwarding from 0.0.0.0:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			out := new(bytes.Buffer)
+
+			forwarder, stopChan, readyChan, _, err := newPortForwarder(fakeStreamDialer{}, tt.address, ":80", out)
+			require.NoError(t, err)
+
+			errChan := make(chan error, 1)
+
+			go func() { errChan <- forwarder.ForwardPorts() }()
+
+			select {
+			case <-readyChan:
+			case err := <-errChan:
+				t.Fatalf("forwarder stopped before it was ready: %v", err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for the forwarder to be ready")
+			}
+
+			listening := out.String()
+
+			close(stopChan)
+			require.NoError(t, <-errChan)
+
+			assert.Contains(t, listening, tt.want)
+			assert.NotContains(t, listening, tt.notWant)
+		})
+	}
 }
 
 // TestBuildPortForwardURL ensures the upstream port-forward URL preserves the
@@ -773,6 +852,41 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	defer func() { _ = res.Body.Close() }()
 
 	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
+}
+
+// TestStartPortForward_RejectsInvalidAddress checks that a port forward can't be
+// asked to listen on an address other than the allowed ones.
+func TestStartPortForward_RejectsInvalidAddress(t *testing.T) {
+	const (
+		clusterName = "test-cluster"
+		contextKey  = clusterName + "\x00user"
+	)
+
+	reqPayload := map[string]interface{}{
+		"id":         "invalid-address",
+		"pod":        "some-pod",
+		"namespace":  "default",
+		"targetPort": "8080",
+		"address":    "192.168.1.10",
+	}
+	jsonReq, err := json.Marshal(reqPayload)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(jsonReq))
+	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
+
+	StartPortForward(kubeconfig.NewContextStore(), cache.New[interface{}](), false, contextKey, w, r)
+
+	res := w.Result()
+
+	defer func() { _ = res.Body.Close() }()
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+	assert.Contains(t, string(body), "address must be one of localhost, 127.0.0.1 or 0.0.0.0")
 }
 
 // blockingContextStore makes GetContext block until released, and signals via
