@@ -45,11 +45,17 @@ type tokenCacheEntry struct {
 	expiresAt time.Time
 }
 
+// tokenExchangeFlight is an exchange shared by every caller with the same
+// cache key. token and err are set before done is closed.
 type tokenExchangeFlight struct {
-	wg    sync.WaitGroup
+	done  chan struct{}
 	token string
 	err   error
 }
+
+// stsExchangeTimeout bounds a shared exchange, which no single caller's
+// context can cancel.
+const stsExchangeTimeout = 30 * time.Second
 
 // ResetSTSCache clears all cached STS discovery metadata and exchanged tokens (used in testing).
 func ResetSTSCache() {
@@ -272,36 +278,45 @@ func ExchangeTokenForCluster(
 		delete(stsTokenCache, cacheKey)
 	}
 
-	if flight, inFlight := stsInflight[cacheKey]; inFlight {
-		stsTokenCacheMu.Unlock()
-		flight.wg.Wait()
+	flight, inFlight := stsInflight[cacheKey]
+	if !inFlight {
+		flight = &tokenExchangeFlight{done: make(chan struct{})}
+		stsInflight[cacheKey] = flight
 
-		return flight.token, flight.err
+		// Detach from the caller that started the exchange, so canceling its
+		// request doesn't fail the other callers waiting on the same flight.
+		exchangeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stsExchangeTimeout)
+
+		go func() {
+			defer cancel()
+
+			flight.token, flight.err = exchangeAndCache(exchangeCtx, opts, subjectToken, subjectTokenType, audience, cacheKey)
+
+			stsTokenCacheMu.Lock()
+			delete(stsInflight, cacheKey)
+			stsTokenCacheMu.Unlock()
+			close(flight.done)
+		}()
 	}
-
-	flight := &tokenExchangeFlight{}
-	flight.wg.Add(1)
-	stsInflight[cacheKey] = flight
 	stsTokenCacheMu.Unlock()
 
-	var (
-		resultToken string
-		resultErr   error
-	)
+	select {
+	case <-flight.done:
+		return flight.token, flight.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
 
-	defer func() {
-		stsTokenCacheMu.Lock()
-		delete(stsInflight, cacheKey)
-
-		flight.token = resultToken
-		flight.err = resultErr
-		flight.wg.Done()
-		stsTokenCacheMu.Unlock()
-	}()
-
+// exchangeAndCache performs the exchange and caches the result until shortly
+// before it expires.
+func exchangeAndCache(
+	ctx context.Context,
+	opts STSOptions,
+	subjectToken, subjectTokenType, audience, cacheKey string,
+) (string, error) {
 	resultToken, expiresIn, err := performTokenExchange(ctx, opts, subjectToken, subjectTokenType, audience)
 	if err != nil {
-		resultErr = err
 		return "", err
 	}
 

@@ -19,6 +19,7 @@ package auth_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -28,6 +29,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"golang.org/x/oauth2"
@@ -606,5 +608,140 @@ func TestExchangeTokenForClusterFormEncodesBasicAuth(t *testing.T) {
 	token, err := auth.ExchangeTokenForCluster(context.Background(), opts, "subject-token", "cluster-a")
 	if err != nil || token != "exchanged-token" {
 		t.Fatalf("unexpected exchange result: %q, %v", token, err)
+	}
+}
+
+// newBlockingSTSServer returns an STS whose token endpoint blocks until
+// release is closed, so tests can act while an exchange is in flight.
+func newBlockingSTSServer(t *testing.T) (opts auth.STSOptions, tokenRequests *atomic.Int32, release func()) {
+	t.Helper()
+
+	tokenRequests = &atomic.Int32{}
+	released := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_ = json.NewEncoder(w).Encode(map[string]string{"token_endpoint": "http://" + r.Host + "/token"})
+			return
+		}
+
+		tokenRequests.Add(1)
+		<-released
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"access_token": "exchanged-token", "expires_in": 3600})
+	}))
+
+	var releaseOnce sync.Once
+
+	release = func() { releaseOnce.Do(func() { close(released) }) }
+
+	t.Cleanup(func() {
+		release()
+		server.Close()
+	})
+
+	auth.ResetSTSCache()
+
+	opts = auth.STSOptions{
+		Enabled:      true,
+		IssuerURL:    server.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		AudienceMap:  map[string]string{"cluster-a": "aud-a"},
+	}
+
+	return opts, tokenRequests, release
+}
+
+func waitForTokenRequests(t *testing.T, tokenRequests *atomic.Int32, want int32) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for tokenRequests.Load() < want {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d token requests, got %d", want, tokenRequests.Load())
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestExchangeTokenForClusterSurvivesInitiatorCancellation(t *testing.T) {
+	opts, tokenRequests, release := newBlockingSTSServer(t)
+
+	initiatorCtx, cancelInitiator := context.WithCancel(context.Background())
+	initiatorErr := make(chan error, 1)
+
+	go func() {
+		_, err := auth.ExchangeTokenForCluster(initiatorCtx, opts, "subject-token", "cluster-a")
+		initiatorErr <- err
+	}()
+
+	waitForTokenRequests(t, tokenRequests, 1)
+	cancelInitiator()
+
+	select {
+	case err := <-initiatorErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected the canceled initiator to get context.Canceled, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("canceled initiator did not return")
+	}
+
+	// The exchange is still running for other callers, so this one joins it.
+	waiterResult := make(chan string, 1)
+
+	go func() {
+		token, err := auth.ExchangeTokenForCluster(context.Background(), opts, "subject-token", "cluster-a")
+		if err != nil {
+			t.Errorf("expected the waiter to get the shared exchange result, got error: %v", err)
+		}
+
+		waiterResult <- token
+	}()
+
+	release()
+
+	select {
+	case token := <-waiterResult:
+		if token != "exchanged-token" {
+			t.Errorf("expected 'exchanged-token', got %q", token)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("waiter did not return")
+	}
+
+	if got := tokenRequests.Load(); got != 1 {
+		t.Errorf("expected 1 shared token request, got %d", got)
+	}
+}
+
+func TestExchangeTokenForClusterWaiterObservesOwnCancellation(t *testing.T) {
+	opts, tokenRequests, _ := newBlockingSTSServer(t)
+
+	go func() {
+		_, _ = auth.ExchangeTokenForCluster(context.Background(), opts, "subject-token", "cluster-a")
+	}()
+
+	waitForTokenRequests(t, tokenRequests, 1)
+
+	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	waiterErr := make(chan error, 1)
+
+	go func() {
+		_, err := auth.ExchangeTokenForCluster(waiterCtx, opts, "subject-token", "cluster-a")
+		waiterErr <- err
+	}()
+
+	cancelWaiter()
+
+	select {
+	case err := <-waiterErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("canceled waiter stayed blocked on the shared exchange")
 	}
 }
