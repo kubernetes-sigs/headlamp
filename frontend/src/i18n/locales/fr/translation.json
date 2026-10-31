@@ -152,6 +152,7 @@
   "Apply": "Appliquer",
   "Choose Accent Color": "Choisir la couleur d'accentuation",
   "Use custom color": "Utiliser une couleur personnalisée",
+  "Select custom color": "",
   "Custom color": "Couleur personnalisée",
   "Hex, rgb(), or rgba()": "Hex, rgb() ou rgba()",
   "Right": "Droite",
