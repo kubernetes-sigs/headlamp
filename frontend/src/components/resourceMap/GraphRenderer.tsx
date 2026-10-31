@@ -35,6 +35,7 @@ import Loader from '../common/Loader';
 import { GraphEdgeComponent } from './edges/GraphEdgeComponent';
 import { maxZoom, minZoom } from './graphConstants';
 import { GraphControls } from './GraphControls';
+import { GraphMiniMap } from './GraphMiniMap';
 import { KubeObjectNodeComponent } from './nodes/KubeObjectNode';
 
 export const nodeTypes = {
@@ -63,6 +64,8 @@ export interface GraphRendererProps {
   /** Additional actions for the controls panael */
   controlActions?: React.ReactNode;
   isLoading?: boolean;
+  /** Callback when the user interacts with or navigates through the minimap */
+  onMinimapInteraction?: () => void;
 }
 
 const emptyArray: any[] = [];
@@ -77,6 +80,7 @@ export function GraphRenderer({
   children,
   controlActions,
   isLoading,
+  onMinimapInteraction,
 }: GraphRendererProps) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -150,6 +154,7 @@ export function GraphRenderer({
       <Controls showInteractive={false} showFitView={false} showZoom={false}>
         <GraphControls>{controlActions}</GraphControls>
       </Controls>
+      <GraphMiniMap onInteraction={onMinimapInteraction} />
       {isLoading && (
         <Box
           sx={{
