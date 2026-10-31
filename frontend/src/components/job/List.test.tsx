@@ -14,17 +14,28 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
-import { JobsListRenderer } from './List';
+import { render, screen } from '@testing-library/react';
+import { JobsListRenderer, makeJobStatusLabel } from './List';
 
 const { MockJobSuspendButton, mockResourceListView } = vi.hoisted(() => ({
   MockJobSuspendButton: vi.fn(() => null),
   mockResourceListView: vi.fn(),
 }));
 
+// Stub Iconify's Icon with a real DOM element that forwards every prop,
+// so the aria-hidden (or a reintroduced aria-label="hidden") attribute we
+// pass to it is observable in the rendered output.
+vi.mock('@iconify/react', () => ({
+  Icon: (props: any) => <span data-testid="job-status-icon" {...props} />,
+}));
+
+// List.tsx imports these at module scope; loading the real common barrel
+// pulls in the full lib/k8s module graph, which is unrelated to these tests.
 vi.mock('../../lib/k8s/job', () => ({
   default: { kind: 'Job' },
 }));
+
+vi.mock('../common', () => ({ CreateResourceButton: () => null }));
 
 vi.mock('./JobSuspendButton', () => ({
   default: MockJobSuspendButton,
@@ -72,4 +83,28 @@ describe('JobsListRenderer', () => {
     expect(button.props.buttonStyle).toBe('menu');
     expect(button.props.afterConfirm).toBe(closeMenu);
   });
+});
+
+function makeJob(conditionType: 'Failed' | 'Complete' | 'Suspended') {
+  return {
+    status: {
+      conditions: [{ type: conditionType, status: 'True' }],
+    },
+  } as any;
+}
+
+describe('makeJobStatusLabel', () => {
+  it.each(['Failed', 'Complete', 'Suspended'] as const)(
+    'hides the decorative %s status icon from the accessibility tree',
+    conditionType => {
+      render(<>{makeJobStatusLabel(makeJob(conditionType))}</>);
+
+      const icon = screen.getByTestId('job-status-icon');
+      expect(icon).toHaveAttribute('aria-hidden', 'true');
+      expect(icon).not.toHaveAttribute('aria-label', 'hidden');
+
+      // The condition text itself must remain in the accessible output.
+      expect(screen.getByText(conditionType)).toBeInTheDocument();
+    }
+  );
 });
