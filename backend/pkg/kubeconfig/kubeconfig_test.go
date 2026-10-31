@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -449,6 +451,236 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 			assert.Equal(t, tt.wantWarn, warned)
 		})
 	}
+}
+
+// authProviderContext returns a context with the oidc auth-provider and no token.
+// The server must be https, as clientcmd only applies user credentials over TLS.
+func authProviderContext(serverURL string) *kubeconfig.Context {
+	return &kubeconfig.Context{
+		Name:    "auth-provider-context",
+		Cluster: &api.Cluster{Server: serverURL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{
+			AuthProvider: &api.AuthProviderConfig{
+				Name: "oidc",
+				Config: map[string]string{
+					"idp-issuer-url": "https://oidc.example.com",
+					"client-id":      "test-client-id",
+				},
+			},
+		},
+	}
+}
+
+// idTokenExpiringAt returns an unsigned JWT with the given "exp"; client-go only reads "exp".
+func idTokenExpiringAt(exp int64) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." +
+		base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"exp":%d}`, exp))) + ".sig"
+}
+
+func unexpiredIDToken() string {
+	return idTokenExpiringAt(4102444800)
+}
+
+func expiredIDToken() string {
+	return idTokenExpiringAt(946684800)
+}
+
+// closingServerURL starts a server that closes every connection without answering.
+func closingServerURL(t *testing.T, newServer func(http.Handler) *httptest.Server) string {
+	t.Helper()
+
+	server := newServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server.URL
+}
+
+func proxyStatus(t *testing.T, ctx *kubeconfig.Context) int {
+	t.Helper()
+
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	require.NoError(t, ctx.ProxyRequest(recorder, request))
+
+	return recorder.Code
+}
+
+type passthroughAuthProvider struct{}
+
+func (passthroughAuthProvider) WrapTransport(rt http.RoundTripper) http.RoundTripper { return rt }
+
+func (passthroughAuthProvider) Login() error { return nil }
+
+func TestSetupProxyAuthProviderWithoutSessionReturns401(t *testing.T) {
+	upstreamHits := 0
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamHits++
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx := authProviderContext(server.URL)
+
+	assert.Equal(t, http.StatusUnauthorized, proxyStatus(t, ctx))
+	assert.Equal(t, 0, upstreamHits, "the API server must not be contacted without a session")
+}
+
+func TestSetupProxyAuthProviderWithExpiredIDTokenReturns401(t *testing.T) {
+	ctx := authProviderContext(closingServerURL(t, httptest.NewTLSServer))
+	ctx.AuthInfo.AuthProvider.Config["id-token"] = expiredIDToken()
+
+	assert.Equal(t, http.StatusUnauthorized, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderWithEmptyIDTokenReturns401(t *testing.T) {
+	ctx := authProviderContext(closingServerURL(t, httptest.NewTLSServer))
+	ctx.AuthInfo.AuthProvider.Config["id-token"] = ""
+
+	assert.Equal(t, http.StatusUnauthorized, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderKeeps502OnNetworkError(t *testing.T) {
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	serverURL := server.URL
+	server.Close()
+
+	ctx := authProviderContext(serverURL)
+	ctx.AuthInfo.AuthProvider.Config["id-token"] = unexpiredIDToken()
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx), "an unreachable API server is not a sign-in problem")
+}
+
+func TestSetupProxyAuthProviderKeeps502WhenRefreshFails(t *testing.T) {
+	issuer := httptest.NewTLSServer(http.NotFoundHandler())
+	issuerURL := issuer.URL
+	issuer.Close()
+
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	defer server.Close()
+
+	ctx := authProviderContext(server.URL)
+	ctx.AuthInfo.AuthProvider.Config["idp-issuer-url"] = issuerURL
+	ctx.AuthInfo.AuthProvider.Config["refresh-token"] = "refresh-token"
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderKeeps502OnUntrustedCertificate(t *testing.T) {
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	defer server.Close()
+
+	ctx := authProviderContext(server.URL)
+	ctx.Cluster.InsecureSkipTLSVerify = false
+	ctx.AuthInfo.AuthProvider.Config["id-token"] = unexpiredIDToken()
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderKeeps502OnClosedConnection(t *testing.T) {
+	ctx := authProviderContext(closingServerURL(t, httptest.NewTLSServer))
+	ctx.AuthInfo.AuthProvider.Config["id-token"] = unexpiredIDToken()
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderOverPlainHTTPKeeps502(t *testing.T) {
+	ctx := authProviderContext(closingServerURL(t, httptest.NewServer))
+	ctx.Cluster.InsecureSkipTLSVerify = false
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderWithStaticCredentialsKeeps502(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("file-token"), 0o600))
+
+	tests := []struct {
+		name           string
+		setCredentials func(*api.AuthInfo)
+	}{
+		{"token", func(a *api.AuthInfo) { a.Token = "static-token" }},
+		{"token file", func(a *api.AuthInfo) { a.TokenFile = tokenFile }},
+		{"basic auth", func(a *api.AuthInfo) { a.Username, a.Password = "user", "password" }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := authProviderContext(closingServerURL(t, httptest.NewTLSServer))
+			tt.setCredentials(ctx.AuthInfo)
+
+			assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+		})
+	}
+}
+
+func TestSetupProxyAuthProviderTransportFailureKeeps502(t *testing.T) {
+	ctx := authProviderContext(closingServerURL(t, httptest.NewTLSServer))
+	delete(ctx.AuthInfo.AuthProvider.Config, "client-id")
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyNonOIDCAuthProviderKeeps502(t *testing.T) {
+	_ = rest.RegisterAuthProviderPlugin("headlamp-test-passthrough",
+		func(string, map[string]string, rest.AuthProviderConfigPersister) (rest.AuthProvider, error) {
+			return passthroughAuthProvider{}, nil
+		})
+
+	ctx := authProviderContext(closingServerURL(t, httptest.NewTLSServer))
+	ctx.AuthInfo.AuthProvider.Name = "headlamp-test-passthrough"
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
+}
+
+func TestSetupProxyAuthProviderForwardsBearerToken(t *testing.T) {
+	received := ""
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = r.Header.Get("Authorization")
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx := authProviderContext(server.URL)
+
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer session-token")
+
+	recorder := httptest.NewRecorder()
+	require.NoError(t, ctx.ProxyRequest(recorder, request))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "Bearer session-token", received, "the user's token must reach the API server unchanged")
+}
+
+func TestSetupProxyExecFailureKeeps502(t *testing.T) {
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	defer server.Close()
+
+	ctx := &kubeconfig.Context{
+		Name:    "exec-context",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{
+			Exec: &api.ExecConfig{
+				APIVersion:      "client.authentication.k8s.io/v1",
+				Command:         "headlamp-test-missing-credential-plugin",
+				InteractiveMode: api.NeverExecInteractiveMode,
+			},
+		},
+	}
+
+	assert.Equal(t, http.StatusBadGateway, proxyStatus(t, ctx))
 }
 
 func TestLoadContextsFromBase64String(t *testing.T) {
