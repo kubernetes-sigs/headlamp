@@ -19,8 +19,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import HpaDetails from './Details';
 
-const { mockDetailsGrid } = vi.hoisted(() => ({
+const { mockDetailsGrid, mockTranslation } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
+  mockTranslation: vi.fn((key: string, values?: Record<string, any>) => {
+    const label = key.split('|').pop() ?? key;
+    return Object.entries(values ?? {}).reduce(
+      (result, [name, value]) => result.replace(`{{ ${name} }}`, String(value)),
+      label
+    );
+  }),
+}));
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: mockTranslation }),
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 
 vi.mock('../../lib/k8s/hpa', () => ({
@@ -96,5 +108,27 @@ describe('HpaDetails', () => {
     const props = mockDetailsGrid.mock.calls[0][0];
     const lastScale = props.extraInfo(hpa).find((f: any) => f.name.includes('Last Scale Time'));
     expect(lastScale.hide).toBe(true);
+  });
+
+  it('handles missing minReplicas and undefined status safely without crashing', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-hpa' }}>
+        <HpaDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const hpaWithoutStatus = {
+      referenceObject: { kind: 'Deployment', metadata: { name: 'web' } },
+      metrics: () => [],
+      spec: { maxReplicas: 5 },
+    } as any;
+
+    const extra = props.extraInfo(hpaWithoutStatus);
+    const byName = Object.fromEntries(extra.map((f: any) => [String(f.name).split('|').pop(), f]));
+
+    expect(byName['MinReplicas'].value).toBe(1);
+    expect(byName['Deployment pods'].value).toBe('<unknown> current / <unknown> desired');
+    expect(byName['Last Scale Time'].hide).toBe(true);
   });
 });
