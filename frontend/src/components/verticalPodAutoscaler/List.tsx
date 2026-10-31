@@ -17,8 +17,8 @@
 import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useClustersServing } from '../../lib/k8s/resourceAvailability';
 import VPA from '../../lib/k8s/vpa';
 import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -26,19 +26,13 @@ import SectionBox from '../common/SectionBox';
 
 export default function VpaList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const [vpaEnabled, setVpaEnabled] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const vpaStatus = async () => {
-      const enabled = await VPA.isEnabled();
-      setVpaEnabled(enabled);
-    };
-    vpaStatus();
-  }, []);
+  // Only some of the selected clusters may serve the API, so ask each of them and
+  // list only from those that do.
+  const servingClusters = useClustersServing(VPA);
 
   return (
     <>
-      {vpaEnabled === null ? (
+      {servingClusters === undefined ? (
         <SectionBox title={t('glossary|Vertical Pod Autoscalers')}>
           <Paper variant="outlined">
             <Empty>
@@ -48,10 +42,11 @@ export default function VpaList() {
             </Empty>
           </Paper>
         </SectionBox>
-      ) : vpaEnabled ? (
+      ) : servingClusters.length > 0 ? (
         <ResourceListView
           title={t('glossary|Vertical Pod Autoscalers')}
           resourceClass={VPA}
+          clusters={servingClusters}
           columns={[
             'name',
             'namespace',
