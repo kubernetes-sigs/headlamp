@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1934,4 +1935,232 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+// gatedUpstream is a TLS server that holds every handshake until release is closed,
+// then either upgrades it to a WebSocket or, if reject is set, fails it.
+type gatedUpstream struct {
+	server      *httptest.Server
+	release     chan struct{}
+	releaseOnce sync.Once
+	reject      atomic.Bool
+	arrived     atomic.Int32
+	upgrades    atomic.Int32
+}
+
+// releaseHandshakes lets the held handshakes continue. It is safe to call more than once.
+func (g *gatedUpstream) releaseHandshakes() {
+	g.releaseOnce.Do(func() { close(g.release) })
+}
+
+func newGatedUpstream(t *testing.T, reject bool) *gatedUpstream {
+	t.Helper()
+
+	g := &gatedUpstream{release: make(chan struct{})}
+	g.reject.Store(reject)
+
+	g.server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.arrived.Add(1)
+		<-g.release
+
+		if g.reject.Load() {
+			http.Error(w, "upstream unavailable", http.StatusServiceUnavailable)
+
+			return
+		}
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		// Count before upgrading: the client can finish its handshake and be checked
+		// before this goroutine runs again after Upgrade returns.
+		g.upgrades.Add(1)
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	// Release held handshakes first, or Close would wait on them if a test fails early.
+	t.Cleanup(func() {
+		g.releaseHandshakes()
+		g.server.Close()
+	})
+
+	return g
+}
+
+type getOrCreateResult struct {
+	conn *Connection
+	err  error
+}
+
+// callGetOrCreateConnectionConcurrently calls getOrCreateConnection from two goroutines with
+// the same message, lets the upstream handshake complete once the first dial has reached it,
+// and returns the two results.
+func callGetOrCreateConnectionConcurrently(t *testing.T, m *Multiplexer, g *gatedUpstream) [2]getOrCreateResult {
+	t.Helper()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+	token := "token"
+
+	results := make(chan getOrCreateResult, 2)
+
+	for i := 0; i < 2; i++ {
+		go func() {
+			conn, err := m.getOrCreateConnection(msg, clientConn, &token)
+			results <- getOrCreateResult{conn, err}
+		}()
+	}
+
+	require.Eventually(t, func() bool { return g.arrived.Load() >= 1 }, 5*time.Second, 5*time.Millisecond)
+	// Give the second caller time to reach the dial. Without sharing it would arrive
+	// at the upstream too, while the first handshake is still held.
+	time.Sleep(100 * time.Millisecond)
+	g.releaseHandshakes()
+
+	return [2]getOrCreateResult{<-results, <-results}
+}
+
+func newMultiplexerForGatedUpstream(t *testing.T, g *gatedUpstream) *Multiplexer {
+	t.Helper()
+
+	store := kubeconfig.NewContextStore()
+	// KubeContext and AuthInfo are set because Context.ClientConfig fills them in without a
+	// lock when they are nil, which would race between concurrent dials.
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:        "test-cluster",
+		KubeContext: &api.Context{},
+		Cluster:     &api.Cluster{Server: g.server.URL, InsecureSkipTLSVerify: true},
+		AuthInfo:    &api.AuthInfo{},
+	}))
+
+	return NewMultiplexer(store, false)
+}
+
+func TestGetOrCreateConnection_ConcurrentSameKeySharesDial(t *testing.T) {
+	g := newGatedUpstream(t, false)
+	m := newMultiplexerForGatedUpstream(t, g)
+
+	results := callGetOrCreateConnectionConcurrently(t, m, g)
+
+	require.NoError(t, results[0].err)
+	require.NoError(t, results[1].err)
+	assert.Same(t, results[0].conn, results[1].conn, "waiters should get the connection that was dialed")
+	assert.EqualValues(t, 1, g.upgrades.Load(), "extra upstream connections would be orphaned and never closed")
+
+	m.mutex.RLock()
+	assert.Len(t, m.connections, 1)
+	assert.Empty(t, m.inFlight)
+	m.mutex.RUnlock()
+
+	m.cleanupConnections()
+}
+
+func TestGetOrCreateConnection_ConcurrentDialFailure(t *testing.T) {
+	g := newGatedUpstream(t, true)
+	m := newMultiplexerForGatedUpstream(t, g)
+
+	results := callGetOrCreateConnectionConcurrently(t, m, g)
+
+	require.Error(t, results[0].err)
+	assert.Equal(t, results[0].err, results[1].err, "waiters should get the error of the shared dial")
+	assert.Nil(t, results[0].conn)
+	assert.Nil(t, results[1].conn)
+	assert.EqualValues(t, 1, g.arrived.Load(), "the failed dial should be shared too")
+
+	m.mutex.RLock()
+	assert.Empty(t, m.connections)
+	assert.Empty(t, m.inFlight, "a failed dial should not stay in flight")
+	m.mutex.RUnlock()
+}
+
+func TestGetOrCreateConnection_InFlightIsPerKey(t *testing.T) {
+	t.Run("different keys dial independently", testDifferentKeysDialIndependently)
+	t.Run("retry after a failed dial dials again", testRetryAfterFailedDial)
+}
+
+func inFlightTestMessage(path string) Message {
+	return Message{ClusterID: "test-cluster", Path: path, Query: "watch=true", UserID: "test-user"}
+}
+
+func testDifferentKeysDialIndependently(t *testing.T) {
+	g := newGatedUpstream(t, false)
+	m := newMultiplexerForGatedUpstream(t, g)
+	token := "token"
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	results := make(chan getOrCreateResult, 2)
+
+	for _, path := range []string{"/api/v1/pods", "/api/v1/nodes"} {
+		go func() {
+			conn, err := m.getOrCreateConnection(inFlightTestMessage(path), clientConn, &token)
+			results <- getOrCreateResult{conn, err}
+		}()
+	}
+
+	// Both dials must reach the upstream while the first handshake is still held, so
+	// one key's dial does not wait on the other's.
+	require.Eventually(t, func() bool { return g.arrived.Load() == 2 }, 5*time.Second, 5*time.Millisecond)
+	g.releaseHandshakes()
+
+	first, second := <-results, <-results
+	require.NoError(t, first.err)
+	require.NoError(t, second.err)
+	assert.NotSame(t, first.conn, second.conn)
+	assert.EqualValues(t, 2, g.upgrades.Load())
+
+	m.mutex.RLock()
+	assert.Len(t, m.connections, 2)
+	assert.Empty(t, m.inFlight)
+	m.mutex.RUnlock()
+
+	m.cleanupConnections()
+}
+
+func testRetryAfterFailedDial(t *testing.T) {
+	g := newGatedUpstream(t, true)
+	g.releaseHandshakes()
+
+	m := newMultiplexerForGatedUpstream(t, g)
+	token := "token"
+	msg := inFlightTestMessage("/api/v1/pods")
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn, err := m.getOrCreateConnection(msg, clientConn, &token)
+	require.Error(t, err)
+	assert.Nil(t, conn)
+
+	m.mutex.RLock()
+	assert.Empty(t, m.inFlight, "a failed dial should not leave a stale in-flight entry")
+	m.mutex.RUnlock()
+
+	g.reject.Store(false)
+
+	conn, err = m.getOrCreateConnection(msg, clientConn, &token)
+	require.NoError(t, err)
+	assert.NotNil(t, conn)
+	assert.EqualValues(t, 2, g.arrived.Load(), "the retry should dial again")
+	assert.EqualValues(t, 1, g.upgrades.Load())
+
+	m.mutex.RLock()
+	assert.Len(t, m.connections, 1)
+	assert.Empty(t, m.inFlight)
+	m.mutex.RUnlock()
+
+	m.cleanupConnections()
 }
