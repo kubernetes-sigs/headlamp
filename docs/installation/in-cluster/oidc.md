@@ -103,7 +103,7 @@ _profile_ and _email_
 [scopes](https://openid.net/specs/openid-connect-basic-1_0.html#Scopes).
 Scopes can be overridden by using the `-oidc-scopes` option. Remember to
 include the default ones if you need them when using that option.
-For example, if you need to keep the default scopes and add Github's `repo`,
+For example, if you need to keep the default scopes and add GitHub's `repo`,
 then add them all to the option:
 
 `-oidc-scopes=profile,email,repo`
