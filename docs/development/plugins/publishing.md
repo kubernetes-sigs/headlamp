@@ -3,7 +3,7 @@ title: Publishing Plugins
 sidebar_label: Publishing
 ---
 
-Headlamp at its core does not have a way to make plugins discoverable or to list them to the user. However, the desktop version of Headlamp ships with the [Plugin Catalog](URL_FOR_PLUGIN) plugin, which does provide a way for users to list Headlamp plugins from [ArtifactHub](https://artifacthub.io), install and remove them.
+Headlamp at its core does not have a way to make plugins discoverable or to list them to the user. However, the desktop version of Headlamp ships with the [Plugin Catalog](https://github.com/headlamp-k8s/plugins/tree/main/plugin-catalog) plugin, which does provide a way for users to list Headlamp plugins from [ArtifactHub](https://artifacthub.io), install and remove them.
 
 This section of the docs is a guide for how to publish a Headlamp plugin to ArtifactHub.
 
