@@ -728,13 +728,27 @@ var oauthSuccessBody = map[string]any{
 	"id_token":      "NEW",
 }
 
+// newTokenParams builds the params for a client secret authenticated refresh of
+// the token cached under "oidc-token-OLD".
+func newTokenParams(c cache.Cache[interface{}], tokenURL string) auth.GetNewTokenParams {
+	return auth.GetNewTokenParams{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		Cache:        c,
+		TokenType:    "id_token",
+		Token:        "OLD",
+		TokenURL:     tokenURL,
+		SessionTTL:   time.Hour,
+	}
+}
+
 func TestGetNewToken_Success(t *testing.T) {
 	srv := newTokenServerJSON(t, http.StatusOK, oauthSuccessBody)
 
 	// Seed cache with old token -> old refresh mapping
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
 
-	newTok, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour)
+	newTok, err := auth.GetNewToken(context.Background(), newTokenParams(fc, srv.URL))
 	if err != nil {
 		t.Fatalf("GetNewToken unexpected error: %v", err)
 	}
@@ -791,7 +805,7 @@ func TestGetNewToken_IDTokenOmittedRetainsRotatedRefreshToken(t *testing.T) {
 		"oidc-id-token-OLD": "OLD",
 	}}
 
-	newTok, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour)
+	newTok, err := auth.GetNewToken(context.Background(), newTokenParams(fc, srv.URL))
 	require.NoError(t, err)
 	assert.Equal(t, "OLD", newTok.Extra("id_token"))
 
@@ -827,8 +841,7 @@ func TestGetNewToken_PreHTTPFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Fails before HTTP; no server needed.
-			_, err := auth.GetNewToken(
-				"cid", "secret", tc.cache, "id_token", "OLD", "http://127.0.0.1", context.Background(), time.Hour)
+			_, err := auth.GetNewToken(context.Background(), newTokenParams(tc.cache, "http://127.0.0.1"))
 			if err == nil || !strings.Contains(err.Error(), tc.expect) {
 				t.Fatalf("want error containing %q, got %v", tc.expect, err)
 			}
@@ -851,8 +864,7 @@ func TestGetNewToken_EndpointFailures(t *testing.T) {
 			srv := newTokenServerJSON(t, tc.status, tc.body)
 			fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
 
-			if _, err := auth.GetNewToken(
-				"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour); err == nil {
+			if _, err := auth.GetNewToken(context.Background(), newTokenParams(fc, srv.URL)); err == nil {
 				t.Fatal("expected error, got nil")
 			}
 		})
@@ -876,8 +888,7 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 				errOnSetWithTTL: tc.setTTLErr,
 			}
 
-			if _, err := auth.GetNewToken(
-				"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour); err == nil {
+			if _, err := auth.GetNewToken(context.Background(), newTokenParams(fc, srv.URL)); err == nil {
 				t.Fatal("expected error containing 'caching refreshed token', got nil")
 			}
 		})
@@ -1178,8 +1189,11 @@ func TestTwoRefreshesFromOldAccessTokenRetainLogoutHint(t *testing.T) {
 		"expires_in": 3600, "refresh_token": refreshNew,
 	})
 
+	params := newTokenParams(tokenCache, srv.URL)
+	params.TokenType = "access_token"
+
 	for range 2 {
-		token, err := auth.GetNewToken("cid", "secret", tokenCache, "access_token", "OLD", srv.URL, ctx, time.Hour)
+		token, err := auth.GetNewToken(ctx, params)
 		require.NoError(t, err)
 		assert.Equal(t, "ID_ORIGINAL", token.Extra("id_token"))
 
@@ -1207,13 +1221,18 @@ func TestAccessTokenExpiryDoesNotExpireSessionLogoutHint(t *testing.T) {
 		"expires_in": 1, "refresh_token": refreshNew,
 	})
 
-	token, err := auth.GetNewToken("cid", "secret", tokenCache, "access_token", "OLD", srv.URL, ctx, time.Hour)
+	params := newTokenParams(tokenCache, srv.URL)
+	params.TokenType = "access_token"
+
+	token, err := auth.GetNewToken(ctx, params)
 	require.NoError(t, err)
 	assert.Equal(t, "ID_ORIGINAL", token.Extra("id_token"))
 	time.Sleep(time.Until(token.Expiry) + 10*time.Millisecond)
 	require.False(t, token.Valid())
 
-	token, err = auth.GetNewToken("cid", "secret", tokenCache, "access_token", "ACCESS_NEW", srv.URL, ctx, time.Hour)
+	params.Token = "ACCESS_NEW"
+
+	token, err = auth.GetNewToken(ctx, params)
 	require.NoError(t, err)
 	assert.Equal(t, "ID_ORIGINAL", token.Extra("id_token"))
 }
