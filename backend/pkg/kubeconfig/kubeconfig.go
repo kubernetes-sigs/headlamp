@@ -103,6 +103,9 @@ func buildUserAgent() string {
 // DefaultInClusterContextName is the default name used for the in-cluster context.
 const DefaultInClusterContextName = "main"
 
+// logFieldContext is the structured-log field name for context names.
+const logFieldContext = "context"
+
 const (
 	KubeConfig = 1 << iota
 	DynamicCluster
@@ -477,6 +480,52 @@ func (c *Context) SourceStr() string {
 	}
 }
 
+// proxyTransport builds the round tripper for the context's proxy. It returns
+// nil when the kubeconfig's credentials cannot be used, so the proxy falls back
+// to http.DefaultTransport. The reason is logged rather than returned, which
+// keeps a broken context loading as it did before while making the failure
+// visible instead of silent.
+func (c *Context) proxyTransport() http.RoundTripper {
+	restConf, err := c.RESTConfig()
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldContext: c.Name},
+			err, "couldn't get REST config for proxy transport, proxying without kubeconfig credentials")
+
+		return nil
+	}
+
+	// client-go no longer ships the in-tree "oidc" auth provider, so building a
+	// transport fails when a legacy auth-provider: oidc is set. Headlamp injects
+	// the OIDC token itself, so drop only that provider and keep the TLS
+	// settings. Other auth-providers are left intact so their authentication
+	// isn't silently removed.
+	if restConf.AuthProvider != nil && restConf.AuthProvider.Name == "oidc" {
+		confCopy := *restConf
+		confCopy.AuthProvider = nil
+		restConf = &confCopy
+	}
+
+	roundTripper, err := makeTransportFor(restConf)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldContext: c.Name},
+			err, "couldn't create proxy transport, proxying without kubeconfig credentials")
+
+		return nil
+	}
+
+	// Static bearer/basic auth takes precedence over exec in client-go.
+	if restConf.ExecProvider != nil &&
+		restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
+		roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
+	}
+
+	// Wrap the round tripper to add Headlamp User-Agent
+	return &userAgentRoundTripper{
+		base:      roundTripper,
+		userAgent: buildUserAgent(),
+	}
+}
+
 // SetupProxy sets up a reverse proxy for the context.
 func (c *Context) SetupProxy() error {
 	URL, err := url.Parse(c.Cluster.Server)
@@ -500,7 +549,7 @@ func (c *Context) SetupProxy() error {
 
 			if resp.StatusCode == http.StatusUnauthorized && strings.HasPrefix(authHeader, "Bearer ") {
 				warnOnce.Do(func() {
-					logger.Log(logger.LevelWarn, map[string]string{"context": c.Name}, nil,
+					logger.Log(logger.LevelWarn, map[string]string{logFieldContext: c.Name}, nil,
 						"API server rejected the forwarded bearer token (401); the token may be "+
 							"expired/invalid, or the API server may not trust the same OIDC issuer "+
 							"and client-id as Headlamp")
@@ -511,27 +560,13 @@ func (c *Context) SetupProxy() error {
 		}
 	}
 
-	restConf, err := c.RESTConfig()
-	if err == nil {
-		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
-			// Static bearer/basic auth takes precedence over exec in client-go.
-			if restConf.ExecProvider != nil &&
-				restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
-				roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
-			}
-
-			// Wrap the round tripper to add Headlamp User-Agent
-			proxy.Transport = &userAgentRoundTripper{
-				base:      roundTripper,
-				userAgent: buildUserAgent(),
-			}
-		}
+	if transport := c.proxyTransport(); transport != nil {
+		proxy.Transport = transport
 	}
 
 	c.proxy = proxy
 
-	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
+	logger.Log(logger.LevelInfo, map[string]string{logFieldContext: c.Name, "clusterURL": c.Cluster.Server},
 		nil, "Proxy setup")
 
 	return nil
