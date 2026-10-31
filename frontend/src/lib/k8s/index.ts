@@ -60,6 +60,7 @@ import ReplicaSet from './replicaSet';
 import ResourceClaim from './resourceClaim';
 import ResourceClaimTemplate from './resourceClaimTemplate';
 import ResourceQuota from './resourceQuota';
+import ResourceSlice from './resourceSlice';
 import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
@@ -108,6 +109,7 @@ export const ResourceClasses = {
   ReplicaSet,
   ResourceClaim,
   ResourceClaimTemplate,
+  ResourceSlice,
   Role,
   RoleBinding,
   RuntimeClass,
@@ -383,6 +385,7 @@ export * as compositePodGroup from './compositePodGroup';
 export * as podGroup from './podGroup';
 export * as resourceClaim from './resourceClaim';
 export * as resourceClaimTemplate from './resourceClaimTemplate';
+export * as resourceSlice from './resourceSlice';
 export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';
 export * as role from './role';

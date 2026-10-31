@@ -73,6 +73,9 @@ vi.mock('../../device/ResourceClaimDetails', () => ({ default: makeDetails('Reso
 vi.mock('../../device/ResourceClaimTemplateDetails', () => ({
   default: makeDetails('ResourceClaimTemplate'),
 }));
+vi.mock('../../device/ResourceSliceDetails', () => ({
+  default: makeDetails('ResourceSlice'),
+}));
 vi.mock('../../resourceQuota/Details', () => ({ default: makeDetails('ResourceQuota') }));
 vi.mock('../../role/BindingDetails', () => ({ default: makeDetails('RoleBinding') }));
 vi.mock('../../role/Details', () => ({ default: makeDetails('Role') }));
@@ -125,6 +128,7 @@ const dispatchCases = [
   ['DeviceClass', 'DeviceClass'],
   ['ResourceClaim', 'ResourceClaim'],
   ['ResourceClaimTemplate', 'ResourceClaimTemplate'],
+  ['ResourceSlice', 'ResourceSlice'],
   ['ResourceQuota', 'ResourceQuota'],
   ['ClusterRole', 'Role'],
   ['Role', 'Role'],
