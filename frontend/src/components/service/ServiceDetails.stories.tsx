@@ -250,6 +250,14 @@ const endpointslices = [
   },
 ];
 
+/** An EndpointSlice with no ready backends, e.g. when the target workload is scaled to 0. */
+const endpointslicesWithoutEndpoints = [
+  {
+    ...endpointslices[0],
+    endpoints: null,
+  },
+];
+
 export default {
   title: 'Service/Details',
   component: Details,
@@ -344,6 +352,34 @@ ErrorWithEndpoints.parameters = {
         http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () => HttpResponse.error()),
         http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
           HttpResponse.error()
+        ),
+      ],
+    },
+  },
+};
+
+export const EndpointSliceWithoutEndpoints = Template.bind({});
+EndpointSliceWithoutEndpoints.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        ...podHandlers,
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
+          HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+        ),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/example-service`, () =>
+          HttpResponse.json(serviceMock)
+        ),
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
+          HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+        ),
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslicesWithoutEndpoints,
+            metadata: {},
+          })
         ),
       ],
     },

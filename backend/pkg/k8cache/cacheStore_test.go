@@ -178,7 +178,7 @@ func TestGetResponseBody(t *testing.T) {
 // TestGetAPIGroup tests whether the GetAPIGroup returning correct
 // apiGroup and version from the URL.
 //
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering API group and version parsing from URL paths.
 func TestGetAPIGroup(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -277,7 +277,7 @@ func TestGetAPIGroup(t *testing.T) {
 // TestExtractNamespace verifies namespace extraction from different kinds
 // of URLs, including valid, empty, and malformed ones.
 //
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering namespace extraction from request URLs.
 func TestExtractNamespace(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -418,7 +418,7 @@ func TestIsKubernetesAPIPath(t *testing.T) {
 // TestGenerateKey ensures the generated key is valid for both normal
 // and empty cluster name scenarios.
 //
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering cache key generation scenarios.
 func TestGenerateKey(t *testing.T) {
 	tests := []struct {
 		name        string

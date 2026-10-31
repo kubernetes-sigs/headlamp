@@ -50,3 +50,21 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Invalidates the cached user identity (`clusterMe`) for every cluster.
+ *
+ * Call this after an OIDC login completes. The backend may broadcast the new
+ * token to sibling clusters that share the same identity provider, which
+ * replaces their auth cookies too. Invalidating only the cluster that was
+ * logged into would leave the other clusters showing a stale identity from
+ * cache (for up to their staleTime) while requests to them already run as the
+ * new user.
+ *
+ * It lives here rather than in lib/auth because lib/util re-exports lib/auth to
+ * plugins as `Utils.auth`; invalidating Headlamp's own query keys is not a
+ * capability plugins should have.
+ */
+export function invalidateClusterUserInfo() {
+  return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+}

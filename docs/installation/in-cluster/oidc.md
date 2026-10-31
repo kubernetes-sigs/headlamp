@@ -12,6 +12,7 @@ To use OIDC, Headlamp needs to know how to configure it, so you have to provide 
 - the client ID: `-oidc-client-id` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ID`
 - the client secret: `-oidc-client-secret` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`
 - the issuer URL: `-oidc-idp-issuer-url` or env var `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`
+- (optionally) the callback URL: `-oidc-callback-url` or env var `HEADLAMP_CONFIG_OIDC_CALLBACK_URL`
 - (optionally) the OpenId scopes: `-oidc-scopes` or env var `HEADLAMP_CONFIG_OIDC_SCOPES`
 
 and you have to tell the OIDC provider about the callback URL, which in Headlamp it is your URL + the `/oidc-callback` path, e.g.:
@@ -33,6 +34,52 @@ https://YOUR_URL/oidc-callback
 > nginx.ingress.kubernetes.io/configuration-snippet: |
 >   proxy_set_header X-Forwarded-Proto $scheme;
 > ```
+
+### Provider logout
+
+Provider logout targets Headlamp's server-owned OIDC contexts, including the
+single-provider in-cluster configuration. Stateless kubeconfig contexts retain
+local-only logout; their user-scoped provider redirect flow and sequencing
+multiple independent providers are outside this feature's scope.
+
+When the OIDC provider advertises an `end_session_endpoint`, Headlamp uses it to end the
+provider session during logout. This prevents the next sign-in from silently reusing the
+previous provider session.
+
+In the desktop app, logout opens an isolated window using the backend's cookie
+session. Provider pages have no desktop preload or Node.js access; the main
+Headlamp window stays on its trusted application page.
+
+Logout hints are retained for the configured session lifetime, rather than the
+shorter access-token lifetime. Logout invalidates the first token-cookie chunk
+and clears any other chunks visible to that endpoint. Cookies hidden by their
+path expire naturally; readers cannot authenticate without the first chunk, and
+new tokens use terminal markers to exclude stale suffixes. This avoids emitting
+the maximum possible number of deletion headers on every logout response.
+Large provider tokens still require appropriately sized proxy response-header
+buffers; chunking is not a guarantee that every token fits a 4 KiB response.
+
+Set `-oidc-callback-url` to the registered Headlamp login callback URL, for example:
+
+```
+-oidc-callback-url=https://YOUR_URL/oidc-callback
+```
+
+Headlamp uses this configured URL as the trusted origin for the post-logout return. Register
+`https://YOUR_URL/encoded-clusters/<base64url-cluster>/login` as an allowed post-logout
+redirect URI with the provider for each OIDC cluster. For example, the cluster name `main`
+uses `https://YOUR_URL/encoded-clusters/bWFpbg/login`. If Headlamp uses a base path, include
+it in both URLs; for example, a base path of `/headlamp` uses
+`https://YOUR_URL/headlamp/oidc-callback` and
+`https://YOUR_URL/headlamp/encoded-clusters/bWFpbg/login`.
+
+If `-oidc-callback-url` is not configured, Headlamp still ends the provider session but does
+not request an automatic redirect back to Headlamp. Providers without an
+`end_session_endpoint` retain the existing local-only logout behavior.
+
+To clear the local Headlamp session without ending the provider session, set
+`-oidc-skip-logout=true` or the `HEADLAMP_CONFIG_OIDC_SKIP_LOGOUT` environment variable to
+`true`.
 
 ### Troubleshooting: Real time updates not working, Large JWT Tokens with Ingress NGINX
 
@@ -56,7 +103,7 @@ _profile_ and _email_
 [scopes](https://openid.net/specs/openid-connect-basic-1_0.html#Scopes).
 Scopes can be overridden by using the `-oidc-scopes` option. Remember to
 include the default ones if you need them when using that option.
-For example, if you need to keep the default scopes and add Github's `repo`,
+For example, if you need to keep the default scopes and add GitHub's `repo`,
 then add them all to the option:
 
 `-oidc-scopes=profile,email,repo`
@@ -64,6 +111,15 @@ then add them all to the option:
 **Note:** Before Headlamp 0.3.0, a scope _groups_ was also included, as it's
 used by Dex and other services, but since it's not part of the default spec,
 it was removed in the mentioned version.
+
+
+### Auto-login
+
+By default, Headlamp shows a "Sign in" button for OIDC clusters. To bypass this screen and redirect users to your Identity Provider (IDP) you can use the auto-login flag.
+
+- `-oidc-auto-login=true` OR env var `HEADLAMP_CONFIG_OIDC_AUTO_LOGIN`
+
+> **ℹ️ Note:** This will only cause a redirect if the user is not currently authenticated and the selected cluster is configured in OIDC.
 
 ### Token Validation Overrides
 
@@ -77,6 +133,24 @@ In the event your OIDC Provider issues `access_tokens` from a different Issuer U
 By default, headlamp leverages the `id_token` provided back from the OIDC Provider after authentication returned to the `/oidc-callback` endpoint. For some Identity Providers like Azure Entra ID, the `access_token` is what is used for authorization to Kubernetes clusters. To instruct headlamp to use the `access_token` instead of the `id_token`, the following flag can be used.
 
 - `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
+
+### Multi-cluster: broadcast the OIDC token across sibling clusters
+
+When a single Headlamp instance serves several Kubernetes clusters that all trust the **same** OIDC application (same issuer URL and client ID), an operator can opt in to broadcasting the auth cookie to every matching sibling cluster after a successful login. This eliminates per-cluster re-authentication for the common deployment shape where one OIDC app (Okta, Keycloak, Dex, Entra ID, etc.) is registered with every `kube-apiserver` in the fleet.
+
+- `-oidc-use-token-broadcast=true` or env var `HEADLAMP_CONFIG_OIDC_USE_TOKEN_BROADCAST`
+
+**Precondition.** A sibling cluster receives the broadcast only when its kubeconfig context's OIDC auth-provider has BOTH a non-empty `idp-issuer-url` AND a non-empty `client-id` that match the source cluster's. Contexts using a different auth-provider (e.g. `gcp`, `azure`) or a static token are skipped silently.
+
+**Scope.** Broadcasting fires at initial OIDC login and broadcasts whichever token is in use (the `id_token`, or the `access_token` when `-oidc-use-access-token=true`). Token-refresh broadcasting is tracked as a follow-up. Because token refresh happens independently per cluster, sibling cookies diverge as soon as any one cluster refreshes its token; until refresh broadcasting lands, the affected clusters fall back to per-cluster re-login (commonly ~1h on EKS / Okta with default settings).
+
+**Caveats to be aware of before enabling.**
+
+- The flag is **disabled by default**; existing deployments see zero behavior change.
+- Audience mismatches are not detected here. A target apiserver's accepted audiences come from its OIDC client ID (`--oidc-client-id`) or the `audiences` list in a structured [AuthenticationConfiguration](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-authentication-configuration); if a target is configured to require a different or additional audience than the source, the broadcast cookie may be set but the target apiserver could reject the token. Align deployment configuration in that case.
+- When `-oidc-use-access-token=true`, the broadcast carries the `access_token` rather than the `id_token`. Unlike the `id_token`, an access token's audience is provider-specific and is frequently **not** the client ID (many IdPs — Okta, Entra ID, Auth0 — set it to a resource/API identifier). Matching issuer + client ID therefore does not by itself guarantee the access token is accepted by a sibling apiserver; ensure the access-token audience is honored fleet-wide before relying on broadcast with this flag.
+- Each target cluster receives one or more `Set-Cookie` headers per login, so enabling this with very large multi-cluster kubeconfigs may approach browser and proxy cookie count / size limits.
+- Pre-existing chunk-cookie limitation: stale chunk cookies on cluster paths are not actively cleared during login because cookies live under `/clusters/<cluster>` while OIDC login completes on `/oidc-callback`. In the rare case a re-issued token uses fewer chunks than the previous one, the affected cluster(s) may need a one-time re-login.
 
 ### Example: OIDC with Keycloak in Minikube
 
@@ -100,7 +174,7 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`
-
+- Set `-oidc-auto-login=true` (optional to skip the "Sign in" screen)
 
 ### Example: OIDC with Dex
 

@@ -74,7 +74,7 @@ function StorageClassField({ value, onChange }: StorageClassFieldProps) {
   function handleSpecifyChange(v: string) {
     const newValue = v.trim();
     if (newValue === '') {
-      setMode('default');
+      // Stay in Specify mode, so the input stays while the name is being replaced.
       lastEmittedRef.current = undefined;
       onChange(undefined);
       return;

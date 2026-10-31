@@ -43,10 +43,11 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
+import { Activity, useActivity } from '../../activity/Activity';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ConfirmButton from '../ConfirmButton';
-import { Dialog, DialogProps } from '../Dialog';
+import { ConfirmDialog, Dialog, DialogProps } from '../Dialog';
 import Loader from '../Loader';
 import Tabs from '../Tabs';
 import DocsViewer from './DocsViewer';
@@ -116,6 +117,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     cluster,
     formInvalid,
     onBaselineAccepted,
+    noDialog,
     ...other
   } = props;
   const editorOptions = {
@@ -156,6 +158,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   const [uploadFiles, setUploadFiles] = React.useState(false);
   const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
   const [activeTabIndex, setActiveTabIndex] = React.useState(0);
+  const [showCloseConfirm, setShowCloseConfirm] = React.useState(false);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -679,6 +682,57 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   const errorLabel = error || errorMessage;
+
+  // Every dismissal route (footer Close, Escape, backdrop click, title-bar X)
+  // must go through here so unsaved edits always get a confirmation prompt.
+  function handleCloseRequest() {
+    // Read the refs at call time: the item-sync effect can rebase the
+    // baseline without triggering a re-render, so a render-time value may be stale.
+    const hasUnsavedChanges =
+      !isReadOnly() && originalCodeRef.current.code !== codeRef.current.code;
+    if (hasUnsavedChanges) {
+      setShowCloseConfirm(true);
+    } else {
+      onClose();
+    }
+  }
+
+  // In noDialog mode the editor is hosted inside an Activity, whose own
+  // title-bar/taskbar close buttons never reach this component. Register
+  // handleCloseRequest as the Activity's close guard so those routes get the
+  // same unsaved-changes confirmation. Registered via a ref so the handler
+  // the Activity stores always sees the current editor state.
+  const [hostActivity] = useActivity();
+  const closeGuardActivityId = noDialog ? hostActivity?.id : undefined;
+  const hasCloseGuard = !!hostActivity?.onCloseRequest;
+  const hostActivityMinimized = hostActivity?.minimized;
+  const hostActivityRef = React.useRef(hostActivity);
+  hostActivityRef.current = hostActivity;
+  const handleCloseRequestRef = React.useRef(handleCloseRequest);
+  handleCloseRequestRef.current = handleCloseRequest;
+  // Re-register whenever the Activity has no guard, e.g. when EditButton
+  // closes and relaunches the same ID without remounting this editor.
+  React.useEffect(() => {
+    if (!closeGuardActivityId || hasCloseGuard) {
+      return;
+    }
+    Activity.update(closeGuardActivityId, {
+      onCloseRequest: () => handleCloseRequestRef.current(),
+      minimized: hostActivityMinimized,
+    });
+  }, [closeGuardActivityId, hasCloseGuard, hostActivityMinimized]);
+  React.useEffect(() => {
+    if (!closeGuardActivityId) {
+      return;
+    }
+    return () => {
+      Activity.update(closeGuardActivityId, {
+        onCloseRequest: undefined,
+        minimized: hostActivityRef.current?.minimized,
+      });
+    };
+  }, [closeGuardActivityId]);
+
   let dialogTitle = title;
   if (!dialogTitle && item) {
     const itemName = (isKubeObjectIsh(item) && item.metadata?.name) || t('New Object');
@@ -826,7 +880,12 @@ export default function EditorDialog(props: EditorDialogProps) {
         <div style={{ flex: '1 0 0' }} />
         {errorLabel && <Typography color="error">{errorLabel}</Typography>}
         <div style={{ flex: '1 0 0' }} />
-        <Button onClick={onClose} color="secondary" variant="contained">
+        <Button
+          onClick={handleCloseRequest}
+          color="secondary"
+          variant="contained"
+          aria-controls={editorId}
+        >
           {t('translation|Close')}
         </Button>
         {!isReadOnly() && (
@@ -862,6 +921,15 @@ export default function EditorDialog(props: EditorDialogProps) {
           </Button>
         )}
       </DialogActions>
+      <ConfirmDialog
+        open={showCloseConfirm}
+        title={t('translation|Are you sure?')}
+        description={t(
+          'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?'
+        )}
+        handleClose={() => setShowCloseConfirm(false)}
+        onConfirm={onClose}
+      />
     </React.Fragment>
   );
 
@@ -869,7 +937,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     return null;
   }
 
-  if (other.noDialog) {
+  if (noDialog) {
     return content;
   }
 
@@ -881,7 +949,7 @@ export default function EditorDialog(props: EditorDialogProps) {
       scroll="paper"
       fullWidth
       withFullScreen
-      onClose={onClose}
+      onClose={handleCloseRequest}
       {...other}
       aria-labelledby={dialogTitleId}
       titleProps={{

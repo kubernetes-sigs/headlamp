@@ -20,23 +20,44 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import IconButton from '@mui/material/IconButton';
 import Link from '@mui/material/Link';
+import type { Root } from 'hast';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { DialogTitle } from '../Dialog';
-import { htmlImagesToMarkdown } from './htmlImagesToMarkdown';
 
 export interface ReleaseNotesModalProps {
   releaseNotes: string;
   appVersion: string | null;
 }
 
+// img width/height already pass via defaultSchema's wildcard list; spelled out to document it.
+const releaseNotesSanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    img: [...(defaultSchema.attributes?.img ?? []), 'alt', 'height', 'width', 'title'],
+  },
+};
+
+// rehype-raw round-trips the whole document through an HTML parser, which turns markdown's
+// blank lines between top-level blocks into whitespace-only text nodes. Drop them so they
+// don't render as stray text between elements.
+function rehypeStripBlankRootText() {
+  return (tree: Root) => {
+    tree.children = tree.children.filter(
+      node => !(node.type === 'text' && node.value.trim() === '')
+    );
+  };
+}
+
 export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
   const { releaseNotes, appVersion } = props;
   const [showReleaseNotes, setShowReleaseNotes] = React.useState(Boolean(releaseNotes));
   const { t } = useTranslation();
-  const notesMarkdown = React.useMemo(() => htmlImagesToMarkdown(releaseNotes), [releaseNotes]);
 
   return (
     <Dialog open={showReleaseNotes} maxWidth="xl">
@@ -55,6 +76,8 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
         <Box
           sx={{
             '& img': { display: 'block', maxWidth: '100%', height: 'auto' },
+            // GitHub release notes use zero-height images as table column-width spacers.
+            '& img[height="0"]': { height: 0 },
             '& table': {
               borderCollapse: 'collapse',
               width: '100%',
@@ -94,6 +117,11 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
         >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
+            rehypePlugins={[
+              rehypeRaw,
+              rehypeStripBlankRootText,
+              [rehypeSanitize, releaseNotesSanitizeSchema],
+            ]}
             components={{
               a: ({ children, href }) => (
                 <Link href={href} target="_blank" rel="noopener noreferrer">
@@ -102,7 +130,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
               ),
             }}
           >
-            {notesMarkdown}
+            {releaseNotes}
           </ReactMarkdown>
         </Box>
       </DialogContent>

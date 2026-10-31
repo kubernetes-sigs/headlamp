@@ -24,14 +24,14 @@ describe('handleLogoutPathUpdate', () => {
     historyPush = vi.fn();
   });
 
-  it('redirects to / when no cluster is specified (logout from all)', () => {
+  it('redirects to /?logout=true when no cluster is specified (logout from all)', () => {
     handleLogoutPathUpdate(undefined, '/c/cluster1+cluster2/pods', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
-  it('redirects to / when clusterToLogout is a single cluster in the path', () => {
+  it('redirects to /?logout=true when clusterToLogout is a single cluster in the path', () => {
     handleLogoutPathUpdate('cluster1', '/c/cluster1/pods', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
   it('removes cluster from multi-cluster path and keeps remaining', () => {
@@ -44,19 +44,19 @@ describe('handleLogoutPathUpdate', () => {
     expect(historyPush).toHaveBeenCalledWith('/c/cluster1+cluster3/namespaces');
   });
 
-  it('removes last cluster from multi-cluster path and redirects to /', () => {
+  it('removes last cluster from multi-cluster path and redirects to /?logout=true', () => {
     handleLogoutPathUpdate('cluster1', '/c/cluster1/workloads', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
-  it('redirects to / when current path has no cluster segment', () => {
+  it('redirects to /?logout=true when current path has no cluster segment', () => {
     handleLogoutPathUpdate('cluster1', '/settings', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
-  it('redirects to / when current path is root', () => {
+  it('redirects to /?logout=true when current path is root', () => {
     handleLogoutPathUpdate('cluster1', '/', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
   it('handles cluster name not found in multi-cluster path (no change, keeps all)', () => {
@@ -66,12 +66,12 @@ describe('handleLogoutPathUpdate', () => {
 
   it('handles path ending with /c/clusterName (no trailing slash)', () => {
     handleLogoutPathUpdate('cluster1', '/c/cluster1', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
   it('handles path ending with /c/clusterName/ (trailing slash)', () => {
     handleLogoutPathUpdate('cluster1', '/c/cluster1/', historyPush);
-    expect(historyPush).toHaveBeenCalledWith('/');
+    expect(historyPush).toHaveBeenCalledWith('/?logout=true');
   });
 
   it('handles clusters with special characters in names', () => {

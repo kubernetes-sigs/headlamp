@@ -30,8 +30,9 @@ Once built, it can be run in development mode (auto-refresh) using:
 npm run frontend:start
 ```
 
-This command starts the Vite development server for the frontend
-(by default at `localhost:3000`).
+This command starts the Rsbuild development server for the frontend
+(by default at `localhost:3000`). To use the Vite fallback, run
+`npm --prefix frontend run start:vite`.
 
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview)
 for network requests. If you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
@@ -45,12 +46,14 @@ for the `HEADLAMP_BUILD_MANIFEST` and `HEADLAMP_SOURCE_COMMIT` configuration.
 Products that build Headlamp can customize the generic error and not-found
 pages with these build-time environment variables:
 
-| Environment variable                        | Default                           | Description                                           |
-| ------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
-| `REACT_APP_HEADLAMP_ERROR_PAGE_TITLE`       | `Uh-oh! Something went wrong.`    | Title for the generic error page.                     |
-| `REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC`     | Headlamp broken illustration      | URL or public path of the generic error page graphic. |
-| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE`   | `Whoops! This page doesn't exist` | Title for the not-found page.                         |
-| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC` | Headlamp 404 illustration         | URL or public path of the not-found page graphic.     |
+| Environment variable                           | Default                           | Description                                           |
+| ---------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| `REACT_APP_HEADLAMP_ERROR_PAGE_TITLE`          | `Uh-oh! Something went wrong.`    | Title for the generic error page.                     |
+| `REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC`        | Headlamp broken illustration      | URL or public path of the generic error page graphic. |
+| `REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL`   | Headlamp GitHub issue form        | Full GitHub issue creation URL for crash reports.     |
+| `REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL` | `Open Issue on GitHub`            | Product-owned crash-report button label.              |
+| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE`      | `Whoops! This page doesn't exist` | Title for the not-found page.                         |
+| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC`    | Headlamp 404 illustration         | URL or public path of the not-found page graphic.     |
 
 Set the variables in `frontend/.env` or in the environment used to start or
 build the frontend. Restart the development server or rebuild the frontend
@@ -74,6 +77,18 @@ cd frontend && npm run ci-lint
 ```
 
 You can run `ci-lint` locally before pushing to catch any react-hooks violations that CI would flag.
+
+## Unit test reliability
+
+Sidebar hook tests mock CRD listing and resource availability rather than
+contacting a backend. They assert that no fetch requests escape, unmount hook
+consumers, and cancel and clear React Query work before restoring mocks. Keep
+these boundaries when adding sidebar cases so pending requests cannot log after
+the Vitest worker starts shutting down.
+
+For large dropdowns, scope option assertions to the listbox and inspect its
+option nodes directly. Role queries compute visibility for every option, which
+can exceed the test timeout for thousand-item menus in jsdom under CI load.
 
 ## API documentation
 

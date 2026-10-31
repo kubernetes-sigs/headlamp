@@ -27,6 +27,9 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+The development launcher forwards `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGBREAK`
+to the backend, matching cross-env's signal handling.
+
 ## Backend token protection
 
 `HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend
@@ -45,6 +48,20 @@ When the variable is non-empty, clients must send the same value in the
 backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
+
+## Node drain authentication
+
+The frontend submits node drains and polls their status through
+`/clusters/<cluster>/drain-node` and `/clusters/<cluster>/drain-node-status`.
+These paths receive the existing cluster-scoped authentication cookie and OIDC
+refresh middleware; the current drain uses the refreshed user credential.
+Kubernetes RBAC and audit events therefore use the caller's identity.
+
+In-cluster requests without a user credential are rejected unless the existing
+unsafe service-account mode was explicitly enabled. Drain does not implicitly
+fall back to the pod's service account or forward that credential to an external
+context. Legacy unscoped routes remain available for existing callers, but
+cookie-only browser clients should use the cluster-scoped routes.
 
 ## Telemetry
 
@@ -102,6 +119,13 @@ npm run backend:format
 
 ```bash
 npm run backend:test
+```
+
+The development launcher's signal forwarding is tested by the app unit tests
+(`app/electron/run-backend.test.ts`):
+
+```bash
+npm run app:test:unit
 ```
 
 Test coverage with a html report in the browser.

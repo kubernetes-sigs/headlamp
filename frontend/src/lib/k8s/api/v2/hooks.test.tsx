@@ -436,6 +436,54 @@ describe('useKubeObject watch wiring', () => {
     });
   });
 
+  it('keeps the requested cluster when a watch update replaces the object', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'owner-cluster',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data?.cluster).toBe('owner-cluster');
+      expect(mockUseWebSockets.mock.calls.length).toBeGreaterThan(0);
+    });
+
+    const { connections } =
+      mockUseWebSockets.mock.calls[mockUseWebSockets.mock.calls.length - 1][0];
+    const onMessage = connections[0].onMessage;
+
+    // A MODIFIED event rebuilds the object. It has to carry the cluster the hook
+    // was asked for; otherwise it falls back to getCluster(), which reads the URL
+    // and does not know about the cluster passed in explicitly here.
+    onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '2' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.jsonData?.metadata?.resourceVersion).toBe('2');
+    });
+    expect(result.current.data?.cluster).toBe('owner-cluster');
+  });
+
   it('re-subscribes to the new resource when navigating between resources of the same kind', async () => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
     mockClusterFetch.mockResolvedValue(

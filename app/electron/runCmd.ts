@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams } from 'child_process';
+import spawn from 'cross-spawn';
 import { BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
@@ -77,6 +78,8 @@ export interface ProductPluginCommandPolicy {
   packageName: string;
   /** Inventory containing the authorized plugin. */
   source: 'development' | 'user' | 'shipped';
+  /** Commands approved by the product in addition to, not instead of, authorization grants. */
+  approvedCommands?: RunCommandGrant[];
   /** App-owned installation provenance required for managed plugin inventories. */
   artifactHub?: {
     repository: string;
@@ -86,6 +89,15 @@ export interface ProductPluginCommandPolicy {
   };
   /** Reviewed command grants for the plugin. */
   grants: RunCommandGrant[];
+  /** Product-configured native cluster registration providers for this plugin. */
+  clusterRegistrationProviders?: Array<{
+    /** Stable provider ID supplied by the plugin. */
+    id: string;
+    /** Built-in provider implementation selected by the product. */
+    type: string;
+    /** Verified external-tool IDs consumed by this provider. */
+    tools: Record<string, string>;
+  }>;
 }
 
 // Keep these IPC contract interfaces in sync with frontend/src/plugin/commandCapabilities.ts.
@@ -136,7 +148,9 @@ export interface PluginCommandRegistration {
  * const commandCapability: PluginCommandCapability = {
  *   bundleName: 'example-plugin',
  *   packageName: '@example/plugin',
+ *   source: 'shipped',
  *   capability: '4f8c2a917bd03e65a1c94f286e5b70d39ac214ef53d8b607c1e49a728f306db5',
+ *   clusterRegistrationProviders: [],
  * };
  * ```
  */
@@ -145,8 +159,12 @@ export interface PluginCommandCapability {
   bundleName: string;
   /** Package identity bound to the capability. */
   packageName: string;
+  /** Verified plugin inventory bound to the capability. */
+  source: ProductPluginCommandPolicy['source'];
   /** Opaque authorization token. */
   capability: string;
+  /** Provider IDs this exact plugin identity may invoke. */
+  clusterRegistrationProviders: string[];
 }
 
 /** Command capability state retained only by Electron's main process. */
@@ -169,6 +187,68 @@ type PluginConsentIdentity = Pick<
   RegisteredPluginCommandCapability,
   'source' | 'packageName' | 'bundleName'
 >;
+
+const PRODUCT_CONSENT_KEY_PREFIX = 'run-command-consent:v2:';
+
+function hasMatchingProductDenial(
+  confirmedCommands: unknown,
+  pluginIdentity: PluginConsentIdentity | undefined,
+  command: string,
+  args: string[]
+): boolean {
+  if (
+    !pluginIdentity ||
+    typeof confirmedCommands !== 'object' ||
+    confirmedCommands === null ||
+    Array.isArray(confirmedCommands)
+  ) {
+    return false;
+  }
+
+  for (const [key, decision] of Object.entries(confirmedCommands)) {
+    if (decision !== false || !key.startsWith(PRODUCT_CONSENT_KEY_PREFIX)) {
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(key.slice(PRODUCT_CONSENT_KEY_PREFIX.length));
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) {
+        throw error;
+      }
+      continue;
+    }
+    if (!Array.isArray(parsed) || parsed.length !== 3) {
+      continue;
+    }
+
+    const [identity, savedCommand, savedArgs] = parsed;
+    if (
+      typeof identity !== 'object' ||
+      identity === null ||
+      Array.isArray(identity) ||
+      (identity as Partial<PluginConsentIdentity>).source !== pluginIdentity.source ||
+      (identity as Partial<PluginConsentIdentity>).packageName !== pluginIdentity.packageName ||
+      (identity as Partial<PluginConsentIdentity>).bundleName !== pluginIdentity.bundleName ||
+      savedCommand !== command ||
+      !Array.isArray(savedArgs) ||
+      savedArgs.some(argument => typeof argument !== 'string')
+    ) {
+      continue;
+    }
+
+    const coversRequest =
+      savedArgs.length === 0
+        ? args.length === 0
+        : savedArgs.length <= args.length &&
+          savedArgs.every((argument, index) => argument === args[index]);
+    if (coversRequest) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Filters product command policies to plugins currently installed in their declared inventories.
@@ -347,7 +427,8 @@ function checkCommandConsent(
   args: string[],
   mainWindow: BrowserWindow,
   pluginIdentity?: PluginConsentIdentity,
-  consentArgs: string[] = args.slice(0, 1)
+  consentArgs: string[] = args.slice(0, 1),
+  preapproved = false
 ): boolean {
   const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
@@ -369,7 +450,7 @@ function checkCommandConsent(
     displayCommand += ' ' + consentArgs.join(' ');
   }
   const consentKey = pluginIdentity
-    ? `run-command-consent:v2:${JSON.stringify([consentIdentity, command, consentArgs])}`
+    ? `${PRODUCT_CONSENT_KEY_PREFIX}${JSON.stringify([consentIdentity, command, consentArgs])}`
     : displayCommand;
   const previousPluginConsentKey = pluginLabel
     ? `run-command-consent:v1:${JSON.stringify([pluginLabel, command, consentArgs])}`
@@ -384,8 +465,9 @@ function checkCommandConsent(
   const mayUseSourceLessLegacyConsent =
     !pluginIdentity || legacyPluginCommands?.has(legacyConsentKey) === true;
 
+  const currentProductDecision: boolean | undefined = confirmedCommands?.[consentKey];
   const savedCommand: boolean | undefined = confirmedCommands
-    ? confirmedCommands[consentKey] ??
+    ? currentProductDecision ??
       (mayUseScopedLegacyConsent && previousPluginConsentKey
         ? confirmedCommands[previousPluginConsentKey]
         : undefined) ??
@@ -393,10 +475,15 @@ function checkCommandConsent(
       (mayUseSourceLessLegacyConsent ? confirmedCommands[legacyConsentKey] : undefined)
     : undefined;
 
-  if (savedCommand === false) {
+  const deniedPreviousProductApproval =
+    currentProductDecision === undefined &&
+    preapproved &&
+    hasMatchingProductDenial(confirmedCommands, pluginIdentity, command, args);
+  if (savedCommand === false || deniedPreviousProductApproval) {
     console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
     return false;
   } else if (savedCommand === undefined) {
+    if (preapproved) return true;
     const commandChoice = confirmCommandDialog(displayCommand, mainWindow);
     if (settings?.confirmedCommands === undefined) {
       settings.confirmedCommands = {};
@@ -651,13 +738,12 @@ export function removeRunCmdConsent(pluginName: string, bundleName?: string): vo
     delete settings.confirmedCommands[command];
   }
   if (bundleName) {
-    const prefix = 'run-command-consent:v2:';
     for (const consentKey of Object.keys(settings.confirmedCommands)) {
-      if (!consentKey.startsWith(prefix)) {
+      if (!consentKey.startsWith(PRODUCT_CONSENT_KEY_PREFIX)) {
         continue;
       }
       try {
-        const [identity] = JSON.parse(consentKey.slice(prefix.length));
+        const [identity] = JSON.parse(consentKey.slice(PRODUCT_CONSENT_KEY_PREFIX.length));
         if (identity?.packageName === pluginName && identity?.bundleName === bundleName) {
           delete settings.confirmedCommands[consentKey];
         }
@@ -765,7 +851,11 @@ export function createProductCommandCapabilities(
     capabilities.push({
       bundleName: policy.bundleName,
       packageName: policy.packageName,
+      source: policy.source,
       capability,
+      clusterRegistrationProviders: (policy.clusterRegistrationProviders ?? []).map(
+        provider => provider.id
+      ),
     });
     capabilityRegistry.set(capability, { ...policy, webContentsId });
   }
@@ -927,7 +1017,14 @@ export async function handleRunCommand(
       commandData.args,
       mainWindow,
       registeredCapability ? registeredCapability : undefined,
-      capabilityGrant?.args
+      capabilityGrant?.args,
+      (registeredCapability?.source === 'shipped' ||
+        registeredCapability?.source === 'development') &&
+        isRunCommandAllowed(
+          registeredCapability.approvedCommands ?? [],
+          commandData.command,
+          commandData.args
+        )
     )
   ) {
     sendRejectedExit(-3);
@@ -1086,7 +1183,7 @@ export async function handleRunCommand(
           : shellEnvironment),
         ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
       },
-    });
+    }) as ChildProcessWithoutNullStreams;
   } catch (error) {
     removePreparedFiles();
     const message = error instanceof Error ? error.message : String(error);
@@ -1169,6 +1266,16 @@ function cryptoRandom() {
   return array[0] / (0xffffffff + 1);
 }
 
+/** Capability authorization retained by Electron and used by privileged handlers. */
+export interface PrivatePluginCapabilities {
+  /** Returns the configured provider granted to this verified renderer/plugin capability. */
+  authorizeClusterRegistration(
+    event: Electron.IpcMainInvokeEvent,
+    providerId: string,
+    capability: string
+  ): NonNullable<ProductPluginCommandPolicy['clusterRegistrationProviders']>[number] | undefined;
+}
+
 /**
  * Sets up the IPC handlers for running commands.
  * Called in the main process to handle 'run-command' events.
@@ -1179,6 +1286,8 @@ function cryptoRandom() {
  * @param trustedStartUrl - Headlamp document URL allowed to register and use capabilities.
  * @param pluginRoots - Optional inventory roots used to verify plugin files during registration.
  * @param isDevelopment - Runtime mode selected by the Electron entry point.
+ * @param developmentPluginsEnabled - Reports whether development plugins may receive capabilities.
+ * @returns Private capability secrets, or undefined when no main window is available.
  */
 export function setupRunCmdHandlers(
   mainWindow: BrowserWindow | null,
@@ -1188,7 +1297,7 @@ export function setupRunCmdHandlers(
   pluginRoots?: Record<ProductPluginCommandPolicy['source'], string>,
   isDevelopment = false,
   developmentPluginsEnabled: () => boolean = () => false
-) {
+): PrivatePluginCapabilities | undefined {
   if (mainWindow === null) {
     console.error('Main window is null, cannot set up run command handlers');
     return;
@@ -1286,6 +1395,22 @@ export function setupRunCmdHandlers(
     );
   ipcMain.on('run-command', runCommand);
   runCmdIpcListeners.set(ipcMain, { requestPermissionSecrets, revokeCapabilities, runCommand });
+  return {
+    authorizeClusterRegistration(event, providerId, capability) {
+      const registered = capabilityRegistry.get(capability);
+      if (
+        !registered ||
+        registered.webContentsId !== event.sender.id ||
+        event.sender !== mainWindow.webContents ||
+        event.senderFrame !== mainWindow.webContents.mainFrame ||
+        (trustedStartUrl !== undefined &&
+          !isTrustedDocumentUrl(event.senderFrame.url, trustedStartUrl))
+      ) {
+        return undefined;
+      }
+      return registered.clusterRegistrationProviders?.find(provider => provider.id === providerId);
+    },
+  };
 }
 
 /** Revokes every command capability issued by handlers registered on this IPC instance. */

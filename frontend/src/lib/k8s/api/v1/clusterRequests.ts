@@ -22,7 +22,6 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
-import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
@@ -32,6 +31,8 @@ import type { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
+
+export { getClusterAuthType } from '../../clusterAuthType';
 
 /**
  * Options for the request.
@@ -66,18 +67,6 @@ export interface ClusterRequest {
 export interface ClusterRequestParams extends RequestParams {
   cluster?: string | null;
   autoLogoutOnAuthError?: boolean;
-}
-
-/**
- * @returns Auth type of the cluster, or an empty string if the cluster is not found.
- * It could return 'oidc' or '' for example.
- *
- * @param cluster - Name of the cluster.
- */
-export function getClusterAuthType(cluster: string): string {
-  const state = store.getState();
-  const authType: string = state.config?.clusters?.[cluster]?.['auth_type'] || '';
-  return authType;
 }
 
 /**
@@ -196,9 +185,11 @@ export async function clusterRequest(
 
   if (!response.ok) {
     const { status, statusText } = response;
-    if (autoLogoutOnAuthError && status === 401 && opts.headers.authorization) {
+    if (autoLogoutOnAuthError && status === 401 && opts.headers.authorization && cluster) {
       console.error('Logging out due to auth error', { status, statusText, path });
-      logout(cluster);
+      logout(cluster, true).catch(err => {
+        console.error('Auto-logout failed after auth error:', err);
+      });
     }
 
     let message = statusText;

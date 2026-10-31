@@ -38,6 +38,10 @@ Learn the development workflow, production builds, and deployment strategies.
 
 Configure product-owned command grants for verified plugins.
 
+### [Desktop Cluster Registration Providers](./cluster-registration-providers.md)
+
+Add capability-protected native credential providers for desktop products.
+
 ### 📖 [Common Patterns](./common-patterns.md)
 
 Ready-to-use examples for typical plugin scenarios like dashboards, resource extensions, and external integrations.
@@ -62,6 +66,6 @@ Add support for multiple languages and locales
 
 👉 **Ready to build?** Jump into [Building & Shipping](./building.md)
 
-👉 **Need architectural details?** Read about [Plugin Architecture](./architecture.md)
+👉 **Need architectural details?** Read about [Plugin Architecture](../architecture.md)
 
 The Headlamp plugin ecosystem is growing rapidly. Whether you're building internal tools or creating plugins for the community, you're contributing to making Kubernetes more accessible and powerful for everyone!

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// Registers the app's routes (via setDefaultRoutes) so createRouteURL below has routes to resolve.
+import '../router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
@@ -256,6 +258,7 @@ describe('useClustersVersion', () => {
 
   afterEach(() => {
     queryClient.clear();
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -301,6 +304,7 @@ const notNamespacedClasses = [
   'ClusterRole',
   'ClusterRoleBinding',
   'CustomResourceDefinition',
+  'DeviceClass',
   'GatewayClass',
   'IngressClass',
   'Namespace',
@@ -313,6 +317,7 @@ const notNamespacedClasses = [
 ];
 
 const namespacedClasses = [
+  'CompositePodGroup',
   'ConfigMap',
   'ControllerRevision',
   'CronJob',
@@ -335,6 +340,8 @@ const namespacedClasses = [
   'Pod',
   'PodGroup',
   'ReplicaSet',
+  'ResourceClaim',
+  'ResourceClaimTemplate',
   'ResourceQuota',
   'Role',
   'RoleBinding',

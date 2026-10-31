@@ -122,6 +122,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		NodeShellImage:                        conf.NodeShellImage,
 		NodeShellNamespace:                    conf.NodeShellNamespace,
 		OidcUseCookie:                         conf.OidcUseCookie,
+		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
 		DefaultLightTheme:                     conf.DefaultLightTheme,
 		DefaultDarkTheme:                      conf.DefaultDarkTheme,
 		ForceTheme:                            conf.ForceTheme,
@@ -208,6 +209,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
+		OidcAutoLogin:             conf.OidcAutoLogin,
 		OidcClientID:              conf.OidcClientID,
 		OidcValidatorClientID:     conf.OidcValidatorClientID,
 		OidcClientSecret:          conf.OidcClientSecret,
@@ -216,6 +218,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
 		OidcScopes:                strings.Split(conf.OidcScopes, ","),
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
+		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
 		MeUsernamePaths:           conf.MeUsernamePath,

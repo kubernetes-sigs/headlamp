@@ -1,0 +1,67 @@
+# Dependabot updates for the backend Go module, GitHub Actions, and the base
+# images in the root Dockerfiles. npm is not configured here, so npm security
+# updates keep their existing behavior.
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "backend"
+    groups:
+      go-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      go-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns: ["*"]
+      go-major:
+        applies-to: version-updates
+        update-types: ["major"]
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "github"
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns: ["*"]
+      actions-major:
+        applies-to: version-updates
+        update-types: ["major"]
+        patterns: ["*"]
+
+  # docker-extension/Dockerfile is updated by docker-extension-release.yml.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "Dockerfile"
+    # Only update the base images in the root Dockerfiles, not the images in
+    # the root Kubernetes manifests that this job also scans.
+    allow:
+      - dependency-name: "golang"
+      - dependency-name: "node"
+      - dependency-name: "alpine"
+    # Node and Go base image upgrades are coordinated with CI and go.mod, so
+    # only take patch updates for them here.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "golang"
+        update-types:
+          ["version-update:semver-major", "version-update:semver-minor"]
+    groups:
+      docker:
+        patterns: ["*"]

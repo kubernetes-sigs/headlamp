@@ -76,6 +76,10 @@ The build scripts handle app signing.
 ### 6. Generate Apps
 
 Generate the apps for each the Linux, Windows, and Mac platforms by running the "Build and upload PLATFORM artifact" actions against the "rc-X.Y.Z".
+Use `releaser ci app --build rc-X.Y.Z`, or select `rc-X.Y.Z` both under **Use
+workflow from** and as the build branch. The workflows only generate the build
+provenance for the apps when they run from the branch they build, and the
+assets can't be uploaded to the release without it (see step 8).
 
 ### 7. Download and test Artifacts
 
@@ -83,24 +87,71 @@ Download the artifacts, test them and, if everything goes well, upload them to t
 
 ### 8. Push Assets
 
-Upload the binary to the release's assets with the script.
+Upload the assets to the release by running the **Upload Release Assets**
+workflow (`.github/workflows/push-release-assets.yml`) from the GitHub Actions
+UI. Run it from the `main` branch, not the release branch: users verify the
+signature against the workflow on `main`, so the workflow refuses to run from
+any other branch. Give it the release name (e.g. `0.42.0`) and the comma-separated run IDs of
+the "Build and upload PLATFORM artifact" workflows from step 6. You can list
+those runs with `releaser ci app --list`.
 
-Run the push-assets.js script for pushing assets. This script pushes the assets and automatically sets the right type for them. It also updates and uploads a checksums file:
+The workflow uploads the assets, updates `checksums.txt`, and **signs it** with
+cosign keyless signing. It uploads the signature as `checksums.txt.sigstore.json`.
+It also combines the build provenance from the app build runs into
+`headlamp-X.Y.Z.intoto.jsonl` and uploads it. Uploads to the same release are
+serialized so partial uploads preserve each other's provenance. Before uploading,
+the workflow checks retained assets against their actual bytes and fails if any
+are missing from `checksums.txt` or have a different digest. To repair an
+incomplete manifest after a failed upload, rerun with the build run IDs for all
+affected assets so they are replaced and their checksums restored.
+Release API or retained-asset download failures stop the workflow before uploading.
+The workflow also fails if an asset in `checksums.txt` has no verified build
+provenance, or if the signature or provenance is not attached to the release. Users rely on these to
+verify downloads (see [Verifying Releases](../installation/verify-releases.md)),
+so always use the workflow, and make sure it succeeded before publishing the
+release. `releaser check X.Y.Z` also reports a missing signature or provenance
+(see step 9).
 
-```shell
-   GITHUB_TOKEN=MY_TOKEN_123 node ./app/scripts/push-release-assets.js v0.19.0 Headlamp....tar.gz
-```
+Do not upload assets manually with `app/scripts/push-release-assets/push-release-assets.js`,
+because that skips signing. If you need to add or replace an asset, re-run the
+workflow with the run ID of the build that produced it (set `force` if the
+release is no longer a draft), so that `checksums.txt` is signed again.
 
-Note: If you use the gh command line tool, you can use `gh auth token`. To create a new GITHUB_TOKEN, see the document [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+The workflow uses GitHub's short-lived automatic token with `contents: write`
+permission to update the release. It does not require a long-lived personal
+access token or repository secret. A branch run can test a real upload to the
+requested draft release by enabling **Allow non-main**; force uploads remain
+blocked outside `main`. Always rerun the workflow from `main` before publishing
+so `checksums.txt` receives the trusted Sigstore identity.
 
 
 ### 9. Push the new tag
 
-Go to the main branch and merge the rc-X.Y.Z in, then tag the branch (notice the **v** before the version number):
+Go to the main branch and merge the rc-X.Y.Z in, then create a **signed** tag
+(notice the **v** before the version number). Use `releaser tag`, which signs
+the tag by default, or:
 
 ```shell
-git tag vX.Y.Z \-a \-m “Release X.Y.Z”
+git tag -s vX.Y.Z -m "Release X.Y.Z"
 ```
+
+Make sure your GPG or SSH signing key is
+[added to your GitHub account](https://docs.github.com/en/authentication/managing-commit-signature-verification)
+as a signing key, so that the tag shows as **Verified**. `releaser publish`
+refuses to push an unsigned tag, and doesn't publish the release if GitHub
+reports the pushed tag's signature as invalid. It only warns if GitHub can't
+match the signing key to your GitHub account. You can also check the tag
+yourself: look for the **Verified** label on the
+[tags page](https://github.com/kubernetes-sigs/headlamp/tags), or run
+`git tag -v vX.Y.Z` (see [Verifying Releases](../installation/verify-releases.md#source-code)).
+
+:::warning
+Push the signed tag **before** publishing the release draft, either with
+`releaser publish` or with the commands below. If the draft is published while
+the tag doesn't exist yet, GitHub creates an unsigned, lightweight tag from the
+latest commit on `main`. That commit may not be the release commit (this
+happened with v0.44.0).
+:::
 
 
 Push the new release commit and tags:
@@ -117,9 +168,20 @@ git push origin main
 git push \--tags
 ```
 
+Then publish the release with `releaser publish X.Y.Z`, which checks that the
+tag is signed, attaches it to the draft, and publishes the draft. If you publish
+the draft from the GitHub UI instead, select the existing `vX.Y.Z` tag.
+
+However you uploaded the assets, created the tag, or published the release, run
+`releaser check X.Y.Z` before publishing and again afterwards. It fails if the
+`checksums.txt` signature or the provenance is missing, or if the tag is not
+signed or its signature is invalid, e.g. because it was made with an expired
+key. It warns if GitHub can't match the signing key to the tagger's GitHub
+account, or couldn't check the signature at the moment.
+
 ### 10. Container images and distribution channels (flathub, homebrew)
 
-Container images are built automatically on every tag creation and pushed to the GitHub Container Registry (ghcr.io).
+Container images are built automatically on every tag creation, pushed to the GitHub Container Registry (ghcr.io), and signed with cosign.
 
 Other distribution channels like flathub, homebrew, minikube, will be done by automatically opened PRs.
 

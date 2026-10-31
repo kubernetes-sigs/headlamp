@@ -83,7 +83,9 @@ type Config struct {
 	OidcScopes                   string `koanf:"oidc-scopes"`
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
+	OidcUseTokenBroadcast        bool   `koanf:"oidc-use-token-broadcast"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
+	OidcSkipLogout               bool   `koanf:"oidc-skip-logout"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
@@ -97,6 +99,7 @@ type Config struct {
 	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
+	OidcAutoLogin                bool   `koanf:"oidc-auto-login"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -654,17 +657,24 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
+	f.Bool("oidc-auto-login", false, "Automatic Redirect to OIDC provider")
 	f.String("oidc-client-id", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
-	f.String("oidc-callback-url", "", "Callback URL for OIDC")
+	f.String("oidc-callback-url", "", "OIDC callback URL and trusted logout return origin")
 	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
 	f.String("oidc-scopes", "profile,email", "A comma separated list of scopes needed from the OIDC provider")
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
+	f.Bool("oidc-skip-logout", false, "Skip logout from OIDC provider")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
+	f.Bool("oidc-use-token-broadcast", false,
+		"After a successful OIDC login, also set the auth cookie for other kubeconfig contexts "+
+			"whose OIDC auth-provider has the same idp-issuer-url and client-id. Disabled by "+
+			"default. Preconditions and caveats: "+
+			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")

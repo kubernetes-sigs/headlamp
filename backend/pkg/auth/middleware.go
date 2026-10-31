@@ -216,7 +216,7 @@ func (c *OIDCTokenRefreshConfig) handleGetContextError(
 	span trace.Span, ctx context.Context, status *string, next http.Handler,
 ) bool {
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+		logger.Log(logger.LevelError, map[string]string{clusterLogField: cluster},
 			err, "failed to get context")
 
 		c.TelemetryHandler.RecordError(span, err, "Failed to get context")

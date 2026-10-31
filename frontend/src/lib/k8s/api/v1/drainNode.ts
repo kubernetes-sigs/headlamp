@@ -16,7 +16,7 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
-import { backendFetch } from '../v2/fetch';
+import { clusterFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
 
 /**
@@ -38,7 +38,8 @@ export function drainNode(cluster: string, nodeName: string) {
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
   Object.entries(getHeadlampAPIHeaders()).forEach(([name, value]) => headers.set(name, value));
 
-  return backendFetch('/drain-node', {
+  return clusterFetch('/drain-node', {
+    cluster,
     method: 'POST',
     headers: headers,
     body: JSON.stringify({
@@ -82,7 +83,8 @@ interface DrainNodeStatus {
 export function drainNodeStatus(cluster: string, nodeName: string): Promise<DrainNodeStatus> {
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
   Object.entries(getHeadlampAPIHeaders()).forEach(([name, value]) => headers.set(name, value));
-  return backendFetch(`/drain-node-status?cluster=${cluster}&nodeName=${nodeName}`, {
+  return clusterFetch(`/drain-node-status?${new URLSearchParams({ nodeName })}`, {
+    cluster,
     method: 'GET',
     headers: headers,
   }).then(response => {

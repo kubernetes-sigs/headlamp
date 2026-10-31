@@ -1,13 +1,24 @@
 import chalk from 'chalk';
 import { getCurrentVersion, createReleaseTag } from '../utils/git.js';
 
-export function tagRelease(): void {
+interface TagOptions {
+  sign?: boolean;
+}
+
+export function tagRelease(options: TagOptions = {}): void {
   const currentVersion = getCurrentVersion();
-  console.log(chalk.blue(`Creating release tag for version ${currentVersion}...`));
+  const sign = options.sign !== false;
+  console.log(
+    chalk.blue(`Creating ${sign ? 'signed ' : ''}release tag for version ${currentVersion}...`)
+  );
 
   try {
-    createReleaseTag(currentVersion);
-    console.log(chalk.green(`✅ Created tag v${currentVersion} with message "Release ${currentVersion}"`));
+    createReleaseTag(currentVersion, sign);
+    console.log(
+      chalk.green(
+        `✅ Created ${sign ? 'signed ' : ''}tag v${currentVersion} with message "Release ${currentVersion}"`
+      )
+    );
     console.log(chalk.green('\nTag created successfully!'));
   } catch (error) {
     console.error(chalk.red('Error creating tag:'));

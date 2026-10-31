@@ -1,4 +1,4 @@
-package kubeconfig //nolint:testpackage
+package kubeconfig //nolint:testpackage // Tests cover unexported service account token generation functions.
 
 import (
 	"path"

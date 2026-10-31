@@ -519,6 +519,9 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
   }, [project, items, isLoading]);
 
   useEffect(() => {
+    // Ignore results from tab evaluations superseded by a later effect.
+    let isCurrent = true;
+
     async function loadTabs() {
       const registeredTabsList = Object.values(registeredTabs);
       // Get a list of enabled Tabs
@@ -541,6 +544,10 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
         )
       ).filter(Boolean) as ProjectDetailsTab[];
 
+      if (!isCurrent) {
+        return;
+      }
+
       const enabledTabsById = Object.fromEntries(enabledTabs.map(tab => [tab.id, tab]));
 
       // Merge default tabs with custom tabs
@@ -553,6 +560,10 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
     }
 
     loadTabs();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [registeredTabs, project]);
 
   // Set initial selected tab to the first available tab

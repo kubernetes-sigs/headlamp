@@ -35,6 +35,7 @@ let electronApp: ElectronApplication;
 let electronPage: Page;
 let backend: Server;
 let userDataDirectory: string;
+let commandDirectory: string;
 
 /**
  * Persists consent for the command used by the Electron test.
@@ -61,6 +62,13 @@ test.describe('desktop listener cleanup', () => {
       write: false,
     });
     userDataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-listener-e2e-'));
+    commandDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-listener-command-'));
+    if (process.platform === 'win32') {
+      fs.writeFileSync(path.join(commandDirectory, 'gh.cmd'), '@echo gh version fixture\r\n');
+    } else {
+      const commandPath = path.join(commandDirectory, 'gh');
+      fs.writeFileSync(commandPath, '#!/bin/sh\nprintf "gh version fixture\\n"\n', { mode: 0o755 });
+    }
     backend = createServer((request, response) => {
       if (request.url === '/config') {
         response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
@@ -77,6 +85,7 @@ test.describe('desktop listener cleanup', () => {
       args: ['.', `--port=${port}`, `--user-data-dir=${userDataDirectory}`],
       env: {
         ...process.env,
+        PATH: `${commandDirectory}${path.delimiter}${process.env.PATH || ''}`,
         NODE_ENV: 'development',
         ELECTRON_DEV: 'true',
         ELECTRON_START_URL: 'data:text/html,<html></html>',
@@ -155,6 +164,7 @@ test.describe('desktop listener cleanup', () => {
       );
     }
     fs.rmSync(userDataDirectory, { force: true, recursive: true });
+    fs.rmSync(commandDirectory, { force: true, recursive: true });
   });
 
   test('delivers complete command output before cleaning up listeners', async () => {

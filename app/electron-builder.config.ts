@@ -23,7 +23,12 @@
  * file as `app-build-manifest.json`, because the packaged app reads that fixed
  * runtime filename from its resources directory.
  */
-import type { Configuration } from 'electron-builder';
+import {
+  type AfterPackContext,
+  type BeforeBuildContext,
+  type Configuration,
+  DIR_TARGET,
+} from 'electron-builder';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +62,107 @@ const manifestFile = resolveBuildManifestPath();
 const manifest = loadBuildManifest(manifestFile);
 const defaultManifest = path.resolve(DEFAULT_MANIFEST_FILE);
 const packageBuild = packageJson.build as ElectronBuilderConfiguration;
+const existingBeforeBuild = require('./scripts/build-backend.js').default as (
+  context: BeforeBuildContext
+) => Promise<boolean | void> | boolean | void;
+const existingAfterPack = require('./scripts/after-pack.js').default as (
+  context: AfterPackContext
+) => Promise<void>;
+
+interface BuildTimingDependencies {
+  existingBeforeBuild: (context: BeforeBuildContext) => Promise<boolean | void> | boolean | void;
+  existingAfterPack: (context: AfterPackContext) => Promise<void> | void;
+  now?: () => number;
+  log?: (message: string) => void;
+}
+
+/** Creates isolated Electron Builder timing hooks around the existing build hooks. */
+export function createBuildTimingHooks({
+  existingBeforeBuild,
+  existingAfterPack,
+  now = Date.now,
+  log = console.log,
+}: BuildTimingDependencies) {
+  let assemblyStartedAt: number | undefined;
+  const postPackStarts = new Map<string, number>();
+  const artifactStarts = new Map<string, { name: string; startedAt: number }>();
+  const postPackKey = (arch: unknown) => String(arch ?? 'default');
+  const completePostPack = (arch: unknown) => {
+    const key = postPackKey(arch);
+    const startedAt = postPackStarts.get(key);
+    if (startedAt === undefined) {
+      return;
+    }
+    postPackStarts.delete(key);
+    log(
+      `[build-timing] Electron post-pack processing completed in ${(
+        (now() - startedAt) /
+        1000
+      ).toFixed(3)}s`
+    );
+  };
+
+  const beforeBuild = async (context: BeforeBuildContext) => {
+    const result = await existingBeforeBuild(context);
+    assemblyStartedAt = now();
+    log(
+      `[build-timing] Electron app assembly started at ${new Date(assemblyStartedAt).toISOString()}`
+    );
+    return result;
+  };
+  const afterPack = async (context: AfterPackContext) => {
+    await existingAfterPack(context);
+    if (assemblyStartedAt !== undefined) {
+      log(
+        `[build-timing] Electron app assembly completed in ${(
+          (now() - assemblyStartedAt) /
+          1000
+        ).toFixed(3)}s`
+      );
+    }
+    if (context.targets.length > 0 && context.targets.every(target => target.name === DIR_TARGET)) {
+      return;
+    }
+    const postPackStartedAt = now();
+    postPackStarts.set(postPackKey(context.arch), postPackStartedAt);
+    log(
+      `[build-timing] Electron post-pack processing started at ${new Date(
+        postPackStartedAt
+      ).toISOString()}`
+    );
+  };
+  const afterSign = (context?: Pick<AfterPackContext, 'arch'>) => {
+    completePostPack(context?.arch);
+  };
+  const artifactBuildStarted = (context: {
+    targetPresentableName: string;
+    file: string;
+    arch: string | number | null;
+  }) => {
+    completePostPack(context.arch);
+    const name = context.targetPresentableName || path.basename(context.file);
+    const startedAt = now();
+    artifactStarts.set(context.file, { name, startedAt });
+    log(`[build-timing] Electron artifact ${name} started at ${new Date(startedAt).toISOString()}`);
+  };
+  const artifactBuildCompleted = (context: { file: string; target: { name: string } | null }) => {
+    const timing = artifactStarts.get(context.file);
+    if (!timing) {
+      return;
+    }
+    artifactStarts.delete(context.file);
+    log(
+      `[build-timing] Electron artifact ${timing.name} completed in ${(
+        (now() - timing.startedAt) /
+        1000
+      ).toFixed(3)}s`
+    );
+  };
+
+  return { beforeBuild, afterPack, afterSign, artifactBuildStarted, artifactBuildCompleted };
+}
+
+const timingHooks = createBuildTimingHooks({ existingBeforeBuild, existingAfterPack });
 
 const config: Configuration = applyBuildResources(
   applyBuildTargets(
@@ -64,6 +170,7 @@ const config: Configuration = applyBuildResources(
       applyProductMetadata(
         {
           ...packageBuild,
+          ...timingHooks,
           extraResources: packageBuild.extraResources.map(resource => {
             // Preserve every resource except the default manifest entry.
             if (

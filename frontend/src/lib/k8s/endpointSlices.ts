@@ -67,7 +67,10 @@ class EndpointSlice extends KubeObject<KubeEndpointSlice> {
   }
 
   getOwnerServiceName() {
-    return this.jsonData.metadata.ownerReferences?.find(t => t.kind === 'Service')?.name;
+    return (
+      this.jsonData.metadata.labels?.['kubernetes.io/service-name'] ||
+      this.jsonData.metadata.ownerReferences?.find(t => t.kind === 'Service')?.name
+    );
   }
 }
 

@@ -16,7 +16,6 @@
 
 import React from 'react';
 import { useHistory } from 'react-router';
-import NotFoundComponent from '../../components/404';
 import AuthToken from '../../components/account/Auth';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
@@ -29,6 +28,8 @@ import SettingsClusters from '../../components/App/Settings/SettingsClusters';
 import AuthChooser from '../../components/authchooser';
 import Overview from '../../components/cluster/Overview';
 import { PageGrid } from '../../components/common/Resource/Resource';
+import CompositePodGroupDetails from '../../components/compositePodGroup/Details';
+import CompositePodGroupList from '../../components/compositePodGroup/List';
 import ConfigDetails from '../../components/configmap/Details';
 import ConfigMapList from '../../components/configmap/List';
 import CustomResourceDetails from '../../components/crd/CustomResourceDetails';
@@ -38,6 +39,12 @@ import CustomResourceDefinitionDetails from '../../components/crd/Details';
 import CustomResourceDefinitionList from '../../components/crd/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
+import DeviceClassDetails from '../../components/device/DeviceClassDetails';
+import DeviceClassList from '../../components/device/DeviceClassList';
+import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
+import ResourceClaimList from '../../components/device/ResourceClaimList';
+import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
+import ResourceClaimTemplateList from '../../components/device/ResourceClaimTemplateList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -761,6 +768,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'podGroups',
     component: () => <PodGroupDetails />,
   },
+  compositepodgroups: {
+    path: '/compositepodgroups',
+    exact: true,
+    name: 'Composite Pod Groups',
+    sidebar: 'compositePodGroups',
+    component: () => <CompositePodGroupList />,
+  },
+  CompositePodGroup: {
+    path: '/compositepodgroups/:namespace/:name',
+    exact: true,
+    name: 'Composite Pod Group',
+    sidebar: 'compositePodGroups',
+    component: () => <CompositePodGroupDetails />,
+  },
   // The 'workloads' route name is taken by the Workloads overview page, so the
   // scheduling.k8s.io Workload uses 'schedulingWorkloads' as its list route.
   schedulingWorkloads: {
@@ -776,6 +797,48 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Workload',
     sidebar: 'schedulingWorkloads',
     component: () => <SchedulingWorkloadDetails />,
+  },
+  deviceclasses: {
+    path: '/deviceclasses',
+    exact: true,
+    name: 'Device Classes',
+    sidebar: 'deviceClasses',
+    component: () => <DeviceClassList />,
+  },
+  deviceClass: {
+    path: '/deviceclasses/:name',
+    exact: true,
+    name: 'Device Class',
+    sidebar: 'deviceClasses',
+    component: () => <DeviceClassDetails />,
+  },
+  resourceclaims: {
+    path: '/resourceclaims',
+    exact: true,
+    name: 'Resource Claims',
+    sidebar: 'resourceClaims',
+    component: () => <ResourceClaimList />,
+  },
+  resourceClaim: {
+    path: '/resourceclaims/:namespace/:name',
+    exact: true,
+    name: 'Resource Claim',
+    sidebar: 'resourceClaims',
+    component: () => <ResourceClaimDetails />,
+  },
+  resourceclaimtemplates: {
+    path: '/resourceclaimtemplates',
+    exact: true,
+    name: 'Resource Claim Templates',
+    sidebar: 'resourceClaimTemplates',
+    component: () => <ResourceClaimTemplateList />,
+  },
+  resourceClaimTemplate: {
+    path: '/resourceclaimtemplates/:namespace/:name',
+    exact: true,
+    name: 'Resource Claim Template',
+    sidebar: 'resourceClaimTemplates',
+    component: () => <ResourceClaimTemplateDetails />,
   },
   priorityclasses: {
     path: '/priorityclasses',
@@ -901,6 +964,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     path: '/auth',
     name: 'OidcAuth',
     sidebar: null,
+    useClusterURL: false,
     noAuthRequired: true,
     component: () => <OIDCAuth />,
   },
@@ -909,6 +973,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     name: 'Login',
     sidebar: null,
+    noAuthRequired: true,
+    component: () => (
+      <AuthChooser>
+        <LocaleSelect />
+      </AuthChooser>
+    ),
+  },
+  encodedClusterLogin: {
+    path: '/encoded-clusters/:encodedCluster/login',
+    exact: true,
+    name: 'Login',
+    sidebar: null,
+    useClusterURL: false,
     noAuthRequired: true,
     component: () => (
       <AuthChooser>
@@ -1092,14 +1169,4 @@ const defaultRoutes: { [routeName: string]: Route } = {
 
 setDefaultRoutes(defaultRoutes);
 
-// The NotFound route  needs to be considered always in the last place when used
-// with the router switch, as any routes added after this one will never be considered.
-// So we do not include it in the default routes in order to always "manually" consider it.
-export const NotFoundRoute = {
-  path: '*',
-  exact: true,
-  name: `Whoops! This page doesn't exist`,
-  component: () => <NotFoundComponent />,
-  sidebar: null,
-  noAuthRequired: true,
-};
+export { NotFoundRoute } from './notFoundRoute';

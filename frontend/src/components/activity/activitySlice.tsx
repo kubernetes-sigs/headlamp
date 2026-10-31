@@ -52,8 +52,16 @@ export const activitySlice = createSlice({
         // New activity, add it to the state
         state.activities[action.payload.id] = action.payload;
       } else {
-        // Existing activity, un-minimize it
+        // Existing activity, un-minimize it.
         state.activities[action.payload.id].minimized = false;
+        // Details drawers: honor the caller's current location so
+        // reopening the same resource (e.g. from Global Search after the
+        // user changed the drawer-position setting) picks up the new
+        // preference. Other activity kinds keep whatever placement the
+        // user snapped to via the activity menu.
+        if (action.payload.kind === 'details') {
+          state.activities[action.payload.id].location = action.payload.location;
+        }
       }
 
       // Keep explicit medium windows floating; all other activities retain the existing behavior.
@@ -80,6 +88,14 @@ export const activitySlice = createSlice({
       delete state.activities[action.payload];
     },
     update(state, action: PayloadAction<Partial<Activity> & { id: string }>) {
+      // Ignore updates for activities that no longer exist — e.g. a content
+      // component clearing state on unmount after its activity was already
+      // closed. Spreading onto a missing entry would recreate a ghost
+      // activity with no content or location.
+      if (!state.activities[action.payload.id]) {
+        return;
+      }
+
       // Bump this activity in history
       if (!action.payload.minimized) {
         state.history = state.history.filter(it => it !== action.payload.id);

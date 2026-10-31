@@ -15,8 +15,12 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { makeJobStatusLabel } from './List';
+import { JobsListRenderer, makeJobStatusLabel } from './List';
+
+const { MockJobSuspendButton, mockResourceListView } = vi.hoisted(() => ({
+  MockJobSuspendButton: vi.fn(() => null),
+  mockResourceListView: vi.fn(),
+}));
 
 // Stub Iconify's Icon with a real DOM element that forwards every prop,
 // so the aria-hidden (or a reintroduced aria-label="hidden") attribute we
@@ -25,13 +29,61 @@ vi.mock('@iconify/react', () => ({
   Icon: (props: any) => <span data-testid="job-status-icon" {...props} />,
 }));
 
-// makeJobStatusLabel doesn't touch any of these at runtime, but List.tsx
-// imports them at module scope, and loading the real Job/ResourceListView/
-// common-barrel chain pulls in the full lib/k8s module graph (unrelated to
-// this test, and prone to load-order circular-import breakage in isolation).
-vi.mock('../../lib/k8s/job', () => ({ default: class Job {} }));
+// List.tsx imports these at module scope; loading the real common barrel
+// pulls in the full lib/k8s module graph, which is unrelated to these tests.
+vi.mock('../../lib/k8s/job', () => ({
+  default: { kind: 'Job' },
+}));
+
 vi.mock('../common', () => ({ CreateResourceButton: () => null }));
-vi.mock('../common/Resource/ResourceListView', () => ({ default: () => null }));
+
+vi.mock('./JobSuspendButton', () => ({
+  default: MockJobSuspendButton,
+}));
+
+vi.mock('../common/Resource/ResourceListView', () => ({
+  default: (props: any) => {
+    mockResourceListView(props);
+    return null;
+  },
+}));
+
+const fakeJob: any = {
+  kind: 'Job',
+  metadata: { name: 'test-job', namespace: 'default', uid: 'job-abc-123' },
+  spec: {
+    completions: 1,
+    parallelism: 1,
+    template: {
+      spec: {
+        containers: [{ name: 'main', image: 'busybox' }],
+      },
+    },
+  },
+  status: {},
+  getContainers: () => [{ name: 'main', image: 'busybox' }],
+  getDuration: () => -1,
+};
+
+describe('JobsListRenderer', () => {
+  beforeEach(() => {
+    mockResourceListView.mockReset();
+  });
+
+  it('adds a suspend row action to the jobs table', () => {
+    render(<JobsListRenderer jobs={[fakeJob]} />);
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const suspendAction = props.actions.find((action: any) => action.id === 'suspend');
+    const closeMenu = vi.fn();
+    const button = suspendAction.action({ item: fakeJob, closeMenu });
+
+    expect(button.type).toBe(MockJobSuspendButton);
+    expect(button.props.item).toBe(fakeJob);
+    expect(button.props.buttonStyle).toBe('menu');
+    expect(button.props.afterConfirm).toBe(closeMenu);
+  });
+});
 
 function makeJob(conditionType: 'Failed' | 'Complete' | 'Suspended') {
   return {

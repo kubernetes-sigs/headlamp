@@ -392,6 +392,33 @@ describe('platform metadata', () => {
     ).toThrow('Unsupported build manifest platforms.mac.hardenedRuntime');
   });
 
+  it('supports Linux maintainer metadata only on Linux', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    const maintainer = 'Example Company <support@example.com>';
+
+    expect(
+      applyPlatformMetadata(
+        {},
+        {
+          platforms: { linux: { maintainer } },
+        }
+      )
+    ).toEqual({ linux: { maintainer } });
+    expect(validate({ platforms: { linux: { maintainer } } })).toBe(true);
+    expect(() =>
+      applyPlatformMetadata(
+        {},
+        {
+          platforms: { mac: { maintainer } },
+        }
+      )
+    ).toThrow('Unsupported build manifest platforms.mac.maintainer');
+    expect(validate({ platforms: { mac: { maintainer } } })).toBe(false);
+  });
+
   it('rejects non-string allowed settings', () => {
     expect(() =>
       applyPlatformMetadata({}, { platforms: { win: { artifactName: false } } })
@@ -412,6 +439,149 @@ describe('platform metadata', () => {
     });
     expect(config.mac).toMatchObject({ appId: 'io.example.headlamp' });
     expect(config.win).toMatchObject({ icon: 'build/icons/example.ico' });
+    expect(config).toMatchObject({
+      beforeBuild: expect.any(Function),
+      afterPack: expect.any(Function),
+      afterSign: expect.any(Function),
+      artifactBuildStarted: expect.any(Function),
+      artifactBuildCompleted: expect.any(Function),
+    });
+    expect(config).not.toHaveProperty('beforePack');
+  });
+
+  it('times assembly after backend completion and labels skipped signing as post-pack work', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    let now = Date.parse('2026-10-07T10:00:00.000Z');
+    let finishBackend!: () => void;
+    const existingBeforeBuild = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          finishBackend = resolve;
+        })
+    );
+    const existingAfterPack = vi.fn(async () => {});
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild,
+      existingAfterPack,
+      now: () => now,
+      log,
+    });
+
+    const backend = hooks.beforeBuild({} as Parameters<typeof hooks.beforeBuild>[0]);
+    expect(log).not.toHaveBeenCalled();
+    now += 2_000;
+    finishBackend();
+    await backend;
+    expect(log).toHaveBeenLastCalledWith(
+      '[build-timing] Electron app assembly started at 2026-10-07T10:00:02.000Z'
+    );
+
+    now += 3_000;
+    await hooks.afterPack({
+      arch: 'x64',
+      targets: [{ name: 'dmg' }],
+    } as unknown as Parameters<typeof hooks.afterPack>[0]);
+    expect(existingAfterPack).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith('[build-timing] Electron app assembly completed in 3.000s');
+    expect(log).toHaveBeenCalledWith(
+      '[build-timing] Electron post-pack processing started at 2026-10-07T10:00:05.000Z'
+    );
+
+    now += 1_000;
+    hooks.afterSign({ arch: 'x64' } as unknown as Parameters<typeof hooks.afterSign>[0]);
+    expect(log).toHaveBeenLastCalledWith(
+      '[build-timing] Electron post-pack processing completed in 1.000s'
+    );
+    expect(log.mock.calls.flat().join('\n')).not.toContain('signing');
+  });
+
+  it('reports only paired artifact completions and consumes their timing', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    let now = Date.parse('2026-10-07T10:00:00.000Z');
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild: vi.fn(),
+      existingAfterPack: vi.fn(),
+      now: () => now,
+      log,
+    });
+
+    hooks.artifactBuildStarted({
+      targetPresentableName: 'dmg',
+      file: '/tmp/headlamp.dmg',
+      arch: null,
+    });
+    now += 2_000;
+    hooks.artifactBuildCompleted({ file: '/tmp/unmatched.dmg', target: { name: 'dmg' } });
+    hooks.artifactBuildCompleted({ file: '/tmp/headlamp.dmg', target: { name: 'dmg' } });
+    hooks.artifactBuildCompleted({ file: '/tmp/headlamp.dmg', target: { name: 'dmg' } });
+
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenLastCalledWith(
+      '[build-timing] Electron artifact dmg completed in 2.000s'
+    );
+  });
+
+  it('completes Linux post-pack timing when each architecture starts its first artifact', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    let now = Date.parse('2026-10-07T10:00:00.000Z');
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild: vi.fn(),
+      existingAfterPack: vi.fn(),
+      now: () => now,
+      log,
+    });
+    const packContext = (arch: string) =>
+      ({ arch, targets: [{ name: 'AppImage' }] } as unknown as Parameters<
+        typeof hooks.afterPack
+      >[0]);
+
+    await hooks.afterPack(packContext('x64'));
+    now += 1_000;
+    await hooks.afterPack(packContext('arm64'));
+    now += 2_000;
+    hooks.artifactBuildStarted({
+      targetPresentableName: 'AppImage',
+      file: '/tmp/headlamp-x64.AppImage',
+      arch: 'x64',
+    });
+    now += 1_000;
+    hooks.artifactBuildStarted({
+      targetPresentableName: 'AppImage',
+      file: '/tmp/headlamp-arm64.AppImage',
+      arch: 'arm64',
+    });
+    hooks.afterSign(packContext('x64'));
+
+    expect(log.mock.calls.flat()).toEqual([
+      '[build-timing] Electron post-pack processing started at 2026-10-07T10:00:00.000Z',
+      '[build-timing] Electron post-pack processing started at 2026-10-07T10:00:01.000Z',
+      '[build-timing] Electron post-pack processing completed in 3.000s',
+      '[build-timing] Electron artifact AppImage started at 2026-10-07T10:00:03.000Z',
+      '[build-timing] Electron post-pack processing completed in 3.000s',
+      '[build-timing] Electron artifact AppImage started at 2026-10-07T10:00:04.000Z',
+    ]);
+  });
+
+  it('does not start post-pack timing for a directory-only build', async () => {
+    const { createBuildTimingHooks } = await import('../electron-builder.config.ts');
+    const log = vi.fn();
+    const hooks = createBuildTimingHooks({
+      existingBeforeBuild: vi.fn(),
+      existingAfterPack: vi.fn(),
+      log,
+    });
+    const context = {
+      arch: 'x64',
+      targets: [{ name: 'dir' }],
+    } as unknown as Parameters<typeof hooks.afterPack>[0];
+
+    await hooks.afterPack(context);
+    hooks.afterSign(context);
+
+    expect(log).not.toHaveBeenCalled();
   });
 });
 
@@ -437,6 +607,11 @@ describe('product metadata', () => {
       appId: 'io.headlamp',
       productName: 'Headlamp',
       category: 'Network',
+      linux: {
+        category: 'Network',
+        maintainer: 'Kinvolk <hello@kinvolk.io>',
+        vendor: 'Kinvolk',
+      },
       extraMetadata: { channel: 'stable' },
     };
 
@@ -444,6 +619,7 @@ describe('product metadata', () => {
       applyProductMetadata(defaults, {
         product: {
           name: 'example-desktop',
+          companyName: 'Example Company',
           productName: 'Example Desktop',
           version: '1.2.3',
           appId: 'io.example.desktop',
@@ -455,12 +631,18 @@ describe('product metadata', () => {
       appId: 'io.example.desktop',
       productName: 'Example Desktop',
       category: 'Network',
+      linux: {
+        category: 'Network',
+        maintainer: 'Kinvolk <hello@kinvolk.io>',
+        vendor: 'Example Company',
+      },
       artifactName: '${name}-${version}.${ext}',
       protocols: { name: 'example', schemes: ['example'] },
       buildVersion: '1.2.3',
       extraMetadata: {
         channel: 'stable',
         name: 'example-desktop',
+        author: { name: 'Example Company' },
         productName: 'Example Desktop',
         version: '1.2.3',
       },
@@ -469,11 +651,16 @@ describe('product metadata', () => {
       appId: 'io.headlamp',
       productName: 'Headlamp',
       category: 'Network',
+      linux: {
+        category: 'Network',
+        maintainer: 'Kinvolk <hello@kinvolk.io>',
+        vendor: 'Kinvolk',
+      },
       extraMetadata: { channel: 'stable' },
     });
   });
 
-  it.each(['name', 'productName', 'version', 'appId', 'artifactName'])(
+  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName', 'trayIcon'])(
     'rejects a non-string product.%s',
     field => {
       expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
@@ -481,6 +668,30 @@ describe('product metadata', () => {
       );
     }
   );
+
+  it('declares product company metadata in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+
+    expect(schema.properties.product.properties.companyName).toMatchObject({
+      type: 'string',
+    });
+    expect(validate({ product: { companyName: 'Example Company' } })).toBe(true);
+    expect(validate({ product: { companyName: 1 } })).toBe(false);
+  });
+
+  it('requires a non-empty product tray icon in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+
+    expect(validate({ product: { trayIcon: 'assets/tray.png' } })).toBe(true);
+    expect(validate({ product: { trayIcon: '' } })).toBe(false);
+    expect(validate({ product: { trayIcon: 1 } })).toBe(false);
+  });
 
   it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
     expect(() => applyProductMetadata({}, { product: { protocols } })).toThrow(
@@ -864,6 +1075,67 @@ describe('build manifest selection', () => {
     expect(argumentPattern.test('list\0all')).toBe(false);
   });
 
+  it('validates explicit approval lists consistently in the schema and runtime', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    for (const pluginLocation of ['development', 'shipped', 'user']) {
+      const approval = { tool: 'examplectl', args: ['project', 'list'], allowTrailingArgs: true };
+      const exactApproval = { tool: 'examplectl', args: ['project', 'list'] };
+      const equivalentApprovals = [exactApproval, { ...exactApproval, allowTrailingArgs: false }];
+      for (const [approvedCommands, valid] of [
+        [undefined, true],
+        [[], true],
+        [[approval], true],
+        [[{ tool: 'examplectl', args: [] }], true],
+        [[{ tool: 'examplectl', args: [], allowTrailingArgs: true }], false],
+        [[approval, approval], false],
+        [equivalentApprovals, true],
+        [Array(65).fill(approval), false],
+        [[{ ...approval, executable: { source: 'plugin', path: 'bin/examplectl' } }], false],
+        [[{ ...approval, args: [' '] }], false],
+        [[{ ...approval, tool: '/bin/sh' }], false],
+        [null, false],
+        [true, false],
+        ['all', false],
+      ] as const) {
+        const policy = {
+          environment: 'development',
+          pluginLocation,
+          ...(approvedCommands !== undefined && { approvedCommands }),
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands:
+            Array.isArray(approvedCommands) &&
+            approvedCommands.some(
+              command =>
+                typeof command === 'object' &&
+                command !== null &&
+                'args' in command &&
+                Array.isArray(command.args) &&
+                command.args.length === 0
+            )
+              ? [{ tool: 'examplectl', args: [] }]
+              : [{ tool: 'examplectl', args: ['project', 'list'] }],
+        };
+        const allowed = valid && (approvedCommands === undefined || pluginLocation !== 'user');
+        const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+        expect(validate(manifest)).toBe(allowed);
+        if (allowed) {
+          const [parsed] = productPluginCommandPolicies(manifest, 'development');
+          expect(parsed.approvedCommands).toEqual(
+            approvedCommands === equivalentApprovals
+              ? [exactApproval, exactApproval]
+              : approvedCommands
+          );
+          expect(parsed.source).toBe(pluginLocation);
+        } else {
+          expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+        }
+      }
+    }
+  });
+
   it('rejects duplicate command grants in the schema', () => {
     const schema = JSON.parse(
       fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
@@ -887,6 +1159,32 @@ describe('build manifest selection', () => {
       expect.arrayContaining([expect.objectContaining({ keyword: 'uniqueItems' })])
     );
   });
+
+  it.each(['commands', 'approvedCommands'] as const)(
+    'rejects no-argument scriptjs %s in the schema and runtime',
+    field => {
+      const schema = JSON.parse(
+        fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+      );
+      const validate = addFormats(new Ajv()).compile(schema);
+      const policy = {
+        environment: 'development',
+        pluginLocation: 'development',
+        plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+        commands:
+          field === 'commands'
+            ? [{ tool: 'scriptjs', args: [] }]
+            : [{ tool: 'examplectl', args: ['list'] }],
+        ...(field === 'approvedCommands' && {
+          approvedCommands: [{ tool: 'scriptjs', args: [] }],
+        }),
+      };
+      const manifest = { runCommands: [policy] } as unknown as BuildManifest;
+
+      expect(validate(manifest)).toBe(false);
+      expect(() => productPluginCommandPolicies(manifest, 'development')).toThrow();
+    }
+  );
 
   it('matches production identity and plugin executable runtime requirements', () => {
     const schema = JSON.parse(
@@ -1152,6 +1450,7 @@ describe('build manifest selection', () => {
         packageName: '@example/plugin',
         source: 'development',
         grants: commands,
+        clusterRegistrationProviders: [],
       },
     ]);
     expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
@@ -1164,8 +1463,132 @@ describe('build manifest selection', () => {
           package: 'example-plugin',
         },
         grants: [{ tool: 'examplectl', args: ['production'] }],
+        clusterRegistrationProviders: [],
       },
     ]);
+  });
+
+  it('loads consumer-owned cluster registration providers', () => {
+    const provider = {
+      id: 'azure',
+      type: 'azure',
+      tools: { cli: 'az', python: 'az-python', kubelogin: 'az-kubelogin' },
+    };
+    const manifest = validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [provider],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      expect.objectContaining({ clusterRegistrationProviders: [provider] }),
+    ]);
+  });
+
+  it('allows cluster registration providers without external tools', () => {
+    const provider = { id: 'cluster-api', type: 'cluster-api', tools: {} };
+    const manifest = validateBuildManifest({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation: 'shipped',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [provider],
+        },
+      ],
+    });
+
+    expect(productPluginCommandPolicies(manifest, 'production')).toEqual([
+      expect.objectContaining({ clusterRegistrationProviders: [provider] }),
+    ]);
+  });
+
+  it('rejects cluster registration grants for user-installed plugins', () => {
+    const manifest = {
+      runCommands: [
+        {
+          environment: 'development',
+          pluginLocation: 'user',
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          clusterRegistrationProviders: [{ id: 'example', type: 'example', tools: {} }],
+        },
+      ],
+    };
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+
+    expect(addFormats(new Ajv()).compile(schema)(manifest)).toBe(false);
+    expect(() => validateBuildManifest(manifest)).toThrow(
+      'cannot grant cluster registration to user plugins'
+    );
+  });
+
+  it('validates external-tool platform paths and digests', () => {
+    const tool = {
+      id: 'examplectl',
+      platforms: {
+        linux: { path: 'external-tools/examplectl', sha256: 'a'.repeat(64) },
+        darwin: { path: 'external-tools/examplectl', sha256: 'b'.repeat(64) },
+        win32: { path: 'external-tools/examplectl.exe', sha256: 'c'.repeat(64) },
+      },
+    };
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validateSchema = addFormats(new Ajv()).compile(schema);
+
+    expect(validateBuildManifest({ 'external-tools': [tool] })['external-tools']).toEqual([tool]);
+    expect(validateSchema({ 'external-tools': [tool] })).toBe(true);
+    for (const invalid of [
+      { ...tool, id: '../examplectl' },
+      { ...tool, platforms: {} },
+      { ...tool, platforms: { linux: { path: '../examplectl', sha256: 'a'.repeat(64) } } },
+      { ...tool, platforms: { win32: { path: '\\examplectl.exe', sha256: 'a'.repeat(64) } } },
+      {
+        ...tool,
+        platforms: { win32: { path: '\\\\server\\share\\examplectl.exe', sha256: 'a'.repeat(64) } },
+      },
+      { ...tool, platforms: { linux: { path: 'examplectl', sha256: 'A'.repeat(64) } } },
+      { ...tool, platforms: { linux: { path: 'examplectl', sha256: 'invalid' } } },
+    ]) {
+      expect(() => validateBuildManifest({ 'external-tools': [invalid] })).toThrow(
+        'Invalid build manifest external-tools'
+      );
+    }
+    expect(() => validateBuildManifest({ 'external-tools': [tool, tool] })).toThrow(
+      'Invalid build manifest external-tools'
+    );
+  });
+
+  it('rejects malformed cluster registration providers', () => {
+    expect(() =>
+      validateBuildManifest({
+        runCommands: [
+          {
+            environment: 'production',
+            pluginLocation: 'shipped',
+            plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+            commands: [{ tool: 'examplectl', args: ['list'] }],
+            clusterRegistrationProviders: [
+              {
+                id: '../azure',
+                type: 'azure',
+                tools: { cli: 'az', python: 'az-python', kubelogin: 'az-kubelogin' },
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow('runCommands[0].clusterRegistrationProviders');
   });
 
   it('composes reusable command sets in declaration order', () => {

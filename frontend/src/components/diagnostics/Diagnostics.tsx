@@ -204,8 +204,25 @@ const REDUNDANT_CONDITION_REASONS = [
 ];
 
 /**
- * Returns conditions whose status is 'False' or 'Unknown', excluding ones whose
- * reason only restates the pod/container failure. Conditions are skipped
+ * Condition types where a status of 'True' represents a failure (negative polarity),
+ * as opposed to positive conditions (e.g. Ready, Available, Progressing, PodScheduled)
+ * where 'True' indicates normal/healthy operation.
+ */
+const NEGATIVE_FAILURE_CONDITIONS = ['ReplicaFailure'];
+
+function isConditionFailing(condition: KubeCondition): boolean {
+  if (condition.status === 'Unknown') {
+    return true;
+  }
+  if (NEGATIVE_FAILURE_CONDITIONS.includes(condition.type)) {
+    return condition.status === 'True';
+  }
+  return condition.status === 'False';
+}
+
+/**
+ * Returns conditions whose status represents a failure or warning state, excluding
+ * ones whose reason only restates the pod/container failure. Conditions are skipped
  * entirely when the pod phase is 'Succeeded'.
  */
 function getFailedConditions(conditions: KubeCondition[] = [], phase?: string) {
@@ -215,8 +232,7 @@ function getFailedConditions(conditions: KubeCondition[] = [], phase?: string) {
 
   return conditions.filter(
     condition =>
-      ['False', 'Unknown'].includes(condition.status) &&
-      !REDUNDANT_CONDITION_REASONS.includes(condition.reason || '')
+      isConditionFailing(condition) && !REDUNDANT_CONDITION_REASONS.includes(condition.reason || '')
   );
 }
 

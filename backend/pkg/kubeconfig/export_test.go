@@ -13,6 +13,12 @@ var DeriveInClusterName = deriveInClusterName
 // ResolveKubeconfigPaths is exported for testing.
 var ResolveKubeconfigPaths = resolveKubeconfigPaths
 
+// SyncContexts is exported for testing.
+var SyncContexts = syncContexts
+
+// ReAddMissingFiles is exported for testing.
+var ReAddMissingFiles = reAddMissingFiles
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface
@@ -31,4 +37,16 @@ func (rt *UserAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	}
 
 	return urt.RoundTrip(req)
+}
+
+// ExecCredentialRetryRoundTripper is exported for testing.
+type ExecCredentialRetryRoundTripper struct {
+	Base roundTripperInterface
+}
+
+// RoundTrip implements the http.RoundTripper interface.
+func (rt *ExecCredentialRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	retryRT := &execCredentialRetryRoundTripper{base: rt.Base}
+
+	return retryRT.RoundTrip(req)
 }

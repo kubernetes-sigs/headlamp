@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -28,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -37,6 +40,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -75,6 +79,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
+)
+
+const (
+	httpScheme  = "http"
+	httpsScheme = "https"
 )
 
 type HeadlampConfig struct {
@@ -186,6 +195,7 @@ type clientConfig struct {
 	DefaultLightTheme         string    `json:"defaultLightTheme,omitempty"`
 	DefaultDarkTheme          string    `json:"defaultDarkTheme,omitempty"`
 	ForceTheme                string    `json:"forceTheme,omitempty"`
+	OidcAutoLogin             bool      `json:"oidcAutoLogin"`
 }
 
 type OauthConfig struct {
@@ -194,6 +204,7 @@ type OauthConfig struct {
 	Ctx          context.Context
 	CodeVerifier string // PKCE code verifier
 	Cluster      string // cluster context name this is associated with
+	Popup        bool   // login was started from the OauthPopup window
 	createdAt    time.Time
 }
 
@@ -295,13 +306,7 @@ func rewriteIndexHTML(staticDir string, baseURL string, productName string) {
 	mustWriteFile(index, output)
 }
 
-func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
-	// If callback URL is configured, use it
-	if config.OidcCallbackURL != "" {
-		return config.OidcCallbackURL
-	}
-
-	// Otherwise, generate callback URL dynamically
+func getUrlScheme(r *http.Request) string {
 	urlScheme := r.URL.Scheme
 	if urlScheme == "" {
 		// check proxy headers first
@@ -311,11 +316,23 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 		case fwdProto != "":
 			urlScheme = fwdProto
 		case strings.HasPrefix(r.Host, "localhost:") || r.TLS == nil:
-			urlScheme = "http"
+			urlScheme = httpScheme
 		default:
-			urlScheme = "https"
+			urlScheme = httpsScheme
 		}
 	}
+
+	return urlScheme
+}
+
+func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
+	// If callback URL is configured, use it
+	if config.OidcCallbackURL != "" {
+		return config.OidcCallbackURL
+	}
+
+	// Otherwise, generate callback URL dynamically
+	urlScheme := getUrlScheme(r)
 
 	// Clean up + add the base URL to the redirect URL
 	hostWithBaseURL := strings.Trim(r.Host, "/")
@@ -326,6 +343,188 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 	}
 
 	return fmt.Sprintf("%s://%s/oidc-callback", urlScheme, hostWithBaseURL)
+}
+
+func sendOIDCLogoutRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) {
+	if r.Method == http.MethodPost {
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(map[string]string{"redirectURL": redirectURL}); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to encode OIDC logout redirect")
+		}
+
+		return
+	}
+
+	// redirectURL is either validated provider metadata or a server-generated same-origin URL.
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func getOIDCLogoutTransitionPath(baseURL, cluster string) string {
+	return auth.GetOIDCLogoutCookiePath(baseURL, cluster) + "/redirect"
+}
+
+func createOIDCLogoutState(cluster, idToken string, now time.Time) string {
+	expiresAt := strconv.FormatInt(now.Add(time.Minute).Unix(), 10)
+	payload := expiresAt + ":" + uuid.NewString() + ":" + auth.EncodeClusterForURL(cluster)
+	encodedPayload := base64.RawURLEncoding.EncodeToString([]byte(payload))
+	mac := hmac.New(sha256.New, []byte(idToken))
+	_, _ = mac.Write([]byte(encodedPayload))
+
+	return encodedPayload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func validateOIDCLogoutState(state, cluster, idToken string, now time.Time) bool {
+	parts := strings.Split(state, ".")
+	if len(parts) != 2 {
+		return false
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+
+	payloadParts := strings.SplitN(string(payload), ":", 3)
+	if len(payloadParts) != 3 || payloadParts[2] != auth.EncodeClusterForURL(cluster) {
+		return false
+	}
+
+	expiresAt, err := strconv.ParseInt(payloadParts[0], 10, 64)
+	if err != nil || now.Unix() > expiresAt || expiresAt > now.Add(time.Minute).Unix() {
+		return false
+	}
+
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+
+	mac := hmac.New(sha256.New, []byte(idToken))
+	_, _ = mac.Write([]byte(parts[0]))
+
+	return hmac.Equal(signature, mac.Sum(nil))
+}
+
+func getOIDCPostLogoutRedirectURL(configuredCallbackURL, baseURL, cluster string) (string, bool) {
+	callbackURL, err := url.Parse(configuredCallbackURL)
+	if err != nil ||
+		(callbackURL.Scheme != httpsScheme && callbackURL.Scheme != httpScheme) ||
+		callbackURL.Hostname() == "" || callbackURL.User != nil {
+		return "", false
+	}
+
+	baseURL = strings.TrimRight(baseURL, "/")
+	callbackURL.Path = baseURL + "/encoded-clusters/" + auth.EncodeClusterForURL(cluster) + "/login"
+	callbackURL.RawPath = ""
+	callbackURL.RawQuery = ""
+	callbackURL.Fragment = ""
+
+	return callbackURL.String(), true
+}
+
+func parseOIDCEndSessionEndpoint(endpoint string) (*url.URL, error) {
+	logoutURL, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("parse end_session_endpoint: %w", err)
+	}
+
+	if (logoutURL.Scheme != httpsScheme && logoutURL.Scheme != httpScheme) ||
+		logoutURL.Hostname() == "" || logoutURL.User != nil {
+		return nil, errors.New("end_session_endpoint must be an absolute HTTP(S) URL without userinfo")
+	}
+
+	if logoutURL.Scheme == httpScheme {
+		hostname := strings.TrimSuffix(strings.ToLower(logoutURL.Hostname()), ".")
+
+		ip := net.ParseIP(hostname)
+		if hostname != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			return nil, errors.New("end_session_endpoint must use HTTPS unless it targets a loopback host")
+		}
+	}
+
+	return logoutURL, nil
+}
+
+func getOIDCLogoutProvider(
+	config *HeadlampConfig,
+	r *http.Request,
+	oidcAuthConfig *kubeconfig.OidcConfig,
+) (*oidc.Provider, error) {
+	ctx := r.Context()
+
+	if config.Insecure {
+		baseTransport, ok := http.DefaultTransport.(*http.Transport)
+		if ok {
+			tr := baseTransport.Clone()
+
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			if baseTransport.TLSClientConfig != nil {
+				tlsCfg = baseTransport.TLSClientConfig.Clone()
+				tlsCfg.InsecureSkipVerify = true
+			}
+
+			tr.TLSClientConfig = tlsCfg
+			ctx = oidc.ClientContext(ctx, &http.Client{Transport: tr})
+		}
+	}
+
+	ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+	if config.OidcValidatorIdpIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
+	}
+
+	return oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+}
+
+func getOIDCLogoutProviderURL(
+	config *HeadlampConfig,
+	r *http.Request,
+	cluster string,
+) (*url.URL, error) {
+	kContext, err := config.KubeConfigStore.GetContext(cluster)
+	if err != nil {
+		return nil, fmt.Errorf("get context: %w", err)
+	}
+
+	oidcAuthConfig, err := kContext.OidcConfig()
+	if err != nil {
+		return nil, fmt.Errorf("get OIDC config: %w", err)
+	}
+
+	provider, err := getOIDCLogoutProvider(config, r, oidcAuthConfig)
+	if err != nil {
+		return nil, fmt.Errorf("get OIDC provider: %w", err)
+	}
+
+	var providerClaims struct {
+		EndSessionEndpoint string `json:"end_session_endpoint"`
+	}
+	if err := provider.Claims(&providerClaims); err != nil {
+		return nil, fmt.Errorf("get OIDC provider claims: %w", err)
+	}
+
+	if providerClaims.EndSessionEndpoint == "" {
+		return nil, errors.New("OIDC provider does not advertise an end_session_endpoint")
+	}
+
+	logoutURL, err := parseOIDCEndSessionEndpoint(providerClaims.EndSessionEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	query := logoutURL.Query()
+	query.Set("client_id", oidcAuthConfig.ClientID)
+
+	if postLogoutRedirectURL, ok := getOIDCPostLogoutRedirectURL(
+		config.OidcCallbackURL, config.BaseURL, cluster,
+	); ok {
+		query.Set("post_logout_redirect_uri", postLogoutRedirectURL)
+	}
+
+	logoutURL.RawQuery = query.Encode()
+
+	return logoutURL, nil
 }
 
 func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
@@ -735,6 +934,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
+	if config.Telemetry != nil && config.Metrics != nil {
+		r.Use(telemetry.TracingMiddleware("headlamp-server"))
+		r.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
 	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
 	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
 
@@ -831,6 +1035,114 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			ProxyAuthEmailHeader:    config.ProxyAuthEmailHeader,
 		}),
 	)).Methods("GET")
+
+	r.Handle("/encoded-clusters/{encodedClusterName}/oidc-logout",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if err != nil || mediaType != "application/json" {
+				http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+				return
+			}
+
+			cluster, err := auth.DecodeClusterFromURL(mux.Vars(r)["encodedClusterName"])
+			if err != nil {
+				http.Error(w, "Invalid cluster name", http.StatusBadRequest)
+				return
+			}
+
+			_, err = config.KubeConfigStore.GetContext(cluster)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+					err, "failed to get context for oidc logout")
+				http.NotFound(w, r)
+
+				return
+			}
+
+			if config.OidcSkipLogout {
+				logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: cluster},
+					nil, "oidc-logout: disabled, clearing cookie and redirecting")
+				auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+				auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+				baseURL := strings.TrimRight(config.BaseURL, "/")
+				sendOIDCLogoutRedirect(w, r,
+					fmt.Sprintf("%s/encoded-clusters/%s/login", baseURL, auth.EncodeClusterForURL(cluster)))
+
+				return
+			}
+
+			idToken, idTokenErr := auth.GetIDTokenFromCookie(r, cluster)
+			if idTokenErr != nil && !errors.Is(idTokenErr, http.ErrNoCookie) {
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+					idTokenErr, "failed to get ID token from cookie")
+			}
+
+			if idToken != "" {
+				if err := auth.SetIDTokenCookie(w, r, cluster, idToken, config.BaseURL, 60); err != nil {
+					logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+						err, "failed to shorten ID token cookie lifetime for logout")
+				}
+			}
+
+			auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+
+			if idToken == "" {
+				logoutURL, err := getOIDCLogoutProviderURL(config, r, cluster)
+				if err != nil {
+					logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+						err, "failed to prepare OIDC provider logout redirect")
+					sendOIDCLogoutRedirect(w, r, strings.TrimRight(config.BaseURL, "/")+"/")
+
+					return
+				}
+
+				sendOIDCLogoutRedirect(w, r, logoutURL.String())
+
+				return
+			}
+
+			state := createOIDCLogoutState(cluster, idToken, time.Now())
+			redirectPath := getOIDCLogoutTransitionPath(config.BaseURL, cluster)
+			redirectURL := fmt.Sprintf("%s?state=%s", redirectPath, url.QueryEscape(state))
+			sendOIDCLogoutRedirect(w, r, redirectURL)
+		}))).Methods(http.MethodPost)
+	r.HandleFunc("/encoded-clusters/{encodedClusterName}/oidc-logout", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})
+	r.HandleFunc("/encoded-clusters/{encodedClusterName}/oidc-logout/redirect",
+		func(w http.ResponseWriter, r *http.Request) {
+			cluster, err := auth.DecodeClusterFromURL(mux.Vars(r)["encodedClusterName"])
+			if err != nil {
+				http.Error(w, "Invalid cluster name", http.StatusBadRequest)
+				return
+			}
+
+			idToken, idTokenErr := auth.GetIDTokenFromCookie(r, cluster)
+			if idTokenErr != nil || idToken == "" ||
+				!validateOIDCLogoutState(r.URL.Query().Get("state"), cluster, idToken, time.Now()) {
+				http.Error(w, "Invalid OIDC logout transition", http.StatusBadRequest)
+				return
+			}
+
+			logoutURL, err := getOIDCLogoutProviderURL(config, r, cluster)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+					err, "failed to prepare OIDC provider logout redirect")
+				auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+				http.Redirect(w, r, strings.TrimRight(config.BaseURL, "/")+"/", http.StatusFound)
+
+				return
+			}
+
+			auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+
+			query := logoutURL.Query()
+			query.Set("id_token_hint", idToken)
+
+			logoutURL.RawQuery = query.Encode()
+
+			http.Redirect(w, r, logoutURL.String(), http.StatusFound)
+		}).Methods(http.MethodGet)
 
 	config.handleClusterRequests(r)
 
@@ -1107,6 +1419,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			Verifier:  verifier,
 			Ctx:       ctx,
 			Cluster:   cluster,
+			Popup:     r.URL.Query().Get("popup") == "true",
 			createdAt: time.Now(),
 		}
 
@@ -1201,10 +1514,28 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
+		rawIDToken, _ := oauth2Token.Extra("id_token").(string)
+		if rawIDToken == "" && tokenType == "id_token" {
+			rawIDToken = rawUserToken
+		}
+
 		if err := config.Cache.Set(context.Background(),
 			fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
 			http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		if err := auth.CacheIDToken(
+			context.Background(),
+			config.Cache,
+			rawUserToken,
+			rawIDToken,
+			time.Duration(config.SessionTTL)*time.Second,
+		); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to cache ID token")
+			http.Error(w, "Failed to cache ID token: "+err.Error(), http.StatusInternalServerError)
 
 			return
 		}
@@ -1242,9 +1573,39 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+		if err := auth.SetTokenCookie(
+			w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL,
+		); err != nil {
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: oauthConfig.Cluster},
+				err, "failed to retain authentication token")
+			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
+			return
+		}
+
+		if config.OidcUseTokenBroadcast {
+			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+				Writer:          w,
+				Request:         r,
+				KubeConfigStore: config.KubeConfigStore,
+				SourceCluster:   oauthConfig.Cluster,
+				Token:           rawUserToken,
+				BaseURL:         config.BaseURL,
+				SessionTTL:      config.SessionTTL,
+			})
+		}
+
+		if err := auth.SetIDTokenCookie(
+			w, r, oauthConfig.Cluster, rawIDToken, config.BaseURL, config.SessionTTL,
+		); err != nil {
+			logger.Log(logger.LevelWarn, map[string]string{logFieldCluster: oauthConfig.Cluster},
+				err, "failed to retain ID token for provider logout")
+		}
+
+		redirectURL += "auth?cluster=" + url.QueryEscape(oauthConfig.Cluster)
+		if oauthConfig.Popup {
+			redirectURL += "&popup=true"
+		}
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})
@@ -1550,13 +1911,6 @@ func StartHeadlampServer(config *HeadlampConfig) {
 			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
 		}
 	}()
-
-	router := mux.NewRouter()
-
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
 
 	if config.StaticDir != "" {
 		if err := copyStaticFiles(config); err != nil {
@@ -2033,6 +2387,12 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
+	router.Handle("/clusters/{clusterName}/drain-node",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
+	router.Handle("/clusters/{clusterName}/drain-node-status",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
+	router.Handle("/encoded-clusters/{encodedClusterName}/clear-token",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleSetToken))).Methods("POST")
 
@@ -2042,6 +2402,23 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	}
 
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
+}
+
+func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	cluster, err := auth.DecodeClusterFromURL(mux.Vars(r)["encodedClusterName"])
+	if err != nil {
+		http.Error(w, "Invalid cluster name", http.StatusBadRequest)
+		return
+	}
+
+	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+	w.WriteHeader(http.StatusOK)
 }
 
 func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
@@ -2299,6 +2676,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		DefaultLightTheme:         c.DefaultLightTheme,
 		DefaultDarkTheme:          c.DefaultDarkTheme,
 		ForceTheme:                c.ForceTheme,
+		OidcAutoLogin:             c.OidcAutoLogin,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
@@ -2792,7 +3170,15 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	// Renaming a cluster to its own context name, or to the DNS-friendly form
+	// shown for it, goes back to the original, so clear the custom name instead
+	// of saving one that matches the original.
+	newClusterName := reqBody.NewClusterName
+	if newClusterName == contextName || newClusterName == kubeconfig.MakeDNSFriendly(contextName) {
+		newClusterName = ""
+	}
+
+	if err := customNameToExtensions(config, contextName, newClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
@@ -2874,41 +3260,47 @@ func findMatchingContextName(config *api.Config, clusterName string) string {
 	}
 }
 
-// checkUniqueName returns false if 'newName' is already in 'names', otherwise returns true.
+// CheckUniqueName returns false if 'newName' is already used by a context other
+// than the one being renamed, either as its context name or as its custom name.
 // It is used for checking context names.
+//
+// The context being renamed is left out of the check, so a cluster can be
+// renamed back to its original name, or to the name it already has.
 //
 // Parameters:
 //   - contexts: The Kubernetes API configuration containing contexts.
-//   - currentName: The name of the current context being checked.
+//   - currentName: The name of the context being renamed (its custom name or its context name).
 //   - newName: The new name to check for uniqueness.
 func CheckUniqueName(contexts map[string]*api.Context, currentName string, newName string) bool {
-	contextNames := make([]string, 0, len(contexts))
+	ownKey := findMatchingContextName(&api.Config{Contexts: contexts}, currentName)
 
-	for name := range contexts {
-		contextNames = append(contextNames, name)
+	for name, y := range contexts {
+		if name == ownKey {
+			continue
+		}
+
 		logger.Log(logger.LevelInfo, map[string]string{"context added": name},
 			nil, "context name")
-	}
 
-	// Iterate over the contexts and add the custom names
-	for _, y := range contexts {
-		info := y.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, currentName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"context": currentName},
-					err, "marshaling custom object")
-			}
-
-			// add custom name if it is not empty
-			if customObj.CustomName != "" {
-				contextNames = append(contextNames, customObj.CustomName)
-			}
+		if name == newName {
+			return false
 		}
-	}
 
-	for _, current := range contextNames {
-		if current == newName {
+		info := y.Extensions["headlamp_info"]
+		if info == nil {
+			continue
+		}
+
+		customObj, err := MarshalCustomObject(info, name)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"context": name},
+				err, "marshaling custom object")
+
+			continue
+		}
+
+		// compare with the custom name if it is not empty
+		if customObj.CustomName != "" && customObj.CustomName == newName {
 			return false
 		}
 	}
@@ -2936,10 +3328,29 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.renameCluster))).Methods("PUT")
 }
 
-/*
-This function is used to handle the node drain request.
-*/
+func (c *HeadlampConfig) drainContextKey(r *http.Request, cluster string) (string, error) {
+	routeCluster := mux.Vars(r)["clusterName"]
+	if routeCluster == "" {
+		return cluster, nil
+	}
+
+	if cluster != "" && routeCluster != cluster {
+		return "", errors.New("cluster does not match request path")
+	}
+
+	return c.getContextKeyForRequest(r)
+}
+
+// handleNodeDrain submits a drain using the caller's cluster credentials.
 func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+	if mux.Vars(r)["clusterName"] != "" {
+		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
+			http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+			return
+		}
+	}
+
 	ctx := r.Context()
 	_, span := telemetry.CreateSpan(ctx, r, "node-management", "handleNodeDrain")
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
@@ -2969,7 +3380,13 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ctxtProxy, err := c.KubeConfigStore.GetContext(drainPayload.Cluster)
+	contextKey, err := c.drainContextKey(r, drainPayload.Cluster)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "resolving drain context", http.StatusBadRequest)
+		return
+	}
+
+	ctxtProxy, err := c.KubeConfigStore.GetContext(contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "Cluster not found", http.StatusNotFound)
 
@@ -2977,6 +3394,14 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	}
 
 	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+
+	if token == "" && c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
+		!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {
+		c.handleError(w, ctx, span, errors.New("user authentication is required"),
+			"missing drain credentials", http.StatusUnauthorized)
+
+		return
+	}
 
 	clientset, err := ctxtProxy.ClientSetWithToken(token)
 	if err != nil {
@@ -3004,7 +3429,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		serverCtx = context.Background()
 	}
 
-	c.drainNode(serverCtx, clientset, drainPayload.NodeName, drainPayload.Cluster)
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
 }
 
 func (c *HeadlampConfig) drainNode(
@@ -3123,7 +3548,7 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 Since node drain is an async operation, we need to poll for the status of the drain operation
 This endpoint returns the status of the drain operation.
 */
-func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) {
+func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	start := time.Now()
 	ctx := r.Context()
 
@@ -3145,6 +3570,16 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		NodeName: r.URL.Query().Get("nodeName"),
 	}
 
+	contextKey, err := c.drainContextKey(r, drainPayload.Cluster)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "resolving drain status context", http.StatusBadRequest)
+		return
+	}
+
+	if routeCluster := mux.Vars(r)["clusterName"]; routeCluster != "" {
+		drainPayload.Cluster = routeCluster
+	}
+
 	if drainPayload.NodeName == "" {
 		c.handleError(w, ctx, span, errors.New("nodeName is required"), "nodeName is missing", http.StatusBadRequest)
 		return
@@ -3156,7 +3591,7 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+"\x00"+drainPayload.Cluster)).String()
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+"\x00"+contextKey)).String()
 
 	cacheItem, err := c.Cache.Get(ctx, cacheKey)
 	if err != nil {
@@ -3208,9 +3643,12 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Token == "" {
-		auth.ClearTokenCookie(w, r, cluster, c.BaseURL)
+		auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
 	} else {
-		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL)
+		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL); err != nil {
+			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

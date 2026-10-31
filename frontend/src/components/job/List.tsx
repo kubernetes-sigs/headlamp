@@ -28,6 +28,8 @@ import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import JobSuspendButton from './JobSuspendButton';
+import { jobSuspendKey } from './jobSuspendState';
 
 export function makeJobStatusValue(job: Job) {
   if (!job?.status?.conditions) {
@@ -220,6 +222,19 @@ export function JobsListRenderer(props: JobsListRendererProps) {
         'age',
       ]}
       data={jobs}
+      actions={[
+        {
+          id: 'suspend',
+          action: ({ item, closeMenu }) => (
+            <JobSuspendButton
+              key={jobSuspendKey(item)}
+              item={item}
+              buttonStyle="menu"
+              afterConfirm={closeMenu}
+            />
+          ),
+        },
+      ]}
       reflectInURL={reflectTableInURL}
       id="headlamp-jobs"
       enableRowActions={enableRowActions}

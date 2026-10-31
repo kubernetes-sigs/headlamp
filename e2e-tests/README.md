@@ -124,6 +124,19 @@ kubectl config set-credentials admin@kind-test2 \
 
 ### Additional suites
 
+`tests/pomeriumProxyAuth.spec.ts` verifies Headlamp behind the Pomerium Ingress Controller. Its harness creates a disposable kind cluster on the active Docker engine, deploys Dex as a test identity provider, and installs the local Headlamp chart. The harness pins the Kubernetes node image to `kindest/node:v1.36.1`.
+
+Prerequisites are Docker, kind, kubectl, Helm, OpenSSL, curl, Node.js, and Google Chrome. Run it from the repository root:
+
+```bash
+cd e2e-tests
+npm ci
+cd ..
+./e2e-tests/pomerium/run.sh
+```
+
+The [reference screenshot](pomerium/proof/headlamp-namespaces-through-pomerium.png) shows the authenticated identity in Headlamp. The harness writes the latest screenshot to `e2e-tests/pomerium/generated/pomerium-headlamp.png` and deletes its `headlamp-pomerium-e2e` kind cluster after a successful run. Set `KEEP_CLUSTER=1` to keep the cluster for inspection. The harness stops its port-forward processes when it exits. If a failed run leaves the cluster behind, remove that exact cluster with `kind delete cluster --name headlamp-pomerium-e2e`.
+
 `tests/incluster-api.spec.ts` tests a separate Headlamp deployment running in
 in-cluster mode. CI runs it in a dedicated step after deploying
 `kubernetes-headlamp-incluster-ci.yaml` to the `test2` cluster. To reproduce
@@ -220,21 +233,21 @@ Two modes are supported:
    npx playwright test tests/dexOauth2Proxy.spec.ts
    ```
 
-    The test runs
-    `../docs/installation/in-cluster/dex/test-scripts/run.sh`
-    in `beforeAll` and `cleanup.sh` in `afterAll`.
+   The test runs
+   `../docs/installation/in-cluster/dex/test-scripts/run.sh`
+   in `beforeAll` and `cleanup.sh` in `afterAll`.
 
 2. **Use a stack you already brought up:**
 
-    ```shell
-    cd ../docs/installation/in-cluster/dex/test-scripts
-    ./run.sh
-    cd -
-    export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
-    npx playwright test tests/dexOauth2Proxy.spec.ts
-    # …when done:
-    ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
-    ```
+   ```shell
+   cd ../docs/installation/in-cluster/dex/test-scripts
+   ./run.sh
+   cd -
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   # …when done:
+   ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
+   ```
 
 The test points at `http://localhost:8080` (the port `run.sh`
 port-forwards to OAuth2-Proxy) and signs in to Dex as

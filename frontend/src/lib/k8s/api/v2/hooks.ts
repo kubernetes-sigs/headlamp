@@ -181,10 +181,15 @@ export function useKubeObject<K extends KubeObject>({
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
       if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+        // Rebuild with the cluster this hook was asked for, the same as the
+        // initial fetch above. Without it the object falls back to getCluster(),
+        // which reads the URL — wrong whenever the caller passed an explicit
+        // cluster (details panels on the resource map) or the URL holds several
+        // (`/c/a+b` resolves to just the first).
+        client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
       }
     },
-    [client, queryKey, kubeObjectClass]
+    [client, queryKey, kubeObjectClass, cluster]
   );
 
   const connectionsRequests = useMemo(() => {

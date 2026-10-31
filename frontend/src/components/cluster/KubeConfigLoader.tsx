@@ -15,6 +15,7 @@
  */
 
 import { InlineIcon } from '@iconify/react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -310,18 +311,9 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
     >
       <DialogTitle>{t('translation|Load from KubeConfig')}</DialogTitle>
       {error && error !== '' ? (
-        <Box
-          style={{
-            backgroundColor: '#f44336',
-            color: 'white',
-            textAlign: 'center',
-            padding: '12px',
-            marginBottom: '16px',
-            borderRadius: '4px',
-          }}
-        >
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error}
-        </Box>
+        </Alert>
       ) : null}
       <Box>{renderSwitch()}</Box>
     </ClusterDialog>

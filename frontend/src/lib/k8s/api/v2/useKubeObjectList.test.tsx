@@ -992,6 +992,126 @@ describe('useKubeObjectList', () => {
     expect(mockClusterFetch.mock.calls[1][0]).toBe('api/v1/namespaces/b/pods?limit=500');
   });
 
+  it('should keep every namespace in clusterResults when a cluster has several', async () => {
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a', '1')] })),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-b', '1')] })),
+      } as Response);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    const names = (items: any[] | null | undefined) =>
+      items?.map(item => item.jsonData.metadata.name);
+    expect(names(result.current.items)).toEqual(['pod-a', 'pod-b']);
+    expect(names(result.current.clusterResults?.default.items)).toEqual(['pod-a', 'pod-b']);
+    expect(result.current.clusterResults?.default.isSuccess).toBe(true);
+    expect(result.current.clusterResults?.default.status).toBe('success');
+  });
+
+  it('should report a namespace that failed in clusterResults', async () => {
+    const error = new ApiError('Forbidden', { status: 403 });
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a', '1')] })),
+      } as Response)
+      .mockRejectedValueOnce(error);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(result.current.clusterResults?.default.isError).toBe(true));
+
+    const clusterResult = result.current.clusterResults!.default;
+    expect(clusterResult.items?.map(item => item.jsonData.metadata.name)).toEqual(['pod-a']);
+    expect(clusterResult.errors).toEqual([error]);
+    expect(clusterResult.isSuccess).toBe(false);
+    expect(clusterResult.status).toBe('error');
+  });
+
+  it('should report a namespace that is still loading in clusterResults', async () => {
+    const namespaceB = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a', '1')] })),
+      } as Response)
+      .mockReturnValueOnce(namespaceB.promise);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(result.current.clusterResults?.default.items).toHaveLength(1));
+    expect(result.current.clusterResults?.default.isLoading).toBe(true);
+    expect(result.current.clusterResults?.default.isSuccess).toBe(false);
+    expect(result.current.clusterResults?.default.status).toBe('pending');
+
+    namespaceB.resolve({
+      json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-b', '1')] })),
+    } as Response);
+
+    await waitFor(() => expect(result.current.clusterResults?.default.items).toHaveLength(2));
+    expect(result.current.clusterResults?.default.isLoading).toBe(false);
+    expect(result.current.clusterResults?.default.status).toBe('success');
+  });
+
+  it('should leave a cluster out of clusterResults until one of its namespaces has data', async () => {
+    const namespaceA = deferred<Response>();
+    const namespaceB = deferred<Response>();
+    mockClusterFetch
+      .mockReturnValueOnce(namespaceA.promise)
+      .mockReturnValueOnce(namespaceB.promise);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    // Home shows a cluster without an entry as still loading.
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+    expect(result.current.clusterResults?.default).toBeUndefined();
+
+    namespaceA.resolve({
+      json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a', '1')] })),
+    } as Response);
+
+    await waitFor(() => expect(result.current.clusterResults?.default.items).toHaveLength(1));
+  });
+
   it('should not issue more initial namespace requests than the opt-in limit', async () => {
     const nextNamespace = deferred<Response>();
     mockClusterFetch

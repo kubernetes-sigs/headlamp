@@ -24,6 +24,7 @@ describe('OauthPopup', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
     localStorage.clear();
   });
 
@@ -64,17 +65,14 @@ describe('OauthPopup', () => {
     expect(popupWindow.close).toHaveBeenCalled();
   });
 
-  it('removes the storage listener when the popup closes without completing auth', () => {
-    const popupListeners: Record<string, () => void> = {};
+  it('removes the storage listener when popup authentication times out', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const popupWindow = {
-      addEventListener: vi.fn((eventName: string, listener: () => void) => {
-        popupListeners[eventName] = listener;
-      }),
-      removeEventListener: vi.fn(),
+      closed: false,
       close: vi.fn(),
-    } as unknown as Window;
+    };
 
-    vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    vi.spyOn(window, 'open').mockReturnValue(popupWindow as unknown as Window);
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
     const onClose = vi.fn();
 
@@ -92,19 +90,83 @@ describe('OauthPopup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
 
-    popupListeners.beforeunload?.();
+    popupWindow.closed = true;
+    vi.advanceTimersByTime(250);
+
+    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('storage', expect.any(Function));
+    expect(onClose).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(5 * 60 * 1000 - 250);
 
     expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', expect.any(Function));
     expect(onClose).toHaveBeenCalled();
+    expect(popupWindow.close).toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('removes the storage listener and notifies when the popup is blocked', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+    const onClose = vi.fn();
+
+    render(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={vi.fn()}
+        onClose={onClose}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', expect.any(Function));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the completion listener when provider isolation reports the popup as closed', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const popupWindow = {
+      closed: true,
+      close: vi.fn(),
+    } as unknown as Window;
+
+    vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+    const onCode = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <OauthPopup
+        button={Button}
+        url="https://example.com/auth"
+        title="Auth Popup"
+        onCode={onCode}
+        onClose={onClose}
+      >
+        Open Auth Popup
+      </OauthPopup>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+    vi.advanceTimersByTime(250);
+
+    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('storage', expect.any(Function));
+    expect(onClose).not.toHaveBeenCalled();
+
+    localStorage.setItem(AUTH_STATUS_KEY, 'success');
+    window.dispatchEvent(new StorageEvent('storage'));
+
+    expect(onCode).toHaveBeenCalledWith('success');
+    expect(popupWindow.close).toHaveBeenCalled();
   });
 
   it('closes the popup and removes listeners when auth completes', () => {
-    const popupListeners: Record<string, () => void> = {};
     const popupWindow = {
-      addEventListener: vi.fn((eventName: string, listener: () => void) => {
-        popupListeners[eventName] = listener;
-      }),
-      removeEventListener: vi.fn(),
+      closed: false,
       close: vi.fn(),
     } as unknown as Window;
 
@@ -119,23 +181,22 @@ describe('OauthPopup', () => {
       </OauthPopup>
     );
 
+    localStorage.setItem(AUTH_STATUS_KEY, 'success');
     fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
 
     const storageListener = addEventListenerSpy.mock.calls.find(
       ([eventName]) => eventName === 'storage'
     )?.[1];
     expect(storageListener).toBeTypeOf('function');
+    expect(localStorage.getItem(AUTH_STATUS_KEY)).toBeNull();
+    expect(onCode).not.toHaveBeenCalled();
 
-    localStorage.setItem(AUTH_STATUS_KEY, 'code=oauth-code');
+    localStorage.setItem(AUTH_STATUS_KEY, 'success');
     window.dispatchEvent(new StorageEvent('storage'));
 
-    expect(onCode).toHaveBeenCalledWith('code=oauth-code');
+    expect(onCode).toHaveBeenCalledWith('success');
     expect(localStorage.getItem(AUTH_STATUS_KEY)).toBeNull();
     expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', storageListener);
-    expect(popupWindow.removeEventListener).toHaveBeenCalledWith(
-      'beforeunload',
-      popupListeners.beforeunload
-    );
     expect(popupWindow.close).toHaveBeenCalled();
   });
 });

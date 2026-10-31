@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { theme } from '../../TestHelpers/theme';
@@ -91,5 +91,31 @@ describe('ActionButton', () => {
     );
 
     expect(tooltipWarnings).toHaveLength(0);
+  });
+
+  it('does not activate a disabled menu item via mouse or keyboard', () => {
+    const onClick = vi.fn();
+
+    render(
+      <ThemeProvider theme={theme}>
+        <ActionButton
+          description="Delete"
+          icon="mdi:delete"
+          onClick={onClick}
+          buttonStyle="menu"
+          iconButtonProps={{ disabled: true }}
+        />
+      </ThemeProvider>
+    );
+
+    const menuItem = screen.getByRole('menuitem', { name: 'Delete' });
+    expect(menuItem).toHaveAttribute('aria-disabled', 'true');
+
+    fireEvent.click(menuItem);
+    expect(onClick).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(menuItem, { key: 'Enter' });
+    fireEvent.keyDown(menuItem, { key: ' ' });
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

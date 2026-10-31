@@ -38,6 +38,13 @@ export interface ResourceListViewWithResourceClassProps<ItemClass extends KubeOb
   backLink?: BackLinkProps['to'] | boolean;
   headerProps?: Omit<SectionFilterHeaderProps, 'title'>;
   resourceClass: ItemClass;
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried. An empty list queries no cluster and shows an empty table.
+   * The create action targets the first of them, and is left out when there is none.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceListView<ItemClass extends KubeObjectClass>(
@@ -53,6 +60,11 @@ export default function ResourceListView(
   const withNamespaceFilter = 'resourceClass' in props && props.resourceClass?.isNamespaced;
   const resourceClass = (props as ResourceListViewWithResourceClassProps<any>)
     .resourceClass as KubeObjectClass;
+  const clusters = (props as ResourceListViewWithResourceClassProps<any>).clusters;
+  const createActions =
+    resourceClass && clusters?.length !== 0
+      ? [<CreateResourceButton resourceClass={resourceClass} cluster={clusters?.[0]} />]
+      : undefined;
 
   return (
     <SectionBox
@@ -62,10 +74,7 @@ export default function ResourceListView(
           <SectionFilterHeader
             title={title}
             noNamespaceFilter={!withNamespaceFilter}
-            titleSideActions={
-              headerProps?.titleSideActions ||
-              (resourceClass ? [<CreateResourceButton resourceClass={resourceClass} />] : undefined)
-            }
+            titleSideActions={headerProps?.titleSideActions || createActions}
             {...headerProps}
           />
         ) : (

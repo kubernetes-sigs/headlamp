@@ -24,6 +24,13 @@ import svgr from 'vite-plugin-svgr';
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
 const underTest = process.env.UNDER_TEST === 'true' || process.env.VITEST === 'true';
+const serverBase = process.env.PUBLIC_URL?.startsWith('/')
+  ? process.env.PUBLIC_URL.replace(/\/+$/, '')
+  : '';
+const encodedClusterPrefix = `${serverBase}/encoded-clusters/`.replace(
+  /[.*+?^${}()|[\]\\]/g,
+  '\\$&'
+);
 
 export default defineConfig({
   define: {
@@ -40,6 +47,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/clusters': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      [`^${encodedClusterPrefix}[^/]+/(?:oidc-logout(?:/redirect)?|clear-token)(?:\\?|$)`]: {
         target: backendTarget,
         changeOrigin: true,
       },

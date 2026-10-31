@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
-import { queryClient, shouldRetryQuery } from './queryClient';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { invalidateClusterUserInfo, queryClient, shouldRetryQuery } from './queryClient';
 
 describe('queryClient', () => {
   it('keeps the existing query defaults', () => {
@@ -52,5 +52,27 @@ describe('shouldRetryQuery', () => {
   it('retries responses outside the permanent client-error range', () => {
     expect(shouldRetryQuery(2, { status: 399 })).toBe(true);
     expect(shouldRetryQuery(2, { status: undefined })).toBe(true);
+  });
+});
+
+describe('invalidateClusterUserInfo', () => {
+  beforeEach(() => {
+    queryClient.clear();
+  });
+
+  it('invalidates the cached identity of every cluster, not only the one logged into', async () => {
+    // Alice has been browsing cluster B; her identity is cached there. Cluster A
+    // is cached too. Then Bob logs into A. With token broadcast, B's cookie is
+    // now Bob's — so B's cached "alice" must not be served for its staleTime.
+    queryClient.setQueryData(['clusterMe', 'cluster-a'], { name: 'alice' });
+    queryClient.setQueryData(['clusterMe', 'cluster-b'], { name: 'alice' });
+    // An unrelated cache entry must be left alone.
+    queryClient.setQueryData(['auth', 'cluster-b'], { ok: true });
+
+    await invalidateClusterUserInfo();
+
+    expect(queryClient.getQueryState(['clusterMe', 'cluster-a'])?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(['clusterMe', 'cluster-b'])?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(['auth', 'cluster-b'])?.isInvalidated).toBe(false);
   });
 });

@@ -14,6 +14,11 @@ on:
         type: boolean
         required: false
         default: false
+      allow_non_main:
+        description: 'Allow a test upload from this branch (draft releases only)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -22,15 +27,36 @@ jobs:
   publish:
     name: Publish Assets
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-assets-${{ inputs.release_name }}
+      cancel-in-progress: false
     permissions:
       contents: write # need to write to releases and download artifacts
       id-token: write # needed for cosign keyless signing via GitHub OIDC
     steps:
+      # Users verify the checksums signature against this workflow on main, so
+      # a signature made from any other branch would fail verification.
+      - name: Check that the workflow runs from main
+        if: github.ref != 'refs/heads/main' && (!inputs.allow_non_main || inputs.force)
+        run: |
+          if [ "${{ inputs.force }}" == "true" ]; then
+            echo "::error::Force upload is not allowed from ${GITHUB_REF}."
+          else
+            echo "::error::Enable 'Allow non-main' to test a draft release upload from ${GITHUB_REF}."
+          fi
+          exit 1
+
+      - name: Warn about non-main test upload
+        if: github.ref != 'refs/heads/main' && inputs.allow_non_main
+        run: |
+          echo "::warning::This test run uploads to the requested draft release from ${GITHUB_REF}."
+          echo "::warning::Rerun from main before publishing so the Sigstore identity is trusted."
+
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
@@ -75,6 +101,11 @@ jobs:
           # Remove blockmap files if they exist
           find ./flattened-artifacts -type f -name "*.blockmap" -exec rm {} \;
 
+          # Build provenance from the app build workflows is not uploaded as is.
+          # It is combined into one file for the release later.
+          mkdir -p ./provenance
+          find ./flattened-artifacts -type f -name "*.intoto.jsonl" -exec mv {} ./provenance/ \;
+
           echo "Files prepared for upload:"
           ls -la ./flattened-artifacts/
 
@@ -84,33 +115,128 @@ jobs:
             exit 0
           fi
 
-      - name: Prepare GPG key
-        run: |
-          gpg_dir=.cr-gpg
-          mkdir "$gpg_dir"
-
-          # referring keyring to private key of gpg
-          keyring="$gpg_dir/secring.gpg"
-
-          # storing base64 GPG key into keyring
-          base64 -d <<< "$GPG_KEYRING_BASE64" > "$keyring"
-
-          # Import the GPG key for signing
-          gpg --batch --import "$keyring"
-
-          passphrase_file="$gpg_dir/passphrase"
-
-          # storing passphrase data into a file
-          echo "$GPG_PASSPHRASE" > "$passphrase_file"
-
-          # saving passphrase into github-environment
-          echo "CR_PASSPHRASE_FILE=$passphrase_file" >> "$GITHUB_ENV"
-
-          # saving private key into github-environemnt
-          echo "CR_KEYRING=$keyring" >> "$GITHUB_ENV"
+      # Combine the build provenance from the workflow runs with the provenance
+      # already attached to the release, so a run that only replaces some
+      # assets keeps the provenance of the others.
+      - name: Collect build provenance
+        shell: bash
         env:
-          GPG_KEYRING_BASE64: "${{ secrets.GPG_KEYRING_BASE64 }}" #Referring secrets of github above
-          GPG_PASSPHRASE: "${{ secrets.GPG_PASSPHRASE }}"
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+        run: |
+          mkdir -p ./temp-checksums
+          release_id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+            --jq '.[] | select(.name == env.RELEASE_NAME) | .id' | head -n 1)
+          if [ -z "$release_id" ]; then
+            echo "Release ${RELEASE_NAME} not found"
+            exit 1
+          fi
+
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets" \
+            --jq '.[]' > ./temp-checksums/release-assets.jsonl
+          jq -s . ./temp-checksums/release-assets.jsonl > ./temp-checksums/release-assets.json
+
+          # Prints a release asset, or nothing if the release doesn't have it.
+          download_asset() {
+            local asset_id
+            asset_id=$(jq -r --arg name "$1" \
+              '.[] | select(.name == $name) | .id' ./temp-checksums/release-assets.json | head -n 1)
+            if [ -n "$asset_id" ]; then
+              gh api -H "Accept: application/octet-stream" \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+            fi
+          }
+
+          download_asset checksums.txt > ./temp-checksums/current-checksums.txt
+          download_asset "headlamp-${RELEASE_NAME}.intoto.jsonl" > ./temp-checksums/current.intoto.jsonl
+          cat ./temp-checksums/current.intoto.jsonl ./provenance/*.intoto.jsonl 2> /dev/null \
+            | awk 'NF && !seen[$0]++' > "./temp-checksums/headlamp-${RELEASE_NAME}.intoto.jsonl"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Check Cosign install
+        run: cosign version
+
+      # Checked before anything is uploaded, so that a release never gets assets
+      # without build provenance from the app build workflows. Each asset is
+      # checked against the provenance cryptographically, so only statements
+      # signed by the app build workflows count, including ones already
+      # attached to the release.
+      - name: Verify build provenance
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+        run: |
+          identity="^https://github\.com/${GITHUB_REPOSITORY}/\.github/workflows/app-artifacts-(linux|mac|win)\.yml@"
+          mkdir -p ./temp-checksums/bundles
+          i=0
+          while IFS= read -r line; do
+            i=$((i + 1))
+            printf '%s\n' "$line" > "./temp-checksums/bundles/${i}.json"
+          done < "./temp-checksums/headlamp-${RELEASE_NAME}.intoto.jsonl"
+
+          # Succeeds if a bundle that verifies against the app build workflows
+          # has a statement for the digest.
+          has_provenance() {
+            local digest="$1" bundle output
+            for bundle in ./temp-checksums/bundles/*.json; do
+              [ -f "$bundle" ] || continue
+              # Skip bundles that don't claim the digest. cosign checks the claim.
+              jq -e --arg digest "$digest" \
+                '.dsseEnvelope.payload | @base64d | fromjson | any(.subject[]; .digest.sha256 == $digest)' \
+                "$bundle" > /dev/null 2>&1 || continue
+              if output=$(cosign verify-blob-attestation --bundle "$bundle" \
+                --type https://slsa.dev/provenance/v1 \
+                --certificate-identity-regexp "$identity" \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                --digest "$digest" --digestAlg sha256 2>&1); then
+                return 0
+              fi
+              echo "$output" >&2
+            done
+            return 1
+          }
+
+          # The release's checksums after this run: its current checksums.txt,
+          # updated with the files that this run uploads.
+          declare -A expected
+          while read -r digest name; do
+            if [ -n "$name" ]; then
+              expected["$name"]="$digest"
+            fi
+          done < ./temp-checksums/current-checksums.txt
+          for file in ./flattened-artifacts/*; do
+            [ -f "$file" ] || continue
+            expected["$(basename "$file")"]=$(sha256sum "$file" | cut -d' ' -f1)
+          done
+
+          # A failed manifest upload can leave payloads absent from checksums.txt.
+          # Check retained payload bytes, not just the manifest's claims.
+          while IFS=$'\t' read -r asset_id name; do
+            case "$name" in
+              checksums.txt|checksums.txt.sigstore.json|"headlamp-${RELEASE_NAME}.intoto.jsonl") continue ;;
+            esac
+            [ -f "./flattened-artifacts/$name" ] && continue
+            digest=$(gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" | sha256sum | cut -d' ' -f1)
+            if [ "${expected[$name]:-}" != "$digest" ]; then
+              echo "::error::Retained asset ${name} is missing from checksums.txt or has a different digest. Rerun with the build run IDs for all affected assets to replace them and repair the manifest."
+              exit 1
+            fi
+          done < <(jq -r '.[] | [.id, .name] | @tsv' ./temp-checksums/release-assets.json)
+
+          missing=()
+          for name in "${!expected[@]}"; do
+            if ! has_provenance "${expected[$name]}"; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::No verified build provenance for ${missing[*]}. Build them with \`releaser ci app\` and rerun this workflow with those run IDs."
+            exit 1
+          fi
 
       - name: Install script dependencies
         working-directory: ./app/scripts/push-release-assets
@@ -118,7 +244,7 @@ jobs:
 
       - name: Upload assets to release
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           FORCE_FLAG=""
           if [ "${{ github.event.inputs.force }}" == "true" ]; then
@@ -139,29 +265,35 @@ jobs:
           echo "Executing: $CMD"
           eval $CMD
 
-      - name: Create and sign checksums signature
+      # The release is still a draft at this point and is not attached to its
+      # vX.Y.Z tag yet, so `gh release download/upload <name>` cannot find it.
+      # Look it up by name instead, like push-release-assets.js does.
+      - name: Download checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
         run: |
           # Wait a moment for the checksums.txt to be available
           sleep 5
 
-          # Create temporary directory for checksums
           mkdir -p ./temp-checksums
 
-          # Download the checksums.txt file that was just uploaded
-          gh release download ${{ inputs.release_name }} --pattern "checksums.txt" --dir ./temp-checksums --clobber
+          release_id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+            --jq '.[] | select(.name == env.RELEASE_NAME) | .id' | head -n 1)
+          if [ -z "$release_id" ]; then
+            echo "Release ${RELEASE_NAME} not found"
+            exit 1
+          fi
 
-          # Create detached signature for checksums.txt
-          gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
+          asset_id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets" \
+            --jq '.[] | select(.name == "checksums.txt") | .id' | head -n 1)
+          if [ -z "$asset_id" ]; then
+            echo "checksums.txt not found in release ${RELEASE_NAME}"
+            exit 1
+          fi
 
-          # Upload the signature file
-          gh release upload ${{ inputs.release_name }} ./temp-checksums/checksums.txt.asc --clobber
-
-          echo "Checksums signature created and uploaded successfully"
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+          gh api -H "Accept: application/octet-stream" \
+            "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > ./temp-checksums/checksums.txt
 
       - name: Sign checksums.txt with cosign (keyless)
         run: |
@@ -169,10 +301,35 @@ jobs:
             --bundle ./temp-checksums/checksums.txt.sigstore.json \
             ./temp-checksums/checksums.txt
 
-          gh release upload ${{ inputs.release_name }} \
-            ./temp-checksums/checksums.txt.sigstore.json \
-            --clobber
-
-          echo "Cosign bundle uploaded successfully"
+      - name: Upload signature and provenance to release
+        working-directory: ./app/scripts/push-release-assets
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          FORCE_FLAG=""
+          if [ "$FORCE" == "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+
+          # --skip-checksums so the signature and provenance are not added to
+          # checksums.txt, which would invalidate the signature.
+          node push-release-assets.js $FORCE_FLAG --skip-checksums "$RELEASE_NAME" \
+            ../../../temp-checksums/checksums.txt.sigstore.json \
+            "../../../temp-checksums/headlamp-${RELEASE_NAME}.intoto.jsonl"
+
+      - name: Install releaser
+        working-directory: ./tools/releaser
+        run: npm ci && npm run build
+
+      # push-release-assets.js logs upload errors but still exits successfully,
+      # so check that the signature and provenance were actually attached.
+      - name: Verify signature and provenance were attached
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+        run: |
+          node ./tools/releaser/dist/index.js ci verify-assets "$RELEASE_NAME" \
+            ./temp-checksums/checksums.txt.sigstore.json \
+            "./temp-checksums/headlamp-${RELEASE_NAME}.intoto.jsonl"

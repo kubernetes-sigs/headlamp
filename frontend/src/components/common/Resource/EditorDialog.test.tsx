@@ -15,9 +15,11 @@
  */
 
 import Button from '@mui/material/Button';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
+import store from '../../../redux/stores/store';
 import { TestContext } from '../../../test';
+import { ActivitiesRenderer, Activity } from '../../activity/Activity';
 import EditorDialog, { EditorDialogProps, ViewDialog } from './EditorDialog';
 
 const {
@@ -150,17 +152,20 @@ vi.mock('../ConfirmButton', () => ({
     disabled,
     'aria-label': ariaLabel,
     'aria-controls': ariaControls,
+    confirmDescription,
   }: {
     children: React.ReactNode;
     onConfirm: () => void;
     disabled?: boolean;
     'aria-label'?: string;
     'aria-controls'?: string;
+    confirmDescription?: string;
   }) => (
     <Button
       aria-label={ariaLabel}
       disabled={disabled}
       aria-controls={ariaControls}
+      data-confirm-description={confirmDescription}
       onClick={() => {
         if (!disabled) {
           onConfirm();
@@ -246,7 +251,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
         />
       </TestContext>
     );
@@ -274,7 +279,7 @@ describe('EditorDialog', () => {
               metadata: { name: 'my-config', resourceVersion: '2' },
             }}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
           />
         </TestContext>
       );
@@ -309,7 +314,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
         />
       </TestContext>
     );
@@ -332,7 +337,7 @@ describe('EditorDialog', () => {
               data: { key1: 'updated-value' },
             }}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
           />
         </TestContext>
       );
@@ -363,7 +368,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
           onBaselineAccepted={onBaselineAccepted}
         />
       </TestContext>
@@ -392,7 +397,7 @@ describe('EditorDialog', () => {
             noDialog
             item={externallyModifiedItem}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
             onBaselineAccepted={onBaselineAccepted}
           />
         </TestContext>
@@ -421,7 +426,7 @@ describe('EditorDialog', () => {
 
   it('does not call onBaselineAccepted when Undo discards a plain edit with no external conflict', () => {
     const onBaselineAccepted = vi.fn();
-    renderEditorDialog({ onSave: vi.fn(), onBaselineAccepted });
+    renderEditorDialog({ onSave: vi.fn<(...args: any[]) => void>(), onBaselineAccepted });
 
     const editor = screen.getByRole('textbox', { name: /code$/i });
     fireEvent.change(editor, { target: { value: 'just my own edit, no conflict involved' } });
@@ -451,7 +456,7 @@ describe('EditorDialog', () => {
           noDialog
           item={initialItem}
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
         />
       </TestContext>
     );
@@ -481,7 +486,7 @@ describe('EditorDialog', () => {
             noDialog
             item={newItem}
             onClose={vi.fn()}
-            onSave={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
           />
         </TestContext>
       );
@@ -569,6 +574,9 @@ describe('EditorDialog', () => {
 
     const saveApplyButton = screen.getByRole('button', { name: /save & apply/i });
     expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
+
+    const closeButton = screen.getByRole('button', { name: /^close$/i });
+    expect(closeButton).toHaveAttribute('aria-controls', textareaId);
   });
 
   it('configures the dialog content to scroll with a minimum height', () => {
@@ -598,6 +606,11 @@ describe('EditorDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: /save & apply/i })).toHaveAttribute(
+      'aria-controls',
+      textareaId
+    );
+
+    expect(screen.getByRole('button', { name: /^close$/i })).toHaveAttribute(
       'aria-controls',
       textareaId
     );
@@ -878,6 +891,308 @@ describe('EditorDialog', () => {
       );
     });
     expect(screen.getByText('Failed to create Node node-1 in v1.')).toBeInTheDocument();
+  });
+
+  describe('close confirmation', () => {
+    const confirmText =
+      'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?';
+
+    function makeEdit() {
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: 'user-edited-content' },
+      });
+    }
+
+    // The title-bar X is also an accessible "Close" button, so scope footer
+    // queries to the action bar.
+    function getFooterCloseButton() {
+      const actionBar = document.querySelector('.MuiDialogActions-root') as HTMLElement;
+      return within(actionBar).getByRole('button', { name: /^close$/i });
+    }
+
+    it('closes immediately from the Close button when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes without confirmation once a server update matches the edits', () => {
+      const onClose = vi.fn();
+      const onSave = vi.fn<(...args: any[]) => void>();
+      const initialItem = {
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'my-config', resourceVersion: '1' },
+        data: { key1: 'value1' },
+      };
+      const newItem = {
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'my-config', resourceVersion: '2' },
+        data: { key1: 'value1', key2: 'value2' },
+      };
+      const renderWith = (item: typeof initialItem) => (
+        <TestContext>
+          <EditorDialog open item={item} onClose={onClose} onSave={onSave} />
+        </TestContext>
+      );
+
+      const { rerender } = render(renderWith(initialItem));
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: JSON.stringify(newItem) },
+      });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      // The baseline is rebased onto content identical to the editor's, so
+      // nothing is unsaved any more even though no re-render follows.
+      act(() => {
+        rerender(renderWith(newItem));
+      });
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for confirmation from the Close button and closes on confirm', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the editor open with its edits when the confirmation is cancelled', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(getFooterCloseButton());
+      fireEvent.click(screen.getByTestId('cancel-button'));
+
+      act(() => {
+        vi.advanceTimersByTime(1000); // let the confirm dialog's exit transition finish
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /code$/i })).toHaveValue('user-edited-content');
+    });
+
+    it('guards the Escape key when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes on Escape without confirmation when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('guards backdrop clicks when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(document.querySelector('.MuiBackdrop-root') as HTMLElement);
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('guards the title-bar close button when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      const titleBar = document.querySelector('.MuiDialogTitle-root') as HTMLElement;
+      fireEvent.click(within(titleBar).getByRole('button', { name: /^close$/i }));
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes without confirmation again after Undo restores the original content', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+      fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('activity close guard', () => {
+    const confirmText =
+      'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?';
+
+    afterEach(() => {
+      Activity.reset();
+    });
+
+    function launchEditorActivity(onClose: () => void, minimized = false) {
+      Activity.launch({
+        id: 'edit-activity',
+        title: 'Edit: node-1',
+        location: 'full',
+        minimized,
+        content: (
+          <EditorDialog
+            open
+            noDialog
+            item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+            onClose={onClose}
+          />
+        ),
+      });
+
+      return render(
+        <TestContext>
+          <ActivitiesRenderer />
+        </TestContext>
+      );
+    }
+
+    it('guards the activity title-bar X when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: 'user-edited-content' },
+      });
+
+      fireEvent.click(screen.getByTitle('Close'));
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('registers a close guard without activating an initially minimized editor', () => {
+      const onClose = vi.fn();
+      Activity.launch({ id: 'other', title: 'Other', location: 'full', content: 'Other' });
+      const rendered = launchEditorActivity(onClose, true);
+
+      expect(store.getState().activity.activities['edit-activity'].onCloseRequest).toBeDefined();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i, hidden: true }), {
+        target: { value: 'user-edited-content' },
+      });
+      act(() => Activity.requestClose('edit-activity'));
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      const cancel = screen.getByTestId('cancel-button');
+      fireEvent.pointerDown(cancel);
+      fireEvent.click(cancel);
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+      act(() => rendered.unmount());
+      expect(store.getState().activity.activities['edit-activity'].onCloseRequest).toBeUndefined();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+    });
+
+    it('closes the activity immediately from the X when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      fireEvent.click(screen.getByTitle('Close'));
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a minimized editor minimized when the confirmation is cancelled', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+      Activity.launch({ id: 'other', title: 'Other', location: 'full', content: 'Other' });
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i, hidden: true }), {
+        target: { value: 'user-edited-content' },
+      });
+      act(() => {
+        Activity.update('edit-activity', { minimized: true });
+      });
+      expect(store.getState().activity.history).toEqual(['other']);
+
+      act(() => {
+        Activity.requestClose('edit-activity');
+      });
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+
+      const cancel = screen.getByTestId('cancel-button');
+      fireEvent.pointerDown(cancel);
+      fireEvent.click(cancel);
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+    });
+
+    it('re-registers the guard when the same activity ID is closed and relaunched', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      // Mirrors EditButton: close and relaunch under the same ID in one batch,
+      // so the editor is reused rather than remounted.
+      act(() => {
+        Activity.close('edit-activity');
+        Activity.launch({
+          id: 'edit-activity',
+          title: 'Edit: node-1',
+          location: 'full',
+          content: (
+            <EditorDialog
+              open
+              noDialog
+              item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+              onClose={onClose}
+            />
+          ),
+        });
+      });
+      expect(store.getState().activity.activities['edit-activity'].onCloseRequest).toBeDefined();
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i, hidden: true }), {
+        target: { value: 'user-edited-content' },
+      });
+      act(() => {
+        Activity.requestClose('edit-activity');
+      });
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
   });
 
   it('disables form actions when validation fails and opens the upload dialog', () => {

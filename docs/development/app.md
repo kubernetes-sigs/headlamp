@@ -144,8 +144,21 @@ source revision used to assemble the package:
 | `HEADLAMP_SOURCE_COMMIT`  | Current Git revision or `unknown` | Source revision written to `REACT_APP_HEADLAMP_GIT_VERSION`. Set this when building from packaged source without its Git repository. |
 
 The manifest's `product.productName` and `product.version` fields configure the
-identity displayed by the frontend as well as the packaged desktop app. Missing
-or empty fields retain the values from `app/package.json`.
+identity displayed by the frontend as well as the packaged desktop app.
+`product.companyName` configures the packaged app's Windows company metadata,
+macOS copyright attribution, and Linux vendor. Set `platforms.linux.maintainer`
+separately to a package contact in `Name <email>` form. Missing or empty fields
+retain the values from `app/package.json`.
+
+`product.trayIcon` optionally selects a system tray icon using a path relative
+to the packaged resources directory. Declare the same file in `resources` so
+Electron Builder copies it into the package.
+
+`product.errorReporting` optionally configures the generic error page's crash
+report action. Set `githubIssueUrl` to the full GitHub issue creation URL;
+existing query parameters such as `labels` or `template` are preserved when
+Headlamp adds the crash title and diagnostic body. Set `buttonLabel` to replace
+the translated **Open Issue on GitHub** label with product-owned text.
 
 For example:
 
@@ -154,7 +167,21 @@ For example:
   "product": {
     "name": "example-desktop",
     "productName": "Example Desktop",
-    "version": "1.2.3"
+    "companyName": "Example Company",
+    "version": "1.2.3",
+    "trayIcon": "assets/example-tray.png",
+    "errorReporting": {
+      "githubIssueUrl": "https://github.com/example/product/issues/new?labels=bug",
+      "buttonLabel": "Contact support"
+    }
+  },
+  "resources": {
+    "common": [{ "from": "./example-tray.png", "to": "assets/example-tray.png" }]
+  },
+  "platforms": {
+    "linux": {
+      "maintainer": "Example Company <support@example.com>"
+    }
   }
 }
 ```
@@ -187,12 +214,13 @@ docker buildx build \
 
 The manifest must remain available throughout the frontend and app packaging
 steps. An unreadable manifest, a non-object `product`, non-string
-`productName`/`version` fields, or values containing newlines stop the frontend
-build rather than silently using an inconsistent product identity. The frontend
-environment generator also rejects values containing both a single quote and a
-backtick when they additionally contain either a double quote or a literal
-backslash-`n`/backslash-`r` sequence, because no dotenv quote delimiter can
-represent them without changing the value.
+`productName`/`version` fields, invalid `errorReporting` fields, or values
+containing newlines stop the frontend build rather than silently using
+inconsistent product metadata. Electron packaging additionally rejects a
+non-string `companyName`. The frontend environment generator also rejects values
+containing both a single quote and a backtick when they additionally contain
+either a double quote or a literal backslash-`n`/backslash-`r` sequence, because
+no dotenv quote delimiter can represent them without changing the value.
 
 ### Build manifest resources
 
@@ -263,3 +291,13 @@ The typical development workflow for the desktop app:
 - Compiled `.js` files in `app/electron/` are git-ignored
 - The app uses the frontend's ESLint and Prettier configuration
 - For linting/formatting, the app scripts delegate to the frontend scripts
+- MCP child processes inherit the MCP SDK's platform-specific default environment
+  rather than the full desktop environment. Grant additional variables explicitly
+  in the MCP server's `env` configuration. Values must be strings; malformed
+  entries are reported and ignored. Windows variable names are normalized to
+  uppercase so explicit overrides replace the SDK defaults.
+- Active cluster-dependent MCP servers restart when selected cluster membership
+  or the first/current cluster changes. Reordering only secondary selected
+  clusters does not restart them. The caller's cluster order is preserved when
+  expanding `HEADLAMP_CURRENT_CLUSTER`, and cluster updates do not start dormant
+  servers.

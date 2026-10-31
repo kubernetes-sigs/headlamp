@@ -68,6 +68,7 @@ const customGroupingStore = configureStore({
       defaultPodDebugImage: '',
       defaultNodeShellImage: '',
       defaultNodeShellNamespace: '',
+      oidcAutoLogin: null,
     },
     projects: {
       headerActions: {},

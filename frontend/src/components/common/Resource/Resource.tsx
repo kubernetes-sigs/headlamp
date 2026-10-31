@@ -75,6 +75,7 @@ import InnerTable from '../InnerTable';
 import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
 import Link, { LinkProps } from '../Link';
 import { useObjectEvents } from '../ObjectEventList';
+import PasswordForm from '../PasswordForm';
 import { metadataStyles } from '.';
 import A8RInfo from './A8RInfo';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
@@ -637,16 +638,18 @@ export function SecretField(props: SecretFieldProps) {
         </IconButton>
       </Grid>
       <Grid item xs>
-        <Input
-          aria-labelledby={nameID}
-          readOnly={!showPassword}
-          type="password"
-          fullWidth
-          multiline={showPassword}
-          maxRows="20"
-          value={showPassword ? Base64.decode(value as string) : '••••••••'}
-          {...other}
-        />
+        <PasswordForm>
+          <Input
+            aria-labelledby={nameID}
+            readOnly={!showPassword}
+            type="password"
+            fullWidth
+            multiline={showPassword}
+            maxRows="20"
+            value={showPassword ? Base64.decode(value as string) : '••••••••'}
+            {...other}
+          />
+        </PasswordForm>
       </Grid>
     </Grid>
   );

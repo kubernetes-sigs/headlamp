@@ -148,7 +148,7 @@ export function createProtocolHandler(options: ProtocolHandlerOptions): Protocol
     const baseUrl = options.startUrl.endsWith('/')
       ? options.startUrl.slice(0, options.startUrl.length - 1)
       : options.startUrl;
-    options.getMainWindow()?.loadURL(baseUrl + '#' + urlParam + callbackUrl.search);
+    options.getMainWindow()?.loadURL(baseUrl + '#/' + urlParam + callbackUrl.search);
   }
 
   /** Restores and focuses the current window when one is available. */

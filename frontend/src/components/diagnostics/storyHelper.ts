@@ -17,6 +17,7 @@
 import type { KubeDeployment } from '../../lib/k8s/deployment';
 import type { KubeEvent } from '../../lib/k8s/event';
 import type { KubePod } from '../../lib/k8s/pod';
+import type { KubeReplicaSet } from '../../lib/k8s/replicaSet';
 import { podList } from '../pod/storyHelper';
 
 // Reuse the existing, fully-formed pod fixtures so the diagnostics logic (which
@@ -139,6 +140,58 @@ export const degradedDeployment: KubeDeployment = {
         status: 'False',
         reason: 'MinimumReplicasUnavailable',
         message: 'Deployment does not have minimum availability.',
+      },
+    ],
+  },
+};
+
+/** A ReplicaSet whose pods cannot be created due to a ResourceQuota. */
+export const quotaBlockedReplicaSet: KubeReplicaSet = {
+  apiVersion: 'apps/v1',
+  kind: 'ReplicaSet',
+  metadata: {
+    name: 'quota-blocked',
+    namespace: 'headlamp-diagnostics-repro',
+    uid: 'rs-quota-blocked-uid',
+    resourceVersion: '501',
+    creationTimestamp: '2026-10-11T12:00:00Z',
+  },
+  spec: {
+    minReadySeconds: 0,
+    replicas: 1,
+    selector: { matchLabels: { app: 'quota-blocked' } },
+    template: {
+      metadata: {
+        name: 'quota-blocked',
+        uid: 'rs-quota-blocked-template-uid',
+        creationTimestamp: '2026-10-11T12:00:00Z',
+        labels: { app: 'quota-blocked' },
+      },
+      spec: {
+        nodeName: 'node-1',
+        containers: [
+          {
+            name: 'pause',
+            image: 'registry.k8s.io/pause:3.10',
+            imagePullPolicy: 'IfNotPresent',
+          },
+        ],
+      },
+    },
+  },
+  status: {
+    replicas: 0,
+    availableReplicas: 0,
+    readyReplicas: 0,
+    fullyLabeledReplicas: 0,
+    observedGeneration: 1,
+    conditions: [
+      {
+        type: 'ReplicaFailure',
+        status: 'True',
+        reason: 'FailedCreate',
+        message:
+          'pods "quota-blocked-hqj5l" is forbidden: exceeded quota: no-pods, requested: pods=1, used: pods=0, limited: pods=0',
       },
     ],
   },
