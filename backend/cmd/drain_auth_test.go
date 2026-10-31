@@ -492,3 +492,75 @@ func TestDrainPreservesUserRBACDenial(t *testing.T) {
 	require.Equal(t, "Bearer restricted-user", <-requests)
 	require.Empty(t, requests, "Denied operation must not retry with service-account permissions")
 }
+
+func TestClusterScopedDrainExchangesProxyAuthToken(t *testing.T) { //nolint:funlen // STS/API integration.
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"token_endpoint": "http://" + r.Host + "/token"}))
+			return
+		}
+
+		if r.FormValue("subject_token") != "proxy-user-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "exchanged-drain-token", "expires_in": 3600,
+		}))
+	}))
+	t.Cleanup(sts.Close)
+
+	requests := make(chan string, 8)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/api/v1/nodes/test-node":
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}))
+		case "/api/v1/pods":
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.PodList{}))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name:     "main",
+		Source:   kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	})
+	cfg.ProxyAuthEnabled = true
+	cfg.ProxyAuthTokenHeader = "X-Forwarded-Access-Token"
+	cfg.OidcStsEnabled = true
+	cfg.OidcStsIssuerURL = sts.URL
+	cfg.OidcStsClientID = "sts-client"
+	cfg.OidcStsClientSecret = "sts-secret"
+	cfg.OidcStsAudienceMap = "main=main-audience"
+
+	auth.ResetSTSCache()
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/clusters/main/drain-node", strings.NewReader(`{"cluster":"main","nodeName":"test-node"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Access-Token", "proxy-user-token")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	select {
+	case got := <-requests:
+		require.Equal(t, "Bearer exchanged-drain-token", got)
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain never reached Kubernetes")
+	}
+}
