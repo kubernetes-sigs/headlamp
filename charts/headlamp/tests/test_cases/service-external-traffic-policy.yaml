@@ -1,0 +1,3 @@
+service:
+  type: NodePort
+  externalTrafficPolicy: Local
