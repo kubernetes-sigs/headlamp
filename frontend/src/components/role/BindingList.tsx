@@ -134,7 +134,7 @@ export default function RoleBindingList() {
               labels={
                 item?.subjects
                   ?.filter(subject => subject.kind === 'User')
-                  .map(subject => subject.name) || []
+                  ?.map(subject => subject.name) || []
               }
             />
           ),
@@ -153,7 +153,7 @@ export default function RoleBindingList() {
               labels={
                 item?.subjects
                   ?.filter(subject => subject.kind === 'Group')
-                  .map(subject => subject.name) || []
+                  ?.map(subject => subject.name) || []
               }
             />
           ),
@@ -165,14 +165,22 @@ export default function RoleBindingList() {
           getValue: item =>
             item?.subjects
               ?.filter(subject => subject.kind === 'ServiceAccount')
-              ?.map(subject => subject.name)
+              ?.map(subject =>
+                subject.namespace && subject.namespace !== item.getNamespace()
+                  ? `${subject.name} (${subject.namespace})`
+                  : subject.name
+              )
               ?.join(' '),
           render: item => (
             <LabelListItem
               labels={
                 item?.subjects
                   ?.filter(subject => subject.kind === 'ServiceAccount')
-                  .map(subject => subject.name) || []
+                  ?.map(subject =>
+                    subject.namespace && subject.namespace !== item.getNamespace()
+                      ? `${subject.name} (${subject.namespace})`
+                      : subject.name
+                  ) || []
               }
             />
           ),
