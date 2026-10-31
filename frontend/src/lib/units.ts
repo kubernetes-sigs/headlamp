@@ -98,6 +98,12 @@ export function parseCpu(value: string) {
   // parseFloat (not parseInt) so decimal-core quantities like "0.5" or "1.5"
   // keep their fractional part. Suffixed forms still parse ("500m" -> 500).
   const number = parseFloat(value);
+  // Kubernetes can canonicalize large core counts as decimal SI quantities,
+  // for example 1000 cores as "1k". Keep M (mega) distinct from m (milli).
+  const decimalSuffixIndex = 'kMGTPE'.indexOf(value.slice(-1));
+  if (decimalSuffixIndex !== -1) {
+    return number * 1000 ** (decimalSuffixIndex + 1) * TO_ONE_CPU;
+  }
   if (value.endsWith('n')) return number;
   if (value.endsWith('u')) return number * 1000;
   if (value.endsWith('m')) return number * 1000 * 1000;
