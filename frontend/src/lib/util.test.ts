@@ -17,7 +17,9 @@
 import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
+import App from '../App';
 import store from '../redux/stores/store';
+import Node from './k8s/node';
 import {
   combineClusterListErrors,
   compareUnits,
@@ -25,12 +27,17 @@ import {
   formatDuration,
   getPercentStr,
   getReadyReplicas,
+  getResourceMetrics,
   getTotalReplicas,
   isValidTimezone,
   normalizeUnit,
   timeAgo,
   useFilterFunc,
 } from './util';
+
+// cyclic imports fix
+// eslint-disable-next-line no-unused-vars
+const _dont_delete_me = App;
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -518,5 +525,61 @@ describe('useFilterFunc', () => {
     rerender({ criteria: ['b'] });
 
     expect(result.current).not.toBe(first);
+  });
+});
+
+describe('getResourceMetrics', () => {
+  it('returns [0, 0] when node status is undefined', () => {
+    const node = new Node({
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: { name: 'test-node', creationTimestamp: '', uid: '' },
+      spec: { podCIDR: '', taints: [] },
+    });
+    expect(getResourceMetrics(node, [], 'cpu')).toEqual([0, 0]);
+    expect(getResourceMetrics(node, [], 'memory')).toEqual([0, 0]);
+  });
+
+  it('returns [0, 0] when node status capacity is undefined', () => {
+    const node = new Node({
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: { name: 'test-node', creationTimestamp: '', uid: '' },
+      spec: { podCIDR: '', taints: [] },
+      status: {},
+    });
+    expect(getResourceMetrics(node, [], 'cpu')).toEqual([0, 0]);
+    expect(getResourceMetrics(node, [], 'memory')).toEqual([0, 0]);
+  });
+
+  it('returns parsed usage and capacity when available', () => {
+    const node = new Node({
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: { name: 'test-node', creationTimestamp: '', uid: '' },
+      spec: { podCIDR: '', taints: [] },
+      status: {
+        capacity: {
+          cpu: '4',
+          memory: '8Gi',
+        },
+      },
+    });
+    const metrics = [
+      {
+        metadata: { name: 'test-node' },
+        usage: { cpu: '2000m', memory: '4Gi' },
+        timestamp: '',
+        window: '',
+      },
+    ] as any;
+
+    const [usedCpu, capCpu] = getResourceMetrics(node, metrics, 'cpu');
+    expect(usedCpu).toBe(2000000000);
+    expect(capCpu).toBe(4000000000);
+
+    const [usedMem, capMem] = getResourceMetrics(node, metrics, 'memory');
+    expect(usedMem).toBeGreaterThan(0);
+    expect(capMem).toBeGreaterThan(0);
   });
 });
