@@ -202,8 +202,12 @@ function ShortcutEditor({
         {formatShortcutKey(shortcut.key)}
       </Button>
       {isModified && (
-        <Tooltip title={t('Reset to default')}>
-          <IconButton size="small" onClick={onReset}>
+        <Tooltip title={`${t('Reset to default')}: ${t(shortcut.labelKey)}`}>
+          <IconButton
+            size="small"
+            onClick={onReset}
+            aria-label={`${t('Reset to default')}: ${t(shortcut.labelKey)}`}
+          >
             <Icon icon="mdi:restore" width={16} />
           </IconButton>
         </Tooltip>
