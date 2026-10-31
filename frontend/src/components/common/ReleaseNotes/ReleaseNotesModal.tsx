@@ -72,7 +72,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
           appVersion: appVersion,
         })}
       </DialogTitle>
-      <DialogContent dividers>
+      <DialogContent dividers tabIndex={0}>
         <Box
           sx={{
             '& img': { display: 'block', maxWidth: '100%', height: 'auto' },
