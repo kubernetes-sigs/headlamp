@@ -46,7 +46,7 @@ import (
 func DeleteKeys(key string, k8scache cache.Cache[string]) {
 	_ = k8scache.Delete(context.Background(), key)
 
-	keyPart := strings.Split(key, "+")
+	keyPart := strings.SplitN(key, "+", 4)
 	if len(keyPart) < 4 {
 		return // malformed key; nothing to namespace-strip
 	}
