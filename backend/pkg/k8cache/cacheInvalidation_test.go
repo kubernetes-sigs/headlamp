@@ -17,6 +17,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"sync"
 	"testing"
@@ -734,6 +735,179 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	require.NoError(t, err)
 	assert.Contains(t, cachedValue, "ConfigMap")
 	assert.NotContains(t, cachedValue, "stale")
+}
+
+// TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect is a
+// regression test for the bug where using r.Context() for the fresh-GET caused
+// the cache repopulation to be cancelled when the client disconnected, leaving
+// the cache permanently empty (cache poisoning on disconnect).
+//
+// The test cancels the request context *before* calling HandleNonGETCacheInvalidation
+// to simulate a client that disconnects immediately after sending the mutating
+// request. The fix (context.WithoutCancel(r.Context())) means the cache must
+// still be populated with the fresh response regardless of the client's context state.
+func TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/default/pods"}
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+
+	// Seed an existing stale entry so we can confirm it is replaced.
+	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet {
+			require.NoError(t, req.Context().Err(), "fresh GET context should not be cancelled")
+			vars := mux.Vars(req)
+			require.Equal(t, "test-cluster", vars["clusterName"], "fresh GET should preserve mux variables")
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","fresh":true}`))
+	})
+
+	// Simulate a client that has already disconnected: create a cancelled context.
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately — context.Err() is non-nil from here on
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(cancelledCtx, http.MethodPost, targetURL.String(), nil)
+	r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	// The cache must contain the fresh data even though the client context was
+	// already cancelled. Before the fix this would fail because the fresh GET
+	// would be aborted along with the client context.
+	cachedValue, err := mockCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err, "cache must be populated after client disconnect")
+	assert.Contains(t, cachedValue, "PodList", "cache must hold fresh response, not empty or stale data")
+	assert.NotContains(t, cachedValue, "stale")
+}
+
+// TestHandleNonGETCacheInvalidation_RepopulationTimeout is a regression test
+// for the partial-response guard added alongside the context-detach fix.
+//
+// It injects a very short RepopulationTimeout so the test runs in milliseconds
+// rather than 60 s. The fresh-GET handler writes a partial response body and
+// then blocks until its context is cancelled by the injected timeout. The
+// function must detect the expiry, discard the partial response, and leave the
+// cache key absent so that stale data is not served and no goroutine leak occurs.
+func TestHandleNonGETCacheInvalidation_RepopulationTimeout(t *testing.T) {
+	// Inject a short timeout so the test does not wait 60 s.
+	original := k8cache.RepopulationTimeout
+	k8cache.RepopulationTimeout = 50 * time.Millisecond
+
+	t.Cleanup(func() { k8cache.RepopulationTimeout = original })
+
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/default/configmaps"}
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+
+	// The cache starts empty — after a timed-out partial GET the key must remain absent.
+	blocked := make(chan struct{})
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet {
+			// Write a partial body so the handler has something to buffer,
+			// then block until the repopulation context expires.
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"kind":"ConfigMap","partial`)) // deliberately incomplete JSON
+
+			<-req.Context().Done() // wait for timeout cancellation
+			close(blocked)
+
+			return
+		}
+		// Original mutating request: respond normally.
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, targetURL.String(), nil)
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	// Confirm the fresh GET was indeed blocked and then released by the timeout.
+	select {
+	case <-blocked:
+		// expected — the timeout cancelled the GET context
+	case <-time.After(5 * time.Second):
+		t.Fatal("fresh GET handler was not released by the repopulation timeout")
+	}
+
+	// The cache key must remain absent: the partial/timed-out body must be discarded.
+	_, err = mockCache.Get(context.Background(), cacheKey)
+	assert.Error(t, err, "cache key must be absent after a timed-out partial response")
+}
+
+func TestHandleNonGETCacheInvalidation_ReverseProxyAbort(t *testing.T) {
+	original := k8cache.RepopulationTimeout
+	k8cache.RepopulationTimeout = 50 * time.Millisecond
+
+	t.Cleanup(func() { k8cache.RepopulationTimeout = original })
+
+	mockCache := NewMockCache()
+
+	// Backend server that starts streaming a response and hangs until context cancellation.
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+
+		<-r.Context().Done()
+	}))
+	defer backendServer.Close()
+
+	backendURL, err := url.Parse(backendServer.URL)
+	require.NoError(t, err)
+
+	proxy := httputil.NewSingleHostReverseProxy(backendURL)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			proxy.ServeHTTP(w, r)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"created"}`))
+	})
+
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/default/configmaps"}
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+
+	// Simulate an incoming server request where context has http.ServerContextKey.
+	baseServer := &http.Server{
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	reqCtx := context.WithValue(context.Background(), http.ServerContextKey, baseServer)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(reqCtx, http.MethodPost, targetURL.String(), nil)
+	r.URL = targetURL
+
+	// Must not panic or fail the mutation response when the reverse proxy aborts with http.ErrAbortHandler.
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, `{"status":"created"}`, w.Body.String())
+
+	// Cache key must remain absent.
+	_, err = mockCache.Get(context.Background(), cacheKey)
+	assert.Error(t, err, "cache key must remain absent after proxy abort")
 }
 
 var filterImportantResourcesTests = []struct {
