@@ -54,12 +54,15 @@ export interface LinkObjectProps extends LinkBaseProps {
   [prop: string]: any;
 }
 
-function KubeObjectLink(props: {
-  kubeObject: KubeObject;
-  /** if onClick callback is provided navigation is disabled */
-  onClick?: () => void;
-  [prop: string]: any;
-}) {
+const KubeObjectLink = React.forwardRef<
+  HTMLAnchorElement,
+  {
+    kubeObject: KubeObject;
+    /** if onClick callback is provided navigation is disabled */
+    onClick?: (e?: any) => void;
+    [prop: string]: any;
+  }
+>(function KubeObjectLink(props, ref) {
   const { kubeObject, onClick, ...otherProps } = props;
 
   const client = useQueryClient();
@@ -68,6 +71,7 @@ function KubeObjectLink(props: {
 
   return (
     <MuiLink
+      ref={ref}
       onClick={e => {
         const key = kubeObjectQueryKey({
           cluster: kubeObject.cluster,
@@ -83,7 +87,7 @@ function KubeObjectLink(props: {
 
         if (onClick) {
           e.preventDefault();
-          onClick();
+          onClick(e);
         }
       }}
       component={RouterLink}
@@ -93,17 +97,18 @@ function KubeObjectLink(props: {
       {props.children || kubeObject!.getName()}
     </MuiLink>
   );
-}
+});
 
-function PureLink(
-  props: React.PropsWithChildren<LinkProps | LinkObjectProps> & {
+const PureLink = React.forwardRef<
+  HTMLAnchorElement,
+  React.PropsWithChildren<LinkProps | LinkObjectProps> & {
     /** if onClick callback is provided navigation is disabled */
-    onClick?: () => void;
+    onClick?: (e?: any) => void;
   }
-) {
+>(function PureLink(props, ref) {
   if ((props as LinkObjectProps).kubeObject) {
     const { kubeObject, ...otherProps } = props as LinkObjectProps;
-    return <KubeObjectLink kubeObject={kubeObject!} {...otherProps} />;
+    return <KubeObjectLink ref={ref} kubeObject={kubeObject!} {...otherProps} />;
   }
   const {
     routeName,
@@ -127,6 +132,7 @@ function PureLink(
 
   return (
     <MuiLink
+      ref={ref}
       component={RouterLink}
       to={{
         pathname: createRouteURL(routeName, finalParams),
@@ -137,14 +143,14 @@ function PureLink(
       onClick={e => {
         if (otherProps.onClick) {
           e.preventDefault();
-          otherProps.onClick();
+          otherProps.onClick(e);
         }
       }}
     >
       {props.children}
     </MuiLink>
   );
-}
+});
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
@@ -222,14 +228,21 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
         }
       : undefined;
 
-  const link = <PureLink {...propsRest} onClick={openDrawer} />;
+  const handleClick = openDrawer
+    ? (e: any) => {
+        openDrawer();
+        propsRest.onClick?.(e);
+      }
+    : propsRest.onClick;
+
+  const link = <PureLink {...propsRest} onClick={handleClick} />;
 
   if (tooltip) {
     let tooltipText = '';
     if (typeof tooltip === 'string') {
       tooltipText = tooltip;
     } else if ((props as LinkObjectProps).kubeObject) {
-      tooltipText = (props as LinkObjectProps).getName();
+      tooltipText = (props as LinkObjectProps).kubeObject?.getName() ?? '';
     } else if (typeof props.children === 'string') {
       tooltipText = props.children;
     }
