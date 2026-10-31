@@ -16,18 +16,39 @@
 
 import { getDefaultRoutes } from './getDefaultRoutes';
 
+/**
+ * Mapping of deprecated route names to their current equivalents.
+ * Keys are lower-cased so the lookup is always case-insensitive.
+ * Created with Object.assign(Object.create(null), ...) to restrict lookups to own properties
+ * and avoid prototype poisoning or matching Object.prototype methods (e.g. toString).
+ */
+const DEPRECATED_ROUTE_ALIASES: Record<string, string> = Object.assign(Object.create(null), {
+  clusterroles: 'roles',
+  clusterrolebindings: 'roleBindings',
+});
+
 export function getRoute(routeName?: string) {
   if (!routeName) return;
 
-  let routeKey = routeName;
-  for (const key in getDefaultRoutes()) {
-    if (key.toLowerCase() === routeName.toLowerCase()) {
-      // if (key !== routeName) {
-      //   console.warn(`Route name ${routeName} and ${key} are not matching`);
-      // }
-      routeKey = key;
-      break;
+  let targetRouteName = routeName;
+
+  // Resolve deprecated aliases case-insensitively so Router.getRoute('clusterRoles'),
+  // Router.getRoute('ClusterRoles'), etc. all continue to work.
+  const lowerName = routeName.toLowerCase();
+  if (DEPRECATED_ROUTE_ALIASES[lowerName] !== undefined) {
+    console.warn(
+      `[Deprecation] Route name "${routeName}" is deprecated. ` +
+        `Please use "${DEPRECATED_ROUTE_ALIASES[lowerName]}" instead.`
+    );
+    targetRouteName = DEPRECATED_ROUTE_ALIASES[lowerName];
+  }
+
+  const routes = getDefaultRoutes();
+  for (const key of Object.keys(routes)) {
+    if (key.toLowerCase() === targetRouteName.toLowerCase()) {
+      return routes[key];
     }
   }
-  return getDefaultRoutes()[routeKey];
+
+  return undefined;
 }
