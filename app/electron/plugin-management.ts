@@ -850,7 +850,7 @@ export class PluginManager {
       }
 
       // Add plugin bin directories to PATH
-      if (validPluginBinFolder(path.basename(name))) {
+      if (validPluginBinFolder(path.basename(name), 'user')) {
         const binPath = path.join(destinationFolder, path.basename(name), 'bin');
         addToPath([binPath], 'installed plugin');
       }
@@ -1765,14 +1765,14 @@ export function defaultKubeConfigsDir(): string {
  * Checks if a given folder is a valid plugin bin folder.
  *
  * @param {string} folder - The path to the folder to check. Should not include /bin in the path.
+ * @param source - Whether the plugin is bundled with Headlamp or user-installed.
  * @returns {boolean} True if the folder is a valid plugin bin folder, false otherwise.
  */
-function validPluginBinFolder(folder: string): boolean {
-  // For now only allow "headlamp_minikubeprerelease" and "headlamp_minikube"
+function validPluginBinFolder(folder: string, source: 'bundled' | 'user'): boolean {
   return (
     folder === 'headlamp_minikube' ||
     folder === 'headlamp_minikubeprerelease' ||
-    folder === 'azure-aks'
+    (source === 'bundled' && folder === 'aks-desktop')
   );
 }
 
@@ -1780,9 +1780,10 @@ function validPluginBinFolder(folder: string): boolean {
  * Collects bin directories from all installed plugins.
  *
  * @param pluginsDir - The directory containing plugins
+ * @param source - Whether the plugin directory is bundled or user-installed
  * @returns Array of plugin bin directory paths
  */
-export function getPluginBinDirectories(pluginsDir: string): string[] {
+export function getPluginBinDirectories(pluginsDir: string, source: 'bundled' | 'user'): string[] {
   if (!fs.existsSync(pluginsDir)) {
     return [];
   }
@@ -1794,7 +1795,7 @@ export function getPluginBinDirectories(pluginsDir: string): string[] {
     const pluginFolders = entries.filter(entry => entry.isDirectory());
 
     for (const pluginFolder of pluginFolders) {
-      if (!validPluginBinFolder(pluginFolder.name)) {
+      if (!validPluginBinFolder(pluginFolder.name, source)) {
         continue;
       }
 
