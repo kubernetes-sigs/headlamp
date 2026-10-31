@@ -80,7 +80,8 @@ describe('menusToTemplate', () => {
     expect(actions.setZoom).toHaveBeenCalledWith(1);
   });
 
-  it('loads internal URLs in the app window', async () => {
+  it('ignores non-http URLs instead of loading them in the app window', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const loadURL = vi.fn().mockResolvedValue(undefined);
     const mainWindow = { webContents: { loadURL } } as unknown as BrowserWindow;
     const { actions, convert } = setup(mainWindow);
@@ -88,8 +89,9 @@ describe('menusToTemplate', () => {
 
     await internal.click?.({} as never, {} as never, {} as never);
 
-    expect(loadURL).toHaveBeenCalledWith('file:///settings');
+    expect(loadURL).not.toHaveBeenCalled();
     expect(actions.openExternal).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   it('opens HTTP URLs externally even when an app window exists', async () => {
@@ -106,11 +108,27 @@ describe('menusToTemplate', () => {
 
   it('opens URLs externally when there is no app window', async () => {
     const { actions, convert } = setup();
+    const [external] = convert([{ id: 'external', url: 'https://headlamp.dev/docs' }]);
+
+    await external.click?.({} as never, {} as never, {} as never);
+
+    expect(actions.openExternal).toHaveBeenCalledWith('https://headlamp.dev/docs');
+  });
+
+  // A menu item can come from a plugin, so a custom scheme must not reach the OS
+  // handler and launch whatever application is registered for it.
+  it('ignores custom scheme URLs', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { actions, convert } = setup();
     const [external] = convert([{ id: 'external', url: 'headlamp://cluster' }]);
 
     await external.click?.({} as never, {} as never, {} as never);
 
-    expect(actions.openExternal).toHaveBeenCalledWith('headlamp://cluster');
+    expect(actions.openExternal).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(
+      'Ignoring menu URL headlamp://cluster: only http and https are allowed'
+    );
+    consoleError.mockRestore();
   });
 
   it('logs rejected URL actions', async () => {
