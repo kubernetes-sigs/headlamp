@@ -118,12 +118,12 @@ export interface ApiWithNamespaceClient<ResourceType extends KubeObjectInterface
     cluster?: string
   ) => Promise<CancelFunction>;
   post: (
-    body: RecursivePartial<KubeObjectInterface>,
+    body: RecursivePartial<ResourceType>,
     queryParams?: QueryParameters,
     cluster?: string
-  ) => Promise<any>;
+  ) => Promise<ResourceType>;
   put: (
-    body: KubeObjectInterface,
+    body: ResourceType,
     queryParams?: QueryParameters,
     cluster?: string
   ) => Promise<ResourceType>;
@@ -134,7 +134,7 @@ export interface ApiWithNamespaceClient<ResourceType extends KubeObjectInterface
     name: string,
     queryParams?: QueryParameters,
     cluster?: string
-  ) => Promise<any>;
+  ) => Promise<ResourceType>;
   jsonPatch: (
     body: OpPatch[],
     namespace: string,
@@ -466,7 +466,13 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
     get: (namespace, name, cb, errCb, queryParams, cluster) =>
       streamResult(url(namespace), name, cb, errCb, queryParams, cluster),
     post: (body, queryParams, cluster) =>
-      post(url(body.metadata?.namespace!) + asQuery(queryParams), body, true, { cluster }),
+      post(
+        url((body as RecursivePartial<KubeObjectInterface>).metadata?.namespace!) +
+          asQuery(queryParams),
+        body,
+        true,
+        { cluster }
+      ),
     patch: (body, namespace, name, queryParams, cluster) =>
       patch(
         `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
