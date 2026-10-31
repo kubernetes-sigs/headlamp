@@ -27,6 +27,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewOIDCTokenRefreshMiddleware(t *testing.T) {
@@ -77,4 +78,50 @@ func TestSetTokenFromCookie(t *testing.T) {
 	got := req.Header.Get("Authorization")
 	want := "Bearer " + testToken
 	assert.Equal(t, want, got)
+}
+
+// countingStore counts GetContext calls so tests can assert the middleware
+// loads a context only when a token or a shared cookie makes it necessary.
+type countingStore struct {
+	kubeconfig.ContextStore
+	calls int
+}
+
+func (s *countingStore) GetContext(name string) (*kubeconfig.Context, error) {
+	s.calls++
+	return s.ContextStore.GetContext(name)
+}
+
+// TestOIDCTokenRefreshMiddlewareHonoursBaseURL: with -base-url the request path
+// is <baseURL>/clusters/<cluster>/..., which the middleware used to treat as a
+// non-cluster request, so tokens behind a base URL were never refreshed. The
+// context is now loaded (and the refresh considered) below the base URL too.
+func TestOIDCTokenRefreshMiddlewareHonoursBaseURL(t *testing.T) {
+	for _, tc := range []struct {
+		configBaseURL, path string
+		wantContextLoads    int
+	}{
+		{"/headlamp", "/headlamp/clusters/main/api", 1},
+		{"", "/headlamp/clusters/main/api", 0}, // not a cluster request without a base URL
+		{"/headlamp", "/clusters/main/api", 0}, // every route lives below the base URL
+		{"", "/clusters/main/api", 1},
+	} {
+		t.Run(tc.configBaseURL+" "+tc.path, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(newOIDCContext("main", testIssuerA, testClientFoo)))
+			counting := &countingStore{ContextStore: store}
+
+			handler := auth.NewOIDCTokenRefreshMiddleware(auth.OIDCTokenRefreshConfig{
+				KubeConfigStore:  counting,
+				TelemetryHandler: &telemetry.RequestHandler{},
+				BaseURL:          tc.configBaseURL,
+			})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.path, nil)
+			addRequestCookie(req, "headlamp-auth-main.0", "own-token")
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+
+			assert.Equal(t, tc.wantContextLoads, counting.calls)
+		})
+	}
 }

@@ -1025,6 +1025,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
 	r.Handle("/clusters/{clusterName}/me", auth.NewBackendTokenMiddleware(config.UseInCluster)(
 		auth.HandleMe(auth.MeHandlerOptions{
+			BaseURL:                 config.BaseURL,
 			UsernamePaths:           config.MeUsernamePaths,
 			EmailPaths:              config.MeEmailPaths,
 			GroupsPaths:             config.MeGroupsPaths,
@@ -1062,7 +1063,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			if config.OidcSkipLogout {
 				logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: cluster},
 					nil, "oidc-logout: disabled, clearing cookie and redirecting")
-				auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+				config.clearTokenCookie(w, r, cluster)
 				auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
 				baseURL := strings.TrimRight(config.BaseURL, "/")
 				sendOIDCLogoutRedirect(w, r,
@@ -1084,7 +1085,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				}
 			}
 
-			auth.ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+			config.clearTokenCookie(w, r, cluster)
 
 			if idToken == "" {
 				logoutURL, err := getOIDCLogoutProviderURL(config, r, cluster)
@@ -1573,26 +1574,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// Set auth cookie
-		if err := auth.SetTokenCookie(
-			w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL,
-		); err != nil {
+		if err := config.storeOIDCLoginToken(w, r, oauthConfig.Cluster, rawUserToken); err != nil {
 			logger.Log(logger.LevelError, map[string]string{logFieldCluster: oauthConfig.Cluster},
 				err, "failed to retain authentication token")
 			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 
 			return
-		}
-
-		if config.OidcUseTokenBroadcast {
-			auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
-				Writer:          w,
-				Request:         r,
-				KubeConfigStore: config.KubeConfigStore,
-				SourceCluster:   oauthConfig.Cluster,
-				Token:           rawUserToken,
-				BaseURL:         config.BaseURL,
-				SessionTTL:      config.SessionTTL,
-			})
 		}
 
 		if err := auth.SetIDTokenCookie(
@@ -1654,6 +1641,40 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	return r
 }
 
+// storeOIDCLoginToken stores the token obtained at OIDC login. With token
+// broadcast enabled and matching sibling clusters, the token goes to the shared
+// cookie, read by the source cluster and its siblings alike; otherwise it goes
+// to the cluster's own cookie.
+func (c *HeadlampConfig) storeOIDCLoginToken(w http.ResponseWriter, r *http.Request, cluster, token string) error {
+	// Like SetTokenCookie, an empty token stores nothing and is not an error.
+	if token == "" {
+		return nil
+	}
+
+	if c.OidcUseTokenBroadcast {
+		shared, err := auth.BroadcastOIDCToken(auth.BroadcastOIDCTokenParams{
+			Writer:          w,
+			Request:         r,
+			KubeConfigStore: c.KubeConfigStore,
+			SourceCluster:   cluster,
+			Token:           token,
+			BaseURL:         c.BaseURL,
+			SessionTTL:      c.SessionTTL,
+		})
+		if err != nil || shared {
+			return err
+		}
+	}
+
+	if err := auth.SetTokenCookie(w, r, cluster, token, c.BaseURL, c.SessionTTL); err != nil {
+		return err
+	}
+
+	c.clearLogoutMarker(w, r, cluster)
+
+	return nil
+}
+
 func clearRequestAuthorization(r *http.Request) {
 	r.Header.Del("Authorization")
 	r.Header.Del("Cookie")
@@ -1696,6 +1717,24 @@ func (c *HeadlampConfig) getContextWithWebSocketFallback(
 	}
 
 	return contextKey, nil, err
+}
+
+// clearTokenCookie logs a cluster out: its own cookie is cleared and, with
+// token broadcast, it is marked out of the shared token.
+func (c *HeadlampConfig) clearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
+	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+
+	if c.OidcUseTokenBroadcast {
+		auth.MarkLoggedOut(w, r, cluster, c.BaseURL)
+	}
+}
+
+// clearLogoutMarker lifts the token broadcast logout marker when the user picks
+// a new identity for the cluster; without token broadcast there is none.
+func (c *HeadlampConfig) clearLogoutMarker(w http.ResponseWriter, r *http.Request, cluster string) {
+	if c.OidcUseTokenBroadcast {
+		auth.ClearLogoutMarker(w, r, cluster, c.BaseURL)
+	}
 }
 
 func tokenFromCookie(r *http.Request, clusterName string) string {
@@ -1762,6 +1801,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		SessionTTL:                   c.SessionTTL,
 		UseInCluster:                 c.UseInCluster,
 		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+		OidcUseTokenBroadcast:        c.OidcUseTokenBroadcast,
 	}
 
 	return auth.NewOIDCTokenRefreshMiddleware(config)(next)
@@ -2417,7 +2457,7 @@ func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+	c.clearTokenCookie(w, r, cluster)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -3643,12 +3683,15 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Token == "" {
-		auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
+		c.clearTokenCookie(w, r, cluster)
 	} else {
 		if err := auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL); err != nil {
 			http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
 			return
 		}
+
+		// A manual token is a new identity for the cluster; lift any logout marker.
+		c.clearLogoutMarker(w, r, cluster)
 	}
 
 	w.WriteHeader(http.StatusOK)

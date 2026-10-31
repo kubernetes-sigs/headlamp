@@ -47,6 +47,9 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
+	// OidcUseTokenBroadcast enables reading the shared (broadcast) token and the
+	// hand-off that strips its cookies; off, the middleware behaves as it always did.
+	OidcUseTokenBroadcast bool
 }
 
 // oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
@@ -62,13 +65,60 @@ func SetTokenFromCookie(r *http.Request, clusterName string) {
 	}
 }
 
+// sharedTokenResolver returns the resolver for the request's cluster, backed by
+// its lazily loaded context, or nil without token broadcast: then there is no
+// shared token to read.
+func (c *OIDCTokenRefreshConfig) sharedTokenResolver(load func() *kubeconfig.Context) SharedTokenKeyResolver {
+	if !c.OidcUseTokenBroadcast {
+		return nil
+	}
+
+	return func(name string) (string, bool) {
+		kContext := load()
+		if kContext == nil || kContext.Name != name {
+			return "", false
+		}
+
+		issuer, clientID, ok := SharedTokenIdentity(kContext)
+		if !ok {
+			return "", false
+		}
+
+		return SharedTokenKey(issuer, clientID), true
+	}
+}
+
+// handOff returns the handler the middleware passes requests on to. Without
+// token broadcast that is inner untouched. With it, the hand-off puts the token
+// the middleware resolved (read when the hand-off runs: header, own cookie or
+// shared token) in the Authorization header when none is set, then removes the
+// shared token cookies, so whatever handler forwards the Cookie header to an
+// API server, now or in the future, cannot leak a shared token to a cluster on
+// another identity provider. Promotion always precedes the strip.
+func (c *OIDCTokenRefreshConfig) handOff(inner http.Handler, token *string) http.Handler {
+	if !c.OidcUseTokenBroadcast {
+		return inner
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if *token != "" && strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+			r.Header.Set("Authorization", "Bearer "+*token)
+		}
+
+		StripSharedTokenCookies(r)
+		inner.ServeHTTP(w, r)
+	})
+}
+
 // NewOIDCTokenRefreshMiddleware creates an HTTP middleware that checks whether
 // the incoming request carries an OIDC token that is about to expire and, if
-// so, refreshes it transparently using the configured OIDC provider.
+// so, refreshes it transparently using the configured OIDC provider. It is the
+// common entry point of every <baseURL>/clusters/{cluster}/ route, so it also
+// owns the hand-off that strips shared token cookies (handOff).
 //
 //nolint:funlen
 func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
+	return func(inner http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			start := time.Now()
@@ -76,6 +126,35 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 			// branch sets it before calling next.ServeHTTP. The happy path leaves it as
 			// "success".
 			status := "success"
+
+			cluster := clusterFromPath(r.URL.Path, config.BaseURL)
+
+			// The token is resolved once (below) and handed to the next handler; a
+			// refresh updates the Authorization header itself. sharedKey records
+			// that it came from the shared cookie, which the refresh then renews.
+			var token, sharedKey string
+
+			// The context is loaded at most once per request, and only once a token
+			// or a shared cookie makes it necessary: the resolver loads it lazily.
+			var (
+				kContext  *kubeconfig.Context
+				ctxErr    error
+				ctxLoaded bool
+			)
+
+			loadContext := func() {
+				if !ctxLoaded {
+					kContext, ctxErr = config.KubeConfigStore.GetContext(cluster)
+					ctxLoaded = true
+				}
+			}
+
+			resolve := config.sharedTokenResolver(func() *kubeconfig.Context {
+				loadContext()
+
+				return kContext
+			})
+			next := config.handOff(inner, &token)
 
 			var span trace.Span
 			if config.Telemetry != nil {
@@ -96,13 +175,14 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			cluster, token := ParseClusterAndToken(r)
+			token, sharedKey = requestToken(r, cluster, resolve)
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return
 			}
 
-			kContext, err := config.KubeConfigStore.GetContext(cluster)
-			if config.handleGetContextError(err, cluster, w, r, span, ctx, &status, next) {
+			loadContext()
+
+			if config.handleGetContextError(ctxErr, cluster, w, r, span, ctx, &status, next) {
 				return
 			}
 
@@ -146,6 +226,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				SharedTokenKey:            sharedKey,
 			})
 
 			next.ServeHTTP(w, r)
@@ -175,7 +256,7 @@ func (c *OIDCTokenRefreshConfig) shouldSkipOIDCRefresh(
 	w http.ResponseWriter, r *http.Request, span trace.Span,
 	status *string, next http.Handler,
 ) bool {
-	if !strings.HasPrefix(r.URL.String(), "/clusters/") {
+	if !strings.HasPrefix(trimBaseURL(r.URL.Path, c.BaseURL), "/clusters/") {
 		c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
 
 		*status = "skipped"
