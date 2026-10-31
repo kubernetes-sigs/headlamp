@@ -134,9 +134,9 @@ func SetTokenCookie(
 
 	chunks, sizeErr := boundedAuthTokenChunks(token)
 	for i, chunk := range chunks {
-		// G124: Secure is set from IsSecureContext so localhost development still works;
-		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec
+		// G124: Secure is set dynamically from IsSecureContext to allow plaintext HTTP
+		// deployments alongside HTTPS; HttpOnly and SameSite are enforced unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec // Secure is conditional on TLS to support plaintext HTTP.
 			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
@@ -205,9 +205,9 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 			break
 		}
 
-		// G124: Secure is set from IsSecureContext so localhost development still works;
-		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec
+		// G124: Secure is set dynamically from IsSecureContext to allow plaintext HTTP
+		// deployments alongside HTTPS; HttpOnly and SameSite are enforced unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec // Secure is conditional on TLS to support plaintext HTTP.
 			Name:     cookieName,
 			Value:    "",
 			HttpOnly: true,
