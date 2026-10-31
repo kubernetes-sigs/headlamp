@@ -119,6 +119,15 @@ function useOwnProjectWrites(
 }
 
 /**
+ * The namespace name for what the user picked or typed. A valid name is used as it is: it may
+ * be an existing namespace, and toKubernetesName changes some valid names (`team--dev` becomes
+ * `team-dev`, a different namespace). Anything else is turned into a valid name.
+ */
+function toNamespaceName(text: string) {
+  return Namespace.isValidNamespaceFormat(text) ? text : toKubernetesName(text);
+}
+
+/**
  * A styled button for selecting a project type.
  */
 function ProjectTypeButton({
@@ -199,7 +208,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
   });
 
   const projectId = toKubernetesName(projectName);
-  const effectiveNamespace = selectedNamespace || toKubernetesName(typedNamespace);
+  const effectiveNamespace = selectedNamespace || toNamespaceName(typedNamespace);
   const { otherNamespaces, begin: beginWrites } = useOwnProjectWrites(
     projectId,
     effectiveNamespace,
@@ -215,7 +224,10 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
         continue;
       }
       result.add(labelValue);
-      result.add(toKubernetesName(labelValue));
+      const normalized = toKubernetesName(labelValue);
+      if (normalized) {
+        result.add(normalized);
+      }
     }
     return result;
   }, [otherNamespaces]);
@@ -241,6 +253,8 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
     selectedClusters.length &&
     (selectedNamespace || typedNamespace) &&
     projectName &&
+    projectId !== '' &&
+    effectiveNamespace !== '' &&
     !projectNameExists &&
     !isNamespaceAlreadyAssigned;
 
@@ -416,7 +430,9 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           options={uniq(namespaces?.map(it => it.metadata.name)) ?? []}
           value={selectedNamespace}
           onChange={(event, newValue) => {
-            setSelectedNamespace(newValue ?? undefined);
+            // Free text confirmed with Enter arrives as typed: keep a valid name as it is and
+            // normalise the rest, so the selection is what gets created
+            setSelectedNamespace(newValue ? toNamespaceName(newValue) || undefined : undefined);
           }}
           onInputChange={(e, v, reason) => {
             setTypedNamespace(v);
