@@ -938,3 +938,38 @@ describe('ContainerTextField port edit preservation', () => {
     );
   });
 });
+
+describe('CreateResourceForm – validity', () => {
+  const sections: FormSection[] = [
+    {
+      title: 'Spec',
+      fields: [
+        { key: 'name', path: 'metadata.name', label: 'Name', required: true },
+        { key: 'note', path: 'spec.note', label: 'Note' },
+        {
+          key: 'ports',
+          path: 'spec.ports',
+          label: 'Ports',
+          validate: value => value === undefined || (Array.isArray(value) && value.length < 2),
+        },
+      ],
+    },
+  ];
+
+  it.each([
+    ['an optional field without validate is ignored', { spec: { note: '' } }, true],
+    ['an unset optional field passes its validate', {}, true],
+    ['a failing optional validate makes the form invalid', { spec: { ports: [1, 2] } }, false],
+  ])('%s', (_label, spec, expected) => {
+    const onValidChange = vi.fn();
+    render(
+      <CreateResourceForm
+        sections={sections}
+        resource={{ metadata: { name: 'x' }, ...spec }}
+        onChange={() => {}}
+        onValidChange={onValidChange}
+      />
+    );
+    expect(onValidChange).toHaveBeenLastCalledWith(expected);
+  });
+});

@@ -43,6 +43,8 @@ export * from '../../service/CreateServiceForm';
 export { default as CreateServiceForm } from '../../service/CreateServiceForm';
 export * from '../../endpoints/CreateEndpointsForm';
 export { default as CreateEndpointsForm } from '../../endpoints/CreateEndpointsForm';
+export * from '../../endpointSlices/CreateEndpointSliceForm';
+export { default as CreateEndpointSliceForm } from '../../endpointSlices/CreateEndpointSliceForm';
 export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';
