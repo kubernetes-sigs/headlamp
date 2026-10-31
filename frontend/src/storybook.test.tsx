@@ -150,6 +150,22 @@ function replaceUseId(node: any) {
   }
 }
 
+function normalizeDetailsSectionBox(title: string, storyName: string) {
+  if (title !== 'Pod/PodDetailsWithResourceClaims' || storyName !== 'WithResourceClaims') {
+    return;
+  }
+
+  const sectionBox = document.querySelector(
+    '[aria-live="polite"][aria-busy="false"] > .MuiBox-root'
+  );
+  if (!(sectionBox instanceof HTMLElement)) return;
+
+  for (const className of [...sectionBox.classList]) {
+    if (className.startsWith('css-')) sectionBox.classList.remove(className);
+  }
+  sectionBox.classList.add('css-0');
+}
+
 describe('Storybook Tests', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -269,6 +285,7 @@ describe('Storybook Tests', () => {
 
             // Get rid of random id's in the ouput
             replaceUseId(document);
+            normalizeDetailsSectionBox(title, name);
 
             document.body.removeAttribute('style');
 
