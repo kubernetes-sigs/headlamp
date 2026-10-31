@@ -950,6 +950,81 @@ describe('packaged resource verification', () => {
 });
 
 describe('build manifest selection', () => {
+  it('validates the optional GitHub OAuth client configuration', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    const valid = { clientId: 'Iv23liExample', clientSecret: '0123abcd' };
+    for (const [githubOAuth, isValid] of [
+      [undefined, true],
+      [valid, true],
+      [null, false],
+      [[], false],
+      ['client', false],
+      [{ clientId: 'Iv23liExample' }, false],
+      [{ ...valid, clientSecret: '' }, false],
+      [{ ...valid, clientId: 42 }, false],
+      [{ ...valid, clientId: 'bad id' }, false],
+      [{ ...valid, clientId: 'a'.repeat(257) }, false],
+      [{ ...valid, clientSecret: 'a'.repeat(257) }, false],
+      [{ ...valid, scope: 'repo' }, false],
+    ] as const) {
+      const manifest = githubOAuth === undefined ? {} : { githubOAuth };
+      expect(validate(manifest)).toBe(isValid);
+      if (isValid) expect(() => validateBuildManifest(manifest)).not.toThrow();
+      else expect(() => validateBuildManifest(manifest)).toThrow('githubOAuth');
+    }
+  });
+
+  it('loads an optional GitHub OAuth grant for exact plugin identities', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    const policy = (pluginLocation: string, githubOAuth?: unknown) => ({
+      runCommands: [
+        {
+          environment: 'production',
+          pluginLocation,
+          plugins: [{ bundleName: 'example-plugin', packageName: '@example/plugin' }],
+          commands: [{ tool: 'examplectl', args: ['list'] }],
+          ...(githubOAuth !== undefined && { githubOAuth }),
+        },
+      ],
+    });
+
+    expect(validate(policy('shipped', true))).toBe(true);
+    expect(
+      productPluginCommandPolicies(validateBuildManifest(policy('shipped', true)), 'production')
+    ).toEqual([expect.objectContaining({ githubOAuth: true })]);
+    for (const githubOAuth of [undefined, false]) {
+      expect(validate(policy('shipped', githubOAuth))).toBe(true);
+      expect(
+        productPluginCommandPolicies(
+          validateBuildManifest(policy('shipped', githubOAuth)),
+          'production'
+        )[0]
+      ).not.toHaveProperty('githubOAuth');
+    }
+    expect(validate(policy('shipped', 'yes'))).toBe(false);
+    expect(() => validateBuildManifest(policy('shipped', 'yes'))).toThrow(
+      'runCommands[0].githubOAuth'
+    );
+    const userPolicy = {
+      runCommands: [
+        {
+          ...policy('user', true).runCommands[0],
+          environment: 'development',
+        },
+      ],
+    };
+    expect(validate(userPolicy)).toBe(false);
+    expect(() => validateBuildManifest(userPolicy)).toThrow(
+      'cannot grant GitHub OAuth to user plugins'
+    );
+  });
+
   it('loads with the native TypeScript type-stripping runtime', () => {
     const moduleUrl = pathToFileURL(path.join(appPath, 'scripts/build-manifest.ts')).href;
 
