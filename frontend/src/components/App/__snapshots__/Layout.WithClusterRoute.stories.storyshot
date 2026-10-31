@@ -197,6 +197,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-eecfu2-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -266,6 +267,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="true"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -516,6 +518,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -542,6 +545,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -568,6 +572,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -594,6 +599,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -620,6 +626,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
@@ -646,6 +653,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/"
                           role="button"
