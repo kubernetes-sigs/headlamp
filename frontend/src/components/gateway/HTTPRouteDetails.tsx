@@ -26,8 +26,8 @@ import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import { GatewayParentRefSection } from './utils';
 
-function HTTPRouteRuleTable(props: { rule: HTTPRouteRule; namespace?: string }) {
-  const { rule, namespace } = props;
+function HTTPRouteRuleTable(props: { rule: HTTPRouteRule; namespace?: string; cluster?: string }) {
+  const { rule, namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   const mainRows = [
@@ -44,7 +44,13 @@ function HTTPRouteRuleTable(props: { rule: HTTPRouteRule; namespace?: string }) 
     },
     {
       name: t('translation|BackendRefs'),
-      value: <RuleBackendRefs backendRefs={rule?.backendRefs || []} namespace={namespace} />,
+      value: (
+        <RuleBackendRefs
+          backendRefs={rule?.backendRefs || []}
+          namespace={namespace}
+          cluster={cluster}
+        />
+      ),
       valueFullRow: true,
       hide: (rule.backendRefs?.length || 0) === 0,
     },
@@ -135,6 +141,8 @@ export function RuleFilters(props: RuleFiltersProps) {
 
 export interface RuleBackendRefsProps {
   namespace?: string;
+  /** Cluster of the route, so backend links open in that cluster. */
+  cluster?: string;
   backendRefs?: {
     group?: string;
     kind?: string;
@@ -146,7 +154,7 @@ export interface RuleBackendRefsProps {
 }
 
 export function RuleBackendRefs(props: RuleBackendRefsProps) {
-  const { backendRefs, namespace } = props;
+  const { backendRefs, namespace, cluster } = props;
   const { t } = useTranslation();
   if (!backendRefs) {
     return null;
@@ -161,6 +169,7 @@ export function RuleBackendRefs(props: RuleBackendRefsProps) {
             <Link
               routeName={data.kind?.toLowerCase()}
               params={{ namespace: data?.namespace ?? namespace, name: data.name }}
+              activeCluster={cluster}
             >
               {data.name}
             </Link>
@@ -226,7 +235,12 @@ export default function HTTPRouteDetails(props: {
                   <EmptyContent>{t('No data')}</EmptyContent>
                 ) : (
                   item.rules.map((rule: HTTPRouteRule, index: any) => (
-                    <HTTPRouteRuleTable rule={rule} key={index} namespace={namespace} />
+                    <HTTPRouteRuleTable
+                      rule={rule}
+                      key={index}
+                      namespace={namespace}
+                      cluster={item.cluster ?? cluster}
+                    />
                   ))
                 )}
               </SectionBox>

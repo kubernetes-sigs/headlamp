@@ -944,7 +944,7 @@ export default function PodDetails(props: PodDetailsProps) {
             : []),
           {
             id: 'headlamp.pod-volumes',
-            section: <VolumeSection resource={item?.jsonData} />,
+            section: <VolumeSection resource={item?.jsonData} cluster={item?.cluster} />,
           },
         ]
       }
