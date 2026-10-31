@@ -86,6 +86,10 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	}
 
 	freshReq.Header = r.Header.Clone()
+	freshReq.Header.Del("Content-Length")
+	freshReq.Header.Del("Content-Type")
+	freshReq.Header.Del("Transfer-Encoding")
+	freshReq.Header.Del("Content-Encoding")
 	next.ServeHTTP(w, r)
 
 	rr := httptest.NewRecorder()
