@@ -25,7 +25,7 @@ import {
   setSystemTheme,
   setTheme as setAppTheme,
 } from '../../lib/themes';
-import { AppLogoType } from './AppLogo';
+import type { AppLogoType } from './AppLogo';
 import defaultAppThemes from './defaultAppThemes';
 export interface ThemeState {
   /**
