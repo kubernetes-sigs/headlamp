@@ -29,6 +29,7 @@ import (
 
 	"github.com/cli/browser"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -350,8 +351,12 @@ func handleCacheAuthorization(
 	kContext *kubeconfig.Context,
 	key string,
 ) bool {
-	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
-		clearRequestAuthorization(r)
+	c.applyClusterRequestAuthentication(r, kContext)
+
+	if !c.shouldUseUnsafeServiceAccountTokenForContext(kContext) &&
+		kContext.UsesInClusterServiceAccountToken() &&
+		auth.BearerTokenValue(r.Header.Get("Authorization")) == "" {
+		return false
 	}
 
 	isAllowed, authErr := k8cache.IsAllowed(contextKey, kContext, r)
