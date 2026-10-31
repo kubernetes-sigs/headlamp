@@ -5,7 +5,7 @@ sidebar_position: 4
 ---
 
 This section has information on how to contribute to Headlamp. It assumes you have cloned
-this repository (or your own Github fork).
+this repository (or your own GitHub fork).
 Any contributions to the project are accepted under the terms of the project's
 license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE)).
 
