@@ -30,6 +30,9 @@ import ConfigMap from './configMap';
 import ControllerRevision from './controllerRevision';
 import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
+import CSIDriver from './csiDriver';
+import CSINode from './csiNode';
+import CSIStorageCapacity from './csiStorageCapacity';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import DeviceClass from './deviceClass';
@@ -71,6 +74,7 @@ import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
 import TCPRoute from './tcpRoute';
 import UDPRoute from './udpRoute';
+import VolumeAttachment from './volumeAttachment';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -80,6 +84,9 @@ export const ResourceClasses = {
   ControllerRevision,
   CustomResourceDefinition,
   CronJob,
+  CSIDriver,
+  CSINode,
+  CSIStorageCapacity,
   DaemonSet,
   Deployment,
   DeviceClass,
@@ -116,6 +123,7 @@ export const ResourceClasses = {
   ServiceAccount,
   StatefulSet,
   StorageClass,
+  VolumeAttachment,
   VolumeAttributesClass,
   Gateway,
   GatewayClass,
@@ -364,6 +372,9 @@ export * as clusterRoleBinding from './clusterRoleBinding';
 export * as configMap from './configMap';
 export * as crd from './crd';
 export * as cronJob from './cronJob';
+export * as csiDriver from './csiDriver';
+export * as csiNode from './csiNode';
+export * as csiStorageCapacity from './csiStorageCapacity';
 export * as controllerRevision from './controllerRevision';
 export * as daemonSet from './daemonSet';
 export * as deployment from './deployment';
@@ -392,4 +403,5 @@ export * as service from './service';
 export * as serviceAccount from './serviceAccount';
 export * as statefulSet from './statefulSet';
 export * as storageClass from './storageClass';
+export * as volumeAttachment from './volumeAttachment';
 export * as volumeAttributesClass from './volumeAttributesClass';
