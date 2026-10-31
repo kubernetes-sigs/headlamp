@@ -42,6 +42,12 @@ import { getXtermTheme } from './xtermTheme';
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
 
+/**
+ * How often an open terminal socket sends a keepalive frame. Matches the
+ * multiplexer's heartbeat interval in the backend.
+ */
+const KEEPALIVE_INTERVAL = 30 * 1000;
+
 enum Channel {
   StdIn = 0,
   StdOut,
@@ -121,7 +127,7 @@ export default function Terminal(props: TerminalProps) {
     });
 
     xterm.onResize(size => {
-      send(4, `{"Width":${size.cols},"Height":${size.rows}}`);
+      sendResize(size.cols, size.rows);
     });
 
     // Allow copy/paste in terminal
@@ -179,6 +185,10 @@ export default function Terminal(props: TerminalProps) {
     socket.send(buffer);
   }
 
+  function sendResize(cols: number, rows: number) {
+    send(Channel.Resize, `{"Width":${cols},"Height":${rows}}`);
+  }
+
   function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
     if (!execOrAttachRef.current) return;
     const xterm = xtermc.xterm;
@@ -199,7 +209,7 @@ export default function Terminal(props: TerminalProps) {
     if (!xtermc.connected) {
       xterm.clear();
       (async function () {
-        send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
+        sendResize(xterm.cols, xterm.rows);
       })();
       // On server error, don't set it as connected
       if (channel !== Channel.ServerError) {
@@ -355,7 +365,19 @@ export default function Terminal(props: TerminalProps) {
 
       window.addEventListener('resize', handler);
 
+      // Proxies and load balancers in front of Headlamp may close a WebSocket
+      // that stays quiet for too long, which kills an idle shell. Browsers
+      // can't send ping frames, so periodically re-send the current terminal
+      // size instead. The API server treats an unchanged size as a no-op.
+      const keepAlive = setInterval(() => {
+        const xterm = xtermRef.current?.xterm;
+        if (xterm) {
+          sendResize(xterm.cols, xterm.rows);
+        }
+      }, KEEPALIVE_INTERVAL);
+
       return function cleanup() {
+        clearInterval(keepAlive);
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
