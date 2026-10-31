@@ -3147,9 +3147,27 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	}, nil, "Completed renameCluster request")
 }
 
+// checkClusterRenamable returns an error when the stored context for clusterName
+// does not come from a kubeconfig file. In-cluster and Cluster Inventory contexts
+// are only held in memory, so there is no file to store a custom name in.
+func (c *HeadlampConfig) checkClusterRenamable(clusterName string) error {
+	kContext, err := c.KubeConfigStore.GetContext(clusterName)
+	if err == nil &&
+		(kContext.Source == kubeconfig.InCluster || kContext.Source == kubeconfig.ClusterInventory) {
+		return fmt.Errorf("cluster %q from source %q cannot be renamed", clusterName, kContext.SourceStr())
+	}
+
+	return nil
+}
+
 func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Request,
 	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
 ) error {
+	if err := c.checkClusterRenamable(clusterName); err != nil {
+		c.handleError(w, ctx, span, err, "cluster cannot be renamed", http.StatusBadRequest)
+		return err
+	}
+
 	// Load kubeconfig
 	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
