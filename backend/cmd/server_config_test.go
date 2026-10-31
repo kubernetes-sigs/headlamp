@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 )
@@ -42,6 +43,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 			BaseURL:                    "/headlamp",
 			ProxyURLs:                  "http://proxy1,http://proxy2",
 			ClusterInventoryNamespaces: "team-a,team-b",
+			CacheMaxClientsets:         512,
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
@@ -60,6 +62,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
 		assert.Equal(t, "team-a,team-b", headlampCFG.ClusterInventoryNamespaces)
+		assert.Equal(t, 512, headlampCFG.CacheMaxClientsets)
 	})
 
 	t.Run("empty proxy urls yields empty slice", func(t *testing.T) {
@@ -69,4 +72,22 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 		assert.Empty(t, headlampCFG.ProxyURLs)
 	})
+}
+
+func TestCreateHeadlampConfig_ConfiguresCacheMaxClientsets(t *testing.T) {
+	oldLimit := k8cache.MaxClientsets()
+
+	t.Cleanup(func() {
+		_ = k8cache.SetMaxClientsets(oldLimit)
+	})
+
+	conf := &config.Config{
+		AppName:            "Headlamp Test",
+		CacheMaxClientsets: 128,
+		SessionTTL:         86400,
+	}
+
+	headlampConfig := createHeadlampConfig(conf)
+	assert.NotNil(t, headlampConfig)
+	assert.Equal(t, 128, k8cache.MaxClientsets())
 }
