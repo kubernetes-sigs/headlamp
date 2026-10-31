@@ -688,6 +688,7 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	OnTokenRefreshed          func(cluster, oldToken, newToken string) func()
 }
 
 func setRefreshedIDTokenCookie(
@@ -730,10 +731,9 @@ func refreshedTokenString(newToken *oauth2.Token, useAccessToken bool) (string, 
 }
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
-// and records telemetry based on the provided parameters.
-//
-//nolint:funlen // Updates both response cookies and current request identity.
-func RefreshAndSetToken(params RefreshAndSetTokenParams) {
+// and records telemetry based on the provided parameters. Any returned callback
+// must run only after the response containing the cookie has been flushed.
+func RefreshAndSetToken(params RefreshAndSetTokenParams) func() {
 	// The token type to use
 	tokenType := "id_token"
 	if params.OIDCUseAccessToken {
@@ -761,11 +761,11 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
 
-		return
+		return nil
 	}
 
 	if newToken == nil {
-		return
+		return nil
 	}
 
 	newTokenString, err := refreshedTokenString(newToken, params.OIDCUseAccessToken)
@@ -774,9 +774,13 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to extract token string")
 		params.TelemetryHandler.RecordError(params.Span, err, "Token extraction failed")
 
-		return
+		return nil
 	}
 
+	return completeTokenRefresh(params, newToken, newTokenString)
+}
+
+func completeTokenRefresh(params RefreshAndSetTokenParams, newToken *oauth2.Token, newTokenString string) func() {
 	if err := SetTokenCookie(
 		params.Writer,
 		params.Request,
@@ -789,7 +793,7 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to retain refreshed authentication token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Refreshed token cookie storage failed")
 
-		return
+		return nil
 	}
 
 	setRefreshedIDTokenCookie(params, newToken, newTokenString)
@@ -798,4 +802,10 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 	params.Request.Header.Set("Authorization", "Bearer "+newTokenString)
 
 	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+
+	if params.OnTokenRefreshed != nil {
+		return params.OnTokenRefreshed(params.Cluster, params.Token, newTokenString)
+	}
+
+	return nil
 }
