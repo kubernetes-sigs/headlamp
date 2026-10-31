@@ -4,7 +4,7 @@
       class="MuiDialogContent-root css-1ydrgiv-MuiDialogContent-root"
     >
       <div
-        class="MuiBox-root css-0"
+        class="MuiBox-root css-oi2hu2"
       >
         <div
           class="MuiFormControl-root css-1rb4qd1-MuiFormControl-root"
@@ -51,6 +51,18 @@
             </svg>
           </div>
         </div>
+        <button
+          aria-label="Reconnect"
+          class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
+          disabled=""
+          tabindex="-1"
+          type="button"
+        >
+          <span
+            class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+          />
+          Reconnect
+        </button>
       </div>
       <div
         class="MuiBox-root css-ffkpbp"

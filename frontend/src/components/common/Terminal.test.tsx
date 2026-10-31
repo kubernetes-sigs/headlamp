@@ -466,5 +466,196 @@ describe('Terminal', () => {
       expect(executedCommands[0]).toBe('bash');
       expect(executedCommands[1]).toBe('/bin/bash');
     });
+
+    it('preserves negotiated fallback shell when reconnecting established session', async () => {
+      const executedCommands: string[] = [];
+      let failCallback: (() => void) | undefined;
+      let onDataCallback: ((d: ArrayBuffer) => void) | undefined;
+
+      const pod = createMockPod(
+        async (
+          _container: string,
+          onData: (d: ArrayBuffer) => void,
+          opts?: { command?: string[]; failCb?: () => void }
+        ) => {
+          const cmd = opts?.command?.[0];
+          if (cmd) {
+            executedCommands.push(cmd);
+          }
+          if (cmd === 'bash') {
+            // First shell fails during initial negotiation
+            setTimeout(() => opts?.failCb?.(), 10);
+          } else {
+            // Second shell connects successfully
+            onDataCallback = onData;
+            failCallback = opts?.failCb;
+          }
+          return { cancel: () => {}, getSocket: () => null };
+        }
+      );
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      // Let initial failure cycle to second shell
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(executedCommands).toEqual(['bash', '/bin/bash']);
+
+      // Establish connection on second shell
+      await act(async () => {
+        onDataCallback?.(buildMessage(Channel.StdOut, 'sh-4.2$ '));
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Drop connection
+      await act(async () => {
+        failCallback?.();
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      const reconnectButton = screen.getByRole('button', { name: 'translation|Reconnect' });
+      expect(reconnectButton).toBeEnabled();
+
+      // Click reconnect: should preserve '/bin/bash' and NOT reset to 'bash'
+      fireEvent.click(reconnectButton);
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(executedCommands).toEqual(['bash', '/bin/bash', '/bin/bash']);
+    });
+
+    it('does not display enter key reconnect hint for attach sessions', async () => {
+      let failCallback: (() => void) | undefined;
+      let onDataCallback: ((d: ArrayBuffer) => void) | undefined;
+      const writeSpy = vi.spyOn(XTerminal.prototype, 'write');
+
+      const pod = createMockPod(
+        async (
+          _container: string,
+          onData: (d: ArrayBuffer) => void,
+          opts?: { command?: string[]; failCb?: () => void }
+        ) => {
+          onDataCallback = onData;
+          failCallback = opts?.failCb;
+          return { cancel: () => {}, getSocket: () => null };
+        }
+      );
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} isAttach open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Establish connection
+      await act(async () => {
+        onDataCallback?.(buildMessage(Channel.StdOut, 'attached output\n'));
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Drop connection
+      await act(async () => {
+        failCallback?.();
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      const calls = writeSpy.mock.calls.map(call => String(call[0]));
+      expect(calls.some(msg => msg.includes('translation|Connection closed.'))).toBe(true);
+      expect(calls.some(msg => msg.includes('translation|Press the enter key to reconnect.'))).toBe(
+        false
+      );
+
+      writeSpy.mockRestore();
+    });
+
+    it('preserves terminal instance and scrollback across reconnection', async () => {
+      let failCallback: (() => void) | undefined;
+      let onDataCallback: ((d: ArrayBuffer) => void) | undefined;
+      const disposeSpy = vi.spyOn(XTerminal.prototype, 'dispose');
+      const clearSpy = vi.spyOn(XTerminal.prototype, 'clear');
+
+      const pod = createMockPod(
+        async (
+          _container: string,
+          onData: (d: ArrayBuffer) => void,
+          opts?: { command?: string[]; failCb?: () => void }
+        ) => {
+          onDataCallback = onData;
+          failCallback = opts?.failCb;
+          return { cancel: () => {}, getSocket: () => null };
+        }
+      );
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Establish connection
+      await act(async () => {
+        onDataCallback?.(buildMessage(Channel.StdOut, 'first session output\n'));
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Drop connection
+      await act(async () => {
+        failCallback?.();
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      const disposeCallsBeforeReconnect = disposeSpy.mock.calls.length;
+      clearSpy.mockClear();
+
+      // Click reconnect
+      const reconnectButton = screen.getByRole('button', { name: 'translation|Reconnect' });
+      fireEvent.click(reconnectButton);
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      // Terminal should NOT have been disposed on reconnect
+      expect(disposeSpy.mock.calls.length).toBe(disposeCallsBeforeReconnect);
+
+      // Reconnected session sends data: terminal should NOT be cleared, preserving scrollback
+      await act(async () => {
+        onDataCallback?.(buildMessage(Channel.StdOut, 'second session output\n'));
+        vi.advanceTimersByTime(50);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(clearSpy).not.toHaveBeenCalled();
+
+      disposeSpy.mockRestore();
+      clearSpy.mockRestore();
+    });
   });
 });
