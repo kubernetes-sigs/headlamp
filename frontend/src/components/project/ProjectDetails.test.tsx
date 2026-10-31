@@ -39,6 +39,26 @@ const { MockKubeObject } = vi.hoisted(() => {
 
 vi.mock('../../lib/k8s/KubeObject', () => ({ KubeObject: MockKubeObject }));
 vi.mock('./ProjectDeleteButton', () => ({ ProjectDeleteButton: () => null }));
+
+const { lastResourceTablePropsListHolder } = vi.hoisted(() => ({
+  lastResourceTablePropsListHolder: { current: [] as any[] },
+}));
+
+vi.mock('../common/Resource/ResourceTable', () => ({
+  default: (props: any) => {
+    lastResourceTablePropsListHolder.current.push(props);
+    return null;
+  },
+}));
+
+// The Access tab lists Roles and RoleBindings via their resource classes' useList hook,
+// so stub those hooks out (the tables themselves are mocked above).
+vi.mock('../../lib/k8s/role', () => ({
+  default: { useList: () => ({ items: [], errors: null }), pluralName: 'roles' },
+}));
+vi.mock('../../lib/k8s/roleBinding', () => ({
+  default: { useList: () => ({ items: [], errors: null }), pluralName: 'rolebindings' },
+}));
 const eventProject = {
   id: 'project-1',
   namespaces: ['ns1'],
@@ -572,5 +592,37 @@ describe('ProjectDetailsContent', () => {
     await act(async () => resolveEnablement(true));
 
     expect(screen.queryByRole('button', { name: 'Delayed action' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectDetails Access tab', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+    lastResourceTablePropsListHolder.current = [];
+  });
+
+  it('renders the Role and RoleBinding tables with noNamespaceFilter set', async () => {
+    const accessProject: ProjectDefinition = {
+      id: 'project-access',
+      namespaces: ['ns-a', 'ns-b'],
+      clusters: ['test'],
+    };
+    const store = configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
+    });
+
+    render(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={accessProject} />
+      </TestContext>
+    );
+
+    fireEvent.click(await screen.findByRole('tab', { name: /Access/ }));
+
+    await waitFor(() => expect(lastResourceTablePropsListHolder.current).toHaveLength(2));
+    expect(lastResourceTablePropsListHolder.current.every(props => props.noNamespaceFilter)).toBe(
+      true
+    );
   });
 });

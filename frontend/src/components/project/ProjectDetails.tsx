@@ -385,6 +385,7 @@ function ProjectAccess({ project }: { project: ProjectDefinition }) {
           data={roles.items}
           errors={roles.errors}
           enableRowActions
+          noNamespaceFilter
         />
         <Typography variant="h6">{t('Role Bindings')}</Typography>
         <ResourceTable
@@ -393,6 +394,7 @@ function ProjectAccess({ project }: { project: ProjectDefinition }) {
           data={roleBindings.items}
           errors={roleBindings.errors}
           enableRowActions
+          noNamespaceFilter
         />
       </SelectedClustersContext.Provider>
     </Box>

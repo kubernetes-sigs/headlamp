@@ -16,9 +16,15 @@
 
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TestContext } from '../../../test';
 import ResourceListView from './ResourceListView';
 
-const { createButtonProps } = vi.hoisted(() => ({ createButtonProps: vi.fn() }));
+const { createButtonProps, lastResourceTablePropsHolder, lastSectionFilterHeaderPropsHolder } =
+  vi.hoisted(() => ({
+    createButtonProps: vi.fn(),
+    lastResourceTablePropsHolder: { current: null as any },
+    lastSectionFilterHeaderPropsHolder: { current: null as any },
+  }));
 
 vi.mock('../CreateResourceButton', () => ({
   CreateResourceButton: (props: any) => {
@@ -36,11 +42,21 @@ vi.mock('../SectionBox', () => ({
   ),
 }));
 
+// Captures the props so the effective noNamespaceFilter can be compared against the one
+// passed to ResourceTable, and renders titleSideActions so the Create action tests still work.
 vi.mock('../SectionFilterHeader', () => ({
-  default: (props: any) => <>{props.titleSideActions}</>,
+  default: (props: any) => {
+    lastSectionFilterHeaderPropsHolder.current = props;
+    return <>{props.titleSideActions}</>;
+  },
 }));
 
-vi.mock('./ResourceTable', () => ({ default: () => null }));
+vi.mock('./ResourceTable', () => ({
+  default: (props: any) => {
+    lastResourceTablePropsHolder.current = props;
+    return <div data-testid="mock-resource-table" />;
+  },
+}));
 
 const resourceClass = { kind: 'DeviceClass', isNamespaced: false } as any;
 
@@ -75,5 +91,113 @@ describe('ResourceListView', () => {
     renderList([]);
 
     expect(createButtonProps).not.toHaveBeenCalled();
+  });
+});
+
+// Lightweight fakes standing in for a real KubeObjectClass, so these tests don't
+// need to pull in an actual resource-class import graph.
+class FakeNamespacedResource {
+  static isNamespaced = true;
+}
+
+class FakeClusterScopedResource {
+  static isNamespaced = false;
+}
+
+describe('ResourceListView effective noNamespaceFilter', () => {
+  beforeEach(() => {
+    lastResourceTablePropsHolder.current = null;
+    lastSectionFilterHeaderPropsHolder.current = null;
+  });
+
+  describe('without a resourceClass', () => {
+    it.each([
+      {
+        description: 'headerProps is not provided',
+        headerProps: undefined,
+        expected: true,
+      },
+      {
+        description: 'headerProps is {} (no noNamespaceFilter key)',
+        headerProps: {},
+        expected: true,
+      },
+      {
+        description:
+          'headerProps has a noNamespaceFilter key present but undefined (e.g. Pod/Job renderers)',
+        headerProps: { noNamespaceFilter: undefined },
+        expected: false,
+      },
+      {
+        description: 'headerProps.noNamespaceFilter is explicitly false',
+        headerProps: { noNamespaceFilter: false },
+        expected: false,
+      },
+      {
+        description: 'headerProps.noNamespaceFilter is explicitly true',
+        headerProps: { noNamespaceFilter: true },
+        expected: true,
+      },
+    ])(
+      'resolves noNamespaceFilter=$expected for both SectionFilterHeader and ResourceTable when $description',
+      ({ headerProps, expected }) => {
+        render(
+          <TestContext>
+            <ResourceListView title="Pods" columns={[]} data={[]} headerProps={headerProps} />
+          </TestContext>
+        );
+
+        expect(lastResourceTablePropsHolder.current.noNamespaceFilter).toBe(expected);
+        expect(lastSectionFilterHeaderPropsHolder.current.noNamespaceFilter).toBe(expected);
+      }
+    );
+  });
+
+  describe('with a resourceClass and no header override', () => {
+    it.each([
+      {
+        description: 'a namespaced resourceClass',
+        resourceClass: FakeNamespacedResource,
+        expected: false,
+      },
+      {
+        description: 'a cluster-scoped resourceClass',
+        resourceClass: FakeClusterScopedResource,
+        expected: true,
+      },
+    ])(
+      'resolves noNamespaceFilter=$expected for both SectionFilterHeader and ResourceTable given $description',
+      ({ resourceClass, expected }) => {
+        render(
+          <TestContext>
+            <ResourceListView title="Pods" columns={[]} resourceClass={resourceClass as any} />
+          </TestContext>
+        );
+
+        expect(lastResourceTablePropsHolder.current.noNamespaceFilter).toBe(expected);
+        expect(lastSectionFilterHeaderPropsHolder.current.noNamespaceFilter).toBe(expected);
+      }
+    );
+  });
+
+  // Regression guard for renderers like pod/List.tsx and the Jobs list, which never set
+  // resourceClass and always pass a headerProps object where the noNamespaceFilter key
+  // is present but undefined (e.g. `{ noNamespaceFilter, titleSideActions, actions }`
+  // with an undefined local `noNamespaceFilter`). This preserves their existing rendered
+  // behavior (namespace selector shown, global filter applied) unchanged.
+  it('keeps applying the namespace filter for a headerProps object with an undefined noNamespaceFilter key and other props', () => {
+    render(
+      <TestContext>
+        <ResourceListView
+          title="Pods"
+          columns={[]}
+          data={[]}
+          headerProps={{ noNamespaceFilter: undefined, titleSideActions: [] }}
+        />
+      </TestContext>
+    );
+
+    expect(lastResourceTablePropsHolder.current.noNamespaceFilter).toBe(false);
+    expect(lastSectionFilterHeaderPropsHolder.current.noNamespaceFilter).toBe(false);
   });
 });
