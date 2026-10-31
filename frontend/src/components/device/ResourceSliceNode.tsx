@@ -15,17 +15,23 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import type { ResourceSliceNodeAccess } from '../../lib/k8s/resourceSlice';
 import type ResourceSlice from '../../lib/k8s/resourceSlice';
 import Link from '../common/Link';
 
-export default function ResourceSliceNode({ slice }: { slice: ResourceSlice }) {
+function NodeAccess(props: {
+  access?: ResourceSliceNodeAccess;
+  nodeName?: string;
+  cluster?: string;
+}) {
+  const { access, nodeName, cluster } = props;
   const { t } = useTranslation(['translation']);
 
-  switch (slice.nodeAccess) {
+  switch (access) {
     case 'node':
       return (
-        <Link routeName="node" params={{ name: slice.spec.nodeName }} activeCluster={slice.cluster}>
-          {slice.spec.nodeName}
+        <Link routeName="node" params={{ name: nodeName }} activeCluster={cluster}>
+          {nodeName}
         </Link>
       );
     case 'nodeSelector':
@@ -37,4 +43,10 @@ export default function ResourceSliceNode({ slice }: { slice: ResourceSlice }) {
     default:
       return null;
   }
+}
+
+export default function ResourceSliceNode({ slice }: { slice: ResourceSlice }) {
+  return (
+    <NodeAccess access={slice.nodeAccess} nodeName={slice.spec.nodeName} cluster={slice.cluster} />
+  );
 }
