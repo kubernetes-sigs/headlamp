@@ -194,6 +194,69 @@ describe('SettingsCluster appearance controls', () => {
   });
 });
 
+describe('SettingsCluster labels', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockDeleteCluster.mockReset();
+    mockState.activeCluster = clusterName;
+    mockState.electron = false;
+    mockState.clustersConf = {
+      [clusterName]: {
+        name: clusterName,
+        meta_data: { namespace: 'default', source: 'kubeconfig' },
+      },
+    };
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  function storedLabels() {
+    return JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}').labels;
+  }
+
+  it('saves edited labels', async () => {
+    renderSettings({ labels: { environment: 'production' } });
+
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Label value' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Label value' }), 'staging');
+    await userEvent.click(screen.getByRole('button', { name: 'Save labels' }));
+
+    expect(storedLabels()).toEqual({ environment: 'staging' });
+  });
+
+  it('does not delete a saved label when its key is cleared', async () => {
+    renderSettings({ labels: { environment: 'production' } });
+
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Label key' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Every label needs a key');
+    expect(screen.getByRole('button', { name: 'Save labels' })).toBeDisabled();
+    expect(storedLabels()).toEqual({ environment: 'production' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Label key' })).toHaveValue('environment');
+    expect(screen.getByRole('button', { name: 'Save labels' })).toBeDisabled();
+  });
+
+  it('discards a new row without a key, although the labels are unchanged', async () => {
+    renderSettings({ labels: { environment: 'production' } });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add label' }));
+    const keys = screen.getAllByRole('textbox', { name: 'Label key' });
+    await userEvent.clear(keys[keys.length - 1]);
+
+    expect(screen.getByRole('button', { name: 'Save labels' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(screen.getAllByRole('textbox', { name: 'Label key' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
+  });
+});
+
 describe('SettingsCluster states and namespaces', () => {
   beforeEach(() => {
     localStorage.clear();

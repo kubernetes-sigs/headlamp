@@ -1,0 +1,2484 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-8atqhb"
+    >
+      <div
+        aria-atomic="true"
+        aria-live="polite"
+        class="MuiBox-root css-ty8jgw"
+        role="status"
+      />
+      <div
+        class="MuiBox-root css-1ipmh7v"
+      >
+        <div
+          class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-entered css-pwcg7p-MuiCollapse-root"
+          style="min-height: 0px;"
+        >
+          <div
+            class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+          >
+            <div
+              class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+            >
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-ydemb8-MuiPaper-root-MuiAlert-root"
+                role="alert"
+              >
+                <div
+                  class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+                >
+                  <button
+                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1mgnx6i-MuiButtonBase-root-MuiButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    View Clusters
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="Mui-ToolbarDropZone MuiBox-root css-1fwjva3"
+          style="opacity: 0; visibility: hidden;"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body1 css-18b7jph-MuiTypography-root"
+          >
+            Drop to group by 
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-zrlv9q"
+        >
+          <span />
+          <div
+            class="MuiBox-root css-1p0wbhh"
+          >
+            <div
+              class="MuiBox-root css-di3982"
+            >
+              <button
+                aria-label="Show/Hide search"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                  data-testid="SearchIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Show/Hide filters"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                  data-testid="FilterListIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M10 18h4v-2h-4zM3 6v2h18V6zm3 7h12v-2H6z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-haspopup="menu"
+                aria-label="Group by label"
+                aria-pressed="true"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorPrimary MuiIconButton-sizeMedium css-ckpuys-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                id=":mock-test-id:"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-haspopup="menu"
+                aria-label="Show/Hide columns"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                  data-testid="ViewColumnIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M14.67 5v14H9.33V5zm1 14H21V5h-5.33zm-7.34 0V5H3v14z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <table
+        class="MuiTable-root css-1qh395j-MuiTable-root"
+      >
+        <thead
+          class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
+        >
+          <tr
+            class="css-1lqh5un"
+          >
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-199xzek-MuiTableCell-root"
+              colspan="1"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-4ng264"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-bbxzxe"
+                  >
+                    <span
+                      aria-label="Toggle select all"
+                      class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      <input
+                        aria-label="Toggle select all"
+                        class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                        data-indeterminate="false"
+                        type="checkbox"
+                      />
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                        data-testid="CheckBoxOutlineBlankIcon"
+                        focusable="false"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                        />
+                      </svg>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="ascending"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-pksupb-MuiTableCell-root"
+              colspan="1"
+              data-can-sort="true"
+              data-index="-1"
+              data-sort="asc"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Name
+                  </div>
+                  <span
+                    aria-label="Sorted by Name ascending"
+                    class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    <span
+                      aria-label="Sorted by Name ascending"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-kfi25q-MuiButtonBase-root-MuiTableSortLabel-root"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                        data-testid="ArrowDownwardIcon"
+                        focusable="false"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m20 12-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8z"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                    >
+                      0
+                    </span>
+                  </span>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-4ks04s-MuiTableCell-root"
+              colspan="1"
+              data-can-sort="true"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Origin
+                  </div>
+                  <span
+                    aria-label="Sort by Origin ascending"
+                    class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    <span
+                      aria-label="Sort by Origin ascending"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                        data-testid="SyncAltIcon"
+                        focusable="false"
+                        style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                    >
+                      0
+                    </span>
+                  </span>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13c0hsi-MuiTableCell-root"
+              colspan="1"
+              data-can-sort="true"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Status
+                  </div>
+                  <span
+                    aria-label="Sort by Status ascending"
+                    class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    <span
+                      aria-label="Sort by Status ascending"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                        data-testid="SyncAltIcon"
+                        focusable="false"
+                        style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                    >
+                      0
+                    </span>
+                  </span>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-rymsnu-MuiTableCell-root"
+              colspan="1"
+              data-can-sort="true"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Warnings
+                  </div>
+                  <span
+                    aria-label="Sort by Warnings ascending"
+                    class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    <span
+                      aria-label="Sort by Warnings ascending"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                        data-testid="SyncAltIcon"
+                        focusable="false"
+                        style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                    >
+                      0
+                    </span>
+                  </span>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1bc3cd9-MuiTableCell-root"
+              colspan="1"
+              data-can-sort="true"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Kubernetes Version
+                  </div>
+                  <span
+                    aria-label="Sort by Kubernetes Version ascending"
+                    class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    <span
+                      aria-label="Sort by Kubernetes Version ascending"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                        data-testid="SyncAltIcon"
+                        focusable="false"
+                        style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                    >
+                      0
+                    </span>
+                  </span>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-c2oilo-MuiTableCell-root"
+              colspan="1"
+              data-can-sort="true"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Labels
+                  </div>
+                  <span
+                    aria-label="Sort by Labels ascending"
+                    class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    <span
+                      aria-label="Sort by Labels ascending"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                        data-testid="SyncAltIcon"
+                        focusable="false"
+                        style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                    >
+                      0
+                    </span>
+                  </span>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+            <th
+              aria-sort="none"
+              class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-113nv55-MuiTableCell-root"
+              colspan="1"
+              data-index="-1"
+              scope="col"
+            >
+              <div
+                class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                  >
+                    Actions
+                  </div>
+                </div>
+                <div
+                  class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                />
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          class="css-1obf64m"
+        >
+          <tr
+            class="css-1ospngb"
+            data-grouped="true"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-sizeMedium css-1yfua7-MuiTableCell-root"
+              colspan="8"
+            >
+              <button
+                aria-expanded="true"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorInherit MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorInherit MuiButton-disableElevation css-pbtfig-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+                />
+                environment=development
+                <span
+                  class="MuiTypography-root MuiTypography-body2 css-1p114l0-MuiTypography-root"
+                >
+                  (
+                  13
+                  )
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-01"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-01/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-01
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-02"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-02/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-02
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-03"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-03/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-03
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-04"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-04/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-04
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-05"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-05/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-05
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-06"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-06/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-06
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-07"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-07/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-07
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-08"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-08/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-08
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-09"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-09/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-09
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-10"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-10/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-10
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-11"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-11/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-11
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-12"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-12/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-12
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-selected="false"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+            >
+              <span
+                aria-label="Toggle select row"
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                data-mui-internal-clone-element="true"
+              >
+                <input
+                  aria-label="Toggle select row"
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+            >
+              <span
+                aria-label="development-13"
+                class=""
+                data-mui-internal-clone-element="true"
+              >
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                  href="/c/development-13/"
+                >
+                  <div
+                    class="MuiBox-root css-172hjuw"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    >
+                      development-13
+                    </span>
+                  </div>
+                </a>
+              </span>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+              >
+                Kubeconfig: /home/user/.kube/config
+              </p>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-1rnoxx5"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                  style="margin-left: 8px; color: rgb(16, 124, 16);"
+                >
+                  Active
+                </p>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+            >
+              0
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+            >
+              v1.31.2
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qiy7fe-MuiTableCell-root"
+            >
+              <div
+                class="MuiBox-root css-yi3mkw"
+              >
+                <div
+                  aria-label="Filter by environment=development"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-d0kafa-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  >
+                    environment=development
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+            </td>
+            <td
+              class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
+            >
+              <button
+                aria-controls="context-menuid"
+                aria-haspopup="menu"
+                aria-label="Actions"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div />
+            </td>
+          </tr>
+          <tr
+            class="css-1ospngb"
+            data-grouped="true"
+          >
+            <td
+              class="MuiTableCell-root MuiTableCell-sizeMedium css-1yfua7-MuiTableCell-root"
+              colspan="8"
+            >
+              <button
+                aria-expanded="true"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorInherit MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorInherit MuiButton-disableElevation css-pbtfig-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+                />
+                environment=production
+                <span
+                  class="MuiTypography-root MuiTypography-body2 css-1p114l0-MuiTypography-root"
+                >
+                  (
+                  18
+                  )
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="MuiBox-root css-1bxknjp"
+      >
+        <div
+          class="MuiBox-root css-1llu0od"
+        >
+          <span />
+          <div
+            class="MuiBox-root css-qpxlqp"
+          >
+            <div
+              class="MuiTablePagination-root MuiBox-root css-1brajfe"
+            >
+              <div
+                class="MuiBox-root css-exd1zr"
+              >
+                <label
+                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-animated MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-animated css-17e6cjd-MuiFormLabel-root-MuiInputLabel-root"
+                  for="mrt-rows-per-page"
+                >
+                  Rows per page
+                </label>
+                <div
+                  class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary css-dnm9fb-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                >
+                  <div
+                    aria-controls="test-id"
+                    aria-expanded="false"
+                    aria-haspopup="listbox"
+                    class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input css-9t3t1q-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                    role="combobox"
+                    tabindex="0"
+                  >
+                    15
+                  </div>
+                  <input
+                    aria-hidden="true"
+                    aria-invalid="false"
+                    class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                    tabindex="-1"
+                    value="15"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconStandard css-pqjvzy-MuiSvgIcon-root-MuiSelect-icon"
+                    data-testid="ArrowDropDownIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M7 10l5 5 5-5z"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <span
+                class="MuiTypography-root MuiTypography-body2 MuiTypography-alignCenter css-htm6yz-MuiTypography-root"
+              >
+                1-15 of 43
+              </span>
+              <div
+                class="MuiBox-root css-192dx0w"
+              >
+                <span
+                  aria-label="Go to previous page"
+                  class=""
+                  data-mui-internal-clone-element="true"
+                >
+                  <button
+                    aria-label="Go to previous page"
+                    class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                    disabled=""
+                    tabindex="-1"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                      data-testid="ChevronLeftIcon"
+                      focusable="false"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
+                      />
+                    </svg>
+                  </button>
+                </span>
+                <span
+                  aria-label="Go to next page"
+                  class=""
+                  data-mui-internal-clone-element="true"
+                >
+                  <button
+                    aria-label="Go to next page"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                      data-testid="ChevronRightIcon"
+                      focusable="false"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"
+                      />
+                    </svg>
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

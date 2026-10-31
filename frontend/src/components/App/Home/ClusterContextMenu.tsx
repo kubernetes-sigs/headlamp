@@ -35,6 +35,7 @@ import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+import ClusterLabelsDialog from '../Settings/ClusterLabelsEditor';
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -56,6 +57,7 @@ export default function ClusterContextMenu({
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuId = useId('context-menu');
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
+  const [labelsDialogOpen, setLabelsDialogOpen] = React.useState(false);
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
   const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
@@ -164,6 +166,14 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setLabelsDialogOpen(true);
+            handleMenuClose();
+          }}
+        >
+          <ListItemText>{t('translation|Edit labels')}</ListItemText>
+        </MenuItem>
         {(!menuItems || menuItems.length === 0) &&
           ((cluster.meta_data?.source === 'dynamic_cluster' &&
             (helpers.isElectron() || isDynamicClusterEnabled)) ||
@@ -199,6 +209,11 @@ export default function ClusterContextMenu({
         }}
         title={t('translation|Delete Cluster')}
         description={removeClusterDescription(cluster)}
+      />
+      <ClusterLabelsDialog
+        open={labelsDialogOpen}
+        cluster={cluster.name}
+        onClose={() => setLabelsDialogOpen(false)}
       />
       {openConfirmDialog !== null &&
         dialogs.map((Dialog, index) => {

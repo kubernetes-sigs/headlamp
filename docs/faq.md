@@ -65,6 +65,10 @@ Absolutely! Headlamp can be deployed directly within your Kubernetes cluster. De
 
 Yes, Headlamp allows you to monitor multiple clusters. You can switch between different clusters using the cluster switcher in the Headlamp interface.
 
+### How can I organize a long list of clusters on the Home page?
+
+You can organize clusters with labels such as `environment=production` or `team=platform` using **Edit labels** from a cluster's Home page menu or from its settings. These labels are saved in this browser and are not applied to Kubernetes resources. In **All Clusters**, click a label to filter by its exact key and value, or type free text in the **Labels** column filter to search labels. Only one label filter is active at a time: clicking another label replaces it, and clicking the same label again clears it. While a label filter is active, the Labels column stays visible, including on narrow screens, so you can clear it using the table filters. Use the **Group by label** button beside the search and filter buttons to choose a grouping key. The button is highlighted while grouping is active; choose **None** in its menu to turn grouping off.
+
 ### Can I manage my Kubernetes resources directly through Headlamp?
 
 Yes, Headlamp enables direct management of Kubernetes resources through its user interface as allowed by the user's role and permissions.

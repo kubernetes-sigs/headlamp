@@ -773,10 +773,15 @@ export interface LabelTextFieldProps {
   required?: boolean;
   /** Optional helper text shown via an info-icon tooltip next to the label. */
   helperText?: string;
+  /**
+   * Called with the editor rows whenever they change. Unlike `onChange`, rows with an
+   * empty or duplicate key are included, so callers can validate them.
+   */
+  onRowsChange?: (rows: LabelRow[]) => void;
 }
 
 export function LabelTextField(props: LabelTextFieldProps) {
-  const { value, onChange, label, required, helperText } = props;
+  const { value, onChange, label, required, helperText, onRowsChange } = props;
   const { t } = useTranslation(['translation']);
   const groupLabelId = useId('label-group-');
 
@@ -793,6 +798,10 @@ export function LabelTextField(props: LabelTextFieldProps) {
       lastEmittedRef.current = incoming;
     }
   }, [value]);
+
+  React.useEffect(() => {
+    onRowsChange?.(rows);
+  }, [rows, onRowsChange]);
 
   function commit(next: LabelRow[]) {
     setRows(next);

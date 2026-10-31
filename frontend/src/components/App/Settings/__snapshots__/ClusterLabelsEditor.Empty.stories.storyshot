@@ -1,0 +1,33 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+    >
+      <div
+        aria-labelledby="label-group-id"
+        class="MuiBox-root css-0"
+        role="group"
+      >
+        <div
+          class="MuiBox-root css-1yuhvjn"
+        >
+          <button
+            aria-label="Add label"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+            >
+              New Label
+            </p>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

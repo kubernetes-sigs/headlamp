@@ -117,7 +117,7 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
           >
             <div
               class="MuiBox-root css-0"
@@ -136,7 +136,7 @@
             </div>
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <div
               class="MuiBox-root css-14i20fo"
@@ -221,6 +221,84 @@
                     />
                   </button>
                 </div>
+              </div>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                id="cluster-labels-label"
+              >
+                Labels
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+              >
+                Organize clusters in Headlamp. Saved in this browser only; not applied to Kubernetes resources.
+              </p>
+            </div>
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <div
+              aria-labelledby="cluster-labels-label"
+              class="MuiBox-root css-b5gljb"
+              role="group"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <div
+                  aria-labelledby="label-group-id"
+                  class="MuiBox-root css-0"
+                  role="group"
+                >
+                  <div
+                    class="MuiBox-root css-1yuhvjn"
+                  >
+                    <button
+                      aria-label="Add label"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                      >
+                        New Label
+                      </p>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-1uthhvt"
+              >
+                <button
+                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1fnoj2x-MuiButtonBase-root-MuiButton-root"
+                  disabled=""
+                  tabindex="-1"
+                  type="button"
+                >
+                  Save labels
+                </button>
+                <button
+                  class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedSecondary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-outlined MuiButton-outlinedSecondary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorSecondary MuiButton-disableElevation css-bg391h-MuiButtonBase-root-MuiButton-root"
+                  disabled=""
+                  tabindex="-1"
+                  type="button"
+                >
+                  Discard changes
+                </button>
               </div>
             </div>
           </dd>
