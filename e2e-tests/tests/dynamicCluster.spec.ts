@@ -17,13 +17,28 @@
 import { expect, Page, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 const yaml = require('yaml');
-const fs = require('fs').promises;
 const util = require('util');
-const exec = util.promisify(require('child_process').exec);
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const execFile = util.promisify(require('child_process').execFile);
+
+// The kubeconfig context the e2e environment targets; setup-multicluster.sh
+// creates it as the hub cluster (test2 is created afterwards, so the current
+// context cannot be relied upon to point here).
+const TEST_CONTEXT = 'test';
+
+// Tests tagged with this run against kubeconfig fixtures only and skip the
+// UI setup in beforeEach — they never talk to the Headlamp page.
+const KUBECONFIG_ONLY_TAG = '@kubeconfig-only';
 
 let headlampPage: HeadlampPage;
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  if (testInfo.tags.includes(KUBECONFIG_ONLY_TAG)) {
+    return;
+  }
+
   headlampPage = new HeadlampPage(page);
 
   // Navigate to the test cluster page
@@ -324,15 +339,24 @@ test('valid kubeconfig is still parsed when an invalid one is also sent', async 
   expect(response.body.clusters.some((c: { name: string }) => c.name === 'dummy')).toBe(true);
 });
 
-const getBase64EncodedKubeconfig = async (clusterName: string = 'dummy') => {
-  // Use kubectl command-line tool to get the kubeconfig
-  const { stdout, stderr } = await exec('kubectl config view --output json');
-  if (stderr) {
-    throw new Error(`Error fetching Minikube kubeconfig: ${stderr}`);
-  }
+// Produce a self-contained kubeconfig for one context. --minify keeps only
+// the selected context so credentials for unrelated contexts are never
+// embedded or sent to the test Headlamp instance, --context pins which one
+// (the current context is whatever was last touched, e.g. test2 after
+// setup-multicluster.sh), and --raw --flatten inlines certificate data, so
+// kubeconfigs that embed certificates (*-data keys) or reference them with
+// relative paths work without manual file handling.
+const normalizeKubeconfig = async (context: string, kubeconfigPath?: string) => {
+  const { stdout } = await execFile(
+    'kubectl',
+    ['config', 'view', '--minify', '--raw', '--flatten', '--context', context, '--output', 'json'],
+    kubeconfigPath ? { env: { ...process.env, KUBECONFIG: kubeconfigPath } } : undefined
+  );
+  return JSON.parse(stdout);
+};
 
-  // Parse the kubeconfig JSON
-  const kubeconfig = JSON.parse(stdout);
+const getBase64EncodedKubeconfig = async (clusterName: string = 'dummy') => {
+  const kubeconfig = await normalizeKubeconfig(TEST_CONTEXT);
   // Update the existing cluster and context names to the requested test cluster.
   kubeconfig.clusters[0].name = clusterName;
   // The 10.96.0.0/12: is the CIDR used by service cluster IP’s
@@ -344,29 +368,6 @@ const getBase64EncodedKubeconfig = async (clusterName: string = 'dummy') => {
   kubeconfig.contexts[0].context.user = clusterName;
   kubeconfig.contexts[0].context.cluster = clusterName;
 
-  // Get the contents of certificate-authority file and convert to base64
-  const caFilePath = kubeconfig.clusters[0].cluster['certificate-authority'];
-  const caFileContent = await fs.readFile(caFilePath, 'utf-8');
-  kubeconfig.clusters[0].cluster['certificate-authority-data'] =
-    Buffer.from(caFileContent).toString('base64');
-
-  // Get the contents of client-certificate file and convert to base64
-  const clientCertFilePath = kubeconfig.users[0].user['client-certificate'];
-  const clientCertFileContent = await fs.readFile(clientCertFilePath, 'utf-8');
-  kubeconfig.users[0].user['client-certificate-data'] =
-    Buffer.from(clientCertFileContent).toString('base64');
-
-  // Get the contents of client-key file and convert to base64
-  const clientKeyFilePath = kubeconfig.users[0].user['client-key'];
-  const clientKeyFileContent = await fs.readFile(clientKeyFilePath, 'utf-8');
-  kubeconfig.users[0].user['client-key-data'] =
-    Buffer.from(clientKeyFileContent).toString('base64');
-
-  // Remove client-key, client-certificate, and certificate-authority keys
-  delete kubeconfig.users[0].user['client-key'];
-  delete kubeconfig.users[0].user['client-certificate'];
-  delete kubeconfig.clusters[0].cluster['certificate-authority'];
-
   // Set the current context to the generated cluster name.
   kubeconfig['current-context'] = clusterName;
 
@@ -375,6 +376,118 @@ const getBase64EncodedKubeconfig = async (clusterName: string = 'dummy') => {
 
   return Buffer.from(kubeconfigYaml).toString('base64');
 };
+
+// Regression coverage for the kubeconfig normalization itself. These run
+// kubectl against on-disk fixtures, so they need no cluster and no UI.
+test.describe('kubeconfig normalization', () => {
+  let fixtureDir: string;
+
+  const writeFixture = (kubeconfig: object) => {
+    const kubeconfigPath = path.join(fixtureDir, 'kubeconfig');
+    fs.writeFileSync(kubeconfigPath, yaml.stringify(kubeconfig));
+    return kubeconfigPath;
+  };
+
+  test.beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-kubeconfig-'));
+  });
+
+  test.afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  test(
+    'keeps embedded certificate data and excludes unrelated contexts',
+    { tag: KUBECONFIG_ONLY_TAG },
+    async () => {
+      const caData = Buffer.from('FIXTURE-CA').toString('base64');
+      const unrelatedSecret = Buffer.from('UNRELATED-SECRET').toString('base64');
+      const kubeconfigPath = writeFixture({
+        apiVersion: 'v1',
+        kind: 'Config',
+        // The unrelated context is current — normalization must not follow it.
+        'current-context': 'unrelated',
+        clusters: [
+          {
+            name: 'target',
+            cluster: { server: 'https://127.0.0.1:65535', 'certificate-authority-data': caData },
+          },
+          {
+            name: 'unrelated',
+            cluster: {
+              server: 'https://127.0.0.2:65535',
+              'certificate-authority-data': unrelatedSecret,
+            },
+          },
+        ],
+        users: [
+          { name: 'target', user: { token: 'target-token' } },
+          { name: 'unrelated', user: { token: 'unrelated-token' } },
+        ],
+        contexts: [
+          { name: 'target', context: { cluster: 'target', user: 'target' } },
+          { name: 'unrelated', context: { cluster: 'unrelated', user: 'unrelated' } },
+        ],
+      });
+
+      const normalized = await normalizeKubeconfig('target', kubeconfigPath);
+
+      expect(normalized.clusters).toHaveLength(1);
+      expect(normalized.clusters[0].name).toBe('target');
+      expect(normalized.clusters[0].cluster['certificate-authority-data']).toBe(caData);
+      expect(normalized['current-context']).toBe('target');
+
+      // Nothing from the unrelated context may leak into the output.
+      const serialized = JSON.stringify(normalized);
+      expect(serialized).not.toContain('unrelated');
+      expect(serialized).not.toContain(unrelatedSecret);
+    }
+  );
+
+  test(
+    'inlines certificates referenced with kubeconfig-relative paths',
+    { tag: KUBECONFIG_ONLY_TAG },
+    async () => {
+      const caContent = 'FIXTURE-RELATIVE-CA\n';
+      const certContent = 'FIXTURE-RELATIVE-CERT\n';
+      const keyContent = 'FIXTURE-RELATIVE-KEY\n';
+      fs.writeFileSync(path.join(fixtureDir, 'ca.crt'), caContent);
+      fs.writeFileSync(path.join(fixtureDir, 'client.crt'), certContent);
+      fs.writeFileSync(path.join(fixtureDir, 'client.key'), keyContent);
+      const kubeconfigPath = writeFixture({
+        apiVersion: 'v1',
+        kind: 'Config',
+        'current-context': 'target',
+        clusters: [
+          {
+            name: 'target',
+            cluster: { server: 'https://127.0.0.1:65535', 'certificate-authority': 'ca.crt' },
+          },
+        ],
+        users: [
+          {
+            name: 'target',
+            user: { 'client-certificate': 'client.crt', 'client-key': 'client.key' },
+          },
+        ],
+        contexts: [{ name: 'target', context: { cluster: 'target', user: 'target' } }],
+      });
+
+      const normalized = await normalizeKubeconfig('target', kubeconfigPath);
+
+      const cluster = normalized.clusters[0].cluster;
+      const user = normalized.users[0].user;
+      expect(cluster['certificate-authority-data']).toBe(
+        Buffer.from(caContent).toString('base64')
+      );
+      expect(cluster['certificate-authority']).toBeUndefined();
+      expect(user['client-certificate-data']).toBe(Buffer.from(certContent).toString('base64'));
+      expect(user['client-key-data']).toBe(Buffer.from(keyContent).toString('base64'));
+      expect(user['client-certificate']).toBeUndefined();
+      expect(user['client-key']).toBeUndefined();
+    }
+  );
+});
 
 const saveKubeconfigToIndexDB = async (page: Page, base64EncodedKubeconfig: string) => {
   await page.evaluate(base64EncodedKubeconfig => {
