@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} உருப்படியை நீக்குவது ரத்து செய்யப்பட்டது.",
   "Deleted plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "",
   "Uh-oh! Something went wrong.": "அய்யோ! ஏதோ பிழை நேர்ந்தது.",
   "Error loading {{ routeName }}": "{{ routeName }} ஏற்றுவதில் பிழை",

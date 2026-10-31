@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Trwa usuwanie wtyczki {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "Anulowano usuwanie {{ itemName }}.",
   "Deleted plugin {{ itemName }}.": "Usunięto wtyczkę {{ itemName }}.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Błąd podczas usuwania wtyczki {{ itemName }}.",
   "Uh-oh! Something went wrong.": "Niestety Wystąpił problem.",
   "Error loading {{ routeName }}": "Błąd ładowania {{ routeName }}",
