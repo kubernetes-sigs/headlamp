@@ -25,6 +25,7 @@ import PluginSettingsDetails from '../../components/App/PluginSettings/PluginSet
 import Settings from '../../components/App/Settings';
 import SettingsCluster from '../../components/App/Settings/SettingsCluster';
 import SettingsClusters from '../../components/App/Settings/SettingsClusters';
+import AuditViewer from '../../components/audit/AuditViewer';
 import AuthChooser from '../../components/authchooser';
 import Overview from '../../components/cluster/Overview';
 import { PageGrid } from '../../components/common/Resource/Resource';
@@ -174,6 +175,13 @@ function SettingsClusterRedirect() {
 
 /** @private */
 const defaultRoutes: { [routeName: string]: Route } = {
+  auditLogs: {
+    path: '/audit',
+    exact: true,
+    name: 'Audit Logs',
+    sidebar: 'auditLogs',
+    component: () => <AuditViewer />,
+  },
   projectCreateYaml: {
     path: '/project/create-yaml',
     exact: true,
