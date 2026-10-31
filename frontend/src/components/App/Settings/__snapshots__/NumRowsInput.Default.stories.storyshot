@@ -11,6 +11,7 @@
           aria-controls=":mock-test-id:"
           aria-expanded="false"
           aria-haspopup="listbox"
+          aria-label="Number of rows for tables"
           class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
           role="combobox"
           tabindex="0"
