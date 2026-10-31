@@ -162,4 +162,31 @@ describe('buildEnvironmentVariables', () => {
     expect(variables.find(v => v.key === 'APP_SECRET_ONE')?.value).toBe(utf8SecretValue1);
     expect(variables.find(v => v.key === 'APP_SECRET_TWO')?.value).toBe(utf8SecretValue2);
   });
+
+  it('keeps env vars with an empty value, also when the API leaves the value out', () => {
+    const container: KubeContainer = {
+      ...dummyContainer,
+      env: [
+        { name: 'VISIBLE', value: 'present' },
+        { name: 'EMPTY_SETTING', value: '' },
+        // This is how the API returns an env var that was set to "".
+        { name: 'NO_VALUE' },
+      ],
+    };
+
+    const variables = buildEnvironmentVariables(
+      extractEnvVarReferences(container),
+      new Map(),
+      new Map(),
+      dummyPod,
+      container,
+      '2025-01-01T00:00:00Z'
+    );
+
+    expect(variables.map(v => [v.key, v.value, v.from])).toEqual([
+      ['EMPTY_SETTING', '', 'manifest'],
+      ['NO_VALUE', '', 'manifest'],
+      ['VISIBLE', 'present', 'manifest'],
+    ]);
+  });
 });
