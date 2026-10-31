@@ -43,6 +43,11 @@ export interface ClusterSettings {
     accentColor?: string;
     icon?: string;
   };
+  /**
+   * Local, Kubernetes-style labels used to filter and group clusters on the Home page.
+   * Keys and values follow Kubernetes label syntax (e.g. "environment": "production").
+   */
+  labels?: Record<string, string>;
 }
 
 export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/busybox:latest';

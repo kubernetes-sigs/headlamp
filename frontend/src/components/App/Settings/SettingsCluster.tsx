@@ -28,6 +28,11 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
 import { sanitizeCssColor } from '../../../helpers/clusterAppearance';
+import {
+  ClusterLabels,
+  sanitizeClusterLabels,
+  withClusterLabels,
+} from '../../../helpers/clusterLabels';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { useAllowedNamespacesFromSelector } from '../../../lib/k8s/allowedNamespaces';
@@ -39,7 +44,9 @@ import Empty from '../../common/EmptyContent';
 import Link from '../../common/Link';
 import Loader from '../../common/Loader';
 import NameValueTable from '../../common/NameValueTable';
+import { labelMapsEqual } from '../../common/Resource/CreateResourceForm/CreateResourceForm';
 import SectionBox from '../../common/SectionBox';
+import { canSaveClusterLabels, ClusterLabelsEditor } from './ClusterLabelsEditor';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
 import ColorPicker from './ColorPicker';
@@ -149,6 +156,19 @@ export default function SettingsCluster() {
     setNamespacesSelectorInput(allowedNamespacesSelector);
   }, [allowedNamespacesSelector, cluster]);
 
+  const savedLabels = useMemo(
+    () => sanitizeClusterLabels(clusterSettings.labels),
+    [clusterSettings.labels]
+  );
+  const [labelsDraft, setLabelsDraft] = React.useState<ClusterLabels>(savedLabels);
+  const [labelRowsValid, setLabelRowsValid] = React.useState(true);
+  // Remounts the editor, so discarding also drops rows that aren't part of the draft,
+  // such as rows without a key.
+  const [labelsEditorRevision, setLabelsEditorRevision] = React.useState(0);
+  React.useEffect(() => {
+    setLabelsDraft(savedLabels);
+  }, [savedLabels, cluster]);
+
   // Resolve the configured selector (via Namespace.useList) and keep the cache in
   // sync. The resolution is keyed on the persisted selector, so it re-runs after
   // applyNamespacesSelector persists a new value.
@@ -243,6 +263,7 @@ export default function SettingsCluster() {
   const allowedNamespaceLabelID = 'allowed-namespace-label';
   const allowedNamespacesSelectorLabelID = 'allowed-namespaces-selector-label';
   const appearanceLabelID = 'cluster-appearance-label';
+  const labelsLabelID = 'cluster-labels-label';
   const accentColorLabelID = 'accent-color-label';
   const clusterIconLabelID = 'cluster-icon-label';
   const colorButtonID = 'color-picker-button';
@@ -362,6 +383,50 @@ export default function SettingsCluster() {
                         </IconButton>
                       )}
                     </Box>
+                  </Box>
+                </Box>
+              ),
+            },
+            {
+              name: (
+                <Box>
+                  <Typography id={labelsLabelID}>{t('translation|Labels')}</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {t(
+                      'translation|Organize clusters in Headlamp. Saved in this browser only; not applied to Kubernetes resources.'
+                    )}
+                  </Typography>
+                </Box>
+              ),
+              value: (
+                <Box role="group" aria-labelledby={labelsLabelID} sx={{ minWidth: 280 }}>
+                  <ClusterLabelsEditor
+                    key={`${cluster}-${labelsEditorRevision}`}
+                    value={labelsDraft}
+                    onChange={setLabelsDraft}
+                    onValidityChange={setLabelRowsValid}
+                  />
+                  <Box display="flex" gap={1} sx={{ mt: 1 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!labelRowsValid || !canSaveClusterLabels(savedLabels, labelsDraft)}
+                      onClick={() => setClusterSettings(s => withClusterLabels(s, labelsDraft))}
+                    >
+                      {t('translation|Save labels')}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="secondary"
+                      disabled={labelRowsValid && labelMapsEqual(savedLabels, labelsDraft)}
+                      onClick={() => {
+                        setLabelsDraft(savedLabels);
+                        setLabelsEditorRevision(revision => revision + 1);
+                      }}
+                    >
+                      {t('translation|Discard changes')}
+                    </Button>
                   </Box>
                 </Box>
               ),

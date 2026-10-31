@@ -84,6 +84,9 @@ const mdiIcons = {
     'filter-variant': {
       body: '\u003Cpath fill="currentColor" d="M6 13h12v-2H6M3 6v2h18V6M10 18h4v-2h-4z"/\u003E',
     },
+    'format-list-group': {
+      body: '\u003Cpath fill="currentColor" d="M5 5v14h2v2H3V3h4v2H5m15 2H7v2h13V7m0 4H7v2h13v-2m0 4H7v2h13v-2Z"/\u003E',
+    },
     'filter-variant-remove': {
       body: '\u003Cpath fill="currentColor" d="M21 8H3V6h18zm-7.19 8H10v2h3.09c.12-.72.37-1.39.72-2M18 11H6v2h12zm3.12 4.46L19 17.59l-2.12-2.13l-1.41 1.42L17.59 19l-2.12 2.12l1.41 1.42L19 20.41l2.12 2.13l1.42-1.42L20.41 19l2.13-2.12z"/\u003E',
     },

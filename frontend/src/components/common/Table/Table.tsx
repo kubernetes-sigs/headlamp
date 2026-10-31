@@ -16,11 +16,13 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import MuiTable from '@mui/material/Table';
-import { TableCellProps } from '@mui/material/TableCell';
+import TableCell, { TableCellProps } from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
+import Typography from '@mui/material/Typography';
 import { alpha, styled } from '@mui/system';
 import { visuallyHidden } from '@mui/utils';
 import {
@@ -29,6 +31,7 @@ import {
   MRT_Column,
   MRT_ColumnDef as MaterialTableColumn,
   MRT_Header,
+  MRT_Row,
   MRT_TableBodyCell,
   MRT_TableHeadCell,
   MRT_TableInstance,
@@ -127,6 +130,8 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    */
   loading?: boolean;
   renderRowSelectionToolbar?: (props: { table: MRT_TableInstance<RowItem> }) => ReactNode;
+  /** Additional controls beside the standard search and filter buttons. */
+  renderAdditionalToolbarActions?: (props: { table: MRT_TableInstance<RowItem> }) => ReactNode;
 };
 
 // Use a zero-indexed "useURLState" hook, so pages are shown in the URL as 1-indexed
@@ -474,8 +479,8 @@ export default function Table<RowItem extends Record<string, any>>({
 
   // Decide which columns to hide based on the available width. Columns are hidden by
   // ascending `responsivePriority` (least important first), then right-to-left among
-  // equal priority. The first column is never hidden. When everything fits, nothing
-  // is hidden and the table renders as usual.
+  // equal priority. The first column and columns with hiding disabled stay visible.
+  // When everything fits, nothing is hidden and the table renders as usual.
   const responsiveHidden = useMemo(() => {
     const result: Record<string, boolean> = {};
     if (!containerWidth) {
@@ -502,7 +507,7 @@ export default function Table<RowItem extends Record<string, any>>({
     // Columns we're allowed to hide, ordered by what to drop first.
     dataCols
       .map((col, index) => ({ col, index }))
-      .filter(({ index }) => index !== 0)
+      .filter(({ col, index }) => index !== 0 && col.enableHiding !== false)
       .sort((a, b) => {
         const priorityDiff = (a.col.responsivePriority ?? 0) - (b.col.responsivePriority ?? 0);
         return priorityDiff !== 0 ? priorityDiff : b.index - a.index;
@@ -524,14 +529,30 @@ export default function Table<RowItem extends Record<string, any>>({
     tableProps.enableRowActions,
   ]);
 
-  const mergedColumnVisibility = useMemo(
-    () => ({
+  const mergedColumnVisibility = useMemo<Record<string, boolean>>(() => {
+    const visibility: Record<string, boolean> = {
       ...(tableProps.state?.columnVisibility ?? {}),
       ...columnVisibility,
       ...responsiveHidden,
-    }),
-    [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
-  );
+      // Grouped rows have their own toggle, so MRT's expand column would be empty.
+      ...(tableProps.enableGrouping ? { 'mrt-row-expand': false } : {}),
+    };
+    // A caller's explicit visibility for a locked column wins over earlier user toggles.
+    for (const column of tableColumns) {
+      const id = column.id ?? '';
+      const callerVisibility = tableProps.state?.columnVisibility?.[id];
+      if (column.enableHiding === false && callerVisibility !== undefined) {
+        visibility[id] = callerVisibility;
+      }
+    }
+    return visibility;
+  }, [
+    tableProps.state?.columnVisibility,
+    columnVisibility,
+    responsiveHidden,
+    tableColumns,
+    tableProps.enableGrouping,
+  ]);
 
   // With faceting on, MRT installs TanStack's own implementation for every column, so ours
   // is only needed to fill the gap it leaves behind when faceting is off.
@@ -597,6 +618,23 @@ export default function Table<RowItem extends Record<string, any>>({
     enablePagination: tableData.length > rowsPerPageOptions[0],
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
+    // MRT adds a drag handle to every header when grouping is enabled, for drag-to-group.
+    // Grouping is driven by the caller's state here, so only show it when asked for.
+    ...(tableProps.enableGrouping && tableProps.enableColumnDragging === undefined
+      ? { enableColumnDragging: false }
+      : {}),
+    // Group headings are rendered without a checkbox, so they can't be selected, and
+    // selecting rows never reaches the rows of a collapsed group or of another page.
+    ...(tableProps.enableGrouping && tableProps.enableRowSelection
+      ? {
+          enableRowSelection: (row: MRT_Row<RowItem>) =>
+            !row.getIsGrouped() &&
+            (typeof tableProps.enableRowSelection === 'function'
+              ? tableProps.enableRowSelection(row)
+              : true),
+          enableSubRowSelection: false,
+        }
+      : {}),
     enableColumnActions: false,
     localization: getTableLocalization(i18n.resolvedLanguage || i18n.language),
     autoResetAll: false,
@@ -643,6 +681,7 @@ export default function Table<RowItem extends Record<string, any>>({
           {enableFilters && enableColumnFilters && columnFilterDisplayMode !== 'popover' && (
             <MRT_ToggleFiltersButton table={tbl} />
           )}
+          {tableProps.renderAdditionalToolbarActions?.({ table: tbl })}
           {(enableHiding || enableColumnOrdering || enableColumnPinning) && (
             <ColumnVisibilityButton table={tbl} />
           )}
@@ -733,10 +772,14 @@ export default function Table<RowItem extends Record<string, any>>({
       size: 'small',
       sx: { padding: 0 },
     },
-    muiSelectAllCheckboxProps: {
+    muiSelectAllCheckboxProps: ({ table: tbl }) => ({
       size: 'small',
       sx: { padding: 0 },
-    },
+      // MRT's page selection state also counts the rows of collapsed groups and the rest
+      // of a group on later pages, which can't be selected here, so the checkbox would never
+      // read as checked or clear the rows it selected. Reflect the rows on screen instead.
+      ...(tableProps.enableGrouping ? getGroupedSelectAllState(tbl) : {}),
+    }),
   });
 
   useShortcut(
@@ -759,7 +802,11 @@ export default function Table<RowItem extends Record<string, any>>({
 
     if (shouldHideActions && visibility['actions'] !== false) {
       table.setColumnVisibility(prev => ({ ...prev, actions: false }));
-    } else if (!shouldHideActions && visibility['actions'] === false) {
+    } else if (
+      !shouldHideActions &&
+      visibility['actions'] === false &&
+      responsiveHidden['actions'] !== false
+    ) {
       table.setColumnVisibility(prev => ({ ...prev, actions: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -824,7 +871,7 @@ export default function Table<RowItem extends Record<string, any>>({
       const newSelected: Record<string, boolean> = {};
       for (let i = start; i <= end; i++) {
         const rowId = rowIds[i];
-        if (rowId) {
+        if (rowId && !(tableProps.enableGrouping && rows[i]?.getIsGrouped())) {
           newSelected[rowId] = true;
         }
       }
@@ -894,22 +941,53 @@ export default function Table<RowItem extends Record<string, any>>({
                   sorting={header.column.getIsSorted()}
                   showColumnFilters={table.getState().showColumnFilters}
                   selected={table.getSelectedRowModel().flatRows.length}
+                  pageSelection={
+                    tableProps.enableGrouping
+                      ? rows
+                          .map(
+                            row =>
+                              `${row.id}:${row.getCanSelect() ? 1 : 0}${
+                                row.getIsSelected() ? 1 : 0
+                              }`
+                          )
+                          .join('\n')
+                      : ''
+                  }
                   filterValue={header.column.getFilterValue()}
                 />
               ))}
             </StyledHeadRow>
           </TableHead>
           <StyledBody>
-            {rows.map((row, index) => (
-              <Row
-                key={row.id}
-                rowIndex={index}
-                cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
-                table={table as MRT_TableInstance<Record<string, any>>}
-                isSelected={row.getIsSelected()}
-                onRowClick={handleRowClick}
-              />
-            ))}
+            {tableProps.enableGrouping &&
+              getContinuedGroupRows(table, rows).map(row => (
+                <GroupRow
+                  key={`${row.id}-continued`}
+                  row={row as MRT_Row<Record<string, any>>}
+                  table={table as MRT_TableInstance<Record<string, any>>}
+                  isExpanded={row.getIsExpanded()}
+                  continued
+                />
+              ))}
+            {rows.map((row, index) =>
+              tableProps.enableGrouping && row.getIsGrouped() ? (
+                <GroupRow
+                  key={row.id}
+                  row={row as MRT_Row<Record<string, any>>}
+                  table={table as MRT_TableInstance<Record<string, any>>}
+                  isExpanded={row.getIsExpanded()}
+                />
+              ) : (
+                <Row
+                  key={row.id}
+                  rowIndex={index}
+                  cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
+                  table={table as MRT_TableInstance<Record<string, any>>}
+                  isSelected={row.getIsSelected()}
+                  onRowClick={handleRowClick}
+                />
+              )
+            )}
           </StyledBody>
         </MuiTable>
         <MRT_BottomToolbar table={table} />
@@ -937,6 +1015,12 @@ const MemoHeadCell = memo(
     sorting: string | false;
     isFiltered: boolean;
     selected: number;
+    /**
+     * The rows on screen with whether each can be and is selected, when the select all
+     * state depends on them. It changes without the selected count or the row ids, e.g.
+     * when a row becomes selectable.
+     */
+    pageSelection: string;
     showColumnFilters: boolean;
     filterValue: any;
   }) => {
@@ -955,9 +1039,115 @@ const MemoHeadCell = memo(
     a.sorting === b.sorting &&
     a.isFiltered === b.isFiltered &&
     a.showColumnFilters === b.showColumnFilters &&
-    (a.header.column.id === 'mrt-row-select' ? a.selected === b.selected : true) &&
+    (a.header.column.id === 'mrt-row-select'
+      ? a.selected === b.selected && a.pageSelection === b.pageSelection
+      : true) &&
     a.filterValue === b.filterValue
 );
+
+/**
+ * Select-all state for a grouped table, based on the selectable rows on screen: the rows
+ * of expanded groups on the current page.
+ */
+function getGroupedSelectAllState<RowItem extends Record<string, any>>(
+  table: MRT_TableInstance<RowItem>
+) {
+  const visibleRows = table
+    .getRowModel()
+    .rows.filter(row => !row.getIsGrouped() && row.getCanSelect());
+  const selectedCount = visibleRows.filter(row => row.getIsSelected()).length;
+  const checked = visibleRows.length > 0 && selectedCount === visibleRows.length;
+  return {
+    checked,
+    indeterminate: !checked && selectedCount > 0,
+  };
+}
+
+/**
+ * The group headings above the first row of a page that are on an earlier page, outermost
+ * first, so a group continuing from the previous page still shows what it is.
+ */
+function getContinuedGroupRows<RowItem extends Record<string, any>>(
+  table: MRT_TableInstance<RowItem>,
+  pageRows: MRT_Row<RowItem>[]
+): MRT_Row<RowItem>[] {
+  const firstRow = pageRows[0];
+  if (!firstRow || firstRow.depth === 0) {
+    return [];
+  }
+  const allRows = table.getPrePaginationRowModel().rows;
+  const start = allRows.findIndex(row => row.id === firstRow.id);
+  const headings: MRT_Row<RowItem>[] = [];
+  let depth = firstRow.depth;
+  for (let index = start - 1; index >= 0 && depth > 0; index--) {
+    const row = allRows[index];
+    if (row.getIsGrouped() && row.depth < depth) {
+      headings.unshift(row);
+      depth = row.depth;
+    }
+  }
+  return headings;
+}
+
+/**
+ * A full-width row heading a group of rows, with a button to collapse or expand it.
+ * The label comes from the grouping column's `GroupedCell`, falling back to its value.
+ */
+function GroupRow<RowItem extends Record<string, any>>({
+  row,
+  table,
+  isExpanded,
+  continued = false,
+}: {
+  row: MRT_Row<RowItem>;
+  table: MRT_TableInstance<RowItem>;
+  isExpanded: boolean;
+  /** Whether the group started on an earlier page. */
+  continued?: boolean;
+}) {
+  const { t } = useTranslation();
+  const column = row.groupingColumnId ? table.getColumn(row.groupingColumnId) : undefined;
+  const cell = row.getAllCells().find(it => it.column.id === row.groupingColumnId);
+  const GroupedCell = column?.columnDef.GroupedCell;
+  const label =
+    GroupedCell && column
+      ? GroupedCell({ cell: cell as MRT_Cell<RowItem, unknown>, column, row, table })
+      : String(row.groupingValue ?? '');
+  const count = row.getLeafRows().filter(it => !it.getIsGrouped()).length;
+
+  return (
+    <StyledRow data-grouped="true">
+      <TableCell
+        colSpan={table.getVisibleLeafColumns().length}
+        sx={theme => ({
+          gridColumn: '1 / -1',
+          py: 0.5,
+          borderColor: theme.palette.divider,
+          background: theme.palette.background.muted,
+        })}
+      >
+        <Button
+          color="inherit"
+          size="small"
+          aria-expanded={isExpanded}
+          onClick={row.getToggleExpandedHandler()}
+          startIcon={<Icon icon={isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'} />}
+          sx={{ textTransform: 'none', fontWeight: 'bold' }}
+        >
+          {label}
+          <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+            ({count})
+          </Typography>
+          {continued && (
+            <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+              {t('continued')}
+            </Typography>
+          )}
+        </Button>
+      </TableCell>
+    </StyledRow>
+  );
+}
 
 const Row = memo(
   <RowItem extends Record<string, any>>({
