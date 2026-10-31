@@ -141,6 +141,24 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen // Table-driven test functio
 	}
 }
 
+func TestDeleteKeysRemovesAllQueryVariants(t *testing.T) {
+	mockCache := &MockCache{store: map[string]string{
+		"+pods+default+test-context":                                    "base-list",
+		"+pods+default+test-context+labelSelector=app%253Dfrontend":     "frontend-list",
+		"+pods+default+test-context+labelSelector=app%253Dbackend":      "backend-list",
+		"+pods++test-context+labelSelector=app%253Dfrontend":            "all-namespace-list",
+		"+services+default+test-context+labelSelector=app%253Dfrontend": "unrelated-resource",
+		"+pods+default+other-context+labelSelector=app%253Dfrontend":    "unrelated-context",
+	}}
+
+	k8cache.DeleteKeys("+pods+default+test-context+labelSelector=app%253Dfrontend", mockCache)
+
+	assert.Equal(t, map[string]string{
+		"+services+default+test-context+labelSelector=app%253Dfrontend": "unrelated-resource",
+		"+pods+default+other-context+labelSelector=app%253Dfrontend":    "unrelated-context",
+	}, mockCache.store)
+}
+
 func TestSkipWebSocket(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -444,16 +462,24 @@ func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
 	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	contextKey := "test-context"
 	listKey := "+pods+default+" + contextKey
+	frontendListKey := listKey + "+labelSelector=app%253Dfrontend"
+	backendListKey := listKey + "+labelSelector=app%253Dbackend"
 	allNamespacesKey := "+pods++" + contextKey
+	allNamespacesQueryKey := allNamespacesKey + "+labelSelector=app%253Dfrontend"
 	namedKey := "+test-pod+default+" + contextKey
+	namedQueryKey := namedKey + "+pretty=true"
 	unrelatedKey := "+services+default+" + contextKey
 
 	mockCache := &MockCache{
 		store: map[string]string{
-			listKey:          "list-data",
-			allNamespacesKey: "all-namespaces-list-data",
-			namedKey:         "named-get-data",
-			unrelatedKey:     "unrelated-data",
+			listKey:               "list-data",
+			frontendListKey:       "frontend-list-data",
+			backendListKey:        "backend-list-data",
+			allNamespacesKey:      "all-namespaces-list-data",
+			allNamespacesQueryKey: "all-namespaces-query-list-data",
+			namedKey:              "named-get-data",
+			namedQueryKey:         "named-query-get-data",
+			unrelatedKey:          "unrelated-data",
 		},
 	}
 
@@ -461,7 +487,9 @@ func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
 		gvr, "default", "test-pod", contextKey, mockCache,
 	)
 
-	for _, key := range []string{listKey, allNamespacesKey, namedKey} {
+	for _, key := range []string{
+		listKey, frontendListKey, backendListKey, allNamespacesKey, allNamespacesQueryKey, namedKey, namedQueryKey,
+	} {
 		_, err := mockCache.Get(context.Background(), key)
 		assert.Error(t, err, "key %q should be evicted", key)
 	}
@@ -477,8 +505,12 @@ func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *test
 	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	contextKey := "test-context"
 	listKey := "+pods+default+" + contextKey
+	frontendListKey := listKey + "+labelSelector=app%253Dfrontend"
+	backendListKey := listKey + "+labelSelector=app%253Dbackend"
 	allNamespacesKey := "+pods++" + contextKey
+	allNamespacesQueryKey := allNamespacesKey + "+labelSelector=app%253Dfrontend"
 	namedKey := "+test-pod+default+" + contextKey
+	namedQueryKey := namedKey + "+pretty=true"
 	unrelatedKey := "+services+default+" + contextKey
 
 	mockPod := &unstructured.Unstructured{
@@ -500,10 +532,14 @@ func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *test
 
 	mockCache := &MockCache{
 		store: map[string]string{
-			listKey:          "list-data",
-			allNamespacesKey: "all-namespaces-list-data",
-			namedKey:         "named-get-data",
-			unrelatedKey:     "unrelated-data",
+			listKey:               "list-data",
+			frontendListKey:       "frontend-list-data",
+			backendListKey:        "backend-list-data",
+			allNamespacesKey:      "all-namespaces-list-data",
+			allNamespacesQueryKey: "all-namespaces-query-list-data",
+			namedKey:              "named-get-data",
+			namedQueryKey:         "named-query-get-data",
+			unrelatedKey:          "unrelated-data",
 		},
 	}
 
@@ -517,20 +553,24 @@ func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *test
 	assert.NoError(t, err)
 
 	assert.Eventually(t, func() bool {
-		for _, key := range []string{listKey, allNamespacesKey, namedKey} {
-			if _, err := mockCache.Get(context.Background(), key); err == nil {
-				return false
-			}
-		}
-
-		if _, err := mockCache.Get(context.Background(), unrelatedKey); err != nil {
-			return false
-		}
-
-		return true
+		return cacheKeysEvicted(mockCache, []string{
+			listKey, frontendListKey, backendListKey, allNamespacesKey, allNamespacesQueryKey, namedKey, namedQueryKey,
+		}, unrelatedKey)
 	}, 2*time.Second, 50*time.Millisecond, "informer should evict list, all-namespace, and named GET keys")
 
 	close(stopCh)
+}
+
+func cacheKeysEvicted(mockCache *MockCache, keys []string, retainedKey string) bool {
+	for _, key := range keys {
+		if _, err := mockCache.Get(context.Background(), key); err == nil {
+			return false
+		}
+	}
+
+	_, err := mockCache.Get(context.Background(), retainedKey)
+
+	return err == nil
 }
 
 // TestGetKindAndVerb_NoMuxVars exercises the early-return path where the
@@ -734,6 +774,40 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	require.NoError(t, err)
 	assert.Contains(t, cachedValue, "ConfigMap")
 	assert.NotContains(t, cachedValue, "stale")
+}
+
+func TestHandleNonGETCacheInvalidationRemovesAllQueryVariants(t *testing.T) {
+	mockCache := NewMockCache()
+	frontendURL := &url.URL{
+		Path:     "/clusters/kind/api/v1/namespaces/default/pods",
+		RawQuery: "labelSelector=app%3Dfrontend",
+	}
+	backendURL := &url.URL{
+		Path:     "/clusters/kind/api/v1/namespaces/default/pods",
+		RawQuery: "labelSelector=app%3Dbackend",
+	}
+	frontendKey, err := k8cache.GenerateKey(frontendURL, "ctx")
+	require.NoError(t, err)
+	backendKey, err := k8cache.GenerateKey(backendURL, "ctx")
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), frontendKey, `{"body":"stale frontend"}`))
+	require.NoError(t, mockCache.Set(context.Background(), backendKey, `{"body":"stale backend"}`))
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/clusters/kind/api/v1/namespaces/default/pods", nil,
+	)
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	_, err = mockCache.Get(context.Background(), frontendKey)
+	assert.Error(t, err, "frontend query cache entry should be invalidated")
+	_, err = mockCache.Get(context.Background(), backendKey)
+	assert.Error(t, err, "backend query cache entry should be invalidated")
 }
 
 var filterImportantResourcesTests = []struct {

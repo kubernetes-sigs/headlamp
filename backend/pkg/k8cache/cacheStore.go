@@ -181,10 +181,10 @@ func unescapeCacheKeySegment(s string) string {
 	return s
 }
 
-// buildCacheKey joins apiGroup, kind, namespace, and contextID into a single
-// cache key using "+" as the delimiter. Each field is percent-escaped so
-// that the only "+" characters left in the key are the delimiters
-// themselves and the encoding round-trips uniquely back to its inputs.
+// buildCacheKey joins apiGroup, kind, namespace, and contextID, plus an optional
+// raw query, into a single cache key using "+" as the delimiter. Each field
+// is percent-escaped so only delimiters remain as literal "+" characters and
+// the encoding round-trips uniquely back to its inputs.
 // This matters most for the context field, since kubeconfig context names
 // are not restricted by Kubernetes naming rules and may legitimately
 // contain "+" (or "%").
@@ -193,11 +193,46 @@ func unescapeCacheKeySegment(s string) string {
 // Any code that parses or otherwise manipulates the key format (e.g. the
 // namespace stripping in cache invalidation) must stay consistent with this
 // encoding to avoid the two sides silently drifting out of sync.
-func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
-	return escapeCacheKeySegment(apiGroup) + "+" +
+func buildCacheKey(apiGroup, kind, namespace, contextID string, rawQuery ...string) string {
+	key := escapeCacheKeySegment(apiGroup) + "+" +
 		escapeCacheKeySegment(kind) + "+" +
 		escapeCacheKeySegment(namespace) + "+" +
 		escapeCacheKeySegment(contextID)
+	if len(rawQuery) > 0 && rawQuery[0] != "" {
+		key += "+" + escapeCacheKeySegment(rawQuery[0])
+	}
+
+	return key
+}
+
+type cacheKeyParts struct {
+	apiGroup  string
+	kind      string
+	namespace string
+	context   string
+	query     string
+}
+
+// parseCacheKey parses cache keys with or without the optional escaped query
+// component after the context segment. Cache key segments are escaped so '+'
+// remains an unambiguous delimiter.
+func parseCacheKey(key string) (cacheKeyParts, bool) {
+	parts := strings.SplitN(key, "+", 5)
+	if len(parts) < 4 {
+		return cacheKeyParts{}, false
+	}
+
+	parsed := cacheKeyParts{
+		apiGroup:  parts[0],
+		kind:      parts[1],
+		namespace: parts[2],
+		context:   unescapeCacheKeySegment(parts[3]),
+	}
+	if len(parts) == 5 {
+		parsed.query = unescapeCacheKeySegment(parts[4])
+	}
+
+	return parsed, true
 }
 
 // GenerateKey function helps to generate a unique key based on the request from the client
@@ -217,7 +252,7 @@ func GenerateKey(url *url.URL, contextID string) (string, error) {
 		Context:   contextID,
 	}
 
-	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
+	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context, url.RawQuery), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
@@ -343,14 +378,12 @@ func redactContextKey(key string) string {
 	return key[:3] + "...[redacted]"
 }
 
-// redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
+// redactCacheKey redacts the context and omits the optional query component.
 func redactCacheKey(key string) string {
-	parts := strings.SplitN(key, "+", 4)
-
-	if len(parts) >= 4 {
-		parts[3] = redactContextKey(parts[3])
-
-		return strings.Join(parts, "+")
+	parts, ok := parseCacheKey(key)
+	if ok {
+		return parts.apiGroup + "+" + parts.kind + "+" + parts.namespace + "+" +
+			redactContextKey(parts.context)
 	}
 
 	return key

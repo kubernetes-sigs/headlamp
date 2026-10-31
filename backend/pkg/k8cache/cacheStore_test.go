@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -95,7 +96,33 @@ func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
 
 // GetAll Mocks retrieving all the values inside the cache.
 func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]string, error) {
-	return nil, nil
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	values := make(map[string]string)
+
+	for key, value := range m.store {
+		if selectFunc == nil || selectFunc(key) {
+			values[key] = value
+		}
+	}
+
+	return values, nil
+}
+
+func (m *MockCache) GetByPrefix(ctx context.Context, prefix string) (map[string]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	values := make(map[string]string)
+
+	for key, value := range m.store {
+		if strings.HasPrefix(key, prefix) {
+			values[key] = value
+		}
+	}
+
+	return values, nil
 }
 
 // UpdateTTL Mocks updating of time-to-live with the help of its corresponding key string.
@@ -528,6 +555,70 @@ func TestGenerateKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateKeyIncludesRawQuery(t *testing.T) {
+	baseURL := url.URL{Path: "/api/v1/namespaces/default/pods"}
+	frontendURL := baseURL
+	frontendURL.RawQuery = "labelSelector=app%3Dfrontend"
+	backendURL := baseURL
+	backendURL.RawQuery = "labelSelector=app%3Dbackend"
+	pageURL := baseURL
+	pageURL.RawQuery = "limit=1&continue=page-token"
+
+	baseKey, err := k8cache.GenerateKey(&baseURL, "test-context")
+	assert.NoError(t, err)
+
+	frontendKey, err := k8cache.GenerateKey(&frontendURL, "test-context")
+	assert.NoError(t, err)
+	frontendKeyAgain, err := k8cache.GenerateKey(&frontendURL, "test-context")
+	assert.NoError(t, err)
+	backendKey, err := k8cache.GenerateKey(&backendURL, "test-context")
+	assert.NoError(t, err)
+	pageKey, err := k8cache.GenerateKey(&pageURL, "test-context")
+	assert.NoError(t, err)
+
+	assert.NotEqual(t, baseKey, frontendKey)
+	assert.Equal(t, frontendKey, frontendKeyAgain)
+	assert.NotEqual(t, frontendKey, backendKey)
+	assert.NotEqual(t, frontendKey, pageKey)
+}
+
+func TestLoadFromCacheDoesNotReuseDifferentQueryVariant(t *testing.T) {
+	frontendURL := url.URL{
+		Path:     "/api/v1/namespaces/default/pods",
+		RawQuery: "labelSelector=app%3Dfrontend",
+	}
+	backendURL := url.URL{
+		Path:     "/api/v1/namespaces/default/pods",
+		RawQuery: "labelSelector=app%3Dbackend",
+	}
+
+	frontendKey, err := k8cache.GenerateKey(&frontendURL, "test-context")
+	assert.NoError(t, err)
+	backendKey, err := k8cache.GenerateKey(&backendURL, "test-context")
+	assert.NoError(t, err)
+
+	mockCache := NewMockCache()
+	assert.NoError(t, mockCache.Set(context.Background(), frontendKey,
+		`{"statusCode":200,"headers":{},"body":"frontend-pods"}`))
+
+	backendResponse := httptest.NewRecorder()
+	backendServed, err := k8cache.LoadFromCache(
+		mockCache, true, backendKey, backendResponse,
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, backendURL.String(), nil),
+	)
+	assert.NoError(t, err)
+	assert.False(t, backendServed, "backend selector must not receive frontend selector cache entry")
+
+	frontendResponse := httptest.NewRecorder()
+	frontendServed, err := k8cache.LoadFromCache(
+		mockCache, true, frontendKey, frontendResponse,
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, frontendURL.String(), nil),
+	)
+	assert.NoError(t, err)
+	assert.True(t, frontendServed, "identical query should still be served from cache")
+	assert.Equal(t, "frontend-pods", frontendResponse.Body.String())
 }
 
 // TestSetHeader tests whether the SetHeader is providing correct metadata for
@@ -1036,6 +1127,11 @@ func TestRedactCacheKey(t *testing.T) {
 			name:     "valid cache key with 4 segments and long context",
 			input:    "api+pods+default+my-production-cluster",
 			expected: "api+pods+default+my-...[redacted]",
+		},
+		{
+			name:     "query is not exposed when redacting cache key",
+			input:    "api+pods+default+production-cluster+labelSelector=private%253Dvalue",
+			expected: "api+pods+default+pro...[redacted]",
 		},
 	}
 
