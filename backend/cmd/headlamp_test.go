@@ -2831,6 +2831,125 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) { //nolint:fun
 		"missing-state log must not carry a stale error from the outer createHeadlampHandler scope")
 }
 
+// TestOidcCallbackDoesNotCacheTokensOnVerificationFailure verifies that if ID token
+// verification fails during /oidc-callback, unverified token material is NOT stored
+// in the server cache.
+//
+//nolint:funlen
+func TestOidcCallbackDoesNotCacheTokensOnVerificationFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	scratch := t.TempDir()
+
+	t.Setenv("HEADLAMP_STATIC_PLUGINS_DIR", scratch)
+
+	const (
+		unverifiedIDToken = "unverified.invalid.idtoken"
+		testRefreshToken  = "test-refresh-token-12345"
+		clientID          = "test-client-id"
+	)
+
+	// Mock OIDC provider with discovery, jwks, and token endpoints
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"issuer":                 "http://" + r.Host,
+				"authorization_endpoint": "http://" + r.Host + "/auth",
+				"token_endpoint":         "http://" + r.Host + "/token",
+				"jwks_uri":               "http://" + r.Host + "/jwks",
+			})
+		case "/jwks":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"keys":[]}`))
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "access-token",
+				"token_type":    "Bearer",
+				"refresh_token": testRefreshToken,
+				"id_token":      unverifiedIDToken,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	defer oidcServer.Close()
+
+	c := cache.New[interface{}]()
+	store := kubeconfig.NewContextStore()
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  filepath.Join(scratch, "missing-kubeconfig"),
+				KubeConfigStore: store,
+				PluginDir:       scratch,
+				UserPluginDir:   scratch,
+			},
+			Cache:            c,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	kContext := &kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server: "https://k8s.example.com",
+		},
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:     clientID,
+			ClientSecret: "test-secret",
+			IdpIssuerURL: oidcServer.URL,
+		},
+	}
+	require.NoError(t, store.AddContext(kContext))
+
+	handler := createHeadlampHandler(ctx, cfg)
+
+	// 1. Initiate OIDC flow via /oidc?cluster=test-cluster
+	oidcReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "/oidc?cluster=test-cluster", nil)
+	require.NoError(t, err)
+
+	oidcRR := httptest.NewRecorder()
+	handler.ServeHTTP(oidcRR, oidcReq)
+
+	require.Equal(t, http.StatusFound, oidcRR.Code)
+	redirectLocation := oidcRR.Header().Get("Location")
+	require.NotEmpty(t, redirectLocation)
+
+	redirectURL, err := url.Parse(redirectLocation)
+	require.NoError(t, err)
+
+	state := redirectURL.Query().Get("state")
+	require.NotEmpty(t, state)
+
+	// 2. Perform callback with unverified ID token from token endpoint
+	callbackURL := "/oidc-callback?state=" + state + "&code=fake-code"
+
+	callbackReq, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL, nil)
+	require.NoError(t, err)
+
+	callbackRR := httptest.NewRecorder()
+	handler.ServeHTTP(callbackRR, callbackReq)
+
+	// Verification fails on invalid JWT, so response is 500
+	assert.Equal(t, http.StatusInternalServerError, callbackRR.Code)
+	assert.Contains(t, callbackRR.Body.String(), "Failed to verify ID Token")
+
+	// Neither the refresh token nor the ID token should be in the cache
+	_, err = cfg.Cache.Get(ctx, fmt.Sprintf("oidc-token-%s", unverifiedIDToken))
+	assert.Error(t, err, "unverified refresh token must not be cached")
+
+	_, err = cfg.Cache.Get(ctx, fmt.Sprintf("oidc-id-token-%s", unverifiedIDToken))
+	assert.Error(t, err, "unverified ID token must not be cached")
+}
+
 // TestOidcStateMapEviction verifies that abandoned OIDC state entries (where
 // the user never completes the callback) are evicted from oauthRequestMap once
 // they exceed OidcStateTTL, preventing unbounded memory growth.
