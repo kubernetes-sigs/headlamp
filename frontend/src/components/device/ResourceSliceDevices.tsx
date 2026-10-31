@@ -18,6 +18,21 @@ import { useTranslation } from 'react-i18next';
 import type ResourceSlice from '../../lib/k8s/resourceSlice';
 import type { ResourceSliceDevice } from '../../lib/k8s/resourceSlice';
 import SimpleTable from '../common/SimpleTable';
+import { formatDeviceAttribute } from './resourceSliceDevice';
+
+function NameValueLines({ values }: { values: [string, string | undefined][] }) {
+  return (
+    <>
+      {[...values]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, value]) => (
+          <div key={name}>
+            {name}: {value}
+          </div>
+        ))}
+    </>
+  );
+}
 
 export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }) {
   const { t } = useTranslation(['translation']);
@@ -28,6 +43,17 @@ export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }
         {
           label: t('translation|Name'),
           getter: (device: ResourceSliceDevice) => device.name,
+        },
+        {
+          label: t('translation|Attributes'),
+          getter: (device: ResourceSliceDevice) => (
+            <NameValueLines
+              values={Object.entries(device.attributes ?? {}).map(([name, attribute]) => [
+                name,
+                formatDeviceAttribute(attribute),
+              ])}
+            />
+          ),
         },
       ]}
       data={slice.devices}

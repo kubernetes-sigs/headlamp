@@ -56,4 +56,15 @@ describe('ResourceSliceDevices', () => {
 
     expect(screen.getByText('This slice publishes no devices.', { selector: 'p' })).toBeVisible();
   });
+
+  it('shows each attribute by name', () => {
+    renderDevices({
+      ...nodeSlice,
+      spec: { ...nodeSlice.spec, devices: [nodeSlice.spec.devices![1]] },
+    });
+
+    expect(screen.getByText('driverVersion: 1.0.0')).toBeVisible();
+    expect(screen.getByText('index: 1')).toBeVisible();
+    expect(screen.getByText('model: LATEST-GPU-MODEL')).toBeVisible();
+  });
 });
