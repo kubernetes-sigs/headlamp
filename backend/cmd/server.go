@@ -90,6 +90,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
+		CacheMaxClientsets:     conf.CacheMaxClientsets,
 		Port:                   conf.Port,
 		DevMode:                conf.DevMode,
 		StaticDir:              conf.StaticDir,
@@ -241,6 +242,13 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
 		os.Exit(1)
+	}
+
+	if conf.CacheMaxClientsets > 0 {
+		if err := k8cache.SetMaxClientsets(conf.CacheMaxClientsets); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to configure authorization clientset cache capacity")
+			os.Exit(1)
+		}
 	}
 
 	return &HeadlampConfig{
