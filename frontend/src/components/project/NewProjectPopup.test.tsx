@@ -355,6 +355,9 @@ describe('NewProjectPopup', () => {
     await waitFor(() => expect(mockApply).toHaveBeenCalledTimes(1));
     expect(namespace.patch).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Creating' })).toBeDisabled();
+    expect(screen.getByLabelText(/Project Name/i)).toBeDisabled();
+    expect(screen.getByLabelText('Clusters')).toBeDisabled();
+    expect(screen.getByLabelText('Namespace')).toBeDisabled();
 
     expect(screen.queryByText('A project with this name already exists')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Namespace')).toHaveValue('existing-ns');
