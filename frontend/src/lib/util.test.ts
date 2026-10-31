@@ -18,6 +18,7 @@ import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import store from '../redux/stores/store';
+import { ApiError } from './k8s/api/v2/ApiError';
 import {
   combineClusterListErrors,
   compareUnits,
@@ -114,28 +115,30 @@ describe('combineClusterListErrors', () => {
     expect(result).toBeNull();
   });
 
-  it('should combine errors from multiple clusters', () => {
-    const error1 = { message: 'Error 1', status: 500, name: 'InternalServerError' };
-    const error2 = { message: 'Error 2', status: 404, name: 'NotFoundError' };
+  it('should combine ApiError instances from multiple clusters without corrupting them', () => {
+    const error1 = new ApiError('Error 1', { status: 500 });
+    const error2 = new ApiError('Error 2', { status: 404 });
     const clusterErrors1 = { clusterA: error1 };
     const clusterErrors2 = { clusterB: error2 };
 
     const result = combineClusterListErrors(clusterErrors1, clusterErrors2);
-    expect(result).toEqual({
-      clusterA: error1,
-      clusterB: error2,
-    });
+
+    // Reference identity: the exact same ApiError instance must be returned,
+    // not a plain-object copy that loses the prototype chain.
+    expect(result?.clusterA).toBe(error1);
+    expect(result?.clusterB).toBe(error2);
+    expect(result?.clusterA).toBeInstanceOf(ApiError);
+    expect(result?.clusterB).toBeInstanceOf(ApiError);
   });
 
   it('should ignore null errors', () => {
-    const error1 = { message: 'Error 1', status: 500, name: 'InternalServerError' };
+    const error1 = new ApiError('Error 1', { status: 500 });
     const clusterErrors1 = { clusterA: error1 };
     const clusterErrors2 = { clusterB: null };
 
     const result = combineClusterListErrors(clusterErrors1, clusterErrors2);
-    expect(result).toEqual({
-      clusterA: error1,
-    });
+    expect(result).toEqual({ clusterA: error1 });
+    expect(result?.clusterA).toBe(error1);
   });
 
   it('should return null if all errors are null', () => {
