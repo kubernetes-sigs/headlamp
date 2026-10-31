@@ -176,7 +176,7 @@ export default function RoleBindingList() {
               }
             />
           ),
-          sort: sortBindings('Service Accounts'),
+          sort: sortBindings('ServiceAccount'),
         },
         'labels',
         'age',
