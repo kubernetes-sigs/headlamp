@@ -111,7 +111,7 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.initContainers }}
       initContainers:
-        {{ toYaml . | nindent 8 }}
+        {{ tpl (toYaml .) $ | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
@@ -464,7 +464,7 @@ spec:
             {{- end }}
             {{- end }}
             {{- with .Values.volumeMounts }}
-            {{- toYaml . | nindent 12 }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
             {{- end }}
             {{- if $tmpCtx.addMount }}
             - name: headlamp-tmp
@@ -516,7 +516,7 @@ spec:
             {{- end }}
         {{- end }}
         {{- with .Values.extraContainers }}
-        {{- toYaml . | nindent 8 }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -579,6 +579,6 @@ spec:
           emptyDir: {}
         {{- end }}
         {{- with .Values.volumes}}
-        {{- toYaml . | nindent 8 }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
         {{- end }}
       {{- end }}
