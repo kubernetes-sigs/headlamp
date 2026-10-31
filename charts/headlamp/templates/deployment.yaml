@@ -405,6 +405,10 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- /* Outside the externalSecret check: this is a policy, not a secret. */}}
+            {{- if eq ($oidc.disableTokenLogin | toString) "true" }}
+            - "-disable-token-login=true"
+            {{- end }}
             {{- with .Values.config.baseURL }}
             - "-base-url={{ . }}"
             {{- end }}
