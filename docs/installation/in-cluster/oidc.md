@@ -189,10 +189,78 @@ then you have to:
 
 **Note** If you already have another static client configured for Kubernetes for the [apiserver's OIDC](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server) (OpenID Connect) configuration, use a **single static client ID** i.e `-oidc-client-id` for both Dex and Headlamp. Additionally, the **redirectURIs** need to be specified for each client.
 
+### RFC 8693 OAuth 2.0 Token Exchange (STS)
+
+In multi-cluster environments or when clusters expect different target audiences in user tokens, Headlamp supports [RFC 8693 OAuth 2.0 Token Exchange](https://datatracker.ietf.org/doc/html/rfc8693) (Security Token Service / STS). When enabled, Headlamp exchanges the incoming subject token (from cookies, proxy-auth headers, or `Authorization: Bearer` headers) for a cluster-scoped access token targeting that specific cluster's configured audience before forwarding requests to the Kubernetes API server.
+
+The following parameters configure STS:
+
+- `-oidc-sts-enabled`: Enable RFC 8693 Token Exchange (env var `HEADLAMP_CONFIG_OIDC_STS_ENABLED`).
+- `-oidc-sts-audience-map`: Comma-separated key-value pairs mapping cluster IDs to their target audiences, e.g. `cluster-1=https://api.cluster-1.k8s,cluster-2=https://api.cluster-2.k8s` (env var `HEADLAMP_CONFIG_OIDC_STS_AUDIENCE_MAP`). Required when STS is enabled.
+- `-oidc-sts-issuer-url`: Override STS issuer URL if different from the primary OIDC provider (defaults to `-oidc-idp-issuer-url` or env var `HEADLAMP_CONFIG_OIDC_STS_ISSUER_URL`).
+- `-oidc-sts-client-id`: Client ID for STS token exchange requests. Optional when using Workload Identity (env var `HEADLAMP_CONFIG_OIDC_STS_CLIENT_ID`).
+- `-oidc-sts-client-secret`: Client Secret for STS token exchange requests. Requires `-oidc-sts-client-id`; leaving it empty selects Kubernetes Workload Identity (env var `HEADLAMP_CONFIG_OIDC_STS_CLIENT_SECRET`).
+- `-oidc-sts-subject-token-type`: Subject token type for STS token exchange (e.g. `urn:ietf:params:oauth:token-type:jwt`, `urn:ietf:params:oauth:token-type:access_token`, or `urn:ietf:params:oauth:token-type:id_token`; defaults to `urn:ietf:params:oauth:token-type:jwt`; env var `HEADLAMP_CONFIG_OIDC_STS_SUBJECT_TOKEN_TYPE`).
+
+#### Authentication & Workload Identity
+
+When authenticating token exchange requests with the STS provider:
+- **Client Secret**: If `-oidc-sts-client-id` and `-oidc-sts-client-secret` are provided, HTTP Basic Authentication is used.
+- **Kubernetes Workload Identity (RFC 7523)**: If no client secret is provided, Headlamp automatically reads the in-cluster Pod service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token` and sends a JWT client assertion (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`). The client ID is optional here, since the STS takes it from the token's `sub` claim (e.g. `system:serviceaccount:<namespace>:<service-account>`); if `-oidc-sts-client-id` is set, it is sent as well and must match.
+
+Because these requests carry the user's token and the client credentials, an HTTPS issuer must advertise an HTTPS `token_endpoint` in its discovery document, and Headlamp does not follow redirects from the token endpoint.
+
+#### Adding a cluster
+
+STS does not add clusters; it only changes the token sent to clusters Headlamp already knows. Add each cluster as a kubeconfig context, and leave its user entry empty so the exchanged token is the only credential sent. For example, for a cluster called `sat1`:
+
+```yaml
+apiVersion: v1
+kind: Config
+clusters:
+  - name: sat1
+    cluster:
+      server: https://sat1.example.com:6443
+      certificate-authority-data: <base64-encoded CA of the sat1 API server>
+users:
+  - name: sat1-sts
+    user: {}
+contexts:
+  - name: sat1
+    context:
+      cluster: sat1
+      user: sat1-sts
+```
+
+Mount it into the Headlamp pod as described in [Use a non-default kube config file](./index.md#use-a-non-default-kube-config-file), then add the cluster name shown in Headlamp (the context name, unless it has a custom name) to the audience map, e.g. `-oidc-sts-audience-map=sat1=<audience the sat1 API server accepts>`.
+
+Every cluster that receives a user token needs an entry in the map once STS is enabled, including the in-cluster `main` context. A cluster without one fails with `no STS audience configured for cluster <name>`.
+
+Clusters discovered from Cluster Inventory `ClusterProfile` resources get generated context names and use the credentials of their access provider, so use a kubeconfig context for clusters that should receive exchanged tokens.
+
+#### TLS
+
+There are two separate trust relationships to configure:
+
+- **Headlamp → STS/identity provider**: token exchange uses the OIDC TLS settings, so set `-oidc-ca-file` to the CA of your identity provider. `-oidc-skip-tls-verify` also applies, but only use it for testing.
+- **Cluster API server → identity provider**: each cluster's API server validates the exchanged token itself, so it must trust the issuer. Configure this on the API server with `--oidc-issuer-url` and `--oidc-ca-file`, or with `issuer.url` and `issuer.certificateAuthority` in a [structured authentication configuration](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-authentication-configuration).
+
+Headlamp's own trust of each API server comes from `certificate-authority-data` in the kubeconfig.
+
+#### Behind a reverse proxy
+
+Headlamp does not need to be the OIDC client for STS. It takes the user's token from the request, in this order:
+
+1. The header named by `-proxy-auth-token-header`, when `-proxy-auth` is enabled.
+2. The `Authorization: Bearer` header.
+3. The cluster's auth cookie, set when the user signs in to Headlamp.
+
+So a reverse proxy that injects the user's token (for example a JWT from your identity provider) works with STS. Impersonation headers alone (`Impersonate-User`, `Impersonate-Group`) do not, because there is no token to exchange.
+
 ### Troubleshooting: OIDC sign-in succeeds but the cluster rejects your token
 
-If you can sign in via OIDC but are returned to the "Sign in" screen with a message that the cluster rejected your token (and cannot load cluster resources), the cluster's **API server** is most likely not configured to trust the same OIDC provider as Headlamp. Headlamp only forwards the token to the API server, and the API server is what accepts or rejects it, so it must be OIDC-aware with a matching issuer, client ID, and audience.
+If you can sign in via OIDC but are returned to the "Sign in" screen with a message that the cluster rejected your token (and cannot load cluster resources), the cluster's **API server** is most likely not configured to trust the same OIDC provider as Headlamp. Headlamp forwards the token (or exchanged STS token) to the API server, and the API server is what accepts or rejects it, so it must be OIDC-aware with a matching issuer, client ID, and audience.
 
-Make sure the API server is configured for the same OIDC provider (via its `--oidc-issuer-url` / `--oidc-client-id` flags or the equivalent [structured authentication configuration](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server)), so that `--oidc-issuer-url` matches Headlamp's `-oidc-idp-issuer-url` and `--oidc-client-id` matches Headlamp's `-oidc-client-id`.
+Make sure the API server is configured for the relevant OIDC provider (via its `--oidc-issuer-url` / `--oidc-client-id` flags or the equivalent [structured authentication configuration](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server)). Without STS, its issuer and accepted audience/client ID should match Headlamp's `-oidc-idp-issuer-url` and `-oidc-client-id`. With STS enabled, it must instead trust the issuer of the exchanged tokens and accept the cluster audience configured in `-oidc-sts-audience-map`.
 
 Managed control planes (e.g. AKS, EKS, GKE) may not accept arbitrary OIDC flags on the API server. If that is the case, use the provider's managed identity/OIDC integration instead. When the API server rejects the token, Headlamp logs a warning containing `API server rejected the forwarded bearer token (401)`.

@@ -37,6 +37,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"golang.org/x/oauth2"
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -45,6 +46,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport"
 	"k8s.io/client-go/transport/spdy"
 	streamhttp "k8s.io/streaming/pkg/httpstream"
 )
@@ -138,13 +140,16 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// StartPortForward handles the port forward request.
+// StartPortForward handles the port forward request. When tokenSource is set,
+// it supplies the cluster credential for every request instead of the
+// caller's token (see getKubeClientAndConfig).
 //
 //nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
 	contextKey string,
 	w http.ResponseWriter, r *http.Request,
+	tokenSource func(context.Context) (string, error),
 ) {
 	var p portForwardRequest
 
@@ -227,9 +232,11 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		if token == "" {
 			token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 		}
+	} else {
+		tokenSource = nil // The pod's service account token is used instead.
 	}
 
-	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName)
+	err = startPortForward(kContext, cache, p, token, tokenSource, contextKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -286,9 +293,33 @@ func checkPortForwardPermission(clientset *kubernetes.Clientset, namespace, podN
 }
 
 // getKubeClientAndConfig prepares Kubernetes clientset and REST config.
-// It takes a kubeconfig context and an optional bearer token.
+// It takes a kubeconfig context and an optional bearer token. When tokenSource
+// is set, it is the only credential instead and is called for every request,
+// because the pod monitor and reconnects outlive a short-lived token such as
+// an STS-exchanged one.
 // It returns the configured clientset, REST config, or an error if setup fails.
-func getKubeClientAndConfig(kContext *kubeconfig.Context, token string) (*kubernetes.Clientset, *rest.Config, error) {
+func getKubeClientAndConfig(
+	kContext *kubeconfig.Context,
+	token string,
+	tokenSource func(context.Context) (string, error),
+) (*kubernetes.Clientset, *rest.Config, error) {
+	if tokenSource != nil {
+		rConf, err := kContext.RESTConfig()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get REST config: %w", err)
+		}
+
+		rConf = rest.AnonymousClientConfig(rConf)
+		rConf.Wrap(transport.TokenSourceWrapTransport(tokenSourceFunc(tokenSource)))
+
+		clientset, err := kubernetes.NewForConfig(rConf)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create clientset: %w", err)
+		}
+
+		return clientset, rConf, nil
+	}
+
 	clientset, err := kContext.ClientSetWithToken(token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create clientset: %w", err)
@@ -304,6 +335,18 @@ func getKubeClientAndConfig(kContext *kubeconfig.Context, token string) (*kubern
 	}
 
 	return clientset, rConf, nil
+}
+
+// tokenSourceFunc adapts a token function to an oauth2.TokenSource.
+type tokenSourceFunc func(context.Context) (string, error)
+
+func (f tokenSourceFunc) Token() (*oauth2.Token, error) {
+	token, err := f(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	return &oauth2.Token{AccessToken: token}, nil
 }
 
 // buildPortForwardDialer returns a dialer that performs the port-forward
@@ -807,9 +850,10 @@ func runAndMonitorPortForward(
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string, clusterName string, requestClusterName string,
+	p portForwardRequest, token string, tokenSource func(context.Context) (string, error),
+	clusterName string, requestClusterName string,
 ) error {
-	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
+	clientset, rConf, err := getKubeClientAndConfig(kContext, token, tokenSource)
 	if err != nil {
 		return fmt.Errorf("failed to setup Kubernetes client/config: %w", err)
 	}

@@ -39,8 +39,10 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // Cover the legacy client-go fallback error.
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/portforward"
 	streamhttp "k8s.io/streaming/pkg/httpstream"
 )
@@ -766,7 +768,7 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	r.Header.Set("X-HEADLAMP-USER-ID", "user")
 	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
 
-	StartPortForward(kubeConfigStore, c, false, contextKey, w, r)
+	StartPortForward(kubeConfigStore, c, false, contextKey, w, r, nil)
 
 	res := w.Result()
 
@@ -820,7 +822,7 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(body))
 		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
 
-		StartPortForward(store, c, false, "test-cluster", w, r)
+		StartPortForward(store, c, false, "test-cluster", w, r, nil)
 
 		return w
 	}
@@ -1023,4 +1025,52 @@ func TestResolveServicePod_MultipleSlices(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "backend-pod-xyz", podName)
 	assert.Equal(t, "production", podNamespace)
+}
+
+func TestGetKubeClientAndConfigFetchesTokenPerRequest(t *testing.T) {
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		seen = append(seen, r.Header.Get("Authorization"))
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(corev1.Pod{
+			TypeMeta:   v1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+			ObjectMeta: v1.ObjectMeta{Name: "pod"},
+			Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	kContext := &kubeconfig.Context{
+		Name:     "cluster",
+		Cluster:  &api.Cluster{Server: server.URL},
+		AuthInfo: &api.AuthInfo{Token: "kubeconfig-token"}, // #nosec G101 -- synthetic test credential.
+	}
+
+	var calls int
+
+	tokenSource := func(context.Context) (string, error) {
+		calls++
+		return fmt.Sprintf("sts-token-%d", calls), nil
+	}
+
+	clientset, rConf, err := getKubeClientAndConfig(kContext, "request-token", tokenSource)
+	require.NoError(t, err)
+
+	// The pod monitor uses clientset, and reconnects dial with rConf.
+	require.NoError(t, checkIfPodIsRunning(clientset, "default", "pod"))
+	require.NoError(t, checkIfPodIsRunning(clientset, "default", "pod"))
+
+	reconnectClientset, err := kubernetes.NewForConfig(rConf)
+	require.NoError(t, err)
+	require.NoError(t, checkIfPodIsRunning(reconnectClientset, "default", "pod"))
+
+	assert.Equal(t, []string{"Bearer sts-token-1", "Bearer sts-token-2", "Bearer sts-token-3"}, seen)
 }
