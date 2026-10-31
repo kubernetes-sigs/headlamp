@@ -113,16 +113,20 @@ func TestPortforwardKeyGenerator(t *testing.T) {
 		p    portForward
 		want string
 	}{
-		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_clusterid"},
-		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_clusterservice"},
-		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_clusterpod"},
-		{"service_and_pod", portForward{Cluster: "cluster", Service: "service", Pod: "pod"}, "PORT_FORWARD_clusterservice"},
-		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_clusterid"},
-		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_clusterid"},
+		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_cluster\x00id"},
+		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_cluster\x00service"},
+		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_cluster\x00pod"},
+		{
+			"service_and_pod",
+			portForward{Cluster: "cluster", Service: "service", Pod: "pod"},
+			"PORT_FORWARD_cluster\x00service",
+		},
+		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_cluster\x00id"},
+		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_cluster\x00id"},
 		{
 			"id_and_service_and_pod",
 			portForward{Cluster: "cluster", ID: "id", Service: "service", Pod: "pod"},
-			"PORT_FORWARD_clusterid",
+			"PORT_FORWARD_cluster\x00id",
 		},
 	}
 
@@ -221,6 +225,47 @@ func TestGetPortForwardList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []portForward{p3}, pfList)
+}
+
+// TestGetPortForwardListClusterNamePrefix checks that listing the port forwards
+// of a cluster doesn't include those of another cluster whose name starts with
+// the same text (e.g. "prod" and "prod-eu").
+func TestGetPortForwardListClusterNamePrefix(t *testing.T) {
+	prod := portForward{ID: "id1", Cluster: "prod"}
+	prodService := portForward{Cluster: "prod", Service: "svc"}
+	prodEU := portForward{ID: "id2", Cluster: "prod-eu"}
+
+	cache := cache.New[interface{}]()
+
+	for _, p := range []portForward{prod, prodService, prodEU} {
+		err := cache.Set(context.Background(), portforwardKeyGenerator(p), p)
+		require.NoError(t, err)
+	}
+
+	assert.ElementsMatch(t, []portForward{prod, prodService}, getPortForwardList(cache, "prod"))
+	assert.ElementsMatch(t, []portForward{prodEU}, getPortForwardList(cache, "prod-eu"))
+}
+
+// TestPortForwardStoreStatelessUserIsolation checks that a base cluster key
+// doesn't match port forwards stored under a stateless (per-user) context key,
+// which is "<cluster>\x00<userID>" and so contains the store key separator.
+func TestPortForwardStoreStatelessUserIsolation(t *testing.T) {
+	userKey := "k8s-prod" + storeKeySeparator + "user123"
+	base := portForward{ID: "id1", Cluster: "k8s-prod"}
+	user := portForward{ID: "id2", Cluster: "k8s-prod", cacheKey: userKey}
+
+	cache := cache.New[interface{}]()
+
+	for _, p := range []portForward{base, user} {
+		err := cache.Set(context.Background(), portforwardKeyGenerator(p), p)
+		require.NoError(t, err)
+	}
+
+	assert.ElementsMatch(t, []portForward{base}, getPortForwardList(cache, "k8s-prod"))
+	assert.ElementsMatch(t, []portForward{user}, getPortForwardList(cache, userKey))
+
+	_, err := getPortForwardByID(cache, "k8s-prod", "id2")
+	assert.Error(t, err, "the base cluster key must not find a user's port forward")
 }
 
 // Test portForwardRequest.Validate() function.
