@@ -77,6 +77,10 @@ const dependenciesToNotCopy = [
   '@typescript/native-preview',
   '@chanzuckerberg/axe-storybook-testing',
   'tsx',
+  // Low-level WASM runtime internals used by @napi-rs/canvas; not needed by plugin authors.
+  '@emnapi/core',
+  '@emnapi/runtime',
+  '@emnapi/wasi-threads',
 ];
 
 // Dependencies that can have different versions
