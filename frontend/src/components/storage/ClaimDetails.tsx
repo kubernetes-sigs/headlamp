@@ -16,10 +16,35 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
+import PersistentVolumeClaim, {
+  type KubeTypedLocalObjectReference,
+  type KubeTypedObjectReference,
+} from '../../lib/k8s/persistentVolumeClaim';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
+
+export function formatObjectReference(
+  reference?: KubeTypedLocalObjectReference | KubeTypedObjectReference,
+  fallbackNamespace?: string
+) {
+  if (!reference) {
+    return '';
+  }
+
+  const apiGroup = reference.apiGroup ? `${reference.apiGroup}/` : '';
+  const referenceNamespace =
+    'namespace' in reference && reference.namespace ? reference.namespace : fallbackNamespace;
+  const namespace = referenceNamespace ? ` (${referenceNamespace})` : '';
+
+  return `${apiGroup}${reference.kind}/${reference.name}${namespace}`;
+}
+
+function formatResourceMap(resources?: Record<string, string>) {
+  return Object.entries(resources ?? {})
+    .map(([name, value]) => `${name}: ${value}`)
+    .join(', ');
+}
 
 export function makePVCStatusLabel(item: PersistentVolumeClaim) {
   const status = item.status?.phase ?? '';
@@ -99,6 +124,24 @@ export default function VolumeClaimDetails(props: {
               ''
             ),
             hide: !item.spec?.storageClassName,
+          },
+          {
+            name: t('Source'),
+            value: formatObjectReference(
+              item.spec?.dataSourceRef ?? item.spec?.dataSource,
+              item.metadata.namespace
+            ),
+            hide: value => !value,
+          },
+          {
+            name: t('Allocated'),
+            value: formatResourceMap(item.status?.allocatedResources),
+            hide: value => !value,
+          },
+          {
+            name: t('Resize Status'),
+            value: formatResourceMap(item.status?.allocatedResourceStatuses),
+            hide: value => !value,
           },
         ]
       }

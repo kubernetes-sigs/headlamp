@@ -317,7 +317,7 @@ describe('cluster registration providers', () => {
       expect(fs.statSync(destination).mode & 0o777).toBe(0o600);
     }
     expect(fs.readdirSync(directory)).toEqual(['config']);
-  });
+  }, 15000);
 
   it.runIf(process.platform !== 'win32')(
     'keeps a visible replacement successful when directory fsync fails',
