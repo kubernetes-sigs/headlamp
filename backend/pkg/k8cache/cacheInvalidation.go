@@ -117,7 +117,10 @@ func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bo
 
 // returnGVRList returns list+watch GroupVersionResources filtered to an allowlisted set of
 // API resource names (e.g. pods, deployments) used for cache invalidation watchers.
-func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
+func returnGVRList(
+	apiResourceLists []*metav1.APIResourceList,
+	watchResources []string,
+) []schema.GroupVersionResource {
 	skipKinds := map[string]bool{
 		"Lease": true,
 		"Event": true,
@@ -146,26 +149,42 @@ func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVer
 		}
 	}
 
-	filtered := filterImportantResources(gvrList)
+	filtered := filterImportantResources(gvrList, watchResources)
 
 	return filtered
 }
 
+// defaultWatchResources is the built-in set of resource names watched for
+// cache invalidation when no custom list is configured.
+var defaultWatchResources = []string{
+	"pods",
+	"services",
+	"deployments",
+	"replicasets",
+	"statefulsets",
+	"daemonsets",
+	"nodes",
+	"configmaps",
+	"secrets",
+	"jobs",
+	"cronjobs",
+}
+
 // filterImportantResources filters the provided list of GroupVersionResources to
 // include only those that are deemed important for caching and watching.
-func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
-	allowed := map[string]struct{}{
-		"pods":         {},
-		"services":     {},
-		"deployments":  {},
-		"replicasets":  {},
-		"statefulsets": {},
-		"daemonsets":   {},
-		"nodes":        {},
-		"configmaps":   {},
-		"secrets":      {},
-		"jobs":         {},
-		"cronjobs":     {},
+// When watchResources is nil or empty, the built-in defaultWatchResources are used.
+func filterImportantResources(
+	gvrList []schema.GroupVersionResource,
+	watchResources []string,
+) []schema.GroupVersionResource {
+	resources := watchResources
+	if len(resources) == 0 {
+		resources = defaultWatchResources
+	}
+
+	allowed := make(map[string]struct{}, len(resources))
+	for _, r := range resources {
+		allowed[r] = struct{}{}
 	}
 
 	filtered := make([]schema.GroupVersionResource, 0, len(allowed))
@@ -192,6 +211,7 @@ func CheckForChanges(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	watchResources []string,
 ) {
 	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
 		return
@@ -201,7 +221,7 @@ func CheckForChanges(
 
 	contextCancel.Store(contextKey, cancel)
 
-	go runWatcher(ctx, k8scache, contextKey, kContext)
+	go runWatcher(ctx, k8scache, contextKey, kContext, watchResources)
 }
 
 // SyncWatchers stops watchers for contexts that are no longer active and purges
@@ -258,6 +278,7 @@ func runWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	watchResources []string,
 ) {
 	defer func() {
 		watcherRegistry.Delete(contextKey)
@@ -286,7 +307,7 @@ func runWatcher(
 		return
 	}
 
-	gvrList := returnGVRList(apiResourceLists)
+	gvrList := returnGVRList(apiResourceLists, watchResources)
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, "", nil)
 
 	RunInformerToWatch(gvrList, factory, contextKey, k8scache)
