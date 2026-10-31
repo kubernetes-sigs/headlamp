@@ -15,16 +15,8 @@ package k8cache
 
 import "context"
 
-// ResetForTesting clears package-global k8cache state between integration tests.
+// ResetForTesting clears package-global watcher registries between integration tests.
 func ResetForTesting() {
-	mu.Lock()
-
-	clientsetCache = make(map[string]*CachedClientSet)
-	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
-	inFlight = make(map[string]*inFlightEntry)
-
-	mu.Unlock()
-
 	clearWatcherRegistriesForTesting()
 }
 
