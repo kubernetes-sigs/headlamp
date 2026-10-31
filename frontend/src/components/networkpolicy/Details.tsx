@@ -16,6 +16,7 @@
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
@@ -23,6 +24,7 @@ import { LabelSelector } from '../../lib/k8s/cluster';
 import NetworkPolicy, {
   NetworkPolicyEgressRule,
   NetworkPolicyIngressRule,
+  NetworkPolicyPeer,
   NetworkPolicyPort,
 } from '../../lib/k8s/networkpolicy';
 import NameValueTable from '../common/NameValueTable';
@@ -41,20 +43,25 @@ export function NetworkPolicyDetails(props: {
 
   function prepareMatchLabelsAndExpressions(
     matchLabels: LabelSelector['matchLabels'],
-    matchExpressions: LabelSelector['matchExpressions']
+    matchExpressions: LabelSelector['matchExpressions'],
+    emptyValue?: string
   ) {
     const matchLabelsSimplified = matchLabelsSimplifier(matchLabels) || [];
     const matchExpressionsSimplified = matchExpressionSimplifier(matchExpressions) || [];
 
+    if (!matchLabelsSimplified.length && !matchExpressionsSimplified.length) {
+      return emptyValue;
+    }
+
     return (
       <>
         {matchLabelsSimplified.map(label => (
-          <Typography sx={metadataStyles} display="inline">
+          <Typography key={label} sx={metadataStyles} display="inline">
             {label}
           </Typography>
         ))}
         {matchExpressionsSimplified.map(expression => (
-          <Typography sx={metadataStyles} display="inline">
+          <Typography key={expression} sx={metadataStyles} display="inline">
             {expression}
           </Typography>
         ))}
@@ -90,68 +97,94 @@ export function NetworkPolicyDetails(props: {
     );
   }
 
+  function Peers(props: { peers?: NetworkPolicyPeer[]; direction: 'from' | 'to' }) {
+    const { peers, direction } = props;
+    const allPeers =
+      direction === 'from' ? t('translation|All sources') : t('translation|All destinations');
+
+    return (
+      <Box sx={{ mt: 2 }}>
+        <Typography sx={{ fontWeight: 600, mb: 1 }}>
+          {direction === 'from' ? t('translation|From') : t('translation|To')}
+        </Typography>
+        {!peers?.length ? (
+          <Typography>{allPeers}</Typography>
+        ) : (
+          peers.map((peer, index) => (
+            <Fragment key={index}>
+              {index > 0 && <Typography sx={{ my: 1 }}>{t('translation|OR')}</Typography>}
+              <Box
+                role="group"
+                aria-label={t('translation|Peer {{ number }}', { number: index + 1 })}
+              >
+                {!peer.ipBlock && !peer.namespaceSelector && !peer.podSelector ? (
+                  <Typography>{allPeers}</Typography>
+                ) : (
+                  <NameValueTable
+                    rows={[
+                      {
+                        name: t('ipBlock'),
+                        hide: !peer.ipBlock,
+                        value: peer.ipBlock && (
+                          <>
+                            {`cidr: ${peer.ipBlock.cidr}`}
+                            {!!peer.ipBlock.except?.length &&
+                              `, ${t('except: {{ cidrExceptions }}', {
+                                cidrExceptions: peer.ipBlock.except.join(', '),
+                              })}`}
+                          </>
+                        ),
+                      },
+                      {
+                        name: t('namespaceSelector'),
+                        hide: !peer.namespaceSelector,
+                        value: prepareMatchLabelsAndExpressions(
+                          peer.namespaceSelector?.matchLabels,
+                          peer.namespaceSelector?.matchExpressions,
+                          t('translation|All namespaces')
+                        ),
+                      },
+                      {
+                        name: t('podSelector'),
+                        hide: !peer.podSelector,
+                        value: prepareMatchLabelsAndExpressions(
+                          peer.podSelector?.matchLabels,
+                          peer.podSelector?.matchExpressions,
+                          t('translation|All pods')
+                        ),
+                      },
+                    ]}
+                  />
+                )}
+                {peer.namespaceSelector && peer.podSelector && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {t('translation|Both selectors must match (AND).')}
+                  </Typography>
+                )}
+              </Box>
+            </Fragment>
+          ))
+        )}
+      </Box>
+    );
+  }
+
   function Ingress(props: { ingress: NetworkPolicyIngressRule[] }) {
     const { ingress } = props;
 
-    if (!ingress || ingress.length === 0) {
-      return <></>;
-    }
-
     return (
       <>
-        {ingress.map((item: NetworkPolicyIngressRule) => (
-          <SectionBox title={t('Ingress')}>
+        {ingress.map((item, index) => (
+          <SectionBox key={index} title={t('Ingress')}>
             <NameValueTable
               rows={[
                 {
                   name: t('Ports'),
-                  value: item.ports?.map((port: NetworkPolicyPort, index) => (
-                    <Port key={index} port={port} />
-                  )),
-                },
-                {
-                  name: t('translation|From'),
-                  value: '',
-                },
-                {
-                  name: t('ipBlock'),
-                  value: item.from?.map(from => {
-                    if (!from.ipBlock) {
-                      return <></>;
-                    }
-                    const { cidr, except = [] } = from.ipBlock || {};
-                    if (!cidr) {
-                      return <></>;
-                    }
-                    if (cidr && except.length === 0) {
-                      return <>{`cidr: ${cidr}`}</>;
-                    }
-                    return <>{`cidr: ${cidr}, except: ${except.join(', ')}`}</>;
-                  }),
-                },
-                {
-                  name: t('namespaceSelector'),
-                  value: item.from?.map(from => {
-                    if (!from.namespaceSelector) {
-                      return <></>;
-                    }
-                    const { matchLabels = {}, matchExpressions = [] } =
-                      from.namespaceSelector || {};
-                    return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
-                  }),
-                },
-                {
-                  name: t('podSelector'),
-                  value: item.from?.map(from => {
-                    if (!from.podSelector) {
-                      return <></>;
-                    }
-                    const { matchLabels = {}, matchExpressions = [] } = from.podSelector || {};
-                    return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
-                  }),
+                  value: item.ports?.map((port, index) => <Port key={index} port={port} />),
                 },
               ]}
             />
+            <Peers peers={item.from} direction="from" />
           </SectionBox>
         ))}
       </>
@@ -160,70 +193,20 @@ export function NetworkPolicyDetails(props: {
 
   function Egress(props: { egress: NetworkPolicyEgressRule[] }) {
     const { egress } = props;
-    if (!egress || egress.length === 0) {
-      return <></>;
-    }
+
     return (
       <>
-        {egress.map((item: NetworkPolicyEgressRule) => (
-          <SectionBox title={t('Egress')}>
+        {egress.map((item, index) => (
+          <SectionBox key={index} title={t('Egress')}>
             <NameValueTable
               rows={[
                 {
                   name: t('Ports'),
-                  value: item.ports?.map((port: NetworkPolicyPort, index) => (
-                    <Port key={index} port={port} />
-                  )),
+                  value: item.ports?.map((port, index) => <Port key={index} port={port} />),
                 },
               ]}
             />
-            {item.to && item.to.length > 0 && (
-              <Box sx={{ mt: 2 }}>
-                <Typography sx={{ fontWeight: 600, mb: 1 }}>{t('translation|To')}</Typography>
-                <NameValueTable
-                  rows={[
-                    {
-                      name: t('ipBlock'),
-                      value: item.to?.map(to => {
-                        const { cidr, except = [] } = to.ipBlock || {};
-                        if (!cidr) {
-                          return <></>;
-                        }
-                        if (cidr && except.length === 0) {
-                          return <>{`cidr: ${cidr}`}</>;
-                        }
-                        return (
-                          <>{`cidr: ${cidr}, ${t('except: {{ cidrExceptions }}', {
-                            cidrExceptions: except.join(', '),
-                          })}`}</>
-                        );
-                      }),
-                    },
-                    {
-                      name: t('namespaceSelector'),
-                      value: item.to?.map(to => {
-                        if (!to.namespaceSelector) {
-                          return <></>;
-                        }
-                        const { matchLabels = {}, matchExpressions = [] } =
-                          to.namespaceSelector || {};
-                        return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
-                      }),
-                    },
-                    {
-                      name: t('podSelector'),
-                      value: item.to?.map(to => {
-                        if (!to.podSelector) {
-                          return <></>;
-                        }
-                        const { matchLabels = {}, matchExpressions = [] } = to.podSelector || {};
-                        return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
-                      }),
-                    },
-                  ]}
-                />
-              </Box>
-            )}
+            <Peers peers={item.to} direction="to" />
           </SectionBox>
         ))}
       </>
