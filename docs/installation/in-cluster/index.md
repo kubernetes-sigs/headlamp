@@ -282,6 +282,10 @@ a [service account](../#create-a-service-account-token) or by setting up
 
 Headlamp supports managing plugins through a sidecar container when deployed in-cluster.
 
+On Kubernetes 1.33+ you can also mount published plugin images directly with
+[Image Volumes](./plugins-image-volume.md) (feature gate required on 1.33–1.34;
+enabled by default from 1.35; GA in 1.36), without an init container.
+
 ### Using values.yaml
 
 You can directly specify the plugin configuration in your `values.yaml`:
