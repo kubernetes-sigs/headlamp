@@ -159,6 +159,7 @@ export abstract class Headlamp {
   /**
    * Changes the app menu.
    * If Headlamp is not running as a desktop app, then this method prints an error and doesn't do anything.
+   * Customizations apply to the current renderer document and must be registered again after reload.
    *
    * @param appMenuFunc A function that receives the current app menu configuration and a new one. If the function returns null, the menu is not changed.
    */

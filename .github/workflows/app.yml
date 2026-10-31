@@ -68,7 +68,7 @@ jobs:
         npm ci
         npx playwright install --with-deps chromium
     - name: Test desktop privileged bridges
-      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts tests/clusterRegistration.spec.ts
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts tests/clusterRegistration.spec.ts tests/pluginMenuReload.spec.ts
     - name: Test production frontend runtime
       run: xvfb-run --auto-servernum npm run app:test:e2e:frontend-build
     - name: Test desktop OAuth callbacks
