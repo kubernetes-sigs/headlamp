@@ -20,28 +20,58 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
+import { useQueries } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { getCluster } from '../../lib/cluster';
+import { useSelectedClusters } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import ActionButton from '../common/ActionButton';
-import { AuthVisible } from '../common/Resource';
 
 export default function CreateNamespaceButton() {
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceName, setNamespaceName] = useState('');
   const [namespaceDialogOpen, setNamespaceDialogOpen] = useState(false);
-  const [namespaceExistsError, setNamespaceExistsError] = useState(false);
+  const [namespaceConflict, setNamespaceConflict] = useState<{
+    cluster: string;
+    name: string;
+  } | null>(null);
+  const [selectedCluster, setSelectedCluster] = useState('');
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
+  const selectedClusters = useSelectedClusters();
+  // Outside of a cluster route there are no selected clusters; keep using the default one.
+  const clusters = selectedClusters.length > 0 ? selectedClusters : [''];
+
+  const authResults = useQueries({
+    queries: clusters.map(cluster => ({
+      queryKey: ['namespaceCreateAuth', cluster],
+      queryFn: async () => {
+        // Let request failures reject so the query client's retry policy applies.
+        const res = await Namespace.getAuthorization('create', {}, cluster || undefined);
+        return !!res?.status?.allowed;
+      },
+    })),
+  });
+  const allowedClusters = clusters.filter((_, index) => authResults[index].data === true);
+  const targetCluster = allowedClusters.includes(selectedCluster)
+    ? selectedCluster
+    : allowedClusters[0] ?? '';
+  // A conflict only applies to the cluster and name it was reported for, since its response
+  // can arrive after the user has picked another cluster or changed the name.
+  const namespaceExistsError =
+    namespaceConflict?.cluster === targetCluster && namespaceConflict?.name === namespaceName;
 
   function createNewNamespace() {
-    const clusterData = getCluster();
+    const clusterData = targetCluster;
     const newNamespaceData = {
       apiVersion: 'v1',
       kind: 'Namespace',
@@ -51,6 +81,9 @@ export default function CreateNamespaceButton() {
     };
 
     const newNamespaceName = newNamespaceData.metadata.name;
+    // Name the cluster in the messages when it is ambiguous which one was used.
+    const newNamespaceLabel =
+      selectedClusters.length > 1 ? `${newNamespaceName} (${clusterData})` : newNamespaceName;
 
     async function namespaceRequest() {
       try {
@@ -62,7 +95,7 @@ export default function CreateNamespaceButton() {
         console.error('Error creating namespace:', error);
         if (statusCode === 409) {
           setNamespaceDialogOpen(true);
-          setNamespaceExistsError(true);
+          setNamespaceConflict({ cluster: clusterData, name: newNamespaceName });
         }
         throw error;
       }
@@ -73,17 +106,17 @@ export default function CreateNamespaceButton() {
     dispatch(
       clusterAction(() => namespaceRequest(), {
         startMessage: t('translation|Applying {{ newItemName }}…', {
-          newItemName: newNamespaceName,
+          newItemName: newNamespaceLabel,
         }),
         cancelledMessage: t('translation|Cancelled applying {{ newItemName }}.', {
-          newItemName: newNamespaceName,
+          newItemName: newNamespaceLabel,
         }),
         successMessage: t('translation|Applied {{ newItemName }}.', {
-          newItemName: newNamespaceName,
+          newItemName: newNamespaceLabel,
         }),
         errorMessage: t('translation|Failed to create {{ kind }} {{ name }}.', {
           kind: 'namespace',
-          name: newNamespaceName,
+          name: newNamespaceLabel,
         }),
         cancelCallback: () => {
           setNamespaceDialogOpen(true);
@@ -94,7 +127,7 @@ export default function CreateNamespaceButton() {
 
   function handleClose() {
     setNamespaceDialogOpen(false);
-    setNamespaceExistsError(false);
+    setNamespaceConflict(null);
   }
 
   const isValidNamespaceFormat = Namespace.isValidNamespaceFormat(namespaceName);
@@ -111,14 +144,21 @@ export default function CreateNamespaceButton() {
     ? t('translation|A namespace with this name already exists.')
     : formatHelperMessage;
 
+  // Show the button when namespaces can be created in at least one selected cluster.
+  if (allowedClusters.length === 0) {
+    return null;
+  }
+
   return (
-    <AuthVisible item={Namespace} authVerb="create">
+    <>
       <ActionButton
         data-testid="create-namespace-button"
         color="primary"
         description={t('translation|Create Namespace')}
         icon={'mdi:plus-circle'}
         onClick={() => {
+          // Keep the cluster shown on open, even if other authorization responses arrive later.
+          setSelectedCluster(targetCluster);
           setNamespaceDialogOpen(true);
         }}
       />
@@ -141,7 +181,7 @@ export default function CreateNamespaceButton() {
               value={namespaceName}
               onChange={event => {
                 setNamespaceName(event.target.value.toLowerCase());
-                setNamespaceExistsError(false);
+                setNamespaceConflict(null);
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
@@ -155,6 +195,24 @@ export default function CreateNamespaceButton() {
                 }
               }}
             />
+            {selectedClusters.length > 1 && (
+              <FormControl fullWidth margin="dense">
+                <InputLabel id="create-namespace-cluster-label">{t('glossary|Cluster')}</InputLabel>
+                <Select
+                  labelId="create-namespace-cluster-label"
+                  id="create-namespace-cluster-select"
+                  label={t('glossary|Cluster')}
+                  value={targetCluster}
+                  onChange={event => setSelectedCluster(event.target.value as string)}
+                >
+                  {allowedClusters.map(cluster => (
+                    <MenuItem key={cluster} value={cluster}>
+                      {cluster}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
@@ -175,6 +233,6 @@ export default function CreateNamespaceButton() {
           </Button>
         </DialogActions>
       </Dialog>
-    </AuthVisible>
+    </>
   );
 }
