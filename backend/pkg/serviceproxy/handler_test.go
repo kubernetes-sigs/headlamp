@@ -2,14 +2,19 @@ package serviceproxy //nolint:testpackage // Tests exercise unexported service p
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 //nolint:funlen // Table-driven test function covering service proxy request dispatching.
@@ -233,12 +239,67 @@ func TestDisableResponseCaching(t *testing.T) {
 // the response had been written and therefore never reached the client. The
 // headers must be observed from a real server round-trip: a ResponseRecorder's
 // live header map would show them even when they were set too late to be sent.
+// TestRequestHandler_ImpersonationUsesServiceAccountCredential checks that a non-nil
+// impersonation value makes the service lookup authenticate with the in-cluster service account
+// credential and send only the verified impersonation headers, not the caller's raw token. Every
+// other RequestHandler call in this file passes nil.
+func TestRequestHandler_ImpersonationUsesServiceAccountCredential(t *testing.T) {
+	const serviceAccountToken = "service-account-token"
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte(serviceAccountToken), 0o600))
+
+	var receivedAuth, receivedUser string
+
+	var receivedGroups []string
+
+	apiServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		svc := createMockService("default", "my-svc")
+		require.NoError(t, json.NewEncoder(w).Encode(svc))
+	}))
+	defer apiServer.Close()
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                apiServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+	}))
+
+	impersonation := &kubeconfig.Impersonation{Username: "alice@example.com", Groups: []string{"dev", "ops"}}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/?request=%2F", nil)
+	req = mux.SetURLVars(req, map[string]string{
+		"clusterName": "test-cluster", "namespace": "default", "name": "my-svc",
+	})
+
+	rr := httptest.NewRecorder()
+	RequestHandler(store, false, impersonation, rr, req)
+
+	// The service lookup is what we verify; the subsequent proxy attempt to the resolved
+	// (fake, unreachable) service address is expected to fail and is not asserted on.
+	assert.Equal(t, "Bearer "+serviceAccountToken, receivedAuth)
+	assert.Equal(t, "alice@example.com", receivedUser)
+	assert.ElementsMatch(t, []string{"dev", "ops"}, receivedGroups)
+}
+
 func TestRequestHandlerSendsNoCacheHeaders(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = mux.SetURLVars(r, map[string]string{"clusterName": "unknown", "namespace": "default", "name": "svc"})
-		RequestHandler(store, false, w, r)
+		RequestHandler(store, false, nil, w, r)
 	}))
 	defer server.Close()
 
@@ -297,7 +358,7 @@ func TestGetAuthToken(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
-					Name:     "headlamp-auth-my-cluster.0",
+					Name:     "headlamp-auth-" + auth.SanitizeClusterName("my-cluster") + ".0",
 					Value:    "cookie-token-xyz",
 					HttpOnly: true,
 					Secure:   true,
@@ -327,7 +388,7 @@ func TestGetAuthToken(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
-					Name:     "headlamp-auth-test-cluster.0",
+					Name:     "headlamp-auth-" + auth.SanitizeClusterName("test-cluster") + ".0",
 					Value:    "cookie-token-wins",
 					HttpOnly: true,
 					Secure:   true,

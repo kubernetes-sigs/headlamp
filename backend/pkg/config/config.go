@@ -33,6 +33,20 @@ const (
 	DefaultMeEmailPath    = "email"
 	DefaultMeGroupsPath   = "groups,realm_access.roles"
 	DefaultMeUserInfoURL  = ""
+	// DefaultImpersonationUsernamePath is the username claim chain impersonation falls back to
+	// when --me-username-path was never explicitly configured, instead of inheriting
+	// DefaultMeUsernamePath as-is. DefaultMeUsernamePath ends in the display-oriented `name`
+	// claim, which is fine for /me's purpose -- a label the browser shows the signed-in user --
+	// but not for impersonation, which grants the resolved username's actual Kubernetes RBAC
+	// authority: two different users can share a mutable, non-unique display name, and OIDC
+	// does not require `name` to be unique at all. This chain keeps the same stable-handle
+	// claims first, but ends in `join('#', [iss, sub])` instead of `name`: `sub` is the one
+	// claim OIDC guarantees is unique and never reassigned for a given user at its issuer, and
+	// qualifying it with `iss` keeps it unique even if a deployment is ever reconfigured to
+	// trust more than one issuer. An operator who explicitly configured --me-username-path
+	// (even to something unusual) has made an informed choice, so that is honored as-is --
+	// this fallback only applies when the flag was left at its default.
+	DefaultImpersonationUsernamePath = "preferred_username,upn,username,join('#', [iss, sub])"
 )
 
 type Config struct {
@@ -100,6 +114,7 @@ type Config struct {
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
 	OidcAutoLogin                bool   `koanf:"oidc-auto-login"`
+	OidcUseImpersonation         bool   `koanf:"oidc-use-impersonation"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -266,9 +281,48 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 			"flags are only meant to be used with --in-cluster")
 	}
 
-	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
+	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken && !c.OidcUseImpersonation {
 		return errors.New("--service-account-token-path requires " +
-			"--unsafe-use-service-account-token to be enabled")
+			"--unsafe-use-service-account-token or --oidc-use-impersonation to be enabled")
+	}
+
+	return c.validateOidcImpersonationFlag()
+}
+
+// validateOidcImpersonationFlag ensures --oidc-use-impersonation is only used with --in-cluster,
+// since it relies on the pod's own in-cluster service account credential to authenticate to the
+// API server while impersonating the OIDC user. It also rejects combining it with
+// --unsafe-use-service-account-token: the two flags authenticate every request as the same
+// trusted in-cluster credential, but --unsafe-use-service-account-token additionally discards
+// the caller's identity instead of impersonating it, so --oidc-use-impersonation would silently
+// never take effect (see shouldUseUnsafeServiceAccountTokenForContext, checked first).
+func (c *Config) validateOidcImpersonationFlag() error {
+	if c.OidcUseImpersonation && !c.InCluster {
+		return errors.New("--oidc-use-impersonation is only meant to be used with --in-cluster")
+	}
+
+	if c.OidcUseImpersonation && c.UnsafeUseServiceAccountToken {
+		return errors.New("--oidc-use-impersonation cannot be used together with " +
+			"--unsafe-use-service-account-token: the latter already authenticates every request " +
+			"as the pod's service account without impersonation, so --oidc-use-impersonation " +
+			"would have no effect")
+	}
+
+	// Impersonation verifies the caller's identity from the ID token's signature and claims.
+	// Access tokens are not verified that way, so they cannot be the identity source.
+	if c.OidcUseImpersonation && c.OidcUseAccessToken {
+		return errors.New("--oidc-use-impersonation cannot be used together with --oidc-use-access-token: " +
+			"the identity is verified from the ID token, so the access token cannot be the identity source")
+	}
+
+	// Mirrors the condition newInClusterContextFromConfig uses to decide whether OIDC is
+	// configured at all. Without it, no cookie can ever exist, so every proxied request
+	// would hit the "no valid OIDC token to resolve an identity" error forever -- which
+	// looks like a broken installation rather than the missing-OIDC-config mistake it is.
+	if c.OidcUseImpersonation && (c.OidcClientID == "" || c.OidcIdpIssuerURL == "" || c.OidcScopes == "") {
+		return errors.New("--oidc-use-impersonation requires OIDC to be configured " +
+			"(--oidc-client-id, --oidc-idp-issuer-url and --oidc-scopes); without OIDC configured " +
+			"there is never a token to impersonate, and every proxied API call would fail")
 	}
 
 	return nil
@@ -653,7 +707,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"Disables per-user auth; only safe behind an auth proxy")
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
-			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+			"Only used when --unsafe-use-service-account-token or --oidc-use-impersonation is set and in-cluster")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
@@ -684,6 +738,13 @@ func addOIDCFlags(f *flag.FlagSet) {
 		"Comma separated JMESPath expressions used to read groups from the JWT payload")
 	f.String("me-user-info-url", DefaultMeUserInfoURL,
 		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
+	f.Bool("oidc-use-impersonation", false,
+		"When running --in-cluster, authenticate to the Kubernetes API server using Headlamp's own "+
+			"in-cluster service account token and impersonate the OIDC user (Impersonate-User/Impersonate-Group "+
+			"headers) instead of forwarding the raw OIDC token as the Bearer credential. Use this when the API "+
+			"server does not trust Headlamp's OIDC issuer directly. Requires the service account to have RBAC "+
+			"'impersonate' permission on users/groups/serviceaccounts. Username/groups are resolved using the "+
+			"same --me-username-path/--me-groups-path JMESPath expressions used by the /me endpoint.")
 }
 
 func addProxyAuthFlags(f *flag.FlagSet) {

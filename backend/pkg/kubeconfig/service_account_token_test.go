@@ -44,12 +44,14 @@ func TestResolveServiceAccountTokenPath(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 	defaultTokenPath := path.Join("/", "var", "run", "secrets", "kubernetes.io", "serviceaccount", "token")
 
 	tests := []struct {
 		name                         string
 		unsafeUseServiceAccountToken bool
+		oidcUseImpersonation         bool
 		clusterBearerTokenFile       string
 		serviceAccountTokenPath      string
 		expectedTokenFile            string
@@ -77,6 +79,17 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 			unsafeUseServiceAccountToken: true,
 			expectedTokenFile:            defaultTokenPath,
 		},
+		{
+			name:                   "oidc impersonation enabled uses cluster bearer token file fallback",
+			oidcUseImpersonation:   true,
+			clusterBearerTokenFile: path.Join("/", "cluster", "token"),
+			expectedTokenFile:      path.Join("/", "cluster", "token"),
+		},
+		{
+			name:                 "oidc impersonation enabled uses default path fallback",
+			oidcUseImpersonation: true,
+			expectedTokenFile:    defaultTokenPath,
+		},
 	}
 
 	for _, tt := range tests {
@@ -92,6 +105,7 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 				"",
 				tt.unsafeUseServiceAccountToken,
 				tt.serviceAccountTokenPath,
+				tt.oidcUseImpersonation,
 			)
 
 			assert.Equal(t, tt.expectedTokenFile, context.AuthInfo.TokenFile)
