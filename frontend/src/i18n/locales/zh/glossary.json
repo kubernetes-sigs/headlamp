@@ -236,6 +236,7 @@
   "API Groups": "API 群组",
   "Resources": "资源",
   "Non Resources": "非资源",
+  "Resource Names": "",
   "Verbs": "动作",
   "RuntimeClass": "运行时类别",
   "Workloads (scheduling)": "工作负载（调度）",

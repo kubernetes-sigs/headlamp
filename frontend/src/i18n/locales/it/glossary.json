@@ -236,6 +236,7 @@
   "API Groups": "Gruppi API",
   "Resources": "Risorse",
   "Non Resources": "Non Risorse",
+  "Resource Names": "",
   "Verbs": "Verbi",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "Workload (scheduling)",

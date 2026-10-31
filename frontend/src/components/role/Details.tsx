@@ -56,7 +56,11 @@ export default function RoleDetails(props: {
                     },
                     {
                       label: t('Non Resources'),
-                      getter: ({ nonResources = [] }) => nonResources.join(', '),
+                      getter: ({ nonResourceURLs = [] }) => nonResourceURLs.join(', '),
+                    },
+                    {
+                      label: t('Resource Names'),
+                      getter: ({ resourceNames = [] }) => resourceNames.join(', '),
                     },
                     {
                       label: t('Verbs'),
