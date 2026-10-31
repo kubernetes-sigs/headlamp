@@ -493,7 +493,7 @@ func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 	for event := range notify {
 		// Skip CHMOD events to avoid looping on electron when user-plugins folder is watched
 		// these events are not relevant to see if plugins have changed.
-		if strings.HasSuffix(event, "CHMOD") {
+		if strings.HasSuffix(event, ":CHMOD") {
 			continue
 		}
 
