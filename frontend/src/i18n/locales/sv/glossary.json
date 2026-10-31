@@ -224,6 +224,8 @@
   "Cluster IP": "IP-adress för kluster",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Resurskvoter",
   "Reference Kind": "Referensvariant",
   "Reference Name": "Referensnamn",

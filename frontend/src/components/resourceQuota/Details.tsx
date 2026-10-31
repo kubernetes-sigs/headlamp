@@ -19,7 +19,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import ResourceQuota from '../../lib/k8s/resourceQuota';
+import ResourceQuota, { KubeResourceQuota } from '../../lib/k8s/resourceQuota';
 import { parseCpu, parseRam, TO_ONE_CPU } from '../../lib/units';
 import { compareUnits, normalizeUnit } from '../../lib/util';
 import { DetailsGrid } from '../common/Resource';
@@ -144,6 +144,16 @@ export function ResourceQuotaTable({
   );
 }
 
+/**
+ * Formats a quota's scope selector as one entry per expression,
+ * e.g. "PriorityClass In (high, critical)" or "CrossNamespacePodAffinity Exists".
+ */
+export function formatScopeSelector(scopeSelector: KubeResourceQuota['spec']['scopeSelector']) {
+  return (scopeSelector?.matchExpressions ?? []).map(({ scopeName, operator, values }) =>
+    values?.length ? `${scopeName} ${operator} (${values.join(', ')})` : `${scopeName} ${operator}`
+  );
+}
+
 export default function ResourceQuotaDetails(props: {
   name?: string;
   namespace?: string;
@@ -162,6 +172,17 @@ export default function ResourceQuotaDetails(props: {
       withEvents
       extraInfo={item =>
         item && [
+          {
+            // The quota only counts pods that match its scopes, as in kubectl describe
+            name: t('glossary|Scopes'),
+            value: [...(item.spec.scopes ?? [])].sort().join(', '),
+            hide: !item.spec.scopes?.length,
+          },
+          {
+            name: t('glossary|Scope Selector'),
+            value: formatScopeSelector(item.spec.scopeSelector).join('; '),
+            hide: !item.spec.scopeSelector?.matchExpressions?.length,
+          },
           {
             name: t('translation|Status'),
             value: <ResourceQuotaTable resourceStats={item.resourceStats} />,

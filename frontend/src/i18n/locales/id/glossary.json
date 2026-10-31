@@ -224,6 +224,8 @@
   "Cluster IP": "IP Kluster",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Kuota Sumber Daya",
   "Reference Kind": "Jenis Referensi",
   "Reference Name": "Nama Referensi",
