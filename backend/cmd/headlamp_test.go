@@ -5637,3 +5637,101 @@ func assertCookieCleared(t *testing.T, rr *httptest.ResponseRecorder, cookiePref
 
 	assert.True(t, foundCookie, "Expected cookie with prefix %q to be cleared", cookiePrefix)
 }
+
+// TestHandleClusterServiceProxyStatelessCluster verifies that the service proxy
+// resolves the context of a dynamic (stateless) cluster sent in the KUBECONFIG
+// header, which is stored under a user-scoped key, instead of answering 404.
+//
+//nolint:funlen
+func TestHandleClusterServiceProxyStatelessCluster(t *testing.T) {
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("OK"))
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(backend.Close)
+
+	bu, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(strings.TrimPrefix(bu.Host, "["))
+	require.NoError(t, err)
+	portNum, err := strconv.Atoi(strings.TrimSuffix(portStr, "]"))
+	require.NoError(t, err)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/namespaces/default/services/my-service" {
+			svc := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-service", Namespace: "default"},
+				Spec: corev1.ServiceSpec{
+					ExternalName: host,
+					Ports:        []corev1.ServicePort{{Name: "http", Port: int32(portNum)}}, //nolint:gosec
+				},
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(svc)
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	// The cluster only exists in the kubeconfig sent by the frontend, not in the store.
+	rawKubeconfig := fmt.Sprintf(`apiVersion: v1
+kind: Config
+clusters:
+- name: kubernetes
+  cluster:
+    server: %s
+contexts:
+- name: kubernetes
+  context:
+    cluster: kubernetes
+    user: kubernetes
+current-context: kubernetes
+users:
+- name: kubernetes
+  user: {}
+`, kubeAPI.URL)
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/kubernetes/serviceproxy/default/my-service?request=/healthz", nil)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("KUBECONFIG", base64.StdEncoding.EncodeToString([]byte(rawKubeconfig)))
+	req.Header.Set("X-HEADLAMP-USER-ID", "user-serviceproxy")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	assert.Equal(t, "OK", rr.Body.String())
+
+	_, err = cfg.KubeConfigStore.GetContext(statelessContextKey("kubernetes", "user-serviceproxy"))
+	require.NoError(t, err, "context must be stored under the user-scoped key")
+}
