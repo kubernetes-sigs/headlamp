@@ -130,6 +130,7 @@ config:
 | config.inCluster   | bool   | `true`                | Run Headlamp in-cluster                                                   |
 | config.baseURL     | string | `""`                  | Base URL path for Headlamp UI                                             |
 | config.sessionTTL  | int    | `86400`               | The time in seconds for the internal session to remain valid (Default: 86400/24h, Min: 1 , Max: 31536000/1yr) |
+| config.allowedFrameAncestors | string | `""` | Comma-separated origins allowed to embed Headlamp in an iframe. When set, Headlamp sends `Content-Security-Policy: frame-ancestors` with these origins instead of `X-Frame-Options: DENY`. Leave empty to block all framing; `'none'` cannot be combined with other sources |
 | config.unsafeUseServiceAccountToken | bool | `false` | UNSAFE: authenticate every user as the pod's service account when running in-cluster. Only safe behind an auth proxy |
 | config.serviceAccountTokenPath | string | `""` | Path to the service account token file. Used only when `unsafeUseServiceAccountToken` is true |
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
