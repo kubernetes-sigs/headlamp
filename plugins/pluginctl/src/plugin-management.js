@@ -300,6 +300,19 @@ function validatePluginName(pluginName) {
   return !invalidPattern.test(pluginName);
 }
 
+function normalizeChecksum(checksum) {
+  const normalized = String(checksum)
+    .trim()
+    .replace(/^sha256:/i, '')
+    .toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error(
+      'Invalid plugin/archive-checksum. Expected a SHA-256 hex digest like "sha256:<64 hex chars>".'
+    );
+  }
+  return normalized;
+}
+
 /**
  * @param {string} archiveURL - the one to validate
  * @returns true if the archiveURL looks good.
@@ -362,14 +375,11 @@ async function downloadExtractPlugin(
     throw new Error('Invalid plugin/archive-url');
   }
 
-  let checksum = pluginInfo.data['headlamp/plugin/archive-checksum'];
-  if (!archiveURL || !checksum) {
+  const archiveChecksumAnnotation = pluginInfo.data['headlamp/plugin/archive-checksum'];
+  if (!archiveURL || !archiveChecksumAnnotation) {
     throw new Error('Invalid plugin metadata. Please check the plugin details.');
   }
-  if (checksum.startsWith('sha256:') || checksum.startsWith('SHA256:')) {
-    checksum = checksum.replace('sha256:', '');
-    checksum = checksum.replace('SHA256:', '');
-  }
+  const checksum = normalizeChecksum(archiveChecksumAnnotation);
 
   // check if the plugin is compatible with the current Headlamp version
   if (headlampVersion) {
@@ -574,4 +584,4 @@ function defaultPluginsDir() {
   return path.join(configDir, 'user-plugins');
 }
 
-module.exports = { PluginManager, validateArchiveURL };
+module.exports = { PluginManager, validateArchiveURL, normalizeChecksum };
