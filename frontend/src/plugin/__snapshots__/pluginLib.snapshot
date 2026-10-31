@@ -488,6 +488,7 @@
   "Iconify": "Present",
   "K8s": {
     "ResourceClasses": {
+      "CertificateSigningRequest": [Function],
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
       "CompositePodGroup": [Function],
@@ -538,6 +539,9 @@
       "UDPRoute": [Function],
       "VolumeAttributesClass": [Function],
       "Workload": [Function],
+    },
+    "certificateSigningRequest": {
+      "default": [Function],
     },
     "cluster": {
       "HEADLAMP_ALLOWED_NAMESPACES": "headlamp.allowed-namespaces",

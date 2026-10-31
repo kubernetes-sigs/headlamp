@@ -426,6 +426,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('glossary|Service Accounts'),
           },
           {
+            name: 'certificateSigningRequests',
+            label: t('glossary|Certificate Signing Requests'),
+          },
+          {
             name: 'roles',
             label: t('glossary|Roles'),
           },

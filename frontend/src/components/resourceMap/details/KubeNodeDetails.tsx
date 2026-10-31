@@ -20,6 +20,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import JobSet from '../../../lib/k8s/jobSet';
 import LeaderWorkerSet from '../../../lib/k8s/leaderWorkerSet';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import CertificateSigningRequestDetails from '../../certificatesigningrequest/Details';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
@@ -117,6 +118,7 @@ const kindComponentMap: Record<
   VerticalPodAutoscaler: VpaDetails,
   MutatingWebhookConfiguration: MutatingWebhookConfigList,
   ValidatingWebhookConfiguration: ValidatingWebhookConfigurationDetails,
+  CertificateSigningRequest: CertificateSigningRequestDetails,
   IngressClass: IngressClassDetails,
   CustomResourceDefinition: CustomResourceDefinitionDetails,
   crd: CustomResourceDefinitionDetails,

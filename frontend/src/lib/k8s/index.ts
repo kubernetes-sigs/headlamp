@@ -22,6 +22,7 @@ import { useTypedSelector } from '../../redux/hooks';
 import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
+import CertificateSigningRequest from './certificateSigningRequest';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
@@ -76,6 +77,7 @@ import VolumeAttributesClass from './volumeAttributesClass';
 export const ResourceClasses = {
   ClusterRole,
   ClusterRoleBinding,
+  CertificateSigningRequest,
   ConfigMap,
   ControllerRevision,
   CustomResourceDefinition,
@@ -359,6 +361,7 @@ export function useClustersVersion(clusters: Cluster[]) {
 
 // Other exports that can be used by plugins:
 export * as cluster from './cluster';
+export * as certificateSigningRequest from './certificateSigningRequest';
 export * as clusterRole from './clusterRole';
 export * as clusterRoleBinding from './clusterRoleBinding';
 export * as configMap from './configMap';
