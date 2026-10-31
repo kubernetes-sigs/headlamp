@@ -3699,6 +3699,276 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
 }
 
+//nolint:funlen,gosec
+func TestCacheMiddleware_CookieAuthenticatedRequestEvaluatesInSSAR(t *testing.T) {
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	const (
+		authorizedToken   = "authorized-cookie-token"
+		unauthorizedToken = "unauthorized-cookie-token"
+	)
+
+	fakeK8s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+
+			authHeader := r.Header.Get("Authorization")
+			isAllowed := authHeader == "Bearer "+authorizedToken
+
+			status := fmt.Sprintf(`{"status":{"allowed":%v}}`, isAllowed)
+			_, _ = w.Write([]byte(status))
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(fakeK8sResourceListResponse))
+	}))
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil) //nolint:gosec
+		if err != nil {
+			http.Error(w, "failed to create request", http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec
+		if err != nil {
+			http.Error(w, "proxy error", http.StatusInternalServerError)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		_, err = io.Copy(w, resp.Body)
+		assert.NoError(t, err)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps/version"
+
+	// 1. Initial request with authorized cookie populates the cache
+	req1, err := http.NewRequestWithContext(context.Background(), http.MethodGet, resourceURL, nil)
+	require.NoError(t, err)
+	addBackendTokenHeader(req1)
+	req1.AddCookie(&http.Cookie{Name: "headlamp-auth-test.0", Value: authorizedToken})
+
+	resp1, err := http.DefaultClient.Do(req1)
+	require.NoError(t, err)
+
+	defer func() { _ = resp1.Body.Close() }()
+
+	resp1String, err := stringResponse(resp1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	assert.Equal(t, fakeK8sResourceListResponse, resp1String)
+	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE"))
+
+	// 2. Second request with authorized cookie hits the cache
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, resourceURL, nil)
+	require.NoError(t, err)
+	addBackendTokenHeader(req2)
+	req2.AddCookie(&http.Cookie{Name: "headlamp-auth-test.0", Value: authorizedToken})
+
+	resp2, err := http.DefaultClient.Do(req2)
+	require.NoError(t, err)
+
+	defer func() { _ = resp2.Body.Close() }()
+
+	resp2String, err := stringResponse(resp2)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp2.StatusCode)
+	assert.Equal(t, fakeK8sResourceListResponse, resp2String)
+	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE"))
+
+	// 3. Request with unauthorized cookie must NOT serve from cache
+	req3, err := http.NewRequestWithContext(context.Background(), http.MethodGet, resourceURL, nil)
+	require.NoError(t, err)
+	addBackendTokenHeader(req3)
+	req3.AddCookie(&http.Cookie{Name: "headlamp-auth-test.0", Value: unauthorizedToken})
+
+	resp3, err := http.DefaultClient.Do(req3)
+	require.NoError(t, err)
+
+	defer func() { _ = resp3.Body.Close() }()
+
+	assert.Equal(t, http.StatusForbidden, resp3.StatusCode)
+	resp3String, err := stringResponse(resp3)
+	require.NoError(t, err)
+	assert.NotEqual(t, fakeK8sResourceListResponse, resp3String)
+}
+
+//nolint:funlen,gosec
+func TestCacheMiddleware_ProxyTokenHeaderEvaluatesInSSAR(t *testing.T) {
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	const authorizedProxyToken = "proxy-auth-token-123"
+
+	fakeK8s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+
+			authHeader := r.Header.Get("Authorization")
+			isAllowed := authHeader == "Bearer "+authorizedProxyToken
+
+			status := fmt.Sprintf(`{"status":{"allowed":%v}}`, isAllowed)
+			_, _ = w.Write([]byte(status))
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(fakeK8sResourceListResponse))
+	}))
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+	c.ProxyAuthEnabled = true
+	c.ProxyAuthTokenHeader = "X-Proxy-Token"
+
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil) //nolint:gosec
+		if err != nil {
+			http.Error(w, "failed to create request", http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec
+		if err != nil {
+			http.Error(w, "proxy error", http.StatusInternalServerError)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		_, err = io.Copy(w, resp.Body)
+		assert.NoError(t, err)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps/version"
+
+	// 1. Initial request with proxy auth header populates cache
+	req1, err := http.NewRequestWithContext(context.Background(), http.MethodGet, resourceURL, nil)
+	require.NoError(t, err)
+	addBackendTokenHeader(req1)
+	req1.Header.Set("X-Proxy-Token", authorizedProxyToken)
+
+	resp1, err := http.DefaultClient.Do(req1)
+	require.NoError(t, err)
+
+	defer func() { _ = resp1.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE"))
+
+	// 2. Second request with proxy auth header hits cache
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, resourceURL, nil)
+	require.NoError(t, err)
+	addBackendTokenHeader(req2)
+	req2.Header.Set("X-Proxy-Token", authorizedProxyToken)
+
+	resp2, err := http.DefaultClient.Do(req2)
+	require.NoError(t, err)
+
+	defer func() { _ = resp2.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp2.StatusCode)
+	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE"))
+}
+
+func TestCacheMiddleware_InClusterWithoutTokenDoesNotAuthorizeFromCache(t *testing.T) {
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	fakeK8s := newFakeK8sServer(true)
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+	c.UseInCluster = true
+	c.UnsafeUseServiceAccountToken = false
+
+	// Configure context as in-cluster
+	kCtx, err := c.KubeConfigStore.GetContext("test")
+	require.NoError(t, err)
+
+	kCtx.Source = kubeconfig.InCluster
+	kCtx.AuthInfo = &api.AuthInfo{TokenFile: writeTestTokenFile(t)}
+
+	// Pre-populate the cache for the resource
+	cacheKey, err := k8cache.GenerateKey(&url.URL{Path: "/api/v1/namespaces/ns/configmaps/version"}, "test")
+	require.NoError(t, err)
+
+	cachedData := k8cache.CachedResponseData{
+		StatusCode: http.StatusOK,
+		Headers:    http.Header{"Content-Type": []string{"application/json"}},
+		Body:       fakeK8sResourceListResponse,
+	}
+	cachedBytes, err := json.Marshal(cachedData)
+	require.NoError(t, err)
+
+	_ = k8sResponseCache.Set(context.Background(), cacheKey, string(cachedBytes))
+
+	nextCalled := false
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps/version"
+
+	// Request has NO token and NO cookie
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, resourceURL, nil)
+	require.NoError(t, err)
+	addBackendTokenHeader(req)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	// Must NOT be served from cache; must forward to next handler
+	assert.True(t, nextCalled)
+	assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
 // newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests
 // that use a real Kubernetes cluster (e.g. minikube in CI).
 // Uses a temp config dir so Headlamp's dynamic clusters file does not overwrite
@@ -4569,6 +4839,73 @@ func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "Bearer proxy-token", receivedAuth)
 	assert.Empty(t, receivedProxyAuthToken)
+}
+
+//nolint:funlen,gosec
+func TestClusterRequestHandler_NonBearerAuthSchemeHandling(t *testing.T) {
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	const cluster = "main"
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	t.Run("preserves non-Bearer Authorization when no cookie exists", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Basic dXNlcjpwYXNz", receivedAuth)
+	})
+
+	t.Run("cookie replaces non-Bearer Authorization", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+		req.AddCookie(&http.Cookie{Name: "headlamp-auth-main.0", Value: "cookie-token"})
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer cookie-token", receivedAuth)
+	})
 }
 
 func TestAllowedHosts(t *testing.T) {
