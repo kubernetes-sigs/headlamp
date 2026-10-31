@@ -673,6 +673,13 @@ func marshalToString(val interface{}) (string, bool) {
 
 // RefreshAndSetTokenParams groups the inputs required to refresh a token and
 // update the Headlamp auth cookie.
+//
+// KubeConfigStore and UseTokenBroadcast are optional: when UseTokenBroadcast is
+// true and KubeConfigStore is non-nil, a successfully refreshed token is also
+// broadcast to sibling kubeconfig contexts sharing the source cluster's OIDC
+// issuer + client-id (see BroadcastOIDCToken), so sibling cookies stay in sync
+// across refresh cycles. Leaving them zero preserves the previous behavior of
+// refreshing only the requesting cluster's cookie.
 type RefreshAndSetTokenParams struct {
 	Ctx                       context.Context
 	OIDCAuthConfig            *kubeconfig.OidcConfig
@@ -688,6 +695,8 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	KubeConfigStore           kubeconfig.ContextStore
+	UseTokenBroadcast         bool
 }
 
 func setRefreshedIDTokenCookie(
@@ -730,7 +739,9 @@ func refreshedTokenString(newToken *oauth2.Token, useAccessToken bool) (string, 
 }
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
-// and records telemetry based on the provided parameters.
+// and records telemetry based on the provided parameters. When token broadcast
+// is enabled via the params, the refreshed token is additionally broadcast to
+// sibling contexts sharing the same OIDC issuer + client-id.
 //
 //nolint:funlen // Updates both response cookies and current request identity.
 func RefreshAndSetToken(params RefreshAndSetTokenParams) {
@@ -798,4 +809,28 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 	params.Request.Header.Set("Authorization", "Bearer "+newTokenString)
 
 	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+
+	broadcastRefreshedToken(params, newTokenString)
+}
+
+// broadcastRefreshedToken keeps sibling clusters in sync with a freshly
+// refreshed token so they do not fall back to per-cluster re-login once the
+// old token expires. No-op unless broadcasting is enabled on the params.
+//
+// It runs only after the source cluster's own cookie was stored successfully,
+// so a refresh that failed to persist locally is never propagated outwards.
+func broadcastRefreshedToken(params RefreshAndSetTokenParams, newTokenString string) {
+	if !params.UseTokenBroadcast || params.KubeConfigStore == nil {
+		return
+	}
+
+	BroadcastOIDCToken(BroadcastOIDCTokenParams{
+		Writer:          params.Writer,
+		Request:         params.Request,
+		KubeConfigStore: params.KubeConfigStore,
+		SourceCluster:   params.Cluster,
+		Token:           newTokenString,
+		BaseURL:         params.BaseURL,
+		SessionTTL:      params.SessionTTL,
+	})
 }

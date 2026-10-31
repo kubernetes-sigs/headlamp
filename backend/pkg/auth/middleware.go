@@ -41,6 +41,7 @@ type OIDCTokenRefreshConfig struct {
 	TelemetryHandler             *telemetry.RequestHandler
 	Metrics                      *telemetry.Metrics
 	OidcUseAccessToken           bool
+	OidcUseTokenBroadcast        bool
 	OidcIdpIssuerURL             string
 	OidcValidatorIdpIssuerURL    string
 	BaseURL                      string
@@ -146,6 +147,8 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				KubeConfigStore:           config.KubeConfigStore,
+				UseTokenBroadcast:         config.OidcUseTokenBroadcast,
 			})
 
 			next.ServeHTTP(w, r)
