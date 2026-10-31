@@ -20,10 +20,34 @@ import clusterActionSliceReducer, {
   cancelClusterAction,
   CLUSTER_ACTION_GRACE_PERIOD,
   executeClusterAction,
+  splitK8sValidationErrors,
   updateClusterAction,
 } from './clusterActionSlice';
 
 vi.setConfig({ testTimeout: 10000 });
+
+describe('splitK8sValidationErrors', () => {
+  it.each([
+    'name\\',
+    'name\\\\',
+    'name"',
+    'name\\", spec.fake: value',
+    'name, spec.fake: value',
+    'name{[value]}',
+  ])('keeps quoted value %j intact and splits the next field', value => {
+    // Kubernetes field errors quote invalid string values with Go's %q.
+    const first = `metadata.name: Invalid value: ${JSON.stringify(value)}: invalid name`;
+    const second = 'spec.replicas: Invalid value: -1: must be greater than or equal to 0';
+    expect(splitK8sValidationErrors(`${first}, ${second}`)).toEqual([first, second]);
+  });
+
+  it('does not split nested Go struct fields or quoted commas', () => {
+    const first =
+      'spec.selector: Invalid value: v1.LabelSelector{MatchLabels:map[string]string{"x":"a, b"}, MatchExpressions:[]v1.LabelSelectorRequirement{}}: invalid';
+    const second = 'spec.template.metadata.labels: Required value';
+    expect(splitK8sValidationErrors(`${first}, ${second}`)).toEqual([first, second]);
+  });
+});
 
 function getStore() {
   const createActionTracker = () => {
