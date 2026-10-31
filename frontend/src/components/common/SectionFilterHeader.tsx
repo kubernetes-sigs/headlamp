@@ -38,7 +38,7 @@ function getFilterValueByNameFromURL(key: string, location: any): string[] {
   if (!filterValue) {
     return [];
   }
-  return filterValue.split(' ');
+  return filterValue.split(' ').filter(Boolean);
 }
 
 export interface SectionFilterHeaderProps extends SectionHeaderProps {
@@ -67,13 +67,12 @@ export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
     () => {
       const namespace = getFilterValueByNameFromURL('namespace', location);
       if (namespace.length > 0) {
+        const sortedUrl = [...new Set(namespace)].sort();
         const namespaceFromStore = [...filter.namespaces].sort();
-        if (
-          namespace
-            .slice()
-            .sort()
-            .every((value: string, index: number) => value !== namespaceFromStore[index])
-        ) {
+        const isDifferent =
+          sortedUrl.length !== namespaceFromStore.length ||
+          sortedUrl.some((value: string, index: number) => value !== namespaceFromStore[index]);
+        if (isDifferent) {
           dispatch(setNamespaceFilter(namespace));
         }
       }
