@@ -115,8 +115,7 @@ export const formatClusterPathParam = (selectedClusters: string[], currentCluste
  * @returns the cluster group from the URL.
  */
 export function getClusterGroup(returnWhenNoClusters: string[] = []): string[] {
-  const clusterFromURL = getCluster();
-  return clusterFromURL?.split('+') || returnWhenNoClusters;
+  return getSelectedClusters(returnWhenNoClusters);
 }
 
 /**
