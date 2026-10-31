@@ -191,7 +191,8 @@ func loadOidcCACert(oidcCAFile string) string {
 		return ""
 	}
 
-	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	//nolint:gosec // G304: Path configured via operator --oidc-ca-file CLI flag.
+	caFileContents, err := os.ReadFile(oidcCAFile)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 		os.Exit(1)
