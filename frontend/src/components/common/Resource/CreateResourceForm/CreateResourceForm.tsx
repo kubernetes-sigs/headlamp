@@ -176,7 +176,12 @@ function isFieldValid(field: FormField, value: any, resource: Record<string, any
         value.length > 0 &&
         value.every(
           (p: any) =>
-            p && typeof p === 'object' && Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535
+            p &&
+            typeof p === 'object' &&
+            Number.isInteger(p.port) &&
+            p.port >= 1 &&
+            p.port <= 65535 &&
+            isValidTargetPort(p.targetPort)
         )
       );
     case 'boolean':
@@ -630,6 +635,14 @@ export interface ServicePortsTextFieldProps {
   showNodePort?: boolean;
 }
 
+/** A Service targetPort is optional and can be a port name, but a number has to be 1-65535. */
+function isValidTargetPort(targetPort: unknown): boolean {
+  return (
+    typeof targetPort !== 'number' ||
+    (Number.isInteger(targetPort) && targetPort >= 1 && targetPort <= 65535)
+  );
+}
+
 /** Editor for a Service's `spec.ports` array. Renders one row per port with
  *  name / port / targetPort / nodePort / protocol inputs plus add/remove
  *  controls. `targetPort` accepts either an integer or a string (named
@@ -725,6 +738,12 @@ export function ServicePortsTextField(props: ServicePortsTextFieldProps) {
             label={t('translation|Target Port')}
             value={port?.targetPort ?? ''}
             onChange={event => updatePort(index, 'targetPort', event.target.value)}
+            error={!isValidTargetPort(port?.targetPort)}
+            helperText={
+              isValidTargetPort(port?.targetPort)
+                ? undefined
+                : t('translation|Please enter a valid port number (1-65535).')
+            }
           />
           {showNodePort && (
             <FormTextField

@@ -70,4 +70,55 @@ describe('CreateServiceForm', () => {
       expect((getByLabelText('External IPs') as HTMLInputElement).value).toBe('10.0.0.1, 10.0.0.2');
     });
   });
+
+  describe('Target Port field', () => {
+    function renderWithTargetPort(targetPort: string) {
+      let last: Record<string, any> = {
+        metadata: { name: 'web', namespace: 'default' },
+        spec: { ports: [{ name: '', port: 80, protocol: 'TCP', targetPort: 80 }] },
+      };
+      const onValidChange = vi.fn();
+      function Harness() {
+        return (
+          <CreateServiceForm
+            resource={last}
+            onChange={next => {
+              last = next;
+            }}
+            onValidChange={onValidChange}
+          />
+        );
+      }
+      const utils = render(<Harness />);
+      expect(onValidChange).toHaveBeenLastCalledWith(true);
+
+      fireEvent.change(utils.getByLabelText('Target Port'), { target: { value: targetPort } });
+      utils.rerender(<Harness />);
+      return { ...utils, onValidChange, last: () => last };
+    }
+
+    it('marks the form invalid and shows an error for a number outside 1-65535', () => {
+      for (const targetPort of ['65536', '0']) {
+        const { getByText, onValidChange, unmount } = renderWithTargetPort(targetPort);
+
+        expect(onValidChange).toHaveBeenLastCalledWith(false);
+        expect(getByText('Please enter a valid port number (1-65535).')).toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it('accepts a number in range and a named target port', () => {
+      for (const [typed, saved] of [
+        ['8080', 8080],
+        ['http', 'http'],
+      ] as const) {
+        const { queryByText, onValidChange, last, unmount } = renderWithTargetPort(typed);
+
+        expect(last().spec.ports[0].targetPort).toBe(saved);
+        expect(onValidChange).toHaveBeenLastCalledWith(true);
+        expect(queryByText('Please enter a valid port number (1-65535).')).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+  });
 });
