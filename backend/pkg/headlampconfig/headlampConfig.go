@@ -54,6 +54,7 @@ type HeadlampCFG struct {
 	InClusterContextName   string
 	ListenAddr             string
 	CacheEnabled           bool
+	CacheResyncPeriod      time.Duration
 	DevMode                bool
 	Insecure               bool
 	EnableHelm             bool
