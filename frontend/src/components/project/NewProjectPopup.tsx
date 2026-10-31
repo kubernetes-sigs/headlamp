@@ -403,6 +403,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           }
           autoComplete="off"
           fullWidth
+          disabled={isCreating}
         />
         <Autocomplete
           fullWidth
@@ -422,7 +423,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
             />
           )}
           noOptionsText={t('No available clusters')}
-          disabled={clusters.length === 0}
+          disabled={clusters.length === 0 || isCreating}
         />
         <Autocomplete
           fullWidth
@@ -442,6 +443,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
             }
           }}
           getOptionDisabled={option => namespaceToProjectMap.has(option)}
+          disabled={isCreating}
           renderInput={params => (
             <TextField
               {...params}
