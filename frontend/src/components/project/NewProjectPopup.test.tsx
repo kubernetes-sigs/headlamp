@@ -585,6 +585,66 @@ describe('NewProjectPopup', () => {
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
   });
 
+  test('creates a namespace with the normalised form of the confirmed text', async () => {
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('new-project', 'My NS');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalledTimes(1));
+    expect(mockApply).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ name: 'my-ns' }) }),
+      'cluster-1'
+    );
+  });
+
+  test('keeps Create disabled for a namespace that is not a valid Kubernetes name', async () => {
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), { target: { value: 'my-project' } });
+    fireEvent.mouseDown(screen.getByLabelText('Clusters'));
+    fireEvent.click(screen.getByText('cluster-1'));
+    const nsInput = screen.getByLabelText('Namespace');
+    fireEvent.change(nsInput, { target: { value: '!!!' } });
+    fireEvent.keyDown(nsInput, { key: 'Enter' });
+
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+  });
+
+  test('keeps Create disabled for a name that is not a valid Kubernetes name', async () => {
+    // A label that normalises to nothing must not make an invalid name look taken
+    (MockKubeObject.useList as any).mockReturnValue({
+      items: [{ metadata: { name: 'odd-ns', labels: { [PROJECT_ID_LABEL]: '!!!' } } }],
+      errors: [],
+      isLoading: false,
+    });
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), { target: { value: '---' } });
+    fireEvent.mouseDown(screen.getByLabelText('Clusters'));
+    fireEvent.click(screen.getByText('cluster-1'));
+    const nsInput = screen.getByLabelText('Namespace');
+    fireEvent.change(nsInput, { target: { value: 'my-ns' } });
+    fireEvent.keyDown(nsInput, { key: 'Enter' });
+
+    const createBtn = screen.getByRole('button', { name: 'Create' });
+    expect(screen.getByLabelText(/Project Name/i)).toHaveValue('---');
+    expect(createBtn).toBeDisabled();
+    expect(screen.queryByText('A project with this name already exists')).not.toBeInTheDocument();
+  });
+
   test('creates the typed namespace when the text no longer matches the picked option', async () => {
     const store = mockWatchedNamespaces([]);
     const namespace = watchedNamespace(store, 'cluster-1', 'existing-ns');

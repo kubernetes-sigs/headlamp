@@ -211,7 +211,10 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
         continue;
       }
       result.add(labelValue);
-      result.add(toKubernetesName(labelValue));
+      const normalized = toKubernetesName(labelValue);
+      if (normalized) {
+        result.add(normalized);
+      }
     }
     return result;
   }, [otherNamespaces]);
@@ -237,6 +240,8 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
     selectedClusters.length &&
     (selectedNamespace || typedNamespace) &&
     projectName &&
+    projectId !== '' &&
+    effectiveNamespace !== '' &&
     !projectNameExists &&
     !isNamespaceAlreadyAssigned;
 
@@ -412,7 +417,8 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           options={uniq(namespaces?.map(it => it.metadata.name)) ?? []}
           value={selectedNamespace}
           onChange={(event, newValue) => {
-            setSelectedNamespace(newValue ?? undefined);
+            // Free text confirmed with Enter arrives as typed; keep the selection a valid name
+            setSelectedNamespace(newValue ? toKubernetesName(newValue) || undefined : undefined);
           }}
           onInputChange={(e, v, reason) => {
             setTypedNamespace(v);
