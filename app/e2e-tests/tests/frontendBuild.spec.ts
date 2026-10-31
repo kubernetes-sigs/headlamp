@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron } from 'playwright';
+import { WELCOME_DISMISSED_KEY } from './welcome';
 
 const appPath = path.resolve(__dirname, '../..');
 const frontendBuild = path.resolve(appPath, '../frontend/build');
@@ -50,7 +51,11 @@ test('loads the default frontend production build in Electron', async () => {
 
   try {
     const page = await electronApp.firstWindow();
-    await page.evaluate(() => localStorage.setItem('disable_update_check', 'true'));
+    // The reload below applies both; the Welcome modal would hide the page from role queries.
+    await page.evaluate(welcomeKey => {
+      localStorage.setItem('disable_update_check', 'true');
+      localStorage.setItem(welcomeKey, 'true');
+    }, WELCOME_DISMISSED_KEY);
     const rendererErrors: string[] = [];
     const loadedScripts: string[] = [];
     page.on('pageerror', error => rendererErrors.push(error.message));

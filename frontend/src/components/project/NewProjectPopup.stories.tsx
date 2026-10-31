@@ -49,6 +49,7 @@ const makeStore = (customCreateProject = {}) => {
           sidebarSortAlphabetically: false,
           useEvict: true,
           expandLargeGraph: false,
+          tutorialTooltips: true,
         },
         isDynamicClusterEnabled: false,
         allowKubeconfigChanges: false,

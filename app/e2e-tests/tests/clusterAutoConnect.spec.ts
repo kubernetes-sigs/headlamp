@@ -41,6 +41,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron, Page } from 'playwright';
+import { dismissWelcome } from './welcome';
 
 const CLUSTER_NAME = 'headlamp-e2e-connect';
 const EXEC_KUBECONFIG = path.join(os.tmpdir(), `${CLUSTER_NAME}.kubeconfig`);
@@ -131,6 +132,7 @@ test.beforeAll(async () => {
   });
   electronPage = await electronApp.firstWindow();
   await electronPage.waitForLoadState('load');
+  await dismissWelcome(electronPage);
   // The app uses file:// with hash routing: file:///...index.html#/
   // Capture the base file URL (without hash) for navigation.
   const rawUrl = electronPage.url();

@@ -1,0 +1,16 @@
+<body>
+  <div>
+    Load from KubeConfig
+    <button
+      aria-label="About loading from KubeConfig"
+      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-qsifm6-MuiButtonBase-root-MuiIconButton-root"
+      data-mui-internal-clone-element="true"
+      tabindex="0"
+      type="button"
+    >
+      <span
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+      />
+    </button>
+  </div>
+</body>
