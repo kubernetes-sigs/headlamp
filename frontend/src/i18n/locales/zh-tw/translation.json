@@ -408,6 +408,7 @@
   "No documentation available.": "無可用檔案。",
   "No documentation for type {{ docsType }}.": "類型 {{ docsType }} 沒有檔案。",
   "Showing documentation for: {{ docsType }}": "顯示檔案：{{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

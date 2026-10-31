@@ -414,6 +414,7 @@
   "No documentation available.": "Документация отсутствует.",
   "No documentation for type {{ docsType }}.": "Нет документации для типа {{ docsType }}.",
   "Showing documentation for: {{ docsType }}": "Показана документация для: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Скрыть управляемые поля",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

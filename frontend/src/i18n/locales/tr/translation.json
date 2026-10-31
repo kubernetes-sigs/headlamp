@@ -410,6 +410,7 @@
   "No documentation available.": "Kullanılabilir belge yok.",
   "No documentation for type {{ docsType }}.": "{{ docsType }} türü için belge yok.",
   "Showing documentation for: {{ docsType }}": "{{ docsType }} için belgeler gösteriliyor",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Yönetilen Alanları Gizle",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

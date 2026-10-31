@@ -408,6 +408,7 @@
   "No documentation available.": "利用可能なドキュメントがありません。",
   "No documentation for type {{ docsType }}.": "タイプ {{ docsType }} のドキュメントはありません。",
   "Showing documentation for: {{ docsType }}": "{{ docsType }} のドキュメントを表示中",
+  "Resize details drawer": "",
   "Hide Managed Fields": "",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",
