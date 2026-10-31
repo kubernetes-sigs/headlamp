@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -44,16 +45,26 @@ import (
 // in cache, this delete keys having namespace non-empty and
 // also empty namespace.
 func DeleteKeys(key string, k8scache cache.Cache[string]) {
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	deleteKeysLocked(key, k8scache)
+}
+
+func deleteKeysLocked(key string, k8scache cache.Cache[string]) {
 	_ = k8scache.Delete(context.Background(), key)
+	unindexCacheKeyLocked(key)
 
 	keyPart := strings.Split(key, "+")
 	if len(keyPart) < 4 {
 		return // malformed key; nothing to namespace-strip
 	}
 
-	keyPart[2] = ""
-	key = strings.Join(keyPart, "+")
-	_ = k8scache.Delete(context.Background(), key)
+	nsIdx := len(keyPart) - 2
+	keyPart[nsIdx] = ""
+	allNsKey := strings.Join(keyPart, "+")
+	_ = k8scache.Delete(context.Background(), allNsKey)
+	unindexCacheKeyLocked(allNsKey)
 }
 
 // handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
@@ -77,6 +88,18 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	}
 
 	DeleteKeys(key, k8scache)
+
+	if apiGroup, apiVersion, gErr := GetAPIGroup(r.URL.Path); gErr == nil {
+		namespace, kind := extractNamespaceAndResourcePath(r.URL)
+		if resource, name := extractBaseResourceAndName(kind); resource != "" {
+			gvr := schema.GroupVersionResource{
+				Group:    apiGroup,
+				Version:  apiVersion,
+				Resource: resource,
+			}
+			invalidateCacheKeysForResourceEvent(gvr, namespace, name, contextKey, k8scache)
+		}
+	}
 
 	freshURL := *r.URL
 
@@ -368,28 +391,327 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 	)
 }
 
+var (
+	resourceIndexMu sync.RWMutex
+	// resourceKeyIndex maps bucketKey (contextKey + "+" + group + "+" + resource + "+" + namespace)
+	// to a map of cacheKey -> expiresAt time.Time.
+	resourceKeyIndex = make(map[string]map[string]time.Time)
+
+	indexJanitorOnce sync.Once
+)
+
+func startIndexJanitor() {
+	indexJanitorOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				resourceIndexMu.Lock()
+				evictExpiredIndexEntriesLocked(time.Now())
+				resourceIndexMu.Unlock()
+			}
+		}()
+	})
+}
+
+func evictExpiredIndexEntriesLocked(now time.Time) {
+	for bucketKey, bucket := range resourceKeyIndex {
+		for key, exp := range bucket {
+			if !exp.IsZero() && !now.Before(exp) {
+				delete(bucket, key)
+			}
+		}
+
+		if len(bucket) == 0 {
+			delete(resourceKeyIndex, bucketKey)
+		}
+	}
+}
+
+func buildIndexBucketKey(contextKey, group, resource, namespace string) string {
+	return escapeCacheKeySegment(contextKey) + "+" +
+		escapeCacheKeySegment(group) + "+" +
+		escapeCacheKeySegment(resource) + "+" +
+		escapeCacheKeySegment(namespace)
+}
+
+func extractBaseResourceAndName(kindPart string) (string, string) {
+	if idx := strings.Index(kindPart, "?"); idx != -1 {
+		kindPart = kindPart[:idx]
+	}
+
+	parts := strings.Split(kindPart, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return "", ""
+	}
+
+	resource := parts[0]
+
+	name := ""
+	if len(parts) > 1 {
+		name = parts[1]
+	}
+
+	return resource, name
+}
+
+func extractBaseResource(kindPart string) string {
+	resource, _ := extractBaseResourceAndName(kindPart)
+	return resource
+}
+
+func indexCacheKeyLocked(key string, expiresAt time.Time) {
+	startIndexJanitor()
+
+	group, _, kind, namespace, contextKey, ok := parseCacheKey(key)
+	if !ok || contextKey == "" {
+		return
+	}
+
+	resource := extractBaseResource(kind)
+	if resource == "" {
+		return
+	}
+
+	bucketKey := buildIndexBucketKey(contextKey, group, resource, namespace)
+
+	bucket, exists := resourceKeyIndex[bucketKey]
+	if !exists {
+		bucket = make(map[string]time.Time)
+		resourceKeyIndex[bucketKey] = bucket
+	}
+
+	if currExp, found := bucket[key]; !found || expiresAt.After(currExp) {
+		bucket[key] = expiresAt
+	}
+}
+
+func indexCacheKey(key string) {
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	indexCacheKeyLocked(key, time.Time{})
+}
+
+func unindexCacheKeyLocked(key string) {
+	unindexIfExpiredLocked(key, time.Time{})
+}
+
+func unindexIfExpired(key string) {
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	unindexIfExpiredLocked(key, time.Now())
+}
+
+func unindexIfExpiredLocked(key string, now time.Time) {
+	group, _, kind, namespace, contextKey, ok := parseCacheKey(key)
+	if !ok || contextKey == "" {
+		return
+	}
+
+	resource := extractBaseResource(kind)
+	if resource == "" {
+		return
+	}
+
+	bucketKey := buildIndexBucketKey(contextKey, group, resource, namespace)
+
+	bucket, exists := resourceKeyIndex[bucketKey]
+	if !exists {
+		return
+	}
+
+	exp, found := bucket[key]
+	if !found {
+		return
+	}
+
+	// If now is non-zero, this is an expiration event. Synchronize check:
+	// only unindex if the entry has truly expired. If a newer response
+	// replaced this key, exp will be after now, so we keep the replacement.
+	if !now.IsZero() && !exp.IsZero() && now.Before(exp) {
+		return
+	}
+
+	delete(bucket, key)
+
+	if len(bucket) == 0 {
+		delete(resourceKeyIndex, bucketKey)
+	}
+}
+
+func purgeIndexForContext(contextKey string) {
+	escapedContext := escapeCacheKeySegment(contextKey)
+	prefix := escapedContext + "+"
+
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	for bucketKey := range resourceKeyIndex {
+		if strings.HasPrefix(bucketKey, prefix) {
+			delete(resourceKeyIndex, bucketKey)
+		}
+	}
+}
+
+func matchesResourceInvalidation(k string, gvr schema.GroupVersionResource, namespace, name, contextKey string) bool {
+	group, _, kindPart, keyNs, keyCtx, ok := parseCacheKey(k)
+	if !ok {
+		return false
+	}
+
+	if keyCtx != contextKey {
+		return false
+	}
+
+	if group != gvr.Group {
+		return false
+	}
+
+	// Namespace matching: events in a namespace invalidate that namespace
+	// and cluster-wide (empty namespace) queries for that resource.
+	if keyNs != "" && keyNs != namespace {
+		return false
+	}
+
+	// If list query for this resource: e.g. pods or pods?labelSelector=...
+	if kindPart == gvr.Resource || strings.HasPrefix(kindPart, gvr.Resource+"?") {
+		return true
+	}
+
+	if name == "" {
+		return false
+	}
+
+	// If named resource GET or subresource: e.g. pods/web, pods/web/log, pods/web?...
+	// Boundary check: must match exact target, or be followed by '/' or '?'
+	targetNamedResource := gvr.Resource + "/" + name
+	if kindPart == targetNamedResource ||
+		strings.HasPrefix(kindPart, targetNamedResource+"/") ||
+		strings.HasPrefix(kindPart, targetNamedResource+"?") {
+		return true
+	}
+
+	// Legacy named key (without resource prefix): name, name/..., name?...
+	if kindPart == name ||
+		strings.HasPrefix(kindPart, name+"/") ||
+		strings.HasPrefix(kindPart, name+"?") {
+		return true
+	}
+
+	return false
+}
+
+func getKeysForResourceInvalidationLocked(
+	gvr schema.GroupVersionResource,
+	namespace, name, contextKey string,
+) []string {
+	var candidateKeys []string
+
+	collectCandidates := func(bucketKey string) {
+		bucket, exists := resourceKeyIndex[bucketKey]
+		if !exists {
+			return
+		}
+
+		now := time.Now()
+
+		for k, exp := range bucket {
+			if !exp.IsZero() && !now.Before(exp) {
+				delete(bucket, k)
+
+				continue
+			}
+
+			candidateKeys = append(candidateKeys, k)
+		}
+
+		if len(bucket) == 0 {
+			delete(resourceKeyIndex, bucketKey)
+		}
+	}
+
+	nsBucket := buildIndexBucketKey(contextKey, gvr.Group, gvr.Resource, namespace)
+	collectCandidates(nsBucket)
+
+	if namespace != "" {
+		allNsBucket := buildIndexBucketKey(contextKey, gvr.Group, gvr.Resource, "")
+		collectCandidates(allNsBucket)
+	}
+
+	var toDelete []string
+
+	for _, k := range candidateKeys {
+		if matchesResourceInvalidation(k, gvr, namespace, name, contextKey) {
+			toDelete = append(toDelete, k)
+		}
+	}
+
+	return toDelete
+}
+
 // invalidateCacheKeysForResourceEvent evicts cached list responses (including the
-// all-namespace list variant via DeleteKeys) and a cached named GET response.
-// GenerateKey stores list paths with gvr.Resource as the kind segment, but named
-// GET paths use the object name as the kind segment.
+// all-namespace list variant via deleteKeysLocked) and cached named GET and subresource responses.
 func invalidateCacheKeysForResourceEvent(
 	gvr schema.GroupVersionResource,
 	namespace, name, contextKey string,
 	k8scache cache.Cache[string],
 ) {
-	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	listKey := buildCacheKey(gvr.Group, gvr.Version, gvr.Resource, namespace, contextKey)
 
 	logger.Log(logger.LevelInfo, nil, nil,
 		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
 
-	DeleteKeys(listKey, k8scache)
+	deleteKeysLocked(listKey, k8scache)
 
-	if name == "" {
-		return
+	// Also evict legacy 4-segment list key for backward compatibility.
+	legacyListKey := buildLegacyCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+	deleteKeysLocked(legacyListKey, k8scache)
+
+	if name != "" {
+		// Evict named key (+version+name+ns+ctx) and legacy named key (+name+ns+ctx).
+		namedKey := buildCacheKey(gvr.Group, gvr.Version, name, namespace, contextKey)
+		if err := k8scache.Delete(context.Background(), namedKey); err != nil {
+			logger.Log(logger.LevelError, nil, err, "error while deleting key")
+		}
+
+		unindexCacheKeyLocked(namedKey)
+
+		legacyNamedKey := buildLegacyCacheKey(gvr.Group, name, namespace, contextKey)
+		if err := k8scache.Delete(context.Background(), legacyNamedKey); err != nil {
+			logger.Log(logger.LevelError, nil, err, "error while deleting key")
+		}
+
+		unindexCacheKeyLocked(legacyNamedKey)
+
+		// Evict canonical resource-qualified named key (+version+resource/name+ns+ctx)
+		// and legacy resource-qualified named key (+resource/name+ns+ctx).
+		namedResourceKey := buildCacheKey(gvr.Group, gvr.Version, gvr.Resource+"/"+name, namespace, contextKey)
+		if err := k8scache.Delete(context.Background(), namedResourceKey); err != nil {
+			logger.Log(logger.LevelError, nil, err, "error while deleting key")
+		}
+
+		unindexCacheKeyLocked(namedResourceKey)
+
+		legacyNamedResourceKey := buildLegacyCacheKey(gvr.Group, gvr.Resource+"/"+name, namespace, contextKey)
+		if err := k8scache.Delete(context.Background(), legacyNamedResourceKey); err != nil {
+			logger.Log(logger.LevelError, nil, err, "error while deleting key")
+		}
+
+		unindexCacheKeyLocked(legacyNamedResourceKey)
 	}
 
-	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	// Invalidate any cached list queries with query parameters (e.g. ?labelSelector=...),
+	// multiple served-version entries, or subresource entries matching this resource.
+	keysToDelete := getKeysForResourceInvalidationLocked(gvr, namespace, name, contextKey)
+
+	for _, k := range keysToDelete {
+		_ = k8scache.Delete(context.Background(), k)
+		unindexCacheKeyLocked(k)
 	}
 }
