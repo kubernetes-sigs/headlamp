@@ -35,7 +35,7 @@ function NameValueLines({ values }: { values: [string, string | undefined][] }) 
 }
 
 export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }) {
-  const { t } = useTranslation(['translation']);
+  const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <SimpleTable
@@ -51,6 +51,17 @@ export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }
               values={Object.entries(device.attributes ?? {}).map(([name, attribute]) => [
                 name,
                 formatDeviceAttribute(attribute),
+              ])}
+            />
+          ),
+        },
+        {
+          label: t('glossary|Capacity'),
+          getter: (device: ResourceSliceDevice) => (
+            <NameValueLines
+              values={Object.entries(device.capacity ?? {}).map(([name, capacity]) => [
+                name,
+                capacity.value,
               ])}
             />
           ),
