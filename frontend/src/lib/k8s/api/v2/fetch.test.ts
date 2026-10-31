@@ -63,6 +63,24 @@ describe('clusterFetch', () => {
     nock.cleanAll();
   });
 
+  it.each([
+    ['prod#blue', 'prod%23blue'],
+    ['prod?region=west', 'prod%3Fregion%3Dwest'],
+    ['prod%blue', 'prod%25blue'],
+    ['prod', 'prod'],
+  ])('keeps cluster name %s in a single URL path segment', async (cluster, encoded) => {
+    const request = nock(BASE_HTTP_URL)
+      .get(`/clusters/${encoded}/api/v1/pods`)
+      .query({ limit: '10' })
+      .reply(200, mockResponse);
+
+    const response = await clusterFetch('/api/v1/pods?limit=10', { cluster });
+
+    expect(await response.json()).toEqual(mockResponse);
+    expect(request.isDone()).toBe(true);
+    expect(findKubeconfigByClusterName).toHaveBeenCalledWith(cluster);
+  });
+
   it('Successfully makes a request', async () => {
     nock(BASE_HTTP_URL).get(`/clusters/${clusterName}${testUrl}`).reply(200, mockResponse);
 
