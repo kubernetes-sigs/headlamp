@@ -19,7 +19,7 @@ import { http, HttpResponse } from 'msw';
 import type { KubeResourceSlice } from '../../lib/k8s/resourceSlice';
 import { API_BASE, TestContext } from '../../test';
 import ResourceSliceDetails from './ResourceSliceDetails';
-import { RESOURCE_SLICE_DUMMY_DATA } from './storyHelper';
+import { RESOURCE_SLICE_DUMMY_DATA, RESOURCE_SLICE_PER_DEVICE } from './storyHelper';
 
 const [nodeSlice, allNodesSlice] = RESOURCE_SLICE_DUMMY_DATA;
 
@@ -63,6 +63,10 @@ OnANode.parameters = { msw: { handlers: { story: handlersFor(nodeSlice) } } };
 export const AllNodes = Template.bind({});
 AllNodes.args = { name: allNodesSlice.metadata.name };
 AllNodes.parameters = { msw: { handlers: { story: handlersFor(allNodesSlice) } } };
+
+export const PerDevice = Template.bind({});
+PerDevice.args = { name: RESOURCE_SLICE_PER_DEVICE.metadata.name };
+PerDevice.parameters = { msw: { handlers: { story: handlersFor(RESOURCE_SLICE_PER_DEVICE) } } };
 
 export const Loading = Template.bind({});
 Loading.args = { name: nodeSlice.metadata.name };
