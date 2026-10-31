@@ -321,41 +321,62 @@ export default function Terminal(props: TerminalProps) {
         reconnectOnEnter: false,
       };
 
-      fitAddonRef.current = new FitAddon();
-      xtermRef.current.xterm.loadAddon(fitAddonRef.current);
+      // Capture the addon in an effect-local variable so the async continuation
+      // can still reference it even after fitAddonRef.current is cleared by cleanup.
+      let cancelled = false;
+      const fitAddon = new FitAddon();
+      fitAddonRef.current = fitAddon;
+      xtermRef.current.xterm.loadAddon(fitAddon);
 
       (async function () {
+        // Capture the stream handle in an effect-local variable first. If cleanup
+        // runs during the await, it sees execOrAttachRef.current === null and
+        // cannot cancel. By checking `cancelled` before assigning to the shared
+        // ref we ensure the handle is cancelled even when unmount races the await.
+        let handle;
         if (isAttach) {
           xtermRef?.current?.xterm.writeln(
             t('Trying to attach to the container {{ container }}…', { container }) + '\n'
           );
 
-          execOrAttachRef.current = await item.attach(
-            container,
-            items => onData(xtermRef.current!, items),
-            { failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
+          handle = await item.attach(container, items => onData(xtermRef.current!, items), {
+            failCb: () => shellConnectFailed(xtermRef.current!),
+          });
         } else {
           const command = getCurrentShellCommand();
 
           xtermRef?.current?.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
 
-          execOrAttachRef.current = await item.exec(
-            container,
-            items => onData(xtermRef.current!, items),
-            { command: [command], failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
+          handle = await item.exec(container, items => onData(xtermRef.current!, items), {
+            command: [command],
+            failCb: () => shellConnectFailed(xtermRef.current!),
+          });
         }
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
+
+        if (cancelled) {
+          // Cleanup already ran while we were awaiting; cancel the live stream
+          // so it does not remain active after unmount.
+          handle?.cancel();
+          return;
+        }
+
+        execOrAttachRef.current = handle;
+        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddon);
       })();
 
       const handler = () => {
-        fitAddonRef.current!.fit();
+        // Use optional chaining: the ref is cleared in cleanup before the event
+        // listener is removed, so a late-firing resize cannot dereference null.
+        fitAddonRef.current?.fit();
       };
 
       window.addEventListener('resize', handler);
 
       return function cleanup() {
+        cancelled = true;
+        fitAddonRef.current = null;
+        // xterm.dispose() already disposes all addons loaded via loadAddon()
+        // through its internal AddonManager, so no explicit fitAddon.dispose() needed.
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
@@ -618,7 +639,9 @@ export default function Terminal(props: TerminalProps) {
       onClose={onClose}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          if (fitAddonRef.current && typeof fitAddonRef.current.fit === 'function') {
+            fitAddonRef.current.fit();
+          }
         }, 1);
       }}
       withFullScreen
