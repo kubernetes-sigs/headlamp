@@ -24,6 +24,8 @@ import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
+import ServiceAccount from '../../../../lib/k8s/serviceAccount';
+import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
 import { useNamespaces } from '../../../../redux/filterSlice';
@@ -391,6 +393,40 @@ describe('useGetAllRelations', () => {
         node(secret)
       )
     ).toBe(false);
+  });
+
+  it('links StatefulSets to the ServiceAccount they use', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'sa-statefulset');
+    const serviceAccount = (name: string) =>
+      new ServiceAccount(
+        { metadata: { uid: `sa-${name}`, name, namespace: 'namespace-a' } } as any,
+        'cluster-a'
+      );
+    const statefulSet = (namespace: string, serviceAccountName?: string) =>
+      new StatefulSet(
+        {
+          metadata: { uid: 'statefulset', name: 'db', namespace },
+          spec: { template: { spec: { serviceAccountName, containers: [] } } },
+          status: {},
+        } as any,
+        'cluster-a'
+      );
+
+    expect(BUILT_IN_RELATION_IDS).toContain('sa-statefulset');
+    expect(
+      relation.predicate(node(serviceAccount('db-sa')), node(statefulSet('namespace-a', 'db-sa')))
+    ).toBe(true);
+    expect(
+      relation.predicate(node(serviceAccount('db-sa')), node(statefulSet('namespace-a', 'other')))
+    ).toBe(false);
+    expect(
+      relation.predicate(node(serviceAccount('db-sa')), node(statefulSet('namespace-b', 'db-sa')))
+    ).toBe(false);
+    expect(
+      relation.predicate(node(serviceAccount('default')), node(statefulSet('namespace-a')))
+    ).toBe(true);
   });
 
   it('matches and rejects Kubernetes owner references', () => {
