@@ -17,6 +17,20 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LegalDocumentResult, LegalDocumentSummary } from './legal-documents';
 
+// GitHub OAuth channels mirror githubOAuth.ts; the sandboxed preload bundle must
+// not import that main-process module.
+const GITHUB_OAUTH_START = 'github-oauth-start';
+const GITHUB_OAUTH_REFRESH = 'github-oauth-refresh';
+
+/** GitHub OAuth result delivered by the main process. */
+interface GitHubOAuthResult {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
 // Keeps the mapping between a caller-provided listener and the wrapped one we
 // actually register with ipcRenderer, so removeListener can still unsubscribe
 // the listener when callers pass the original function reference.
@@ -184,6 +198,31 @@ contextBridge.exposeInMainWorld('desktopApi', {
     }),
 
   platform: process.platform,
+
+  /**
+   * GitHub OAuth requests authorized by a plugin command capability with the
+   * product's githubOAuth grant. Results return only to the requesting call;
+   * there is deliberately no token event subscription.
+   */
+  githubOAuth: {
+    /**
+     * Opens the browser and resolves when that sign-in completes, fails, or is cancelled.
+     *
+     * @param capability - Opaque command capability granted GitHub OAuth.
+     * @returns The token set or a sanitized failure.
+     */
+    start: (capability: string): Promise<GitHubOAuthResult> =>
+      ipcRenderer.invoke(GITHUB_OAUTH_START, capability),
+    /**
+     * Exchanges a refresh token for a new expiring token set.
+     *
+     * @param capability - Opaque command capability granted GitHub OAuth.
+     * @param refreshToken - Current GitHub refresh token.
+     * @returns The new token set or a sanitized failure.
+     */
+    refresh: (capability: string, refreshToken: string): Promise<GitHubOAuthResult> =>
+      ipcRenderer.invoke(GITHUB_OAUTH_REFRESH, { capability, refreshToken }),
+  },
 
   /** @returns Legal documents declared by the packaged application manifest. */
   getLegalDocuments: (): Promise<LegalDocumentSummary[]> =>

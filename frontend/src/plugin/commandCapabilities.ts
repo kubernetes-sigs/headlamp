@@ -83,6 +83,8 @@ export interface PluginCommandCapability {
   capability: string;
   /** Provider IDs this exact plugin identity may invoke. */
   clusterRegistrationProviders: string[];
+  /** Present and true only when this plugin identity may use GitHub OAuth. */
+  githubOAuth?: boolean;
 }
 
 interface PluginCommandCapabilitiesBridge {
