@@ -37,12 +37,27 @@ var (
 )
 
 // userAgentRoundTripper wraps an http.RoundTripper and adds a Headlamp User-Agent header.
+// If an upgradeTransport is configured and the incoming request is a WebSocket upgrade,
+// it delegates to upgradeTransport (which enforces HTTP/1.1) and omits the User-Agent.
 type userAgentRoundTripper struct {
-	base      http.RoundTripper
-	userAgent string
+	base             http.RoundTripper
+	upgradeTransport http.RoundTripper
+	userAgent        string
 }
 
 func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
+		newReq := req.Clone(req.Context())
+
+		newReq.Header["User-Agent"] = []string{""}
+
+		if rt.upgradeTransport != nil {
+			return rt.upgradeTransport.RoundTrip(newReq)
+		}
+
+		return rt.base.RoundTrip(newReq)
+	}
+
 	newReq := req.Clone(req.Context())
 
 	newReq.Header.Set("User-Agent", rt.userAgent)
@@ -513,19 +528,8 @@ func (c *Context) SetupProxy() error {
 
 	restConf, err := c.RESTConfig()
 	if err == nil {
-		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
-			// Static bearer/basic auth takes precedence over exec in client-go.
-			if restConf.ExecProvider != nil &&
-				restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
-				roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
-			}
-
-			// Wrap the round tripper to add Headlamp User-Agent
-			proxy.Transport = &userAgentRoundTripper{
-				base:      roundTripper,
-				userAgent: buildUserAgent(),
-			}
+		if transport := c.buildProxyTransport(restConf); transport != nil {
+			proxy.Transport = transport
 		}
 	}
 
@@ -535,6 +539,38 @@ func (c *Context) SetupProxy() error {
 		nil, "Proxy setup")
 
 	return nil
+}
+
+func (c *Context) buildProxyTransport(restConf *rest.Config) http.RoundTripper {
+	roundTripper, err := makeTransportFor(restConf)
+	if err != nil {
+		return nil
+	}
+
+	// Create a dedicated HTTP/1.1 transport for WebSocket upgrades.
+	// Standard client-go transports negotiate HTTP/2 ALPN, which rejects
+	// RFC 7540 hop-by-hop Upgrade headers with a GOAWAY/PROTOCOL_ERROR frame.
+	upgradeConf := rest.CopyConfig(restConf)
+	upgradeConf.NextProtos = []string{"http/1.1"}
+
+	upgradeRoundTripper, err := makeTransportFor(upgradeConf)
+	if err != nil {
+		return nil
+	}
+
+	// Static bearer/basic auth takes precedence over exec in client-go.
+	if restConf.ExecProvider != nil &&
+		restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
+		roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
+		upgradeRoundTripper = &execCredentialRetryRoundTripper{base: upgradeRoundTripper}
+	}
+
+	// Wrap the round tripper to add Headlamp User-Agent and handle upgrades
+	return &userAgentRoundTripper{
+		base:             roundTripper,
+		upgradeTransport: upgradeRoundTripper,
+		userAgent:        buildUserAgent(),
+	}
 }
 
 // AuthType returns the authentication type for the context.

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -449,6 +450,129 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 			assert.Equal(t, tt.wantWarn, warned)
 		})
 	}
+}
+
+func startUpgradeTargetServer(t *testing.T, onReq func(r *http.Request)) *httptest.Server {
+	t.Helper()
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		onReq(r)
+
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer func() { _ = conn.Close() }()
+
+			mt, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			_ = conn.WriteMessage(mt, msg)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	server.EnableHTTP2 = true
+	server.StartTLS()
+
+	return server
+}
+
+func assertProxyRegularRequest(t *testing.T, proxyURL string, capturedUA, capturedAuth *string) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, proxyURL+"/api", nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer func() {
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NotEmpty(t, *capturedUA)
+	assert.Equal(t, "Bearer test-bearer-token", *capturedAuth)
+}
+
+func assertWebSocketUpgradeTunnelEcho(t *testing.T, conn *websocket.Conn, payload string) {
+	t.Helper()
+
+	require.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(payload)))
+
+	msgType, msg, err := conn.ReadMessage()
+	require.NoError(t, err)
+	assert.Equal(t, websocket.TextMessage, msgType)
+	assert.Equal(t, payload, string(msg))
+}
+
+func TestSetupProxyWebSocketUpgradeHTTP1Transport(t *testing.T) {
+	var (
+		capturedUA    string
+		capturedAuth  string
+		capturedProto string
+	)
+
+	server := startUpgradeTargetServer(t, func(r *http.Request) {
+		capturedUA = r.Header.Get("User-Agent")
+		capturedAuth = r.Header.Get("Authorization")
+		capturedProto = r.Proto
+	})
+	defer server.Close()
+
+	ctx := &kubeconfig.Context{
+		Name: "test-upgrade-context",
+		Cluster: &api.Cluster{
+			Server:                server.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{
+			Token: "test-bearer-token",
+		},
+	}
+	require.NoError(t, ctx.SetupProxy())
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, ctx.ProxyRequest(w, r))
+	}))
+	defer proxyServer.Close()
+
+	assertProxyRegularRequest(t, proxyServer.URL, &capturedUA, &capturedAuth)
+
+	dialer := websocket.Dialer{}
+	wsURL := "ws" + strings.TrimPrefix(proxyServer.URL, "http") + "/exec"
+	header := http.Header{}
+	header.Set("User-Agent", "inbound-agent")
+
+	conn, resp, err := dialer.Dial(wsURL, header)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	defer func() {
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	defer func() { _ = conn.Close() }()
+
+	assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	assert.Equal(t, "HTTP/1.1", capturedProto)
+	assert.Equal(t, "Bearer test-bearer-token", capturedAuth)
+	assert.Empty(t, capturedUA)
+	assertWebSocketUpgradeTunnelEcho(t, conn, "tunnel-test")
 }
 
 func TestLoadContextsFromBase64String(t *testing.T) {
