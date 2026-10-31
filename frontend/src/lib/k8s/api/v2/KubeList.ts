@@ -31,7 +31,7 @@ export interface KubeList<T extends KubeObjectInterface> {
 }
 
 export interface KubeListUpdateEvent<T extends KubeObjectInterface> {
-  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
+  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR' | 'BOOKMARK';
   object: T;
 }
 
@@ -56,14 +56,19 @@ export const KubeList = {
     // Skip if the update's resource version is older than or equal to what we have
     if (
       list.metadata.resourceVersion &&
-      update.object.metadata.resourceVersion &&
+      update.object.metadata?.resourceVersion &&
       parseInt(update.object.metadata.resourceVersion) <= parseInt(list.metadata.resourceVersion)
     ) {
       return list;
     }
 
+    if (update.type === 'BOOKMARK') {
+      const resourceVersion = update.object.metadata?.resourceVersion;
+      return resourceVersion ? { ...list, metadata: { ...list.metadata, resourceVersion } } : list;
+    }
+
     const newItems = [...list.items];
-    const index = newItems.findIndex(item => item.metadata.uid === update.object.metadata.uid);
+    const index = newItems.findIndex(item => item.metadata.uid === update.object.metadata?.uid);
 
     switch (update.type) {
       case 'ADDED':
@@ -80,17 +85,27 @@ export const KubeList = {
         }
         break;
       case 'ERROR':
+        // A watch ERROR carries a `Status`, not a resource, so it has no uid to match
+        // and no resourceVersion to adopt. Returning the list unchanged keeps the
+        // version we last saw: adopting the absent one would send the next watch a
+        // literal `resourceVersion=undefined`, which the API server rejects, and the
+        // list would stop receiving updates.
         console.error('Error in update', update);
-        break;
+        return list;
       default:
+        // Same reasoning for a type we do not recognise: nothing was applied, so
+        // nothing about the list has moved on.
         console.error('Unknown update type', update);
+        return list;
     }
 
     return {
       ...list,
       metadata: {
         ...list.metadata,
-        resourceVersion: update.object.metadata.resourceVersion!,
+        // Keep the version we already had when an event arrives without one, so a
+        // malformed message cannot blank the value the next watch is started from.
+        resourceVersion: update.object.metadata.resourceVersion ?? list.metadata.resourceVersion,
       },
       items: newItems,
     };
