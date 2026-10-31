@@ -1680,7 +1680,7 @@ func TestRestrictedEndpointsRequireToken(t *testing.T) {
 			name:   "PUT /cluster/{name} (renameCluster)",
 			method: http.MethodPut,
 			path:   "/cluster/" + minikubeName,
-			body:   nil,
+			body:   RenameClusterRequest{NewClusterName: "minikube-renamed", Stateless: true},
 		},
 		{
 			name:   "POST /parseKubeConfig",
