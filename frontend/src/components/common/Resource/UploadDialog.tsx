@@ -91,6 +91,7 @@ const UploadFromFilesystem = ({
       setError('');
       if (files.every(f => f.size === 0)) {
         setError(t('translation|Error: All of the files are empty.'));
+        return;
       }
 
       const texts = await Promise.all(files.map(readFileAsText));
