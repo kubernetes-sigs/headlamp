@@ -80,46 +80,15 @@ ___
 
 #### Defined in
 
-[lib/k8s/node.ts:45](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/node.ts#L45)
+[lib/k8s/node.ts:58](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/node.ts#L58)
 
 ___
 
 ### status
 
-• **status**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `addresses` | { `address`: `string` ; `type`: `string`  }[] |
-| `allocatable` | { `cpu`: `any` ; `ephemeralStorage`: `any` ; `hugepages_1Gi`: `any` ; `hugepages_2Mi`: `any` ; `memory`: `any` ; `pods`: `any`  } |
-| `allocatable.cpu` | `any` |
-| `allocatable.ephemeralStorage` | `any` |
-| `allocatable.hugepages_1Gi` | `any` |
-| `allocatable.hugepages_2Mi` | `any` |
-| `allocatable.memory` | `any` |
-| `allocatable.pods` | `any` |
-| `capacity` | { `cpu`: `any` ; `ephemeralStorage`: `any` ; `hugepages_1Gi`: `any` ; `hugepages_2Mi`: `any` ; `memory`: `any` ; `pods`: `any`  } |
-| `capacity.cpu` | `any` |
-| `capacity.ephemeralStorage` | `any` |
-| `capacity.hugepages_1Gi` | `any` |
-| `capacity.hugepages_2Mi` | `any` |
-| `capacity.memory` | `any` |
-| `capacity.pods` | `any` |
-| `conditions` | `Omit`<[`KubeCondition`](lib_k8s_cluster.KubeCondition.md), ``"lastProbeTime"`` \| ``"lastUpdateTime"``\> & { `lastHeartbeatTime`: `string`  }[] |
-| `nodeInfo` | { `architecture`: `string` ; `bootID`: `string` ; `containerRuntimeVersion`: `string` ; `kernelVersion`: `string` ; `kubeProxyVersion`: `string` ; `kubeletVersion`: `string` ; `machineID`: `string` ; `operatingSystem`: `string` ; `osImage`: `string` ; `systemUUID`: `string`  } |
-| `nodeInfo.architecture` | `string` |
-| `nodeInfo.bootID` | `string` |
-| `nodeInfo.containerRuntimeVersion` | `string` |
-| `nodeInfo.kernelVersion` | `string` |
-| `nodeInfo.kubeProxyVersion` | `string` |
-| `nodeInfo.kubeletVersion` | `string` |
-| `nodeInfo.machineID` | `string` |
-| `nodeInfo.operatingSystem` | `string` |
-| `nodeInfo.osImage` | `string` |
-| `nodeInfo.systemUUID` | `string` |
+• `Optional` **status**: [`KubeNodeStatus`](lib_k8s_node.KubeNodeStatus.md)
 
 #### Defined in
 
-[lib/k8s/node.ts:8](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/node.ts#L8)
+[lib/k8s/node.ts:57](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/node.ts#L57)
+
