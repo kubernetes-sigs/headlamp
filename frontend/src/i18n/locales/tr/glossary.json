@@ -224,6 +224,8 @@
   "Cluster IP": "Küme IP’si",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Kaynak Kotaları",
   "Reference Kind": "Başvuru Türü",
   "Reference Name": "Başvuru Adı",

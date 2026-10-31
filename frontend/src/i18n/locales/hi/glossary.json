@@ -224,6 +224,8 @@
   "Cluster IP": "क्लस्टर IP",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "रिसोर्स कोटा",
   "Reference Kind": "रेफरेंस काइंड",
   "Reference Name": "रेफरेंस नाम",

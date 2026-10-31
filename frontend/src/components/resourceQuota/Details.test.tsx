@@ -15,7 +15,7 @@
  */
 
 import App from '../../App';
-import { getUsageRatio } from './Details';
+import { formatScopeSelector, getUsageRatio } from './Details';
 // circular dependency fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
@@ -83,5 +83,22 @@ describe('getUsageRatio', () => {
 
   it('computes ratio for requests.storage', () => {
     expect(getUsageRatio('requests.storage', '512Mi', '1Gi')).toBeCloseTo(0.5);
+  });
+});
+
+describe('formatScopeSelector', () => {
+  it('formats each expression with its values', () => {
+    expect(
+      formatScopeSelector({
+        matchExpressions: [
+          { scopeName: 'PriorityClass', operator: 'In', values: ['high', 'critical'] },
+          { scopeName: 'CrossNamespacePodAffinity', operator: 'Exists', values: [] },
+        ],
+      })
+    ).toEqual(['PriorityClass In (high, critical)', 'CrossNamespacePodAffinity Exists']);
+  });
+
+  it('returns nothing when there is no selector', () => {
+    expect(formatScopeSelector(undefined)).toEqual([]);
   });
 });
