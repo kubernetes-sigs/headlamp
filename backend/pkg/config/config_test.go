@@ -873,6 +873,141 @@ func TestOIDCSkipLogoutEnvironmentVariable(t *testing.T) {
 	assert.True(t, conf.OidcSkipLogout)
 }
 
+func writeOIDCSecretFiles(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	tempDir := t.TempDir()
+	idFile := filepath.Join(tempDir, "client-id")
+	secretFile := filepath.Join(tempDir, "client-secret")
+
+	require.NoError(t, os.WriteFile(idFile, []byte("  my-file-client-id \n"), 0o600))
+	require.NoError(t, os.WriteFile(secretFile, []byte(" my-file-secret\r\n"), 0o600))
+
+	return tempDir, idFile, secretFile
+}
+
+func TestOIDCSecretFiles(t *testing.T) {
+	_, idFile, secretFile := writeOIDCSecretFiles(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--in-cluster",
+		"--oidc-client-id-file=" + idFile,
+		"--oidc-client-secret-file=" + secretFile,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, idFile, conf.OidcClientIDFile)
+	assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+	assert.Equal(t, "my-file-client-id", conf.OidcClientID)
+	assert.Equal(t, "my-file-secret", conf.OidcClientSecret)
+}
+
+func TestOIDCSecretFilesMissing(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name    string
+		flag    string
+		wantErr string
+	}{
+		{"client-id-file", "--oidc-client-id-file=", "error reading oidc-client-id-file"},
+		{"client-secret-file", "--oidc-client-secret-file=", "error reading oidc-client-secret-file"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse([]string{
+				"go run ./cmd",
+				"--in-cluster",
+				tt.flag + filepath.Join(tempDir, "nonexistent"),
+			})
+			require.Error(t, err)
+			require.Nil(t, conf)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestOIDCSecretFilesExplicitFlagsOverride(t *testing.T) {
+	tempDir, idFile, secretFile := writeOIDCSecretFiles(t)
+
+	tests := []struct {
+		name       string
+		idFile     string
+		secretFile string
+	}{
+		{"existing files", idFile, secretFile},
+		{"missing files are not read", filepath.Join(tempDir, "missing-id"), filepath.Join(tempDir, "missing-secret")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse([]string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--oidc-client-id=explicit-id",
+				"--oidc-client-secret=explicit-secret",
+				"--oidc-client-id-file=" + tt.idFile,
+				"--oidc-client-secret-file=" + tt.secretFile,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+			assert.Equal(t, "explicit-id", conf.OidcClientID)
+			assert.Equal(t, "explicit-secret", conf.OidcClientSecret)
+		})
+	}
+}
+
+func TestOIDCSecretFilesEnvironmentVariables(t *testing.T) {
+	tempDir := t.TempDir()
+	idFile := filepath.Join(tempDir, "env-client-id")
+	secretFile := filepath.Join(tempDir, "env-client-secret")
+
+	require.NoError(t, os.WriteFile(idFile, []byte("env-id-value\n"), 0o600))
+	require.NoError(t, os.WriteFile(secretFile, []byte("env-secret-value\n"), 0o600))
+
+	env := map[string]string{
+		"HEADLAMP_CONFIG_IN_CLUSTER":              "true",
+		"HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE":     idFile,
+		"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE": secretFile,
+	}
+
+	for k, v := range env {
+		require.NoError(t, os.Setenv(k, v))
+	}
+
+	defer func() {
+		for k := range env {
+			require.NoError(t, os.Unsetenv(k))
+		}
+	}()
+
+	t.Run("ambient file env variables are loaded", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, idFile, conf.OidcClientIDFile)
+		assert.Equal(t, secretFile, conf.OidcClientSecretFile)
+		assert.Equal(t, "env-id-value", conf.OidcClientID)
+		assert.Equal(t, "env-secret-value", conf.OidcClientSecret)
+	})
+
+	t.Run("explicit direct flags override ambient file env variables", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd",
+			"--oidc-client-id=flag-id",
+			"--oidc-client-secret=flag-secret",
+		}
+
+		conf, err := config.Parse(args)
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, "flag-id", conf.OidcClientID)
+		assert.Equal(t, "flag-secret", conf.OidcClientSecret)
+	})
+}
+
 var applyMeDefaultsTests = []struct {
 	name             string
 	usernamePath     string
