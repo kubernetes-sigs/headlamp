@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import type { ResourceSliceDevice, ResourceSliceNodeAccess } from '../../lib/k8s/resourceSlice';
+import type {
+  DeviceAttribute,
+  ResourceSliceDevice,
+  ResourceSliceNodeAccess,
+} from '../../lib/k8s/resourceSlice';
 
 export type DeviceNodeAccess = Exclude<ResourceSliceNodeAccess, 'perDevice'>;
 
@@ -29,4 +33,14 @@ export function getDeviceNodeAccess(device: ResourceSliceDevice): DeviceNodeAcce
     return 'allNodes';
   }
   return undefined;
+}
+
+export function formatDeviceAttribute(attribute: DeviceAttribute): string | undefined {
+  if (attribute.int !== undefined) {
+    return String(attribute.int);
+  }
+  if (attribute.bool !== undefined) {
+    return String(attribute.bool);
+  }
+  return attribute.string ?? attribute.version;
 }

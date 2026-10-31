@@ -15,8 +15,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ResourceSliceDevice } from '../../lib/k8s/resourceSlice';
-import { getDeviceNodeAccess } from './resourceSliceDevice';
+import type { DeviceAttribute, ResourceSliceDevice } from '../../lib/k8s/resourceSlice';
+import { formatDeviceAttribute, getDeviceNodeAccess } from './resourceSliceDevice';
 
 describe('getDeviceNodeAccess', () => {
   it.each([
@@ -30,4 +30,16 @@ describe('getDeviceNodeAccess', () => {
       expect(getDeviceNodeAccess({ name: 'gpu-0', ...placement })).toBe(access);
     }
   );
+});
+
+describe('formatDeviceAttribute', () => {
+  it.each([
+    [{ int: 0 }, '0'],
+    [{ bool: false }, 'false'],
+    [{ string: 'LATEST-GPU-MODEL' }, 'LATEST-GPU-MODEL'],
+    [{ version: '1.0.0' }, '1.0.0'],
+    [{}, undefined],
+  ] as [DeviceAttribute, string | undefined][])('shows %o as %s', (attribute, text) => {
+    expect(formatDeviceAttribute(attribute)).toBe(text);
+  });
 });
