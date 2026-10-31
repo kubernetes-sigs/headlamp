@@ -134,6 +134,69 @@ function nodeProps(id: string): NodeProps {
   };
 }
 
+function firstMatchingStyleRule(
+  predicate: (rule: CSSStyleRule) => boolean
+): CSSStyleRule | undefined {
+  for (const styleSheet of Array.from(document.styleSheets)) {
+    for (const rule of Array.from(styleSheet.cssRules)) {
+      if (rule instanceof CSSStyleRule && predicate(rule)) {
+        return rule;
+      }
+    }
+  }
+  return undefined;
+}
+
+function styleRuleFor(element: HTMLElement): CSSStyleRule {
+  const generatedClass = Array.from(element.classList).find(className =>
+    className.startsWith('css-')
+  );
+  if (!generatedClass) {
+    throw new Error('Element has no generated style class');
+  }
+
+  const rule = firstMatchingStyleRule(candidate =>
+    candidate.selectorText.split(',').some(selector => selector.trim() === `.${generatedClass}`)
+  );
+  if (!rule) {
+    throw new Error('Element has no generated style rule');
+  }
+  return rule;
+}
+
+function declarationValue(rule: CSSStyleRule | undefined, property: string): string {
+  if (!rule) {
+    return '';
+  }
+
+  const value = rule.style.getPropertyValue(property);
+  if (value !== '') {
+    return value;
+  }
+
+  const escapedProperty = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = rule.cssText.match(new RegExp(`(?:^|[;{])\\s*${escapedProperty}\\s*:\\s*([^;}]*)`));
+  return match ? match[1].trim() : '';
+}
+
+function titleClampOverrideRule(container: HTMLElement): CSSStyleRule | undefined {
+  const containerClass = Array.from(container.classList).find(className =>
+    className.startsWith('css-')
+  );
+  if (!containerClass) {
+    return undefined;
+  }
+
+  return firstMatchingStyleRule(rule => {
+    const selectorParts = rule.selectorText
+      .split(',')
+      .flatMap(selector => selector.trim().split(/\s+/));
+    return (
+      selectorParts.includes(`.${containerClass}`) && selectorParts.includes('.resource-node-title')
+    );
+  });
+}
+
 describe('KubeObjectNodeComponent', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -206,7 +269,7 @@ describe('KubeObjectNodeComponent', () => {
     expect(screen.queryByTestId('kube-icon')).not.toBeInTheDocument();
   });
 
-  it('allows long labels to wrap without clipping', () => {
+  it('clamps long labels to two lines with the full name in the title', () => {
     mocks.node = {
       id: 'deployment',
       kubeObject: makeKubeObject({
@@ -220,7 +283,15 @@ describe('KubeObjectNodeComponent', () => {
     render(<KubeObjectNodeComponent {...nodeProps('deployment')} />);
 
     const label = screen.getByText('frontend-deployment-with-a-long-name');
-    expect(label).toHaveStyle({ whiteSpace: 'normal', wordBreak: 'break-word' });
+    expect(label).toHaveStyle({ display: '-webkit-box', overflow: 'hidden' });
+
+    const labelRule = styleRuleFor(label);
+    expect(declarationValue(labelRule, '-webkit-line-clamp')).toBe('2');
+    expect(declarationValue(labelRule, '-webkit-box-orient')).toBe('vertical');
+    expect(declarationValue(labelRule, 'display')).toBe('-webkit-box');
+    expect(declarationValue(labelRule, 'overflow')).toBe('hidden');
+    expect(declarationValue(labelRule, 'word-break')).toBe('break-word');
+    expect(label).toHaveAttribute('title', 'frontend-deployment-with-a-long-name');
     expect(label.parentElement).toHaveClass('label-container');
   });
 
@@ -406,6 +477,32 @@ describe('KubeObjectNodeComponent', () => {
 
     fireEvent.blur(button);
     expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
+  });
+
+  it('keeps the title clamped until the node expands and clamps it again on blur', () => {
+    mocks.node = { id: 'hovered', label: 'hovered-with-a-long-node-name' };
+    render(<KubeObjectNodeComponent {...nodeProps('hovered')} />);
+    const button = screen.getByRole('button');
+    const title = screen.getByText('hovered-with-a-long-node-name');
+
+    fireEvent.focus(button);
+    act(() => vi.advanceTimersByTime(449));
+    expect(title).toHaveStyle({ display: '-webkit-box', overflow: 'hidden' });
+    expect(titleClampOverrideRule(button)).toBeUndefined();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(button).toHaveClass('kube-object-node--expanded');
+
+    const overrideRule = titleClampOverrideRule(button);
+    expect(overrideRule).toBeDefined();
+    expect(declarationValue(overrideRule, '-webkit-line-clamp')).toBe('unset');
+    expect(declarationValue(overrideRule, 'overflow')).toBe('visible');
+    expect(title).toHaveStyle({ overflow: 'visible' });
+
+    fireEvent.blur(button);
+    expect(titleClampOverrideRule(button)).toBeUndefined();
+    expect(title).toHaveStyle({ display: '-webkit-box', overflow: 'hidden' });
+    expect(declarationValue(styleRuleFor(title), '-webkit-line-clamp')).toBe('2');
   });
 
   it('cancels pending expansion when the pointer leaves', () => {
