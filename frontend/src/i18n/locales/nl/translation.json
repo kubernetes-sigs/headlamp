@@ -1120,5 +1120,11 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} s)",
+  "Action Delay": "Actievertraging",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "Voer een geheel aantal seconden tussen 0 en {{ maxSeconds }} in.",
+  "0 (immediately)": "0 (onmiddellijk)",
+  "{{ count }} seconds_one": "{{ count }} seconde",
+  "{{ count }} seconds_other": "{{ count }} seconden"
 }

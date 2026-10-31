@@ -1120,5 +1120,11 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }}sn)",
+  "Action Delay": "İşlem gecikmesi",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "0 ile {{ maxSeconds }} arasında tam sayı olarak saniye girin.",
+  "0 (immediately)": "0 (hemen)",
+  "{{ count }} seconds_one": "{{ count }} saniye",
+  "{{ count }} seconds_other": "{{ count }} saniye"
 }

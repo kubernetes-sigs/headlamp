@@ -18,6 +18,8 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import i18next from 'i18next';
 import type { OptionsObject as SnackbarProps } from 'notistack';
+import type { ConfigState } from './configSlice';
+import { defaultActionDelay } from './configSlice';
 
 /**
  * See components/common/ActionsNotifier.tsx for a user of cluster actions.
@@ -52,6 +54,8 @@ export interface ClusterAction {
    * The amount of time to display the snackbar.
    */
   autoHideDuration?: number;
+  /** When the action is scheduled to execute, as a Unix timestamp in milliseconds. */
+  executeAt?: number;
   /**
    * The message to display on the action.
    */
@@ -150,7 +154,7 @@ export const initialState: ClusterState = {};
 const controllers = new Map<string, AbortController>();
 
 /** The amount of time to wait before allowing the action to be cancelled. */
-export const CLUSTER_ACTION_GRACE_PERIOD = 5000;
+export const CLUSTER_ACTION_GRACE_PERIOD = defaultActionDelay;
 
 // Splits the body of a K8s "is invalid: [...]" multi-error into one entry per
 // field error. A naive regex split on `, ` followed by `\w+:` falsely splits Go
@@ -190,11 +194,13 @@ export function splitK8sValidationErrors(inner: string): string[] {
  * Uses the callback to execute an action and dispatches actions
  * to update the UI based on the result.
  *
- * Gives the user 5 seconds to cancel the action before executing it.
+ * Gives the user the configured delay to cancel the action before executing it.
  */
 export const executeClusterAction = createAsyncThunk(
   'clusterAction/execute',
-  async (action: CallbackAction, { dispatch, rejectWithValue }) => {
+  async (action: CallbackAction, { dispatch, getState, rejectWithValue }) => {
+    const { config } = getState() as { config?: ConfigState };
+    const actionDelay = config?.settings.actionDelay ?? CLUSTER_ACTION_GRACE_PERIOD;
     const actionKey = (new Date().getTime() + Math.random()).toString();
 
     /**
@@ -232,14 +238,18 @@ export const executeClusterAction = createAsyncThunk(
           key: actionKey,
           message: startMessage,
           state: 'start',
+          executeAt: Date.now() + actionDelay,
           url: startUrl,
-          buttons: [
-            {
-              label: i18next.t('translation|Cancel'),
-              actionToDispatch: uniqueCancelActionType,
-            },
-          ],
-          snackbarProps: startOptions,
+          buttons:
+            actionDelay > 0
+              ? [
+                  {
+                    label: i18next.t('translation|Cancel'),
+                    actionToDispatch: uniqueCancelActionType,
+                  },
+                ]
+              : undefined,
+          snackbarProps: { autoHideDuration: actionDelay, ...startOptions },
         })
       );
     }
@@ -319,13 +329,15 @@ export const executeClusterAction = createAsyncThunk(
     async function cancellableActionLogic() {
       dispatchStart();
       try {
-        await new Promise((resolve, reject) => {
-          const timeoutId = setTimeout(resolve, CLUSTER_ACTION_GRACE_PERIOD);
-          controller.signal.addEventListener('abort', () => {
-            clearTimeout(timeoutId);
-            reject('Action cancelled');
+        if (actionDelay > 0) {
+          await new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(resolve, actionDelay);
+            controller.signal.addEventListener('abort', () => {
+              clearTimeout(timeoutId);
+              reject('Action cancelled');
+            });
           });
-        });
+        }
 
         if (controller.signal.aborted) {
           return rejectWithValue('Action cancelled');

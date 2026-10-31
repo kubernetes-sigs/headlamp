@@ -1120,5 +1120,11 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} से)",
+  "Action Delay": "कार्रवाई में विलंब",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "0 और {{ maxSeconds }} के बीच पूर्णांक में सेकंड दर्ज करें।",
+  "0 (immediately)": "0 (तुरंत)",
+  "{{ count }} seconds_one": "{{ count }} सेकंड",
+  "{{ count }} seconds_other": "{{ count }} सेकंड"
 }

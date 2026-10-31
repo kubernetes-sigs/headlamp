@@ -1109,5 +1109,10 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} dtk)",
+  "Action Delay": "Penundaan tindakan",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "Masukkan jumlah detik berupa bilangan bulat antara 0 dan {{ maxSeconds }}.",
+  "0 (immediately)": "0 (segera)",
+  "{{ count }} seconds_other": "{{ count }} detik"
 }

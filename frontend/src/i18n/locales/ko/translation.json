@@ -1109,5 +1109,10 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }}초)",
+  "Action Delay": "작업 지연",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "0에서 {{ maxSeconds }} 사이의 정수 초를 입력하세요.",
+  "0 (immediately)": "0 (즉시)",
+  "{{ count }} seconds_other": "{{ count }}초"
 }

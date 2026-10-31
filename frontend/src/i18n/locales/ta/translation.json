@@ -1120,5 +1120,11 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} வி.)",
+  "Action Delay": "செயல் தாமதம்",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "0 முதல் {{ maxSeconds }} வரையிலான வினாடிகளை முழு எண்ணாக உள்ளிடவும்.",
+  "0 (immediately)": "0 (உடனடியாக)",
+  "{{ count }} seconds_one": "{{ count }} விநாடி",
+  "{{ count }} seconds_other": "{{ count }} விநாடிகள்"
 }
