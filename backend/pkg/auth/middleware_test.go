@@ -18,15 +18,18 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewOIDCTokenRefreshMiddleware(t *testing.T) {
@@ -54,6 +57,69 @@ func TestNewOIDCTokenRefreshMiddleware(t *testing.T) {
 	rec = httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestRefreshRetiresTransportOnlyAfterResponseFlush(t *testing.T) {
+	oldToken := makeJWTWithPayload(t, map[string]interface{}{"exp": float64(time.Now().Add(-time.Minute).Unix())})
+	provider := newOIDCProviderServer(t, "", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "cluster", OidcConf: &kubeconfig.OidcConfig{ClientID: "client", IdpIssuerURL: provider.URL},
+	}))
+
+	recorder := httptest.NewRecorder()
+	retired := make(chan struct{})
+	config := auth.OIDCTokenRefreshConfig{
+		KubeConfigStore: store, TelemetryHandler: &telemetry.RequestHandler{},
+		Cache: &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "refresh"}},
+		OnTokenRefreshed: func(_, _, _ string) func() {
+			return func() {
+				assert.True(t, recorder.Flushed)
+				close(retired)
+			}
+		},
+	}
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	handler := auth.NewOIDCTokenRefreshMiddleware(config)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(entered)
+		<-release
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/clusters/cluster/api/v1/pods", nil)
+	req.Header.Set("Authorization", "Bearer "+oldToken)
+
+	go func() {
+		defer close(done)
+
+		handler.ServeHTTP(recorder, req)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("refresh did not reach downstream handler")
+	}
+
+	select {
+	case <-retired:
+		t.Error("transport retired while replacement cookie was still buffered")
+	case <-time.After(1100 * time.Millisecond):
+	}
+
+	close(release)
+	<-done
+
+	select {
+	case <-retired:
+	default:
+		t.Fatal("transport was not retired after cookie response flush")
+	}
+
+	cookie, _ := findAuthCookie(recorder.Result(), "cluster")
+	assert.Equal(t, "NEW", cookie)
 }
 
 func TestSetTokenFromCookie(t *testing.T) {

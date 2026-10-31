@@ -37,6 +37,8 @@ export const WebSocketManager = {
   /** Flag to track if we're reconnecting after a disconnect */
   isReconnecting: false,
 
+  reconnectTimer: null as ReturnType<typeof setTimeout> | null,
+
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
 
@@ -83,6 +85,10 @@ export const WebSocketManager = {
    * @returns Promise resolving to WebSocket connection
    */
   async connect(): Promise<WebSocket> {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     // Return existing connection if available
     if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
       return this.socketMultiplexer;
@@ -141,7 +147,11 @@ export const WebSocketManager = {
       };
 
       socket.onclose = () => {
+        if (this.socketMultiplexer && this.socketMultiplexer !== socket) {
+          return;
+        }
         this.handleWebSocketClose();
+        reject(new Error('WebSocket connection closed'));
       };
     });
   },
@@ -308,6 +318,21 @@ export const WebSocketManager = {
 
     // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
+    if (this.isReconnecting) {
+      this.scheduleReconnect();
+    }
+  },
+
+  scheduleReconnect(): void {
+    if (this.reconnectTimer !== null || this.activeSubscriptions.size === 0) {
+      return;
+    }
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.activeSubscriptions.size > 0) {
+        this.connect().catch(() => this.scheduleReconnect());
+      }
+    }, 1000);
   },
 
   /**

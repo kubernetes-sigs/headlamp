@@ -90,6 +90,10 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.socketMultiplexer = null;
     WebSocketManager.connecting = false;
     WebSocketManager.isReconnecting = false;
+    if (WebSocketManager.reconnectTimer !== null) {
+      clearTimeout(WebSocketManager.reconnectTimer);
+      WebSocketManager.reconnectTimer = null;
+    }
     WebSocketManager.listeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
@@ -615,9 +619,8 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.isReconnecting).toBe(true);
       expect(WebSocketManager.connecting).toBe(false);
 
-      // Try to use connection again to trigger reconnect
+      // Already-mounted subscriptions reconnect without a new subscribe/connect call.
       const newServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
-      await WebSocketManager.connect();
       await newServer.connected;
 
       // Should get resubscription message
@@ -633,7 +636,29 @@ describe('WebSocket Multiplexer', () => {
       // Verify reconnection state is reset
       expect(WebSocketManager.isReconnecting).toBe(false);
 
+      const update = { kind: 'Pod', metadata: { name: 'after-reconnect' } };
+      newServer.send(
+        JSON.stringify({ clusterId: clusterName, path, query, data: JSON.stringify(update) })
+      );
+      await vi.waitFor(() => expect(onMessage).toHaveBeenCalledWith(update));
+
       newServer.close();
+    });
+
+    it('rejects a connection closed before opening so automatic reconnect can retry', async () => {
+      const socket = { onclose: null as (() => void) | null };
+      const WebSocketMock = vi.fn(function () {
+        return socket;
+      });
+      Object.assign(WebSocketMock, { OPEN: WebSocket.OPEN });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const connection = WebSocketManager.connect();
+      const rejected = expect(connection).rejects.toThrow('WebSocket connection closed');
+      socket.onclose?.();
+      await rejected;
+      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.reconnectTimer).toBeNull();
     });
 
     it('should handle WebSocket close event', async () => {
