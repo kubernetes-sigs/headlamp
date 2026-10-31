@@ -62,7 +62,7 @@ export default function ResourceSliceList() {
         },
         {
           id: 'devices',
-          label: t('glossary|Devices'),
+          label: t('translation|Devices'),
           gridTemplate: 'min-content',
           getValue: item => item.devices.length,
         },
