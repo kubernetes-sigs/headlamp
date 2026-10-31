@@ -15,9 +15,10 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import type { ResourceSliceNodeAccess } from '../../lib/k8s/resourceSlice';
+import type { ResourceSliceDevice, ResourceSliceNodeAccess } from '../../lib/k8s/resourceSlice';
 import type ResourceSlice from '../../lib/k8s/resourceSlice';
 import Link from '../common/Link';
+import { getDeviceNodeAccess } from './resourceSliceDevice';
 
 function NodeAccess(props: {
   access?: ResourceSliceNodeAccess;
@@ -43,6 +44,22 @@ function NodeAccess(props: {
     default:
       return null;
   }
+}
+
+export function ResourceSliceDeviceNode({
+  slice,
+  device,
+}: {
+  slice: ResourceSlice;
+  device: ResourceSliceDevice;
+}) {
+  return (
+    <NodeAccess
+      access={getDeviceNodeAccess(device)}
+      nodeName={device.nodeName}
+      cluster={slice.cluster}
+    />
+  );
 }
 
 export default function ResourceSliceNode({ slice }: { slice: ResourceSlice }) {
