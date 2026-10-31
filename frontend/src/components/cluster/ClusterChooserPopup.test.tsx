@@ -14,25 +14,187 @@
  * limitations under the License.
  */
 
-import { render, screen } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { TestContext } from '../../test';
-import ClusterChooserPopup from './ClusterChooserPopup';
 
-// ClusterChooserPopup transitively pulls in k8s resource classes which have a
-// circular dependency that breaks module initialisation in the test
-// environment. Mock the two hooks it needs from there.
 vi.mock('../../lib/k8s', () => ({
-  useClustersConf: () => ({ cluster0: { name: 'cluster0' }, cluster1: { name: 'cluster1' } }),
-  useSelectedClusters: () => ['cluster0'],
+  useClustersConf: vi.fn(() => ({})),
+  useSelectedClusters: vi.fn(() => []),
 }));
 
-it('names the cluster listbox after the filter field', () => {
-  render(
-    <TestContext routerMap={{ cluster: 'cluster0' }} urlPrefix="/c">
-      <ClusterChooserPopup anchor={document.body} />
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { Cluster } from '../../lib/k8s/cluster';
+import ClusterChooserPopup from './ClusterChooserPopup';
+
+function makeCluster(overrides: Partial<Cluster> = {}): Cluster {
+  return {
+    name: 'cluster-inventory-root-default-spoke-a--abc123',
+    auth_type: '',
+    ...overrides,
+  } as Cluster;
+}
+
+function renderPopup() {
+  const anchor = document.createElement('div');
+  document.body.appendChild(anchor);
+
+  const result = render(
+    <TestContext>
+      <ClusterChooserPopup anchor={anchor} />
     </TestContext>
   );
 
-  expect(screen.getByRole('listbox', { name: 'Choose cluster' })).toBeInTheDocument();
+  return { ...result, anchor };
+}
+
+describe('ClusterChooserPopup', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it('names the cluster listbox after the filter field', () => {
+    renderPopup();
+
+    expect(screen.getByRole('listbox', { name: 'Choose cluster' })).toBeInTheDocument();
+  });
+
+  it('renders the Cluster Inventory displayName instead of the generated context name', () => {
+    const cluster = makeCluster({
+      meta_data: {
+        source: 'cluster_inventory',
+        clusterInventory: {
+          profile: {
+            namespace: 'default',
+            name: 'spoke-a',
+            key: 'root/default/spoke-a',
+            displayName: 'Spoke A',
+          },
+        },
+      },
+    });
+    (useClustersConf as Mock).mockReturnValue({ [cluster.name]: cluster });
+
+    renderPopup();
+
+    expect(screen.getByText('Spoke A')).toBeInTheDocument();
+    expect(screen.queryByText(cluster.name)).not.toBeInTheDocument();
+  });
+
+  it('keys identity (DOM id, current-cluster state) off the real name, not the display label', () => {
+    const cluster = makeCluster({
+      meta_data: {
+        source: 'cluster_inventory',
+        clusterInventory: {
+          profile: {
+            namespace: 'default',
+            name: 'spoke-a',
+            key: 'root/default/spoke-a',
+            displayName: 'Spoke A',
+          },
+        },
+      },
+    });
+    (useClustersConf as Mock).mockReturnValue({ [cluster.name]: cluster });
+    (useSelectedClusters as Mock).mockReturnValue([cluster.name]);
+
+    renderPopup();
+
+    // The rendered label is "Spoke A", but selection/current-cluster tracking,
+    // and the option's DOM id, must still resolve through the real cluster name.
+    const option = document.getElementById(cluster.name);
+    expect(option).not.toBeNull();
+    expect(option).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Current')).toBeInTheDocument();
+  });
+
+  it('finds a cluster when searching by its display label', () => {
+    const cluster = makeCluster({
+      meta_data: {
+        source: 'cluster_inventory',
+        clusterInventory: {
+          profile: {
+            namespace: 'default',
+            name: 'spoke-a',
+            key: 'root/default/spoke-a',
+            displayName: 'Spoke A',
+          },
+        },
+      },
+    });
+    (useClustersConf as Mock).mockReturnValue({ [cluster.name]: cluster });
+
+    renderPopup();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Spoke A' } });
+
+    expect(screen.getByText('Spoke A')).toBeInTheDocument();
+  });
+
+  it('still finds a cluster when searching by its real name', () => {
+    const cluster = makeCluster({
+      meta_data: {
+        source: 'cluster_inventory',
+        clusterInventory: {
+          profile: {
+            namespace: 'default',
+            name: 'spoke-a',
+            key: 'root/default/spoke-a',
+            displayName: 'Spoke A',
+          },
+        },
+      },
+    });
+    (useClustersConf as Mock).mockReturnValue({ [cluster.name]: cluster });
+
+    renderPopup();
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'cluster-inventory-root' },
+    });
+
+    expect(screen.getByText('Spoke A')).toBeInTheDocument();
+  });
+
+  it('resets the active keyboard option when a display-name update reorders clusters', () => {
+    const cluster = (name: string, displayName: string) =>
+      makeCluster({
+        name,
+        meta_data: {
+          source: 'cluster_inventory',
+          clusterInventory: {
+            profile: { namespace: 'default', name, key: name, displayName },
+          },
+        },
+      });
+    const first = cluster('cluster-a', 'Alpha');
+    const second = cluster('cluster-b', 'Beta');
+    (useClustersConf as Mock).mockReturnValue({ [first.name]: first, [second.name]: second });
+
+    const { rerender, anchor } = renderPopup();
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(document.querySelector('[aria-activedescendant]')).toHaveAttribute(
+      'aria-activedescendant',
+      first.name
+    );
+
+    (useClustersConf as Mock).mockReturnValue({
+      [first.name]: cluster('cluster-a', 'Zulu'),
+      [second.name]: second,
+    });
+    rerender(
+      <TestContext>
+        <ClusterChooserPopup anchor={anchor} />
+      </TestContext>
+    );
+
+    expect(document.querySelector('[aria-activedescendant]')).toBeNull();
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(document.querySelector('[aria-activedescendant]')).toHaveAttribute(
+      'aria-activedescendant',
+      second.name
+    );
+  });
 });
