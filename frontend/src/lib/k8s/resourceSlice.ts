@@ -34,6 +34,9 @@ export interface ResourceSliceDevice {
   name: string;
   attributes?: Record<string, DeviceAttribute>;
   capacity?: Record<string, DeviceCapacity>;
+  nodeName?: string;
+  nodeSelector?: { nodeSelectorTerms: NodeSelectorTerm[] };
+  allNodes?: boolean;
 }
 
 export interface ResourcePool {
