@@ -2095,7 +2095,16 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
+			// Dynamic (stateless) clusters are stored under a user-scoped key and are
+			// only loaded when the request carries the KUBECONFIG header, so resolve
+			// the key the same way the cluster proxy does.
+			contextKey, err := c.getContextKeyForRequest(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), contextKey, w, r)
 		}))).Queries("request", "{request}").
 		Methods("GET")
 }
