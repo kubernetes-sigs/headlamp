@@ -83,6 +83,8 @@ export enum HeadlampEventType {
   PLUGIN_LIST_VIEW = 'headlamp.plugin-list-view',
   /** Events related to loading a plugin's settings details view. */
   PLUGIN_DETAILS_VIEW = 'headlamp.plugin-details-view',
+  /** Events related to editing labels and annotations on multiple resources. */
+  EDIT_METADATA_RESOURCES = 'headlamp.edit-metadata-resources',
 }
 
 /**
@@ -214,6 +216,32 @@ export interface RestartResourcesEvent extends HeadlampEvent<HeadlampEventType.R
     /** Resources for which restart was called. */
     resources: KubeObject[];
     /** What exactly this event represents. 'CONFIRMED' when the user confirms restart of resources.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when editing labels and/or annotations on multiple resources.
+ */
+export interface EditMetadataResourcesEvent
+  extends HeadlampEvent<HeadlampEventType.EDIT_METADATA_RESOURCES> {
+  data: {
+    /** Resources for which the metadata edit was called. */
+    resources: KubeObject[];
+    /** The metadata changes applied to all resources. */
+    changes: {
+      /** Labels added or updated (key → value). */
+      labelsToAdd: Record<string, string>;
+      /** Label keys removed from all resources. */
+      labelsToRemove: string[];
+      /** Annotations added or updated (key → value). */
+      annotationsToAdd: Record<string, string>;
+      /** Annotation keys removed from all resources. */
+      annotationsToRemove: string[];
+    };
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms the edit.
      * For now only 'CONFIRMED' is sent.
      */
     status: EventStatus.CONFIRMED;
@@ -612,6 +640,9 @@ export function useEventCallback(
 export function useEventCallback(
   eventType: HeadlampEventType.PLUGIN_DETAILS_VIEW
 ): (data: EventDataType<PluginDetailsViewLoadedEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.EDIT_METADATA_RESOURCES
+): (data: EventDataType<EditMetadataResourcesEvent>) => void;
 export function useEventCallback(eventType?: HeadlampEventType | string) {
   const dispatch = useDispatch();
 
@@ -719,6 +750,10 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
     case HeadlampEventType.PLUGIN_DETAILS_VIEW:
       return dispatchDataEventFunc<PluginDetailsViewLoadedEvent>(
         HeadlampEventType.PLUGIN_DETAILS_VIEW
+      );
+    case HeadlampEventType.EDIT_METADATA_RESOURCES:
+      return dispatchDataEventFunc<EditMetadataResourcesEvent>(
+        HeadlampEventType.EDIT_METADATA_RESOURCES
       );
     default:
       break;
