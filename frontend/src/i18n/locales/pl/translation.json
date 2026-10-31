@@ -662,6 +662,8 @@
   "Never": "",
   "OnFailure": "",
   "Job pods must use Never or OnFailure; Always is not allowed.": "",
+  "Job names must be under 64 characters.": "",
+  "Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.": "",
   "Spawning Job {{ newItemName }}…": "Trwa duplikowanie zadania {{ newItemName }}...",
   "Job {{ newItemName }} spawned": "Zduplikowano zadanie {{ newItemName }}",
   "Failed to spawn Job {{ newItemName }}": "Nie można zduplikować zadania {{ newItemName }}",

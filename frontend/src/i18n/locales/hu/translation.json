@@ -652,6 +652,8 @@
   "Never": "",
   "OnFailure": "",
   "Job pods must use Never or OnFailure; Always is not allowed.": "",
+  "Job names must be under 64 characters.": "",
+  "Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.": "",
   "Spawning Job {{ newItemName }}…": "A(z) {{ newItemName }} feladat indítása…",
   "Job {{ newItemName }} spawned": "A(z) {{ newItemName }} feladat elindítva",
   "Failed to spawn Job {{ newItemName }}": "Nem sikerült a(z) {{ newItemName }} feladat létrehozása",
