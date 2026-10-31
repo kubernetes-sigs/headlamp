@@ -34,6 +34,7 @@ describe('OIDCAuth component', () => {
     resetHandledAuthUrls();
     localStorage.clear();
     sessionStorage.clear();
+    vi.spyOn(window, 'close').mockImplementation(() => {});
     store.dispatch(
       setConfig({
         clusters: {
@@ -42,6 +43,10 @@ describe('OIDCAuth component', () => {
         },
       })
     );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders redirecting message correctly', () => {
@@ -56,7 +61,9 @@ describe('OIDCAuth component', () => {
     expect(screen.getByText('Redirecting to main page…')).toBeInTheDocument();
   });
 
-  it('sets auth_status in localStorage when cluster is present in popup mode', async () => {
+  it('sets auth_status in localStorage and closes window when cluster is present in popup mode', async () => {
+    const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => {});
+
     render(
       <Provider store={store}>
         <MemoryRouter initialEntries={['/oidc?cluster=test-cluster&popup=true']}>
@@ -67,10 +74,12 @@ describe('OIDCAuth component', () => {
 
     await waitFor(() => {
       expect(localStorage.getItem('auth_status')).toBe('success');
+      expect(closeSpy).toHaveBeenCalled();
     });
   });
 
-  it('does not set auth_status in localStorage when cluster is absent in popup mode', () => {
+  it('does not set auth_status in localStorage and does not close window when cluster is absent in popup mode', () => {
+    const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => {});
     localStorage.setItem('auth_status', 'previous');
 
     render(
@@ -82,6 +91,30 @@ describe('OIDCAuth component', () => {
     );
 
     expect(localStorage.getItem('auth_status')).toBe('previous');
+    expect(closeSpy).not.toHaveBeenCalled();
+  });
+
+  it('catches error if window.close throws', async () => {
+    vi.spyOn(window, 'close').mockImplementation(() => {
+      throw new Error('Cannot close window');
+    });
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/oidc?cluster=test-cluster&popup=true']}>
+          <OIDCAuth />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(localStorage.getItem('auth_status')).toBe('success');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error occurred while closing window',
+        expect.any(Error)
+      );
+    });
   });
 
   it('navigates to return URL from sessionStorage in full-page mode', async () => {
@@ -178,7 +211,7 @@ describe('OIDCAuth component', () => {
   });
 
   it('renders an error and halts navigation when sessionStorage throws in full-page mode', async () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(Object.getPrototypeOf(sessionStorage), 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError or SecurityError');
     });
 
