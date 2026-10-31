@@ -647,6 +647,8 @@
   "Never": "",
   "OnFailure": "",
   "Job pods must use Never or OnFailure; Always is not allowed.": "",
+  "Job names must be under 64 characters.": "",
+  "Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.": "",
   "Spawning Job {{ newItemName }}…": "正在生成 Job {{ newItemName }}…",
   "Job {{ newItemName }} spawned": "Job {{ newItemName }} 已生成",
   "Failed to spawn Job {{ newItemName }}": "生成 Job {{ newItemName }} 失败",
