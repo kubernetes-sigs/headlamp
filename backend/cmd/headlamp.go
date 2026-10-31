@@ -756,6 +756,7 @@ func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 		HubConfig:             hubConfig,
 		HubNamespace:          hubNamespace,
 		DiscoverFromStore:     !config.UseInCluster,
+		OIDCConfig:            clusterInventoryOIDCConfig(config),
 	})
 	if err != nil {
 		return err
@@ -764,6 +765,27 @@ func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 	go runner.Run(ctx)
 
 	return nil
+}
+
+func clusterInventoryOIDCConfig(config *HeadlampConfig) *kubeconfig.OidcConfig {
+	if config.OidcIdpIssuerURL == "" || config.OidcClientID == "" {
+		return nil
+	}
+
+	skipTLSVerify := config.OidcSkipTLSVerify
+
+	var caCert *string
+
+	if config.OidcCACert != "" {
+		value := config.OidcCACert
+		caCert = &value
+	}
+
+	return &kubeconfig.OidcConfig{
+		ClientID: config.OidcClientID, ClientSecret: config.OidcClientSecret,
+		IdpIssuerURL: config.OidcIdpIssuerURL, Scopes: append([]string(nil), config.OidcScopes...),
+		SkipTLSVerify: &skipTLSVerify, CACert: caCert,
+	}
 }
 
 func setupInClusterContext(config *HeadlampConfig) {
