@@ -20,7 +20,19 @@ const watchInterval = 10 * time.Second
 // logFieldPath is the structured-log field name for filesystem paths.
 const logFieldPath = "path"
 
-// LoadAndWatchFiles loads kubeconfig files and watches them for changes.
+// fileWatcher is an fsnotify watcher that remembers the file each watched path
+// resolved to when it was added. A watch follows symlinks to the target file,
+// so a symlink retargeted to another file needs a new watch.
+type fileWatcher struct {
+	*fsnotify.Watcher
+	files map[string]os.FileInfo
+}
+
+func newFileWatcher(watcher *fsnotify.Watcher) *fileWatcher {
+	return &fileWatcher{Watcher: watcher, files: make(map[string]os.FileInfo)}
+}
+
+// LoadAndWatchFiles watches kubeconfig files (and any referenced credential files) and reloads contexts on changes.
 // It runs until the provided context is cancelled.
 func LoadAndWatchFiles(
 	ctx context.Context,
@@ -48,10 +60,9 @@ func LoadAndWatchFiles(
 
 	defer func() { _ = watcher.Close() }()
 
-	kubeConfigPaths := splitKubeConfigPath(paths)
+	watched := newFileWatcher(watcher)
 
-	// add files to watcher
-	addFilesToWatcher(watcher, kubeConfigPaths)
+	updateWatcherPaths(watched, watchedPaths(kubeConfigStore, paths))
 
 	for {
 		select {
@@ -60,20 +71,27 @@ func LoadAndWatchFiles(
 
 			return
 		case <-ticker.C:
-			reAddMissingFiles(watcher, kubeConfigStore, paths, source, ignoreFunc)
+			reAddMissingFiles(watched, kubeConfigStore, paths, source, ignoreFunc)
 
 		case event := <-watcher.Events:
-			triggers := []fsnotify.Op{fsnotify.Create, fsnotify.Write, fsnotify.Remove, fsnotify.Rename}
-			for _, trigger := range triggers {
-				if event.Op.Has(trigger) {
-					logger.Log(logger.LevelInfo, map[string]string{"event": event.Name},
-						nil, "watcher: kubeconfig file changed, reloading contexts")
+			if isEventTrigger(event.Op) {
+				logger.Log(logger.LevelInfo, map[string]string{"event": event.Name},
+					nil, "watcher: file changed, reloading contexts")
 
-					err := syncContexts(kubeConfigStore, paths, source, ignoreFunc)
-					if err != nil {
-						logger.Log(logger.LevelError, nil, err, "watcher: error synchronizing contexts")
-					}
+				// A removed or renamed file's watch is stale; drop it so the
+				// replacement file is watched once it exists.
+				if event.Op.Has(fsnotify.Remove) || event.Op.Has(fsnotify.Rename) {
+					_ = watcher.Remove(event.Name)
 				}
+
+				err := syncContexts(kubeConfigStore, paths, source, ignoreFunc)
+				if err != nil {
+					logger.Log(logger.LevelError, nil, err, "watcher: error synchronizing contexts")
+				}
+
+				// In a remove-and-recreate rotation the new file can appear
+				// before this point, so reload again if it was re-added.
+				reAddMissingFiles(watched, kubeConfigStore, paths, source, ignoreFunc)
 			}
 
 		case err := <-watcher.Errors:
@@ -82,25 +100,17 @@ func LoadAndWatchFiles(
 	}
 }
 
-// reAddMissingFiles watches the files that were missing and reloads the
-// kubeconfig once one of them shows up again.
+// reAddMissingFiles watches the kubeconfig and credential files that were
+// missing or that a symlink now resolves to, and reloads the kubeconfig when
+// it starts watching one.
 func reAddMissingFiles(
-	watcher *fsnotify.Watcher,
+	watcher *fileWatcher,
 	kubeConfigStore ContextStore,
 	paths string,
 	source int,
 	ignoreFunc shouldBeSkippedFunc,
 ) {
-	kubeConfigPaths := splitKubeConfigPath(paths)
-
-	watchedFiles := len(watcher.WatchList())
-	if watchedFiles == len(kubeConfigPaths) {
-		return
-	}
-
-	addFilesToWatcher(watcher, kubeConfigPaths)
-
-	if len(watcher.WatchList()) == watchedFiles {
+	if !updateWatcherPaths(watcher, watchedPaths(kubeConfigStore, paths)) {
 		return
 	}
 
@@ -112,40 +122,16 @@ func reAddMissingFiles(
 	}
 }
 
-func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
-	for _, path := range paths {
-		// if path is relative, make it absolute
-		if !filepath.IsAbs(path) {
-			absPath, err := filepath.Abs(path)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
-					err, "getting absolute path")
-
-				continue
-			}
-
-			path = absPath
-		}
-
-		// A missing file is picked up by the ticker once it exists.
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			continue
-		}
-
-		// check if path is already being watched
-		// if it is, continue
-		filesBeingWatched := watcher.WatchList()
-		if slices.Contains(filesBeingWatched, path) {
-			continue
-		}
-
-		// if it isn't, add it to the watcher
-		err := watcher.Add(path)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
-				err, "adding path to watcher")
+// isEventTrigger returns true if the fsnotify operation is one of the triggers we care about.
+func isEventTrigger(op fsnotify.Op) bool {
+	triggers := []fsnotify.Op{fsnotify.Create, fsnotify.Write, fsnotify.Remove, fsnotify.Rename}
+	for _, trigger := range triggers {
+		if op.Has(trigger) {
+			return true
 		}
 	}
+
+	return false
 }
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
@@ -224,4 +210,141 @@ func existingKubeConfigPaths(paths string) string {
 	}
 
 	return strings.Join(existing, string(os.PathListSeparator))
+}
+
+// getReferencedCredentialPaths retrieves absolute paths of all external credential/certificate files
+// referenced in KubeConfig type contexts in the store.
+func getReferencedCredentialPaths(kubeConfigStore ContextStore) []string {
+	contexts, err := kubeConfigStore.GetContexts()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "watcher: error getting contexts to extract credential paths")
+		return nil
+	}
+
+	var paths []string
+
+	for _, ctx := range contexts {
+		if ctx.Source != KubeConfig || ctx.AuthInfo == nil {
+			continue
+		}
+
+		for _, relPath := range []string{ctx.AuthInfo.ClientCertificate, ctx.AuthInfo.ClientKey, ctx.AuthInfo.TokenFile} {
+			if relPath == "" {
+				continue
+			}
+
+			absPath := relPath
+			if !filepath.IsAbs(relPath) && ctx.KubeConfigPath != "" {
+				absPath = filepath.Join(filepath.Dir(ctx.KubeConfigPath), relPath)
+			}
+
+			absPath, err = filepath.Abs(absPath)
+			if err != nil {
+				continue
+			}
+
+			if !slices.Contains(paths, absPath) {
+				paths = append(paths, absPath)
+			}
+		}
+	}
+
+	return paths
+}
+
+// normalizePaths converts relative paths to absolute and de-duplicates them.
+func normalizePaths(desiredPaths []string) []string {
+	normalizedDesired := make([]string, 0, len(desiredPaths))
+
+	seen := make(map[string]struct{}, len(desiredPaths))
+	for _, p := range desiredPaths {
+		if p == "" {
+			continue
+		}
+
+		absPath := p
+		if !filepath.IsAbs(p) {
+			var err error
+
+			absPath, err = filepath.Abs(p)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: p}, err, "getting absolute path")
+				continue
+			}
+		}
+
+		if _, ok := seen[absPath]; ok {
+			continue
+		}
+
+		seen[absPath] = struct{}{}
+		normalizedDesired = append(normalizedDesired, absPath)
+	}
+
+	return normalizedDesired
+}
+
+// watchedPaths returns the kubeconfig files plus the credential files their
+// contexts reference.
+func watchedPaths(kubeConfigStore ContextStore, paths string) []string {
+	return append(splitKubeConfigPath(paths), getReferencedCredentialPaths(kubeConfigStore)...)
+}
+
+// updateWatcherPaths registers desired paths to be watched and deregisters stale ones.
+// It reports whether any path was newly added, or re-added because it now
+// resolves to a different file. A missing file is skipped and is added once
+// it exists.
+func updateWatcherPaths(watcher *fileWatcher, desiredPaths []string) bool {
+	desiredPaths = normalizePaths(desiredPaths)
+
+	// Remove any path that is no longer desired (diff against actual watcher state)
+	for _, path := range watcher.WatchList() {
+		if !slices.Contains(desiredPaths, path) {
+			if err := watcher.Remove(path); err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: path}, err, "removing path from watcher")
+			}
+
+			delete(watcher.files, path)
+		}
+	}
+
+	added := false
+
+	for _, absPath := range desiredPaths {
+		info, err := os.Stat(absPath)
+		if err != nil {
+			// Don't keep a stale watch on a file that is gone or unreadable.
+			if slices.Contains(watcher.WatchList(), absPath) {
+				_ = watcher.Remove(absPath)
+			}
+
+			delete(watcher.files, absPath)
+
+			if !errors.Is(err, fs.ErrNotExist) {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: absPath}, err, "stat path")
+			}
+
+			continue
+		}
+
+		if slices.Contains(watcher.WatchList(), absPath) {
+			// A retargeted symlink still stats fine, but its watch is on the
+			// old file, which no longer gets the events for this path.
+			if watched, ok := watcher.files[absPath]; !ok || os.SameFile(watched, info) {
+				continue
+			}
+
+			_ = watcher.Remove(absPath)
+		}
+
+		if err := watcher.Add(absPath); err != nil {
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: absPath}, err, "adding path to watcher")
+			continue
+		}
+
+		watcher.files[absPath] = info
+		added = true
+	}
+
+	return added
 }

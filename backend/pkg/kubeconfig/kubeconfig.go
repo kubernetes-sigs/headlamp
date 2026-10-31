@@ -338,7 +338,39 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 		return nil, errors.New("clientConfig is nil")
 	}
 
-	return clientConfig.ClientConfig()
+	restConf, err := clientConfig.ClientConfig()
+	if err == nil {
+		inlineClientCertificateFiles(restConf)
+	}
+
+	return restConf, err
+}
+
+// inlineClientCertificateFiles replaces the client certificate and key files
+// in conf with their contents. client-go shares one transport, with its open
+// connections, between configs that name the same certificate files, so a
+// context reloaded after the files are rotated would keep presenting the old
+// certificate. Keyed by the contents, it gets new connections instead. Each
+// rotation leaves the previous transport in client-go's cache, which is fine
+// for how rarely certificates rotate.
+func inlineClientCertificateFiles(conf *rest.Config) {
+	if conf.CertFile == "" || conf.KeyFile == "" || len(conf.CertData) > 0 || len(conf.KeyData) > 0 {
+		return
+	}
+
+	// On a read error, keep the paths so client-go reports it as before.
+	certData, err := os.ReadFile(conf.CertFile)
+	if err != nil {
+		return
+	}
+
+	keyData, err := os.ReadFile(conf.KeyFile)
+	if err != nil {
+		return
+	}
+
+	conf.CertData, conf.KeyData = certData, keyData
+	conf.CertFile, conf.KeyFile = "", ""
 }
 
 // makeTransportFor creates an HTTP transport configuration with special handling for
