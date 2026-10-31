@@ -203,7 +203,10 @@ const truncatedFacetedValues = new WeakSet<Map<any, number>>();
 type FacetedEntry = {
   /** Every value the rows carry, independent of what the column is filtered by. */
   values: Map<any, number>;
-  /** The shortened view of those values, kept per filter it was built for. */
+  /**
+   * What is served instead of those values, shortened or with a selection added. Only the
+   * last one built is kept, along with the filter and variant it was built for.
+   */
   view?: Map<any, number>;
   viewFor?: string;
 };
@@ -211,28 +214,48 @@ type FacetedEntry = {
 const facetedValuesByRows = new WeakMap<object, Map<string, FacetedEntry>>();
 
 /**
- * The options a column offers: all of its values, or the most common ones plus whatever is
- * filtered for once there are more than MRT can render. The walk behind `entry.values` does
- * not depend on the filter, so only this last step is redone when the filter moves, and the
- * shortened map keeps its identity meanwhile, which is what MRT memoizes its dropdown on.
+ * The options a column offers: all of its values, or the most common ones once there are more
+ * than MRT can render, plus whatever a select or multi-select is filtered for in either case,
+ * since those read the label of a selection back from these options. The walk behind
+ * `entry.values` does not depend on the filter, so only this last step is redone when the
+ * filter moves, and the resulting map keeps its identity meanwhile, which is what MRT memoizes
+ * its dropdown on.
  */
-function facetedView(entry: FacetedEntry, column: { getFilterValue: () => unknown }) {
-  if (entry.values.size <= MAX_FILTER_OPTIONS) {
+function facetedView(
+  entry: FacetedEntry,
+  column: { getFilterValue: () => unknown },
+  labelsFromOptions: boolean
+) {
+  // A column MRT cannot sort keeps its empty dropdown, whatever it is filtered by.
+  if (entry.values === NO_FACETED_VALUES) {
     return entry.values;
   }
-  const viewFor = filterSignature(column);
+  // What is filtered for right now comes along whatever its count, because MRT reads the
+  // label of a selected value back from these options and would render it blank once the
+  // value is gone. A refresh can take a selected value out of the rows altogether, it then
+  // stays offered with a count of 0. Only strings, since MRT sorts the options with
+  // localeCompare. The autocomplete keeps its own input instead, and its filter is free
+  // text, which must not turn into an option.
+  const active = selectedOptionValues(column);
+  const absent = labelsFromOptions ? [...active].filter(value => !entry.values.has(value)) : [];
+  if (entry.values.size <= MAX_FILTER_OPTIONS && absent.length === 0) {
+    return entry.values;
+  }
+  // Keyed on exactly what the view is built from, so neither a filter that only differs in
+  // what was dropped above nor a column that changed its variant is served a stale view.
+  const viewFor = JSON.stringify([labelsFromOptions, ...[...active].sort()]);
   if (entry.view && entry.viewFor === viewFor) {
     return entry.view;
   }
   // MRT renders one unvirtualized menu item per option, so keep the most common values,
-  // which are the ones worth offering as a filter. What is filtered for right now comes
-  // along whatever its count, because MRT reads the label of a selected value back from
-  // these options and would render it blank once the value is gone.
+  // which are the ones worth offering as a filter.
   const byCount = [...entry.values].sort(([, a], [, b]) => b - a);
-  const active = new Set(activeFilterValues(column));
   // Selected values come first, but they are capped too: the limit exists to bound what
   // MRT renders, and it cannot be raised by selecting more.
-  const kept = byCount.filter(([value]) => active.has(value)).slice(0, MAX_FILTER_OPTIONS);
+  const kept: [any, number][] = [
+    ...byCount.filter(([value]) => active.has(value)),
+    ...absent.map((value): [string, number] => [value, 0]),
+  ].slice(0, MAX_FILTER_OPTIONS);
   for (const candidate of byCount) {
     if (kept.length >= MAX_FILTER_OPTIONS) {
       break;
@@ -243,7 +266,11 @@ function facetedView(entry: FacetedEntry, column: { getFilterValue: () => unknow
   }
   entry.view = new Map(kept);
   entry.viewFor = viewFor;
-  truncatedFacetedValues.add(entry.view);
+  // Only a map that left values out is a shortened list, one that just added the absent
+  // selection is not.
+  if (entry.values.size + absent.length > kept.length) {
+    truncatedFacetedValues.add(entry.view);
+  }
   return entry.view;
 }
 
@@ -252,9 +279,23 @@ function isTruncated<RowItem extends Record<string, any>>(column: MRT_Column<Row
   return truncatedFacetedValues.has(column.getFacetedUniqueValues());
 }
 
-/** A stable key for the values a column is filtered by, to tell one walk's basis from another. */
-function filterSignature(column: { getFilterValue: () => unknown }) {
-  return JSON.stringify(activeFilterValues(column).map(String).sort());
+/**
+ * Whether MRT reads the label of a selected value back from the faceted values, which the
+ * select and multi-select do unless the column brings its own options. The autocomplete
+ * shows its own input instead.
+ */
+function readsLabelsFromOptions(columnDef: TableColumn<Record<string, any>> | undefined) {
+  return (
+    (columnDef?.filterVariant === 'select' || columnDef?.filterVariant === 'multi-select') &&
+    !columnDef.filterSelectOptions
+  );
+}
+
+/** The filter values a dropdown can offer as options, which MRT requires to be strings. */
+function selectedOptionValues(column: { getFilterValue: () => unknown }) {
+  return new Set(
+    activeFilterValues(column).filter((value): value is string => typeof value === 'string')
+  );
 }
 
 /** The values a column is filtered by right now, one for select, several for multi-select. */
@@ -304,7 +345,7 @@ const getDropdownFacetedUniqueValues: NonNullable<
     const cachedColumns = facetedValuesByRows.get(flatRows);
     const cached = cachedColumns?.get(columnId);
     if (cached) {
-      return facetedView(cached, column);
+      return facetedView(cached, column, readsLabelsFromOptions(columnDef));
     }
     // Nobody can see the options while the filter UI is hidden and no filter is active,
     // so do not walk the rows for them. Showing the UI re-renders the headers and lands
@@ -345,7 +386,7 @@ const getDropdownFacetedUniqueValues: NonNullable<
     const perColumn = cachedColumns ?? new Map();
     perColumn.set(columnId, entry);
     facetedValuesByRows.set(flatRows, perColumn);
-    return facetedView(entry, column);
+    return facetedView(entry, column, readsLabelsFromOptions(columnDef));
   };
 };
 
