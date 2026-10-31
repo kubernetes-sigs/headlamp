@@ -49,6 +49,23 @@ backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
 
+## Service proxy content isolation
+
+Service proxy responses set `Content-Security-Policy: sandbox` and
+`X-Content-Type-Options: nosniff` to isolate service content from Headlamp's
+origin. JSON and streaming are unchanged; interactive applications need a
+separate origin.
+
+## Persistent cluster deletion
+
+`removeKubeConfig=true` requires `--allow-kubeconfig-changes` and a registered
+file-backed cluster. The backend uses its loaded file and original context key,
+not client-supplied identifiers; configured external files and symlinks work.
+Runtime imports and renames retain this origin.
+Imports and deletions lock the same recorded path, including symlinks.
+File updates precede in-memory removal, so failures keep the stored cluster.
+Memory-only deletion does not require file-mutation permission.
+
 ## Node drain authentication
 
 The frontend submits node drains and polls their status through
