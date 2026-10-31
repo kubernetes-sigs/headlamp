@@ -19,10 +19,14 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { Meta, StoryFn } from '@storybook/react';
+import { Terminal as XTerminal } from '@xterm/xterm';
 import { SnackbarProvider } from 'notistack';
 import { useCallback, useEffect, useState } from 'react';
+import { Provider } from 'react-redux';
 import { action } from 'storybook/actions';
+import { expect, waitFor, within } from 'storybook/test';
 import { getTestDate } from '../../helpers/testHelpers';
+import store from '../../redux/stores/store';
 import { LogViewer, LogViewerProps } from './LogViewer';
 
 export default {
@@ -30,14 +34,13 @@ export default {
   component: LogViewer,
   decorators: [
     Story => (
-      <SnackbarProvider>
-        <Story />
-      </SnackbarProvider>
+      <Provider store={store}>
+        <SnackbarProvider>
+          <Story />
+        </SnackbarProvider>
+      </Provider>
     ),
   ],
-  argTypes: {
-    onClose: { action: 'closed' },
-  },
   parameters: {
     storyshots: {
       disable: true,
@@ -298,4 +301,42 @@ ReconnectToSeeLogs.parameters = {
       story: 'LogViewer simulating recovery of connection loss upon clicking on reconnect button.',
     },
   },
+};
+
+// Module-level so the play function can reach the terminal.
+const copyMenuXtermRef: { current: XTerminal | null } = { current: null };
+
+export const CopyContextMenu = () => (
+  <LogViewer
+    open
+    logs={['first log entry\n', 'second log entry\n', 'third log entry\n']}
+    title="Copy Context Menu"
+    downloadName="copy-context-menu-logs"
+    onClose={action('closed')}
+    xtermRef={copyMenuXtermRef}
+  />
+);
+CopyContextMenu.parameters = {
+  docs: {
+    description: {
+      story:
+        'LogViewer showing the right-click context menu with a Copy option when text is selected.',
+    },
+  },
+};
+CopyContextMenu.play = async () => {
+  const body = within(document.body);
+
+  const terminalElement = await waitFor(() => {
+    const el = document.querySelector('.xterm');
+    if (!el || !copyMenuXtermRef.current) throw new Error('xterm not ready');
+    return el;
+  });
+
+  copyMenuXtermRef.current!.selectAll();
+  terminalElement.dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 })
+  );
+
+  await waitFor(() => expect(body.getByText('Copy')).toBeInTheDocument());
 };
