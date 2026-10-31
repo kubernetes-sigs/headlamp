@@ -159,6 +159,17 @@ func withPKCE() oidcTestOption {
 	return func(c *HeadlampConfig) { c.OidcUsePKCE = true }
 }
 
+func withAccessToken() oidcTestOption {
+	return func(c *HeadlampConfig) { c.OidcUseAccessToken = true }
+}
+
+func withValidatorOverrides(issuerURL, clientID string) oidcTestOption {
+	return func(c *HeadlampConfig) {
+		c.OidcValidatorIdpIssuerURL = issuerURL
+		c.OidcValidatorClientID = clientID
+	}
+}
+
 // withStateReader replaces the reader backing OIDC state generation, so a
 // test can force the state-generation failure path.
 func withStateReader(r io.Reader) oidcTestOption {
@@ -258,6 +269,16 @@ func callOIDCCallback(t *testing.T, handler http.Handler, rawQuery string) *http
 	handler.ServeHTTP(rr, req)
 
 	return rr
+}
+
+func responseCookies(rr *httptest.ResponseRecorder) map[string]string {
+	cookies := map[string]string{}
+
+	for _, cookie := range rr.Result().Cookies() {
+		cookies[cookie.Name] = cookie.Value
+	}
+
+	return cookies
 }
 
 // TestOIDCStart_StateIsRandom32Bytes covers target #1: each /oidc call
@@ -534,14 +555,130 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 	})
 }
 
+type signingServerOption func(*signingServerConfig)
+
+type signingServerConfig struct {
+	opaqueAccessToken       string
+	accessTokenIssuer       string
+	accessTokenAudience     string
+	accessTokenUnverifiable bool
+	omitIDToken             bool
+	idTokenUnverifiable     bool
+}
+
+func withOpaqueAccessToken(token string) signingServerOption {
+	return func(c *signingServerConfig) { c.opaqueAccessToken = token }
+}
+
+func withAccessTokenJWT(issuer, audience string) signingServerOption {
+	return func(c *signingServerConfig) {
+		c.accessTokenIssuer = issuer
+		c.accessTokenAudience = audience
+	}
+}
+
+func withUnverifiableAccessTokenJWT(issuer, audience string) signingServerOption {
+	return func(c *signingServerConfig) {
+		c.accessTokenIssuer = issuer
+		c.accessTokenAudience = audience
+		c.accessTokenUnverifiable = true
+	}
+}
+
+func withoutIDToken() signingServerOption {
+	return func(c *signingServerConfig) { c.omitIDToken = true }
+}
+
+func withUnverifiableIDToken() signingServerOption {
+	return func(c *signingServerConfig) { c.idTokenUnverifiable = true }
+}
+
+func signRS256(t *testing.T, key *rsa.PrivateKey, claims map[string]any) string {
+	t.Helper()
+
+	b64 := base64.RawURLEncoding.EncodeToString
+	header, _ := json.Marshal(map[string]string{"alg": "RS256", "kid": "k", "typ": "JWT"})
+	payload, _ := json.Marshal(claims)
+	signingInput := b64(header) + "." + b64(payload)
+	sum := sha256.Sum256([]byte(signingInput))
+
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sum[:])
+	require.NoError(t, err)
+
+	return signingInput + "." + b64(sig)
+}
+
+func oidcTokenHandler(
+	t *testing.T,
+	srvURL string,
+	key *rsa.PrivateKey,
+	unverifiableKey *rsa.PrivateKey,
+	cfg *signingServerConfig,
+) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, _ *http.Request) {
+		now := time.Now().Unix()
+
+		accessToken := "access"
+
+		switch {
+		case cfg.accessTokenIssuer != "":
+			signingKey := key
+			if cfg.accessTokenUnverifiable {
+				signingKey = unverifiableKey
+			}
+
+			accessToken = signRS256(t, signingKey, map[string]any{
+				"iss": cfg.accessTokenIssuer, "sub": "user", "aud": cfg.accessTokenAudience,
+				"iat": now, "exp": now + 3600,
+			})
+		case cfg.opaqueAccessToken != "":
+			accessToken = cfg.opaqueAccessToken
+		}
+
+		tokens := map[string]any{
+			"access_token": accessToken, "token_type": "Bearer", "expires_in": 3600,
+		}
+
+		if !cfg.omitIDToken {
+			signingKey := key
+			if cfg.idTokenUnverifiable {
+				signingKey = unverifiableKey
+			}
+
+			tokens["id_token"] = signRS256(t, signingKey, map[string]any{
+				"iss": srvURL, "sub": "user", "aud": "test-client-id",
+				"iat": now, "exp": now + 3600,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(tokens)
+	}
+}
+
 // newSigningOIDCTestServer is like newOIDCTestServer but its /token endpoint
 // returns an RS256 id_token that verifies against its /jwks, so
 // /oidc-callback can run to the final redirect.
-func newSigningOIDCTestServer(t *testing.T) *oidcTestServer {
+func newSigningOIDCTestServer(t *testing.T, opts ...signingServerOption) *oidcTestServer {
 	t.Helper()
+
+	cfg := &signingServerConfig{}
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
+
+	var unverifiableKey *rsa.PrivateKey
+
+	if cfg.accessTokenUnverifiable || cfg.idTokenUnverifiable {
+		unverifiableKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+	}
 
 	b64 := base64.RawURLEncoding.EncodeToString
 	mux := http.NewServeMux()
@@ -565,26 +702,7 @@ func newSigningOIDCTestServer(t *testing.T) *oidcTestServer {
 		}}})
 	})
 
-	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
-		header, _ := json.Marshal(map[string]string{"alg": "RS256", "kid": "k", "typ": "JWT"})
-		claims, _ := json.Marshal(map[string]any{
-			"iss": srv.URL, "sub": "user", "aud": "test-client-id",
-			"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
-		})
-		signingInput := b64(header) + "." + b64(claims)
-		sum := sha256.Sum256([]byte(signingInput))
-
-		sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sum[:])
-		if err != nil {
-			t.Errorf("sign id_token: %v", err)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"access_token": "access", "token_type": "Bearer", "expires_in": 3600,
-			"id_token": signingInput + "." + b64(sig),
-		})
-	})
+	mux.HandleFunc("/token", oidcTokenHandler(t, srv.URL, key, unverifiableKey, cfg))
 
 	return &oidcTestServer{server: srv}
 }
@@ -632,4 +750,111 @@ func TestOIDCCallback_EscapesClusterInAuthRedirect(t *testing.T) {
 
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, "/auth?cluster=team%26prod", rr.Header().Get("Location"))
+}
+
+func TestOIDCCallback_VerifiesIDTokenWhenUsingAccessToken(t *testing.T) {
+	handler, cluster := newOIDCTestHandler(t, newSigningOIDCTestServer(t), withAccessToken())
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+	require.Equal(t, http.StatusSeeOther, rr.Code,
+		"opaque access tokens must not be verified as JWTs; body=%q", rr.Body.String())
+	assert.Equal(t, "/auth?cluster="+cluster, rr.Header().Get("Location"))
+
+	cookies := map[string]string{}
+	for _, cookie := range rr.Result().Cookies() {
+		cookies[cookie.Name] = cookie.Value
+	}
+
+	// The access token is the cluster credential ...
+	assert.Equal(t, "access", cookies["headlamp-auth-"+cluster+".0"],
+		"the cluster auth cookie should keep the access token")
+
+	// ... while the id_token, a compact JWS, is the verified token.
+	idToken := cookies["headlamp-id-token-"+cluster+".0"]
+	assert.Equal(t, 2, strings.Count(idToken, "."),
+		"the id token cookie should hold the signed JWT; got %q", idToken)
+}
+
+func TestOIDCCallback_VerifiesAccessTokenWhenValidatorOverridesSet(t *testing.T) {
+	const (
+		validatorIssuer   = "https://sts.windows.net/test-tenant/"
+		validatorClientID = "test-resource-client-id"
+	)
+
+	oidcSrv := newSigningOIDCTestServer(t, withAccessTokenJWT(validatorIssuer, validatorClientID))
+	handler, cluster := newOIDCTestHandler(
+		t, oidcSrv, withAccessToken(), withValidatorOverrides(validatorIssuer, validatorClientID))
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+
+	cookies := map[string]string{}
+	for _, cookie := range rr.Result().Cookies() {
+		cookies[cookie.Name] = cookie.Value
+	}
+
+	accessToken := cookies["headlamp-auth-"+cluster+".0"]
+	require.Equal(t, 2, strings.Count(accessToken, "."),
+		"the cluster auth cookie should hold the verified access token; got %q", accessToken)
+
+	claims := map[string]any{}
+	parts := strings.SplitN(accessToken, ".", 3)
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(payload, &claims))
+
+	assert.Equal(t, validatorIssuer, claims["iss"])
+	assert.Equal(t, validatorClientID, claims["aud"])
+}
+
+func TestOIDCCallback_VerifiesIDTokenForOpaqueAccessTokenWithDots(t *testing.T) {
+	const opaqueToken = "access.token.with.dots"
+
+	handler, cluster := newOIDCTestHandler(
+		t, newSigningOIDCTestServer(t, withOpaqueAccessToken(opaqueToken)), withAccessToken())
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+	assert.Equal(t, opaqueToken, responseCookies(rr)["headlamp-auth-"+cluster+".0"])
+}
+
+func TestOIDCCallback_RejectsOpaqueAccessTokenWithoutIDToken(t *testing.T) {
+	handler, cluster := newOIDCTestHandler(
+		t, newSigningOIDCTestServer(t, withoutIDToken()), withAccessToken())
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "body=%q", rr.Body.String())
+	assert.Empty(t, responseCookies(rr)["headlamp-auth-"+cluster+".0"])
+}
+
+func TestOIDCCallback_RejectsUnverifiableIDToken(t *testing.T) {
+	handler, cluster := newOIDCTestHandler(
+		t, newSigningOIDCTestServer(t, withUnverifiableIDToken()), withAccessToken())
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "body=%q", rr.Body.String())
+	assert.Empty(t, responseCookies(rr)["headlamp-auth-"+cluster+".0"])
+}
+
+func TestOIDCCallback_DoesNotFallBackWhenAccessTokenVerificationFails(t *testing.T) {
+	oidcSrv := newSigningOIDCTestServer(t,
+		withUnverifiableAccessTokenJWT("https://issuer.example/", "resource-client-id"))
+	handler, cluster := newOIDCTestHandler(t, oidcSrv, withAccessToken())
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "body=%q", rr.Body.String())
+	assert.Empty(t, responseCookies(rr)["headlamp-auth-"+cluster+".0"])
 }
