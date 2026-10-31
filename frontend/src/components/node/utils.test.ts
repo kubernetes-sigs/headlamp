@@ -22,7 +22,7 @@ vi.mock('../../lib/k8s/pod', () => ({ default: {} }));
 
 import type Node from '../../lib/k8s/node';
 import type Pod from '../../lib/k8s/pod';
-import { isNodeCordoned, isNodeDrained } from './utils';
+import { getNodeUptimeStart, isNodeCordoned, isNodeDrained } from './utils';
 
 function makeNode(unschedulable?: boolean): Node {
   return { spec: { unschedulable } } as any;
@@ -74,5 +74,34 @@ describe('isNodeDrained', () => {
       makePod({ ownerKind: 'ReplicaSet', phase: 'Failed' }),
     ];
     expect(isNodeDrained(makeNode(true), pods)).toBe(true);
+  });
+});
+
+describe('getNodeUptimeStart', () => {
+  const joined = '2026-05-20T21:39:55Z';
+  const booted = '2026-10-19T01:31:57Z';
+
+  function makeReadyNode(lastTransitionTime?: string): Node {
+    return {
+      status: {
+        conditions: lastTransitionTime
+          ? [{ type: 'Ready', status: 'True', lastTransitionTime }]
+          : [],
+      },
+    } as any;
+  }
+
+  it('uses the boot time from the kubelet summary over the Ready transition', () => {
+    expect(getNodeUptimeStart(makeReadyNode(joined), { node: { startTime: booted } })).toBe(booted);
+  });
+
+  it('falls back to the Ready transition without a boot time', () => {
+    expect(getNodeUptimeStart(makeReadyNode(joined), null)).toBe(joined);
+    expect(getNodeUptimeStart(makeReadyNode(joined), { node: { startTime: null } })).toBe(joined);
+    expect(getNodeUptimeStart(makeReadyNode(joined), {})).toBe(joined);
+  });
+
+  it('is undefined without a boot time or a Ready condition', () => {
+    expect(getNodeUptimeStart(makeReadyNode(), null)).toBeUndefined();
   });
 });
