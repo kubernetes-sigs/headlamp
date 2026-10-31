@@ -410,6 +410,7 @@
   "No documentation available.": "کوئی دستاویزات دستیاب نہیں",
   "No documentation for type {{ docsType }}.": "{{ docsType }} قسم کے لیے کوئی دستاویزات موجود نہیں",
   "Showing documentation for: {{ docsType }}": "{{ docsType }} کے لیے دستاویزات دکھائی جا رہی ہیں",
+  "Resize details drawer": "",
   "Hide Managed Fields": "منظم شدہ فیلڈز چھپائیں",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

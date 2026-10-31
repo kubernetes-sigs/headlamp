@@ -24,6 +24,15 @@ import { setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
 import { ActionButton } from '..';
+import {
+  DrawerResizeHandle,
+  MAX_DRAWER_WIDTH_RATIO,
+  MIN_DRAWER_WIDTH,
+  useDrawerResize,
+} from './DrawerResizeHandle';
+
+/** Width the drawer has when the user has not resized it yet, as a fraction of the body width. */
+const DEFAULT_DRAWER_WIDTH_RATIO = 0.6;
 
 export default function DetailsDrawer() {
   const { t } = useTranslation();
@@ -34,6 +43,11 @@ export default function DetailsDrawer() {
   const isDetailDrawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  const resize = useDrawerResize({
+    edge: 'left',
+    defaultWidthRatio: DEFAULT_DRAWER_WIDTH_RATIO,
+    drawerRef,
+  });
 
   const closeDrawer = useCallback(() => {
     dispatch(setSelectedResource(undefined));
@@ -68,7 +82,10 @@ export default function DetailsDrawer() {
       sx={{
         position: 'absolute',
         backgroundColor: 'background.paper',
-        width: '60vw',
+        width: resize.width ?? `${DEFAULT_DRAWER_WIDTH_RATIO * 100}vw`,
+        // Keep restored widths within bounds when the viewport changes after they were saved.
+        minWidth: `${MIN_DRAWER_WIDTH}px`,
+        maxWidth: `${MAX_DRAWER_WIDTH_RATIO * 100}vw`,
         right: 0,
         height: '100%',
         overflowY: 'auto',
@@ -85,6 +102,7 @@ export default function DetailsDrawer() {
       aria-modal="true"
       data-details-drawer="true"
     >
+      <DrawerResizeHandle edge="left" resize={resize} />
       <Box
         sx={{
           display: 'flex',

@@ -412,6 +412,7 @@
   "No documentation available.": "Aucune documentation disponible.",
   "No documentation for type {{ docsType }}.": "Pas de documentation pour le type {{ docsType }}.",
   "Showing documentation for: {{ docsType }}": "Afficher la documentation pour : {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Masquer les champs gérés",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "Cette ressource a été modifiée par un autre processus. Fermez l'éditeur, examinez la dernière version, puis réappliquez vos modifications.",
   "Failed to perform operation: code {{ status }}.": "Échec de l'opération : code {{ status }}.",

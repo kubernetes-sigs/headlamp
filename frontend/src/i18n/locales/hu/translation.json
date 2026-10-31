@@ -410,6 +410,7 @@
   "No documentation available.": "Nincs elérhető dokumentáció.",
   "No documentation for type {{ docsType }}.": "Nincs dokumentáció a(z) {{ docsType }} típushoz.",
   "Showing documentation for: {{ docsType }}": "Dokumentáció megjelenítése a következőhöz: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Felügyelt mezők elrejtése",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

@@ -410,6 +410,7 @@
   "No documentation available.": "ஆவணப்படுத்தல் கிடைக்கவில்லை.",
   "No documentation for type {{ docsType }}.": "{{ docsType }} வகைக்கான ஆவணப்படுத்தல் இல்லை.",
   "Showing documentation for: {{ docsType }}": "இதற்கான ஆவணப்படுத்தல்: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "நிர்வகிக்கப்பட்ட புலங்களை மறை",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

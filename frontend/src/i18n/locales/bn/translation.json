@@ -410,6 +410,7 @@
   "No documentation available.": "কোন ডকুমেন্টেশন উপলব্ধ।",
   "No documentation for type {{ docsType }}.": "এর জন্য কোনও ডকুমেন্টেশন নেই {{ docsType }}।",
   "Showing documentation for: {{ docsType }}": "এর জন্য ডকুমেন্টেশন দেখানো হচ্ছে: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "পরিচালিত ফিল্ড লুকান",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "অপারেশন সম্পাদন করতে ব্যর্থ: কোড {{ status }}।",

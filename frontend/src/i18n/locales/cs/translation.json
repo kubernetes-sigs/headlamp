@@ -414,6 +414,7 @@
   "No documentation available.": "Není dostupná žádná dokumentace.",
   "No documentation for type {{ docsType }}.": "Pro typ {{ docsType }} není k dispozici žádná dokumentace.",
   "Showing documentation for: {{ docsType }}": "Zobrazuje se dokumentace pro: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Skrýt spravovaná pole",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

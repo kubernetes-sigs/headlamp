@@ -414,6 +414,7 @@
   "No documentation available.": "Brak dostępnej dokumentacji.",
   "No documentation for type {{ docsType }}.": "Brak dokumentacji dla typu {{ docsType }}.",
   "Showing documentation for: {{ docsType }}": "Wyświetlanie dokumentacji dla: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Ukryj pola zarządzane",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",

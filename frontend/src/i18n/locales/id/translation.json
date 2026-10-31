@@ -408,6 +408,7 @@
   "No documentation available.": "Dokumentasi tidak tersedia.",
   "No documentation for type {{ docsType }}.": "Tidak ada dokumentasi untuk tipe {{ docsType }}.",
   "Showing documentation for: {{ docsType }}": "Menampilkan dokumentasi untuk: {{ docsType }}",
+  "Resize details drawer": "",
   "Hide Managed Fields": "Sembunyikan Bidang Terkelola",
   "This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.": "",
   "Failed to perform operation: code {{ status }}.": "",
