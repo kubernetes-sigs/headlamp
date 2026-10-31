@@ -23,6 +23,7 @@ type HeadlampConfig struct {
 	OidcClientID              string
 	OidcValidatorClientID     string
 	OidcClientSecret          string
+	OidcClientAssertionFile   string
 	OidcIdpIssuerURL          string
 	OidcCallbackURL           string
 	OidcValidatorIdpIssuerURL string
