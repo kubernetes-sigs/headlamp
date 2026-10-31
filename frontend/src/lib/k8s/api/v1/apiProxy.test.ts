@@ -1087,6 +1087,19 @@ describe('apiProxy', () => {
         await expect(apiProxy.testClusterHealth(clusterName)).rejects.toThrow(errorResponse.error);
       }
     );
+
+    it('Keeps the response status on the rejected error', async () => {
+      nock.cleanAll();
+      nock(baseApiUrl)
+        .persist()
+        .get(`/clusters/${clusterName}${apiPath}`)
+        .reply(401, { message: errorResponse401.error });
+
+      await expect(apiProxy.testClusterHealth(clusterName)).rejects.toMatchObject({
+        status: 401,
+        cluster: clusterName,
+      });
+    });
   });
 
   describe('setCluster, deleteCluster', () => {
