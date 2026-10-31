@@ -268,13 +268,24 @@ describe('MCPClient', () => {
   });
 
   it('constructs the MCP client when a tool is first used', async () => {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
     const ensureCertificates = vi.fn();
     const invoke = vi.fn().mockResolvedValue({ ok: true });
-    const fakeTools = [{ name: 'serverA.t1', schema: {}, invoke }];
+    const fakeTools = [
+      new DynamicStructuredTool({
+        name: 'serverA__t1',
+        description: 'first-use tool',
+        schema: { type: 'object' },
+        func: invoke,
+      }),
+    ];
     const getTools = vi.fn().mockResolvedValue(fakeTools);
+    const listTools = vi.fn().mockResolvedValue({
+      tools: [{ name: 't1', inputSchema: { type: 'object' } }],
+    });
     const close = vi.fn().mockResolvedValue(undefined);
     const MultiServerMCPClientMock = vi.fn().mockImplementation(function () {
-      return { getTools, close };
+      return { getTools, getClient: vi.fn().mockResolvedValue({ listTools }), close };
     });
     const makeMcpServersFromSettings = vi.fn().mockReturnValue({ serverA: { url: 'http://x' } });
 
@@ -294,13 +305,74 @@ describe('MCPClient', () => {
     expect(MultiServerMCPClientMock).not.toHaveBeenCalled();
     await client.handleClustersChange(['cluster-a']);
 
-    const result = await (client as any).mcpExecuteTool('serverA.t1', {}, 'call-1');
+    const result = await (client as any).mcpExecuteTool('serverA__t1', {}, 'call-1');
 
     expect(makeMcpServersFromSettings).toHaveBeenCalledWith(settingsPath, ['cluster-a']);
     expect(MultiServerMCPClientMock).toHaveBeenCalledTimes(1);
     expect(ensureCertificates).toHaveBeenCalledTimes(1);
     expect((client as any).clientTools).toEqual(fakeTools);
     expect(result).toEqual({ success: true, result: { ok: true }, toolCallId: 'call-1' });
+  });
+
+  it('blocks execution after canonical discovery fails and permits a successful retry', async () => {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
+    const invokeFunc = vi.fn().mockResolvedValue('server-executed');
+    const adaptedSchema = {
+      type: 'object',
+      properties: { name: { type: 'string' }, selector: { type: 'string' } },
+    };
+    const canonicalSchema = {
+      ...adaptedSchema,
+      oneOf: [{ required: ['name'] }, { required: ['selector'] }],
+    };
+    const getTools = vi.fn().mockResolvedValue([
+      new DynamicStructuredTool({
+        name: 'serverA__select',
+        description: 'adapted tool',
+        schema: adaptedSchema,
+        func: invokeFunc,
+      }),
+    ]);
+    const listTools = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('discovery unavailable'))
+      .mockResolvedValue({ tools: [{ name: 'select', inputSchema: canonicalSchema }] });
+    const close = vi.fn().mockResolvedValue(undefined);
+
+    vi.resetModules();
+    vi.doMock('@langchain/mcp-adapters', () => ({
+      MultiServerMCPClient: vi.fn().mockImplementation(function () {
+        return { getTools, getClient: vi.fn().mockResolvedValue({ listTools }), close };
+      }),
+    }));
+    vi.doMock('./MCPSettings', () => ({
+      makeMcpServersFromSettings: vi.fn().mockReturnValue({ serverA: { url: 'http://x' } }),
+      hasClusterDependentServers: vi.fn().mockReturnValue(false),
+    }));
+
+    const { default: MCPClient } = await import('./MCPClient');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const result = await client.mcpExecuteTool(
+      'serverA__select',
+      { name: 'worker', selector: 'app=worker' },
+      'call-discovery-failed'
+    );
+    expect(getTools).toHaveBeenCalledTimes(1);
+    expect(listTools).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ success: false, toolCallId: 'call-discovery-failed' });
+    expect(result.error).toContain('Canonical schema unavailable for tool serverA__select');
+    expect(result.error).toContain('reset the MCP client to retry discovery');
+    expect(invokeFunc).not.toHaveBeenCalled();
+
+    await client.cleanup();
+    await client.initialize();
+    const retry = await client.mcpExecuteTool('serverA__select', { name: 'worker' }, 'call-retry');
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(listTools).toHaveBeenCalledTimes(2);
+    expect(retry).toMatchObject({ success: true, result: 'server-executed' });
+    expect(invokeFunc).toHaveBeenCalledTimes(1);
   });
 
   it('discovers configured tools when their inventory is first requested', async () => {
@@ -1020,6 +1092,8 @@ describe('MCPClient#mcpExecuteTool', () => {
 
     const invoke = vi.fn().mockResolvedValue({ ok: true });
     client.clientTools = [{ name: 'serverA.tool1', schema: {}, invoke }];
+    client.canonicalSchemas.set('serverA.tool1', {});
+    client.canonicalTools.set('serverA.tool1', client.clientTools[0]);
     client.mcpToolState = {
       isToolEnabled: vi.fn().mockReturnValue(true),
       recordToolUsage: vi.fn(),
@@ -1074,6 +1148,8 @@ describe('MCPClient#mcpExecuteTool', () => {
     await client.initialize();
 
     client.clientTools = [{ name: 'serverA.tool1', schema: {}, invoke: vi.fn() }];
+    client.canonicalSchemas.set('serverA.tool1', {});
+    client.canonicalTools.set('serverA.tool1', client.clientTools[0]);
     client.mcpToolState = {
       isToolEnabled: vi.fn().mockReturnValue(true),
       recordToolUsage: vi.fn(),
@@ -1161,5 +1237,325 @@ describe('MCPClient#mcpExecuteTool', () => {
 
     const res = await client.mcpExecuteTool('x.y', [], 'call-5');
     expect(res).toBeUndefined();
+  });
+
+  it.each(['schema', 'wrapper'])(
+    'blocks execution when the canonical %s is missing',
+    async missing => {
+      const client = new MCPClient(cfgPath, settingsPath) as any;
+      await client.initialize();
+      const invoke = vi.fn().mockResolvedValue('server-executed');
+      const tool = { name: 'srv__select', schema: { type: 'object' }, invoke };
+      client.clientTools = [tool];
+      if (missing !== 'schema') client.canonicalSchemas.set(tool.name, tool.schema);
+      if (missing !== 'wrapper') client.canonicalTools.set(tool.name, tool);
+      client.isInitialized = true;
+      client.client = {};
+
+      const result = await client.mcpExecuteTool(tool.name, {}, 'call-incomplete-discovery');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(`Canonical schema unavailable for tool ${tool.name}`);
+      expect(result.error).toContain('reset the MCP client to retry discovery');
+      expect(invoke).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    {
+      name: 'escaped JSON Pointer segments',
+      schema: {
+        type: 'object',
+        $defs: { 'a/b~c': { type: 'string' } },
+        properties: { value: { $ref: '#/$defs/a~1b~0c' } },
+        required: ['value'],
+      },
+      validArgs: { value: 'worker' },
+      invalidArgs: [{ value: 3 }],
+    },
+    {
+      name: 'nested JSON Pointer targets',
+      schema: {
+        type: 'object',
+        $defs: { Foo: { type: 'object', properties: { value: { type: 'string' } } } },
+        properties: { value: { $ref: '#/$defs/Foo/properties/value' } },
+        required: ['value'],
+      },
+      validArgs: { value: 'worker' },
+      invalidArgs: [{ value: 3 }],
+    },
+    {
+      name: 'legacy definitions alongside $defs',
+      schema: {
+        type: 'object',
+        $defs: { unused: { type: 'number' } },
+        definitions: { value: { type: 'string' } },
+        properties: { value: { $ref: '#/definitions/value' } },
+        required: ['value'],
+      },
+      validArgs: { value: 'worker' },
+      invalidArgs: [{ value: 3 }],
+    },
+    {
+      name: 'recursive object constraints',
+      schema: {
+        type: 'object',
+        $defs: {
+          node: {
+            type: 'object',
+            properties: { name: { type: 'string' }, child: { $ref: '#/$defs/node' } },
+            required: ['name'],
+          },
+        },
+        properties: { value: { $ref: '#/$defs/node' } },
+        required: ['value'],
+      },
+      validArgs: { value: { name: 'root', child: { name: 'child', child: { name: 'leaf' } } } },
+      invalidArgs: [{ value: { name: 'root', child: {} } }],
+    },
+    {
+      name: 'recursive string-or-array constraints',
+      schema: {
+        type: 'object',
+        $defs: {
+          value: {
+            anyOf: [{ type: 'string' }, { type: 'array', items: { $ref: '#/$defs/value' } }],
+          },
+        },
+        properties: { value: { $ref: '#/$defs/value' } },
+        required: ['value'],
+      },
+      validArgs: { value: ['worker', ['nested', ['leaf']]] },
+      invalidArgs: [{ value: ['worker', [3]] }],
+    },
+    {
+      name: 'draft 2020-12 $ref sibling constraints',
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        $defs: { selection: { type: 'object', required: ['name'] } },
+        $ref: '#/$defs/selection',
+        required: ['selector'],
+      },
+      validArgs: { name: 'worker', selector: 'app=worker' },
+      invalidArgs: [{ selector: 'app=worker' }, { name: 'worker' }],
+    },
+    {
+      name: 'argument names matching definition keywords',
+      schema: {
+        type: 'object',
+        properties: { definitions: { type: 'string' }, $defs: { type: 'string' } },
+        required: ['definitions', '$defs'],
+        additionalProperties: false,
+      },
+      validArgs: { definitions: 'first', $defs: 'second' },
+      invalidArgs: [{ definitions: 'first', $defs: 'second', extra: true }],
+    },
+    {
+      name: 'literal values containing definition keywords',
+      schema: {
+        type: 'object',
+        properties: {
+          value: {
+            type: 'object',
+            enum: [{ definitions: 'literal', $defs: { answer: 42 } }],
+            default: { definitions: 'literal', $defs: { answer: 42 } },
+          },
+        },
+        required: ['value'],
+      },
+      validArgs: { value: { definitions: 'literal', $defs: { answer: 42 } } },
+      invalidArgs: [{ value: {} }],
+    },
+  ])(
+    'preserves $name during canonical tool discovery and execution',
+    async ({ schema, validArgs, invalidArgs }) => {
+      const { DynamicStructuredTool } = await import('@langchain/core/tools');
+      const client = new MCPClient(cfgPath, settingsPath) as any;
+      await client.initialize();
+
+      const originalSchema = JSON.stringify(schema);
+      const invokeFunc = vi.fn().mockResolvedValue('server-executed');
+      client.clientTools = [
+        new DynamicStructuredTool({
+          name: 'srv__select',
+          description: 'adapted tool',
+          schema: { type: 'object' },
+          func: invokeFunc,
+        }),
+      ];
+      const listTools = vi
+        .fn()
+        .mockResolvedValue({ tools: [{ name: 'select', inputSchema: schema }] });
+      client.client = { getClient: vi.fn().mockResolvedValue({ listTools }) };
+      client.isInitialized = true;
+      await client.initCanonicalTools(client.client, { srv: {} });
+
+      const validResult = await client.mcpExecuteTool('srv__select', validArgs, 'call-valid');
+      expect(validResult).toMatchObject({ success: true, result: 'server-executed' });
+      expect(invokeFunc).toHaveBeenCalledTimes(1);
+      expect(invokeFunc.mock.calls[0][0]).toEqual(validArgs);
+
+      for (const args of invalidArgs) {
+        const invalidResult = await client.mcpExecuteTool('srv__select', args, 'call-invalid');
+        expect(invalidResult.success).toBe(false);
+        expect(invokeFunc).toHaveBeenCalledTimes(1);
+      }
+
+      expect(JSON.stringify(client.canonicalSchemas.get('srv__select'))).toBe(originalSchema);
+      expect(JSON.stringify(schema)).toBe(originalSchema);
+    }
+  );
+
+  it('validates calls using canonical schema and rejects invalid oneOf combinations locally', async () => {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const invokeFunc = vi.fn().mockResolvedValue('server-executed');
+    const simplifiedSchema = {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string' },
+        name: { type: 'string' },
+        selector: { type: 'string' },
+      },
+      required: ['namespace'],
+    };
+    const canonicalSchema = {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string' },
+        name: { type: 'string' },
+        selector: { type: 'string' },
+      },
+      required: ['namespace'],
+      oneOf: [{ required: ['name'] }, { required: ['selector'] }],
+    };
+
+    const clientTool = new DynamicStructuredTool({
+      name: 'srv__select',
+      description: 'exclusive tool',
+      schema: simplifiedSchema,
+      func: invokeFunc,
+    });
+    const canonicalTool = new DynamicStructuredTool({
+      name: 'srv__select',
+      description: 'exclusive tool',
+      schema: canonicalSchema,
+      func: invokeFunc,
+    });
+
+    (client as any).clientTools = [clientTool];
+    (client as any).canonicalSchemas.set('srv__select', canonicalSchema);
+    (client as any).canonicalTools.set('srv__select', canonicalTool);
+    (client as any).isInitialized = true;
+    (client as any).client = {};
+
+    // Valid call with name only
+    const validRes = await (client as any).mcpExecuteTool(
+      'srv__select',
+      { namespace: 'default', name: 'pod1' },
+      'call-valid'
+    );
+    expect(validRes.success).toBe(true);
+    expect(validRes.result).toBe('server-executed');
+    expect(invokeFunc).toHaveBeenCalledTimes(1);
+
+    // Invalid call violating oneOf (both name and selector supplied)
+    const invalidRes = await (client as any).mcpExecuteTool(
+      'srv__select',
+      { namespace: 'default', name: 'pod1', selector: 'app=web' },
+      'call-invalid'
+    );
+    expect(invalidRes.success).toBe(false);
+    expect(invalidRes.error).toMatch(/did not match expected schema/);
+    // invokeFunc was NOT called for invalid call!
+    expect(invokeFunc).toHaveBeenCalledTimes(1);
+  });
+
+  it('permits valid branch in conditional if/then/else schemas', async () => {
+    const { DynamicStructuredTool } = await import('@langchain/core/tools');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const invokeFunc = vi.fn().mockImplementation(async args => `echo-${JSON.stringify(args)}`);
+    const canonicalConditionalSchema = {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['name', 'selector'] },
+        name: { type: 'string' },
+        selector: { type: 'string' },
+      },
+      required: ['mode'],
+      if: { properties: { mode: { const: 'name' } }, required: ['mode'] },
+      then: { required: ['name'] },
+      else: { required: ['selector'] },
+    };
+
+    const canonicalTool = new DynamicStructuredTool({
+      name: 'srv__cond',
+      description: 'conditional tool',
+      schema: canonicalConditionalSchema,
+      func: invokeFunc,
+    });
+
+    (client as any).clientTools = [
+      new DynamicStructuredTool({
+        name: 'srv__cond',
+        description: 'adapter-flattened conditional tool',
+        schema: {
+          type: 'object',
+          properties: canonicalConditionalSchema.properties,
+          required: ['mode', 'name', 'selector'],
+        },
+        func: invokeFunc,
+      }),
+    ];
+    (client as any).canonicalSchemas.set('srv__cond', canonicalConditionalSchema);
+    (client as any).canonicalTools.set('srv__cond', canonicalTool);
+    (client as any).isInitialized = true;
+    (client as any).client = {};
+
+    // Mode 'name' with name supplied
+    const resName = await (client as any).mcpExecuteTool(
+      'srv__cond',
+      { mode: 'name', name: 'my-service' },
+      'call-name'
+    );
+    expect(resName.success).toBe(true);
+
+    // Mode 'selector' with selector supplied
+    const resSelector = await (client as any).mcpExecuteTool(
+      'srv__cond',
+      { mode: 'selector', selector: 'tier=backend' },
+      'call-selector'
+    );
+    expect(resSelector.success).toBe(true);
+
+    // Incomplete mode 'name' missing required 'name'
+    const resMissing = await (client as any).mcpExecuteTool(
+      'srv__cond',
+      { mode: 'name' },
+      'call-missing'
+    );
+    expect(resMissing.success).toBe(false);
+  });
+
+  it('keeps canonical schemas isolated per server and clears them on cleanup', async () => {
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    (client as any).canonicalSchemas.set('server1__tool', { type: 'object', title: 'schema1' });
+    (client as any).canonicalSchemas.set('server2__tool', { type: 'object', title: 'schema2' });
+    (client as any).canonicalTools.set('server1__tool', {} as any);
+    (client as any).canonicalTools.set('server2__tool', {} as any);
+
+    expect((client as any).canonicalSchemas.get('server1__tool').title).toBe('schema1');
+    expect((client as any).canonicalSchemas.get('server2__tool').title).toBe('schema2');
+
+    await client.cleanup();
+
+    expect((client as any).canonicalSchemas.size).toBe(0);
+    expect((client as any).canonicalTools.size).toBe(0);
   });
 });
