@@ -408,6 +408,20 @@ describe('KubeObjectNodeComponent', () => {
     expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
   });
 
+  it('expands after sustained hover and collapses immediately on pointer leave', () => {
+    mocks.node = { id: 'hovered', label: 'Hovered' };
+    render(<KubeObjectNodeComponent {...nodeProps('hovered')} />);
+    const button = screen.getByRole('button');
+
+    fireEvent.pointerEnter(button);
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.getByTestId('node-glance')).toHaveTextContent('hovered');
+
+    fireEvent.pointerLeave(button);
+    expect(screen.queryByTestId('node-glance')).not.toBeInTheDocument();
+    expect(button).not.toHaveClass('kube-object-node--expanded');
+  });
+
   it('cancels pending expansion when the pointer leaves', () => {
     mocks.node = { id: 'hovered', label: 'Hovered' };
     render(<KubeObjectNodeComponent {...nodeProps('hovered')} />);
