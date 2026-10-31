@@ -256,6 +256,8 @@ const DEFAULT_NODE_WEIGHTS = {
   EndpointSlice: 780,
   MutatingWebhookConfiguration: 780,
   ValidatingWebhookConfiguration: 780,
+  ValidatingAdmissionPolicy: 780,
+  ValidatingAdmissionPolicyBinding: 780,
   IngressClass: 780,
   Ingress: 780,
 
