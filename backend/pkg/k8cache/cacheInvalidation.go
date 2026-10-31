@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/rest"
 	watchCache "k8s.io/client-go/tools/cache"
 )
 
@@ -181,8 +182,11 @@ func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.Gr
 
 // Corrected CheckForChanges.
 var (
-	watcherRegistry sync.Map
-	contextCancel   sync.Map
+	watcherRegistry    sync.Map
+	contextCancel      sync.Map
+	newDiscoveryClient = func(config *rest.Config) (discovery.DiscoveryInterface, error) {
+		return discovery.NewDiscoveryClientForConfig(config)
+	}
 )
 
 // CheckForChanges lets 1 go routine to run for a contextKey which prevents
@@ -275,14 +279,21 @@ func runWatcher(
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+redactContextKey(contextKey))
+
 		return
 	}
 
-	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+	discoveryClient, err := newDiscoveryClient(config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error creating discovery client for context: "+redactContextKey(contextKey))
+
+		return
+	}
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
 	if apiResourceLists == nil && err != nil {
 		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+redactContextKey(contextKey))
+
 		return
 	}
 
