@@ -109,8 +109,17 @@ export function SearchSettings({
             sx={{ alignSelf: 'flex-end' }}
             onClick={() => {
               if (maxItemsInputRef.current && refetchInputRef.current) {
-                setMaxItemsPerResource(parseInt(maxItemsInputRef.current.value));
-                setRefetchIntervalMs(parseInt(refetchInputRef.current.value));
+                const maxItems = parseInt(maxItemsInputRef.current.value, 10);
+                const refetchInterval = parseInt(refetchInputRef.current.value, 10);
+
+                if (Number.isFinite(maxItems)) {
+                  setMaxItemsPerResource(maxItems);
+                }
+
+                if (Number.isFinite(refetchInterval)) {
+                  setRefetchIntervalMs(refetchInterval);
+                }
+
                 setAnchorEl(null);
               }
             }}
