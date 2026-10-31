@@ -338,7 +338,16 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 		return nil, errors.New("clientConfig is nil")
 	}
 
-	return clientConfig.ClientConfig()
+	restConf, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Source == DynamicCluster && restConf.ExecProvider != nil {
+		return nil, fmt.Errorf("exec credential plugins are not permitted in dynamic clusters")
+	}
+
+	return restConf, nil
 }
 
 // makeTransportFor creates an HTTP transport configuration with special handling for
@@ -1128,6 +1137,13 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	}
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
+
+	if source == DynamicCluster && authInfo != nil && authInfo.Exec != nil {
+		return Context{}, ContextError{
+			ContextName: contextName,
+			Reason:      "exec credential plugins are not permitted in dynamic clusters",
+		}
+	}
 
 	// Make contextName DNS friendly.
 	contextName = MakeDNSFriendly(contextName)
