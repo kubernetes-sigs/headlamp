@@ -257,7 +257,7 @@ class Pod extends KubeObject<KubePod> {
       });
     }
 
-    let isReconnecting = true; // Flag to track reconnection attempts
+    const self = this;
     const [container, onLogs, logsOptions] = args as Parameters<newGetLogs>;
     const {
       tailLines = 100,
@@ -269,15 +269,25 @@ class Pod extends KubeObject<KubePod> {
       onReconnectStop,
     } = logsOptions;
 
-    let logs: string[] = [];
+    const logs: string[] = [];
     let hasJsonLogs = false;
-    let url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${showTimestamps}&follow=${follow}`;
-
-    // Negative tailLines parameter fetches all logs. If it's non negative it fetches
-    // the tailLines number of logs.
-    if (tailLines !== -1) {
-      url += `&tailLines=${tailLines}`;
-    }
+    let lastTimestamp = '';
+    let isCancelled = false;
+    let activeCancel: (() => void) | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let partialLineBuffer = '';
+    // Display text and raw text of an unterminated record already rendered before it completed.
+    let shownPartial = '';
+    let shownPartialRaw = '';
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    let lastProcessedLine = '';
+    // True after a reconnect until the records replayed from sinceTime have been skipped.
+    let isReplaying = false;
+    // Kubernetes only prefixes records with a timestamp when it was requested.
+    const hasTimestampPrefix = follow || showTimestamps;
+    const timestampPrefix =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})) /;
 
     function unescapeStringLiterals(str: string): string {
       return str
@@ -309,54 +319,206 @@ class Pod extends KubeObject<KubePod> {
 
         if (showTimestamps) {
           const timestamp = logLine.slice(0, jsonMatch.index).trim();
-          return timestamp ? `${timestamp}\n${terminalReadyJson}\n` : `${terminalReadyJson}\n`;
+          return timestamp ? `${timestamp}\n${terminalReadyJson}` : `${terminalReadyJson}`;
         } else {
-          return `${terminalReadyJson}\n`;
+          return `${terminalReadyJson}`;
         }
       } catch {
         return logLine; // Return original log line if parsing fails
       }
     }
 
+    function splitTimestamp(line: string): [timestamp: string, text: string] {
+      const match = hasTimestampPrefix ? line.match(timestampPrefix) : null;
+      return match ? [match[1], line.slice(match[0].length)] : ['', line];
+    }
+
+    function displayLine(line: string, allowPrettify: boolean): string {
+      let processed = showTimestamps ? line : splitTimestamp(line)[1];
+
+      // Check if this line contains JSON
+      if (processed.trim().match(/(\{.*\})/)) {
+        hasJsonLogs = true;
+        if (prettifyLogs && allowPrettify) {
+          processed = prettifyLogLine(processed);
+        }
+      }
+      return processed;
+    }
+
+    /** Splits an RFC 3339 timestamp so it can be ordered at nanosecond precision. */
+    function timestampKey(timestamp: string): [seconds: number, fraction: string] {
+      const [, seconds, fraction = '', zone] =
+        timestamp.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/) || [];
+      return [Date.parse(seconds + zone), fraction.padEnd(9, '0')];
+    }
+
+    function isAfterResumePoint(timestamp: string): boolean {
+      const [seconds, fraction] = timestampKey(timestamp);
+      const [lastSeconds, lastFraction] = timestampKey(lastTimestamp);
+      return seconds !== lastSeconds ? seconds > lastSeconds : fraction > lastFraction;
+    }
+
+    /**
+     * Reports whether a record is part of the replay a reconnect receives. sinceTime is
+     * sent to the kubelet with second precision, so the replay can start with records
+     * from earlier in that second and may span several callbacks.
+     */
+    function isReplayed(line: string): boolean {
+      if (!isReplaying) return false;
+      if (line === lastProcessedLine) {
+        isReplaying = false;
+        return true;
+      }
+      // Fall back to the timestamp when the last rendered record is no longer available.
+      const [timestamp] = splitTimestamp(line);
+      if (timestamp && !isAfterResumePoint(timestamp)) return true;
+      isReplaying = false;
+      return false;
+    }
+
+    /** Returns the part of a record's display text that is not rendered yet. */
+    function unshown(line: string, text: string): string {
+      if (!shownPartial) return text;
+      if (line.startsWith(shownPartialRaw)) return text.slice(shownPartial.length);
+      if (shownPartialRaw.startsWith(line)) return '';
+      // The rendered fragment never completed, so end it before the next record.
+      return '\n' + text;
+    }
+
     function onResults(item: string) {
       if (!item) return;
 
       const decodedLog = Base64.decode(item);
-      if (!decodedLog || decodedLog.trim() === '') return;
-      const trimmedLog = decodedLog.trim();
-      const jsonMatch = trimmedLog.match(/(\{.*\})/);
-      if (jsonMatch) hasJsonLogs = true;
-      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
-      logs.push(processedLog);
+      if (!decodedLog) return;
+
+      const linesList = (partialLineBuffer + decodedLog).split('\n');
+
+      // The last element is either empty (if it ended with \n) or the partial line
+      partialLineBuffer = linesList.pop() || '';
+
+      const newLines = linesList.filter(line => !isReplayed(line));
+      const rendered: string[] = [];
+
+      for (const line of newLines) {
+        rendered.push(unshown(line, displayLine(line, !shownPartial) + '\n'));
+        shownPartial = '';
+        shownPartialRaw = '';
+      }
+
+      if (newLines.length > 0) {
+        // Only records that survive replay suppression count as progress.
+        reconnectAttempts = 0;
+        lastProcessedLine = newLines[newLines.length - 1];
+        lastTimestamp = splitTimestamp(lastProcessedLine)[0] || lastTimestamp;
+      }
+
+      // Render a followed record before its newline arrives, without making it the resume point.
+      if (
+        follow &&
+        partialLineBuffer &&
+        !isReplaying &&
+        (!hasTimestampPrefix || timestampPrefix.test(partialLineBuffer))
+      ) {
+        const text = displayLine(partialLineBuffer, false);
+        const pending = unshown(partialLineBuffer, text);
+        if (pending) {
+          rendered.push(pending);
+          shownPartial = text;
+          shownPartialRaw = partialLineBuffer;
+        }
+      }
+
+      const toRender = rendered.filter(Boolean);
+      if (toRender.length === 0) return;
+
+      logs.push(...toRender);
       onLogs({ logs, hasJsonLogs });
     }
 
-    const { cancel } = stream(url, onResults, {
-      cluster: this.cluster,
-      isJson: false,
-      connectCb: () => {
-        logs = [];
-        hasJsonLogs = false;
-      },
-      /**
-       * This callback is called when the connection is closed. It then check
-       * if the connection was closed due to an error or not. If it was closed
-       * due to an error, it stops further reconnection attempts.
-       */
-      failCb: () => {
-        // If it's a reconnection attempt, stop further reconnection attempts
-        if (follow && isReconnecting) {
-          isReconnecting = false;
+    function connect() {
+      if (isCancelled) return;
 
-          // If the onReconnectStop callback is provided, call it
-          if (onReconnectStop) {
-            onReconnectStop();
+      // Always request timestamps when following so we can extract the last timestamp for reconnection.
+      // For one-shot (non-follow) log fetches, respect showTimestamps to avoid extra payload/processing.
+      const timestampsParam = follow ? 'true' : String(showTimestamps);
+      let currentUrl = `/api/v1/namespaces/${self.getNamespace()}/pods/${self.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${timestampsParam}&follow=${follow}`;
+      if (lastTimestamp) {
+        currentUrl += `&sinceTime=${encodeURIComponent(lastTimestamp)}`;
+      } else if (tailLines !== -1) {
+        currentUrl += `&tailLines=${tailLines}`;
+      }
+
+      const isReconnectAttempt = Boolean(lastTimestamp);
+      isReplaying = isReconnectAttempt;
+      let reconnectBannerShown = false;
+
+      const { cancel } = stream(
+        currentUrl,
+        (item: string) => {
+          if (!reconnectBannerShown && isReconnectAttempt) {
+            reconnectBannerShown = true;
+            logs.push('\n\x1b[32m[Reconnected!]\x1b[0m\n');
+            onLogs({ logs, hasJsonLogs });
           }
-        }
-      },
-    });
+          onResults(item);
+        },
+        {
+          cluster: self.cluster,
+          isJson: false,
+          reconnectOnFailure: false, // Handle reconnection ourselves
+          failCb: () => {
+            if (isCancelled) return;
+            // When not following, the server closing the socket after sending the requested logs is expected.
+            if (!follow) {
+              // Flush a final log line that arrived without a trailing newline.
+              if (partialLineBuffer) {
+                logs.push(displayLine(partialLineBuffer, true) + '\n');
+                partialLineBuffer = '';
+                onLogs({ logs, hasJsonLogs });
+              }
+              return;
+            }
+            // The reconnect replays this record in full; shownPartial tracks what is already rendered.
+            partialLineBuffer = '';
 
-    return cancel;
+            if (reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++;
+              logs.push(
+                `\n\x1b[33m[Connection lost. Reconnecting... (attempt ${reconnectAttempts}/${maxReconnectAttempts})]\x1b[0m\n`
+              );
+              onLogs({ logs, hasJsonLogs });
+              if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+              }
+              reconnectTimeout = setTimeout(connect, 3000);
+            } else {
+              logs.push(
+                '\n\x1b[31m[Connection lost. Reconnection limit reached. Reconnect stopped.]\x1b[0m\n'
+              );
+              onLogs({ logs, hasJsonLogs });
+              if (onReconnectStop) {
+                onReconnectStop();
+              }
+            }
+          },
+        }
+      );
+
+      activeCancel = cancel;
+    }
+
+    connect();
+
+    return () => {
+      isCancelled = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (activeCancel) {
+        activeCancel();
+      }
+    };
   }
 
   attach(container: string, onAttach: StreamResultsCb, options: StreamArgs = {}) {
@@ -372,6 +534,7 @@ class Pod extends KubeObject<KubePod> {
       cluster: this.cluster,
       additionalProtocols,
       isJson: false,
+      reconnectOnFailure: false,
       ...options,
     });
   }

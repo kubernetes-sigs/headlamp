@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -1606,7 +1607,7 @@ func TestHandleClusterMessages(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		m.handleClusterMessages(conn, clientConn)
+		m.handleClusterMessages(conn)
 		close(done)
 	}()
 
@@ -1865,6 +1866,7 @@ var benchWatchEventMsg = []byte(`{
 // BenchmarkSendIfNewResourceVersion measures the allocation overhead of
 // extracting metadata.resourceVersion from a typical Kubernetes watch event.
 // This is the hottest path in the multiplexer.
+
 func BenchmarkSendIfNewResourceVersion(b *testing.B) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	conn := &Connection{
@@ -1934,4 +1936,316 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+func TestTerminalReconnectAndBuffering(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods/my-pod/exec",
+		Query:     "container=my-container&stdin=true&stdout=true&tty=true",
+		UserID:    "test-user",
+		Type:      "REQUEST",
+	}
+
+	token := "token"
+
+	conn, err := m.getOrCreateConnection(msg, clientConn1, &token)
+	require.NoError(t, err)
+
+	t.Run("Establish initial connection", func(t *testing.T) {
+		assert.NotNil(t, conn)
+		conn.mu.RLock()
+		client := conn.Client
+		state := conn.Status.State
+		conn.mu.RUnlock()
+		assert.Equal(t, clientConn1, client)
+		assert.Equal(t, StateConnected, state)
+	})
+
+	t.Run("Simulate disconnect and buffer", func(t *testing.T) {
+		runSimulateDisconnectAndBufferTest(t, conn)
+	})
+
+	t.Run("Reconnect and flush", func(t *testing.T) {
+		runReconnectAndFlushTest(t, m, conn, msg, token)
+	})
+}
+
+func runSimulateDisconnectAndBufferTest(t *testing.T, conn *Connection) {
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.Status.State = StateClosed
+	conn.mu.Unlock()
+
+	err := conn.WSConn.WriteMessage(websocket.TextMessage, []byte("hello"))
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		conn.mu.RLock()
+		defer conn.mu.RUnlock()
+
+		return len(conn.Buffer) == 1 && string(conn.Buffer[0].Data) == "hello"
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
+func runReconnectAndFlushTest(t *testing.T, m *Multiplexer, conn *Connection, msg Message, token string) {
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	flushed := make(chan []byte, 1)
+
+	go func() {
+		_, data, _ := clientConn2.conn.ReadMessage()
+
+		flushed <- data
+	}()
+
+	conn2, err := m.getOrCreateConnection(msg, clientConn2, &token)
+	require.NoError(t, err)
+	assert.Equal(t, conn, conn2)
+	conn.mu.RLock()
+	client := conn.Client
+	state := conn.Status.State
+	conn.mu.RUnlock()
+	assert.Equal(t, clientConn2, client)
+	assert.Equal(t, StateConnected, state)
+
+	conn.mu.RLock()
+	isBufferNil := conn.Buffer == nil
+	conn.mu.RUnlock()
+	assert.True(t, isBufferNil)
+
+	select {
+	case data := <-flushed:
+		assert.Contains(t, string(data), "hello")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for buffered messages")
+	}
+}
+
+func TestTerminalCloseConnectionWithQuery(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	clusterID := "test-cluster"
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	userID := "test-user"
+
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
+	conn := m.createConnection(clusterID, userID, path, query, clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	// Verify connection exists in registry
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.True(t, exists)
+
+	// Close connection passing the query
+	m.CloseConnection(clusterID, path, userID, query)
+
+	// Verify connection is removed from registry and closed
+	m.mutex.RLock()
+	_, exists = m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, exists)
+	assert.True(t, conn.IsClosed())
+}
+
+func TestDisconnectedTerminalUpstreamClosePreservesBufferAndSendsComplete(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clusterID := "test-cluster"
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	userID := "test-user"
+
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
+
+	// Create terminal connection without an active client (disconnected)
+	conn := m.createConnection(clusterID, userID, path, query, nil, nil)
+	conn.Buffer = []BufferedMessage{{Type: 2, Data: []byte("final output frame")}}
+	conn.BufferBytes = len("final output frame")
+	conn.Status.State = StateClosed
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	// Simulate handleClusterMessages exiting due to upstream K8s connection close while client is disconnected
+	conn.mu.Lock()
+	conn.upstreamClosed = true
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+
+	// Connection should still be cached in m.connections during grace period
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.True(t, exists, "disconnected terminal connection must remain in cache during grace period")
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// Reconnect to the cached terminal connection
+	msg := Message{
+		ClusterID: clusterID,
+		Path:      path,
+		Query:     query,
+		UserID:    userID,
+		Type:      "REQUEST",
+	}
+
+	reconnected, err := m.getOrCreateConnection(msg, clientConn, nil)
+	require.NoError(t, err)
+	assert.Equal(t, conn, reconnected)
+
+	// Verify that buffered messages were flushed, COMPLETE message was sent, and connection cleaned up
+	assert.Eventually(t, func() bool {
+		m.mutex.RLock()
+		_, inCache := m.connections[connKey]
+		m.mutex.RUnlock()
+
+		return !inCache && conn.IsClosed()
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestTerminalSendErrorAfterDetachBuffersFrame(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	failedClient, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	conn := m.createConnection("test-cluster", "test-user", path, "", failedClient, nil)
+
+	// closeClientConnections detached the client after the frame's send began.
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.mu.Unlock()
+
+	m.handleTerminalSendError(conn, failedClient, errors.New("write failed"), websocket.BinaryMessage, []byte("lost?"))
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	require.Len(t, conn.Buffer, 1)
+	assert.Equal(t, []byte("lost?"), conn.Buffer[0].Data)
+}
+
+func TestTerminalReattachRequiresOwnerToken(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	msg := Message{ClusterID: "test-cluster", Path: path, Query: query, UserID: "test-user", Type: "REQUEST"}
+
+	ownerToken := "owner-token"
+	conn := m.createConnection(msg.ClusterID, msg.UserID, path, query, nil, &ownerToken)
+	conn.ownerToken = &ownerToken
+	conn.Buffer = []BufferedMessage{{Type: websocket.BinaryMessage, Data: []byte("secret output")}}
+	conn.BufferBytes = len("secret output")
+	conn.Status.State = StateClosed
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(msg.ClusterID, path, msg.UserID, query)] = conn
+	m.mutex.Unlock()
+
+	otherToken := "other-token"
+
+	for name, token := range map[string]*string{"no token": nil, "other token": &otherToken} {
+		t.Run(name, func(t *testing.T) {
+			clientConn, clientServer := createTestWebSocketConnection()
+			defer clientServer.Close()
+
+			_, err := m.getOrCreateConnection(msg, clientConn, token)
+			require.Error(t, err)
+
+			conn.mu.RLock()
+			defer conn.mu.RUnlock()
+
+			assert.Nil(t, conn.Client)
+			require.Len(t, conn.Buffer, 1)
+			assert.Equal(t, &ownerToken, conn.Token)
+		})
+	}
+
+	t.Run("owner token", func(t *testing.T) {
+		clientConn, clientServer := createTestWebSocketConnection()
+		defer clientServer.Close()
+
+		sameToken := "owner-token"
+
+		reattached, err := m.getOrCreateConnection(msg, clientConn, &sameToken)
+		require.NoError(t, err)
+		assert.Equal(t, conn, reattached)
+
+		conn.mu.RLock()
+		defer conn.mu.RUnlock()
+
+		assert.Equal(t, clientConn, conn.Client)
+		assert.Empty(t, conn.Buffer)
+	})
+}
+
+func TestReconnectKeepsServiceAccountConnectionOwner(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, true)
+	tokenFile := writeTestTokenFile(t)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:     "test-cluster",
+		Cluster:  &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	requestToken := "proxy-token"
+	path := "/api/v1/namespaces/default/pods/test-pod/exec"
+
+	conn, err := m.establishClusterConnection("test-cluster", "test-user", path, "tty=1", clientConn, &requestToken)
+	require.NoError(t, err)
+
+	newConn, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer close(newConn.Done)
+
+	require.NotNil(t, newConn.Token)
+	assert.Equal(t, testServiceAccountToken, *newConn.Token)
+	assert.True(t, newConn.isOwnedBy(&requestToken))
 }

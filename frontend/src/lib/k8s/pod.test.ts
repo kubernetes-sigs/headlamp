@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { post } from './api/v1/clusterRequests';
+import { stream } from './api/v1/streamingApi';
 import Pod from './pod';
 
 // cyclic imports fix
@@ -36,6 +38,9 @@ vi.mock('./api/v1/clusterRequests', async importOriginal => {
     }),
   };
 });
+vi.mock('./api/v1/streamingApi', () => ({
+  stream: vi.fn(() => ({ cancel: vi.fn(), getSocket: vi.fn(() => null) })),
+}));
 
 describe('Pod class', () => {
   const mockPodData = {
@@ -216,6 +221,216 @@ describe('Pod class', () => {
     it('classifies a Succeeded pod as healthy', () => {
       const pod = makePod({ phase: 'Succeeded' });
       expect(pod.getHealth()).toBe('healthy');
+    });
+  });
+
+  describe('getLogs', () => {
+    it('extracts lastTimestamp, strips timestamps when showTimestamps is false, and appends sinceTime upon reconnect', () => {
+      vi.useFakeTimers();
+      let captureOnResults: any = null;
+      let captureFailCb: any = null;
+      const mockStream = vi.mocked(stream).mockImplementation((_url, onResults, options) => {
+        captureOnResults = onResults;
+        captureFailCb = options?.failCb;
+        return { cancel: vi.fn(), getSocket: vi.fn(() => null) };
+      });
+
+      const pod = new Pod(mockPodData as any);
+      const onLogs = vi.fn();
+
+      const cancel = pod.getLogs('container-1', onLogs, {
+        showTimestamps: false,
+        follow: true,
+      });
+
+      expect(mockStream).toHaveBeenCalledWith(
+        expect.stringContaining('timestamps=true'),
+        expect.any(Function),
+        expect.any(Object)
+      );
+
+      const lastCallUrl = mockStream.mock.calls[0][0];
+      expect(lastCallUrl).not.toContain('sinceTime');
+
+      const logLine1 = '2026-06-30T10:00:00.123456Z Log message line 1\n';
+      const encodedLog1 = Base64.encode(logLine1);
+
+      captureOnResults(encodedLog1);
+
+      expect(onLogs).toHaveBeenCalledWith({
+        logs: ['Log message line 1\n'],
+        hasJsonLogs: false,
+      });
+
+      // Send a second log line to verify no premature [Reconnected!] banner is shown
+      const logLine1b = '2026-06-30T10:01:00.000000Z Log message line 1b\n';
+      const encodedLog1b = Base64.encode(logLine1b);
+      captureOnResults(encodedLog1b);
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: ['Log message line 1\n', 'Log message line 1b\n'],
+        hasJsonLogs: false,
+      });
+
+      mockStream.mockClear();
+      captureFailCb();
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: [
+          'Log message line 1\n',
+          'Log message line 1b\n',
+          '\n\x1b[33m[Connection lost. Reconnecting... (attempt 1/5)]\x1b[0m\n',
+        ],
+        hasJsonLogs: false,
+      });
+
+      // Fast-forward the 3000ms delay
+      vi.advanceTimersByTime(3000);
+
+      expect(mockStream).toHaveBeenCalledWith(
+        expect.stringContaining('sinceTime=2026-06-30T10%3A01%3A00.000000Z'),
+        expect.any(Function),
+        expect.any(Object)
+      );
+
+      const logLine2 = '2026-06-30T10:05:00.000000Z Log message line 2\n';
+      const encodedLog2 = Base64.encode(logLine2);
+      captureOnResults(encodedLog2);
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: [
+          'Log message line 1\n',
+          'Log message line 1b\n',
+          '\n\x1b[33m[Connection lost. Reconnecting... (attempt 1/5)]\x1b[0m\n',
+          '\n\x1b[32m[Reconnected!]\x1b[0m\n',
+          'Log message line 2\n',
+        ],
+        hasJsonLogs: false,
+      });
+
+      cancel();
+      vi.useRealTimers();
+    });
+
+    it('flushes a final line without a trailing newline when a non-follow stream closes', () => {
+      let captureOnResults: any = null;
+      let captureFailCb: any = null;
+      vi.mocked(stream).mockImplementation((_url, onResults, options) => {
+        captureOnResults = onResults;
+        captureFailCb = options?.failCb;
+        return { cancel: vi.fn(), getSocket: vi.fn(() => null) };
+      });
+
+      const pod = new Pod(mockPodData as any);
+      const onLogs = vi.fn();
+
+      const cancel = pod.getLogs('container-1', onLogs, { follow: false });
+
+      captureOnResults(Base64.encode('line 1\nlast line'));
+      captureFailCb();
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: ['line 1\n', 'last line\n'],
+        hasJsonLogs: false,
+      });
+
+      cancel();
+    });
+    describe('follow reconnects', () => {
+      const lost = (attempt: number) =>
+        `\n\x1b[33m[Connection lost. Reconnecting... (attempt ${attempt}/5)]\x1b[0m\n`;
+      const reconnected = '\n\x1b[32m[Reconnected!]\x1b[0m\n';
+
+      function startLogs(options: { showTimestamps?: boolean; follow?: boolean } = {}) {
+        vi.useFakeTimers();
+        const urls: string[] = [];
+        let onResults: any = null;
+        let failCb: any = null;
+        vi.mocked(stream).mockImplementation((url, cb, args) => {
+          urls.push(url);
+          onResults = cb;
+          failCb = args?.failCb;
+          return { cancel: vi.fn(), getSocket: vi.fn(() => null) };
+        });
+        const onLogs = vi.fn();
+        const cancel = new Pod(mockPodData as any).getLogs('container-1', onLogs, {
+          follow: true,
+          ...options,
+        });
+        return {
+          urls,
+          send: (text: string) => onResults(Base64.encode(text)),
+          reconnect: () => {
+            failCb();
+            vi.advanceTimersByTime(3000);
+          },
+          shown: () => onLogs.mock.lastCall?.[0].logs.join(''),
+          stop: () => {
+            cancel();
+            vi.useRealTimers();
+          },
+        };
+      }
+
+      it('strips only the requested timestamp prefix', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z   indented\r\n');
+        expect(logs.shown()).toBe('  indented\r\n');
+        logs.stop();
+      });
+
+      it('keeps application timestamps when no prefix was requested', () => {
+        const logs = startLogs({ follow: false });
+        expect(logs.urls[0]).toContain('timestamps=false');
+        logs.send('2026-06-30T10:00:00Z app message\n');
+        expect(logs.shown()).toBe('2026-06-30T10:00:00Z app message\n');
+        logs.stop();
+      });
+
+      it('does not reset the retry budget for replayed records', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z line 1\n');
+        logs.reconnect();
+        logs.send('2026-06-30T10:00:00.1Z line 1\n');
+        logs.reconnect();
+        expect(logs.shown()).toBe('line 1\n' + lost(1) + reconnected + lost(2));
+        logs.stop();
+      });
+
+      it('shows an unterminated fragment and completes it after a reconnect', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z line 1\n2026-06-30T10:00:00.2Z par');
+        expect(logs.shown()).toBe('line 1\npar');
+        logs.send('t');
+        expect(logs.shown()).toBe('line 1\npart');
+
+        logs.reconnect();
+        expect(logs.urls[1]).toContain('sinceTime=2026-06-30T10%3A00%3A00.1Z');
+        logs.send('2026-06-30T10:00:00.1Z line 1\n2026-06-30T10:00:00.2Z partial\n');
+        expect(logs.shown()).toBe('line 1\npart' + lost(1) + reconnected + 'ial\n');
+        logs.stop();
+      });
+
+      it('suppresses a replay that spans several callbacks', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.1Z a\n2026-06-30T10:00:00.2Z b\n');
+        logs.reconnect();
+        // The kubelet resumes from the start of the second, replaying both records.
+        logs.send('2026-06-30T10:00:00.1Z a\n');
+        logs.send('2026-06-30T10:00:00.2Z b\n2026-06-30T10:00:01Z c\n');
+        expect(logs.shown()).toBe('a\nb\n' + lost(1) + reconnected + 'c\n');
+        logs.stop();
+      });
+
+      it('drops replayed records when the saved boundary is gone', () => {
+        const logs = startLogs();
+        logs.send('2026-06-30T10:00:00.5Z b\n');
+        logs.reconnect();
+        logs.send('2026-06-30T10:00:00.1Z rotated\n2026-06-30T10:00:00.50Z other\n');
+        logs.send('2026-06-30T10:00:00.51Z c\n');
+        expect(logs.shown()).toBe('b\n' + lost(1) + reconnected + 'c\n');
+        logs.stop();
+      });
     });
   });
 });
