@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -60,7 +61,19 @@ const (
 	PortForwardReadinessTimeout = 30 * time.Second
 )
 
-var inFlightPortForwards sync.Map
+var (
+	inFlightPortForwards sync.Map
+	reconnectBarrier     func()
+)
+
+// pfState coordinates concurrent status updates and teardown for a port forward.
+// The cache stores struct value copies, but all copies keep their pointer fields,
+// so stop/delete marks the instance retired atomically across all goroutines.
+type pfState struct {
+	mu        sync.Mutex
+	retired   bool
+	closeChan chan struct{}
+}
 
 type portForwardRequest struct {
 	ID               string `json:"id"`
@@ -89,7 +102,8 @@ func (p *portForwardRequest) Validate() error {
 }
 
 type portForward struct {
-	mu               *sync.Mutex
+	state            *pfState
+	generation       uint64
 	ID               string `json:"id"`
 	closeChan        chan struct{}
 	Pod              string       `json:"pod"`
@@ -105,21 +119,57 @@ type portForward struct {
 	rConf            *rest.Config `json:"-"` // needed for reconnect on pod restart
 }
 
-// setStatusAndSnapshot updates the Status and Error fields and returns a
-// snapshot of the struct. When mu is initialized (production path), both
-// the update and the snapshot are performed within a single critical section.
-// When mu is nil (e.g. test-only structs not accessed concurrently), the
-// update proceeds without locking.
-func (pf *portForward) setStatusAndSnapshot(status, errMsg string) portForward {
-	if pf.mu != nil {
-		pf.mu.Lock()
-		defer pf.mu.Unlock()
+// updateAndStore safely updates the portForward fields using update and persists
+// the struct to cache, unless the instance has been retired by a concurrent stop or delete,
+// or replaced in the cache by a newer instance.
+func (pf *portForward) updateAndStore(cache cache.Cache[interface{}], update func(p *portForward) bool) {
+	if pf.state != nil {
+		pf.state.mu.Lock()
+		retired := pf.state.retired
+		pf.state.mu.Unlock()
+
+		if retired {
+			return
+		}
 	}
 
-	pf.Status = status
-	pf.Error = errMsg
+	if update != nil && !update(pf) {
+		return
+	}
 
-	return *pf
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	if pf.state != nil {
+		pf.state.mu.Lock()
+		retired := pf.state.retired
+		pf.state.mu.Unlock()
+
+		if retired {
+			return
+		}
+	}
+
+	// If a newer instance has replaced this one in the cache, do not overwrite it.
+	if current, err := getPortForwardByID(cache, pf.cacheKey, pf.ID); err == nil {
+		if current.generation > pf.generation ||
+			(current.generation == pf.generation && pf.state != nil && current.state != pf.state) {
+			return
+		}
+
+		// When this instance replaces an older instance under the same ID, permanently retire
+		// the superseded instance and signal its forwarder to stop.
+		if current.state != nil && current.state != pf.state {
+			current.state.mu.Lock()
+			current.state.retired = true
+			safeCloseChan(current.state.closeChan)
+			current.state.mu.Unlock()
+
+			safeCloseChan(current.closeChan)
+		}
+	}
+
+	portforwardstoreLocked(cache, *pf)
 }
 
 func getFreePort() (int, error) {
@@ -425,7 +475,7 @@ func safeCloseChan(ch chan struct{}) {
 // For service-backed port-forwards, it attempts automatic reconnection to a new pod.
 // It stops when the associated port-forward's closeChan is closed.
 func monitorPodAndManagePortForward(
-	clientset *kubernetes.Clientset,
+	clientset kubernetes.Interface,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 ) {
@@ -451,11 +501,34 @@ func monitorPodAndManagePortForward(
 	}
 }
 
+// resetCloseChanForReconnect allocates a fresh closeChan for retries.
+// It returns false if the port forward has been marked retired.
+func resetCloseChanForReconnect(pfDetails *portForward) bool {
+	if pfDetails.state == nil {
+		pfDetails.closeChan = make(chan struct{})
+
+		return true
+	}
+
+	pfDetails.state.mu.Lock()
+	defer pfDetails.state.mu.Unlock()
+
+	if pfDetails.state.retired {
+		return false
+	}
+
+	newChan := make(chan struct{})
+	pfDetails.closeChan = newChan
+	pfDetails.state.closeChan = newChan
+
+	return true
+}
+
 // handlePodCheck checks if the monitored pod is still alive and either
 // triggers reconnection (service-backed) or marks the PF stopped (direct).
 // Returns true when the caller (monitor loop) should exit.
 func handlePodCheck(
-	clientset *kubernetes.Clientset,
+	clientset kubernetes.Interface,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	logParams map[string]string,
@@ -476,8 +549,12 @@ func handlePodCheck(
 		logger.Log(logger.LevelInfo, logParams, err,
 			"pod unavailable, attempting reconnect via service")
 
-		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
-		portforwardstore(cache, pfSnapshot)
+		pfDetails.updateAndStore(cache, func(pf *portForward) bool {
+			pf.Status = RECONNECTING
+			pf.Error = ""
+
+			return true
+		})
 
 		// Close the old forwarder's stop channel so its goroutine
 		// exits, then allocate a fresh one. attemptReconnect's
@@ -486,9 +563,9 @@ func handlePodCheck(
 		// fire immediately on the already-closed channel.
 		safeCloseChan(pfDetails.closeChan)
 
-		pfDetails.mu.Lock()
-		pfDetails.closeChan = make(chan struct{})
-		pfDetails.mu.Unlock()
+		if !resetCloseChanForReconnect(pfDetails) {
+			return true
+		}
 
 		if attemptReconnect(clientset, cache, pfDetails) {
 			return true // new monitor goroutine started by runAndMonitorPortForward
@@ -499,8 +576,12 @@ func handlePodCheck(
 	errMsg := fmt.Sprintf("Pod %s/%s check failed: %v", pfDetails.Namespace, pfDetails.Pod, err)
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
-	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
-	portforwardstore(cache, pfSnapshot)
+	pfDetails.updateAndStore(cache, func(pf *portForward) bool {
+		pf.Status = STOPPED
+		pf.Error = errMsg
+
+		return true
+	})
 	safeCloseChan(pfDetails.closeChan)
 
 	return true
@@ -546,7 +627,7 @@ func resolveServicePod(
 // behind the same service. It retries up to 3 times with exponential backoff
 // (5s, 10s, 20s). Returns true if reconnection succeeded.
 func attemptReconnect(
-	clientset *kubernetes.Clientset,
+	clientset kubernetes.Interface,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 ) bool {
@@ -588,7 +669,12 @@ func attemptReconnect(
 
 // storeReconnecting persists the RECONNECTING status to the cache.
 func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
-	portforwardstore(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
+	pfDetails.updateAndStore(cache, func(pf *portForward) bool {
+		pf.Status = RECONNECTING
+		pf.Error = ""
+
+		return true
+	})
 }
 
 // tryReconnectOnce resolves a new pod for the service, initialises a fresh
@@ -596,9 +682,9 @@ func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
 // It returns (true, false) on success, (false, true) to abort retries,
 // or (false, false) when the caller should retry.
 //
-//nolint:cyclop
+//nolint:cyclop,funlen
 func tryReconnectOnce(
-	clientset *kubernetes.Clientset,
+	clientset kubernetes.Interface,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	logParams map[string]string,
@@ -629,24 +715,46 @@ func tryReconnectOnce(
 		return false, false
 	}
 
-	// Swap closeChan to the new forwarder's stopChan and update pod info.
-	pfDetails.mu.Lock()
-	oldCloseChan := pfDetails.closeChan
-	pfDetails.closeChan = stopChan
-	pfDetails.Pod = newPod
-	pfDetails.Namespace = podNamespace
-	pfDetails.mu.Unlock()
+	if reconnectBarrier != nil {
+		reconnectBarrier()
+	}
 
-	safeCloseChan(oldCloseChan)
+	// Swap closeChan to the new forwarder's stopChan and update pod info.
+	if pfDetails.state != nil {
+		pfDetails.state.mu.Lock()
+		if pfDetails.state.retired {
+			pfDetails.state.mu.Unlock()
+			safeCloseChan(stopChan)
+
+			return false, true
+		}
+
+		oldCloseChan := pfDetails.closeChan
+		pfDetails.closeChan = stopChan
+		pfDetails.state.closeChan = stopChan
+		pfDetails.Pod = newPod
+		pfDetails.Namespace = podNamespace
+		pfDetails.state.mu.Unlock()
+
+		safeCloseChan(oldCloseChan)
+	} else {
+		oldCloseChan := pfDetails.closeChan
+		pfDetails.closeChan = stopChan
+		pfDetails.Pod = newPod
+		pfDetails.Namespace = podNamespace
+
+		safeCloseChan(oldCloseChan)
+	}
 
 	err = runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "reconnected forwarder failed readiness")
 		// handlePortForwardError closed closeChan; allocate a fresh one
 		// so the next backoff select doesn't abort remaining retries.
-		pfDetails.mu.Lock()
-		pfDetails.closeChan = make(chan struct{})
-		pfDetails.mu.Unlock()
+		if !resetCloseChanForReconnect(pfDetails) {
+			return false, true
+		}
+
 		storeReconnecting(cache, pfDetails)
 
 		return false, false
@@ -666,9 +774,12 @@ func handlePortForwardError(
 ) error {
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "portforward error")
 
-	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
+	pfDetails.updateAndStore(cache, func(pf *portForward) bool {
+		pf.Status = STOPPED
+		pf.Error = errMsg
 
-	portforwardstore(cache, pfSnapshot)
+		return true
+	})
 	safeCloseChan(pfDetails.closeChan)
 
 	return errors.New(errMsg)
@@ -680,8 +791,12 @@ func handlePortForwardSuccess(
 	pfDetails *portForward,
 	logParams map[string]string,
 ) {
-	pfSnapshot := pfDetails.setStatusAndSnapshot(RUNNING, "")
-	portforwardstore(cache, pfSnapshot)
+	pfDetails.updateAndStore(cache, func(pf *portForward) bool {
+		pf.Status = RUNNING
+		pf.Error = ""
+
+		return true
+	})
 	logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
 }
 
@@ -719,25 +834,18 @@ func handlePortForwardReadiness(
 	case <-pfDetails.closeChan:
 		msg := "portforward stopped before becoming ready"
 
-		if pfDetails.mu != nil {
-			pfDetails.mu.Lock()
-		}
+		pfDetails.updateAndStore(cache, func(pf *portForward) bool {
+			if pf.Status == RUNNING {
+				pf.Status = STOPPED
+			}
 
-		if pfDetails.Status == RUNNING {
-			pfDetails.Status = STOPPED
-		}
+			if pf.Error == "" {
+				pf.Error = msg
+			}
 
-		if pfDetails.Error == "" {
-			pfDetails.Error = msg
-		}
+			return true
+		})
 
-		pfSnapshot := *pfDetails
-
-		if pfDetails.mu != nil {
-			pfDetails.mu.Unlock()
-		}
-
-		portforwardstore(cache, pfSnapshot)
 		logger.Log(logger.LevelInfo, logParams, nil, msg)
 
 		return errors.New(msg)
@@ -780,7 +888,7 @@ func forwardPortsAsync(
 // then handles its readiness, and if ready, starts another goroutine to
 // monitor the target pod's status.
 func runAndMonitorPortForward(
-	clientset *kubernetes.Clientset,
+	clientset kubernetes.Interface,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	forwarder *portforward.PortForwarder,
@@ -836,8 +944,12 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		return fmt.Errorf("failed to initialize port forwarder: %w", errInit)
 	}
 
+	state := &pfState{
+		closeChan: stopChan,
+	}
 	pfDetails := &portForward{
-		mu:               &sync.Mutex{},
+		state:            state,
+		generation:       atomic.AddUint64(&nextGeneration, 1),
 		ID:               p.ID,
 		closeChan:        stopChan,
 		Pod:              p.Pod,
@@ -856,7 +968,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
 
-func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
+func checkIfPodIsRunning(clientset kubernetes.Interface, namespace string, pod string) error {
 	ctx := context.Background()
 
 	p, err := clientset.CoreV1().Pods(namespace).Get(ctx, pod, v1.GetOptions{})
