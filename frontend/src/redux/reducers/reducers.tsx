@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { combineReducers } from 'redux';
+import { createAction } from '@reduxjs/toolkit';
+import { combineReducers, UnknownAction } from 'redux';
 import { activityReducer } from '../../components/activity/activitySlice';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
@@ -64,4 +65,50 @@ const reducers = combineReducers({
 
 export type RootState = ReturnType<typeof reducers>;
 
-export default reducers;
+export const resetPluginRegistrations = createAction<{
+  baseline: RootState;
+  actions: UnknownAction[];
+}>('plugins/resetRegistrations');
+
+export default function rootReducer(
+  state: Parameters<typeof reducers>[0],
+  action: UnknownAction
+): RootState {
+  if (resetPluginRegistrations.match(action)) {
+    const current = reducers(state, action);
+    const { baseline, actions } = action.payload;
+    const reset: RootState = {
+      ...current,
+      actionButtons: baseline.actionButtons,
+      resourceTable: baseline.resourceTable,
+      detailsViewSection: baseline.detailsViewSection,
+      detailsViewSections: baseline.detailsViewSections,
+      routes: baseline.routes,
+      sidebar: {
+        ...current.sidebar,
+        entries: baseline.sidebar.entries,
+        filters: baseline.sidebar.filters,
+        homeFilters: baseline.sidebar.homeFilters,
+      },
+      eventCallbackReducer: baseline.eventCallbackReducer,
+      overviewCharts: baseline.overviewCharts,
+      graphView: baseline.graphView,
+      clusterProvider: baseline.clusterProvider,
+      projects: baseline.projects,
+      ui: {
+        ...current.ui,
+        clusterChooserButtonComponent: baseline.ui.clusterChooserButtonComponent,
+        functionsToOverride: baseline.ui.functionsToOverride,
+        panels: baseline.ui.panels,
+      },
+      theme: {
+        ...current.theme,
+        logo: baseline.theme.logo,
+        appThemes: baseline.theme.appThemes,
+        pluginDefault: baseline.theme.pluginDefault,
+      },
+    };
+    return actions.reduce((current, registration) => reducers(current, registration), reset);
+  }
+  return reducers(state, action);
+}

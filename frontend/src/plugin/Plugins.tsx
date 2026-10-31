@@ -16,7 +16,7 @@
 
 import Button from '@mui/material/Button';
 import { SnackbarKey, useSnackbar } from 'notistack';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -24,6 +24,7 @@ import { isElectron } from '../helpers/isElectron';
 import { useTypedSelector } from '../redux/hooks';
 import { fetchAndExecutePlugins } from './index';
 import { pluginsLoaded, setPluginSettings } from './pluginsSlice';
+import { PLUGINS_RELOAD_EVENT } from './pluginsSlice';
 
 /**
  * For discovering and executing plugins.
@@ -43,60 +44,89 @@ export default function Plugins() {
 
   const settingsPlugins = useTypedSelector(state => state.plugins.pluginSettings);
 
+  const settingsRef = useRef(settingsPlugins);
+  useEffect(() => {
+    settingsRef.current = settingsPlugins;
+  }, [settingsPlugins]);
+
   // only run on first load
   useEffect(() => {
-    fetchAndExecutePlugins(
-      settingsPlugins,
-      updatedSettingsPackages => {
-        dispatch(setPluginSettings(updatedSettingsPackages));
-      },
-      incompatiblePlugins => {
-        const pluginList = Object.values(incompatiblePlugins)
-          .map(p => p.name)
-          .join(', ');
-        const message = t(
-          'translation|Warning. Incompatible plugins disabled: ({{ pluginList }})',
-          { pluginList }
-        );
-        console.warn(message);
-
-        if (isElectron()) {
-          enqueueSnackbar(message, {
-            action: (snackbarId: SnackbarKey) => (
-              <>
-                <Button
-                  color="secondary"
-                  size="small"
-                  onClick={() => {
-                    history.push('/settings/plugins');
-                    closeSnackbar(snackbarId);
-                  }}
-                >
-                  {t('Settings')}
-                </Button>
-              </>
-            ),
-          });
-        } else {
-          enqueueSnackbar(message);
-        }
+    let running = false;
+    let pending = false;
+    let disposed = false;
+    const load = async (reload = false) => {
+      if (running) {
+        pending = true;
+        return;
       }
-    )
-      .catch((err: unknown) => {
-        console.error('Failed to load plugins:', err);
-        enqueueSnackbar(t('translation|Failed to load plugins. Please try reloading the app.'), {
-          variant: 'error',
+      running = true;
+      await fetchAndExecutePlugins(
+        settingsRef.current,
+        updatedSettingsPackages => {
+          settingsRef.current = updatedSettingsPackages;
+          dispatch(setPluginSettings(updatedSettingsPackages));
+        },
+        incompatiblePlugins => {
+          const pluginList = Object.values(incompatiblePlugins)
+            .map(p => p.name)
+            .join(', ');
+          const message = t(
+            'translation|Warning. Incompatible plugins disabled: ({{ pluginList }})',
+            { pluginList }
+          );
+          console.warn(message);
+
+          if (isElectron()) {
+            enqueueSnackbar(message, {
+              action: (snackbarId: SnackbarKey) => (
+                <>
+                  <Button
+                    color="secondary"
+                    size="small"
+                    onClick={() => {
+                      history.push('/settings/plugins');
+                      closeSnackbar(snackbarId);
+                    }}
+                  >
+                    {t('Settings')}
+                  </Button>
+                </>
+              ),
+            });
+          } else {
+            enqueueSnackbar(message);
+          }
+        },
+        reload
+      )
+        .catch((err: unknown) => {
+          console.error('Failed to load plugins:', err);
+          enqueueSnackbar(t('translation|Failed to load plugins. Please try reloading the app.'), {
+            variant: 'error',
+          });
+        })
+        .finally(() => {
+          try {
+            dispatch(pluginsLoaded());
+            // Warn the app (if we're in app mode).
+            window.desktopApi?.send('pluginsLoaded');
+          } catch (err) {
+            console.error('Plugin load cleanup failed:', err);
+          }
         });
-      })
-      .finally(() => {
-        try {
-          dispatch(pluginsLoaded());
-          // Warn the app (if we're in app mode).
-          window.desktopApi?.send('pluginsLoaded');
-        } catch (err) {
-          console.error('Plugin load cleanup failed:', err);
-        }
-      });
+      running = false;
+      if (pending && !disposed) {
+        pending = false;
+        void load(true);
+      }
+    };
+    const reload = () => void load(true);
+    window.addEventListener(PLUGINS_RELOAD_EVENT, reload);
+    void load();
+    return () => {
+      disposed = true;
+      window.removeEventListener(PLUGINS_RELOAD_EVENT, reload);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;

@@ -76,7 +76,10 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Use path.Join (not filepath.Join) — embed.FS paths must use forward
 	// slashes on all platforms, including Windows.
 	contentPath := fullPath
+
 	if isServingIndex {
+		w.Header().Set("Cache-Control", "no-cache")
+
 		contentPath = path.Join("static", h.indexPath)
 	}
 

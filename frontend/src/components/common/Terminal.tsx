@@ -572,7 +572,7 @@ export default function Terminal(props: TerminalProps) {
       >
         <div
           id="xterm-container"
-          ref={x => setTerminalContainerRef(x)}
+          ref={setTerminalContainerRef}
           onContextMenu={isDesktopApp ? handleContextMenu : undefined}
           style={{
             flex: 1,
