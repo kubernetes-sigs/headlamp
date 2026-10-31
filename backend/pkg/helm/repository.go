@@ -90,7 +90,7 @@ func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool,
 	repoFileExt := filepath.Ext(repositoryConfig)
 
 	if len(repoFileExt) > 0 && len(repoFileExt) < len(repositoryConfig) {
-		lockPath = strings.Replace(repositoryConfig, repoFileExt, ".lock", 1)
+		lockPath = strings.TrimSuffix(repositoryConfig, repoFileExt) + ".lock"
 	} else {
 		lockPath = repositoryConfig + ".lock"
 	}
