@@ -19,12 +19,22 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PersistentVolume, { KubeClaimRef } from '../../lib/k8s/persistentVolume';
 import Link from '../common/Link';
+import { PhaseLabel } from '../common/PhaseLabel';
 import { DetailsGrid } from '../common/Resource';
-import { StatusLabelByPhase } from './utils';
 
+/**
+ * Released is the normal state of a Retain volume after its claim is
+ * deleted, and Available/Pending are transient; only Failed is an error.
+ */
 export function makePVStatusLabel(item: PersistentVolume) {
   const status = item.status?.phase ?? '';
-  return StatusLabelByPhase(status);
+  return (
+    <PhaseLabel
+      phase={status}
+      successPhase="Bound"
+      warningPhases={['Pending', 'Available', 'Released']}
+    />
+  );
 }
 
 function renderClaimRef(claimRef: KubeClaimRef, cluster?: string): ReactNode {
