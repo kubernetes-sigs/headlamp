@@ -18,7 +18,8 @@ import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import CustomResourceDefinition, { KubeCRD } from '../../lib/k8s/crd';
+import CustomResourceDefinition, { KubeCRD, makeCustomResourceClass } from '../../lib/k8s/crd';
+import type { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
 import Empty from '../common/EmptyContent';
 import { HoverInfoLabel } from '../common/Label';
@@ -26,7 +27,11 @@ import Link from '../common/Link';
 import Loader from '../common/Loader';
 import { NameValueTableRow } from '../common/NameValueTable';
 import ObjectEventList from '../common/ObjectEventList';
-import { ConditionsTable, MainInfoSection, PageGrid } from '../common/Resource';
+import { ConditionsTable, LastAppliedDiff, MainInfoSection, PageGrid } from '../common/Resource';
+import {
+  LAST_APPLIED_ANNOTATION,
+  parseLastAppliedConfiguration,
+} from '../common/Resource/lastAppliedConfiguration';
 import SectionBox from '../common/SectionBox';
 import DetailsViewSection from '../DetailsViewSection';
 
@@ -211,7 +216,77 @@ function CustomResourceDetailsItem(
         </SectionBox>
       )}
       <DetailsViewSection resource={item} />
+      {item.metadata?.annotations?.[LAST_APPLIED_ANNOTATION] && (
+        <CustomResourceLastAppliedDiff crd={crd} item={item} cluster={cluster} />
+      )}
       {item && <ObjectEventList object={item} />}
     </PageGrid>
   );
+}
+
+interface CustomResourceLastAppliedDiffProps {
+  crd: CustomResourceDefinition;
+  item: KubeObject;
+  cluster?: string;
+}
+
+/**
+ * Shows the last applied configuration diff of a custom resource. A custom resource can be served
+ * in several versions, so when it was applied in another served version than the one it is shown
+ * in, it is fetched in the applied version, which the API server converts it to (with the
+ * conversion webhook of the CRD, if any), so both sides are compared in the same version. If the
+ * applied version is no longer served, LastAppliedDiff shows that they cannot be compared.
+ */
+function CustomResourceLastAppliedDiff(props: CustomResourceLastAppliedDiffProps) {
+  const { crd, item } = props;
+  const appliedApiVersion = React.useMemo(
+    () => parseLastAppliedConfiguration(item.jsonData)?.apiVersion,
+    [item.jsonData]
+  );
+
+  const spec = (crd.jsonData as KubeCRD | undefined)?.spec;
+  const [appliedGroup, appliedVersion] =
+    typeof appliedApiVersion === 'string' ? appliedApiVersion.split('/') : [];
+  const isAppliedVersionServed =
+    !!spec &&
+    appliedApiVersion !== item.jsonData.apiVersion &&
+    appliedGroup === spec.group &&
+    !!spec.versions?.some(version => version.name === appliedVersion && version.served);
+
+  if (!isAppliedVersionServed) {
+    return <LastAppliedDiff item={item.jsonData} />;
+  }
+  return <AppliedVersionLastAppliedDiff {...props} version={appliedVersion} />;
+}
+
+/** Fetches the custom resource in the given version and shows its last applied configuration diff. */
+function AppliedVersionLastAppliedDiff(
+  props: CustomResourceLastAppliedDiffProps & { version: string }
+) {
+  const { crd, item, cluster, version } = props;
+  const spec = (crd.jsonData as KubeCRD).spec;
+
+  const AppliedVersionClass = React.useMemo(
+    () =>
+      makeCustomResourceClass({
+        apiInfo: [{ group: spec.group, version }],
+        isNamespaced: spec.scope === 'Namespaced',
+        singularName: spec.names.singular || spec.names.kind.toLowerCase(),
+        pluralName: spec.names.plural,
+        customResourceDefinition: crd,
+        kind: spec.names.kind,
+      }),
+    [crd, spec, version]
+  );
+  const [appliedVersionItem, error] = AppliedVersionClass.useGet(
+    item.getName(),
+    item.getNamespace(),
+    { cluster }
+  );
+
+  if (appliedVersionItem) {
+    return <LastAppliedDiff item={appliedVersionItem.jsonData} />;
+  }
+  // Without the object in the applied version, LastAppliedDiff shows that they cannot be compared.
+  return error ? <LastAppliedDiff item={item.jsonData} /> : null;
 }
