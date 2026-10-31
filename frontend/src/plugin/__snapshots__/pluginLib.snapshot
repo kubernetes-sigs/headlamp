@@ -55,6 +55,7 @@
     "CreateButton": [Function],
     "CreateDaemonSetForm": [Function],
     "CreateDeploymentForm": [Function],
+    "CreateEndpointSliceForm": [Function],
     "CreateEndpointsForm": [Function],
     "CreateJobForm": [Function],
     "CreatePodForm": [Function],
@@ -137,6 +138,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "EndpointSlice": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Endpoints": {
         "class": [Function],
         "form": [Function],
@@ -180,6 +185,7 @@
       "CreateButton": [Function],
       "CreateDaemonSetForm": [Function],
       "CreateDeploymentForm": [Function],
+      "CreateEndpointSliceForm": [Function],
       "CreateEndpointsForm": [Function],
       "CreateJobForm": [Function],
       "CreatePodForm": [Function],
@@ -236,6 +242,10 @@
           "form": [Function],
         },
         "Deployment": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "EndpointSlice": {
           "class": [Function],
           "form": [Function],
         },
