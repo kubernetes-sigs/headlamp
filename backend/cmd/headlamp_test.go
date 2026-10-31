@@ -4256,7 +4256,7 @@ func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 
 	defer span.End()
 
-	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/release/test", "test", handler)
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, clusterName, "/helm/release/test", "test", handler)
 
 	assert.Equal(t, "Bearer "+testToken, capturedAuthHeader,
 		"Authorization header should be set from cookie in non-OIDC in-cluster deployment")
@@ -4328,7 +4328,7 @@ func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
 	defer span.End()
 
-	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/release/test", "test", handler)
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, clusterName, "/helm/release/test", "test", handler)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, capturedAuthHeader)
@@ -4378,7 +4378,7 @@ func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}
 
-	c.helmRouteRepositoryHandler(ctx, span, req, w, clusterName, "/helm/repositories", "test", handler)
+	c.helmRouteRepositoryHandler(ctx, span, req, w, clusterName, clusterName, "/helm/repositories", "test", handler)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, capturedAuthHeader)
@@ -5636,4 +5636,50 @@ func assertCookieCleared(t *testing.T, rr *httptest.ResponseRecorder, cookiePref
 	}
 
 	assert.True(t, foundCookie, "Expected cookie with prefix %q to be cleared", cookiePrefix)
+}
+
+// TestHandleClusterHelmStatelessCluster verifies that helm routes resolve the
+// context of a dynamic (stateless) cluster, whose kubeconfig is sent in the
+// KUBECONFIG header and stored under a user-scoped key, instead of failing
+// with "key not found" (regression test for issue #8128).
+func TestHandleClusterHelmStatelessCluster(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token")
+
+	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	kubeConfig := base64.StdEncoding.EncodeToString(kubeConfigByte)
+
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterHelm(config, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/minikube/helm/releases/list", nil)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "test-token")
+	req.Header.Set("KUBECONFIG", kubeConfig)
+	req.Header.Set("X-HEADLAMP-USER-ID", "user-8128")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code,
+		"helm route must resolve the stateless cluster context, got body: %s", w.Body.String())
+	assert.NotContains(t, w.Body.String(), "key not found")
+
+	// The context must have been loaded from the header under the user-scoped key.
+	storedContext, err := config.KubeConfigStore.GetContext(statelessContextKey("minikube", "user-8128"))
+	require.NoError(t, err)
+	assert.Equal(t, "https://127.0.0.1:60279", storedContext.Cluster.Server)
 }

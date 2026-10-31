@@ -2122,7 +2122,16 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 				return
 			}
 
-			c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, helmHandler)
+			// Dynamic (stateless) clusters are stored under a user-scoped key and are
+			// only loaded into the store when the request carries the KUBECONFIG header,
+			// so resolve the key the same way the cluster proxy does.
+			contextKey, err := c.getContextKeyForRequest(r)
+			if err != nil {
+				c.handleError(w, ctx, span, err, "failed to get context key", http.StatusBadRequest)
+				return
+			}
+
+			c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, contextKey, helmHandler)
 		})))
 }
 
@@ -2131,7 +2140,7 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	span trace.Span,
 	r *http.Request,
 	w http.ResponseWriter,
-	clusterName, route, operation string,
+	clusterName, contextKey, route, operation string,
 	handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
 ) {
 	c.TelemetryHandler.RecordEvent(span, "Executing route",
@@ -2141,7 +2150,7 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 
 	logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
+	context, err := c.KubeConfigStore.GetContext(contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 		return
@@ -2166,7 +2175,7 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 	span trace.Span,
 	r *http.Request,
 	w http.ResponseWriter,
-	clusterName, route, operation string,
+	clusterName, contextKey, route, operation string,
 	handler func(http.ResponseWriter, *http.Request),
 ) {
 	c.TelemetryHandler.RecordEvent(span, "Executing route",
@@ -2174,7 +2183,7 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 		attribute.String("operation", operation))
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
+	context, err := c.KubeConfigStore.GetContext(contextKey)
 	unsafeUseServiceAccountToken := err == nil && c.shouldUseUnsafeServiceAccountTokenForContext(context)
 
 	if unsafeUseServiceAccountToken {
@@ -2211,21 +2220,21 @@ func (c *HeadlampConfig) dispatchHelmRoute(
 	span trace.Span,
 	w http.ResponseWriter,
 	r *http.Request,
-	path, clusterName string,
+	path, clusterName, contextKey string,
 	helmHandler *helm.Handler,
 ) {
 	routeReleaseHandler := func(
 		route, operation string,
 		handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
 	) {
-		c.helmRouteReleaseHandler(ctx, span, r, w, clusterName, route, operation, handler)
+		c.helmRouteReleaseHandler(ctx, span, r, w, clusterName, contextKey, route, operation, handler)
 	}
 
 	routeRepositoryHandler := func(
 		route, operation string,
 		handler func(http.ResponseWriter, *http.Request),
 	) {
-		c.helmRouteRepositoryHandler(ctx, span, r, w, clusterName, route, operation, handler)
+		c.helmRouteRepositoryHandler(ctx, span, r, w, clusterName, contextKey, route, operation, handler)
 	}
 
 	switch {
