@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1934,4 +1935,365 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+func TestCalculateBackoff_Progression(t *testing.T) {
+	baseDelay := 1 * time.Second
+	maxDelay := 60 * time.Second
+
+	tests := []struct {
+		name     string
+		attempt  int
+		expected time.Duration
+	}{
+		{name: "negative attempt defaults to base", attempt: -1, expected: 1 * time.Second},
+		{name: "attempt 0 equals base delay", attempt: 0, expected: 1 * time.Second},
+		{name: "attempt 1 doubles", attempt: 1, expected: 2 * time.Second},
+		{name: "attempt 2 quadruples", attempt: 2, expected: 4 * time.Second},
+		{name: "attempt 3 octuples", attempt: 3, expected: 8 * time.Second},
+		{name: "attempt 4 multiplies by 16", attempt: 4, expected: 16 * time.Second},
+		{name: "attempt 5 multiplies by 32", attempt: 5, expected: 32 * time.Second},
+		{name: "attempt 6 caps at maxDelay", attempt: 6, expected: 60 * time.Second},
+		{name: "attempt 10 caps at maxDelay", attempt: 10, expected: 60 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculateBackoff(tt.attempt, baseDelay, maxDelay, 0, nil)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCalculateBackoff_MaxDelayCap(t *testing.T) {
+	baseDelay := 30 * time.Second
+	maxDelay := 2 * time.Minute
+
+	// Very large attempt count should never exceed maxDelay
+	result := calculateBackoff(100, baseDelay, maxDelay, 0, nil)
+	assert.Equal(t, maxDelay, result)
+}
+
+func TestCalculateBackoff_ProductionSequence(t *testing.T) {
+	zeroJitter := float64(0)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.backoffJitterFactor = &zeroJitter
+
+	expectedSequence := []struct {
+		attempt  int
+		expected time.Duration
+	}{
+		{attempt: 0, expected: 30 * time.Second},
+		{attempt: 1, expected: 60 * time.Second},
+		{attempt: 2, expected: 2 * time.Minute},
+		{attempt: 3, expected: 2 * time.Minute},
+		{attempt: 4, expected: 2 * time.Minute},
+		{attempt: 10, expected: 2 * time.Minute},
+	}
+
+	for _, tc := range expectedSequence {
+		delay := m.nextReconnectDelay(tc.attempt)
+
+		assert.Equal(t, tc.expected, delay, "attempt %d delay mismatch", tc.attempt)
+	}
+}
+
+func TestCalculateBackoff_JitterBounds(t *testing.T) {
+	baseDelay := 10 * time.Second
+	maxDelay := 100 * time.Second
+	jitterFactor := 0.2
+
+	// Fixed maximum positive jitter (+20%)
+	resultMax := calculateBackoff(1, baseDelay, maxDelay, jitterFactor, func() float64 { return 1.0 })
+	assert.Equal(t, 24*time.Second, resultMax) // 20s * 1.2 = 24s
+
+	// Fixed maximum negative jitter (-20%)
+	resultMin := calculateBackoff(1, baseDelay, maxDelay, jitterFactor, func() float64 { return -1.0 })
+	assert.Equal(t, 16*time.Second, resultMin) // 20s * 0.8 = 16s
+
+	// Zero jitter
+	resultZero := calculateBackoff(1, baseDelay, maxDelay, jitterFactor, func() float64 { return 0.0 })
+	assert.Equal(t, 20*time.Second, resultZero)
+
+	// Random jitter bounds over 50 iterations
+	for i := 0; i < 50; i++ {
+		res := calculateBackoff(1, baseDelay, maxDelay, jitterFactor, defaultBackoffJitter)
+		assert.GreaterOrEqual(t, res, 16*time.Second)
+		assert.LessOrEqual(t, res, 24*time.Second)
+	}
+}
+
+func TestMonitorConnection_CancellationDuringBackoff(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	// Configure an unreachable cluster server to ensure reconnect fails
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "unreachable-cluster",
+		Cluster: &api.Cluster{
+			Server: "https://127.0.0.1:1", // closed port
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("unreachable-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn.Status.State = StateError // In error state so it enters reconnect backoff
+
+	// Configure test timing: short initial tick so reconnect failure occurs quickly,
+	// followed by a long backoff (10m).
+	m.heartbeatInterval = 10 * time.Millisecond
+	m.minReconnectBackoff = 10 * time.Minute
+	m.maxReconnectBackoff = 30 * time.Minute
+
+	backoffScheduled := make(chan struct{})
+
+	var signalOnce sync.Once
+
+	m.backoffScheduledFunc = func(attempt int, delay time.Duration) {
+		signalOnce.Do(func() {
+			close(backoffScheduled)
+		})
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	// Wait for reconnect failure and backoff timer to be scheduled
+	select {
+	case <-backoffScheduled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect backoff to be scheduled")
+	}
+
+	// Close conn.Done to verify cancellation responsiveness during backoff
+	close(conn.Done)
+
+	// monitorConnection must exit promptly, NOT waiting for the 10-minute backoff
+	select {
+	case <-done:
+		assert.Equal(t, StateClosed, conn.Status.State)
+	case <-time.After(2 * time.Second):
+		t.Fatal("monitorConnection did not exit promptly upon conn.Done closure during backoff")
+	}
+}
+
+func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	var dialAttempts atomic.Int64
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dialAttempts.Add(1)
+		http.Error(w, "server error", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "failing-cluster",
+		Cluster: &api.Cluster{
+			Server:                server.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("failing-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn.Status.State = StateError
+
+	// Configure instance-specific intervals for deterministic testing
+	zeroJitter := float64(0)
+	m.heartbeatInterval = 10 * time.Millisecond
+	m.minReconnectBackoff = 40 * time.Millisecond
+	m.maxReconnectBackoff = 200 * time.Millisecond
+	m.backoffJitterFactor = &zeroJitter
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	// Allow time for the initial reconnect attempt and at least one backoff cycle (~90ms)
+	time.Sleep(100 * time.Millisecond)
+
+	// Close to terminate
+	close(conn.Done)
+	<-done
+
+	// Must have attempted reconnect at least once, but backoff prevents tight loop flooding
+	attempts := dialAttempts.Load()
+	assert.GreaterOrEqual(t, attempts, int64(1))
+	assert.LessOrEqual(t, attempts, int64(3), "reconnect attempts should be throttled by backoff")
+}
+
+func createToggleableTestServer(serverFail *atomic.Bool, upgrades *atomic.Int32) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serverFail.Load() {
+			http.Error(w, "server error", http.StatusInternalServerError)
+
+			return
+		}
+
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		upgrades.Add(1)
+
+		go func() {
+			defer func() { _ = ws.Close() }()
+
+			for {
+				if _, _, err := ws.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+	}))
+}
+
+type backoffEvent struct {
+	attempt int
+	delay   time.Duration
+}
+
+func assertBackoffEvent(t *testing.T, ch <-chan backoffEvent, expectedAttempt int, expectedDelay time.Duration) {
+	t.Helper()
+
+	select {
+	case ev := <-ch:
+		assert.Equal(t, expectedAttempt, ev.attempt)
+		assert.Equal(t, expectedDelay, ev.delay)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for backoff event")
+	}
+}
+
+func cleanUpTestConnection(t *testing.T, done <-chan struct{}, conns ...*Connection) {
+	t.Helper()
+
+	for _, c := range conns {
+		if c != nil && c.Done != nil {
+			select {
+			case <-c.Done:
+			default:
+				close(c.Done)
+			}
+		}
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("monitorConnection did not exit promptly after done channel closure")
+	}
+}
+
+func setupTestMultiplexerWithBackoff(
+	t *testing.T,
+	clusterURL string,
+	clientConn *WSConnLock,
+) (*Multiplexer, *Connection) {
+	t.Helper()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                clusterURL,
+			InsecureSkipTLSVerify: true,
+		},
+	}))
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn.Status.State = StateError
+
+	zeroJitter := float64(0)
+	m.heartbeatInterval = 10 * time.Millisecond
+	m.minReconnectBackoff = 20 * time.Millisecond
+	m.maxReconnectBackoff = 200 * time.Millisecond
+	m.backoffJitterFactor = &zeroJitter
+
+	return m, conn
+}
+
+func TestMonitorConnection_ResetBackoffOnSuccess(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server := createToggleableTestServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn)
+	backoffEvents := make(chan backoffEvent, 10)
+
+	m.backoffScheduledFunc = func(attempt int, delay time.Duration) {
+		backoffEvents <- backoffEvent{attempt: attempt, delay: delay}
+	}
+
+	// 1. Initial reconnect fails -> triggers backoff attempt 0
+	serverFail.Store(true)
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	assertBackoffEvent(t, backoffEvents, 0, 20*time.Millisecond)
+
+	// 2. Allow reconnect to succeed (recovery)
+	serverFail.Store(false)
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	require.Eventually(t, func() bool {
+		m.mutex.RLock()
+		defer m.mutex.RUnlock()
+
+		return m.connections[connKey] != nil && upgrades.Load() > 0
+	}, 2*time.Second, 5*time.Millisecond)
+
+	m.mutex.RLock()
+	activeConn := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	// 3. Drop connection and fail server again to verify backoff was reset to 0
+	serverFail.Store(true)
+
+	if activeConn != nil && activeConn.WSConn != nil {
+		_ = activeConn.WSConn.Close()
+	}
+
+	assertBackoffEvent(t, backoffEvents, 0, 20*time.Millisecond)
+
+	// Clean up
+	cleanUpTestConnection(t, done, conn, activeConn)
 }
