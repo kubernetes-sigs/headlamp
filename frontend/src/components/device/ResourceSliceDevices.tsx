@@ -19,6 +19,7 @@ import type ResourceSlice from '../../lib/k8s/resourceSlice';
 import type { ResourceSliceDevice } from '../../lib/k8s/resourceSlice';
 import SimpleTable from '../common/SimpleTable';
 import { formatDeviceAttribute } from './resourceSliceDevice';
+import { ResourceSliceDeviceNode } from './ResourceSliceNode';
 
 function NameValueLines({ values }: { values: [string, string | undefined][] }) {
   return (
@@ -66,6 +67,16 @@ export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }
             />
           ),
         },
+        ...(slice.nodeAccess === 'perDevice'
+          ? [
+              {
+                label: t('glossary|Node'),
+                getter: (device: ResourceSliceDevice) => (
+                  <ResourceSliceDeviceNode slice={slice} device={device} />
+                ),
+              },
+            ]
+          : []),
       ]}
       data={slice.devices}
       emptyMessage={t('translation|This slice publishes no devices.')}

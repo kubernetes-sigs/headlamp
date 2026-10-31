@@ -390,3 +390,22 @@ export const RESOURCE_SLICE_DUMMY_DATA: KubeResourceSlice[] = [
     },
   },
 ];
+
+export const RESOURCE_SLICE_PER_DEVICE: KubeResourceSlice = {
+  apiVersion: 'resource.k8s.io/v1',
+  kind: 'ResourceSlice',
+  metadata: {
+    name: 'shared-gpus-gpu.example.com-x9k2m',
+    creationTimestamp,
+    uid: 'resource-slice-uid-3',
+  },
+  spec: {
+    driver: 'gpu.example.com',
+    pool: { name: 'shared-gpus', generation: 1, resourceSliceCount: 1 },
+    perDeviceNodeSelection: true,
+    devices: [
+      { ...gpu(0), nodeName: worker },
+      { ...gpu(1), allNodes: true },
+    ],
+  },
+};
