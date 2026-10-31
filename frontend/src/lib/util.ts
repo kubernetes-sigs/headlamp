@@ -315,12 +315,14 @@ export function getResourceMetrics(
  *
  * @returns A filter function that can be used to filter a list of items.
  * @param matchCriteria - The JSONPath criteria to match.
+ * @param ignoreNamespaceFilter - When true, the returned function ignores the global
+ *                                 namespace filter (textual/search filtering still applies).
  */
 export function useFilterFunc<
   T extends { [key: string]: any } | KubeObjectInterface | KubeEvent =
     | KubeObjectInterface
     | KubeEvent
->(matchCriteria?: string[]) {
+>(matchCriteria?: string[], ignoreNamespaceFilter?: boolean) {
   const filter = useTypedSelector(state => state.filter);
 
   // Callers pass the criteria as an inline array, so the memo keys on their content.
@@ -335,13 +337,14 @@ export function useFilterFunc<
           item as KubeObjectInterface | KubeEvent,
           filter,
           search,
-          matchCriteria
+          matchCriteria,
+          ignoreNamespaceFilter
         );
       }
       return filterGeneric<T>(item, search, matchCriteria);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filter, criteriaKey]
+    [filter, criteriaKey, ignoreNamespaceFilter]
   );
 }
 
