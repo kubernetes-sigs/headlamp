@@ -1120,5 +1120,11 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} mp)",
+  "Action Delay": "Művelet késleltetése",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "Adja meg a másodpercek számát 0 és {{ maxSeconds }} közötti egész számként.",
+  "0 (immediately)": "0 (azonnal)",
+  "{{ count }} seconds_one": "{{ count }} másodperc",
+  "{{ count }} seconds_other": "{{ count }} másodperc"
 }

@@ -1131,5 +1131,12 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }}s)",
+  "Action Delay": "Ritardo dell’azione",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "Inserisci un numero intero di secondi compreso tra 0 e {{ maxSeconds }}.",
+  "0 (immediately)": "0 (immediatamente)",
+  "{{ count }} seconds_one": "{{ count }} secondo",
+  "{{ count }} seconds_many": "{{ count }} secondi",
+  "{{ count }} seconds_other": "{{ count }} secondi"
 }

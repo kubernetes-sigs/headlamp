@@ -1131,5 +1131,12 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} שנ׳)",
+  "Action Delay": "השהיית פעולה",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "יש להזין מספר שלם של שניות בין 0 ל־{{ maxSeconds }}.",
+  "0 (immediately)": "0 (מיידית)",
+  "{{ count }} seconds_one": "{{ count }} שניה",
+  "{{ count }} seconds_two": "שתי שניות",
+  "{{ count }} seconds_other": "{{ count }} שניות"
 }

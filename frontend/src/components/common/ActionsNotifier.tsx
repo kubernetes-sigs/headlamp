@@ -17,7 +17,8 @@
 import Button from '@mui/material/Button';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { CLUSTER_ACTION_GRACE_PERIOD, ClusterAction } from '../../redux/clusterActionSlice';
@@ -26,6 +27,40 @@ import { useTypedSelector } from '../../redux/hooks';
 export interface PureActionsNotifierProps {
   clusterActions: { [x: string]: ClusterAction };
   dispatch: (action: { type: string }) => void;
+}
+
+function ActionMessage({ message, executeAt }: { message: string; executeAt?: number }) {
+  const { t } = useTranslation();
+  const [seconds, setSeconds] = useState(() =>
+    executeAt === undefined ? 0 : Math.max(0, Math.ceil((executeAt - Date.now()) / 1000))
+  );
+
+  React.useEffect(() => {
+    const updateSeconds = () => {
+      const remaining =
+        executeAt === undefined ? 0 : Math.max(0, Math.ceil((executeAt - Date.now()) / 1000));
+      setSeconds(remaining);
+      return remaining;
+    };
+    if (updateSeconds() === 0) {
+      return;
+    }
+    const timer = setInterval(() => {
+      if (updateSeconds() === 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [executeAt]);
+
+  return (
+    <>
+      {message}
+      {seconds > 0 && (
+        <span aria-hidden="true"> {t('translation|({{ seconds }}s)', { seconds })}</span>
+      )}
+    </>
+  );
 }
 
 function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierProps) {
@@ -88,13 +123,19 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
 
       if (!snackbarRefs.current[refKey]) {
         snackbarRefs.current[refKey] = uniqueKey;
-        enqueueSnackbar(clusterAction.message, {
-          key: uniqueKey,
-          autoHideDuration: clusterAction.autoHideDuration || CLUSTER_ACTION_GRACE_PERIOD,
-          action,
-          style: { whiteSpace: 'pre-line' },
-          ...clusterAction.snackbarProps,
-        });
+        enqueueSnackbar(
+          <ActionMessage
+            message={clusterAction.message}
+            executeAt={clusterAction.state === 'start' ? clusterAction.executeAt : undefined}
+          />,
+          {
+            key: uniqueKey,
+            autoHideDuration: clusterAction.autoHideDuration || CLUSTER_ACTION_GRACE_PERIOD,
+            action,
+            style: { whiteSpace: 'pre-line' },
+            ...clusterAction.snackbarProps,
+          }
+        );
       }
     }
   }

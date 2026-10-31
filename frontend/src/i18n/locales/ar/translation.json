@@ -1164,5 +1164,15 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} ث)",
+  "Action Delay": "تأخير الإجراء",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "أدخل عددًا صحيحًا من الثواني بين 0 و{{ maxSeconds }}.",
+  "0 (immediately)": "0 (فورًا)",
+  "{{ count }} seconds_zero": "{{ count }} ثانية",
+  "{{ count }} seconds_one": "ثانية",
+  "{{ count }} seconds_two": "ثانيتان",
+  "{{ count }} seconds_few": "{{ count }} ثوان",
+  "{{ count }} seconds_many": "{{ count }} ثانية",
+  "{{ count }} seconds_other": "{{ count }} ثانية"
 }

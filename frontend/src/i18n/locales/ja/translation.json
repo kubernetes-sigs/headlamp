@@ -1109,5 +1109,10 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} 秒)",
+  "Action Delay": "操作の遅延",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "0から{{ maxSeconds }}までの秒数を整数で入力してください。",
+  "0 (immediately)": "0 (即時)",
+  "{{ count }} seconds_other": "{{ count }} 秒"
 }

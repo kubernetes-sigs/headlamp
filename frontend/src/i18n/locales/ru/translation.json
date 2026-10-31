@@ -1142,5 +1142,13 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "({{ seconds }}s)": "({{ seconds }} с)",
+  "Action Delay": "Задержка действия",
+  "Enter a whole number of seconds between 0 and {{ maxSeconds }}.": "Введите целое число секунд от 0 до {{ maxSeconds }}.",
+  "0 (immediately)": "0 (немедленно)",
+  "{{ count }} seconds_one": "{{ count }} секунда",
+  "{{ count }} seconds_few": "{{ count }} секунды",
+  "{{ count }} seconds_many": "{{ count }} секунд",
+  "{{ count }} seconds_other": "{{ count }} секунды"
 }
