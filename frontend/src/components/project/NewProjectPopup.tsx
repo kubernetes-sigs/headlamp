@@ -268,7 +268,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
     setError(undefined);
     try {
       const existingNamespaces =
-        namespaces?.filter(it => it.metadata.name === selectedNamespace) ?? [];
+        namespaces?.filter(it => it.metadata.name === effectiveNamespace) ?? [];
       const clustersWithExistingNamespace = existingNamespaces.map(it => it.cluster);
       // Create new namespace in all selected clusters that don't already have it
       const clustersWithoutNamespace = selectedClusters.filter(
@@ -308,7 +308,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           kind: 'Namespace',
           apiVersion: 'v1',
           metadata: {
-            name: toKubernetesName(typedNamespace),
+            name: effectiveNamespace,
             labels: {
               [PROJECT_ID_LABEL]: projectName,
             },
@@ -414,8 +414,12 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           onChange={(event, newValue) => {
             setSelectedNamespace(newValue ?? undefined);
           }}
-          onInputChange={(e, v) => {
+          onInputChange={(e, v, reason) => {
             setTypedNamespace(v);
+            // Typing over a picked option replaces it: what is created is what the user sees
+            if (reason !== 'reset' && v !== selectedNamespace) {
+              setSelectedNamespace(undefined);
+            }
           }}
           getOptionDisabled={option => namespaceToProjectMap.has(option)}
           renderInput={params => (
