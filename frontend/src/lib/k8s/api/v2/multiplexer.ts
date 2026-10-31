@@ -37,6 +37,18 @@ export const WebSocketManager = {
   /** Flag to track if we're reconnecting after a disconnect */
   isReconnecting: false,
 
+  /** Pending reconnect timer scheduled after a connection drop */
+  reconnectTimer: null as ReturnType<typeof setTimeout> | null,
+
+  /** Number of consecutive failed reconnect attempts, for backoff */
+  reconnectAttempts: 0,
+
+  /** Pending retry timers for subscriptions that failed on an open socket */
+  subscriptionRetryTimers: new Map<string, ReturnType<typeof setTimeout>>(),
+
+  /** Number of consecutive failed retries per subscription key */
+  subscriptionRetryAttempts: new Map<string, number>(),
+
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
 
@@ -50,7 +62,7 @@ export const WebSocketManager = {
   activeSubscriptions: new Map<string, { clusterId: string; path: string; query: string }>(),
 
   /** Map to track pending unsubscribe operations for debouncing */
-  pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
+  pendingUnsubscribes: new Map<string, ReturnType<typeof setTimeout>>(),
 
   /**
    * Creates a unique key for identifying WebSocket subscriptions
@@ -122,6 +134,7 @@ export const WebSocketManager = {
       socket.onopen = () => {
         this.socketMultiplexer = socket;
         this.connecting = false;
+        this.reconnectAttempts = 0;
 
         // Only resubscribe if we're reconnecting after a disconnect
         if (this.isReconnecting) {
@@ -182,6 +195,36 @@ export const WebSocketManager = {
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
 
+    // Clear any pending debounced unsubscribes for the same cluster and path
+    // so that an in-flight delayed CLOSE does not close this replacement connection.
+    const pathPrefix = `${clusterId}:${path}:`;
+    for (const [pendingKey, pendingTimeout] of this.pendingUnsubscribes.entries()) {
+      if (pendingKey === key || pendingKey.startsWith(pathPrefix)) {
+        clearTimeout(pendingTimeout);
+        this.pendingUnsubscribes.delete(pendingKey);
+        if (!this.listeners.has(pendingKey)) {
+          this.activeSubscriptions.delete(pendingKey);
+          this.completedPaths.delete(pendingKey);
+          this.subscriptionRetryAttempts.delete(pendingKey);
+
+          // If the query changed, close the old upstream watch so that
+          // stale events are not retained upstream.
+          if (pendingKey !== key && this.socketMultiplexer?.readyState === WebSocket.OPEN) {
+            const oldQuery = pendingKey.slice(pathPrefix.length);
+            const userId = getUserIdFromLocalStorage();
+            const closeMsg: WebSocketMessage = {
+              clusterId,
+              path,
+              query: oldQuery,
+              userId: userId || '',
+              type: 'CLOSE',
+            };
+            this.socketMultiplexer.send(JSON.stringify(closeMsg));
+          }
+        }
+      }
+    }
+
     // Add to active subscriptions
     this.activeSubscriptions.set(key, { clusterId, path, query });
 
@@ -197,17 +240,53 @@ export const WebSocketManager = {
       this.errorListeners.set(key, errListeners);
     }
 
-    // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    try {
+      // Establish connection and send REQUEST
+      const socket = await this.connect();
+      const userId = getUserIdFromLocalStorage();
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
+    } catch (err) {
+      // Roll back registrations on initial failure so unmount does not leave orphan watches
+      const listeners = this.listeners.get(key);
+      if (listeners) {
+        listeners.delete(onMessage);
+        if (listeners.size === 0) {
+          this.listeners.delete(key);
+        }
+      }
+      if (onError) {
+        const errListeners = this.errorListeners.get(key);
+        if (errListeners) {
+          errListeners.delete(onError);
+          if (errListeners.size === 0) {
+            this.errorListeners.delete(key);
+          }
+        }
+      }
+      if (!this.listeners.has(key)) {
+        this.activeSubscriptions.delete(key);
+        this.completedPaths.delete(key);
+        const timeout = this.pendingUnsubscribes.get(key);
+        if (timeout) {
+          clearTimeout(timeout);
+          this.pendingUnsubscribes.delete(key);
+        }
+        if (this.activeSubscriptions.size === 0 && this.reconnectTimer !== null) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+          this.isReconnecting = false;
+          this.reconnectAttempts = 0;
+        }
+      }
+      throw err;
+    }
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
@@ -257,6 +336,13 @@ export const WebSocketManager = {
       if (listeners.size === 0) {
         this.listeners.delete(key);
 
+        const subRetryTimer = this.subscriptionRetryTimers.get(key);
+        if (subRetryTimer) {
+          clearTimeout(subRetryTimer);
+          this.subscriptionRetryTimers.delete(key);
+        }
+        this.subscriptionRetryAttempts.delete(key);
+
         // Delay unsubscription to handle rapid re-subscriptions
         // This prevents unnecessary WebSocket churn when a component quickly unmounts and remounts
         // For example: during route changes or component updates in React's strict mode
@@ -265,8 +351,23 @@ export const WebSocketManager = {
           if (!this.listeners.has(key)) {
             this.activeSubscriptions.delete(key);
             this.completedPaths.delete(key);
+            this.subscriptionRetryAttempts.delete(key);
 
-            if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
+            if (this.activeSubscriptions.size === 0 && this.reconnectTimer !== null) {
+              clearTimeout(this.reconnectTimer);
+              this.reconnectTimer = null;
+              this.isReconnecting = false;
+              this.reconnectAttempts = 0;
+            }
+
+            // Do not send CLOSE if another subscription for the same cluster and path is active,
+            // because the backend multiplexer identifies connections by clusterID:path:userID.
+            const pathPrefix = `${clusterId}:${path}:`;
+            const hasOtherActive = Array.from(this.activeSubscriptions.keys()).some(
+              activeKey => activeKey !== key && activeKey.startsWith(pathPrefix)
+            );
+
+            if (!hasOtherActive && this.socketMultiplexer?.readyState === WebSocket.OPEN) {
               const userId = getUserIdFromLocalStorage();
               const closeMsg: WebSocketMessage = {
                 clusterId,
@@ -298,6 +399,85 @@ export const WebSocketManager = {
   },
 
   /**
+   * Schedules a reconnect attempt after a connection drop, with exponential
+   * backoff. Existing subscriptions are replayed once the connection is
+   * re-established (see connect()'s onopen handler).
+   */
+  scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) {
+      return;
+    }
+
+    const delay = Math.min(30_000, 1000 * 2 ** this.reconnectAttempts);
+    this.reconnectAttempts++;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+
+      // Everyone unsubscribed while we were waiting; nothing to restore.
+      if (this.activeSubscriptions.size === 0) {
+        this.isReconnecting = false;
+        this.reconnectAttempts = 0;
+        return;
+      }
+
+      this.connect().catch(() => {
+        this.scheduleReconnect();
+      });
+    }, delay);
+  },
+
+  /**
+   * Schedules a retry for an active subscription that received an error on an
+   * open multiplexer socket, using exponential backoff while listeners remain.
+   */
+  scheduleSubscriptionRetry(key: string): void {
+    if (this.subscriptionRetryTimers.has(key)) {
+      return;
+    }
+
+    if ((this.listeners.get(key)?.size ?? 0) === 0) {
+      return;
+    }
+
+    const sub = this.activeSubscriptions.get(key);
+    if (!sub) {
+      return;
+    }
+
+    const attempts = this.subscriptionRetryAttempts.get(key) ?? 0;
+    this.subscriptionRetryAttempts.set(key, attempts + 1);
+
+    const delay = Math.min(30_000, 1000 * 2 ** attempts);
+
+    const timer = setTimeout(() => {
+      this.subscriptionRetryTimers.delete(key);
+
+      if ((this.listeners.get(key)?.size ?? 0) === 0) {
+        this.subscriptionRetryAttempts.delete(key);
+        return;
+      }
+
+      if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
+        const currentSub = this.activeSubscriptions.get(key);
+        if (currentSub) {
+          const userId = getUserIdFromLocalStorage();
+          const requestMsg: WebSocketMessage = {
+            clusterId: currentSub.clusterId,
+            path: currentSub.path,
+            query: currentSub.query,
+            userId: userId || '',
+            type: 'REQUEST',
+          };
+          this.socketMultiplexer.send(JSON.stringify(requestMsg));
+        }
+      }
+    }, delay);
+
+    this.subscriptionRetryTimers.set(key, timer);
+  },
+
+  /**
    * Handles WebSocket connection close event
    * Sets up state for potential reconnection
    */
@@ -306,8 +486,21 @@ export const WebSocketManager = {
     this.connecting = false;
     this.completedPaths.clear();
 
+    // Clear open-socket retry timers because transport is closed;
+    // resubscribeAll will replay active subscriptions on reconnect.
+    this.subscriptionRetryTimers.forEach(clearTimeout);
+    this.subscriptionRetryTimers.clear();
+    this.subscriptionRetryAttempts.clear();
+
     // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
+
+    // Without this, mounted views would never receive updates again: the
+    // socket is gone and resubscribeAll only runs when a NEW subscriber
+    // triggers a successful connect().
+    if (this.isReconnecting) {
+      this.scheduleReconnect();
+    }
   },
 
   /**
@@ -333,16 +526,24 @@ export const WebSocketManager = {
       // Handle ERROR messages from backend
       if (data.type === 'ERROR') {
         let errorMessage = 'Unknown error';
+        let parsedData: any = null;
         try {
-          const parsedData = data.data ? JSON.parse(data.data) : {};
-          errorMessage = parsedData.error || errorMessage;
+          parsedData = data.data ? JSON.parse(data.data) : {};
+          errorMessage = parsedData.error || parsedData.message || errorMessage;
         } catch (e) {
           errorMessage = data.data || errorMessage;
         }
 
+        const isExpired = isWatchExpiredError(parsedData) || isWatchExpiredError(errorMessage);
+
         const errListeners = this.errorListeners.get(key);
         if (errListeners && errListeners.size > 0) {
           const errorObj = new Error(errorMessage);
+          const statusCode = parsedData?.statusCode || (isExpired ? 410 : undefined);
+          if (statusCode) {
+            (errorObj as any).status = statusCode;
+            (errorObj as any).statusCode = statusCode;
+          }
           for (const errListener of errListeners) {
             try {
               errListener(errorObj);
@@ -357,6 +558,7 @@ export const WebSocketManager = {
             object: {
               kind: 'Status',
               status: 'Failure',
+              ...(isExpired ? { code: 410, reason: 'Expired' } : {}),
               message: errorMessage,
               metadata: {
                 uid: `${key}:ERROR:${errorMessage}`,
@@ -376,6 +578,13 @@ export const WebSocketManager = {
             }
           }
         }
+
+        // Retry transient errors on open sockets with backoff while listeners remain.
+        // Expired versions are not retried with the same version; the listener refetches a new snapshot.
+        if (!isExpired && (this.listeners.get(key)?.size ?? 0) > 0) {
+          this.scheduleSubscriptionRetry(key);
+        }
+
         return;
       }
 
@@ -386,6 +595,14 @@ export const WebSocketManager = {
       } catch (err) {
         console.error('Failed to parse update data:', err);
         return;
+      }
+
+      // Clear subscription retry state on receiving data
+      this.subscriptionRetryAttempts.delete(key);
+      const subRetryTimer = this.subscriptionRetryTimers.get(key);
+      if (subRetryTimer) {
+        clearTimeout(subRetryTimer);
+        this.subscriptionRetryTimers.delete(key);
       }
 
       // Notify listeners if update is valid
@@ -563,4 +780,49 @@ export interface WebSocketMessage {
    * - COMPLETE: Server indicates the watch request has completed (e.g., due to timeout or error)
    */
   type: 'REQUEST' | 'CLOSE' | 'COMPLETE';
+}
+
+/**
+ * Checks whether an incoming error or status object indicates that a Kubernetes
+ * watch stream has expired (e.g. HTTP 410 Gone / too old resource version).
+ */
+export function isWatchExpiredError(err: any): boolean {
+  if (!err) {
+    return false;
+  }
+  // If this is a Kubernetes watch event wrapper, only ERROR events with Status objects can indicate watch expiry.
+  if (err?.type && err.type !== 'ERROR') {
+    return false;
+  }
+  if (err?.object?.kind && err.object.kind !== 'Status') {
+    return false;
+  }
+  if (err?.kind && err.kind !== 'Status') {
+    return false;
+  }
+  if (err === 410 || err?.status === 410 || err?.statusCode === 410 || err?.code === 410) {
+    return true;
+  }
+  const target = err.object || err.status || err.error || err;
+  if (
+    target === 410 ||
+    target?.code === 410 ||
+    target?.status === 410 ||
+    target?.statusCode === 410 ||
+    target?.reason === 'Expired'
+  ) {
+    return true;
+  }
+  const msg =
+    typeof err === 'string'
+      ? err
+      : typeof target === 'string'
+      ? target
+      : target?.message || err?.message || '';
+  return (
+    /\b410\b/i.test(msg) ||
+    /resource\s*version\b.*(?:too\s+old|expired)|(?:too\s+old|expired).*resource\s*version\b/i.test(
+      msg
+    )
+  );
 }

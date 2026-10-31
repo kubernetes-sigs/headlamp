@@ -21,9 +21,12 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
-import { MULTIPLEXER_ENDPOINT } from './multiplexer';
-import { useWebSocket } from './multiplexer';
-import { WebSocketManager } from './multiplexer';
+import {
+  isWatchExpiredError,
+  MULTIPLEXER_ENDPOINT,
+  useWebSocket,
+  WebSocketManager,
+} from './multiplexer';
 import { BASE_WS_URL } from './webSocket';
 
 // Mock dependencies
@@ -91,10 +94,19 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.connecting = false;
     WebSocketManager.isReconnecting = false;
     WebSocketManager.listeners.clear();
+    WebSocketManager.errorListeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
     WebSocketManager.pendingUnsubscribes.clear();
+    WebSocketManager.subscriptionRetryTimers.forEach(clearTimeout);
+    WebSocketManager.subscriptionRetryTimers.clear();
+    WebSocketManager.subscriptionRetryAttempts.clear();
+    if (WebSocketManager.reconnectTimer !== null) {
+      clearTimeout(WebSocketManager.reconnectTimer);
+    }
+    WebSocketManager.reconnectTimer = null;
+    WebSocketManager.reconnectAttempts = 0;
   });
 
   describe('WebSocketManager', () => {
@@ -372,6 +384,87 @@ describe('WebSocket Multiplexer', () => {
       } catch (e) {
         // No message is also acceptable
       }
+    });
+
+    it('should coordinate closing old watch and delivering events to replacement listener when query updates', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+      const replacementQuery = 'watch=1&resourceVersion=200';
+
+      const listenerOld = vi.fn();
+      const listenerNew = vi.fn();
+
+      const cleanupOld = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        initialQuery,
+        listenerOld
+      );
+      await mockServer.connected;
+
+      const firstMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(firstMsg.type).toBe('REQUEST');
+      expect(firstMsg.query).toBe(initialQuery);
+
+      // Clean up old watch (schedules 100ms debounce timer)
+      cleanupOld();
+
+      // Immediately re-subscribe with replacement query
+      const cleanupNew = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        replacementQuery,
+        listenerNew
+      );
+
+      // Close message for the old query is sent immediately to close stale upstream watch
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg.type).toBe('CLOSE');
+      expect(closeMsg.query).toBe(initialQuery);
+
+      const secondMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(secondMsg.type).toBe('REQUEST');
+      expect(secondMsg.query).toBe(replacementQuery);
+
+      // Deliver an event to the replacement query; replacement listener must receive it
+      const podEvent = {
+        kind: 'Pod',
+        metadata: { name: 'pod-replacement', resourceVersion: '201' },
+      };
+      WebSocketManager.handleWebSocketMessage(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query: replacementQuery,
+            data: JSON.stringify(podEvent),
+            type: 'DATA',
+          }),
+        })
+      );
+      expect(listenerNew).toHaveBeenCalledWith(podEvent);
+      expect(listenerOld).not.toHaveBeenCalled();
+
+      // Wait past the 100ms debounce window
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // No delayed CLOSE message should have been sent for the replacement query
+      const replacementCloseMessages = mockServer.messages.filter(m => {
+        try {
+          const parsed = JSON.parse(m as string);
+          return (
+            parsed.type === 'CLOSE' &&
+            parsed.clusterId === clusterName &&
+            parsed.path === path &&
+            parsed.query === replacementQuery
+          );
+        } catch {
+          return false;
+        }
+      });
+      expect(replacementCloseMessages).toHaveLength(0);
+
+      cleanupNew();
     });
   });
 
@@ -651,6 +744,134 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.connecting).toBe(false);
       expect(WebSocketManager.completedPaths.size).toBe(0);
       expect(WebSocketManager.isReconnecting).toBe(true); // Should be true since we have active subscriptions
+
+      // Stop the scheduled reconnect from firing during this test.
+      if (WebSocketManager.reconnectTimer !== null) {
+        clearTimeout(WebSocketManager.reconnectTimer);
+        WebSocketManager.reconnectTimer = null;
+      }
+    });
+
+    it('schedules an automatic reconnect after close while subscriptions exist', async () => {
+      vi.useFakeTimers();
+
+      WebSocketManager.activeSubscriptions.set('k', {
+        clusterId: clusterName,
+        path: '/p',
+        query: '',
+      });
+      const connectSpy = vi
+        .spyOn(WebSocketManager, 'connect')
+        .mockResolvedValue({ send: vi.fn() } as unknown as WebSocket);
+
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      // First attempt fires after ~1s of backoff.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+
+    it('backs off between reconnect attempts', async () => {
+      vi.useFakeTimers();
+
+      WebSocketManager.activeSubscriptions.set('k', {
+        clusterId: clusterName,
+        path: '/p',
+        query: '',
+      });
+      const connectSpy = vi.spyOn(WebSocketManager, 'connect').mockRejectedValue(new Error('down'));
+
+      WebSocketManager.handleWebSocketClose();
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(connectSpy).not.toHaveBeenCalled();
+
+      // First attempt after ~1s.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      // Second attempt only after the doubled delay (~2s).
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(connectSpy).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('does not schedule reconnect when no subscriptions remain', () => {
+      vi.useFakeTimers();
+
+      const connectSpy = vi
+        .spyOn(WebSocketManager, 'connect')
+        .mockResolvedValue({ send: vi.fn() } as unknown as WebSocket);
+
+      WebSocketManager.handleWebSocketClose();
+
+      expect(WebSocketManager.isReconnecting).toBe(false);
+      vi.advanceTimersByTime(60_000);
+      expect(connectSpy).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('resets reconnect state and backoff when all subscribers disappear during backoff', async () => {
+      vi.useFakeTimers();
+
+      WebSocketManager.activeSubscriptions.set('k', {
+        clusterId: clusterName,
+        path: '/p',
+        query: '',
+      });
+      const connectSpy = vi
+        .spyOn(WebSocketManager, 'connect')
+        .mockResolvedValue({ send: vi.fn() } as unknown as WebSocket);
+
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+      expect(WebSocketManager.reconnectAttempts).toBe(1);
+
+      // Remove the subscription while backoff timer is pending
+      WebSocketManager.activeSubscriptions.clear();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connectSpy).not.toHaveBeenCalled();
+      expect(WebSocketManager.isReconnecting).toBe(false);
+      expect(WebSocketManager.reconnectAttempts).toBe(0);
+
+      vi.useRealTimers();
+    });
+
+    it('cancels pending reconnect timer and resets reconnect state when unsubscribing last subscription', async () => {
+      vi.useFakeTimers();
+
+      const key = WebSocketManager.createKey(clusterName, '/p', '');
+      WebSocketManager.activeSubscriptions.set(key, {
+        clusterId: clusterName,
+        path: '/p',
+        query: '',
+      });
+      const listener = vi.fn();
+      WebSocketManager.listeners.set(key, new Set([listener]));
+
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+      expect(WebSocketManager.reconnectTimer).not.toBeNull();
+
+      WebSocketManager.unsubscribe(key, clusterName, '/p', '', listener);
+
+      // Advance past the 100ms debounce
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(WebSocketManager.activeSubscriptions.size).toBe(0);
+      expect(WebSocketManager.reconnectTimer).toBeNull();
+      expect(WebSocketManager.isReconnecting).toBe(false);
+      expect(WebSocketManager.reconnectAttempts).toBe(0);
+
+      vi.useRealTimers();
     });
 
     it('should handle error in message callback', async () => {
@@ -855,6 +1076,228 @@ describe('WebSocket Multiplexer', () => {
       );
 
       expect(onMessage).not.toHaveBeenCalled();
+    });
+
+    it('retries replayed watch with backoff after receiving error on an open transport', async () => {
+      vi.useFakeTimers();
+
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+
+      const mockSend = vi.fn();
+      WebSocketManager.socketMultiplexer = {
+        readyState: WebSocket.OPEN,
+        send: mockSend,
+      } as unknown as WebSocket;
+
+      WebSocketManager.activeSubscriptions.set(key, { clusterId: clusterName, path, query });
+      WebSocketManager.listeners.set(key, new Set([onMessage]));
+
+      // Backend sends an ERROR on the open multiplexer socket
+      WebSocketManager.handleWebSocketMessage(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            data: JSON.stringify({ error: 'dialing cluster WebSocket failed' }),
+            type: 'ERROR',
+          }),
+        })
+      );
+
+      // Subscription retry should be scheduled
+      expect(WebSocketManager.subscriptionRetryTimers.has(key)).toBe(true);
+      expect(WebSocketManager.subscriptionRetryAttempts.get(key)).toBe(1);
+
+      // Advance by backoff delay (1000ms for first attempt)
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // A retry REQUEST message should be sent over the open socket
+      expect(mockSend).toHaveBeenCalledWith(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          userId,
+          type: 'REQUEST',
+        })
+      );
+
+      // Receiving DATA clears retry state
+      const podData = { kind: 'Pod', metadata: { name: 'pod-1' } };
+      WebSocketManager.handleWebSocketMessage(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            data: JSON.stringify(podData),
+            type: 'DATA',
+          }),
+        })
+      );
+
+      expect(WebSocketManager.subscriptionRetryAttempts.has(key)).toBe(false);
+      expect(WebSocketManager.subscriptionRetryTimers.has(key)).toBe(false);
+      expect(onMessage).toHaveBeenCalledWith(podData);
+
+      vi.useRealTimers();
+    });
+
+    it('rolls back registrations on initial subscription failure so unmount does not leave orphan watches on recovery', async () => {
+      const path = '/api/v1/services';
+      const query = 'watch=true';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+
+      // Force connect() to reject during subscribe
+      const connectSpy = vi
+        .spyOn(WebSocketManager, 'connect')
+        .mockRejectedValueOnce(new Error('connection failed'));
+
+      await expect(
+        WebSocketManager.subscribe(clusterName, path, query, onMessage, onError)
+      ).rejects.toThrow('connection failed');
+
+      // Registrations must be rolled back
+      expect(WebSocketManager.listeners.has(key)).toBe(false);
+      expect(WebSocketManager.errorListeners.has(key)).toBe(false);
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+
+      connectSpy.mockRestore();
+
+      // Later recovery (resubscribeAll) should not resubscribe this failed/unmounted subscription
+      const mockSocket = {
+        readyState: WebSocket.OPEN,
+        send: vi.fn(),
+      } as unknown as WebSocket;
+      WebSocketManager.resubscribeAll(mockSocket);
+
+      expect(mockSocket.send).not.toHaveBeenCalled();
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+    });
+
+    it('omits code and reason in fallback error status when error is not expired', () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+      const listener = vi.fn();
+
+      WebSocketManager.listeners.set(key, new Set([listener]));
+
+      WebSocketManager.handleWebSocketMessage(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            data: JSON.stringify({ error: 'dialing cluster WebSocket failed' }),
+            type: 'ERROR',
+          }),
+        })
+      );
+
+      expect(listener).toHaveBeenCalled();
+      const update = listener.mock.calls[0][0];
+      expect(update.object.status).toBe('Failure');
+      expect('code' in update.object).toBe(false);
+      expect('reason' in update.object).toBe(false);
+    });
+
+    it('includes code 410 and reason Expired in fallback error status when error is expired', () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+      const listener = vi.fn();
+
+      WebSocketManager.listeners.set(key, new Set([listener]));
+
+      WebSocketManager.handleWebSocketMessage(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            data: JSON.stringify({ error: '410 Gone: resource version too old' }),
+            type: 'ERROR',
+          }),
+        })
+      );
+
+      expect(listener).toHaveBeenCalled();
+      const update = listener.mock.calls[0][0];
+      expect(update.object.status).toBe('Failure');
+      expect(update.object.code).toBe(410);
+      expect(update.object.reason).toBe('Expired');
+    });
+
+    it('identifies expired status objects and error strings via isWatchExpiredError', () => {
+      expect(isWatchExpiredError({ object: { code: 410, reason: 'Expired' } })).toBe(true);
+      expect(isWatchExpiredError({ status: 410 })).toBe(true);
+      expect(isWatchExpiredError(new Error('410 Gone: too old resource version: 100'))).toBe(true);
+      expect(isWatchExpiredError('Expired resourceVersion')).toBe(true);
+      expect(isWatchExpiredError('resource version too old')).toBe(true);
+      expect(isWatchExpiredError(new Error('connection reset by peer'))).toBe(false);
+      expect(isWatchExpiredError('error on pod-4100-xyz')).toBe(false);
+      expect(isWatchExpiredError(new Error('error code 4100'))).toBe(false);
+      expect(isWatchExpiredError('too old event discarded')).toBe(false);
+      expect(isWatchExpiredError(null)).toBe(false);
+      expect(
+        isWatchExpiredError(new Error('x509: certificate has expired or is not yet valid'))
+      ).toBe(false);
+      expect(isWatchExpiredError('x509: certificate has expired or is not yet valid')).toBe(false);
+      expect(isWatchExpiredError(new Error('token has expired'))).toBe(false);
+      expect(isWatchExpiredError('authentication token has expired')).toBe(false);
+
+      // Normal watch events (ADDED/MODIFIED) with expiration text or reason must not be treated as expired watch errors
+      expect(
+        isWatchExpiredError({
+          type: 'ADDED',
+          object: {
+            kind: 'Event',
+            reason: 'Expired',
+            message: 'certificate has expired',
+          },
+        })
+      ).toBe(false);
+      expect(
+        isWatchExpiredError({
+          type: 'MODIFIED',
+          object: {
+            kind: 'Event',
+            reason: 'Expired',
+            message: 'token has expired',
+          },
+        })
+      ).toBe(false);
+      expect(
+        isWatchExpiredError({
+          kind: 'Event',
+          reason: 'Expired',
+          message: 'certificate has expired',
+        })
+      ).toBe(false);
+      expect(
+        isWatchExpiredError({
+          type: 'ERROR',
+          object: {
+            kind: 'Status',
+            code: 410,
+            reason: 'Expired',
+            message: 'too old resource version',
+          },
+        })
+      ).toBe(true);
+      expect(
+        isWatchExpiredError({
+          type: 'ERROR',
+          object: {
+            kind: 'Pod',
+            metadata: { name: 'test' },
+          },
+        })
+      ).toBe(false);
     });
   });
 });
