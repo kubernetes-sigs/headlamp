@@ -405,6 +405,9 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- if eq ($oidc.useTokenBroadcast | toString) "true" }}
+            - "-oidc-use-token-broadcast=true"
+            {{- end }}
             {{- with .Values.config.baseURL }}
             - "-base-url={{ . }}"
             {{- end }}

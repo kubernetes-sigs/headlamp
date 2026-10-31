@@ -1,0 +1,12 @@
+# This is a test case for OIDC token broadcast.
+# The oidc.useTokenBroadcast field sets the auth cookie for other kubeconfig
+# contexts that share the same issuer URL and client ID after a login.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "testClientId"
+    clientSecret: "testClientSecret"
+    issuerURL: "testIssuerURL"
+    scopes: "testScope"
+    useTokenBroadcast: true
