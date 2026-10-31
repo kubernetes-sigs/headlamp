@@ -33,6 +33,7 @@ import {
   defaultPluginsDir,
   defaultUserPluginsDir,
   getExtraFiles,
+  normalizeChecksum,
   PluginManager,
   preparePluginExecutable,
   preparePluginScript,
@@ -811,7 +812,10 @@ function mockArtifactHubAPI(testDataDir: string, version = '0.1.0') {
 /**
  * Mock the ArtifactHub API without platform-specific archives
  */
-function mockArtifactHubAPIWithoutPlatformSpecific(testDataDir: string) {
+function mockArtifactHubAPIWithoutPlatformSpecific(
+  testDataDir: string,
+  formatChecksum: (hex: string) => string = hex => `sha256:${hex}`
+) {
   try {
     // Calculate checksums for the tarball
     const pluginTarballPath = path.join(testDataDir, 'plugin-tarball.tar.gz');
@@ -844,7 +848,7 @@ function mockArtifactHubAPIWithoutPlatformSpecific(testDataDir: string) {
         },
         data: {
           'headlamp/plugin/archive-url': pluginArchiveURL,
-          'headlamp/plugin/archive-checksum': `sha256:${pluginChecksum}`,
+          'headlamp/plugin/archive-checksum': formatChecksum(pluginChecksum),
           'headlamp/plugin/version-compat': '>=0.22',
           'headlamp/plugin/distro-compat': 'in-cluster,web,docker-desktop,desktop',
           // Empty extra-files to indicate no platform-specific files
@@ -891,6 +895,81 @@ function calculateSHA256(filePath: string): string {
     throw error;
   }
 }
+
+describe('normalizeChecksum', () => {
+  const hex = 'a3b4c5d6e7f8a3b4c5d6e7f8a3b4c5d6e7f8a3b4c5d6e7f8a3b4c5d6e7f80000';
+
+  it('accepts the sha256: prefix in any case', () => {
+    expect(normalizeChecksum(`sha256:${hex}`)).toBe(hex);
+    expect(normalizeChecksum(`SHA256:${hex}`)).toBe(hex);
+    expect(normalizeChecksum(`Sha256:${hex}`)).toBe(hex);
+  });
+
+  it('accepts a digest without a prefix', () => {
+    expect(normalizeChecksum(hex)).toBe(hex);
+  });
+
+  it('lowercases uppercase hex, as printed by Get-FileHash', () => {
+    expect(normalizeChecksum(`SHA256:${hex.toUpperCase()}`)).toBe(hex);
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(normalizeChecksum(`  SHA256:${hex}\n`)).toBe(hex);
+  });
+
+  it('rejects values that are not a SHA-256 hex digest', () => {
+    expect(() => normalizeChecksum('sha256:dummy')).toThrow('Invalid checksum');
+    expect(() => normalizeChecksum(`sha256:${hex}00`)).toThrow('Invalid checksum');
+    expect(() => normalizeChecksum('md5:d41d8cd98f00b204e9800998ecf8427e')).toThrow(
+      'Invalid checksum'
+    );
+  });
+});
+
+describe('PluginManager archive-checksum formats', () => {
+  const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+
+  it.each([
+    ['uppercase hex', (hex: string) => `SHA256:${hex.toUpperCase()}`],
+    ['a mixed-case prefix', (hex: string) => `Sha256:${hex}`],
+    ['a trailing newline', (hex: string) => `SHA256:${hex}\n`],
+  ])(
+    'installs a plugin whose checksum uses %s',
+    async (_label, formatChecksum) => {
+      const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'checksum-format-data');
+      const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'checksum-format-plugins');
+      try {
+        await createMinimalPluginTarball(testDataDir);
+        mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, formatChecksum);
+
+        await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, null, null);
+
+        expect(fs.existsSync(path.join(pluginDestDir, 'headlamp_minikube', 'main.js'))).toBe(true);
+      } finally {
+        fs.rmSync(pluginDestDir, { recursive: true, force: true });
+        fs.rmSync(testDataDir, { recursive: true, force: true });
+      }
+    },
+    30000
+  );
+
+  it('still rejects a checksum that does not match the archive', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'checksum-mismatch-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'checksum-mismatch-plugins');
+    try {
+      await createMinimalPluginTarball(testDataDir);
+      mockArtifactHubAPIWithoutPlatformSpecific(testDataDir, () => `SHA256:${'0'.repeat(64)}`);
+
+      await expect(
+        PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, null, null)
+      ).rejects.toThrow('Checksum mismatch.');
+      expect(fs.existsSync(path.join(pluginDestDir, 'headlamp_minikube'))).toBe(false);
+    } finally {
+      fs.rmSync(pluginDestDir, { recursive: true, force: true });
+      fs.rmSync(testDataDir, { recursive: true, force: true });
+    }
+  }, 30000);
+});
 
 describe('getExtraFiles', () => {
   it.each(['nested/../../outside', 'nested\\..\\..\\outside', '/outside', 'C:\\outside'])(
