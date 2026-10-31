@@ -141,6 +141,7 @@ import JobSet from '../k8s/jobSet';
 import LeaderWorkerSet from '../k8s/leaderWorkerSet';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
+import { getClusterSettingsURL } from './clusterSettings';
 import type { RouteURLProps } from './createRouteURL';
 import { createRouteURL } from './createRouteURL';
 import { getDefaultRoutes, setDefaultRoutes } from './getDefaultRoutes';
@@ -165,7 +166,7 @@ function SettingsClusterRedirect() {
   const history = useHistory();
 
   React.useEffect(() => {
-    history.replace(`/settings/cluster?c=${cluster}`);
+    history.replace(getClusterSettingsURL(cluster));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

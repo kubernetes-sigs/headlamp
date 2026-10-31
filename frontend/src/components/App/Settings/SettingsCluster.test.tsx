@@ -223,6 +223,20 @@ describe('SettingsCluster states and namespaces', () => {
     ).toBeInTheDocument();
   });
 
+  it.each(['test&qa', 'test+qa', 'test#qa', 'test%2Fqa'])(
+    'selects first cluster %s without corrupting its query parameter',
+    name => {
+      mockState.activeCluster = name;
+      mockState.clustersConf = {
+        [name]: { name, meta_data: { namespace: 'default', source: 'kubeconfig' } },
+      };
+      renderSettings({}, { queryCluster: null });
+
+      expect(screen.getByRole('combobox', { name: 'Cluster' })).toHaveTextContent(name);
+      expect(screen.queryByText(/does not exist/i)).not.toBeInTheDocument();
+    }
+  );
+
   it('shows the empty state when no clusters exist', () => {
     mockState.activeCluster = null;
     mockState.clustersConf = {};

@@ -15,10 +15,16 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getClusterPathParam } from '../cluster';
 import { createRouteURL } from './createRouteURL';
+
+vi.mock('../cluster', () => ({ getClusterPathParam: vi.fn(() => undefined) }));
 
 vi.mock('./getRoute', () => ({
   getRoute: vi.fn((name?: string) => {
+    if (name === 'settingsCluster') {
+      return { path: '/settings', useClusterURL: true };
+    }
     if (name === 'pluginParameterizedRoute') {
       return { path: '/plugin/:namespace/:name', useClusterURL: false };
     }
@@ -40,6 +46,42 @@ vi.mock('./getRouteUseClusterURL', () => ({
 describe('createRouteURL', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    'production',
+    'test+qa',
+    'test&qa',
+    'test#qa',
+    'test?qa',
+    'test=qa',
+    'test%qa',
+    'test/qa',
+    'test%2Fqa',
+    'cluster with spaces',
+    '集群',
+  ])('preserves cluster name %s in the settings query', cluster => {
+    const url = new URL(createRouteURL('settingsCluster', { cluster }), 'http://localhost');
+    expect(url.pathname).toBe('/settings/cluster');
+    expect(url.searchParams.get('c')).toBe(cluster);
+    expect([...url.searchParams.keys()]).toEqual(['c']);
+    expect(url.hash).toBe('');
+  });
+
+  it('encodes the cluster selected from the current route', () => {
+    vi.mocked(getClusterPathParam).mockReturnValueOnce('test+qa');
+    const url = new URL(createRouteURL('settingsCluster'), 'http://localhost');
+    expect(url.searchParams.get('c')).toBe('test+qa');
+  });
+
+  it('keeps the home fallback when no cluster is selected', () => {
+    expect(createRouteURL('settingsCluster')).toBe('/');
+  });
+
+  it('does not modify the supplied cluster parameters', () => {
+    const params = Object.freeze({ cluster: 'test&qa' });
+    createRouteURL('settingsCluster', params);
+    expect(params).toEqual({ cluster: 'test&qa' });
   });
 
   it('returns an empty string when no route name is provided', () => {
