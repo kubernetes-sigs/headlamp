@@ -37,6 +37,7 @@ import Job from '../../../../lib/k8s/job';
 import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import LeaderWorkerSet, { LEADER_WORKER_SET_NAME_LABEL } from '../../../../lib/k8s/leaderWorkerSet';
+import ListenerSet from '../../../../lib/k8s/listenerSet';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
@@ -449,6 +450,65 @@ const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRo
 const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
 const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
 
+// ListenerSet (GEP-1713) attaches its listeners to a parent Gateway.
+// A ListenerSet and its parent Gateway may live in different namespaces, so this
+// can't use makeRelation (which requires an equal namespace). Match on cluster
+// and the resolved parentRef identity instead.
+const listenerSetToGateway: Relation = {
+  id: 'listenerset-gateway',
+  fromSource: makeKubeSourceId(ListenerSet),
+  toSource: makeKubeSourceId(Gateway),
+  predicate(fromNode, toNode) {
+    const listenerSet = fromNode.kubeObject as ListenerSet;
+    const gateway = toNode.kubeObject as Gateway;
+    const ref = listenerSet.spec?.parentRef;
+    if (!ref) {
+      return false;
+    }
+    const reference = resolveGatewayParentReference(ref, listenerSet.metadata.namespace);
+    return (
+      listenerSet.cluster === gateway.cluster &&
+      reference.group === Gateway.apiGroupName &&
+      reference.kind === Gateway.kind &&
+      reference.name === gateway.metadata.name &&
+      reference.namespace === gateway.metadata.namespace
+    );
+  },
+};
+
+// Routes can attach directly to a ListenerSet via a parentRef of kind ListenerSet.
+const makeRouteToListenerSetRelation = (
+  id: string,
+  RouteClass: typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute
+): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(ListenerSet),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as HTTPRoute | TCPRoute | UDPRoute;
+    const listenerSet = toNode.kubeObject as ListenerSet;
+
+    return (
+      route.cluster === listenerSet.cluster &&
+      Boolean(
+        route.spec.parentRefs?.some(parentRef => {
+          const reference = resolveGatewayParentReference(parentRef, route.metadata.namespace);
+          return (
+            reference.group === ListenerSet.apiGroupName &&
+            reference.kind === ListenerSet.kind &&
+            reference.name === listenerSet.metadata.name &&
+            reference.namespace === listenerSet.metadata.namespace
+          );
+        })
+      )
+    );
+  },
+});
+
+const httpRouteToListenerSet = makeRouteToListenerSetRelation('httproute-listenerset', HTTPRoute);
+const tcpRouteToListenerSet = makeRouteToListenerSetRelation('tcproute-listenerset', TCPRoute);
+const udpRouteToListenerSet = makeRouteToListenerSetRelation('udproute-listenerset', UDPRoute);
+
 const backendTLSPolicyToService = makeRelation(
   'backendtlspolicy-service',
   BackendTLSPolicy,
@@ -499,6 +559,10 @@ const staticRelations = [
   tcpRouteToService,
   udpRouteToGateway,
   udpRouteToService,
+  listenerSetToGateway,
+  httpRouteToListenerSet,
+  tcpRouteToListenerSet,
+  udpRouteToListenerSet,
   backendTLSPolicyToService,
   backendTrafficPolicyToService,
 ];

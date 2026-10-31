@@ -61,6 +61,12 @@ export default {
           http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/gateways/default-gateway`, () =>
             HttpResponse.json(DEFAULT_GATEWAY)
           ),
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/listenersets`, () =>
+            HttpResponse.json({ kind: 'ListenerSetList', items: [], metadata: {} })
+          ),
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1alpha1/listenersets`, () =>
+            HttpResponse.error()
+          ),
         ],
       },
     },

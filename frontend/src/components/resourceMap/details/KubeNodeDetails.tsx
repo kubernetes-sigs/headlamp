@@ -35,6 +35,7 @@ import GatewayClassDetails from '../../gateway/ClassDetails';
 import GatewayDetails from '../../gateway/GatewayDetails';
 import GRPCRouteDetails from '../../gateway/GRPCRouteDetails';
 import HTTPRouteDetails from '../../gateway/HTTPRouteDetails';
+import ListenerSetDetails from '../../gateway/ListenerSetDetails';
 import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
 import TCPRouteDetails from '../../gateway/TCPRouteDetails';
 import UDPRouteDetails from '../../gateway/UDPRouteDetails';
@@ -122,6 +123,7 @@ const kindComponentMap: Record<
   crd: CustomResourceDefinitionDetails,
   Gateway: GatewayDetails,
   GatewayClass: GatewayClassDetails,
+  ListenerSet: ListenerSetDetails,
   HTTPRoute: HTTPRouteDetails,
   GRPCRoute: GRPCRouteDetails,
   TCPRoute: TCPRouteDetails,
