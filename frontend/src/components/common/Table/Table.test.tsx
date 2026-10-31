@@ -598,6 +598,98 @@ describe('Table select filter faceted values', () => {
     expect(values.size).toBe(1000);
   });
 
+  it.each([
+    ['below the cap', 3],
+    ['past the cap', 1001],
+  ])('keeps offering a selected value a refresh took out of the rows, %s', (_description, size) => {
+    // MRT reads the chip label of a selected value back from these options, so a value
+    // that left the data has to stay among them while it is filtered for.
+    const rows = Array.from({ length: size }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const column = {
+      ...makeFacetedColumn(columnDef, rows),
+      getFilterValue: () => ['gone'],
+    };
+    const values = tableMocks.options.getFacetedUniqueValues(makeFacetedTable(column), 'status')();
+
+    expect(values.get('gone')).toBe(0);
+    expect(values.size).toBe(Math.min(size + 1, 1000));
+  });
+
+  it('does not call a list shortened that only gained an absent selection', () => {
+    const rows = Array.from({ length: 999 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => ['gone'];
+    const props = tableMocks.options.muiFilterTextFieldProps({ column, table });
+
+    expect(column.getFacetedUniqueValues().size).toBe(1000);
+    expect(props.helperText).toBeUndefined();
+  });
+
+  it('serves the same map on every render while an absent selection stands', () => {
+    // MRT memoizes the dropdown on the identity of this map.
+    const rows = Array.from({ length: 3 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => ['gone'];
+
+    const first = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    expect(first.get('gone')).toBe(0);
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')()).toBe(first);
+  });
+
+  it('does not offer the free text of an autocomplete filter as a value', () => {
+    // The autocomplete shows its own input rather than an option's label, and what it is
+    // filtered by is whatever was typed.
+    const rows = Array.from({ length: 3 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('autocomplete')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => 's';
+
+    expect([...tableMocks.options.getFacetedUniqueValues(table, 'status')().keys()]).toEqual([
+      's0',
+      's1',
+      's2',
+    ]);
+  });
+
+  it('builds a new view when an autocomplete column turns into a dropdown', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('autocomplete')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => 'gone';
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().has('gone')).toBe(false);
+    // Same row model, so the cached walk is reused, but not the view built for the old variant.
+    column.columnDef = { ...column.columnDef, filterVariant: 'multi-select' };
+    column.getFilterValue = () => ['gone'];
+
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().get('gone')).toBe(0);
+  });
+
+  it('builds a new view when the filter changes to a value that only reads the same', () => {
+    // A non-string filter value cannot be offered, its string twin can. Both must not share
+    // one cached view.
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => [5];
+    const forNumber = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    // MRT sorts the options with localeCompare, which a number would throw on.
+    expect([...forNumber.keys()].every(value => typeof value === 'string')).toBe(true);
+    expect(forNumber.has('5')).toBe(false);
+    column.getFilterValue = () => ['5'];
+
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().get('5')).toBe(0);
+  });
+
   it('walks again when the filter moved to a value the cached set does not carry', () => {
     const rows = [
       ...Array.from({ length: 1000 }, (_, index) => ({ status: `common-${index}` })),
