@@ -256,6 +256,7 @@ export function UploadDialog(props: UploadDialogProps) {
       slotProps={{
         backdrop: { sx: { backdropFilter: 'blur(2px)' } },
       }}
+      PaperProps={{ 'aria-label': t('translation|Upload File/URL') }}
     >
       <DialogContent sx={{ pt: 1 }}>
         <Tabs
