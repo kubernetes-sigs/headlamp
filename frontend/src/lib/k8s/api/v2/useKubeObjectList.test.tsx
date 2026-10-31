@@ -741,6 +741,197 @@ describe('useKubeObjectList', () => {
     ]);
   });
 
+  it('excludes manually configured namespaces whose labels do not match the caller selector', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespaces: ['team-a', 'team-b'] })
+    );
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ metadata: { name: 'team-a', labels: { project: 'apple' } } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({ metadata: { name: 'team-b', labels: { project: 'banana' } } }),
+      } as Response);
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      { labelSelector: 'project=apple' }
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual(['team-a']);
+  });
+
+  it('replaces a failed manually configured namespace GET with a placeholder when no caller selector is active', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespaces: ['team-a', 'team-b'] })
+    );
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ metadata: { name: 'team-a' } }),
+      } as Response)
+      .mockRejectedValueOnce(new ApiError('Forbidden', { status: 403 }));
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      {}
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual([
+      'team-a',
+      'team-b',
+    ]);
+    // The placeholder must have a status object (so consumers can safely read
+    // `.status.phase` without crashing). It deliberately has no
+    // creationTimestamp -- the real value is unknown since the GET failed,
+    // and fabricating one (e.g. "now") would misrepresent the namespace's
+    // actual age. The Namespaces list renders a missing timestamp as
+    // "Unknown" instead of relying on the shared 'age' column.
+    expect(response.list.items[1].jsonData).toEqual({
+      kind: 'Namespace',
+      apiVersion: 'v1',
+      metadata: { name: 'team-b' },
+      status: {},
+    });
+  });
+
+  it('does not let a placeholder shadow a real object also returned by the selector list', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({
+        allowedNamespaces: ['team-a'],
+        allowedNamespacesSelector: 'team=frontend',
+      })
+    );
+    mockClusterFetch.mockImplementation(async url => {
+      if (url === 'api/v1/namespaces/team-a') {
+        // The per-name GET for the manually configured namespace fails (e.g.
+        // missing RBAC on that specific name)...
+        throw new ApiError('Forbidden', { status: 403 });
+      }
+      // ...but the configured-selector LIST can still see it, with real
+      // status/labels attached.
+      return {
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              kind: 'NamespaceList',
+              items: [
+                {
+                  metadata: { name: 'team-a', labels: { team: 'frontend' } },
+                  status: { phase: 'Active' },
+                },
+              ],
+            })
+          ),
+      } as Response;
+    });
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      {}
+    );
+    const response = await (query.queryFn as any)();
+
+    // Exactly one entry for 'team-a' -- the real object from the selector
+    // list, not a name-only placeholder shadowing it.
+    expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual(['team-a']);
+    expect(response.list.items[0].jsonData.status).toEqual({ phase: 'Active' });
+    expect(response.list.items[0].jsonData.metadata.labels).toEqual({ team: 'frontend' });
+  });
+
+  it('omits a failed manually configured namespace GET when a caller selector is active', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespaces: ['team-a', 'team-b'] })
+    );
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ metadata: { name: 'team-a', labels: { project: 'apple' } } }),
+      } as Response)
+      .mockRejectedValueOnce(new ApiError('Forbidden', { status: 403 }));
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      { labelSelector: 'project=apple' }
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual(['team-a']);
+  });
+
+  it('errors when every manually configured namespace GET fails and the selector list is empty', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespaces: ['team-a', 'team-b'] })
+    );
+    const firstError = new ApiError('Forbidden', { status: 403 });
+    mockClusterFetch
+      .mockRejectedValueOnce(firstError)
+      .mockRejectedValueOnce(new ApiError('Forbidden', { status: 403 }));
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      {}
+    );
+
+    await expect((query.queryFn as any)()).rejects.toBe(firstError);
+  });
+
   it('does not watch the synthesized allowed namespace list', async () => {
     const namespaceClass = class {
       static apiVersion = 'v1';
