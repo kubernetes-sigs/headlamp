@@ -36,6 +36,7 @@ export async function metrics(
   onError?: (err: ApiError) => void,
   cluster?: string
 ) {
+  let cancelled = false;
   const handle = setInterval(getMetrics, 10000);
 
   const clusterName = cluster || getCluster();
@@ -43,8 +44,11 @@ export async function metrics(
   async function getMetrics() {
     try {
       const metric = await clusterRequest(url, { cluster: clusterName });
-      onMetrics(metric.items || metric);
+      if (!cancelled) {
+        onMetrics(metric.items || metric);
+      }
     } catch (err) {
+      if (cancelled) return;
       if (isDebugVerbose('k8s/apiProxy@metrics')) {
         console.debug('k8s/apiProxy@metrics', { err, url });
       }
@@ -56,6 +60,7 @@ export async function metrics(
   }
 
   function cancel() {
+    cancelled = true;
     clearInterval(handle);
   }
 
