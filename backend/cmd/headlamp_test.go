@@ -2944,6 +2944,64 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestServerHandlerRefreshFailureCORS(t *testing.T) {
+	for _, devMode := range []bool{true, false} {
+		t.Run(strconv.FormatBool(devMode), func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(&kubeconfig.Context{
+				Name: "expired", OidcConf: &kubeconfig.OidcConfig{ClientID: "client"},
+			}))
+			config := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store, DevMode: devMode},
+				Cache:       cache.New[interface{}](), TelemetryHandler: &telemetry.RequestHandler{},
+			}}
+			handler, err := serverHandler(t.Context(), config)
+			require.NoError(t, err)
+
+			payload := base64.RawURLEncoding.EncodeToString([]byte(`{"exp":1}`))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/clusters/expired/api/v1/pods", nil)
+			req.Header.Set("Origin", "http://localhost:3000")
+			req.Header.Set("Authorization", "Bearer e30."+payload+".signature")
+
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, req)
+			assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+
+			if devMode {
+				assert.Equal(t, "http://localhost:3000", recorder.Header().Get("Access-Control-Allow-Origin"))
+				assert.Equal(t, "true", recorder.Header().Get("Access-Control-Allow-Credentials"))
+			} else {
+				assert.Empty(t, recorder.Header().Get("Access-Control-Allow-Origin"))
+			}
+		})
+	}
+}
+
+func TestServerHandlerReplacesExpiredCookie(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "expired", OidcConf: &kubeconfig.OidcConfig{ClientID: "client"},
+	}))
+	config := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store, UseInCluster: true},
+		Cache:       cache.New[interface{}](), TelemetryHandler: &telemetry.RequestHandler{},
+	}}
+	handler, err := serverHandler(t.Context(), config)
+	require.NoError(t, err)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/clusters/expired/set-token", strings.NewReader(`{"token":"replacement"}`))
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-expired.0", Value: "e30.eyJleHAiOjF9.signature",
+		Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	assert.Equal(t, "replacement", recorder.Result().Cookies()[0].Value)
+}
+
 func TestStartHeadlampServer(t *testing.T) {
 	// Create a temporary directory for plugins
 	tempDir, err := os.MkdirTemp("", "headlamp-test")

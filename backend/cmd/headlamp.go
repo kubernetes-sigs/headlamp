@@ -1634,6 +1634,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.Handle("/", r)
 	}
 
+	return r
+}
+
+func developmentCORS(config *HeadlampConfig, next http.Handler) http.Handler {
 	// On dev mode we're loose about where connections come from
 	if config.DevMode {
 		headers := handlers.AllowedHeaders([]string{
@@ -1648,10 +1652,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			methods,
 			handlers.AllowCredentials(),
 			handlers.AllowedOriginValidator(func(s string) bool { return true }),
-		)(r)
+		)(next)
 	}
 
-	return r
+	return next
 }
 
 func clearRequestAuthorization(r *http.Request) {
@@ -1886,6 +1890,7 @@ func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, e
 	}
 
 	handler = config.OIDCTokenRefreshMiddleware(handler)
+	handler = developmentCORS(config, handler)
 
 	// Only validate the Host header when listening on a loopback address.
 	// When bound to a non-loopback address (e.g. behind a reverse proxy),
