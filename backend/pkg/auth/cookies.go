@@ -77,13 +77,47 @@ func GetOIDCLogoutCookiePath(baseURL, cluster string) string {
 	return trimmedBaseURL + "/encoded-clusters/" + EncodeClusterForURL(cluster) + "/oidc-logout"
 }
 
+// fnvHash computes a 32-bit FNV-1a hash formatted as an 8-character hex string.
+func fnvHash(s string) string {
+	var h uint32 = 2166136261
+	for i := 0; i < len(s); i++ {
+		h ^= uint32(s[i])
+		h *= 16777619
+	}
+
+	return fmt.Sprintf("%08x", h)
+}
+
 // SanitizeClusterName ensures cluster names are safe for use in cookie names.
 func SanitizeClusterName(cluster string) string {
 	// Only allow alphanumeric characters, hyphens, and underscores
 	reg := regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
 	sanitized := reg.ReplaceAllString(cluster, "")
 
-	// Limit length to prevent issues
+	// Limit length to prevent issues and use a deterministic hash suffix if original
+	// or sanitized name exceeds 50 characters to avoid collisions.
+	if len(cluster) > 50 || len(sanitized) > 50 {
+		prefix := sanitized
+		if len(prefix) > 41 {
+			prefix = prefix[:41]
+		}
+
+		return prefix + "-" + fnvHash(cluster)
+	}
+
+	return sanitized
+}
+
+// legacySanitizedClusterName returns the cookie name used by older releases for
+// long cluster names, or "" when it matches the current name.
+func legacySanitizedClusterName(cluster string) string {
+	reg := regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
+	sanitized := reg.ReplaceAllString(cluster, "")
+
+	if sanitized == "" || (len(cluster) <= 50 && len(sanitized) <= 50) {
+		return ""
+	}
+
 	if len(sanitized) > 50 {
 		sanitized = sanitized[:50]
 	}
@@ -237,6 +271,21 @@ func ClearTokenCookieBounded(w http.ResponseWriter, r *http.Request, cluster, ba
 		}
 
 		clearAuthTokenChunkCookie(w, secure, cookiePath, sanitizedCluster, i)
+	}
+
+	// Long cluster names used unhashed cookie names in older releases; clear
+	// those too so sessions from before an upgrade are logged out.
+	legacyCluster := legacySanitizedClusterName(cluster)
+	if legacyCluster == "" {
+		return
+	}
+
+	for i := 0; i < maxAuthTokenChunks; i++ {
+		if _, err := r.Cookie(fmt.Sprintf("headlamp-auth-%s.%d", legacyCluster, i)); i > 0 && err != nil {
+			continue
+		}
+
+		clearAuthTokenChunkCookie(w, secure, cookiePath, legacyCluster, i)
 	}
 }
 
