@@ -35,6 +35,28 @@ import NameValueTable from '../common/NameValueTable';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 
+/**
+ * Returns the matching parentRef if the route targets the given ListenerSet.
+ *
+ * An omitted `parentRef.namespace` defaults to the route's own namespace (not the
+ * ListenerSet's), so identically named ListenerSets in different namespaces are
+ * not confused.
+ */
+export function routeTargetsListenerSet(
+  route: { parentRefs?: GatewayParentReference[]; metadata: { namespace?: string } },
+  listenerSet: { metadata: { name?: string; namespace?: string } }
+): GatewayParentReference | undefined {
+  return (route.parentRefs ?? []).find(ref => {
+    const resolved = resolveGatewayParentReference(ref, route.metadata.namespace);
+    return (
+      resolved.kind === 'ListenerSet' &&
+      resolved.group === GATEWAY_API_GROUP &&
+      ref.name === listenerSet.metadata.name &&
+      resolved.namespace === listenerSet.metadata.namespace
+    );
+  });
+}
+
 function GatewayParentReferenceName(props: {
   reference: ResolvedGatewayParentReference;
   cluster?: string;

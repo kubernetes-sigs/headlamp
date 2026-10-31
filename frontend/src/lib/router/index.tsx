@@ -61,6 +61,8 @@ import GRPCRouteDetails from '../../components/gateway/GRPCRouteDetails';
 import GRPCRouteList from '../../components/gateway/GRPCRouteList';
 import HTTPRouteDetails from '../../components/gateway/HTTPRouteDetails';
 import HTTPRouteList from '../../components/gateway/HTTPRouteList';
+import ListenerSetDetails from '../../components/gateway/ListenerSetDetails';
+import ListenerSetList from '../../components/gateway/ListenerSetList';
 import ReferenceGrantDetails from '../../components/gateway/ReferenceGrantDetails';
 import ReferenceGrantList from '../../components/gateway/ReferenceGrantList';
 import TCPRouteDetails from '../../components/gateway/TCPRouteDetails';
@@ -560,6 +562,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'BackendTrafficPolicies',
     sidebar: 'backendtrafficpolicies',
     component: () => <BackendTrafficPolicyDetails />,
+  },
+  listenersets: {
+    path: '/listenersets',
+    exact: true,
+    name: 'ListenerSets',
+    sidebar: 'listenersets',
+    component: () => <ListenerSetList />,
+  },
+  listenerset: {
+    path: '/listenerset/:namespace/:name',
+    exact: true,
+    name: 'ListenerSets',
+    sidebar: 'listenersets',
+    component: () => <ListenerSetDetails />,
   },
   DaemonSets: {
     path: '/daemonsets',

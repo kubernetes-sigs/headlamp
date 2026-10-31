@@ -47,6 +47,7 @@ import JobSet from './jobSet';
 import LeaderWorkerSet from './leaderWorkerSet';
 import { Lease } from './lease';
 import { LimitRange } from './limitRange';
+import ListenerSet from './listenerSet';
 import Namespace from './namespace';
 import NetworkPolicy from './networkpolicy';
 import Node from './node';
@@ -123,6 +124,7 @@ export const ResourceClasses = {
   GRPCRoute,
   TCPRoute,
   UDPRoute,
+  ListenerSet,
   // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
   Workload: SchedulingWorkload,
 };
