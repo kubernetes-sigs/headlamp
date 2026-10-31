@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Удаление плагина {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "Удаление {{ itemName }} отменено.",
   "Deleted plugin {{ itemName }}.": "Удалён плагин {{ itemName }}.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Ошибка удаления плагина {{ itemName }}.",
   "Uh-oh! Something went wrong.": "Ой-ой! Что-то пошло не так.",
   "Error loading {{ routeName }}": "Ошибка загрузки {{ routeName }}.",
