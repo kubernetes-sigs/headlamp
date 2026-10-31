@@ -481,6 +481,69 @@ describe('NewProjectPopup', () => {
     );
   });
 
+  test('keeps ignoring a write acknowledged before the watch reports it when a retry fails', async () => {
+    const store = mockWatchedNamespaces([]);
+    store.set([watchedNamespace(store, 'cluster-1', 'existing-ns')]);
+    // cluster-1 is created but the watch has not reported it yet; cluster-2 fails
+    mockApply.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('nope'));
+
+    const createBtn = await fillProjectWithExistingNamespace('half-created-project', 'existing-ns');
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'typed-ns' } });
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    fireEvent.click(createBtn);
+    await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument());
+    expect(mockApply).toHaveBeenCalledTimes(2);
+
+    // The retry applies cluster-1 again (apply is an upsert) and fails again in cluster-2,
+    // still before the watch caught up
+    mockApply.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('nope again'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(screen.getByText('nope again')).toBeInTheDocument());
+    expect(mockApply).toHaveBeenCalledTimes(4);
+    expect(mockApply.mock.calls.slice(2).map(call => call[1])).toEqual(['cluster-1', 'cluster-2']);
+
+    // The watch now delivers the namespace the first attempt created in cluster-1
+    store.set([
+      ...store.getSnapshot(),
+      watchedNamespace(store, 'cluster-1', 'typed-ns', {
+        [PROJECT_ID_LABEL]: 'half-created-project',
+      }),
+    ]);
+
+    // It is the dialog's own write, so it is not a conflict and the project can be retried
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create' })).not.toBeDisabled());
+    expect(screen.queryByText('A project with this name already exists')).not.toBeInTheDocument();
+  });
+
+  test('patches an existing namespace typed into the field without selecting it', async () => {
+    const store = mockWatchedNamespaces([]);
+    const namespace = watchedNamespace(store, 'cluster-1', 'existing-ns');
+    store.set([namespace]);
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), {
+      target: { value: 'typed-project' },
+    });
+    fireEvent.mouseDown(screen.getByLabelText('Clusters'));
+    fireEvent.click(screen.getByText('cluster-1'));
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'existing-ns' } });
+
+    const createBtn = screen.getByRole('button', { name: 'Create' });
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    fireEvent.click(createBtn);
+
+    await waitFor(() =>
+      expect(mockHistoryPush).toHaveBeenCalledWith(expect.stringContaining('typed-project'))
+    );
+    expect(namespace.patch).toHaveBeenCalledTimes(1);
+    expect(mockApply).not.toHaveBeenCalled();
+  });
+
   test('reports the half-created project when a different namespace is chosen', async () => {
     const store = mockWatchedNamespaces([]);
     store.set([watchedNamespace(store, 'cluster-1', 'existing-ns')]);
@@ -520,6 +583,31 @@ describe('NewProjectPopup', () => {
       expect(screen.getByText('A project with this name already exists')).toBeInTheDocument()
     );
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+  });
+
+  test('creates the typed namespace when the text no longer matches the picked option', async () => {
+    const store = mockWatchedNamespaces([]);
+    const namespace = watchedNamespace(store, 'cluster-1', 'existing-ns');
+    store.set([namespace]);
+
+    const createBtn = await fillProjectWithExistingNamespace('brand-new-project', 'existing-ns');
+    // Typing after picking an option replaces the selection with what the user sees
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'typed-ns' } });
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    fireEvent.click(createBtn);
+
+    await waitFor(() =>
+      expect(mockHistoryPush).toHaveBeenCalledWith(expect.stringContaining('brand-new-project'))
+    );
+    expect(namespace.patch).not.toHaveBeenCalled();
+    expect(mockApply).toHaveBeenCalledTimes(2);
+    for (const cluster of ['cluster-1', 'cluster-2']) {
+      expect(mockApply).toHaveBeenCalledWith(
+        expect.objectContaining({ metadata: expect.objectContaining({ name: 'typed-ns' }) }),
+        cluster
+      );
+    }
+    expect(screen.queryByText('A project with this name already exists')).not.toBeInTheDocument();
   });
 
   test('still reports a project that exists with the same namespace in another cluster', async () => {
