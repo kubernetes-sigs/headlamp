@@ -117,6 +117,9 @@ type Config struct {
 	DefaultLightTheme string `koanf:"default-light-theme"`
 	DefaultDarkTheme  string `koanf:"default-dark-theme"`
 	ForceTheme        string `koanf:"force-theme"`
+	// Favicon config
+	Favicon       string `koanf:"favicon"`
+	FaviconBase64 string `koanf:"favicon-base64"`
 }
 
 func (c *Config) warnRedundantThemeDefaults() {
@@ -585,6 +588,7 @@ func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	addGeneralFlags(f, appName)
+	addFaviconFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -654,6 +658,12 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+}
+
+func addFaviconFlags(f *flag.FlagSet) {
+	f.String("favicon", "", "Path to a custom favicon file (.png or .ico) replacing the bundled tab icon")
+	f.String("favicon-base64", "",
+		"Base64-encoded PNG to use as the custom favicon; useful for containers without mounting files")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
