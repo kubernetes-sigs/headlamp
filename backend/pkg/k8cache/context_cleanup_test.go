@@ -42,6 +42,8 @@ func TestCacheKeyBelongsToContext(t *testing.T) {
 		{"+pods+default+other", "minikube", false},
 		{"malformed", "minikube", false},
 		{"+pods+default+minikube", "", false},
+		{"+pods+default+minikube+limit%3D50", "minikube", true},
+		{"+pods+default+other+limit%3D50", "minikube", false},
 	}
 
 	for _, tt := range tests {
@@ -56,12 +58,17 @@ func TestPurgeCacheForContext(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, k8scache.Set(ctx, "+pods+default+minikube", "pods-data"))
+	require.NoError(t, k8scache.Set(ctx, "+pods+default+minikube+limit%3D50", "pods-data-query"))
 	require.NoError(t, k8scache.Set(ctx, "apps+deployments+default+minikube", "deploy-data"))
 	require.NoError(t, k8scache.Set(ctx, "+pods+default+other-cluster", "other-data"))
+	require.NoError(t, k8scache.Set(ctx, "+pods+default+other-cluster+limit%3D50", "other-data-query"))
 
 	k8cache.PurgeCacheForContext(k8scache, "minikube")
 
 	_, err := k8scache.Get(ctx, "+pods+default+minikube")
+	assert.Error(t, err)
+
+	_, err = k8scache.Get(ctx, "+pods+default+minikube+limit%3D50")
 	assert.Error(t, err)
 
 	_, err = k8scache.Get(ctx, "apps+deployments+default+minikube")
@@ -70,6 +77,10 @@ func TestPurgeCacheForContext(t *testing.T) {
 	val, err := k8scache.Get(ctx, "+pods+default+other-cluster")
 	assert.NoError(t, err)
 	assert.Equal(t, "other-data", val)
+
+	val, err = k8scache.Get(ctx, "+pods+default+other-cluster+limit%3D50")
+	assert.NoError(t, err)
+	assert.Equal(t, "other-data-query", val)
 }
 
 func TestPurgeCacheForContext_EscapedContextKey(t *testing.T) {
