@@ -330,4 +330,186 @@ describe('diagnostics helpers', () => {
       }
     }
   );
+
+  describe('scheduling-gated pods', () => {
+    function makeGatedPod(name = 'gated-pod', gates = ['example.com/wait', 'test.com/hold']) {
+      return makePod({
+        metadata: { name, namespace: 'default', uid: `uid-${name}` },
+        spec: {
+          containers: [{ name: 'app', image: 'busybox' }],
+          schedulingGates: gates.map(gateName => ({ name: gateName })),
+        },
+        status: {
+          phase: 'Pending',
+          conditions: [
+            {
+              type: 'PodScheduled',
+              status: 'False',
+              reason: 'SchedulingGated',
+              message: 'Scheduling is blocked due to non-empty scheduling gates',
+            },
+          ],
+          containerStatuses: [],
+        },
+        getDetailedStatus: () => ({
+          reason: 'Pending',
+          message: '',
+          readyContainers: 0,
+          totalContainers: 1,
+          restarts: 0,
+        }),
+      });
+    }
+
+    it('reports an info item with title, message and gate chips for a gated pod', () => {
+      const pod = makeGatedPod('gated-pod', ['example.com/wait', 'test.com/hold']);
+      const diagnostics = getPodDiagnostics(pod, []);
+
+      const gatedItem = diagnostics.find(item => item.id === 'pod-scheduling-gated');
+      expect(gatedItem).toBeDefined();
+      expect(gatedItem?.severity).toBe('info');
+      expect(gatedItem?.title).toBe('Waiting for scheduling gates to be removed');
+      expect(gatedItem?.message).toBe(
+        'The pod is held back from scheduling intentionally until its scheduling gates are removed.'
+      );
+      expect(gatedItem?.details).toEqual([
+        'Scheduling gate: example.com/wait',
+        'Scheduling gate: test.com/hold',
+      ]);
+    });
+
+    it('does not report a false Critical condition or log-review advice for a gated pod', () => {
+      const pod = makeGatedPod();
+      const diagnostics = getPodDiagnostics(pod, []);
+
+      // Must not report an error (Critical) condition item
+      expect(diagnostics.some(item => item.severity === 'error')).toBe(false);
+      expect(diagnostics.some(item => item.id === 'condition-PodScheduled')).toBe(false);
+
+      // Must not instruct the user to review container logs or report pod-status warning
+      expect(diagnostics.some(item => item.id === 'pod-status')).toBe(false);
+      expect(diagnostics.some(item => item.message?.includes('Review the container logs'))).toBe(
+        false
+      );
+    });
+
+    it.each([
+      {
+        description: 'phase is Failed with retained gate condition',
+        createPod: () => {
+          const pod = makeGatedPod();
+          pod.status.phase = 'Failed';
+          pod.getDetailedStatus = () => ({
+            reason: 'Failed',
+            message: 'Pod was terminated',
+            readyContainers: 0,
+            totalContainers: 1,
+            restarts: 0,
+          });
+          return pod;
+        },
+        expectedSeverity: 'error',
+        expectedMessage: 'Pod was terminated',
+      },
+      {
+        description: 'phase is Pending with deletionTimestamp set',
+        createPod: () => {
+          const pod = makeGatedPod();
+          pod.metadata.deletionTimestamp = '2026-05-09T05:30:00Z';
+          return pod;
+        },
+      },
+    ])(
+      'does not treat pod as scheduling-gated when $description',
+      ({ createPod, expectedSeverity, expectedMessage }) => {
+        const pod = createPod();
+        const diagnostics = getPodDiagnostics(pod, []);
+
+        expect(diagnostics.some(item => item.id === 'pod-scheduling-gated')).toBe(false);
+
+        const statusItem = diagnostics.find(item => item.id === 'pod-status');
+        expect(statusItem).toBeDefined();
+
+        if (expectedSeverity) {
+          expect(statusItem?.severity).toBe(expectedSeverity);
+        }
+        if (expectedMessage) {
+          expect(statusItem?.message).toContain(expectedMessage);
+        }
+      }
+    );
+
+    it('summarizes gated pods with info severity and dedicated waiting title in workload diagnostics', () => {
+      const deployment = {
+        kind: 'Deployment',
+        metadata: { name: 'gated-deploy', namespace: 'default' },
+        spec: { replicas: 1 },
+        status: { replicas: 1, readyReplicas: 0 },
+      } as any;
+
+      const pod = makeGatedPod('gated-1', ['example.com/wait']);
+      const diagnostics = getWorkloadDiagnostics(deployment, [pod]);
+
+      const workloadItem = diagnostics.find(item => item.id === 'workload-pods-SchedulingGated');
+      expect(workloadItem).toBeDefined();
+      expect(workloadItem?.severity).toBe('info');
+      expect(workloadItem?.title).toBe('1 pod is waiting for its scheduling gates to be removed');
+      expect(workloadItem?.message).toBe(
+        'The pod is held back from scheduling intentionally until its scheduling gates are removed.'
+      );
+      expect(workloadItem?.title).not.toMatch(/unschedulable/i);
+      expect(workloadItem?.message).not.toMatch(/node resources/i);
+    });
+
+    it('uses the plural title when several pods are gated', () => {
+      const deployment = {
+        kind: 'Deployment',
+        metadata: { name: 'gated-deploy', namespace: 'default' },
+        spec: { replicas: 2 },
+        status: { replicas: 2, readyReplicas: 0 },
+      } as any;
+
+      const pod1 = makeGatedPod('gated-1', ['example.com/wait']);
+      const pod2 = makeGatedPod('gated-2', ['example.com/wait']);
+      const diagnostics = getWorkloadDiagnostics(deployment, [pod1, pod2]);
+
+      const workloadItem = diagnostics.find(item => item.id === 'workload-pods-SchedulingGated');
+      expect(workloadItem).toBeDefined();
+      expect(workloadItem?.severity).toBe('info');
+      expect(workloadItem?.title).toBe(
+        '2 pods are waiting for their scheduling gates to be removed'
+      );
+    });
+
+    it('preserves existing unschedulable diagnosis for pods failing scheduling', () => {
+      const deployment = {
+        kind: 'Deployment',
+        metadata: { name: 'unsched-deploy', namespace: 'default' },
+        spec: { replicas: 1 },
+        status: { replicas: 1, readyReplicas: 0 },
+      } as any;
+
+      const unschedPod = makePod({
+        status: {
+          phase: 'Pending',
+          conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable' }],
+          containerStatuses: [],
+        },
+        getDetailedStatus: () => ({
+          reason: 'Pending',
+          message: '',
+          readyContainers: 0,
+          totalContainers: 1,
+          restarts: 0,
+        }),
+      });
+
+      const diagnostics = getWorkloadDiagnostics(deployment, [unschedPod]);
+      const workloadItem = diagnostics.find(item => item.id === 'workload-pods-Unschedulable');
+      expect(workloadItem).toBeDefined();
+      expect(workloadItem?.severity).toBe('warning');
+      expect(workloadItem?.title).toBe('1 pod is unschedulable');
+      expect(workloadItem?.message).toMatch(/scheduler could not place the pod/i);
+    });
+  });
 });

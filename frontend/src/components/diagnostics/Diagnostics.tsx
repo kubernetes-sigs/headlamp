@@ -190,17 +190,32 @@ function podReference(pod: PodLike): DiagnosticReference {
   };
 }
 
+const SCHEDULING_GATED_REASON = 'SchedulingGated';
+
+/** Returns true if the pending, non-deleting pod's PodScheduled condition has reason SchedulingGated. */
+function isSchedulingGated(pod: PodLike): boolean {
+  const scheduledCondition = pod.status?.conditions?.find(
+    condition => condition.type === 'PodScheduled'
+  );
+  return (
+    pod.status?.phase === 'Pending' &&
+    !pod.metadata.deletionTimestamp &&
+    scheduledCondition?.reason === SCHEDULING_GATED_REASON
+  );
+}
+
 /**
  * Reasons that merely restate that the pod/containers failed (e.g. Ready is
- * False because ContainersNotReady). They add nothing over the pod status
- * summary and the Containers section, so conditions carrying them are dropped
- * to avoid circular "it failed because it failed" findings.
+ * False because ContainersNotReady), or represent intentional holds handled
+ * separately (e.g. PodScheduled is False with reason SchedulingGated).
+ * Conditions carrying them are dropped to avoid redundant or false-critical findings.
  */
 const REDUNDANT_CONDITION_REASONS = [
   'ContainersNotReady',
   'ContainersNotInitialized',
   'PodFailed',
   'PodCompleted',
+  SCHEDULING_GATED_REASON,
 ];
 
 /**
@@ -473,6 +488,11 @@ function diagnosisHint(reason: string | undefined, t: Translate): string | undef
       'The scheduler could not place the pod. Check node resources, taints and tolerations, and affinity rules.'
     );
   }
+  if (r.includes('schedulinggated')) {
+    return t(
+      'The pod is held back from scheduling intentionally until its scheduling gates are removed.'
+    );
+  }
   if (r.includes('containersnotready') || r.includes('containernotready')) {
     return t(
       'One or more containers are not ready. Check the container states above and their readiness probes.'
@@ -491,7 +511,21 @@ export function getPodDiagnostics(
   const podHealthy = isPodHealthy(pod);
   const warningEvents = sortWarningEvents(events);
 
-  if (!podHealthy) {
+  if (isSchedulingGated(pod)) {
+    const gates: { name?: string }[] = (pod.spec as any)?.schedulingGates ?? [];
+
+    diagnostics.push({
+      id: 'pod-scheduling-gated',
+      severity: 'info',
+      title: t('Waiting for scheduling gates to be removed'),
+      message: t(
+        'The pod is held back from scheduling intentionally until its scheduling gates are removed.'
+      ),
+      details: gates
+        .filter(gate => gate.name)
+        .map(gate => t('Scheduling gate: {{ name }}', { name: gate.name })),
+    });
+  } else if (!podHealthy) {
     diagnostics.push({
       id: 'pod-status',
       severity: containerSeverity(details.reason, pod.status?.phase === 'Failed' ? 1 : undefined),
@@ -547,6 +581,10 @@ export function getPodDiagnostics(
  * Checks scheduling, waiting containers, terminated containers, and Ready condition in order.
  */
 function getPodDominantReason(pod: PodLike) {
+  if (isSchedulingGated(pod)) {
+    return SCHEDULING_GATED_REASON;
+  }
+
   const scheduledCondition = pod.status?.conditions?.find(
     condition => condition.type === 'PodScheduled'
   );
@@ -670,7 +708,16 @@ export function getWorkloadDiagnostics(
   )) {
     const count = podsForReason.length;
     let title: string;
-    if (reason === 'Unschedulable') {
+    if (reason === SCHEDULING_GATED_REASON) {
+      title =
+        count === 1
+          ? t('{{ podCount }} pod is waiting for its scheduling gates to be removed', {
+              podCount: count,
+            })
+          : t('{{ podCount }} pods are waiting for their scheduling gates to be removed', {
+              podCount: count,
+            });
+    } else if (reason === 'Unschedulable') {
       title =
         count === 1
           ? t('{{ podCount }} pod is unschedulable', { podCount: count })
@@ -690,7 +737,7 @@ export function getWorkloadDiagnostics(
 
     diagnostics.push({
       id: `workload-pods-${reason}`,
-      severity: containerSeverity(reason),
+      severity: reason === SCHEDULING_GATED_REASON ? 'info' : containerSeverity(reason),
       title,
       message: diagnosisHint(reason, t),
       details: [
