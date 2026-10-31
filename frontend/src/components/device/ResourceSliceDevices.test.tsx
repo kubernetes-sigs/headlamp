@@ -23,7 +23,7 @@ import ResourceSlice from '../../lib/k8s/resourceSlice';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import ResourceSliceDevices from './ResourceSliceDevices';
-import { RESOURCE_SLICE_DUMMY_DATA } from './storyHelper';
+import { RESOURCE_SLICE_DUMMY_DATA, RESOURCE_SLICE_PER_DEVICE } from './storyHelper';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -68,5 +68,19 @@ describe('ResourceSliceDevices', () => {
     expect(screen.getByText('model: LATEST-GPU-MODEL')).toBeVisible();
     expect(screen.getByText('compute: 100')).toBeVisible();
     expect(screen.getByText('memory: 80Gi')).toBeVisible();
+  });
+
+  it('shows a node column only when the nodes are set per device', () => {
+    const { unmount } = renderDevices(nodeSlice);
+    expect(screen.queryByText('Node')).not.toBeInTheDocument();
+    unmount();
+
+    renderDevices(RESOURCE_SLICE_PER_DEVICE);
+    expect(screen.getByText('Node')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'gpu-worker-0' })).toHaveAttribute(
+      'href',
+      '/c/gpu-cluster/nodes/gpu-worker-0'
+    );
+    expect(screen.getByText('All nodes')).toBeVisible();
   });
 });
