@@ -30,16 +30,13 @@ func ResetForTesting() {
 
 func clearWatcherRegistriesForTesting() {
 	contextCancel.Range(func(key, value interface{}) bool {
-		if cancel, ok := value.(context.CancelFunc); ok {
+		if watcher, ok := value.(*watcherInstance); ok {
+			watcher.cancel()
+		} else if cancel, ok := value.(context.CancelFunc); ok {
 			cancel()
 		}
 
 		contextCancel.Delete(key)
-
-		return true
-	})
-	watcherRegistry.Range(func(key, _ interface{}) bool {
-		watcherRegistry.Delete(key)
 
 		return true
 	})
