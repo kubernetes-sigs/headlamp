@@ -166,7 +166,13 @@ export function splitK8sValidationErrors(inner: string): string[] {
   let start = 0;
   for (let i = 0; i < inner.length; i++) {
     const ch = inner[i];
-    if (ch === '"' && inner[i - 1] !== '\\') {
+    if (inString && ch === '\\') {
+      // Consume the escaped character, including an escaped backslash, so a
+      // closing quote after an even number of backslashes still ends the string.
+      i++;
+      continue;
+    }
+    if (ch === '"') {
       inString = !inString;
     } else if (!inString) {
       if (ch === '{' || ch === '[') depth++;
