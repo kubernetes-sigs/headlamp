@@ -29,6 +29,7 @@ import ObjectEventList from '../common/ObjectEventList';
 import { ConditionsTable, MainInfoSection, PageGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import DetailsViewSection from '../DetailsViewSection';
+import { toJSONPathPlus } from './printerColumnValue';
 
 export default function CustomResourceDetailsFromURL() {
   const params = useParams<CustomResourceDetailsProps>();
@@ -98,7 +99,7 @@ function getExtraInfo(extraInfoSpec: AdditionalPrinterColumns, item: KubeCRD) {
     let value: string | undefined;
     try {
       // Extract the value from the json item
-      value = JSONPath({ path: '$' + spec.jsonPath, json: item });
+      value = JSONPath({ path: '$' + toJSONPathPlus(spec.jsonPath), json: item });
     } catch (err) {
       console.error(`Failed to get value from JSONPath ${spec.jsonPath} on CR item ${item}`);
       return;
