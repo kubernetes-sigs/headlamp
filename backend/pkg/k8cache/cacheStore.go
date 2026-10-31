@@ -129,6 +129,58 @@ func GetAPIGroup(path string) (apiGroup, version string, err error) {
 	return
 }
 
+// resourcePathSegment returns the resource segment of a Kubernetes API path:
+// the first path element after the group/version pair, skipping an optional
+// namespaces/{namespace} pair. It returns "" if the resource cannot be
+// determined.
+func resourcePathSegment(path string) string {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, "/")
+
+	apiIdx := kubernetesAPIPathIndex(parts)
+	if apiIdx == -1 {
+		return ""
+	}
+
+	resourceIdx := apiIdx + 2 // core: api/{version}/...
+	if parts[apiIdx] == apisPathSegment {
+		resourceIdx = apiIdx + 3 // named: apis/{group}/{version}/...
+	}
+
+	if resourceIdx < len(parts) && parts[resourceIdx] == namespacePathSegment {
+		resourceIdx += 2
+	}
+
+	if resourceIdx >= len(parts) {
+		return ""
+	}
+
+	return parts[resourceIdx]
+}
+
+// IsCacheBypassAPIPath reports whether the path should bypass the cache
+// middleware entirely.
+//
+// Lease objects (coordination.k8s.io) are updated at high frequency (node
+// heartbeats and leader-election renewals), so they are not watched for
+// invalidation and their responses are never cached. Metrics
+// (metrics.k8s.io) are polled at short intervals by the frontend, so caching
+// them would serve stale samples for the whole cache TTL.
+func IsCacheBypassAPIPath(path string) bool {
+	apiGroup, _, err := GetAPIGroup(path)
+	if err != nil {
+		return false
+	}
+
+	if apiGroup == "metrics.k8s.io" {
+		return true
+	}
+
+	// Match the resource segment exactly so that e.g. a namespace named
+	// "leases" or a cluster named "leases" does not bypass the cache.
+	return apiGroup == "coordination.k8s.io" && resourcePathSegment(path) == "leases"
+}
+
 // ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
 // cache key more specific to a particular namespace.
 func ExtractNamespace(rawURL string) (string, string) {
