@@ -261,6 +261,8 @@ func TestRequestHandlerSendsNoCacheHeaders(t *testing.T) {
 	assert.Equal(t, "no-cache", resp.Header.Get("Pragma"))
 	assert.Equal(t, "0", resp.Header.Get("X-Accel-Expires"))
 	assert.NotEmpty(t, resp.Header.Get("Expires"))
+	assert.Equal(t, "sandbox", resp.Header.Get("Content-Security-Policy"))
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
 }
 
 // createMockService creates a mock Kubernetes service for testing.
