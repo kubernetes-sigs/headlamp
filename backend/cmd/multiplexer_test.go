@@ -1591,6 +1591,54 @@ func TestWriteMessageToCluster(t *testing.T) {
 	assert.Equal(t, StateError, conn.Status.State)
 }
 
+// TestHeartbeatConcurrentWrite is a regression test for #8109: the heartbeat ping
+// in monitorConnection and client request writes in writeMessageToCluster both wrote
+// to the same cluster WSConn concurrently, which panics with
+// "concurrent write to websocket connection". Both paths now serialize on conn.writeMu.
+func TestHeartbeatConcurrentWrite(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+	conn.WSConn = wsConn.conn
+
+	// Lower this connection's heartbeat interval so pings fire frequently
+	// alongside client writes, reproducing the race from #8109 without
+	// mutating shared package state.
+	conn.heartbeatInterval = 1 * time.Millisecond
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.monitorConnection(conn)
+	}()
+
+	// Hammer writeMessageToCluster from the client-request path while the heartbeat
+	// goroutine pings the same WSConn. Run under `go test -race` to surface the race.
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			deadline := time.Now().Add(100 * time.Millisecond)
+			for time.Now().Before(deadline) {
+				_ = m.writeMessageToCluster(conn, []byte("x"))
+			}
+		}()
+	}
+	wg.Wait()
+
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
+	<-done
+}
+
 func TestHandleClusterMessages(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, clientServer := createTestWebSocketConnection()

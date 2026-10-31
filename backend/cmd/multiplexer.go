@@ -47,7 +47,7 @@ const (
 )
 
 const (
-	// HeartbeatInterval is the interval at which the multiplexer sends heartbeat messages to the client.
+	// HeartbeatInterval is the default interval at which the multiplexer sends heartbeat messages to the client.
 	HeartbeatInterval = 30 * time.Second
 	// HandshakeTimeout is the timeout for the handshake with the client.
 	HandshakeTimeout = 45 * time.Second
@@ -93,6 +93,9 @@ type Connection struct {
 	mu sync.RWMutex
 	// writeMu is a mutex to synchronize access to the write operations.
 	writeMu sync.Mutex
+	// heartbeatInterval overrides the default HeartbeatInterval for this connection.
+	// Zero means the default HeartbeatInterval is used.
+	heartbeatInterval time.Duration
 	// closed is a flag to indicate if the connection is closed.
 	closed bool
 	// usesServiceAccountToken is true when Token was loaded from the
@@ -558,7 +561,12 @@ func (m *Multiplexer) dialWebSocket(
 
 // monitorConnection monitors the health of a connection and attempts to reconnect if necessary.
 func (m *Multiplexer) monitorConnection(conn *Connection) {
-	heartbeat := time.NewTicker(HeartbeatInterval)
+	interval := conn.heartbeatInterval
+	if interval == 0 {
+		interval = HeartbeatInterval
+	}
+
+	heartbeat := time.NewTicker(interval)
 	defer heartbeat.Stop()
 
 	for {
@@ -568,7 +576,10 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-heartbeat.C:
-			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			conn.writeMu.Lock()
+			err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
+			conn.writeMu.Unlock()
+			if err != nil {
 				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 
 				if newConn, err := m.reconnect(conn); err != nil {
@@ -858,7 +869,9 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 
 // writeMessageToCluster writes a message to the cluster WebSocket connection.
 func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error {
+	conn.writeMu.Lock()
 	err := conn.WSConn.WriteMessage(websocket.BinaryMessage, data)
+	conn.writeMu.Unlock()
 	if err != nil {
 		conn.updateStatus(StateError, err)
 		logger.Log(
