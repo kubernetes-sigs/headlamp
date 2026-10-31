@@ -33,6 +33,7 @@ export enum DefaultDetailsViewSection {
   ERROR = 'ERROR',
   LOADING = 'LOADING',
   CHILDREN = 'CHILDREN',
+  LAST_APPLIED_DIFF = 'LAST_APPLIED_DIFF',
 }
 
 /** Set to true when resource details render in a side panel rather than a full page, to omit the back link. */
