@@ -113,7 +113,8 @@ kubectl config set-credentials keycloak-oidc \
   --exec-arg=--oidc-issuer-url=<YOUR-KEYCLOAK-URL>/realms/<REALM-NAME> \
   --exec-arg=--oidc-client-id=<CLIENT-ID> \
   --exec-arg=--oidc-client-secret=<CLIENT-SECRET> \
-  --exec-arg=--oidc-extra-scope=email,profile
+  --exec-arg=--oidc-extra-scope=email \
+  --exec-arg=--oidc-extra-scope=profile
 ```
 
 4. Link the User to the Cluster: To associate the user with the cluster, create a new context using these commands:
