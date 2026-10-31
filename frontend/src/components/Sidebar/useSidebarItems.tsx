@@ -249,6 +249,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('glossary|Namespaces'),
           },
           {
+            name: 'projects',
+            label: t('Projects (App Management)'),
+          },
+          {
             name: 'nodes',
             label: t('glossary|Nodes'),
           },

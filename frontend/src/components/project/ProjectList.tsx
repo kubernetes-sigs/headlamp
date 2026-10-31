@@ -27,6 +27,7 @@ import type { ProjectDefinition } from '../../redux/projectsSlice';
 import AllowedNamespacesSelectorGate from '../App/AllowedNamespacesSelectorGate';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
+import SectionBox from '../common/SectionBox';
 import Table, { TableColumn } from '../common/Table/Table';
 import { NewProjectPopup } from './NewProjectPopup';
 import { findProject, groupNamespacesIntoProjects, projectLinkSearch } from './projectGrouping';
@@ -246,5 +247,20 @@ export default function ProjectList() {
     <AllowedNamespacesSelectorGate clusters={clusters}>
       <ProjectListContent />
     </AllowedNamespacesSelectorGate>
+  );
+}
+
+/**
+ * Standalone project list page, used for the in-cluster "Projects" sidebar entry.
+ *
+ * @returns The project list wrapped in a titled section.
+ */
+export function ProjectListPage() {
+  const { t } = useTranslation();
+
+  return (
+    <SectionBox title={t('Projects')} headerProps={{ headerStyle: 'main' }}>
+      <ProjectList />
+    </SectionBox>
   );
 }
