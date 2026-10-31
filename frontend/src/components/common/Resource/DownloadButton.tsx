@@ -15,10 +15,12 @@
  */
 
 import * as jsyaml from 'js-yaml';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import ActionButton, { ButtonStyle } from '../ActionButton';
+import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 
 export interface DownloadButtonProps {
   /** The Kubernetes resource object to download as YAML. */
@@ -33,13 +35,24 @@ export interface DownloadButtonProps {
  */
 function DownloadButton({ item, buttonStyle }: DownloadButtonProps) {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
 
-  const downloadYaml = () => {
+  const downloadYaml = async () => {
     if (!item?.jsonData) {
       return;
     }
 
-    const yaml = jsyaml.dump(item.jsonData, { lineWidth: -1 });
+    let resource = item;
+    if (item.kind === 'Secret') {
+      try {
+        resource = await fetchLatestKubeObject(item);
+      } catch {
+        enqueueSnackbar(t('translation|Failed to load resources'), { variant: 'error' });
+        return;
+      }
+    }
+
+    const yaml = jsyaml.dump(resource.jsonData, { lineWidth: -1 });
     const blob = new Blob([yaml], { type: 'application/x-yaml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const element = document.createElement('a');

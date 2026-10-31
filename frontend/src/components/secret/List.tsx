@@ -27,7 +27,11 @@ export default function SecretList() {
   const { t } = useTranslation(['glossary', 'translation']);
   const [hideHelm, setHideHelm] = React.useState<boolean>(loadHideHelm);
 
-  const [secrets, error] = Secret.useList({ namespace: useNamespaces() });
+  const [secrets, error] = Secret.useList({
+    namespace: useNamespaces(),
+    refetchInterval: 60_000,
+    asTable: true,
+  });
 
   const filteredSecrets = React.useMemo(() => {
     if (!secrets) {
@@ -79,7 +83,10 @@ export default function SecretList() {
           id: 'data',
           label: t('translation|Data'),
           gridTemplate: 'min-content',
-          getValue: (secret: Secret) => Object.keys(secret.data || {}).length || 0,
+          getValue: (secret: Secret) => {
+            const row = secret.jsonData as typeof secret.jsonData & { dataCount?: number };
+            return row.dataCount ?? Object.keys(secret.data || {}).length;
+          },
         },
         'labels',
         'age',

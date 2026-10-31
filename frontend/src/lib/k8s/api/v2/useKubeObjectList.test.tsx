@@ -793,6 +793,206 @@ describe('useKubeObjectList', () => {
     });
   });
 
+  it('lists Secrets as a Table without transferring values, preserving type and data count', async () => {
+    const secretClass = class {
+      static kind = 'Secret';
+      static apiVersion = 'v1';
+      static apiName = 'secrets';
+      constructor(public jsonData: any) {}
+    } as any;
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          kind: 'Table',
+          metadata: { resourceVersion: '12' },
+          columnDefinitions: [{ name: 'Name' }, { name: 'Type' }, { name: 'Data' }],
+          rows: [
+            {
+              cells: ['my-secret', 'Opaque', 2],
+              object: { metadata: { name: 'my-secret', namespace: 'default', uid: 'one' } },
+            },
+          ],
+        }),
+    } as Response);
+
+    const query = kubeObjectListQuery(
+      secretClass,
+      { version: 'v1', resource: 'secrets' },
+      'default',
+      'my-cluster',
+      {},
+      undefined,
+      true
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(mockClusterFetch).toHaveBeenCalledWith('api/v1/namespaces/default/secrets', {
+      cluster: 'my-cluster',
+      headers: { Accept: 'application/json;as=Table;g=meta.k8s.io;v=v1,application/json;q=0.9' },
+    });
+    expect(response.list.metadata.resourceVersion).toBe('12');
+    expect(response.list.items[0].jsonData).toEqual({
+      kind: 'Secret',
+      apiVersion: 'v1',
+      metadata: { name: 'my-secret', namespace: 'default', uid: 'one' },
+      type: 'Opaque',
+      dataCount: 2,
+      data: {},
+    });
+  });
+
+  it('does not watch a Table list even without a polling interval', async () => {
+    const secretClass = class {
+      static kind = 'Secret';
+      static apiVersion = 'v1';
+      static apiName = 'secrets';
+      static apiEndpoint = { apiInfo: [{ group: '', resource: 'secrets', version: 'v1' }] };
+      constructor(public jsonData: any) {}
+    } as any;
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          kind: 'Table',
+          metadata: { resourceVersion: '12' },
+          columnDefinitions: [{ name: 'Name' }, { name: 'Type' }, { name: 'Data' }],
+          rows: [
+            {
+              cells: ['my-secret', 'Opaque', 2],
+              object: { metadata: { name: 'my-secret', namespace: 'default' } },
+            },
+          ],
+        }),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: secretClass,
+          requests: [{ cluster: 'default' }],
+          asTable: true,
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    await waitFor(() => expect(result.result.current.items?.length).toBe(1));
+    expect(mockUseWebSockets.mock.calls.at(-1)?.[0].connections).toEqual([]);
+  });
+
+  it('converts a subsequent page of Secret Table rows without fetching secret values', async () => {
+    const secretClass = class {
+      static kind = 'Secret';
+      static apiVersion = 'v1';
+      static apiName = 'secrets';
+      static apiEndpoint = { apiInfo: [{ group: '', resource: 'secrets', version: 'v1' }] };
+      constructor(public jsonData: any) {}
+    } as any;
+    const makeSecretTable = (name: string, token?: string) => ({
+      kind: 'Table',
+      metadata: { resourceVersion: '12', continue: token },
+      columnDefinitions: [{ name: 'Name' }, { name: 'Type' }, { name: 'Data' }],
+      rows: [
+        {
+          cells: [name, 'Opaque', 2],
+          object: { metadata: { name, namespace: 'default', uid: name } },
+        },
+      ],
+    });
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeSecretTable('first', 'next')),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeSecretTable('second')),
+      } as Response);
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: secretClass,
+          requests: [{ cluster: 'default' }],
+          queryParams: { limit: 1 },
+          refetchInterval: 60_000,
+          asTable: true,
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    await waitFor(() => expect(result.result.current.items?.length).toBe(1));
+    await act(async () => {
+      await result.result.current.loadMore?.();
+    });
+    await waitFor(() => expect(result.result.current.items?.length).toBe(2));
+    expect(result.result.current.items?.map(item => item.jsonData.metadata.name)).toEqual([
+      'first',
+      'second',
+    ]);
+    expect(mockClusterFetch.mock.calls[1][0]).toBe('api/v1/secrets?limit=1&continue=next');
+    expect(new Headers(mockClusterFetch.mock.calls[1][1]?.headers).get('Accept')).toContain(
+      'as=Table'
+    );
+    expect(mockUseWebSockets.mock.calls.at(-1)?.[0].connections).toEqual([]);
+  });
+
+  it('does not treat a malformed Secret Table as an empty Secret list', async () => {
+    const secretClass = class {
+      static kind = 'Secret';
+      static apiVersion = 'v1';
+      static apiName = 'secrets';
+      constructor(public jsonData: any) {}
+    } as any;
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          kind: 'Table',
+          metadata: { resourceVersion: '12' },
+          columnDefinitions: [{ name: 'Name' }, { name: 'Type' }],
+          rows: [{ cells: ['my-secret', 'Opaque'], object: { metadata: { name: 'my-secret' } } }],
+        }),
+    } as Response);
+    const query = kubeObjectListQuery(
+      secretClass,
+      { version: 'v1', resource: 'secrets' },
+      undefined,
+      'my-cluster',
+      {},
+      undefined,
+      true
+    );
+    await expect((query.queryFn as any)()).rejects.toThrow('lacks expected columns');
+  });
+
+  it('uses ordinary SecretLists when a cluster does not support Table responses', async () => {
+    const secretClass = class {
+      static kind = 'Secret';
+      static apiVersion = 'v1';
+      static apiName = 'secrets';
+      constructor(public jsonData: any) {}
+    } as any;
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            kind: 'SecretList',
+            items: [
+              {
+                metadata: { name: 'my-secret' },
+                type: 'Opaque',
+                data: { foo: 'YmFy' },
+              },
+            ],
+          })
+        ),
+    } as Response);
+    const query = kubeObjectListQuery(
+      secretClass,
+      { version: 'v1', resource: 'secrets' },
+      undefined,
+      'my-cluster',
+      {},
+      undefined,
+      true
+    );
+    const response = await (query.queryFn as any)();
+    expect(response.list.items[0].jsonData.data).toEqual({ foo: 'YmFy' });
+  });
+
   it('should not fetch when no endpoint is available', async () => {
     const query = kubeObjectListQuery(mockClass, undefined as any, undefined, 'default', {});
 
@@ -963,6 +1163,30 @@ describe('useKubeObjectList', () => {
         )
       ).toBe(true)
     );
+  });
+
+  it('keeps ordinary Secret list consumers on the full-object response and a distinct cache key', async () => {
+    const secretClass = class {
+      static kind = 'Secret';
+      static apiVersion = 'v1';
+      static apiName = 'secrets';
+      constructor(public jsonData: any) {}
+    } as any;
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve(makeListResponse({ kind: 'SecretList', items: [] })),
+    } as Response);
+    const args = [
+      secretClass,
+      { version: 'v1', resource: 'secrets' },
+      undefined,
+      'my-cluster',
+      {},
+    ] as const;
+    const fullQuery = kubeObjectListQuery(...args);
+    const tableQuery = kubeObjectListQuery(...args, undefined, true);
+    await (fullQuery.queryFn as any)();
+    expect(mockClusterFetch).toHaveBeenCalledWith('api/v1/secrets', { cluster: 'my-cluster' });
+    expect(fullQuery.queryKey).not.toEqual(tableQuery.queryKey);
   });
 
   it('should split an opt-in limit across namespace requests', async () => {
