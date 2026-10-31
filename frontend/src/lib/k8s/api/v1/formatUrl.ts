@@ -64,7 +64,11 @@ export function asQuery(queryParams?: QueryParameters): string {
     newQueryParams = { ...omit(queryParams, 'limit') };
   }
 
-  return !!newQueryParams && !!Object.keys(newQueryParams).length
-    ? '?' + new URLSearchParams(newQueryParams).toString()
+  const cleanQueryParams = Object.fromEntries(
+    Object.entries(newQueryParams).filter(([, v]) => v !== undefined && v !== null)
+  ) as Record<string, string>;
+
+  return !!cleanQueryParams && !!Object.keys(cleanQueryParams).length
+    ? '?' + new URLSearchParams(cleanQueryParams).toString()
     : '';
 }
