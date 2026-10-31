@@ -687,13 +687,24 @@ func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 // cache fresh GET → return ErrHandled.
 func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	mockCache := NewMockCache()
+	w := httptest.NewRecorder()
 
-	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"kind":"PodList"}`))
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodPost {
+			assert.Same(t, w, rw)
+			rw.Header().Set("X-Mutation", "complete")
+			rw.WriteHeader(http.StatusCreated)
+			_, _ = rw.Write([]byte(`{"result":"created"}`))
+
+			return
+		}
+
+		assert.NotSame(t, w, rw)
+		rw.Header().Set("X-Refresh", "cached")
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte(`{"kind":"PodList"}`))
 	})
 
-	w := httptest.NewRecorder()
 	targetURL := &url.URL{Path: "/clusters/kind/api/v1/pods"}
 	r := httptest.NewRequestWithContext(
 		context.Background(), http.MethodPost, targetURL.String(), nil,
@@ -703,6 +714,10 @@ func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	// IsAuthBypassURL("/…/pods") == true → full invalidation → ErrHandled.
 	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
 	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, "complete", w.Header().Get("X-Mutation"))
+	assert.Empty(t, w.Header().Get("X-Refresh"))
+	assert.JSONEq(t, `{"result":"created"}`, w.Body.String())
 }
 
 func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) {
