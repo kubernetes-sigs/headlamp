@@ -111,6 +111,9 @@ function uniqueString() {
  *
  * @param item - Node to open a shell on
  * @param cluster - Cluster the node belongs to, already resolved by the caller
+ * @param podName - Name of the debugger pod, kept across reconnects to reattach to the same pod
+ * @param isRetry - Whether this reattaches after a dropped connection; failures are then
+ *                  rethrown so the caller keeps retrying instead of reporting them
  * @param onExec - Stream results callback
  * @param onError - Error handler callback, called with the pod creation failure message when the
  *                  thrown value carries one, and with undefined otherwise so the caller can supply a
@@ -120,6 +123,8 @@ function uniqueString() {
 async function shell(
   item: Node,
   cluster: string,
+  podName: string,
+  isRetry: boolean,
   onExec: StreamResultsCb,
   onError: (message?: string) => void
 ) {
@@ -129,14 +134,19 @@ async function shell(
   const defaultImage = store.getState().config.defaultNodeShellImage;
   const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
   const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
-  const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {
     await apply(kubePod, cluster);
-  } catch (e) {
-    console.error('Error:DebugNode: creating pod', e);
-    onError(e instanceof Error ? e.message : undefined);
-    return {};
+  } catch (e: any) {
+    const status = e?.status || e?.statusCode;
+    if (status !== 409 && !e?.message?.includes('already exists')) {
+      if (isRetry) {
+        throw e;
+      }
+      console.error('Error:DebugNode: creating pod', e);
+      onError(e instanceof Error ? e.message : undefined);
+      return {};
+    }
   }
   const tty = true;
   const stdin = true;
@@ -152,7 +162,12 @@ async function shell(
     'channel.k8s.io',
   ];
   return {
-    stream: stream(url, onExec, { cluster, additionalProtocols, isJson: false }),
+    stream: stream(url, onExec, {
+      cluster,
+      additionalProtocols,
+      isJson: false,
+      reconnectOnFailure: false,
+    }),
   };
 }
 
@@ -161,6 +176,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const podNameRef = useRef<string | null>(null);
   const { t } = useTranslation(['translation']);
   const { enqueueSnackbar } = useSnackbar();
 
@@ -177,14 +193,26 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
         };
       }
 
+      const isRetry = podNameRef.current !== null;
+      if (!podNameRef.current) {
+        podNameRef.current = `node-debugger-${item.getName()}-${uniqueString()}`;
+      }
+
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, cluster, onDataCallback, (errorMessage?: string) => {
-        const message = errorMessage || t('translation|Failed to create node shell pod');
-        enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
-          variant: 'error',
-        });
-        xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
-      });
+      const { stream } = await shell(
+        item,
+        cluster,
+        podNameRef.current,
+        isRetry,
+        onDataCallback,
+        (errorMessage?: string) => {
+          const message = errorMessage || t('translation|Failed to create node shell pod');
+          enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
+            variant: 'error',
+          });
+          xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
+        }
+      );
       return {
         stream,
       };
