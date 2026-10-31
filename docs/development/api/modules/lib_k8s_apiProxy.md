@@ -584,7 +584,7 @@ ___
 
 ### stopOrDeletePortForward
 
-▸ **stopOrDeletePortForward**(`cluster`, `id`, `stopOrDelete?`): `Promise`<`string`\>
+▸ **stopOrDeletePortForward**(`cluster`, `id`, `stopOnly?`): `Promise`<`string`\>
 
 Stops or deletes a portforward with the specified details.
 
@@ -596,7 +596,7 @@ Stops or deletes a portforward with the specified details.
 | :------ | :------ | :------ | :------ |
 | `cluster` | `string` | `undefined` | The cluster to portforward for. |
 | `id` | `string` | `undefined` | The id to portforward for. |
-| `stopOrDelete` | `boolean` | `true` | Whether to stop or delete the portforward. True for stop, false for delete. |
+| `stopOnly` | `boolean` | `true` | Whether to only stop the portforward without deleting. True for stop, false for delete. |
 
 #### Returns
 
