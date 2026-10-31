@@ -320,7 +320,8 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 			return err
 		}
 
-		if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
+		stored, err := storeWithinLimits(k8scache, key, string(jsonBytes), 10*time.Minute)
+		if err != nil || !stored {
 			return err
 		}
 
