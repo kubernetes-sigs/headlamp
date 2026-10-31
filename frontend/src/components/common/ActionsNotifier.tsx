@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
 import React, { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { CLUSTER_ACTION_GRACE_PERIOD, ClusterAction } from '../../redux/clusterActionSlice';
@@ -29,6 +32,7 @@ export interface PureActionsNotifierProps {
 }
 
 function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierProps) {
+  const { t } = useTranslation();
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const history = useHistory();
   const snackbarRefs = useRef<{ [id: string]: string | undefined }>({});
@@ -42,7 +46,11 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
       history.push(clusterAction.url);
     }
 
-    const action = () => (
+    // Warnings stay on screen longer so they can be read, and can be tall enough
+    // to cover the buttons below them, so they can be dismissed.
+    const dismissible = clusterAction.snackbarProps?.variant === 'warning';
+
+    const action = (snackbarKey: string | number) => (
       <React.Fragment>
         {(clusterAction.buttons || []).map(({ label, actionToDispatch }, i) => (
           <Button
@@ -60,6 +68,16 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
             {label}
           </Button>
         ))}
+        {dismissible && (
+          <IconButton
+            aria-label={t('Close')}
+            size="small"
+            sx={{ color: 'white' }}
+            onClick={() => closeSnackbar(snackbarKey)}
+          >
+            <Icon icon="mdi:close" width={20} height={20} />
+          </IconButton>
+        )}
       </React.Fragment>
     );
 

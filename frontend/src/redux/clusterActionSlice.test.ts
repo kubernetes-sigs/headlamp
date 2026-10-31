@@ -15,6 +15,7 @@
  */
 
 import { configureStore, Middleware } from '@reduxjs/toolkit';
+import { publishApiWarnings } from '../lib/k8s/api/v1/apiWarnings';
 import clusterActionSliceReducer, {
   CallbackAction,
   cancelClusterAction,
@@ -94,6 +95,93 @@ describe('clusterActionSlice', () => {
         })
       );
       vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should show the API server warnings with the success message', async () => {
+      const callback = vi.fn(() => {
+        publishApiWarnings(['would violate PodSecurity "restricted:latest"']);
+        publishApiWarnings([
+          'unknown field "bogus"',
+          'would violate PodSecurity "restricted:latest"',
+        ]);
+        return Promise.resolve();
+      });
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Applied pod.',
+        successOptions: { variant: 'success' },
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message:
+              'Applied pod.\n• would violate PodSecurity "restricted:latest"\n• unknown field "bogus"',
+            state: 'complete',
+            snackbarProps: { variant: 'warning' },
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should keep the success variant when there are no API server warnings', async () => {
+      const callback = vi.fn(() => Promise.resolve());
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Applied pod.',
+        successOptions: { variant: 'success' },
+      };
+
+      // Warnings from before the action started are not part of it.
+      publishApiWarnings(['an earlier warning']);
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message: 'Applied pod.',
+            state: 'complete',
+            snackbarProps: { variant: 'success' },
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should not show warnings when the action fails', async () => {
+      const callback = vi.fn(() => {
+        publishApiWarnings(['a warning']);
+        return Promise.reject(new Error('Something went wrong'));
+      });
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Success',
+        errorMessage: 'Error',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      const messages = store
+        .getActions()
+        .filter(action => action.type === updateClusterAction.type)
+        .map(action => action.payload.message);
+      expect(messages).toContain('Error. Something went wrong');
+      expect(messages.some(message => message?.includes('a warning'))).toBe(false);
     });
 
     it('should dispatch a cancelled action if is cancelled within grace period', async () => {

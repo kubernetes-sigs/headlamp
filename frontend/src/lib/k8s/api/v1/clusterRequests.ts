@@ -28,6 +28,7 @@ import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
+import { parseWarningHeader, publishApiWarnings } from './apiWarnings';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
@@ -226,6 +227,13 @@ export async function clusterRequest(
     const error = new Error(message) as ApiError;
     error.status = status;
     return Promise.reject(error);
+  }
+
+  // Only writes are reported. Headlamp reads some deprecated APIs itself, and the
+  // user can't act on warnings about requests they did not make.
+  const method = (otherParams.method ?? 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    publishApiWarnings(parseWarningHeader(response.headers.get('Warning')));
   }
 
   if (!isJSON) {
