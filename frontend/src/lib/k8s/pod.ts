@@ -131,6 +131,8 @@ export interface ExecOptions extends StreamArgs {
 export interface LogOptions {
   /** The number of lines to display from the end side of the log */
   tailLines?: number;
+  /** Only return logs newer than this many seconds. Leave unset to not limit by time. */
+  sinceSeconds?: number;
   /** Whether to show the logs from previous runs of the container (only for restarted containers) */
   showPrevious?: boolean;
   /** Whether to show the timestamps in the logs */
@@ -261,6 +263,7 @@ class Pod extends KubeObject<KubePod> {
     const [container, onLogs, logsOptions] = args as Parameters<newGetLogs>;
     const {
       tailLines = 100,
+      sinceSeconds,
       showPrevious = false,
       showTimestamps = false,
       follow = true,
@@ -277,6 +280,10 @@ class Pod extends KubeObject<KubePod> {
     // the tailLines number of logs.
     if (tailLines !== -1) {
       url += `&tailLines=${tailLines}`;
+    }
+
+    if (sinceSeconds !== undefined && sinceSeconds > 0) {
+      url += `&sinceSeconds=${sinceSeconds}`;
     }
 
     function unescapeStringLiterals(str: string): string {
