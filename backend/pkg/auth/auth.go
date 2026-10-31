@@ -731,9 +731,7 @@ func refreshedTokenString(newToken *oauth2.Token, useAccessToken bool) (string, 
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
 // and records telemetry based on the provided parameters.
-//
-//nolint:funlen // Updates both response cookies and current request identity.
-func RefreshAndSetToken(params RefreshAndSetTokenParams) {
+func RefreshAndSetToken(params RefreshAndSetTokenParams) error {
 	// The token type to use
 	tokenType := "id_token"
 	if params.OIDCUseAccessToken {
@@ -761,11 +759,11 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
 
-		return
+		return err
 	}
 
 	if newToken == nil {
-		return
+		return errors.New("token refresh returned no token")
 	}
 
 	newTokenString, err := refreshedTokenString(newToken, params.OIDCUseAccessToken)
@@ -774,9 +772,13 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to extract token string")
 		params.TelemetryHandler.RecordError(params.Span, err, "Token extraction failed")
 
-		return
+		return err
 	}
 
+	return completeTokenRefresh(params, newToken, newTokenString)
+}
+
+func completeTokenRefresh(params RefreshAndSetTokenParams, newToken *oauth2.Token, newTokenString string) error {
 	if err := SetTokenCookie(
 		params.Writer,
 		params.Request,
@@ -789,7 +791,7 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			err, "failed to retain refreshed authentication token")
 		params.TelemetryHandler.RecordError(params.Span, err, "Refreshed token cookie storage failed")
 
-		return
+		return err
 	}
 
 	setRefreshedIDTokenCookie(params, newToken, newTokenString)
@@ -798,4 +800,6 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 	params.Request.Header.Set("Authorization", "Bearer "+newTokenString)
 
 	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+
+	return nil
 }
