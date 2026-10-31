@@ -17,6 +17,7 @@
 import { generatePath } from 'react-router';
 import type { AppStore } from '../../redux/stores/store';
 import { getClusterPathParam } from '../cluster';
+import { getClusterSettingsURL } from './clusterSettings';
 import { getRoute } from './getRoute';
 import { getRoutePath } from './getRoutePath';
 import { getRouteUseClusterURL } from './getRouteUseClusterURL';
@@ -95,7 +96,7 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
 
   // @todo: Remove this hack once we support redirection in routes
   if (routeName === 'settingsCluster') {
-    return `/settings/cluster?c=${fullParams.cluster}`;
+    return getClusterSettingsURL(fullParams.cluster);
   }
 
   const url = getRoutePath(route);
