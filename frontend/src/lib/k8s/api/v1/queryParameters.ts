@@ -18,6 +18,17 @@
 //        Because some only support some paramaters.
 
 /**
+ * Query parameters making the apiserver reject unknown or duplicate fields in a write
+ * request instead of silently dropping them. Shared by every write path so a typo can
+ * never apply successfully and do nothing.
+ *
+ * Spread it when the caller needs to add more parameters, it is frozen.
+ */
+export const STRICT_FIELD_VALIDATION: Readonly<QueryParameters> = Object.freeze({
+  fieldValidation: 'Strict',
+});
+
+/**
  * QueryParamaters is a map of query parameters for the Kubernetes API.
  */
 export interface QueryParameters {
@@ -52,6 +63,16 @@ export interface QueryParameters {
    * @see https://kubernetes.io/docs/reference/using-api/api-concepts/#dry-run
    */
   dryRun?: string;
+  /**
+   * fieldValidation tells the apiserver how to treat unknown or duplicate fields in the
+   * request body. Can be 'Ignore', 'Warn' (apiserver default) or 'Strict'.
+   *
+   * With anything but 'Strict' those fields are dropped and only reported through response
+   * warning headers, so a typo silently does nothing.
+   *
+   * @see https://kubernetes.io/docs/reference/using-api/api-concepts/#field-validation
+   */
+  fieldValidation?: string;
   /**
    * fieldSeletor restricts the list of returned objects by their fields. Defaults to everything.
    *
