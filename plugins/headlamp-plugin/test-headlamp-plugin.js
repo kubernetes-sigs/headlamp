@@ -24,6 +24,7 @@ This tests unpublished @kinvolk/headlamp-plugin package in repo.
 Assumes being run within the plugins/headlamp-plugin folder
 `;
 const PACKAGE_NAME = 'headlamp-myfancy';
+const FOLDER_OF_PACKAGES = 'headlamp-myfancy-folder';
 
 function testHeadlampPlugin() {
   // remove some temporary files.
@@ -106,6 +107,28 @@ function testHeadlampPlugin() {
   // brotli sidecar must also be present when building a named folder
   checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js.br'));
   console.log('✓ brotli sidecar main.js.br created after build (folder arg)');
+
+  const secondPackageName = `${PACKAGE_NAME}-second`;
+  fs.mkdirSync(FOLDER_OF_PACKAGES);
+  fs.renameSync(PACKAGE_NAME, join(FOLDER_OF_PACKAGES, PACKAGE_NAME));
+  fs.cpSync(join(FOLDER_OF_PACKAGES, PACKAGE_NAME), join(FOLDER_OF_PACKAGES, secondPackageName), {
+    recursive: true,
+    filter: src => !['node_modules', 'dist'].includes(path.basename(src)),
+  });
+  fs.symlinkSync(
+    resolve(FOLDER_OF_PACKAGES, PACKAGE_NAME, 'node_modules'),
+    join(FOLDER_OF_PACKAGES, secondPackageName, 'node_modules'),
+    'junction'
+  );
+  fs.rmSync(join(FOLDER_OF_PACKAGES, PACKAGE_NAME, 'dist'), { recursive: true });
+  run('node', ['bin/headlamp-plugin.js', 'build', FOLDER_OF_PACKAGES]);
+  [PACKAGE_NAME, secondPackageName].forEach(name => {
+    checkFileExists(join(FOLDER_OF_PACKAGES, name, 'dist', 'main.js'));
+    checkFileExists(join(FOLDER_OF_PACKAGES, name, 'dist', 'main.js.br'));
+  });
+  console.log('✓ every package built (folder of packages)');
+  fs.renameSync(join(FOLDER_OF_PACKAGES, PACKAGE_NAME), PACKAGE_NAME);
+  fs.rmSync(FOLDER_OF_PACKAGES, { recursive: true });
 
   fs.writeFileSync(join(PACKAGE_NAME, 'dist', 'extra.txt'), 'All dist/ files will be copied.');
 
@@ -233,7 +256,7 @@ function cleanup() {
     .filter(file => file.match('kinvolk-headlamp-plugin-.*gz'))
     .forEach(file => fs.rmSync(file));
 
-  const foldersToRemove = [path.join('.plugins', PACKAGE_NAME), PACKAGE_NAME];
+  const foldersToRemove = [path.join('.plugins', PACKAGE_NAME), PACKAGE_NAME, FOLDER_OF_PACKAGES];
   console.log('Temp foldersToRemove', foldersToRemove);
   foldersToRemove
     .filter(folder => fs.existsSync(folder))
