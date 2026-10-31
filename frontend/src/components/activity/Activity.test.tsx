@@ -14,12 +14,25 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
+import reducers from '../../redux/reducers/reducers';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
 import { ActivitiesRenderer, Activity } from './Activity';
 import { activitySlice, ActivityState } from './activitySlice';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { title?: string }) =>
+      options?.title ? key.replace('{{title}}', options.title) : key,
+  }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 const { reducer, actions } = activitySlice;
 const { launchActivity, close, update } = actions;
@@ -255,7 +268,7 @@ describe('Activity close buttons', () => {
     const onCloseRequest = vi.fn();
     launchAndRender({ id: 'guarded', onCloseRequest });
 
-    fireEvent.click(screen.getByTitle('Close'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close Some activity' }));
 
     expect(onCloseRequest).toHaveBeenCalledTimes(1);
     expect(store.getState().activity.activities['guarded']).toBeDefined();
@@ -264,7 +277,7 @@ describe('Activity close buttons', () => {
   it('closes from the title-bar X when there is no guard', () => {
     launchAndRender({ id: 'plain' });
 
-    fireEvent.click(screen.getByTitle('Close'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close Some activity' }));
 
     expect(store.getState().activity.activities['plain']).toBeUndefined();
   });
@@ -283,7 +296,9 @@ describe('Activity close buttons', () => {
     const onCloseRequest = vi.fn();
     launchAndRender({ id: 'guarded', onCloseRequest });
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: /Some activity/ }), { button: 1 });
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Some activity' }), {
+      button: 1,
+    });
 
     expect(onCloseRequest).toHaveBeenCalledTimes(1);
     expect(store.getState().activity.activities['guarded']).toBeDefined();
@@ -292,7 +307,9 @@ describe('Activity close buttons', () => {
   it('closes from a middle-click on the taskbar button when there is no guard', () => {
     launchAndRender({ id: 'plain' });
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: /Some activity/ }), { button: 1 });
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Some activity' }), {
+      button: 1,
+    });
 
     expect(store.getState().activity.activities['plain']).toBeUndefined();
   });
@@ -378,5 +395,45 @@ describe('Activity pointer-down capture', () => {
 
     expect(store.getState().activity.activities['target'].minimized).toBe(true);
     expect(store.getState().activity.history).toEqual(['other']);
+  });
+});
+
+describe('ActivitiesRenderer', () => {
+  it('renders distinct accessible names for minimize and close buttons in multi-pane mode', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+
+    const testStore = configureStore({
+      reducer: reducers,
+    });
+
+    testStore.dispatch(
+      launchActivity({
+        id: '1',
+        title: 'Left',
+        content: 'Left Content',
+        location: 'split-left',
+      })
+    );
+    testStore.dispatch(
+      launchActivity({
+        id: '2',
+        title: 'Right',
+        content: 'Right Content',
+        location: 'split-right',
+      })
+    );
+
+    render(
+      <Provider store={testStore}>
+        <MemoryRouter>
+          <ActivitiesRenderer />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Minimize Left' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Minimize Right' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close Left' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close Right' })).toBeInTheDocument();
   });
 });
