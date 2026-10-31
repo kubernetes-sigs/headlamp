@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-import { renderHook } from '@testing-library/react';
+import { configureStore } from '@reduxjs/toolkit';
+import { fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useClusterTitleVisible } from './Chooser';
+import { useClustersConf } from '../../lib/k8s';
+import { Cluster } from '../../lib/k8s/cluster';
+import Chooser, { useClusterTitleVisible } from './Chooser';
 
 // Mutable object mutated per-test so that vi.mock's closure picks up changes.
 const mockState: {
@@ -40,7 +45,9 @@ vi.mock('../../helpers/recentClusters', () => ({
   getRecentClusters: vi.fn(() => []),
   setRecentCluster: vi.fn(),
 }));
-vi.mock('../../helpers/clusterAppearance', () => ({ getClusterAppearanceFromMeta: vi.fn() }));
+vi.mock('../../helpers/clusterAppearance', () => ({
+  getClusterAppearanceFromMeta: vi.fn(() => ({ icon: 'mdi:kubernetes', accentColor: '#000' })),
+}));
 vi.mock('../../helpers/isElectron', () => ({ isElectron: vi.fn(() => false) }));
 vi.mock('../../lib/router/createRouteURL', () => ({ createRouteURL: vi.fn(() => '/') }));
 vi.mock('../common/ActionButton', () => ({ default: () => null }));
@@ -106,5 +113,47 @@ describe('useClusterTitleVisible', () => {
       useClusterTitleVisible('my-cluster', { 'my-cluster': {} as any })
     );
     expect(result.current).toBe(true);
+  });
+});
+
+describe('Chooser cluster options', () => {
+  it('keeps distinct option identities when ClusterProfiles share a display name', async () => {
+    const clusters = Object.fromEntries(
+      ['cluster-a', 'cluster-b', 'cluster-c', 'cluster-d'].map(name => [
+        name,
+        {
+          name,
+          auth_type: '',
+          meta_data: {
+            source: 'cluster_inventory',
+            clusterInventory: {
+              profile: { namespace: 'default', name, key: name, displayName: 'Shared name' },
+            },
+          },
+        } as Cluster,
+      ])
+    );
+    vi.mocked(useClustersConf).mockReturnValue(clusters);
+    const store = configureStore({ reducer: { test: () => ({}) } });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      render(
+        <Provider store={store}>
+          <MemoryRouter>
+            <Chooser open />
+          </MemoryRouter>
+        </Provider>
+      );
+
+      fireEvent.focus(screen.getByRole('combobox'));
+
+      expect(await screen.findAllByRole('option', { name: 'Shared name' })).toHaveLength(4);
+      expect(consoleError.mock.calls.flat().join(' ')).not.toContain(
+        'Encountered two children with the same key'
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
