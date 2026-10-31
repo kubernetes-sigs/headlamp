@@ -136,6 +136,17 @@ func applyRequestFields(entry *repo.Entry, request AddUpdateRepoRequest) {
 	}
 }
 
+func createChartRepository(entry *repo.Entry, settings *cli.EnvSettings) (*repo.ChartRepository, error) {
+	r, err := repo.NewChartRepository(entry, getter.All(settings))
+	if err != nil {
+		return nil, err
+	}
+
+	r.CachePath = settings.RepositoryCache
+
+	return r, nil
+}
+
 // addRepository adds a repository with the given request fields to the helm config.
 // Returns an error if the repository cannot be created or its index downloaded.
 func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) error {
@@ -181,7 +192,7 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 
 	applyRequestFields(newRepo, request)
 
-	r, err := repo.NewChartRepository(newRepo, getter.All(settings))
+	r, err := createChartRepository(newRepo, settings)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating chart repository")
 		return err

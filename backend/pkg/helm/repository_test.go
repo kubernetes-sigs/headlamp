@@ -122,13 +122,12 @@ func checkRepoExists(t *testing.T, helmHandler *helm.Handler, repoName string) b
 	return false
 }
 
-//nolint:unparam // repoName and repoURL parameters always receive constants across existing tests.
-func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL string) {
+func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName string) {
 	t.Helper()
 
 	addRepo := helm.AddUpdateRepoRequest{
 		Name: repoName,
-		URL:  repoURL,
+		URL:  "https://kubernetes-sigs.github.io/headlamp/",
 	}
 
 	addRepoRequest, err := http.NewRequestWithContext(context.Background(), "POST",
@@ -148,7 +147,7 @@ func TestAddRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("add_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+		testAddRepo(t, helmHandler, "headlamp_test_repo")
 	})
 
 	t.Run("invalid_add_repo_request", func(t *testing.T) {
@@ -193,7 +192,7 @@ func TestRemoveRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("remove_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+		testAddRepo(t, helmHandler, "headlamp_test_repo")
 
 		removeRepoRequest, err := http.NewRequestWithContext(context.Background(), "DELETE",
 			"/clusters/minikube/helm/repositories/?name=headlamp_test_repo", nil)
@@ -265,7 +264,7 @@ func TestUpdateRepo(t *testing.T) {
 func TestListRepositories(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	testAddRepo(t, helmHandler, "headlamp_test_repo")
 
 	listRepoReq, err := http.NewRequestWithContext(context.Background(),
 		"GET", "/clusters/minikube/helm/repositories", nil)
@@ -361,7 +360,7 @@ func TestAddRepositoryWithAuth(t *testing.T) {
 func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 	t.Helper()
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	testAddRepo(t, helmHandler, "headlamp_test_repo")
 
 	updateRepo := helm.AddUpdateRepoRequest{
 		Name: "headlamp_test_repo",
