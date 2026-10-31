@@ -17,6 +17,7 @@
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
@@ -80,6 +81,29 @@ export default function Terminal(props: TerminalProps) {
     available: getAvailableShells(),
     currentIdx: 0,
   });
+  const [reconnectCount, setReconnectCount] = useState(0);
+  const [isDisconnected, setIsDisconnected] = useState(false);
+  const initialNegotiationDoneRef = React.useRef(false);
+  const shouldClearOnConnectRef = React.useRef(true);
+
+  function handleReconnect() {
+    setIsDisconnected(false);
+    if (xtermRef.current) {
+      xtermRef.current.reconnectOnEnter = false;
+    }
+    // When reconnecting after a mid-session disconnect, preserve the shell
+    // that was successfully negotiated. Only reset the shell index when
+    // initial negotiation exhausted all shells without ever connecting.
+    shouldClearOnConnectRef.current = !initialNegotiationDoneRef.current;
+    if (!initialNegotiationDoneRef.current && isLastShell() && !xtermRef.current?.connected) {
+      setShells(shells => ({
+        ...shells,
+        currentIdx: 0,
+      }));
+    }
+    initialNegotiationDoneRef.current = false;
+    setReconnectCount(count => count + 1);
+  }
   const [contextMenu, setContextMenu] = React.useState<{
     mouseX: number;
     mouseY: number;
@@ -146,11 +170,8 @@ export default function Terminal(props: TerminalProps) {
 
       if (!isAttach && arg.type === 'keydown' && arg.code === 'Enter') {
         if (xtermRef.current?.reconnectOnEnter) {
-          setShells(shells => ({
-            ...shells,
-            currentIdx: 0,
-          }));
-          xtermRef.current!.reconnectOnEnter = false;
+          xtermRef.current.reconnectOnEnter = false;
+          handleReconnect();
           return false;
         }
       }
@@ -197,19 +218,33 @@ export default function Terminal(props: TerminalProps) {
     let firstConnect = false;
     // Send resize command to server once connection is establised.
     if (!xtermc.connected) {
-      xterm.clear();
+      if (shouldClearOnConnectRef.current) {
+        xterm.clear();
+      }
       (async function () {
         send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
       })();
+
+      // Check for shell-not-found before marking as connected.
+      // Windows shell-not-found errors arrive on StdOut (channel 1), not ServerError,
+      // so they must be handled before setting connected = true.
+      if (isShellNotFoundError(channel, text)) {
+        shellConnectFailed(xtermc);
+        return;
+      }
+
       // On server error, don't set it as connected
       if (channel !== Channel.ServerError) {
         xtermc.connected = true;
         firstConnect = true;
+        initialNegotiationDoneRef.current = true;
+        setIsDisconnected(false);
         console.debug('Terminal is now connected');
       }
     }
 
     if (isSuccessfulExitError(channel, text)) {
+      setIsDisconnected(true);
       if (!!onClose) {
         onClose();
       }
@@ -259,17 +294,29 @@ export default function Terminal(props: TerminalProps) {
   function shellConnectFailed(xtermc: XTerminalConnected) {
     const xterm = xtermc.xterm;
     const command = getCurrentShellCommand();
-    if (isLastShell()) {
-      if (xtermc.connected) {
-        xterm.write(t('Failed to run "{{command}}"…', { command }) + '\r\n');
-      } else {
-        xterm.clear();
-        xterm.write(t('Failed to connect…') + '\r\n');
-      }
 
-      xterm.write('\r\n' + t('Press the enter key to reconnect.') + '\r\n');
-      if (xtermRef.current) {
-        xtermRef.current.reconnectOnEnter = true;
+    if (xtermc.connected) {
+      xtermc.connected = false;
+      setIsDisconnected(true);
+      xterm.write('\r\n' + t('translation|Connection closed.') + '\r\n');
+      if (!isAttach) {
+        xterm.write(t('translation|Press the enter key to reconnect.') + '\r\n');
+        if (xtermRef.current) {
+          xtermRef.current.reconnectOnEnter = true;
+        }
+      }
+      return;
+    }
+
+    if (isLastShell()) {
+      setIsDisconnected(true);
+      xterm.clear();
+      xterm.write(t('Failed to connect…') + '\r\n');
+      if (!isAttach) {
+        xterm.write('\r\n' + t('Press the enter key to reconnect.') + '\r\n');
+        if (xtermRef.current) {
+          xtermRef.current.reconnectOnEnter = true;
+        }
       }
     } else {
       xterm.write(t('Failed to run "{{ command }}"', { command }) + '\r\n');
@@ -283,28 +330,21 @@ export default function Terminal(props: TerminalProps) {
     }
   }, [xtermTheme]);
 
+  // Effect 1: Terminal lifecycle — creates and disposes the xterm instance.
+  // Runs when the container, DOM element, or dialog state changes, but NOT on reconnect,
+  // so scrollback history is preserved across reconnections.
   React.useEffect(
     () => {
-      // We need a valid container ref for the terminal to add itself to it.
-      if (terminalContainerRef === null) {
-        return;
-      }
-
-      // Don't do anything until the pod's container is assigned. We used the pod's late
-      // assignment to prevent calling exec before the dialog is opened.
-      if (container === null) {
-        return;
-      }
-
-      // Don't do anything if the dialog is not open.
-      if (!props.open) {
+      if (terminalContainerRef === null || container === null || !props.open) {
         return;
       }
 
       if (xtermRef.current) {
         xtermRef.current.xterm.dispose();
-        execOrAttachRef.current?.cancel();
       }
+
+      initialNegotiationDoneRef.current = false;
+      shouldClearOnConnectRef.current = true;
 
       const isWindows = ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
       xtermRef.current = {
@@ -323,10 +363,41 @@ export default function Terminal(props: TerminalProps) {
 
       fitAddonRef.current = new FitAddon();
       xtermRef.current.xterm.loadAddon(fitAddonRef.current);
+      setupTerminal(terminalContainerRef, xtermRef.current.xterm, fitAddonRef.current);
+
+      const handler = () => {
+        fitAddonRef.current!.fit();
+      };
+      window.addEventListener('resize', handler);
+
+      return function cleanup() {
+        xtermRef.current?.xterm.dispose();
+        xtermRef.current = null;
+        window.removeEventListener('resize', handler);
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [container, terminalContainerRef, props.open]
+  );
+
+  // Effect 2: Connection lifecycle — creates and cancels the exec/attach stream.
+  // Runs on shell changes and reconnect, reusing the existing terminal to preserve scrollback.
+  React.useEffect(
+    () => {
+      if (!xtermRef.current || container === null || !props.open) {
+        return;
+      }
+
+      const xtermc = xtermRef.current;
+      xtermc.connected = false;
+      xtermc.reconnectOnEnter = false;
+      setIsDisconnected(false);
+
+      execOrAttachRef.current?.cancel();
 
       (async function () {
         if (isAttach) {
-          xtermRef?.current?.xterm.writeln(
+          xtermc.xterm.writeln(
             t('Trying to attach to the container {{ container }}…', { container }) + '\n'
           );
 
@@ -338,7 +409,7 @@ export default function Terminal(props: TerminalProps) {
         } else {
           const command = getCurrentShellCommand();
 
-          xtermRef?.current?.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
+          xtermc.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
 
           execOrAttachRef.current = await item.exec(
             container,
@@ -346,24 +417,15 @@ export default function Terminal(props: TerminalProps) {
             { command: [command], failCb: () => shellConnectFailed(xtermRef.current!) }
           );
         }
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
       })();
 
-      const handler = () => {
-        fitAddonRef.current!.fit();
-      };
-
-      window.addEventListener('resize', handler);
-
       return function cleanup() {
-        xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
-        window.removeEventListener('resize', handler);
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, terminalContainerRef, shells, props.open]
+    [container, terminalContainerRef, shells, reconnectCount, props.open]
   );
 
   React.useEffect(
@@ -398,6 +460,7 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function handleContainerChange(event: any) {
+    setIsDisconnected(false);
     setContainer(event.target.value);
   }
 
@@ -516,7 +579,16 @@ export default function Terminal(props: TerminalProps) {
         },
       })}
     >
-      <Box sx={isMobile ? { px: 1, pt: 1 } : undefined}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+          ...(isMobile && { px: 1, pt: 1 }),
+        }}
+      >
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">
             {t('glossary|Container')}
@@ -559,6 +631,16 @@ export default function Terminal(props: TerminalProps) {
             ))}
           </Select>
         </FormControl>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<Icon icon="mdi:refresh" />}
+          onClick={handleReconnect}
+          disabled={!isDisconnected}
+          aria-label={t('translation|Reconnect')}
+        >
+          {t('translation|Reconnect')}
+        </Button>
       </Box>
       <Box
         sx={theme => ({
