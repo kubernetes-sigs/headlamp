@@ -988,7 +988,7 @@ async function build(packageFolder) {
     return true;
   }
 
-  function buildFolderOfPackages() {
+  async function buildFolderOfPackages() {
     const folders = fs.readdirSync(packageFolder, { withFileTypes: true }).filter(fileName => {
       return (
         fileName.isDirectory() &&
@@ -996,17 +996,18 @@ async function build(packageFolder) {
       );
     });
 
-    folders.forEach(folder => {
+    for (const folder of folders) {
       const folderToBuild = path.join(packageFolder, folder.name);
-      if (!buildPackage(folderToBuild)) {
+      if (!(await buildPackage(folderToBuild))) {
         console.error(`"${folderToBuild}" does not contain a package. Not building.`);
       }
-    });
+    }
     return folders.length !== 0;
   }
 
-  if (!(buildPackage(packageFolder) || buildFolderOfPackages())) {
+  if (!((await buildPackage(packageFolder)) || (await buildFolderOfPackages()))) {
     console.error(`"${packageFolder}" does not contain a package or packages. Not building.`);
+    return 1;
   }
 
   return 0;
