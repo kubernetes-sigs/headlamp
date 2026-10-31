@@ -236,6 +236,7 @@
   "API Groups": "Grupos de API",
   "Resources": "Recursos",
   "Non Resources": "Não Recursos",
+  "Resource Names": "",
   "Verbs": "Verbos",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "Cargas de trabalho (agendamento)",

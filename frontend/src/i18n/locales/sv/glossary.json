@@ -236,6 +236,7 @@
   "API Groups": "API-grupper",
   "Resources": "Resurser",
   "Non Resources": "Icke-resurser",
+  "Resource Names": "",
   "Verbs": "Verb",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

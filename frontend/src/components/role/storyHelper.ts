@@ -43,6 +43,13 @@ export const ROLE_DUMMY_DATA: KubeRole[] = [
         nonResourceURLs: [],
         resourceNames: [],
       },
+      {
+        apiGroups: [''],
+        resources: ['configmaps'],
+        verbs: ['get'],
+        nonResourceURLs: [],
+        resourceNames: ['app-config'],
+      },
     ],
   },
 ];
@@ -63,6 +70,13 @@ export const CLUSTER_ROLE_DUMMY_DATA: KubeRole[] = [
         resources: ['nodes', 'nodes/status'],
         verbs: ['get', 'list', 'watch'],
         nonResourceURLs: [],
+        resourceNames: [],
+      },
+      {
+        apiGroups: [],
+        resources: [],
+        verbs: ['get'],
+        nonResourceURLs: ['/healthz', '/readyz'],
         resourceNames: [],
       },
     ],

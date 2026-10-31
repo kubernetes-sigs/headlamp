@@ -236,6 +236,7 @@
   "API Groups": "Группы API",
   "Resources": "Ресурсы",
   "Non Resources": "Не ресурсы",
+  "Resource Names": "",
   "Verbs": "Глаголы",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "Рабочие нагрузки (планирование)",

@@ -236,6 +236,7 @@
   "API Groups": "Grup API",
   "Resources": "Sumber daya",
   "Non Resources": "Non-Sumber Daya",
+  "Resource Names": "",
   "Verbs": "Kata Kerja",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

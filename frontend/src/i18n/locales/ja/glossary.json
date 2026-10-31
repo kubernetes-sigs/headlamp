@@ -236,6 +236,7 @@
   "API Groups": "API グループ",
   "Resources": "リソース",
   "Non Resources": "非リソース",
+  "Resource Names": "",
   "Verbs": "動詞",
   "RuntimeClass": "ランタイムクラス",
   "Workloads (scheduling)": "ワークロード（スケジューリング）",
