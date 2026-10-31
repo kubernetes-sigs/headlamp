@@ -19,6 +19,7 @@ import App from '../../../../App';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
+import Ingress from '../../../../lib/k8s/ingress';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
@@ -406,6 +407,55 @@ describe('useGetAllRelations', () => {
       )
     ).toBe(true);
     expect(relation.predicate(node(pod({ uid: 'orphan' })), node(owner))).toBe(false);
+  });
+
+  it('links an ingress to the services in its rules and in its default backend', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'ingress-service');
+    const ingress = (spec: Record<string, any>) =>
+      new Ingress(
+        { metadata: { uid: 'ingress', name: 'ingress', namespace: 'namespace-a' }, spec } as any,
+        'cluster-a'
+      );
+    const backendService = (name: string) =>
+      service({ uid: name, name, namespace: 'namespace-a' }, {});
+    const matches = (from: Ingress, to: Service) => relation.predicate(node(from), node(to));
+
+    const withDefaultBackend = ingress({
+      defaultBackend: { service: { name: 'fallback', port: { number: 80 } } },
+    });
+    expect(matches(withDefaultBackend, backendService('fallback'))).toBe(true);
+    expect(matches(withDefaultBackend, backendService('other'))).toBe(false);
+
+    const withRule = ingress({
+      rules: [
+        {
+          host: 'example.com',
+          http: {
+            paths: [
+              {
+                path: '/',
+                pathType: 'Prefix',
+                backend: { service: { name: 'web', port: { number: 80 } } },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(matches(withRule, backendService('web'))).toBe(true);
+    expect(matches(withRule, backendService('fallback'))).toBe(false);
+
+    const withLegacyRule = ingress({
+      rules: [
+        {
+          host: 'example.com',
+          http: { paths: [{ path: '/', backend: { serviceName: 'legacy', servicePort: '80' } }] },
+        },
+      ],
+    });
+    expect(matches(withLegacyRule, backendService('legacy'))).toBe(true);
   });
 
   it('adds reversed owner relations for discovered custom resources', () => {

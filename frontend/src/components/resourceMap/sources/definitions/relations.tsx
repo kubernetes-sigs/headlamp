@@ -258,11 +258,18 @@ const endpointSlicesToServices = makeRelation(
   (endpoint, service) => endpoint.getOwnerServiceName() === service.getName()
 );
 
-const ingressToService = makeRelation('ingress-service', Ingress, Service, (ingress, service) =>
-  ingress.spec?.rules?.find((rule: any) =>
-    rule.http?.paths?.find((path: any) => service.metadata.name === path?.backend?.service?.name)
-  )
-);
+const ingressToService = makeRelation('ingress-service', Ingress, Service, (ingress, service) => {
+  const serviceName = service.metadata.name;
+  // The default backend receives the requests that match no rule, so it is a
+  // backend Service of the Ingress as well.
+  if (ingress.spec?.defaultBackend?.service?.name === serviceName) {
+    return true;
+  }
+  // getRules() also maps the legacy serviceName backends to backend.service.
+  return ingress
+    .getRules()
+    .some(rule => rule.http?.paths.some(path => path.backend?.service?.name === serviceName));
+});
 
 const ingressToSecret = makeRelation('ingress-secret', Ingress, Secret, (ingress, secret) =>
   ingress.spec.tls?.find(tls => tls.secretName === secret.metadata.name)
