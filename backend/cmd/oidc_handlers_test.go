@@ -66,6 +66,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -829,6 +830,244 @@ func TestOIDCCallback_UsesAccessTokenWhenConfigured(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
 		"with OidcUseAccessToken, the access_token — not the id_token — reaches the cookie")
+}
+
+// TestOIDC_ValidatorOverrides keeps authorization settings separate from
+// token validation: only the configured issuer or audience is accepted.
+func TestOIDC_ValidatorOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name, claim, override, wantError string
+	}{
+		{"issuer", "iss", "https://validator.example.com", "issued by a different provider"},
+		{"client ID", "aud", "validation-client-id", "expected audience"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newOIDCTestServer(t, nil)
+			discovery := srv
+
+			if tc.claim == "iss" {
+				discovery = newOIDCIssuerOverrideServer(t, srv, tc.override)
+			}
+
+			for _, accepted := range []bool{true, false} {
+				t.Run(fmt.Sprintf("override token=%t", accepted), func(t *testing.T) {
+					handler, cluster := newOIDCTestHandler(t, discovery, func(c *HeadlampConfig) {
+						if tc.claim == "iss" {
+							c.OidcValidatorIdpIssuerURL = tc.override
+						} else {
+							c.OidcValidatorClientID = tc.override
+						}
+					})
+
+					claims := map[string]any{}
+					if accepted {
+						claims[tc.claim] = tc.override
+					}
+
+					token := srv.signToken(t, claims)
+					srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						assert.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+							"access_token": "opaque-access", "token_type": "Bearer", "id_token": token,
+						}))
+					})
+
+					loc := driveOIDCStart(t, handler, cluster)
+					assert.Equal(t, "test-client-id", loc.Query().Get("client_id"))
+					rr := driveOIDCCallback(t, handler, extractState(t, loc))
+
+					if accepted {
+						require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+						assert.Equal(t, token, authCookieValue(t, rr, cluster))
+					} else {
+						assert.Equal(t, http.StatusInternalServerError, rr.Code)
+						assert.Contains(t, rr.Body.String(), "Failed to verify ID Token")
+						assert.Contains(t, rr.Body.String(), tc.wantError)
+						assertNoOIDCAuthCookie(t, rr)
+					}
+				})
+			}
+		})
+	}
+}
+
+// newOIDCIssuerOverrideServer changes only the advertised issuer, keeping
+// authorization, exchange and signing-key endpoints on the original fixture.
+func newOIDCIssuerOverrideServer(t *testing.T, srv *oidcTestServer, issuer string) *oidcTestServer {
+	t.Helper()
+
+	wrapper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rr := httptest.NewRecorder()
+		srv.server.Config.Handler.ServeHTTP(rr, r)
+
+		var metadata map[string]any
+		assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &metadata))
+
+		metadata["issuer"] = issuer
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(metadata))
+	}))
+	t.Cleanup(wrapper.Close)
+
+	return &oidcTestServer{server: wrapper}
+}
+
+// TestOIDC_InsecureTLSDiscovery needs no custom CA or per-provider skip flag.
+func TestOIDC_InsecureTLSDiscovery(t *testing.T) {
+	provider := &oidctest.Server{}
+	tlsServer := httptest.NewTLSServer(provider)
+	t.Cleanup(tlsServer.Close)
+	provider.SetIssuer(tlsServer.URL)
+
+	for _, insecure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("insecure=%t", insecure), func(t *testing.T) {
+			handler, cluster := newOIDCTestHandler(t, &oidcTestServer{server: tlsServer},
+				func(c *HeadlampConfig) { c.Insecure = insecure })
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/oidc?cluster="+cluster, nil))
+
+			if insecure {
+				require.Equal(t, http.StatusFound, rr.Code, "body=%q", rr.Body.String())
+				loc, err := url.Parse(rr.Header().Get("Location"))
+				require.NoError(t, err)
+				assert.Equal(t, tlsServer.URL+"/auth", loc.Scheme+"://"+loc.Host+loc.Path)
+				assert.Equal(t, "test-client-id", loc.Query().Get("client_id"))
+			} else {
+				assert.Equal(t, http.StatusInternalServerError, rr.Code)
+				assert.Contains(t, rr.Body.String(), "certificate signed by unknown authority")
+			}
+		})
+	}
+}
+
+// TestOIDC_StartFailures exercises the route with its required cluster query.
+func TestOIDC_StartFailures(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "discovery unavailable", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(server.Close)
+
+	for _, tc := range []struct {
+		name, cluster, wantBody string
+		wantStatus              int
+		option                  oidcTestOption
+	}{
+		{"unknown cluster", "unknown-cluster", "404 page not found", http.StatusNotFound, nil},
+		{
+			"missing OIDC config", "oidc-char-test", "authProvider is nil", http.StatusInternalServerError,
+			func(c *HeadlampConfig) {
+				ctx, err := c.KubeConfigStore.GetContext("oidc-char-test")
+				require.NoError(t, err)
+
+				ctx.OidcConf = nil
+				ctx.AuthInfo = &api.AuthInfo{}
+			},
+		},
+		{
+			"discovery failure", "oidc-char-test", "503 Service Unavailable: discovery unavailable",
+			http.StatusInternalServerError, nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var opts []oidcTestOption
+			if tc.option != nil {
+				opts = append(opts, tc.option)
+			}
+
+			handler, _ := newOIDCTestHandler(t, &oidcTestServer{server: server}, opts...)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/oidc?cluster="+tc.cluster, nil))
+
+			assert.Equal(t, tc.wantStatus, rr.Code)
+			assert.Contains(t, rr.Body.String(), tc.wantBody)
+			assertNoOIDCAuthCookie(t, rr)
+		})
+	}
+}
+
+// TestOIDCCallback_MissingAccessToken fails at exchange, before token selection:
+// oauth2 rejects a response without access_token even when id_token is valid.
+func TestOIDCCallback_MissingAccessToken(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv, withAccessToken())
+	token := srv.signToken(t, nil)
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+			"token_type": "Bearer", "id_token": token,
+		}))
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to exchange token: oauth2: server response missing access_token")
+	assertNoOIDCAuthCookie(t, rr)
+}
+
+type oidcFailingSetCache struct {
+	cache.Cache[interface{}]
+	err error
+	key string
+}
+
+func (c *oidcFailingSetCache) Set(_ context.Context, key string, _ interface{}) error {
+	c.key = key
+
+	return c.err
+}
+
+// TestOIDCCallback_CacheSetFailure must not issue authentication on a failed write.
+func TestOIDCCallback_CacheSetFailure(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	c := &oidcFailingSetCache{Cache: cache.New[interface{}](), err: errors.New("test cache write failure")}
+
+	t.Cleanup(func() { require.NoError(t, c.Close()) })
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(c))
+	token := srv.signToken(t, nil)
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+			"access_token": "opaque-access", "token_type": "Bearer", "id_token": token,
+		}))
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to cache refresh token: "+c.err.Error())
+	assert.Equal(t, "oidc-token-"+token, c.key)
+	assertNoOIDCAuthCookie(t, rr)
+}
+
+// TestOIDC_InsecureInvalidTransport is deliberately not parallel because it
+// temporarily replaces process-global transport after handler construction.
+func TestOIDC_InsecureInvalidTransport(t *testing.T) {
+	handler, cluster := newOIDCTestHandler(t, newOIDCTestServer(t, nil),
+		func(c *HeadlampConfig) { c.Insecure = true })
+	original := http.DefaultTransport
+
+	t.Cleanup(func() { http.DefaultTransport = original })
+	http.DefaultTransport = http.NewFileTransport(http.Dir(t.TempDir()))
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/oidc?cluster="+cluster, nil))
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to configure oidc transport")
+	assertNoOIDCAuthCookie(t, rr)
+}
+
+func assertNoOIDCAuthCookie(t *testing.T, rr *httptest.ResponseRecorder) {
+	t.Helper()
+
+	for _, cookie := range rr.Result().Cookies() {
+		assert.False(t, strings.HasPrefix(cookie.Name, "headlamp-auth-"),
+			"unexpected authentication cookie %q", cookie.Name)
+	}
 }
 
 // newSigningOIDCTestServer is like newOIDCTestServer but its /token endpoint
