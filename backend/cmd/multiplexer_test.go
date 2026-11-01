@@ -731,6 +731,66 @@ func TestWSConnLock(t *testing.T) {
 	assert.Contains(t, msg, "message-")
 }
 
+func TestWSConnLockWriteTimesOutWhenClientStopsReading(t *testing.T) {
+	originalTimeout := clientWriteTimeout
+	clientWriteTimeout = 100 * time.Millisecond
+
+	t.Cleanup(func() { clientWriteTimeout = originalTimeout })
+
+	// The client never reads, so writes block once the socket buffers are full.
+	release := make(chan struct{})
+	defer close(release)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		<-release
+	}))
+	defer server.Close()
+
+	conn, resp, err := newTestDialer().Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	wsConn := NewWSConnLock(conn)
+	payload := strings.Repeat("x", 1<<20)
+	writeErr := make(chan error, 1)
+
+	go func() {
+		for {
+			if err := wsConn.WriteJSON(payload); err != nil {
+				writeErr <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-writeErr:
+		var netErr net.Error
+		require.ErrorAs(t, err, &netErr)
+		assert.True(t, netErr.Timeout())
+	case <-time.After(5 * time.Second):
+		t.Fatal("write to a client that stopped reading did not time out")
+	}
+
+	// The connection can't be written to again, so it is closed to make the client reconnect.
+	_, _, err = wsConn.ReadMessage()
+	assert.ErrorIs(t, err, net.ErrClosed)
+}
+
 func createMockKubeAPIServer() *httptest.Server {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{

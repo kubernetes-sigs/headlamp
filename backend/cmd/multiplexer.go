@@ -20,8 +20,10 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,6 +61,10 @@ const (
 	// MultiplexerProtocol is the public subprotocol selected for client connections.
 	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
 )
+
+// clientWriteTimeout bounds each write to a client. Without it, a client that stops
+// reading blocks the writer, and everything waiting on the writer's locks, forever.
+var clientWriteTimeout = 30 * time.Second
 
 // ConnectionState represents the current state of a connection.
 type ConnectionState string
@@ -173,7 +179,25 @@ func (conn *WSConnLock) WriteJSON(v interface{}) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteJSON(v)
+	if err := conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout)); err != nil {
+		return err
+	}
+
+	return conn.closeOnTimeout(conn.conn.WriteJSON(v))
+}
+
+// closeOnTimeout closes the connection when err is a write timeout. The client stopped
+// reading and the connection can't be written to again, so closing it ends the client's
+// read loop and lets the client reconnect.
+func (conn *WSConnLock) closeOnTimeout(err error) error {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		logger.Log(logger.LevelInfo, nil, err, "closing client connection after write timeout")
+
+		_ = conn.conn.Close()
+	}
+
+	return err
 }
 
 // ReadJSON reads the next JSON-encoded message from the WebSocket connection
@@ -196,7 +220,11 @@ func (conn *WSConnLock) WriteMessage(messageType int, data []byte) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteMessage(messageType, data)
+	if err := conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout)); err != nil {
+		return err
+	}
+
+	return conn.closeOnTimeout(conn.conn.WriteMessage(messageType, data))
 }
 
 // Close safely closes the WebSocket connection.
