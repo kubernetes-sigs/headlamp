@@ -3,7 +3,7 @@ title: Architecture
 sidebar_position: 0
 ---
 
-Prefer a video explanation? [Watch the architecture overview (Google Drive)](https://drive.google.com/file/d/1JufLXdJ0rZmoogHfwCLAZ-Z62aDEW-HX/view?usp=sharing).
+Prefer a video explanation? [Watch the architecture overview (Google Drive)](https://drive.google.com/file/d/1vTkeGpryoCvTs09FB0aFQguapHxbKRbc/view?usp=sharing).
 
 ## Introduction
 
