@@ -55,7 +55,8 @@ Follow these steps when submitting a PR to ensure it meets the project’s stand
 Run the following commands from your project directory:
 
 - `npm run frontend:test` - Run the test suite
-- `npm run frontend:lint` - Format your code to match the project
+- 'npm run frontend:lint' - Check code for lint and formatting issues
+- 'npm run frontend:lint:fix' - Automatically fix lint and formatting issues where possible
 
 These steps ensure your code is functional, well-typed, and formatted consistently.
 
