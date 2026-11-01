@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -710,10 +711,25 @@ func (m *Multiplexer) processClientMessage(
 
 // closeClientConnections closes all connections associated with a specific client.
 func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
+	// Repeat until a pass finds nothing to close: a reconnect can register a replacement
+	// for one of this client's connections while a pass runs.
+	for m.closeClientConnectionsPass(clientConn) {
+	}
+}
+
+// closeClientConnectionsPass closes the connections of clientConn that are registered when
+// it starts, and reports whether it closed any.
+func (m *Multiplexer) closeClientConnectionsPass(clientConn *WSConnLock) bool {
+	// Check each connection's client without holding m.mutex: a write to a client that
+	// stopped reading holds that connection's lock, and waiting on it under m.mutex would
+	// block every other client.
+	m.mutex.RLock()
+	conns := maps.Clone(m.connections)
+	m.mutex.RUnlock()
+
 	var connsToClose []*Connection
 
-	m.mutex.Lock()
-	for key, conn := range m.connections {
+	for key, conn := range conns {
 		conn.mu.RLock()
 		isClient := conn.Client == clientConn
 		conn.mu.RUnlock()
@@ -721,10 +737,13 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 		if isClient {
 			connsToClose = append(connsToClose, conn)
 
-			delete(m.connections, key)
+			m.mutex.Lock()
+			if m.connections[key] == conn {
+				delete(m.connections, key)
+			}
+			m.mutex.Unlock()
 		}
 	}
-	m.mutex.Unlock()
 
 	for _, conn := range connsToClose {
 		conn.mu.Lock()
@@ -738,6 +757,8 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 
 		conn.safeClose()
 	}
+
+	return len(connsToClose) > 0
 }
 
 func logUnexpectedClientReadClose(err error) {
