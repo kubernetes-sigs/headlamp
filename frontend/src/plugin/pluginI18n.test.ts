@@ -15,6 +15,7 @@
  */
 
 import { render, renderHook, screen, waitFor } from '@testing-library/react';
+import i18next from 'i18next';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { changePluginLanguage, initializePluginI18n, useTranslation } from './pluginI18n';
@@ -207,5 +208,46 @@ describe('pluginI18n', () => {
 
     // The user ended up on 'fr', so the late 'de' completion must not win.
     expect(instance?.language).toBe('fr');
+  });
+
+  describe('initial locale loading', () => {
+    let originalLanguage: string;
+    let originalResolved: string | undefined;
+
+    beforeEach(() => {
+      originalLanguage = i18next.language;
+      originalResolved = i18next.resolvedLanguage;
+      Object.assign(i18next, { language: 'de', resolvedLanguage: 'de' });
+    });
+
+    afterEach(() => {
+      Object.assign(i18next, { language: originalLanguage, resolvedLanguage: originalResolved });
+    });
+
+    it('fetches the active language and the English fallback concurrently', async () => {
+      const resolvers: Record<string, () => void> = {};
+      fetchSpy.mockImplementation(
+        (url: string) =>
+          new Promise(resolve => {
+            const locale = /\/locales\/([^/]+)\//.exec(String(url))?.[1] ?? '';
+            resolvers[locale] = () =>
+              resolve({ ok: true, status: 200, json: async () => ({ Hello: locale }) });
+          })
+      );
+
+      const init = initializePluginI18n(
+        'parallel-plugin',
+        { name: 'parallel-plugin', headlamp: { i18n: ['en', 'de'] } },
+        '/plugins/parallel-plugin'
+      );
+
+      // Both requests must be in flight before either has resolved. With the old
+      // sequential loop the second fetch would never start, and this would time out.
+      await waitFor(() => expect(localeUrls(fetchSpy)).toHaveLength(2));
+
+      resolvers.de();
+      resolvers.en();
+      await init;
+    });
   });
 });
