@@ -100,13 +100,13 @@ spec:
           
           env:
             - name: OIDC_CLIENT_ID
-              value: testClientId
+              value: "testClientId"
             - name: OIDC_CLIENT_SECRET
-              value: testClientSecret
+              value: "testClientSecret"
             - name: OIDC_ISSUER_URL
-              value: testIssuerURL
+              value: "testIssuerURL"
             - name: OIDC_SCOPES
-              value: testScope
+              value: "testScope"
             - name: OIDC_USE_PKCE
               value: "true"
           args:
