@@ -225,10 +225,12 @@ func evictExpiredOidcStates(m map[string]*OauthConfig, mu *sync.Mutex, ttl time.
 	}
 }
 
-// returns True if a file exists.
+// returns True if a regular (non-directory) file exists.
+// Any error from os.Stat (not exist, permission denied, not a directory, ...)
+// is treated as "does not exist", since info is nil in those cases.
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 
