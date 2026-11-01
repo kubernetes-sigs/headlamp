@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -77,6 +78,10 @@ var (
 // It is sent to the client when the expiry is reported by the reconnect handshake instead.
 const watchExpiredEvent = `{"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},` +
 	`"status":"Failure","message":"resource version expired","reason":"Expired","code":410}}`
+
+// clientWriteTimeout bounds each write to a client. Without it, a client that stops
+// reading blocks the writer, and everything waiting on the writer's locks, forever.
+var clientWriteTimeout = 30 * time.Second
 
 // ConnectionState represents the current state of a connection.
 type ConnectionState string
@@ -230,7 +235,28 @@ func (conn *WSConnLock) WriteJSON(v interface{}) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteJSON(v)
+	if err := conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout)); err != nil {
+		return err
+	}
+
+	return conn.closeOnTimeout(conn.conn.WriteJSON(v))
+}
+
+// closeOnTimeout closes the connection when err is a write timeout. The client stopped
+// reading and the connection can't be written to again, so closing it ends the client's
+// read loop and lets the client reconnect.
+func (conn *WSConnLock) closeOnTimeout(err error) error {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		logger.Log(logger.LevelInfo, nil, err, "closing client connection after write timeout")
+
+		// Not Close(): the caller holds writeMu. Marking it closed keeps a reconnecting
+		// client from reusing watches on this socket before its handler cleans up.
+		conn.closed.Store(true)
+		_ = conn.conn.Close()
+	}
+
+	return err
 }
 
 // ReadJSON reads the next JSON-encoded message from the WebSocket connection
@@ -253,7 +279,11 @@ func (conn *WSConnLock) WriteMessage(messageType int, data []byte) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteMessage(messageType, data)
+	if err := conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout)); err != nil {
+		return err
+	}
+
+	return conn.closeOnTimeout(conn.conn.WriteMessage(messageType, data))
 }
 
 // Close safely closes the WebSocket connection.
