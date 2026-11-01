@@ -511,6 +511,84 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 	assert.True(t, conn.closed)
 }
 
+func TestCloseClientConnectionsDoesNotBlockOtherClients(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	stalledClient, stalledServer := createTestWebSocketConnection()
+	defer stalledServer.Close()
+
+	closingClient, closingServer := createTestWebSocketConnection()
+	defer closingServer.Close()
+
+	stalledConn := createTestConnection("test-cluster", "user-a", "/api/v1/pods", "", stalledClient)
+	closingConn := createTestConnection("test-cluster", "user-b", "/api/v1/pods", "", closingClient)
+	m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-a")] = stalledConn
+	m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-b")] = closingConn
+
+	// A write to a client that stopped reading holds its connection's lock.
+	stalledConn.mu.Lock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.closeClientConnections(closingClient)
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond) // let closeClientConnections reach the held lock
+
+	locked := m.mutex.TryLock()
+	if locked {
+		m.mutex.Unlock()
+	}
+
+	assert.True(t, locked, "closeClientConnections holds the multiplexer lock")
+
+	stalledConn.mu.Unlock()
+	<-done
+
+	assert.Len(t, m.connections, 1)
+	assert.Same(t, stalledConn, m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-a")])
+	assert.True(t, closingConn.IsClosed())
+}
+
+func TestCloseClientConnectionsClosesReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	m.connections[connKey] = conn
+
+	// Hold the connection's lock so closeClientConnections waits on it after copying the map.
+	conn.mu.Lock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.closeClientConnections(clientConn)
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond) // let closeClientConnections copy the map
+
+	// Meanwhile a reconnect registers a replacement for the same client.
+	replacement := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	m.mutex.Lock()
+	m.connections[connKey] = replacement
+	m.mutex.Unlock()
+
+	conn.mu.Unlock()
+	<-done
+
+	assert.Empty(t, m.connections)
+	assert.True(t, conn.IsClosed())
+	assert.True(t, replacement.IsClosed())
+}
+
 func createTestConnection(
 	clusterID,
 	userID,
@@ -651,6 +729,66 @@ func TestWSConnLock(t *testing.T) {
 	err := wsConn.ReadJSON(&msg)
 	assert.NoError(t, err)
 	assert.Contains(t, msg, "message-")
+}
+
+func TestWSConnLockWriteTimesOutWhenClientStopsReading(t *testing.T) {
+	originalTimeout := clientWriteTimeout
+	clientWriteTimeout = 100 * time.Millisecond
+
+	t.Cleanup(func() { clientWriteTimeout = originalTimeout })
+
+	// The client never reads, so writes block once the socket buffers are full.
+	release := make(chan struct{})
+	defer close(release)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		<-release
+	}))
+	defer server.Close()
+
+	conn, resp, err := newTestDialer().Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	wsConn := NewWSConnLock(conn)
+	payload := strings.Repeat("x", 1<<20)
+	writeErr := make(chan error, 1)
+
+	go func() {
+		for {
+			if err := wsConn.WriteJSON(payload); err != nil {
+				writeErr <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-writeErr:
+		var netErr net.Error
+		require.ErrorAs(t, err, &netErr)
+		assert.True(t, netErr.Timeout())
+	case <-time.After(5 * time.Second):
+		t.Fatal("write to a client that stopped reading did not time out")
+	}
+
+	// The connection can't be written to again, so it is closed to make the client reconnect.
+	_, _, err = wsConn.ReadMessage()
+	assert.ErrorIs(t, err, net.ErrClosed)
 }
 
 func createMockKubeAPIServer() *httptest.Server {
