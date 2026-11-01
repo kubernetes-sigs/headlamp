@@ -24,22 +24,66 @@ import { storeStatelessClusterKubeconfig } from '../../../../stateless';
 import { deleteClusterKubeconfig } from '../../../../stateless/deleteClusterKubeconfig';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getCluster, getSelectedClusters } from '../../../cluster';
+import { queryClient } from '../../../queryClient';
+import { getClusterConfig } from '../../clusterAuthType';
+import { ApiError } from '../v2/ApiError';
 import type { ClusterRequest } from './clusterRequests';
 import { clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
 
 /**
- * Test authentication for the given cluster.
- * Will throw an error if the user is not authenticated.
+ * Test authentication using Kubernetes' effective identity for OIDC-labelled clusters.
+ * Exact anonymous identity rejects with 401; HTTP 401/403 retain caller login handling,
+ * including for restricted authenticated users denied SelfSubjectReview.
+ * Only 404 falls back to the legacy SSRR check, which can still succeed anonymously.
+ * Known non-OIDC clusters retain SSRR. Probes never clear credentials.
  */
 export async function testAuth(cluster = '', namespace = 'default') {
-  const spec = { namespace };
-  const clusterName = cluster || getCluster();
+  const clusterName = cluster || getCluster() || '';
+  const clusterConfig = clusterName ? getClusterConfig(clusterName) : undefined;
+  if (!clusterConfig) {
+    throw new ApiError('Cluster configuration unavailable', { status: 503 });
+  }
 
-  return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
-    timeout: 5 * 1000,
-    cluster: clusterName,
-  });
+  if (clusterConfig.auth_type === 'oidc') {
+    let review;
+    try {
+      review = await post(
+        '/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        { apiVersion: 'authentication.k8s.io/v1', kind: 'SelfSubjectReview' },
+        false,
+        { timeout: 5 * 1000, cluster: clusterName }
+      );
+    } catch (error) {
+      if ((error as ApiError).status !== 404) {
+        throw error;
+      }
+    }
+
+    if (review !== undefined) {
+      const username = review?.status?.userInfo?.username;
+      if (typeof username !== 'string' || !username.trim()) {
+        throw new ApiError('Invalid SelfSubjectReview identity', {
+          status: 502,
+          cluster: clusterName,
+        });
+      }
+      if (username === 'system:anonymous') {
+        throw new ApiError('not authenticated', { status: 401, cluster: clusterName });
+      }
+      return review;
+    }
+  }
+
+  return post(
+    '/apis/authorization.k8s.io/v1/selfsubjectrulesreviews',
+    { spec: { namespace } },
+    false,
+    {
+      timeout: 5 * 1000,
+      cluster: clusterName,
+    }
+  );
 }
 
 /**
@@ -140,6 +184,8 @@ export async function setCluster(clusterReq: ClusterRequest) {
 
   if (kubeconfig) {
     await storeStatelessClusterKubeconfig(kubeconfig);
+    // Explicit user import can replace credentials even when public config is unchanged.
+    queryClient.resetQueries({ queryKey: ['auth'] });
     return request(
       '/parseKubeConfig',
       {
