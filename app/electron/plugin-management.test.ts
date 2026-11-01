@@ -617,10 +617,18 @@ describe('PluginManager', () => {
     progress.length = 0;
 
     // Uninstall the plugin from the same directory
-    PluginManager.uninstall('headlamp_minikube', pluginDestDir, progressCallback);
+    const removedFolderName = PluginManager.uninstall(
+      'headlamp_minikube',
+      pluginDestDir,
+      progressCallback
+    );
 
     // Verify the plugin was uninstalled
     expect(fs.existsSync(pluginDir)).toBe(false);
+    expect(removedFolderName).toBe('headlamp_minikube');
+
+    // Uninstalling it again finds nothing to remove
+    expect(PluginManager.uninstall('headlamp_minikube', pluginDestDir, () => {})).toBeUndefined();
 
     // Verify success message
     const successMessages = progress.filter(p => p.type === 'success');

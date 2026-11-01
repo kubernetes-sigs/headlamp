@@ -966,13 +966,14 @@ export class PluginManager {
    * @param {string} name - The name of the plugin to uninstall.
    * @param {string} [folder=defaultUserPluginsDir()] - The folder where the plugin is installed.
    * @param {function} [progressCallback=null] - Optional callback for progress updates.
-   * @returns {void}
+   * @returns {string | undefined} The folder name of the removed plugin bundle, or undefined
+   * if it was not removed and the error went to the progress callback.
    */
   static uninstall(
     name: string,
     folder = defaultUserPluginsDir(),
     progressCallback: null | ProgressCallback = null
-  ) {
+  ): string | undefined {
     try {
       // @todo: should list call take progressCallback?
       const installedPlugins = PluginManager.list(folder);
@@ -998,6 +999,7 @@ export class PluginManager {
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Uninstalled' });
       }
+      return plugin.folderName;
     } catch (e) {
       if (progressCallback) {
         progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
