@@ -175,8 +175,17 @@ async function getPluginI18nInstance(
   );
   const resources: Record<string, Record<string, Record<string, string>>> = {};
 
-  for (const locale of initialLocales) {
-    const translations = await loadPluginTranslations(pluginPath, locale);
+  // Fetch every initial locale concurrently so startup pays one round trip
+  // instead of one per locale. Results are applied in `initialLocales` order,
+  // so the outcome does not depend on which request finishes first.
+  const loadedLocales = await Promise.all(
+    initialLocales.map(async locale => ({
+      locale,
+      translations: await loadPluginTranslations(pluginPath, locale),
+    }))
+  );
+
+  for (const { locale, translations } of loadedLocales) {
     // Registered even when empty, for the same reason as in
     // `ensurePluginLocaleLoaded`: it marks the locale as already attempted so
     // switching away and back does not re-probe a file that is not there.
