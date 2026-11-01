@@ -133,28 +133,6 @@ type Context struct {
 
 // Copy creates a deep copy of the Context, excluding the proxy field which is created on demand.
 func (c *Context) Copy() *Context {
-	var oidcConf *OidcConfig
-	if c.OidcConf != nil {
-		oidcConf = &OidcConfig{
-			ClientID:     c.OidcConf.ClientID,
-			ClientSecret: c.OidcConf.ClientSecret,
-			IdpIssuerURL: c.OidcConf.IdpIssuerURL,
-			Scopes:       make([]string, len(c.OidcConf.Scopes)),
-		}
-		copy(oidcConf.Scopes, c.OidcConf.Scopes)
-
-		// Deep copy pointer fields
-		if c.OidcConf.SkipTLSVerify != nil {
-			skipTLSVerify := *c.OidcConf.SkipTLSVerify
-			oidcConf.SkipTLSVerify = &skipTLSVerify
-		}
-
-		if c.OidcConf.CACert != nil {
-			caCert := *c.OidcConf.CACert
-			oidcConf.CACert = &caCert
-		}
-	}
-
 	var kubeContext *api.Context
 	if c.KubeContext != nil {
 		kubeContext = c.KubeContext.DeepCopy()
@@ -176,7 +154,7 @@ func (c *Context) Copy() *Context {
 		Cluster:               cluster,
 		AuthInfo:              authInfo,
 		Source:                c.Source,
-		OidcConf:              oidcConf,
+		OidcConf:              c.OidcConf.Copy(),
 		Internal:              c.Internal,
 		Error:                 c.Error,
 		KubeConfigPath:        c.KubeConfigPath,
@@ -198,8 +176,8 @@ func (c *Context) UsesInClusterServiceAccountToken() bool {
 type OidcConfig struct {
 	// OIDC client ID.
 	ClientID string
-	// OIDC client secret.
-	ClientSecret string
+	// OIDC client secret. It is server-side only and must never be serialized.
+	ClientSecret string `json:"-"`
 	// OIDC issuer URL.
 	IdpIssuerURL string
 	// OIDC scopes.
@@ -208,6 +186,29 @@ type OidcConfig struct {
 	SkipTLSVerify *bool
 	// OIDC CA certificate.
 	CACert *string
+}
+
+// Copy creates a deep copy of the OidcConfig.
+func (o *OidcConfig) Copy() *OidcConfig {
+	if o == nil {
+		return nil
+	}
+
+	oidcConf := *o
+	oidcConf.Scopes = append([]string{}, o.Scopes...)
+
+	// Deep copy pointer fields
+	if o.SkipTLSVerify != nil {
+		skipTLSVerify := *o.SkipTLSVerify
+		oidcConf.SkipTLSVerify = &skipTLSVerify
+	}
+
+	if o.CACert != nil {
+		caCert := *o.CACert
+		oidcConf.CACert = &caCert
+	}
+
+	return &oidcConf
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.

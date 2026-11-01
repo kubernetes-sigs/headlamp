@@ -261,7 +261,6 @@ func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 func createAndCacheClientSet(
 	k *kubeconfig.Context,
 	token, cacheKey string,
-	contextKey []string,
 ) (*kubernetes.Clientset, error) {
 	hookMu.RLock()
 
@@ -271,7 +270,7 @@ func createAndCacheClientSet(
 
 	cs, err := creator(k, token)
 	if err != nil {
-		return nil, fmt.Errorf("error while creating clientset for cluster %s: %w", contextKey[1], err)
+		return nil, fmt.Errorf("error while creating clientset for cluster %s: %w", k.Name, err)
 	}
 
 	mu.Lock()
@@ -346,11 +345,6 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 		return nil, fmt.Errorf("empty headlamp context key in GetClientSet")
 	}
 
-	contextKey := strings.Split(k.ClusterID, "+")
-	if len(contextKey) < 2 {
-		return nil, fmt.Errorf("unexpected ClusterID format in GetClientSet: %q", k.ClusterID)
-	}
-
 	startJanitor()
 
 	cacheKey := headlampContextKey + "\x00" + token
@@ -388,7 +382,7 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 
 	mu.Unlock()
 
-	cs, err := createAndCacheClientSet(k, token, cacheKey, contextKey)
+	cs, err := createAndCacheClientSet(k, token, cacheKey)
 
 	finishInFlightClientset(cacheKey, entry, cs, err)
 
