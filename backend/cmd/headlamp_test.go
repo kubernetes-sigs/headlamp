@@ -2572,6 +2572,19 @@ func TestFileExists(t *testing.T) {
 		"fileExists() should return false for directory")
 }
 
+// TestFileExistsStatError checks that fileExists does not panic when os.Stat
+// fails with an error other than "not exist" (here: a path component that is
+// a regular file, which yields ENOTDIR).
+func TestFileExistsStatError(t *testing.T) {
+	regularFile := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(regularFile, []byte("x"), 0o600))
+
+	require.NotPanics(t, func() {
+		assert.False(t, fileExists(filepath.Join(regularFile, "index.baseUrl.html")),
+			"fileExists() should return false when os.Stat fails with a non-ErrNotExist error")
+	})
+}
+
 //nolint:funlen
 func TestRewriteIndexHTML(t *testing.T) {
 	// Create a temporary directory for testing
