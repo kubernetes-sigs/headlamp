@@ -46,12 +46,14 @@ for the `HEADLAMP_BUILD_MANIFEST` and `HEADLAMP_SOURCE_COMMIT` configuration.
 Products that build Headlamp can customize the generic error and not-found
 pages with these build-time environment variables:
 
-| Environment variable                        | Default                           | Description                                           |
-| ------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
-| `REACT_APP_HEADLAMP_ERROR_PAGE_TITLE`       | `Uh-oh! Something went wrong.`    | Title for the generic error page.                     |
-| `REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC`     | Headlamp broken illustration      | URL or public path of the generic error page graphic. |
-| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE`   | `Whoops! This page doesn't exist` | Title for the not-found page.                         |
-| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC` | Headlamp 404 illustration         | URL or public path of the not-found page graphic.     |
+| Environment variable                           | Default                           | Description                                           |
+| ---------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| `REACT_APP_HEADLAMP_ERROR_PAGE_TITLE`          | `Uh-oh! Something went wrong.`    | Title for the generic error page.                     |
+| `REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC`        | Headlamp broken illustration      | URL or public path of the generic error page graphic. |
+| `REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL`   | Headlamp GitHub issue form        | Full GitHub issue creation URL for crash reports.     |
+| `REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL` | `Open Issue on GitHub`            | Product-owned crash-report button label.              |
+| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE`      | `Whoops! This page doesn't exist` | Title for the not-found page.                         |
+| `REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC`    | Headlamp 404 illustration         | URL or public path of the not-found page graphic.     |
 
 Set the variables in `frontend/.env` or in the environment used to start or
 build the frontend. Restart the development server or rebuild the frontend

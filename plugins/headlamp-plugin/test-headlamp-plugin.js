@@ -142,8 +142,32 @@ function testHeadlampPlugin() {
   // test type script error checks
   run('npm', ['run', 'tsc']);
 
+  fs.writeFileSync(
+    join(PACKAGE_NAME, 'src', 'toolkit.stories.tsx'),
+    `import type { Meta, StoryObj } from '@storybook/react';
+import React from 'react';
+
+const Preview = () => <button>Toolkit story</button>;
+const meta = { title: 'Toolkit/Smoke', component: Preview } satisfies Meta<typeof Preview>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export const Default: Story = {};
+`
+  );
+  run('npm', ['run', 'tsc']);
+
   // test the storybook builds
   run('npm', ['run', 'storybook-build']);
+  const storyIndexPath = join(PACKAGE_NAME, 'storybook-static', 'index.json');
+  checkFileExists(storyIndexPath);
+  const storyIndex = JSON.parse(fs.readFileSync(storyIndexPath, 'utf8'));
+  if (
+    !Object.values(storyIndex.entries).some(
+      story => story.title === 'Toolkit/Smoke' && story.name === 'Default'
+    )
+  ) {
+    throw new Error('The generated plugin story was not included in the Storybook build');
+  }
 
   // test "npm run storybook" works
   curDir = '.';

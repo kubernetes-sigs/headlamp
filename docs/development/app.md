@@ -154,6 +154,12 @@ retain the values from `app/package.json`.
 to the packaged resources directory. Declare the same file in `resources` so
 Electron Builder copies it into the package.
 
+`product.errorReporting` optionally configures the generic error page's crash
+report action. Set `githubIssueUrl` to the full GitHub issue creation URL;
+existing query parameters such as `labels` or `template` are preserved when
+Headlamp adds the crash title and diagnostic body. Set `buttonLabel` to replace
+the translated **Open Issue on GitHub** label with product-owned text.
+
 For example:
 
 ```json
@@ -163,7 +169,11 @@ For example:
     "productName": "Example Desktop",
     "companyName": "Example Company",
     "version": "1.2.3",
-    "trayIcon": "assets/example-tray.png"
+    "trayIcon": "assets/example-tray.png",
+    "errorReporting": {
+      "githubIssueUrl": "https://github.com/example/product/issues/new?labels=bug",
+      "buttonLabel": "Contact support"
+    }
   },
   "resources": {
     "common": [{ "from": "./example-tray.png", "to": "assets/example-tray.png" }]
@@ -204,13 +214,13 @@ docker buildx build \
 
 The manifest must remain available throughout the frontend and app packaging
 steps. An unreadable manifest, a non-object `product`, non-string
-`productName`/`version` fields, or values containing newlines stop the frontend
-build rather than silently using an inconsistent product identity. Electron
-packaging additionally rejects a non-string `companyName`. The frontend
-environment generator also rejects values containing both a single quote and a
-backtick when they additionally contain either a double quote or a literal
-backslash-`n`/backslash-`r` sequence, because no dotenv quote delimiter can
-represent them without changing the value.
+`productName`/`version` fields, invalid `errorReporting` fields, or values
+containing newlines stop the frontend build rather than silently using
+inconsistent product metadata. Electron packaging additionally rejects a
+non-string `companyName`. The frontend environment generator also rejects values
+containing both a single quote and a backtick when they additionally contain
+either a double quote or a literal backslash-`n`/backslash-`r` sequence, because
+no dotenv quote delimiter can represent them without changing the value.
 
 ### Build manifest resources
 

@@ -171,7 +171,29 @@ func TestLoadContextFromFile(t *testing.T) {
 		assert.Contains(t, expectedNames, ctx.Name, "Unexpected context name")
 		assert.Contains(t, expectedClusterIDs, ctx.ClusterID, "Unexpected ClusterID")
 		assert.Equal(t, kubeConfigFile, ctx.KubeConfigPath, "Unexpected kubeconfig path")
+		assert.Equal(t, ctx.Name, ctx.KubeConfigContextName, "Unexpected original context name")
 		assert.Equal(t, fmt.Sprintf("%s+%s", kubeConfigFile, ctx.Name), ctx.ClusterID, "Unexpected ClusterID")
+	}
+}
+
+func TestLoadContextsFromAPIConfigPreservesOrigin(t *testing.T) {
+	for _, origin := range []string{"", filepath.Join(t.TempDir(), "config")} {
+		t.Run(origin, func(t *testing.T) {
+			config := api.NewConfig()
+			config.Clusters["cluster"] = &api.Cluster{Server: "https://cluster.example.com"}
+			config.Contexts["team/cluster + dev"] = &api.Context{
+				Cluster:          "cluster",
+				LocationOfOrigin: origin,
+			}
+
+			contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, true)
+
+			require.Empty(t, errs)
+			require.Len(t, contexts, 1)
+			assert.Equal(t, "team--cluster__+__dev", contexts[0].Name)
+			assert.Equal(t, "team/cluster + dev", contexts[0].KubeConfigContextName)
+			assert.Equal(t, origin, contexts[0].KubeConfigPath)
+		})
 	}
 }
 
@@ -686,10 +708,11 @@ func newTestContext() *kubeconfig.Context {
 			SkipTLSVerify: boolPtr(true),
 			CACert:        stringPtr("test-ca-cert"),
 		},
-		Internal:       true,
-		Error:          "test-error",
-		KubeConfigPath: "/path/to/kubeconfig",
-		ClusterID:      "test-cluster-id",
+		Internal:              true,
+		Error:                 "test-error",
+		KubeConfigPath:        "/path/to/kubeconfig",
+		KubeConfigContextName: "original-context",
+		ClusterID:             "test-cluster-id",
 	}
 }
 

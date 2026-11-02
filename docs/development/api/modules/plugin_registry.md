@@ -302,7 +302,7 @@ registerAppLogo(<p>my logo</p>)
 
 More complete logo example in plugins/examples/change-logo:
 
-**`see`** [Change Logo Example](http://github.com/kinvolk/headlamp/plugins/examples/change-logo/)
+**`see`** [Change Logo Example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo)
 
 #### Parameters
 
@@ -374,7 +374,7 @@ registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => {
 })
 ```
 
-**`see`** [Cluster Chooser example](http://github.com/kinvolk/headlamp/plugins/examples/cluster-chooser/)
+**`see`** [Cluster Chooser example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 
 #### Parameters
 
@@ -532,7 +532,7 @@ registerDetailsViewHeaderActionsProcessor((resource, headerActions) => {
 });
 
 More complete detail view example in plugins/examples/details-view:
-@see [Detail View Example](http://github.com/kinvolk/headlamp/plugins/examples/details-view/)
+@see [Detail View Example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/details-view)
 
 #### Parameters
 
@@ -907,7 +907,7 @@ registerRoute({
 
 **`see`** [Route examples](https://github.com/kinvolk/headlamp/blob/main/frontend/src/lib/router.tsx)
 
-**`see`** [Sidebar Example](http://github.com/kinvolk/headlamp/plugins/examples/sidebar/)
+**`see`** [Sidebar Example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
 
 #### Parameters
 
@@ -999,7 +999,7 @@ registerSidebarEntry({ parent: 'cluster', name: 'traces', label: 'Traces', url: 
 
 ```
 
-**`see`** [Sidebar Example](http://github.com/kinvolk/headlamp/plugins/examples/sidebar/)
+**`see`** [Sidebar Example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
 
 #### Parameters
 

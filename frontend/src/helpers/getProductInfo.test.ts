@@ -15,7 +15,13 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getDisplayVersion, getProductName, getProductVersion } from './getProductInfo';
+import {
+  getDisplayVersion,
+  getErrorReportButtonLabel,
+  getErrorReportGitHubUrl,
+  getProductName,
+  getProductVersion,
+} from './getProductInfo';
 
 describe('getProductName', () => {
   afterEach(() => {
@@ -82,5 +88,24 @@ describe('getDisplayVersion', () => {
     vi.stubEnv('REACT_APP_HEADLAMP_VERSION', '0.35.0');
 
     expect(getDisplayVersion()).toBe('0.35.0');
+  });
+});
+
+describe('error reporting configuration', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns the configured GitHub issue URL and button label', () => {
+    vi.stubEnv(
+      'REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL',
+      'https://github.com/example/product/issues/new?labels=bug'
+    );
+    vi.stubEnv('REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL', 'Contact support');
+
+    expect(getErrorReportGitHubUrl()).toBe(
+      'https://github.com/example/product/issues/new?labels=bug'
+    );
+    expect(getErrorReportButtonLabel()).toBe('Contact support');
   });
 });

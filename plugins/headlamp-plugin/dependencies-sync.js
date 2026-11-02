@@ -82,11 +82,16 @@ const dependenciesToNotCopy = [
 // Dependencies that can have different versions
 // vitest 4 crashes npm 10 on fresh installs, so plugin authors use vitest 5,
 // which needs @types/node 22 or newer.
+// The toolkit uses Storybook 10 to remove Storybook 9's pinned mocker dependency.
 const differentlyVersionedDependencies = [
   'eslint-plugin-react-hooks',
   'vitest',
   '@vitest/coverage-istanbul',
   '@types/node',
+  'storybook',
+  '@storybook/addon-docs',
+  '@storybook/addon-links',
+  '@storybook/react-vite',
 ];
 
 const yargs = require('yargs/yargs');

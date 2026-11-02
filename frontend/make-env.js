@@ -24,9 +24,14 @@ import path from 'path';
 /**
  * Product fields exposed to the frontend build.
  *
+ * @typedef {object} ErrorReportingInfo
+ * @property {string} githubIssueUrl Full GitHub issue creation URL.
+ * @property {string} [buttonLabel] Product-owned crash-report button label.
+ *
  * @typedef {object} ProductInfo
  * @property {string} [productName] Display name for the product.
  * @property {string} [version] Product version shown by the frontend.
+ * @property {ErrorReportingInfo} [errorReporting] Product-specific crash-reporting configuration.
  */
 
 const frontendDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -69,6 +74,41 @@ function validateProductInfo(manifest) {
   for (const field of ['productName', 'version']) {
     if (product[field] !== undefined && typeof product[field] !== 'string') {
       throw new TypeError(`Build manifest product.${field} must be a string`);
+    }
+  }
+  if (product.errorReporting !== undefined) {
+    const errorReporting = product.errorReporting;
+    if (!errorReporting || typeof errorReporting !== 'object' || Array.isArray(errorReporting)) {
+      throw new TypeError('Build manifest product.errorReporting must be an object');
+    }
+    if (
+      typeof errorReporting.githubIssueUrl !== 'string' ||
+      !errorReporting.githubIssueUrl.trim()
+    ) {
+      throw new TypeError(
+        'Build manifest product.errorReporting.githubIssueUrl must be a non-empty string'
+      );
+    }
+    let issueUrl;
+    try {
+      issueUrl = new URL(errorReporting.githubIssueUrl);
+    } catch {
+      throw new TypeError(
+        'Build manifest product.errorReporting.githubIssueUrl must be a valid URL'
+      );
+    }
+    if (issueUrl.protocol !== 'https:' && issueUrl.protocol !== 'http:') {
+      throw new TypeError(
+        'Build manifest product.errorReporting.githubIssueUrl must use HTTP or HTTPS'
+      );
+    }
+    if (
+      errorReporting.buttonLabel !== undefined &&
+      (typeof errorReporting.buttonLabel !== 'string' || !errorReporting.buttonLabel.trim())
+    ) {
+      throw new TypeError(
+        'Build manifest product.errorReporting.buttonLabel must be a non-empty string'
+      );
     }
   }
   return product;
@@ -115,6 +155,16 @@ const envContents = {
   REACT_APP_HEADLAMP_GIT_VERSION: readGitVersion(),
   REACT_APP_HEADLAMP_PRODUCT_NAME: productInfo.productName || appInfo.productName,
   ...(productVersion ? { REACT_APP_HEADLAMP_PRODUCT_VERSION: productVersion } : {}),
+  ...(productInfo.errorReporting
+    ? {
+        REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL: productInfo.errorReporting.githubIssueUrl,
+        ...(productInfo.errorReporting.buttonLabel
+          ? {
+              REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL: productInfo.errorReporting.buttonLabel,
+            }
+          : {}),
+      }
+    : {}),
   REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS: 'false',
   REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN: 'true',
 };

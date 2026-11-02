@@ -44,6 +44,20 @@ export function getDisplayVersion(): string | undefined {
   return getProductVersion()?.trim() || getVersion().VERSION;
 }
 
+/**
+ * @returns The product-configured GitHub issue creation URL for crash reports.
+ */
+export function getErrorReportGitHubUrl(): string | undefined {
+  return import.meta.env.REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL;
+}
+
+/**
+ * @returns The product-configured crash-report button label.
+ */
+export function getErrorReportButtonLabel(): string | undefined {
+  return import.meta.env.REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL;
+}
+
 /** A page that supports product-configured error content. */
 export type ProductErrorPage = 'error' | 'notFound';
 

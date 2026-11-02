@@ -2810,8 +2810,13 @@ func (c *HeadlampConfig) processKubeConfig(clusterReq ClusterReq) ([]kubeconfig.
 	setupErrors := c.handleLoadErrors(err, contextLoadErrors)
 
 	if len(contextLoadErrors) == 0 {
-		if err := c.writeKubeConfig(*clusterReq.KubeConfig); err != nil {
+		configPath, err := c.writeKubeConfig(*clusterReq.KubeConfig)
+		if err != nil {
 			setupErrors = append(setupErrors, err)
+		} else {
+			for i := range contexts {
+				contexts[i].KubeConfigPath = configPath
+			}
 		}
 	}
 
@@ -2853,24 +2858,28 @@ func (c *HeadlampConfig) handleLoadErrors(err error, contextLoadErrors []kubecon
 	return setupErrors
 }
 
-// writeKubeConfig writes the kubeconfig to the kubeconfig file.
-func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) error {
+// writeKubeConfig persists the kubeconfig and returns its server-selected file path.
+func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) (string, error) {
 	kubeConfigByte, err := base64.StdEncoding.DecodeString(kubeConfigBase64)
 	if err != nil {
-		return fmt.Errorf("decoding kubeconfig: %w", err)
+		return "", fmt.Errorf("decoding kubeconfig: %w", err)
 	}
 
 	config, err := clientcmd.Load(kubeConfigByte)
 	if err != nil {
-		return fmt.Errorf("loading kubeconfig: %w", err)
+		return "", fmt.Errorf("loading kubeconfig: %w", err)
 	}
 
 	kubeConfigPersistenceDir, err := cfg.MakeKubeConfigsDir(c.KubeConfigDir)
 	if err != nil {
-		return fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
+		return "", fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
 	}
 
-	return kubeconfig.WriteToFile(*config, kubeConfigPersistenceDir)
+	if err := kubeconfig.WriteToFile(*config, kubeConfigPersistenceDir); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(kubeConfigPersistenceDir, "config"), nil
 }
 
 // addContextsToStore adds the contexts to the store.
@@ -2915,6 +2924,11 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Query().Get("removeKubeConfig") == "true" &&
+		!c.handleRemoveKubeConfig(w, ctx, span, name) {
+		return
+	}
+
 	err := c.KubeConfigStore.RemoveContext(name)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to delete cluster", http.StatusInternalServerError)
@@ -2922,52 +2936,50 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.handleDeleteCluster(w, r, ctx, span, name)
-
-	c.getConfig(w, r)
-}
-
-// handleDeleteCluster handles the deletion of a cluster.
-func (c *HeadlampConfig) handleDeleteCluster(
-	w http.ResponseWriter,
-	r *http.Request,
-	ctx context.Context,
-	span trace.Span,
-	name string,
-) {
-	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
-	if removeKubeConfig {
-		c.handleRemoveKubeConfig(w, r, ctx, span, name)
-		return
-	}
-
 	logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: name, "proxy": name},
 		nil, "removed cluster successfully")
+
+	c.getConfig(w, r)
 }
 
 // handleRemoveKubeConfig removes the cluster from the kubeconfig file.
 func (c *HeadlampConfig) handleRemoveKubeConfig(
 	w http.ResponseWriter,
-	r *http.Request,
 	ctx context.Context,
 	span trace.Span,
 	name string,
-) {
-	configPath := r.URL.Query().Get("configPath")
-	originalName := r.URL.Query().Get("originalName")
-	clusterID := r.URL.Query().Get("clusterID")
+) bool {
+	if !c.AllowKubeconfigChanges {
+		c.handleError(w, ctx, span, errors.New("kubeconfig changes are disabled"),
+			"removing cluster from kubeconfig is forbidden", http.StatusForbidden)
 
-	var configName string
-
-	if originalName != "" && clusterID != "" {
-		configName = originalName
-	} else {
-		configName = name
+		return false
 	}
 
-	if err := kubeconfig.RemoveContextFromFile(configName, configPath); err != nil {
+	clusterContext, err := c.KubeConfigStore.GetContext(name)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to find cluster", http.StatusNotFound)
+
+		return false
+	}
+
+	if clusterContext.KubeConfigPath == "" || clusterContext.KubeConfigContextName == "" {
+		c.handleError(w, ctx, span, errors.New("cluster has no persistent kubeconfig origin"),
+			"failed to determine cluster kubeconfig", http.StatusBadRequest)
+
+		return false
+	}
+
+	// Keep the import lock identity: both operations use the server-recorded origin.
+	if err := kubeconfig.RemoveContextFromFile(
+		clusterContext.KubeConfigContextName, clusterContext.KubeConfigPath,
+	); err != nil {
 		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
+
+		return false
 	}
+
+	return true
 }
 
 // Get path of kubeconfig we load headlamp with from source.

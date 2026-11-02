@@ -137,7 +137,9 @@ function dropdownOptions() {
   );
 }
 
-describe('Table select filter options with real MRT', () => {
+// Several tests render a dropdown with 1000 options, which is slow in jsdom and can exceed the
+// default 5s timeout on a busy machine or when the whole suite runs in parallel.
+describe('Table select filter options with real MRT', { timeout: 30_000 }, () => {
   it.each(['multi-select', 'select'] as const)(
     'fills the %s dropdown although faceted values are disabled',
     filterVariant => {

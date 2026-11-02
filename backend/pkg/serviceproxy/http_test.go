@@ -55,6 +55,33 @@ func TestHTTPGetStream(t *testing.T) {
 			wantErr:     false,
 			wantStatus:  http.StatusNotFound,
 		},
+		{
+			name:        "HTML remains sandboxed",
+			statusCode:  http.StatusOK,
+			body:        `<html><script>document.title = "service";</script></html>`,
+			contentType: "text/html",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "SVG remains sandboxed",
+			statusCode:  http.StatusOK,
+			body:        `<svg xmlns="http://www.w3.org/2000/svg" onload="document.title='service'"/>`,
+			contentType: "image/svg+xml",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "JSON is preserved",
+			statusCode:  http.StatusOK,
+			body:        `{"status":"ok"}`,
+			contentType: "application/json",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "empty HTML error remains sandboxed",
+			statusCode:  http.StatusBadGateway,
+			contentType: "text/html",
+			wantStatus:  http.StatusBadGateway,
+		},
 	}
 
 	for _, tt := range tests {
@@ -96,6 +123,15 @@ func TestHTTPGetStream(t *testing.T) {
 
 			if !tt.wantErr && w.Header().Get("Content-Type") != tt.contentType {
 				t.Errorf("HTTPGetStream() content type = %s, want %s", w.Header().Get("Content-Type"), tt.contentType)
+			}
+
+			headers := w.Result().Header
+			if got := headers.Get("Content-Security-Policy"); got != "sandbox" {
+				t.Errorf("HTTPGetStream() Content-Security-Policy = %q, want sandbox", got)
+			}
+
+			if got := headers.Get("X-Content-Type-Options"); got != "nosniff" {
+				t.Errorf("HTTPGetStream() X-Content-Type-Options = %q, want nosniff", got)
 			}
 		})
 	}

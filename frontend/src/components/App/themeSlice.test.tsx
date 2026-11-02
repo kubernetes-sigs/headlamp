@@ -16,14 +16,24 @@
 
 import React from 'react';
 import { vi } from 'vitest';
+import {
+  AUTOMATIC_THEME_PREFERENCE_KEY,
+  getThemeName,
+  PREFERRED_DARK_THEME_KEY,
+  PREFERRED_LIGHT_THEME_KEY,
+} from '../../lib/themes';
 import { AppLogoProps, AppLogoType } from './AppLogo';
 import { darkTheme } from './defaultAppThemes';
 import themeReducer, {
   applyBackendThemeConfig,
+  applySystemTheme,
+  ensureValidThemeName,
   initialState,
+  reapplyThemePreferences,
   setBrandingAppLogoComponent,
   setPluginDefaultTheme,
   setTheme,
+  themeSlice,
 } from './themeSlice';
 
 describe('themeSlice', () => {
@@ -46,12 +56,57 @@ describe('themeSlice', () => {
     expect(actual.name).toEqual(themeName);
   });
 
+  describe('applySystemTheme', () => {
+    const ready = { ...initialState, backendConfigReady: true };
+    const configured = { defaultLightTheme: 'Monochrome Light', defaultDarkTheme: 'Dark' };
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    afterEach(() => {
+      localStorage.clear();
+    });
+
+    it('sets the theme without recording it as an explicit choice', () => {
+      const actual = themeReducer(ready, applySystemTheme('Lights Out'));
+
+      expect(actual.name).toEqual('Lights Out');
+      expect(localStorage.getItem(AUTOMATIC_THEME_PREFERENCE_KEY)).toEqual('Lights Out');
+    });
+
+    it('keeps the theme across backend config refreshes', () => {
+      const applied = themeReducer(ready, applySystemTheme('Lights Out'));
+      const actual = themeReducer(applied, applyBackendThemeConfig(configured));
+
+      expect(actual.name).toEqual('Lights Out');
+      expect(getThemeName(configured)).toEqual('Lights Out');
+    });
+
+    it('lets a forced theme take precedence', () => {
+      const applied = themeReducer(ready, applySystemTheme('Lights Out'));
+      const actual = themeReducer(
+        applied,
+        applyBackendThemeConfig({ ...configured, forceTheme: 'corporate' })
+      );
+
+      expect(actual.name).toEqual('corporate');
+    });
+
+    it('gives way to changed quick swap themes', () => {
+      const applied = themeReducer(ready, applySystemTheme('Lights Out'));
+      // Saved for both modes so the result doesn't depend on the OS color scheme.
+      localStorage.setItem(PREFERRED_LIGHT_THEME_KEY, 'Monochrome Light');
+      localStorage.setItem(PREFERRED_DARK_THEME_KEY, 'Monochrome Light');
+      const actual = themeReducer(applied, reapplyThemePreferences(configured));
+
+      expect(actual.name).toEqual('Monochrome Light');
+    });
+  });
+
   describe('applyBackendThemeConfig', () => {
     beforeEach(() => {
       localStorage.clear();
-      // The mock's clear() only resets store; setTheme() writes localStorage.headlampThemePreference
-      // as a direct property that survives clear(). Delete it explicitly so tests start clean.
-      delete (localStorage as any).headlampThemePreference;
     });
 
     it('should apply forced theme and override current theme', () => {
@@ -82,9 +137,9 @@ describe('themeSlice', () => {
       const state = { ...initialState, name: 'old-theme' };
       const actual = themeReducer(
         state,
-        applyBackendThemeConfig({ defaultLightTheme: 'solarized-light' })
+        applyBackendThemeConfig({ defaultLightTheme: 'Monochrome Light' })
       );
-      expect(actual.name).toEqual('solarized-light');
+      expect(actual.name).toEqual('Monochrome Light');
       expect(localStorage.headlampThemePreference).toBeUndefined();
     });
 
@@ -108,6 +163,132 @@ describe('themeSlice', () => {
 
       expect(actual.name).toEqual('corporate');
       expect(localStorage.headlampThemePreference).toBeUndefined();
+    });
+  });
+
+  describe('themes saved for quick swap', () => {
+    const configured = { defaultLightTheme: 'Monochrome Light', defaultDarkTheme: 'Lights Out' };
+
+    beforeEach(() => {
+      localStorage.clear();
+      (window as any).matchMedia = vi.fn((query: string) => ({
+        matches: query === '(prefers-color-scheme: dark)',
+      }));
+    });
+
+    it('applies the saved dark theme instead of the backend default', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const actual = themeReducer(initialState, applyBackendThemeConfig(configured));
+      expect(actual.name).toEqual('Dark');
+    });
+
+    it('applies the saved dark theme instead of a pending plugin default', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const pending = themeReducer(initialState, setPluginDefaultTheme('product'));
+      const actual = themeReducer(pending, applyBackendThemeConfig(configured));
+      expect(actual.name).toEqual('Dark');
+    });
+
+    it('does not let a plugin default replace the saved theme after config loads', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const configuredState = themeReducer(initialState, applyBackendThemeConfig(configured));
+      const actual = themeReducer(configuredState, setPluginDefaultTheme('product'));
+      expect(actual.name).toEqual('Dark');
+      expect(localStorage.headlampThemePreference).toBeUndefined();
+    });
+
+    it('uses the backend default while the saved theme is not registered', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Plugin Dark');
+      const actual = themeReducer(initialState, applyBackendThemeConfig(configured));
+      expect(actual.name).toEqual('Lights Out');
+    });
+
+    it('re-applies a newly saved theme only after the backend config is applied', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const beforeConfig = themeReducer(
+        { ...initialState, name: 'Light' },
+        reapplyThemePreferences(configured)
+      );
+      expect(beforeConfig.name).toEqual('Light');
+      expect(beforeConfig.backendConfigReady).toBe(false);
+
+      localStorage.removeItem('headlampPreferredDarkTheme');
+      const configuredState = themeReducer(initialState, applyBackendThemeConfig(configured));
+      expect(configuredState.name).toEqual('Lights Out');
+
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const actual = themeReducer(configuredState, reapplyThemePreferences(configured));
+      expect(actual.name).toEqual('Dark');
+    });
+
+    it('keeps a forced theme when re-applying saved themes', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const forced = themeReducer(
+        initialState,
+        applyBackendThemeConfig({ ...configured, forceTheme: 'corporate' })
+      );
+      const actual = themeReducer(forced, reapplyThemePreferences(configured));
+      expect(actual.name).toEqual('corporate');
+      expect(actual.forceTheme).toEqual('corporate');
+    });
+
+    it('falls back to a built-in theme when the active and saved themes are missing', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Plugin Dark');
+      const state = { ...initialState, name: 'Plugin Dark' };
+      const actual = themeReducer(state, ensureValidThemeName());
+      expect(actual.name).toEqual('Dark');
+    });
+
+    it('applies a dropdown choice made after a plugin default is applied', () => {
+      const configuredState = themeReducer(initialState, applyBackendThemeConfig(configured));
+      const withDefault = themeReducer(configuredState, setPluginDefaultTheme('product'));
+      expect(withDefault.name).toEqual('product');
+
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const actual = themeReducer(withDefault, reapplyThemePreferences(configured));
+
+      expect(actual.name).toEqual('Dark');
+      expect(getThemeName(configured, actual.appThemes)).toEqual('Dark');
+    });
+
+    it('applies a saved theme that registers after the plugin default', () => {
+      localStorage.setItem('headlampPreferredDarkTheme', 'Plugin Dark');
+      const configuredState = themeReducer(initialState, applyBackendThemeConfig(configured));
+      const withDefault = themeReducer(configuredState, setPluginDefaultTheme('product'));
+      expect(withDefault.name).toEqual('product');
+
+      const registered = themeReducer(
+        withDefault,
+        themeSlice.actions.addCustomAppTheme({ name: 'Plugin Dark', base: 'dark' })
+      );
+      const actual = themeReducer(registered, applyBackendThemeConfig(configured));
+
+      expect(actual.name).toEqual('Plugin Dark');
+      expect(getThemeName(configured, actual.appThemes)).toEqual('Plugin Dark');
+    });
+
+    it('keeps an explicitly selected theme that matches the plugin default', () => {
+      const selected = themeReducer(initialState, setTheme('product'));
+      const withDefault = themeReducer(selected, setPluginDefaultTheme('product'));
+      const configuredState = themeReducer(withDefault, applyBackendThemeConfig(configured));
+
+      localStorage.setItem('headlampPreferredDarkTheme', 'Dark');
+      const actual = themeReducer(configuredState, reapplyThemePreferences(configured));
+
+      expect(actual.name).toEqual('product');
+      expect(getThemeName(configured, actual.appThemes)).toEqual('product');
+    });
+
+    it('does not keep a fallback for a missing theme as the user selection', () => {
+      localStorage.setItem('headlampThemePreference', 'Removed Plugin Theme');
+      const state = { ...initialState, name: 'Removed Plugin Theme', backendConfigReady: true };
+      const fallback = themeReducer(state, ensureValidThemeName());
+      expect(fallback.name).toEqual('Dark');
+
+      localStorage.setItem('headlampPreferredDarkTheme', 'Lights Out');
+      const actual = themeReducer(fallback, reapplyThemePreferences({}));
+
+      expect(actual.name).toEqual('Lights Out');
     });
   });
 });

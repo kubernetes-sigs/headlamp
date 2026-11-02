@@ -62,6 +62,7 @@ import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
+import PodResourceClaimsSection from './PodResourceClaimsSection';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
@@ -933,6 +934,14 @@ export default function PodDetails(props: PodDetailsProps) {
             id: 'headlamp.pod-containers',
             section: <ContainersSection resource={item} />,
           },
+          ...(item.resourceClaims.length > 0
+            ? [
+                {
+                  id: 'headlamp.pod-resource-claims',
+                  section: <PodResourceClaimsSection pod={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.pod-volumes',
             section: <VolumeSection resource={item?.jsonData} />,

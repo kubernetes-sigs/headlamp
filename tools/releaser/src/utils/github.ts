@@ -103,7 +103,8 @@ export async function checkArtifactsForRelease(releaseDraft: GitHubRelease): Pro
     `Headlamp-${releaseVersion}-win-arm64.exe`,
     `headlamp_${releaseVersion}-1_amd64.deb`,
     `checksums.txt`,
-    `checksums.txt.sigstore.json`
+    `checksums.txt.sigstore.json`,
+    `headlamp-${releaseVersion}.intoto.jsonl`
   ];
 
   // Optional assets: known/expected but not required for a release to be considered ready.

@@ -57,8 +57,8 @@ headlamp-plugin --help
                                             Options:
                                                   --version          Show version number
                                               -c, --config           Path to plugin configuration file
-                                                  --folderName       Name of the folder to install the plugin 
-                                                  --headlampVersion  Version of headlamp to install the plugin 
+                                                  --folderName       Name of the folder to install the plugin
+                                                  --headlampVersion  Version of headlamp to install the plugin
                                               -q, --quiet            Do not print logs
                                               -w, --watch            Watch config file for changes and automatically
                                                                     reinstall plugins
@@ -127,6 +127,21 @@ cd plugins/headlamp-plugin
 node ./bin/headlamp-plugin.js create myplugin --link
 ```
 
+### Storybook and test tooling
+
+The toolkit uses Storybook 10 and Vitest 5. Storybook configuration must use ESM;
+the shared configuration is `config/.storybook/main.mjs`. Existing custom
+CommonJS Storybook configurations must be migrated when upgrading.
+
+Plugin development requires Node 22.12 or newer supported by Vitest 5.
+Istanbul coverage's Babel dependencies require Node 22.18 or newer on the
+Node 22 line, or Node 24.11 or newer on the Node 24 line.
+
+Existing plugins must remove or update Vitest 3 overrides and keep coverage
+packages aligned with Vitest. They also need the template's
+`webpack-dev-middleware` override (`^7.4.6`): npm does not apply the toolkit's
+overrides when it is installed as a dependency.
+
 ### Keep the dependencies in sync with the frontend/
 
 Run `npm run update-dependencies` so the packages are kept up to date with there.
@@ -134,6 +149,9 @@ Run `npm run update-dependencies` so the packages are kept up to date with there
 A lot of the packages are shared between the two, but some are not. See
 dependencies-sync.js for lists of dependencies which are shared/not-shared.
 You may need to update these lists when adding/removing packages.
+
+Storybook versions intentionally differ from the frontend until its separate
+Storybook 10 migration is complete.
 
 Run `npm run check-dependencies` to see if frontend/package.json and
 headlamp-plugin/package.json are synced. This is run in CI to make sure when dependencies

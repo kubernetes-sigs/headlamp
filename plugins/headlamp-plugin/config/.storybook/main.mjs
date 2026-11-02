@@ -1,7 +1,12 @@
-const webpack = require('webpack');
-const path = require('path');
+import webpack from 'webpack';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
-module.exports = {
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default {
   stories: [
     '../../../../../src/**/*.stories.mdx',
     '../../../../../src/**/*.stories.@(js|jsx|ts|tsx)',

@@ -257,3 +257,93 @@ describe('Pod.addEphemeralContainer targetContainerName', () => {
     expect(ephemeralContainers[0].targetContainerName).toBeUndefined();
   });
 });
+
+describe('Pod.resourceClaims', () => {
+  const makePod = (spec: Record<string, unknown> = {}, status: Record<string, unknown> = {}) =>
+    new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'trainer', namespace: 'default', uid: 'pod-uid', creationTimestamp: '' },
+      spec: { containers: [], nodeName: '', ...spec },
+      status: { conditions: [], containerStatuses: [], phase: 'Running', startTime: '', ...status },
+    } as any);
+
+  const using = (name: string, ...claims: string[]) => ({
+    name,
+    image: 'trainer',
+    imagePullPolicy: 'IfNotPresent',
+    resources: { claims: claims.map(claim => ({ name: claim })) },
+  });
+
+  it('holds no claims when it names none', () => {
+    expect(makePod().resourceClaims).toEqual([]);
+  });
+
+  it('resolves a claim it names directly, with the containers that use it', () => {
+    const pod = makePod({
+      resourceClaims: [{ name: 'gpu', resourceClaimName: 'shared-gpu' }],
+      initContainers: [using('setup', 'gpu')],
+      containers: [using('train', 'gpu'), using('sidecar')],
+    });
+
+    expect(pod.resourceClaims).toEqual([
+      {
+        source: 'claim',
+        podClaimName: 'gpu',
+        claimName: 'shared-gpu',
+        containers: ['setup', 'train'],
+      },
+    ]);
+  });
+
+  it('reads the name of a claim generated from a template from the status', () => {
+    const pod = makePod(
+      {
+        resourceClaims: [{ name: 'gpu', resourceClaimTemplateName: 'single-gpu' }],
+        containers: [using('train', 'gpu')],
+      },
+      { resourceClaimStatuses: [{ name: 'gpu', resourceClaimName: 'trainer-gpu-x7k2q' }] }
+    );
+
+    expect(pod.resourceClaims).toEqual([
+      {
+        source: 'template',
+        podClaimName: 'gpu',
+        claimName: 'trainer-gpu-x7k2q',
+        templateName: 'single-gpu',
+        containers: ['train'],
+      },
+    ]);
+  });
+
+  it('leaves a template claim unresolved until it has been generated', () => {
+    const pod = makePod({
+      resourceClaims: [{ name: 'gpu', resourceClaimTemplateName: 'single-gpu' }],
+    });
+
+    expect(pod.resourceClaims[0].claimName).toBeUndefined();
+  });
+
+  it('finds the claim made for extended resources, which the spec does not name', () => {
+    const pod = makePod(
+      { containers: [using('train')] },
+      {
+        extendedResourceClaimStatus: {
+          resourceClaimName: 'trainer-extended-resources-p26fr',
+          requestMappings: [
+            { containerName: 'train', resourceName: 'example.com/gpu', requestName: 'container-0' },
+            { containerName: 'train', resourceName: 'example.com/nic', requestName: 'container-1' },
+          ],
+        },
+      }
+    );
+
+    expect(pod.resourceClaims).toEqual([
+      {
+        source: 'extendedResource',
+        claimName: 'trainer-extended-resources-p26fr',
+        containers: ['train'],
+      },
+    ]);
+  });
+});
