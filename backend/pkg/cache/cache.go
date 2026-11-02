@@ -29,6 +29,7 @@ import (
 // that can be used to store and retrieve values.
 type Cache[T any] interface {
 	Set(ctx context.Context, key string, value T) error
+	UpdateIf(ctx context.Context, key string, value T, matches func(T) bool) error
 	SetWithTTL(ctx context.Context, key string, value T, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	Get(ctx context.Context, key string) (T, error)
@@ -74,6 +75,26 @@ func New[T any]() Cache[T] {
 // Set stores a value in the cache.
 func (c *cache[T]) Set(ctx context.Context, key string, value T) error {
 	return c.SetWithTTL(ctx, key, value, 0)
+}
+
+// UpdateIf replaces a live entry only if it still matches the caller's expected value.
+func (c *cache[T]) UpdateIf(ctx context.Context, key string, value T, matches func(T) bool) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	current, ok := c.store[key]
+	if !ok || (!current.expiresAt.IsZero() && !current.expiresAt.After(time.Now())) {
+		return ErrNotFound
+	}
+
+	if !matches(current.value) {
+		return errors.New("cache entry changed")
+	}
+
+	current.value = value
+	c.store[key] = current
+
+	return nil
 }
 
 // SetWithTTL stores a value in the cache with a TTL.

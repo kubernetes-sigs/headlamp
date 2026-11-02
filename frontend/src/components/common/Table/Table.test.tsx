@@ -343,6 +343,21 @@ describe('Table states and options', () => {
     expect(screen.getByTestId('fullscreen-toggle')).toBeVisible();
   });
 
+  it('renders additional actions beside the standard toolbar controls', () => {
+    const renderAdditionalToolbarActions = vi.fn(() => <button>Group by label</button>);
+    renderTable({ renderAdditionalToolbarActions });
+    const table = toolbarTable();
+    const toolbar = tableMocks.options.renderToolbarInternalActions({ table });
+
+    render(<ThemeProvider theme={theme}>{toolbar}</ThemeProvider>);
+
+    expect(screen.getByTestId('search-toggle')).toBeVisible();
+    expect(screen.getByTestId('filters-toggle')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Group by label' })).toBeVisible();
+    expect(screen.getByTestId('column-visibility')).toBeVisible();
+    expect(renderAdditionalToolbarActions).toHaveBeenCalledWith({ table });
+  });
+
   it('provides an empty-results fallback to Material React Table', () => {
     renderTable();
 
@@ -418,6 +433,64 @@ describe('Table states and options', () => {
     expect(tableMocks.options.state.columnVisibility).toEqual({});
 
     clientWidth.mockRestore();
+  });
+
+  it('does not responsively hide columns that disable hiding', () => {
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150);
+
+    renderTable({
+      columns: [
+        { id: 'selected', accessorKey: 'selected', header: 'Selection' },
+        {
+          id: 'name',
+          accessorKey: 'name',
+          header: 'Name',
+          enableHiding: false,
+          responsivePriority: -1,
+        },
+        { id: 'status', header: 'Status' },
+      ],
+    });
+
+    expect(tableMocks.options.state.columnVisibility).toEqual({ status: false });
+
+    clientWidth.mockRestore();
+  });
+
+  it('does not keep restoring the actions column while responsive layout hides it', () => {
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150);
+    tableMocks.columnVisibility = { actions: false };
+
+    renderTable({
+      columns: [
+        { id: 'name', accessorKey: 'name', header: 'Name' },
+        { id: 'actions', header: 'Actions' },
+      ],
+    });
+
+    expect(tableMocks.options.state.columnVisibility.actions).toBe(false);
+    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+
+    clientWidth.mockRestore();
+  });
+
+  it('honors explicit visibility for locked columns over internal visibility', () => {
+    renderTable({
+      columns: [
+        { id: 'name', header: 'Name' },
+        { id: 'labels', header: 'Labels', enableHiding: false },
+        { id: 'group', header: 'Group', enableHiding: false },
+        { id: 'status', header: 'Status' },
+      ],
+      initialState: { columnVisibility: { labels: false, group: true, status: false } },
+      state: { columnVisibility: { labels: true, group: false, status: true } },
+    });
+
+    expect(tableMocks.options.state.columnVisibility).toEqual({
+      labels: true,
+      group: false,
+      status: false,
+    });
   });
 
   it('hides and restores the actions column with data-column visibility', () => {

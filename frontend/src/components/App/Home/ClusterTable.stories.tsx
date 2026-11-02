@@ -15,7 +15,11 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { useEffect } from 'react';
+import { storeClusterSettings } from '../../../helpers/clusterSettings';
+import { ClusterTags } from '../../../helpers/clusterTags';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import { Cluster } from '../../../lib/k8s/cluster';
 import { TestContext } from '../../../test';
 import ClusterTable, { ClusterTableProps } from './ClusterTable';
 import {
@@ -34,6 +38,18 @@ export default {
 
 const ALL_CONNECTED = new Set(CLUSTERS.map(cluster => cluster.name));
 
+const ORGANIZATION_STORAGE_KEYS = [
+  'table_group_by.home-clusters',
+  'table_collapsed_groups.home-clusters',
+];
+
+function clearClusterOrganization() {
+  ORGANIZATION_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+  Object.keys(localStorage)
+    .filter(key => key.startsWith('cluster_settings.'))
+    .forEach(key => localStorage.removeItem(key));
+}
+
 const Template: StoryFn<ClusterTableProps> = args => {
   // The table seeds its column visibility, sorting and filter state from
   // localStorage, so clear it to keep the snapshots independent of whatever
@@ -41,12 +57,62 @@ const Template: StoryFn<ClusterTableProps> = args => {
   localStorage.removeItem('table_settings.home-clusters');
   localStorage.removeItem('table_sorting.home-clusters');
   localStorage.removeItem('table_filters.home-clusters');
+  clearClusterOrganization();
 
   return (
     <TestContext>
       <ClusterTable {...args} />
     </TestContext>
   );
+};
+
+interface OrganizationArgs {
+  tags: Record<string, ClusterTags>;
+  tagFilter?: string;
+  groupBy?: string;
+}
+
+/** Seeds cluster tags and Home organization choices, removing them again on unmount. */
+function WithOrganization({
+  tags,
+  tagFilter,
+  groupBy,
+  ...args
+}: ClusterTableProps & OrganizationArgs) {
+  localStorage.removeItem('table_settings.home-clusters');
+  localStorage.removeItem('table_sorting.home-clusters');
+  localStorage.removeItem('table_filters.home-clusters');
+  clearClusterOrganization();
+  Object.entries(tags).forEach(([cluster, clusterTags]) =>
+    storeClusterSettings(cluster, { tags: clusterTags })
+  );
+  if (tagFilter) {
+    localStorage.setItem(
+      'table_filters.home-clusters',
+      JSON.stringify([{ id: 'tags', value: tagFilter }])
+    );
+  }
+  if (groupBy) {
+    localStorage.setItem('table_group_by.home-clusters', JSON.stringify(groupBy));
+  }
+
+  useEffect(() => clearClusterOrganization, []);
+
+  return (
+    <TestContext>
+      <ClusterTable {...args} />
+    </TestContext>
+  );
+}
+
+const OrganizationTemplate: StoryFn<ClusterTableProps & OrganizationArgs> = args => (
+  <WithOrganization {...args} />
+);
+
+const STORY_TAGS: Record<string, ClusterTags> = {
+  'aks-prod': { environment: 'production', region: 'eu-west' },
+  'in-cluster': { environment: 'staging' },
+  'plugin-cluster': { environment: 'production', region: 'us-east' },
 };
 
 const baseArgs: ClusterTableProps = {
@@ -63,6 +129,56 @@ const baseArgs: ClusterTableProps = {
 // covers every branch of getOrigin.
 export const Default = Template.bind({});
 Default.args = baseArgs;
+
+// Clusters with local tags: grouping is available in the table toolbar,
+// and the tags column shows each cluster's tags as chips.
+export const WithTags = OrganizationTemplate.bind({});
+WithTags.args = { ...baseArgs, tags: STORY_TAGS };
+
+// The existing Tags column filter narrows the table to matching clusters.
+export const FilteredByTags = OrganizationTemplate.bind({});
+FilteredByTags.args = {
+  ...baseArgs,
+  tags: STORY_TAGS,
+  tagFilter: 'region=eu-west',
+};
+
+// Grouped by a tag key, with clusters missing the label listed under "Ungrouped".
+export const GroupedByTag = OrganizationTemplate.bind({});
+GroupedByTag.args = { ...baseArgs, tags: STORY_TAGS, groupBy: 'environment' };
+
+const LARGE_INVENTORY_GROUPS: [environment: string, count: number][] = [
+  ['production', 18],
+  ['staging', 9],
+  ['development', 13],
+];
+
+const LARGE_INVENTORY: Cluster[] = LARGE_INVENTORY_GROUPS.flatMap(([environment, count]) =>
+  Array.from({ length: count }, (_, index) => ({
+    name: `${environment}-${String(index + 1).padStart(2, '0')}`,
+    auth_type: '',
+    meta_data: { source: 'kubeconfig', origin: { kubeconfig: '/home/user/.kube/config' } },
+  }))
+).sort((a, b) => a.name.localeCompare(b.name));
+
+// More clusters than fit on a page, grouped: a group running onto the next page shows its
+// heading again there, and selecting all only selects the clusters on screen.
+export const GroupedLargeInventory = OrganizationTemplate.bind({});
+GroupedLargeInventory.args = {
+  ...baseArgs,
+  customNameClusters: LARGE_INVENTORY,
+  clusters: Object.fromEntries(LARGE_INVENTORY.map(cluster => [cluster.name, cluster])),
+  versions: Object.fromEntries(
+    LARGE_INVENTORY.map(cluster => [cluster.name, { gitVersion: 'v1.31.2' }])
+  ),
+  errors: Object.fromEntries(LARGE_INVENTORY.map(cluster => [cluster.name, null])),
+  warningLabels: Object.fromEntries(LARGE_INVENTORY.map(cluster => [cluster.name, '0'])),
+  connectedClusterNames: new Set(LARGE_INVENTORY.map(cluster => cluster.name)),
+  tags: Object.fromEntries(
+    LARGE_INVENTORY.map(cluster => [cluster.name, { environment: cluster.name.split('-')[0] }])
+  ),
+  groupBy: 'environment',
+};
 
 // Clusters outside the auto-connect set and without an error yet: the status
 // cell offers a Connect action and the warnings/version cells stay blank.

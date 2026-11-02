@@ -1397,6 +1397,14 @@ func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shoul
 func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
 	ignoreFunc shouldBeSkippedFunc,
 ) error {
+	return withKubeConfigLocks(kubeConfigs, func() error {
+		return loadAndStoreKubeConfigs(kubeConfigStore, kubeConfigs, source, ignoreFunc)
+	})
+}
+
+func loadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
+	ignoreFunc shouldBeSkippedFunc,
+) error {
 	var errs []error
 
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)

@@ -60,6 +60,28 @@ func (m *MockCache) Set(ctx context.Context, key, value string) error {
 	return nil
 }
 
+func (m *MockCache) UpdateIf(ctx context.Context, key, value string, matches func(string) bool) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	current, ok := m.store[key]
+	if !ok {
+		return cache.ErrNotFound
+	}
+
+	if !matches(current) {
+		return errors.New("cache entry changed")
+	}
+
+	m.store[key] = value
+
+	return nil
+}
+
 // SetWithTTL Mocks storing of value with its corresponding key string with time-to-live.
 func (m *MockCache) SetWithTTL(ctx context.Context, key, value string, ttl time.Duration) error {
 	return m.Set(ctx, key, value)

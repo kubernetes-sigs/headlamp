@@ -16,14 +16,16 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { loadClusterSettings } from '../../../../helpers/clusterSettings';
+import { ClusterTags, getClusterConfigIdentity } from '../../../../helpers/clusterTags';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
-import type { ConfigState } from '../../../../redux/configSlice';
+import type { ConfigState, setConfig } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
 import { storeStatelessClusterKubeconfig } from '../../../../stateless';
 import { deleteClusterKubeconfig } from '../../../../stateless/deleteClusterKubeconfig';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getCluster, getSelectedClusters } from '../../../cluster';
+import type { Cluster } from '../../cluster';
 import type { ClusterRequest } from './clusterRequests';
 import { clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
@@ -303,6 +305,34 @@ export async function renameCluster(
     false,
     false
   );
+}
+
+/** Saves Headlamp tags and returns the name-keyed config shape used by Redux. */
+export async function updateClusterTags(cluster: string, tags: ClusterTags, clusterID?: string) {
+  const submittedIdentities = getClusterConfigIdentity(store.getState().config.clusters);
+  const config: Omit<Parameters<typeof setConfig>[0], 'clusters'> & { clusters: Cluster[] } =
+    await request(
+      `/cluster/${encodeURIComponent(cluster)}/tags`,
+      {
+        method: 'PUT',
+        headers: { ...addBackstageAuthHeaders(JSON_HEADERS), ...getHeadlampAPIHeaders() },
+        body: JSON.stringify({ tags, clusterID }),
+      },
+      false,
+      false
+    );
+  const currentClusters = store.getState().config.clusters;
+  if (getClusterConfigIdentity(currentClusters) !== submittedIdentities) {
+    throw new Error('Cluster configuration changed while saving cluster tags');
+  }
+  const clusters: NonNullable<ConfigState['clusters']> = Object.fromEntries(
+    config.clusters.map(entry => {
+      const name: string = entry.meta_data?.extensions?.headlamp_info?.customName || entry.name;
+      const useToken = currentClusters?.[name]?.useToken;
+      return [name, { ...entry, name, ...(useToken !== undefined ? { useToken } : {}) }];
+    })
+  );
+  return { ...config, clusters };
 }
 
 /**

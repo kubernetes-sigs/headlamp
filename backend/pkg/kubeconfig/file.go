@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -15,6 +17,34 @@ import (
 )
 
 const timeoutForLock = 30 * time.Second
+
+var kubeConfigOperationLocks sync.Map
+
+// withKubeConfigLocks orders in-process reload publication with writes without
+// requiring read-only kubeconfig directories to support a writable lock file.
+func withKubeConfigLocks(paths string, action func() error) error {
+	configPaths := splitKubeConfigPath(paths)
+	for index, path := range configPaths {
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+
+		configPaths[index] = absolute
+	}
+
+	slices.Sort(configPaths)
+	configPaths = slices.Compact(configPaths)
+
+	for _, path := range configPaths {
+		value, _ := kubeConfigOperationLocks.LoadOrStore(path, &sync.Mutex{})
+		lock := value.(*sync.Mutex)
+		lock.Lock()
+		defer lock.Unlock()
+	}
+
+	return action()
+}
 
 // lockKubeConfigFile acquires an exclusive file lock on configPath + ".lock",
 // blocking up to the deadline in ctx. It returns whether the lock was acquired,
@@ -29,6 +59,61 @@ func lockKubeConfigFile(ctx context.Context, configPath string) (bool, *flock.Fl
 	locked, err := fileLock.TryLockContext(ctx, time.Second)
 
 	return locked, fileLock, err
+}
+
+// ModifyConfigFile holds the shared file lock across loading, modifying, writing
+// and publishing the committed kubeconfig to optional callbacks.
+func ModifyConfigFile(
+	path string, modify func(*clientcmdapi.Config) error, committed ...func(*clientcmdapi.Config) error,
+) error {
+	return withKubeConfigLocks(path, func() error {
+		return modifyConfigFile(path, modify, committed...)
+	})
+}
+
+func modifyConfigFile(
+	path string, modify func(*clientcmdapi.Config) error, committed ...func(*clientcmdapi.Config) error,
+) error {
+	lockCtx, cancel := context.WithTimeout(context.Background(), timeoutForLock)
+	defer cancel()
+
+	locked, fileLock, err := lockKubeConfigFile(lockCtx, path)
+	if err == nil && locked {
+		defer func() {
+			if unlockErr := fileLock.Unlock(); unlockErr != nil {
+				logger.Log(logger.LevelError, nil, unlockErr, "unlocking kubeconfig file")
+			}
+		}()
+	}
+
+	if err != nil || !locked {
+		if err == nil {
+			err = fmt.Errorf("failed to acquire file lock for %q within %s", path, timeoutForLock)
+		}
+
+		return fmt.Errorf("locking kubeconfig file %q: %w", path, err)
+	}
+
+	config, err := clientcmd.LoadFromFile(path)
+	if err != nil {
+		return err
+	}
+
+	if err := modify(config); err != nil {
+		return err
+	}
+
+	if err := clientcmd.WriteToFile(*config, path); err != nil {
+		return err
+	}
+
+	for _, publish := range committed {
+		if err := publish(config); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // WriteToFile writes the given config to the kubeconfig file.

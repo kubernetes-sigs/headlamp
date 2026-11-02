@@ -65,6 +65,31 @@ Absolutely! Headlamp can be deployed directly within your Kubernetes cluster. De
 
 Yes, Headlamp allows you to monitor multiple clusters. You can switch between different clusters using the cluster switcher in the Headlamp interface.
 
+### How can I organize a long list of clusters on the Home page?
+
+You can organize clusters with tags such as `environment=production` or `team=platform` using **Edit tags** from a cluster's Home page menu or from its settings. Tags are Headlamp metadata, not Kubernetes resource labels. For writable kubeconfig contexts, they are saved in the `headlamp_info.tags` context extension alongside the custom cluster name and survive renaming and reimporting that kubeconfig. Sources without a writable kubeconfig context use browser-local tags instead; the editor explains where they will be saved.
+
+Tag editing is disabled while a save is in progress. If saving fails, the editor retains the submitted draft so you can retry. If the context is removed, replaced or becomes ambiguous while saving, Headlamp reports an error rather than applying the saved snapshot to a different context.
+
+In **All Clusters**, click a tag to filter by its exact key and value, or type free text in the **Tags** column filter. Only one tag filter is active at a time: clicking another tag replaces it, and clicking the same tag again clears it. While a tag filter is active, the Tags column stays visible, including on narrow screens, so you can clear it using the table filters. Use the **Group by tag** button beside the search and filter buttons to choose a grouping key. The button is highlighted while grouping is active; choose **None** in its menu to turn grouping off.
+
+For example, the kubeconfig context extension looks like this:
+
+```yaml
+contexts:
+  - name: my-context
+    context:
+      cluster: my-cluster
+      user: my-user
+      extensions:
+        - name: headlamp_info
+          extension:
+            customName: production
+            tags:
+              environment: production
+              team: platform
+```
+
 ### Can I manage my Kubernetes resources directly through Headlamp?
 
 Yes, Headlamp enables direct management of Kubernetes resources through its user interface as allowed by the user's role and permissions.

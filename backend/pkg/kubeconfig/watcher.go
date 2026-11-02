@@ -150,6 +150,12 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
 func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
+	return withKubeConfigLocks(paths, func() error {
+		return syncContextsLocked(kubeConfigStore, paths, source, ignoreFunc)
+	})
+}
+
+func syncContextsLocked(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
 	existingPaths := existingKubeConfigPaths(paths)
 
 	// First read all kubeconfig files to get new contexts
@@ -201,7 +207,7 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	}
 
 	// Now load and store the new configurations
-	err = LoadAndStoreKubeConfigs(kubeConfigStore, existingPaths, source, ignoreFunc)
+	err = loadAndStoreKubeConfigs(kubeConfigStore, existingPaths, source, ignoreFunc)
 	if err != nil {
 		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
