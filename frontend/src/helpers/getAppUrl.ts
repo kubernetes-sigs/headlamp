@@ -72,8 +72,8 @@ export function getAppUrl(): string {
     url = window.location.origin;
   }
 
-  const baseUrl = getBaseUrl();
-  url += baseUrl ? baseUrl + '/' : '/';
+  const baseUrl = getBaseUrl().replace(/^\/+|\/+$/g, '');
+  url += baseUrl ? `/${baseUrl}/` : '/';
 
   return url;
 }
