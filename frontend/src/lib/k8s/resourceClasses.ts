@@ -24,6 +24,7 @@ import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import DeviceClass from './deviceClass';
+import DeviceTaintRule from './deviceTaintRule';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
@@ -76,6 +77,7 @@ export const ResourceClasses = {
   DaemonSet,
   Deployment,
   DeviceClass,
+  DeviceTaintRule,
   Endpoint: Endpoints,
   Endpoints,
   EndpointSlice,

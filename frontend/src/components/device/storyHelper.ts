@@ -15,10 +15,90 @@
  */
 
 import type { KubeDeviceClass } from '../../lib/k8s/deviceClass';
+import type { KubeDeviceTaintRule } from '../../lib/k8s/deviceTaintRule';
 import type { KubeResourceClaim } from '../../lib/k8s/resourceClaim';
 import type { KubeResourceClaimTemplate } from '../../lib/k8s/resourceClaimTemplate';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
+
+export const DEVICE_TAINT_RULE_DUMMY_DATA: KubeDeviceTaintRule[] = [
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'DeviceTaintRule',
+    metadata: {
+      name: 'gpu-maintenance',
+      creationTimestamp,
+      uid: 'device-taint-rule-uid-1',
+    },
+    spec: {
+      deviceSelector: {
+        driver: 'gpu.example.com',
+        pool: 'gpu-worker-0',
+      },
+      taint: {
+        key: 'gpu.example.com/maintenance',
+        value: 'scheduled',
+        effect: 'NoExecute',
+        timeAdded: new Date('2022-01-02').toISOString(),
+      },
+    },
+    status: {
+      conditions: [
+        {
+          type: 'EvictionInProgress',
+          status: 'False',
+          lastProbeTime: null,
+          lastTransitionTime: new Date('2022-01-02').toISOString(),
+          reason: 'Completed',
+          message: 'No pods need to be evicted.',
+        },
+      ],
+    },
+  },
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'DeviceTaintRule',
+    metadata: {
+      name: 'all-devices-health',
+      creationTimestamp,
+      uid: 'device-taint-rule-uid-2',
+    },
+    spec: {
+      deviceSelector: {},
+      taint: {
+        key: 'device.example.com/health',
+        effect: 'None',
+      },
+    },
+    status: {
+      conditions: [
+        {
+          type: 'EvictionInProgress',
+          status: 'True',
+          lastProbeTime: null,
+          lastTransitionTime: new Date('2022-01-02').toISOString(),
+          reason: 'Evicting',
+          message: '1 pod is being evicted.',
+        },
+      ],
+    },
+  },
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'DeviceTaintRule',
+    metadata: {
+      name: 'draft-rule',
+      creationTimestamp,
+      uid: 'device-taint-rule-uid-3',
+    },
+    spec: {
+      taint: {
+        key: 'device.example.com/draft',
+        effect: 'NoSchedule',
+      },
+    },
+  },
+];
 
 /** Device classes as published by the dra-example-driver, plus hand-written variants. */
 export const DEVICE_CLASS_DUMMY_DATA: KubeDeviceClass[] = [
