@@ -231,7 +231,7 @@
   "Min": "Min",
   "Max": "Max",
   "Cluster IP": "IP cluster",
-  "Devices (alpha)": "Périphériques (alpha)",
+  "Devices (alpha)": "",
   "Scheduling (alpha)": "Ordonnancement (alpha)",
   "TCP Routes": "Routes TCP",
   "UDP Routes": "Routes UDP",
