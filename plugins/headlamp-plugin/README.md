@@ -167,10 +167,11 @@ Plugin development requires Node 22.12 or newer supported by Vitest 5.
 Istanbul coverage's Babel dependencies require Node 22.18 or newer on the
 Node 22 line, or Node 24.11 or newer on the Node 24 line.
 
-Existing plugins must remove or update Vitest 3 overrides and keep coverage
-packages aligned with Vitest. They also need the template's
-`webpack-dev-middleware` override (`^7.4.6`): npm does not apply the toolkit's
-overrides when it is installed as a dependency.
+Use `headlamp-plugin upgrade` to refresh template-managed scripts, TypeScript
+files, lint configuration, and overrides, including Vitest/coverage and the
+`webpack-dev-middleware` override (`^7.4.6`). npm does not apply the toolkit's
+overrides when it is installed as a dependency. Review any separately declared
+tooling dependencies and custom Storybook configuration for compatibility.
 
 ### Keep the dependencies in sync with the frontend/
 
@@ -189,7 +190,18 @@ are changed, they are synced appropriately.
 
 ### Upgrading to an alpha release
 
-You can try an alpha release for testing with the following command.
+Commit or back up your plugin first. The upgrade command replaces template-managed
+configuration, regenerates `node_modules` and the lockfile, runs `npm audit fix`,
+and formats, lints, and type-checks the plugin. Review the resulting diff;
+custom Storybook configuration and your Node installation are not migrated.
+
+After publication, upgrade to a specific prerelease with:
+
+```bash
+npx @kinvolk/headlamp-plugin@0.15.0-alpha.0 upgrade --headlamp-plugin-version=0.15.0-alpha.0 your-plugin-folder
+```
+
+Or explicitly opt in to whichever prerelease is currently tagged `alpha`:
 
 ```bash
 npx @kinvolk/headlamp-plugin@alpha upgrade --headlamp-plugin-version=alpha your-plugin-folder
