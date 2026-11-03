@@ -52,7 +52,7 @@ You can also associate resources with a project by importing a YAML file:
    - **Project Name** — A unique name for your project.
    - **Clusters** — Select the cluster where the YAML resources will be created (only one cluster can be selected at a time).
 
-3. Under **Load resources**, upload a file or paste a URL to a hosted YAML file.
+3. Under **Load resources**, upload a YAML file using **Upload Files**, or select **Load from URL**, enter a URL to a hosted YAML file, and click **Load**. Wait for the resources to appear before continuing.
 4. Click **Create** to finalize.
 
 ![Create Project from YAML](https://github.com/user-attachments/assets/44469721-09b3-4822-ae5c-3b266a65c9ae)
