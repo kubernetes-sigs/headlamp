@@ -21,6 +21,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
+import FormHelperText from '@mui/material/FormHelperText';
 import Input from '@mui/material/Input';
 import InputLabel from '@mui/material/InputLabel';
 import _ from 'lodash';
@@ -49,6 +50,9 @@ const uniqueString = () => {
 };
 
 const maxNameLength = 63;
+// Job names are DNS-1123 subdomains. They're also copied into the job-name label on the
+// Job's pods, which is why they can't be longer than maxNameLength.
+const jobNameRegex = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
 
 function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: () => void }) {
   const { cronJob, cluster: clusterProp, onClose } = props;
@@ -60,6 +64,15 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
   const [jobName, setJobName] = useState(
     () => `${cronJob?.metadata?.name.substring(0, maxNameLength - suffix.length)}${suffix}`
   );
+
+  const isValidJobName = jobName.length <= maxNameLength && jobNameRegex.test(jobName);
+  const showJobNameError = !isValidJobName && jobName.length > 0;
+  const jobNameHelperMessage =
+    jobName.length > maxNameLength
+      ? t('translation|Job names must be under 64 characters.')
+      : t(
+          "translation|Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character."
+        );
 
   function handleSpawn() {
     const job = _.cloneDeep(cronJob.spec.jobTemplate);
@@ -128,16 +141,23 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
           type="text"
           fullWidth
           value={jobName}
+          error={showJobNameError}
+          inputProps={{ 'aria-describedby': showJobNameError ? 'name-helper-text' : undefined }}
           onChange={e => {
             setJobName(e.target.value);
           }}
         />
+        {showJobNameError && (
+          <FormHelperText id="name-helper-text" error>
+            {jobNameHelperMessage}
+          </FormHelperText>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} color="primary">
           {t('translation|Cancel')}
         </Button>
-        <Button onClick={handleSpawn} color="primary">
+        <Button onClick={handleSpawn} color="primary" disabled={!isValidJobName}>
           {t('translation|Spawn')}
         </Button>
       </DialogActions>
