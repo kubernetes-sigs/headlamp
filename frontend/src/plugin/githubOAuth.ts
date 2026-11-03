@@ -39,7 +39,7 @@ export interface GitHubOAuthBridge {
 
 /** Facade available to the granted plugin as the lexical `pluginGitHubOAuth`. */
 export interface PluginGitHubOAuth {
-  /** Opens the browser; resolves with the sign-in status after it completes, without tokens. */
+  /** Starts or joins this facade's pending sign-in; resolves with its status, without tokens. */
   startGitHubOAuth(): Promise<{ success: boolean; error?: string }>;
   /** Receives completed sign-in results for this plugin only. */
   onGitHubOAuthCallback(callback: (result: GitHubOAuthResult) => void): () => void;
@@ -77,26 +77,38 @@ export function createPluginGitHubOAuth(
   const listeners = new Set<(result: GitHubOAuthResult) => void>();
   const consoleError = console.error;
   const failed = (error: string): GitHubOAuthResult => ({ success: false, error });
+  let inFlight: Promise<{ success: boolean; error?: string }> | undefined;
+  const listenerFailed = () => {
+    // Do not log the error: it may embed token values from the result.
+    consoleError('GitHub OAuth listener failed');
+  };
 
   return Object.freeze({
-    async startGitHubOAuth() {
-      let result: GitHubOAuthResult;
-      try {
-        result = await start(capability);
-      } catch {
-        result = failed('GitHub sign-in failed');
-      }
-      for (const listener of [...listeners]) {
+    startGitHubOAuth() {
+      if (inFlight) return inFlight;
+      // Assign the operation before invoking the bridge, including synchronous failures.
+      const operation = Promise.resolve().then(async () => {
+        let result: GitHubOAuthResult;
         try {
-          listener(result);
+          result = await start(capability);
         } catch {
-          // Do not log the error: it may embed token values from the result.
-          consoleError('GitHub OAuth listener failed');
+          result = failed('GitHub sign-in failed');
         }
-      }
-      return result.error === undefined
-        ? { success: result.success }
-        : { success: result.success, error: result.error };
+        // A listener may immediately start a fresh sign-in after this one completes.
+        if (inFlight === operation) inFlight = undefined;
+        for (const listener of [...listeners]) {
+          try {
+            Promise.resolve(listener(result)).catch(listenerFailed);
+          } catch {
+            listenerFailed();
+          }
+        }
+        return result.error === undefined
+          ? { success: result.success }
+          : { success: result.success, error: result.error };
+      });
+      inFlight = operation;
+      return operation;
     },
     onGitHubOAuthCallback(callback: (result: GitHubOAuthResult) => void) {
       const listener = (result: GitHubOAuthResult) => callback(result);

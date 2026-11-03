@@ -20,6 +20,7 @@ import {
   captureGitHubOAuthBridge,
   createPluginGitHubOAuth,
   getPluginGitHubOAuthArgValues,
+  type GitHubOAuthResult,
 } from './githubOAuth';
 import type { PluginInfo } from './pluginsSlice';
 
@@ -102,41 +103,128 @@ describe('createPluginGitHubOAuth', () => {
   it('delivers start results only to this facade and returns token-free status', async () => {
     const raw = bridge();
     const facade = createPluginGitHubOAuth(CAPABILITY, raw);
-    const other = createPluginGitHubOAuth('b'.repeat(64), bridge());
+    const otherRaw = bridge();
+    const other = createPluginGitHubOAuth('b'.repeat(64), otherRaw);
     const listener = vi.fn();
     const otherListener = vi.fn();
     facade.onGitHubOAuthCallback(listener);
     other.onGitHubOAuthCallback(otherListener);
 
-    const status = await facade.startGitHubOAuth();
+    const pending = facade.startGitHubOAuth();
+    const otherPending = other.startGitHubOAuth();
+    const status = await pending;
 
-    expect(raw.start).toHaveBeenCalledWith(CAPABILITY);
+    expect(raw.start).toHaveBeenCalledExactlyOnceWith(CAPABILITY);
+    expect(otherRaw.start).toHaveBeenCalledExactlyOnceWith('b'.repeat(64));
     expect(status).toEqual({ success: true });
+    expect(await otherPending).toEqual({ success: true });
     expect(JSON.stringify(status)).not.toContain('ghu_token');
-    expect(listener).toHaveBeenCalledWith(TOKENS);
-    expect(otherListener).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledExactlyOnceWith(TOKENS);
+    expect(otherListener).toHaveBeenCalledExactlyOnceWith(TOKENS);
   });
 
-  it('returns failures with their error and notifies listeners', async () => {
+  it('does not notify overlapping subscribers before their shared sign-in completes', async () => {
+    let resolveFirst!: (result: GitHubOAuthResult) => void;
+    let resolveSecond!: (result: GitHubOAuthResult) => void;
+    const first = new Promise<GitHubOAuthResult>(resolve => {
+      resolveFirst = resolve;
+    });
+    const second = new Promise<GitHubOAuthResult>(resolve => {
+      resolveSecond = resolve;
+    });
+    const raw = bridge();
+    raw.start
+      .mockImplementationOnce(() => first)
+      .mockImplementationOnce(() => {
+        resolveFirst({
+          success: false,
+          error: 'GitHub sign-in was replaced by a newer request',
+        });
+        return second;
+      });
+    const facade = createPluginGitHubOAuth(CAPABILITY, raw);
+    const firstListener = vi.fn();
+    const secondListener = vi.fn();
+    facade.onGitHubOAuthCallback(firstListener);
+    const firstStatus = facade.startGitHubOAuth();
+    facade.onGitHubOAuthCallback(secondListener);
+    const secondStatus = facade.startGitHubOAuth();
+
+    // Flush replacement-result continuations without awaiting the still-pending sign-in.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(secondListener).not.toHaveBeenCalled();
+
+    resolveFirst(TOKENS);
+    resolveSecond(TOKENS);
+    expect(await Promise.all([firstStatus, secondStatus])).toEqual([
+      { success: true },
+      { success: true },
+    ]);
+    expect(firstListener).toHaveBeenCalledExactlyOnceWith(TOKENS);
+    expect(secondListener).toHaveBeenCalledExactlyOnceWith(TOKENS);
+    expect(raw.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns host failures, notifies listeners and permits a successful retry', async () => {
     const failure = { success: false, error: 'GitHub sign-in timed out. Please try again.' };
-    const facade = createPluginGitHubOAuth(CAPABILITY, bridge(failure));
+    const raw = bridge();
+    raw.start.mockResolvedValueOnce(failure);
+    const facade = createPluginGitHubOAuth(CAPABILITY, raw);
     const listener = vi.fn();
     facade.onGitHubOAuthCallback(listener);
 
     await expect(facade.startGitHubOAuth()).resolves.toEqual(failure);
-    expect(listener).toHaveBeenCalledWith(failure);
+    expect(listener).toHaveBeenCalledExactlyOnceWith(failure);
+    await expect(facade.startGitHubOAuth()).resolves.toEqual({ success: true });
+    expect(listener).toHaveBeenNthCalledWith(2, TOKENS);
+    expect(raw.start).toHaveBeenCalledTimes(2);
   });
 
-  it('converts bridge rejections to sanitized failures', async () => {
-    const raw = { start: vi.fn().mockRejectedValue(new Error('ghr_secret')), refresh: vi.fn() };
-    raw.refresh.mockRejectedValue(new Error('ghr_secret'));
-    const facade = createPluginGitHubOAuth(CAPABILITY, raw);
+  it.each(['rejection', 'synchronous throw'])(
+    'sanitizes bridge %s and permits retry',
+    async mode => {
+      const raw = bridge();
+      raw.start.mockImplementationOnce(() => {
+        if (mode === 'synchronous throw') throw new Error('ghr_secret');
+        return Promise.reject(new Error('ghr_secret'));
+      });
+      raw.refresh.mockRejectedValue(new Error('ghr_secret'));
+      const facade = createPluginGitHubOAuth(CAPABILITY, raw);
 
-    const status = await facade.startGitHubOAuth();
-    const refreshed = await facade.refreshGitHubOAuth('ghr_old');
-    expect(status).toEqual({ success: false, error: expect.any(String) });
-    expect(refreshed).toEqual({ success: false, error: expect.any(String) });
-    expect(JSON.stringify([status, refreshed])).not.toContain('ghr_secret');
+      const status = await facade.startGitHubOAuth();
+      const refreshed = await facade.refreshGitHubOAuth('ghr_old');
+      expect(status).toEqual({ success: false, error: 'GitHub sign-in failed' });
+      expect(refreshed).toEqual({ success: false, error: expect.any(String) });
+      expect(JSON.stringify([status, refreshed])).not.toContain('ghr_secret');
+      await expect(facade.startGitHubOAuth()).resolves.toEqual({ success: true });
+      expect(raw.start).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('lets a failure listener start a deferred retry that a third start joins', async () => {
+    const failure = { success: false, error: 'GitHub sign-in timed out. Please try again.' };
+    let resolveRetry!: (result: GitHubOAuthResult) => void;
+    const deferred = new Promise<GitHubOAuthResult>(resolve => {
+      resolveRetry = resolve;
+    });
+    const raw = bridge();
+    raw.start.mockResolvedValueOnce(failure).mockReturnValueOnce(deferred);
+    const facade = createPluginGitHubOAuth(CAPABILITY, raw);
+    let retry!: ReturnType<typeof facade.startGitHubOAuth>;
+    const listener = vi.fn((result: GitHubOAuthResult) => {
+      if (!result.success) retry = facade.startGitHubOAuth();
+    });
+    facade.onGitHubOAuthCallback(listener);
+
+    await expect(facade.startGitHubOAuth()).resolves.toEqual(failure);
+    const third = facade.startGitHubOAuth();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(raw.start).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledExactlyOnceWith(failure);
+    resolveRetry(TOKENS);
+    expect(await Promise.all([retry, third])).toEqual([{ success: true }, { success: true }]);
+    expect(listener).toHaveBeenNthCalledWith(2, TOKENS);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it('unsubscribes listeners and isolates listener failures', async () => {
@@ -148,14 +236,21 @@ describe('createPluginGitHubOAuth', () => {
     facade.onGitHubOAuthCallback(() => {
       throw new Error('ghu_token listener failure');
     });
+    facade.onGitHubOAuthCallback(async () => {
+      throw new Error('ghu_token async listener failure');
+    });
+    facade.onGitHubOAuthCallback(() => new Promise(() => {}));
     facade.onGitHubOAuthCallback(later);
     unsubscribe();
 
     await expect(facade.startGitHubOAuth()).resolves.toEqual({ success: true });
     expect(removed).not.toHaveBeenCalled();
-    expect(later).toHaveBeenCalledWith(TOKENS);
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('ghu_token');
+    expect(later).toHaveBeenCalledExactlyOnceWith(TOKENS);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const logged = consoleError.mock.calls;
     consoleError.mockRestore();
+    expect(logged).toEqual([['GitHub OAuth listener failed'], ['GitHub OAuth listener failed']]);
+    expect(JSON.stringify(logged)).not.toContain('ghu_token');
   });
 
   it('refreshes through the private bridge with the bound capability', async () => {
