@@ -29,6 +29,8 @@ function testHeadlampPlugin() {
   // remove some temporary files.
   cleanup();
 
+  checkTemplateLockHasNoPluginIntegrity();
+
   // Make a package file of headlamp-plugin we can test
   run('npm', ['install']);
   run('npm', ['run', 'test:storybook-mocks']);
@@ -321,6 +323,23 @@ function checkFileContains(fname, expectedContent) {
   if (!fs.readFileSync(fname, 'utf8').includes(expectedContent)) {
     exit(`Error: ${fname} does not export ${expectedContent}.`);
   }
+}
+/**
+ * The template's package-lock.json is made from a local "npm pack", so it can't know the
+ * integrity of the published @kinvolk/headlamp-plugin. If it pins one, "npm ci" fails with
+ * EINTEGRITY in plugins made with "create --noinstall".
+ */
+function checkTemplateLockHasNoPluginIntegrity() {
+  const lockPath = join('template', 'package-lock.json');
+  const packageLock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  const headlampPluginLock = packageLock.packages?.['node_modules/@kinvolk/headlamp-plugin'];
+  if (!headlampPluginLock) {
+    exit(`Error: ${lockPath} has no entry for @kinvolk/headlamp-plugin.`);
+  }
+  if (headlampPluginLock.integrity) {
+    exit(`Error: ${lockPath} pins an integrity for @kinvolk/headlamp-plugin.`);
+  }
+  console.log('✓ template package-lock.json has no integrity for @kinvolk/headlamp-plugin');
 }
 function exit(message) {
   console.error(message);

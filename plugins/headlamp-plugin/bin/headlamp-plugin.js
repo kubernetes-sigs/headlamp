@@ -152,22 +152,18 @@ function create(name, link, noInstall) {
       const npmJsPkg = JSON.parse(npmJsPkgResponse);
       const npmJsIntegrity = npmJsPkg.integrity;
 
-      // Now replace integrity in the package-lock.json to match npmjs registry integrity.
+      // Now set integrity in the package-lock.json to match npmjs registry integrity.
+      // The template has none for @kinvolk/headlamp-plugin, since it's made from a
+      // local "npm pack" whose integrity never matches the published package.
       // "node_modules/@kinvolk/headlamp-plugin": {
       //   "version": "0.13.0-alpha.13",
       //   "resolved": "...",
       //   "integrity": "sha512-..."
-      const packageLockContent = fs.readFileSync(packageLockPath, 'utf8');
-      const integrityPattern = new RegExp(
-        `("node_modules/@kinvolk/headlamp-plugin": \\{[\\s\\S]*?"integrity": ")[^"]+(")`,
-        'g'
-      );
-      const packageLockContentNew = packageLockContent.replace(
-        integrityPattern,
-        `$1${npmJsIntegrity}$2`
-      );
-      if (packageLockContent !== packageLockContentNew) {
-        fs.writeFileSync(packageLockPath, packageLockContentNew);
+      const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
+      const headlampPluginLock = packageLock.packages?.['node_modules/@kinvolk/headlamp-plugin'];
+      if (headlampPluginLock && headlampPluginLock.integrity !== npmJsIntegrity) {
+        headlampPluginLock.integrity = npmJsIntegrity;
+        fs.writeFileSync(packageLockPath, JSON.stringify(packageLock, null, 2) + '\n');
       }
 
       useNpmCi = true;
