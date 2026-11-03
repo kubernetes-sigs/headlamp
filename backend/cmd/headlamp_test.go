@@ -48,6 +48,7 @@ import (
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/health"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -5636,4 +5637,134 @@ func assertCookieCleared(t *testing.T, rr *httptest.ResponseRecorder, cookiePref
 	}
 
 	assert.True(t, foundCookie, "Expected cookie with prefix %q to be cleared", cookiePrefix)
+}
+
+
+// TestHealthEndpointsIntegration exercises the top-level router wiring to
+// verify that /healthz and /readyz are reachable through the actual server
+// handler, take precedence over the SPA catch-all, and bypass auth middleware.
+func TestHealthEndpointsIntegration(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token-for-auth")
+
+	setupTestEnv(t)
+
+	ctx := newTestHandlerCtx(t)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigDir:   t.TempDir(),
+				PluginDir:       t.TempDir(),
+				UserPluginDir:   t.TempDir(),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(ctx, cfg)
+	require.NotNil(t, handler)
+
+	// Build the top-level router the same way StartHeadlampServer does.
+	healthChecker := health.NewChecker()
+
+	topRouter := mux.NewRouter()
+	topRouter.Handle("/healthz", http.Handler(healthChecker.HandlerHealthz())).Methods(http.MethodGet)
+	topRouter.Handle("/readyz", http.Handler(healthChecker.HandlerReadyz())).Methods(http.MethodGet)
+	topRouter.PathPrefix("/").Handler(handler)
+
+	t.Run("healthz returns 200 without auth", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
+		// Do NOT set any auth header — proves health bypasses auth.
+		rr := httptest.NewRecorder()
+
+		topRouter.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+		assert.Contains(t, rr.Body.String(), `"status":"ok"`)
+	})
+
+	t.Run("readyz returns 200 without auth", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil)
+		rr := httptest.NewRecorder()
+
+		topRouter.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), `"status":"ok"`)
+	})
+
+	t.Run("readyz returns 503 after shutdown", func(t *testing.T) {
+		healthChecker.SetShuttingDown()
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil)
+		rr := httptest.NewRecorder()
+
+		topRouter.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+		assert.Contains(t, rr.Body.String(), `"status":"error"`)
+		assert.Contains(t, rr.Body.String(), `"shutdown"`)
+	})
+
+	t.Run("healthz still returns 200 after shutdown", func(t *testing.T) {
+		// healthChecker is already in shutting-down state from previous test.
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
+		rr := httptest.NewRecorder()
+
+		topRouter.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
+// TestHealthEndpointsHostValidation verifies that health endpoints on loopback
+// configurations apply the same host-header validation as the rest of the
+// server, rejecting requests with unexpected Host headers.
+func TestHealthEndpointsHostValidation(t *testing.T) {
+	healthChecker := health.NewChecker()
+
+	healthzHandler := http.Handler(healthChecker.HandlerHealthz())
+	readyzHandler := http.Handler(healthChecker.HandlerReadyz())
+
+	// Apply host validation as StartHeadlampServer does for loopback.
+	hostMiddleware := hostValidationMiddleware("localhost", 4466)
+	healthzHandler = hostMiddleware(healthzHandler)
+	readyzHandler = hostMiddleware(readyzHandler)
+
+	topRouter := mux.NewRouter()
+	topRouter.Handle("/healthz", healthzHandler).Methods(http.MethodGet)
+	topRouter.Handle("/readyz", readyzHandler).Methods(http.MethodGet)
+
+	tests := []struct {
+		name       string
+		path       string
+		host       string
+		wantStatus int
+	}{
+		{"healthz with valid host", "/healthz", "localhost:4466", http.StatusOK},
+		{"readyz with valid host", "/readyz", "localhost:4466", http.StatusOK},
+		{"healthz with invalid host", "/healthz", "evil.example.com:4466", http.StatusForbidden},
+		{"readyz with invalid host", "/readyz", "evil.example.com:4466", http.StatusForbidden},
+		{"healthz with loopback IP", "/healthz", "127.0.0.1:4466", http.StatusOK},
+		{"readyz with loopback IP", "/readyz", "127.0.0.1:4466", http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(
+				context.Background(), http.MethodGet,
+				"http://"+tt.host+tt.path, nil,
+			)
+			req.Host = tt.host
+			rr := httptest.NewRecorder()
+
+			topRouter.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+		})
+	}
 }
