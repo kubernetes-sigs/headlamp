@@ -22,11 +22,14 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
+import Popover from '@mui/material/Popover';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import Tooltip from '@mui/material/Tooltip';
 import React from 'react';
+import { RgbaColorPicker } from 'react-colorful';
 import { useTranslation } from 'react-i18next';
 import { isValidCssColor } from '../../../helpers/clusterAppearance';
 
@@ -50,6 +53,67 @@ export const PRESET_COLORS = [
   { name: 'Deep Orange', value: '#ff5722' },
 ];
 
+interface RgbaColor {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+const DEFAULT_RGBA: RgbaColor = { r: 255, g: 0, b: 0, a: 1 };
+
+const isPresetColor = (color: string): boolean =>
+  PRESET_COLORS.some(preset => preset.value.toLowerCase() === color.toLowerCase());
+
+// Parses hex, rgb() and rgba() (comma syntax) strings. Returns null for anything else.
+const parseRgbaFromString = (color: string): RgbaColor | null => {
+  if (!color) {
+    return null;
+  }
+
+  // Try to parse rgba()
+  const rgbaMatch = color.match(
+    /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\s*\)/i
+  );
+  if (rgbaMatch) {
+    return {
+      r: Math.min(255, parseInt(rgbaMatch[1], 10)),
+      g: Math.min(255, parseInt(rgbaMatch[2], 10)),
+      b: Math.min(255, parseInt(rgbaMatch[3], 10)),
+      a: rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1,
+    };
+  }
+
+  // Try hex
+  if (color.startsWith('#')) {
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map(c => c + c)
+        .join('');
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        return { r, g, b, a };
+      }
+    }
+  }
+
+  return null;
+};
+
+const rgbaToString = (color: RgbaColor): string => {
+  if (color.a === 1) {
+    return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
+  }
+  return `rgba(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)}, ${color.a})`;
+};
+
 interface ColorPickerProps {
   open: boolean;
   currentColor: string;
@@ -68,8 +132,33 @@ export default function ColorPicker({
 
   const [customColorInput, setCustomColorInput] = React.useState('');
   const [useCustomColor, setUseCustomColor] = React.useState(false);
+  const [rgbaColor, setRgbaColor] = React.useState<RgbaColor>(DEFAULT_RGBA);
+  const [pickerAnchor, setPickerAnchor] = React.useState<HTMLElement | null>(null);
 
   const isValidAccentColor = (color: string): boolean => !color || isValidCssColor(color);
+  const swatchColor = rgbaToString(rgbaColor);
+
+  // Sync local state with the saved color every time the dialog opens.
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setPickerAnchor(null);
+    const isCustom = !!currentColor?.trim() && !isPresetColor(currentColor);
+    setUseCustomColor(isCustom);
+    setCustomColorInput(isCustom ? currentColor : '');
+    setRgbaColor(parseRgbaFromString(currentColor) ?? DEFAULT_RGBA);
+  }, [open, currentColor]);
+
+  const handleInputChange = (value: string) => {
+    setCustomColorInput(value);
+    if (value && isValidAccentColor(value)) {
+      const parsed = parseRgbaFromString(value);
+      if (parsed) {
+        setRgbaColor(parsed);
+      }
+    }
+  };
 
   const handlePresetColorClick = (color: string) => {
     setUseCustomColor(false);
@@ -82,6 +171,11 @@ export default function ColorPicker({
       onSelectColor(customColorInput);
       onClose();
     }
+  };
+
+  const handlePickerChange = (color: RgbaColor) => {
+    setRgbaColor(color);
+    setCustomColorInput(rgbaToString(color));
   };
 
   return (
@@ -126,24 +220,61 @@ export default function ColorPicker({
             control={
               <Checkbox
                 checked={useCustomColor}
-                onChange={e => setUseCustomColor(e.target.checked)}
+                onChange={e => {
+                  setUseCustomColor(e.target.checked);
+                  if (!e.target.checked) {
+                    setPickerAnchor(null);
+                  }
+                }}
               />
             }
             label={t('translation|Use custom color')}
           />
           {useCustomColor && (
-            <TextField
-              label={t('translation|Custom color')}
-              placeholder="#ff0000"
-              value={customColorInput}
-              onChange={e => setCustomColorInput(e.target.value)}
-              fullWidth
-              variant="outlined"
-              size="small"
-              helperText={t('translation|Hex, rgb(), or rgba()')}
-              error={!!customColorInput && !isValidAccentColor(customColorInput)}
-              sx={{ mt: 1 }}
-            />
+            <Box sx={{ mt: 1, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+              <Tooltip title={t('translation|Select custom color')}>
+                <IconButton
+                  aria-label={t('translation|Select custom color')}
+                  onClick={e => setPickerAnchor(e.currentTarget)}
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1,
+                    border: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: swatchColor,
+                    '&:hover': {
+                      backgroundColor: swatchColor,
+                      opacity: 0.8,
+                    },
+                  }}
+                />
+              </Tooltip>
+              <TextField
+                label={t('translation|Custom color')}
+                placeholder="#ff0000"
+                value={customColorInput}
+                onChange={e => handleInputChange(e.target.value)}
+                fullWidth
+                variant="outlined"
+                size="small"
+                helperText={t('translation|Hex, rgb(), or rgba()')}
+                error={!!customColorInput && !isValidAccentColor(customColorInput)}
+              />
+              <Popover
+                open={!!pickerAnchor}
+                anchorEl={pickerAnchor}
+                onClose={() => setPickerAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              >
+                <Box sx={{ p: 1.5 }}>
+                  <RgbaColorPicker
+                    color={rgbaColor}
+                    onChange={handlePickerChange}
+                    style={{ width: 200, height: 160 }}
+                  />
+                </Box>
+              </Popover>
+            </Box>
           )}
         </Box>
       </DialogContent>

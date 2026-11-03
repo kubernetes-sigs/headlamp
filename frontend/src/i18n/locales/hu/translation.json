@@ -152,6 +152,7 @@
   "Apply": "Alkalmaz",
   "Choose Accent Color": "Kiemelőszín kiválasztása",
   "Use custom color": "Egyéni szín használata",
+  "Select custom color": "",
   "Custom color": "Egyéni szín",
   "Hex, rgb(), or rgba()": "Hexadecimális, rgb() vagy rgba()",
   "Right": "",

@@ -152,6 +152,7 @@
   "Apply": "Применить",
   "Choose Accent Color": "Выберите цвет акцента",
   "Use custom color": "Использовать собственный цвет",
+  "Select custom color": "",
   "Custom color": "Пользовательский цвет",
   "Hex, rgb(), or rgba()": "Шестнадцатеричный, rgb() или rgba()",
   "Right": "",
