@@ -88,6 +88,56 @@ func TestSpaHandlerOtherFiles(t *testing.T) {
 	}
 }
 
+type spaCacheControlTestCase struct {
+	name                string
+	method              string
+	path                string
+	baseURL             string
+	indexPath           string
+	wantBody            string
+	wantCacheControl    string
+	acceptEncoding      string
+	wantContentEncoding string
+}
+
+func spaCacheControlTestCases() []spaCacheControlTestCase {
+	return []spaCacheControlTestCase{
+		{
+			name: "root serves index", path: "/", indexPath: "index.html",
+			wantBody: "the-index", wantCacheControl: "no-cache",
+		},
+		{
+			name: "HEAD root serves index headers", method: http.MethodHead, path: "/", indexPath: "index.html",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name: "direct index request", path: "/index.html", indexPath: "index.html",
+			wantBody: "the-index", wantCacheControl: "no-cache",
+		},
+		{
+			name: "deep link falls back to index", path: "/c/main/pods", indexPath: "index.html",
+			wantBody: "the-index", wantCacheControl: "no-cache",
+		},
+		{
+			name: "directory falls back to index", path: "/assets", indexPath: "index.html",
+			wantBody: "the-index", wantCacheControl: "no-cache",
+		},
+		{
+			name: "custom base URL and index path", path: "/headlamp/", baseURL: "/headlamp",
+			indexPath: "web/app.html", wantBody: "custom-index", wantCacheControl: "no-cache",
+		},
+		{
+			name: "CSS asset keeps default cache behavior", path: "/example.css",
+			indexPath: "index.html", wantBody: ".somecss",
+		},
+		{
+			name: "Brotli JavaScript keeps default cache behavior", path: "/app.js",
+			indexPath: "index.html", wantBody: "BROTLI-JAVASCRIPT",
+			acceptEncoding: "br", wantContentEncoding: "br",
+		},
+	}
+}
+
 func TestSpaHandlerCacheControl(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "index.html", []byte("the-index"))
@@ -97,79 +147,10 @@ func TestSpaHandlerCacheControl(t *testing.T) {
 	writeFile(t, dir, "assets/file.txt", []byte("asset"))
 	writeFile(t, dir, "web/app.html", []byte("custom-index"))
 
-	tests := []struct {
-		name                string
-		method              string
-		path                string
-		baseURL             string
-		indexPath           string
-		wantBody            string
-		wantCacheControl    string
-		acceptEncoding      string
-		wantContentEncoding string
-	}{
-		{
-			name:             "root serves index",
-			path:             "/",
-			indexPath:        "index.html",
-			wantBody:         "the-index",
-			wantCacheControl: "no-cache",
-		},
-		{
-			name:             "HEAD root serves index headers",
-			method:           http.MethodHead,
-			path:             "/",
-			indexPath:        "index.html",
-			wantCacheControl: "no-cache",
-		},
-		{
-			name:             "direct index request",
-			path:             "/index.html",
-			indexPath:        "index.html",
-			wantBody:         "the-index",
-			wantCacheControl: "no-cache",
-		},
-		{
-			name:             "deep link falls back to index",
-			path:             "/c/main/pods",
-			indexPath:        "index.html",
-			wantBody:         "the-index",
-			wantCacheControl: "no-cache",
-		},
-		{
-			name:             "directory falls back to index",
-			path:             "/assets",
-			indexPath:        "index.html",
-			wantBody:         "the-index",
-			wantCacheControl: "no-cache",
-		},
-		{
-			name:             "custom base URL and index path",
-			path:             "/headlamp/",
-			baseURL:          "/headlamp",
-			indexPath:        "web/app.html",
-			wantBody:         "custom-index",
-			wantCacheControl: "no-cache",
-		},
-		{
-			name:      "CSS asset keeps default cache behavior",
-			path:      "/example.css",
-			indexPath: "index.html",
-			wantBody:  ".somecss",
-		},
-		{
-			name:                "Brotli JavaScript keeps default cache behavior",
-			path:                "/app.js",
-			indexPath:           "index.html",
-			wantBody:            "BROTLI-JAVASCRIPT",
-			acceptEncoding:      "br",
-			wantContentEncoding: "br",
-		},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range spaCacheControlTestCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			method := tt.method
+
 			if method == "" {
 				method = http.MethodGet
 			}
@@ -178,6 +159,7 @@ func TestSpaHandlerCacheControl(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if tt.acceptEncoding != "" {
 				req.Header.Set("Accept-Encoding", tt.acceptEncoding)
 			}
@@ -188,15 +170,19 @@ func TestSpaHandlerCacheControl(t *testing.T) {
 			if rr.Code != http.StatusOK {
 				t.Fatalf("handler returned status %d, want %d", rr.Code, http.StatusOK)
 			}
+
 			if got := rr.Body.String(); got != tt.wantBody {
 				t.Errorf("handler returned body %q, want %q", got, tt.wantBody)
 			}
+
 			if got := rr.Header().Get("Cache-Control"); got != tt.wantCacheControl {
 				t.Errorf("Cache-Control = %q, want %q", got, tt.wantCacheControl)
 			}
+
 			if got := rr.Header().Get("Content-Encoding"); got != tt.wantContentEncoding {
 				t.Errorf("Content-Encoding = %q, want %q", got, tt.wantContentEncoding)
 			}
+
 			if got := rr.Header().Get("Vary"); !strings.Contains(got, "Accept-Encoding") {
 				t.Errorf("Vary = %q, want Accept-Encoding", got)
 			}
@@ -210,25 +196,30 @@ func TestSpaHandlerCacheControlOnNotModified(t *testing.T) {
 
 	indexPath := filepath.Join(dir, "index.html")
 	modTime := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
+
 	if err := os.Chtimes(indexPath, modTime, modTime); err != nil {
 		t.Fatal(err)
 	}
 
 	handler := spa.NewHandler(dir, "index.html", "")
 	firstResponse := httptest.NewRecorder()
-	handler.ServeHTTP(firstResponse, httptest.NewRequest(http.MethodGet, "/", nil))
+	firstRequest := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(firstResponse, firstRequest)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req.Header.Set("If-Modified-Since", firstResponse.Header().Get("Last-Modified"))
+
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotModified {
 		t.Fatalf("handler returned status %d, want %d", rr.Code, http.StatusNotModified)
 	}
+
 	if got := rr.Header().Get("Cache-Control"); got != "no-cache" {
 		t.Errorf("Cache-Control = %q, want %q", got, "no-cache")
 	}
+
 	if got := rr.Header().Get("Vary"); !strings.Contains(got, "Accept-Encoding") {
 		t.Errorf("Vary = %q, want Accept-Encoding", got)
 	}
