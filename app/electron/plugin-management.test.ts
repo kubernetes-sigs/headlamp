@@ -643,6 +643,75 @@ describe('PluginManager', () => {
       fs.rmSync(testDataDir, { recursive: true });
     }
   }, 30000);
+
+  it('returns the removed bundle even if receipt cleanup fails afterwards', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'uninstall-receipt-test-data');
+    // The receipt stores the real path, so use it for the plugin folder too.
+    const pluginDestDir = fs.realpathSync(
+      getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'uninstall-receipt-test-plugins')
+    );
+    await createMinimalPluginTarball(testDataDir);
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
+    const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+    await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, null, null);
+
+    const rename = fs.renameSync.bind(fs);
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+      if (String(destination).endsWith('plugin-installation-receipts.json')) {
+        throw new Error('receipts are locked');
+      }
+      return rename(source, destination);
+    });
+    const progress: any[] = [];
+
+    const removedFolderName = PluginManager.uninstall('headlamp_minikube', pluginDestDir, update =>
+      progress.push(update)
+    );
+    const receiptRewritten = renameSpy.mock.calls.some(([, destination]) =>
+      String(destination).endsWith('plugin-installation-receipts.json')
+    );
+    renameSpy.mockRestore();
+
+    expect(receiptRewritten).toBe(true);
+    expect(fs.existsSync(path.join(pluginDestDir, 'headlamp_minikube'))).toBe(false);
+    expect(removedFolderName).toBe('headlamp_minikube');
+    expect(progress).toEqual([{ type: 'error', message: 'receipts are locked' }]);
+
+    fs.rmSync(pluginDestDir, { recursive: true, force: true });
+    fs.rmSync(testDataDir, { recursive: true, force: true });
+  }, 30000);
+
+  it('returns the bundle if deleting it fails part way', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'uninstall-partial-test-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'uninstall-partial-test-plugins');
+    await createMinimalPluginTarball(testDataDir);
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
+    const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+    await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, null, null);
+
+    // Like a locked file on Windows: some files are deleted, then rmSync throws.
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    const remove = fs.rmSync.bind(fs);
+    const removeSpy = vi.spyOn(fs, 'rmSync').mockImplementation((target, options) => {
+      if (target === pluginDir) {
+        remove(path.join(pluginDir, 'package.json'));
+        throw new Error('EBUSY: resource busy or locked');
+      }
+      return remove(target, options);
+    });
+    const progress: any[] = [];
+
+    const removedFolderName = PluginManager.uninstall('headlamp_minikube', pluginDestDir, update =>
+      progress.push(update)
+    );
+    removeSpy.mockRestore();
+
+    expect(removedFolderName).toBe('headlamp_minikube');
+    expect(progress).toEqual([{ type: 'error', message: 'EBUSY: resource busy or locked' }]);
+
+    fs.rmSync(pluginDestDir, { recursive: true, force: true });
+    fs.rmSync(testDataDir, { recursive: true, force: true });
+  }, 30000);
 });
 
 /**
