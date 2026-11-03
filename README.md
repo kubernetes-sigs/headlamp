@@ -105,9 +105,9 @@ Check out our:
 
 ## Roadmap / Release Planning
 
-If you are interested in the direction of the project, we maintain a
-[Roadmap](https://github.com/orgs/headlamp-k8s/projects/1/views/1). It has the
-biggest changes planned so far, as well as a [board](https://github.com/orgs/headlamp-k8s/projects/1/) tracking each release.
+If you are interested in the direction of the project, see our
+[Roadmap](./ROADMAP.md). We track what is planned for each release in
+[milestones](https://github.com/kubernetes-sigs/headlamp/milestones).
 
 ## License
 
