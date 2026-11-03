@@ -1421,3 +1421,56 @@ users:
 	assert.Equal(t, filepath.Join(root, "pki", "admin.pem"), filepath.Clean(ctx.AuthInfo.ClientCertificate))
 	assert.Equal(t, filepath.Join(root, "pki", "admin.key"), filepath.Clean(ctx.AuthInfo.ClientKey))
 }
+
+func TestSkipKubeContextInCommaSeparatedString(t *testing.T) {
+	eks := kubeconfig.Context{
+		Name:                  "arn:aws:eks:us-east-1:123456789012:cluster--prod",
+		KubeConfigContextName: "arn:aws:eks:us-east-1:123456789012:cluster/prod",
+	}
+	dev := kubeconfig.Context{Name: "dev", KubeConfigContextName: "dev"}
+	staging := kubeconfig.Context{Name: "staging", KubeConfigContextName: "staging"}
+	// A context can be named "" in the kubeconfig.
+	unnamed := kubeconfig.Context{}
+
+	tests := []struct {
+		name    string
+		skipped string
+		want    map[string]bool
+	}{
+		{
+			name:    "kubeconfig name with a slash",
+			skipped: "arn:aws:eks:us-east-1:123456789012:cluster/prod",
+			want:    map[string]bool{eks.Name: true, dev.Name: false, staging.Name: false, unnamed.Name: false},
+		},
+		{
+			name:    "DNS-friendly name",
+			skipped: "arn:aws:eks:us-east-1:123456789012:cluster--prod",
+			want:    map[string]bool{eks.Name: true, dev.Name: false, staging.Name: false, unnamed.Name: false},
+		},
+		{
+			name:    "spaces around entries",
+			skipped: "dev, staging ",
+			want:    map[string]bool{eks.Name: false, dev.Name: true, staging.Name: true, unnamed.Name: false},
+		},
+		{
+			name:    "empty",
+			skipped: "",
+			want:    map[string]bool{eks.Name: false, dev.Name: false, staging.Name: false, unnamed.Name: false},
+		},
+		{
+			name:    "empty entries",
+			skipped: "dev,,",
+			want:    map[string]bool{eks.Name: false, dev.Name: true, staging.Name: false, unnamed.Name: false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			skip := kubeconfig.SkipKubeContextInCommaSeparatedString(tt.skipped)
+
+			for _, ctx := range []kubeconfig.Context{eks, dev, staging, unnamed} {
+				assert.Equal(t, tt.want[ctx.Name], skip(ctx), "context %q", ctx.Name)
+			}
+		})
+	}
+}

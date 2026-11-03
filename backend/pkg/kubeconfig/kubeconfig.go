@@ -1376,16 +1376,21 @@ func AllowAllKubeContext(_ Context) bool {
 // whose names are in the given comma-separated string.
 // For example, if pass the "a,b" for blackKubeContextNameStr,
 // the contexts named "a" and "b" will be skipped.
+// A context matches by its name in the kubeconfig or by its DNS-friendly name.
 func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
 	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
 	blackKubeContextNameMap := map[string]bool{}
 
 	for _, blackKubeContextName := range blackKubeContextNameList {
-		blackKubeContextNameMap[blackKubeContextName] = true
+		name := strings.TrimSpace(blackKubeContextName)
+		if name != "" {
+			blackKubeContextNameMap[name] = true
+		}
 	}
 
 	return func(kubeContext Context) bool {
-		return blackKubeContextNameMap[kubeContext.Name]
+		return blackKubeContextNameMap[kubeContext.Name] ||
+			blackKubeContextNameMap[kubeContext.KubeConfigContextName]
 	}
 }
 
