@@ -498,6 +498,7 @@
       "DaemonSet": [Function],
       "Deployment": [Function],
       "DeviceClass": [Function],
+      "DeviceTaintRule": [Function],
       "Endpoint": [Function],
       "EndpointSlice": [Function],
       "Endpoints": [Function],
