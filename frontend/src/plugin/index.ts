@@ -787,15 +787,17 @@ async function initializePluginsI18n(
   pluginPaths: string[],
   deadline: number
 ) {
-  for (let i = 0; i < packageInfos.length; i++) {
-    const packageInfo = packageInfos[i];
-    const pluginPath = pluginPaths[i];
-
-    await beforePluginStartupDeadline(
-      initializePluginI18n(packageInfo.name, packageInfo, pluginPath),
-      deadline
-    );
-  }
+  // Initialize every plugin's i18n concurrently. Each call already catches its
+  // own errors, so one plugin's failure cannot reject the batch; only the
+  // shared startup deadline can.
+  await beforePluginStartupDeadline(
+    Promise.all(
+      packageInfos.map((packageInfo, i) =>
+        initializePluginI18n(packageInfo.name, packageInfo, pluginPaths[i])
+      )
+    ),
+    deadline
+  );
 
   // Set up language change synchronization
   i18next.on('languageChanged', language => {
