@@ -179,8 +179,13 @@ const QUALIFIED_NAME_MAX_LENGTH = 63;
 const QUALIFIED_NAME_REGEX = /^([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]$/;
 
 /** A DNS-1123 label: lowercase alphanumerics or '-', alphanumeric at both ends, max 63 chars. */
-function isDNS1123Label(value: string): boolean {
+export function isDNS1123Label(value: string): boolean {
   return value.length <= DNS1123_LABEL_MAX_LENGTH && DNS1123_LABEL_REGEX.test(value);
+}
+
+/** A DNS-1123 subdomain: dot-separated DNS-1123 labels, max 253 chars. */
+export function isDNS1123Subdomain(value: string): boolean {
+  return value.length <= DNS1123_SUBDOMAIN_MAX_LENGTH && DNS1123_SUBDOMAIN_REGEX.test(value);
 }
 
 /**

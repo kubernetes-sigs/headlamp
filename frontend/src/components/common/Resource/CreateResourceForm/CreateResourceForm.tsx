@@ -56,10 +56,11 @@ export interface FormField {
   type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace' | 'ports';
   /** Whether the field is required. */
   required?: boolean;
-  /** Optional custom validity check for this (required) field. When provided,
-   *  it fully replaces the built-in type-based check in {@link isFieldValid},
-   *  receiving the current value at `path` and the full resource object. Use
-   *  for nested/structured values that the generic checks can't express. */
+  /** Optional custom validity check. On a required field it fully replaces the
+   *  built-in type-based check in {@link isFieldValid}. On an optional field it
+   *  is the only check, so it must also accept an empty/unset value. Receives
+   *  the current value at `path` and the full resource object. Use for
+   *  nested/structured values that the generic checks can't express. */
   validate?: (value: any, resource: Record<string, any>) => boolean;
   /** For 'number' fields: minimum allowed value. */
   min?: number;
@@ -138,7 +139,7 @@ export function metadataSection(t: (key: string) => string): FormSection {
   };
 }
 
-/** Check whether a required field's current value is valid for its type. */
+/** Check whether a required (or self-validating) field's current value is valid. */
 function isFieldValid(field: FormField, value: any, resource: Record<string, any>): boolean {
   // A field-supplied validator fully overrides the generic type-based checks.
   if (field.validate) {
@@ -201,11 +202,11 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
   const { sections, resource = {}, onChange, onValidChange } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
-  // Compute validity from current resource.
+  // Compute validity from current resource. Optional fields only count when they supply `validate`.
   const isValid = React.useMemo(() => {
     return sections
       .flatMap(s => s.fields)
-      .filter(f => f.required)
+      .filter(f => f.required || f.validate)
       .every(f => isFieldValid(f, _.get(resource, f.path), resource));
   }, [sections, resource]);
 
