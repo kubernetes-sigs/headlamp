@@ -94,7 +94,7 @@ export default function JobSetList() {
                       <Link
                         href="https://jobset.sigs.k8s.io/docs/installation/"
                         target="_blank"
-                        rel="noopener"
+                        rel="noopener noreferrer"
                         sx={{ textDecoration: 'underline' }}
                       />
                     ),
