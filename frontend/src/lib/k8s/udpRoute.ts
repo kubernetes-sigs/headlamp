@@ -38,11 +38,11 @@ class UDPRoute extends KubeObject<KubeGatewayL4Route> {
   }
 
   get rules(): GatewayL4RouteRule[] {
-    return this.jsonData.spec.rules || [];
+    return this.jsonData.spec?.rules || [];
   }
 
   get parentRefs(): GatewayParentReference[] {
-    return this.jsonData.spec.parentRefs || [];
+    return this.jsonData.spec?.parentRefs || [];
   }
 
   get parents(): GatewayRouteParentStatus[] {
