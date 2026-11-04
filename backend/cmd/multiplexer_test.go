@@ -41,7 +41,8 @@ func newTestDialer() *websocket.Dialer {
 	return &websocket.Dialer{
 		NetDial:          net.Dial,
 		HandshakeTimeout: 45 * time.Second,
-		TLSClientConfig:  &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		//nolint:gosec // Test dialer uses self-signed TLS certificates
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 }
 
@@ -171,7 +172,8 @@ func TestDialWebSocket(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil) //nolint:gosec
+	//nolint:gosec // Test server uses self-signed TLS certificates
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
@@ -204,7 +206,8 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	token := "my-test-token"
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token) //nolint:gosec
+	//nolint:gosec // Test server uses self-signed TLS certificates
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 
@@ -220,7 +223,7 @@ func TestDialWebSocket_Errors(t *testing.T) {
 	m := NewMultiplexer(contextStore, false)
 
 	// Test invalid URL
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
 	ws, err := m.dialWebSocket("invalid-url", tlsConfig, "", nil)
 	assert.Error(t, err)
@@ -260,7 +263,7 @@ func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
 
 	// Convert HTTP URL to WebSocket URL
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
 	// This should fail with a "bad handshake" error and log the response
 	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
@@ -683,7 +686,7 @@ func createMockKubeAPIServer() *httptest.Server {
 
 	// Configure the test client to accept the test server's TLS certificate
 	server.Client().Transport.(*http.Transport).TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true, //nolint:gosec
+		InsecureSkipVerify: true, //nolint:gosec // Test server uses self-signed TLS certificates
 	}
 
 	return server
@@ -984,7 +987,7 @@ func TestHandleConnectionError(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Test covers echo server setup, websocket communication, and assertions
 func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
 	m := NewMultiplexer(contextStore, false)
@@ -1020,7 +1023,8 @@ func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	dialer := newTestDialer()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	clientConn, _, err := dialer.Dial(wsURL, nil) //nolint:bodyclose
+	//nolint:bodyclose // Dialer HTTP response body is managed by websocket connection
+	clientConn, _, err := dialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
 	defer func() { _ = clientConn.Close() }()
@@ -1301,7 +1305,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 		{
 			name: "normal closure",
 			setupConn: func(_ *Connection, clientConn *WSConnLock) {
-				//nolint:errcheck,gosec
+				//nolint:errcheck,gosec // Close message write error ignored in test cleanup helper
 				clientConn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				_ = clientConn.Close()
@@ -1311,7 +1315,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 		{
 			name: "unexpected close error",
 			setupConn: func(_ *Connection, clientConn *WSConnLock) {
-				//nolint:errcheck,gosec
+				//nolint:errcheck,gosec // Close message write error ignored in test cleanup helper
 				clientConn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""))
 				_ = clientConn.Close()
@@ -1524,7 +1528,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 	conn := createTestConnection("test-cluster", "test-user", "/api/v1/services", "", clientConn)
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
 	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
 	require.NoError(t, err)
@@ -1611,7 +1615,7 @@ func TestHandleClusterMessages(t *testing.T) {
 	}()
 
 	// Send a test message from the cluster
-	testMessage := []byte(`{"metadata":{"resourceVersion":"1"},"kind":"Pod","apiVersion":"v1","metadata":{"name":"test-pod"}}`) //nolint:lll
+	testMessage := []byte(`{"metadata":{"resourceVersion":"1"},"kind":"Pod","apiVersion":"v1","metadata":{"name":"test-pod"}}`) //nolint:lll // Long JSON payload in test message
 	err := wsConn.WriteMessage(websocket.TextMessage, testMessage)
 	require.NoError(t, err)
 

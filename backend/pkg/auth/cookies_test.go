@@ -601,7 +601,7 @@ func TestClearIDTokenCookieChunked(t *testing.T) {
 	req.Host = localhost
 	w := httptest.NewRecorder()
 
-	//nolint:gosec
+	//nolint:gosec // Test cookie used for local test request
 	req.AddCookie(&http.Cookie{
 		Name:     "headlamp-id-token-test-cluster.0",
 		Value:    "chunk0",
@@ -610,7 +610,7 @@ func TestClearIDTokenCookieChunked(t *testing.T) {
 		Path:     "/clusters/test-cluster",
 		MaxAge:   86400,
 	})
-	//nolint:gosec
+	//nolint:gosec // Test cookie used for local test request
 	req.AddCookie(&http.Cookie{
 		Name:     "headlamp-id-token-test-cluster.1",
 		Value:    "chunk1",
@@ -736,13 +736,13 @@ func newSecureTestCookie(name, value, path string) *http.Cookie {
 func TestClearIDTokenCookieClearsChunksAcrossGaps(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
 	req.Host = localhost
-	//nolint:gosec
+	//nolint:gosec // Test cookie used for local test request
 	req.AddCookie(&http.Cookie{
 		Name:  "headlamp-id-token-test-cluster.0",
 		Value: "chunk0",
 		Path:  auth.GetOIDCLogoutCookiePath("", "test-cluster"),
 	})
-	//nolint:gosec
+	//nolint:gosec // Test cookie used for local test request
 	req.AddCookie(&http.Cookie{
 		Name:  "headlamp-id-token-test-cluster.2",
 		Value: "chunk2",
