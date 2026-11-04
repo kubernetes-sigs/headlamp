@@ -1789,6 +1789,8 @@ function startElectron() {
 
     mainWindow.webContents.on('dom-ready', () => {
       const defaultMenu = getDefaultAppMenu();
+      loadFullMenu = false;
+      setMenu(mainWindow, defaultMenu);
       const currentMenu = JSON.parse(JSON.stringify(defaultMenu));
       mainWindow?.webContents.send('currentMenu', currentMenu);
     });
