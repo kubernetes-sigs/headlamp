@@ -626,6 +626,12 @@ func stringSliceFromJMESPaths(payload map[string]interface{}, paths []*jmespath.
 			return out
 		case []string:
 			return v
+		case string:
+			// The API server accepts a groups claim that is a single string,
+			// so treat it as one group rather than dropping it.
+			if v != "" {
+				return []string{v}
+			}
 		}
 	}
 
