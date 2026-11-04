@@ -20,6 +20,7 @@ import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import Secret from '../../../../lib/k8s/secret';
@@ -30,7 +31,12 @@ import { useNamespaces } from '../../../../redux/filterSlice';
 import { TestContext } from '../../../../test';
 import { GraphNode, Relation } from '../../graph/graphModel';
 import { makeKubeSourceId } from './graphDefinitionUtils';
-import { BUILT_IN_RELATION_IDS, matchesLabels, useGetAllRelations } from './relations';
+import {
+  BUILT_IN_RELATION_IDS,
+  matchesLabels,
+  matchesLabelSelector,
+  useGetAllRelations,
+} from './relations';
 
 vi.mock('../../../../redux/filterSlice', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../redux/filterSlice')>()),
@@ -119,6 +125,46 @@ describe('matchesLabels', () => {
   });
 });
 
+describe('matchesLabelSelector', () => {
+  const web = pod({ uid: 'web', labels: { app: 'web', tier: 'frontend' } });
+  const db = pod({ uid: 'db', labels: { app: 'db', tier: 'frontend' } });
+  const unlabelled = pod({ uid: 'unlabelled' });
+
+  it('selects every item with an empty selector', () => {
+    expect(matchesLabelSelector({}, web)).toBe(true);
+    expect(matchesLabelSelector({}, unlabelled)).toBe(true);
+    expect(matchesLabelSelector(undefined, web)).toBe(false);
+  });
+
+  it('applies matchExpressions together with matchLabels', () => {
+    const appIn = { matchExpressions: [{ key: 'app', operator: 'In', values: ['web'] }] };
+    expect(matchesLabelSelector(appIn, web)).toBe(true);
+    expect(matchesLabelSelector(appIn, db)).toBe(false);
+    expect(matchesLabelSelector(appIn, unlabelled)).toBe(false);
+
+    const tierNotDb = {
+      matchLabels: { tier: 'frontend' },
+      matchExpressions: [{ key: 'app', operator: 'NotIn', values: ['db'] }],
+    };
+    expect(matchesLabelSelector(tierNotDb, web)).toBe(true);
+    expect(matchesLabelSelector(tierNotDb, db)).toBe(false);
+  });
+
+  it('supports Exists, DoesNotExist and NotIn on missing labels', () => {
+    const exists = { matchExpressions: [{ key: 'app', operator: 'Exists', values: [] }] };
+    const doesNotExist = {
+      matchExpressions: [{ key: 'app', operator: 'DoesNotExist', values: [] }],
+    };
+    const notIn = { matchExpressions: [{ key: 'app', operator: 'NotIn', values: ['db'] }] };
+
+    expect(matchesLabelSelector(exists, web)).toBe(true);
+    expect(matchesLabelSelector(exists, unlabelled)).toBe(false);
+    expect(matchesLabelSelector(doesNotExist, web)).toBe(false);
+    expect(matchesLabelSelector(doesNotExist, unlabelled)).toBe(true);
+    expect(matchesLabelSelector(notIn, unlabelled)).toBe(true);
+  });
+});
+
 describe('useGetAllRelations', () => {
   beforeEach(() => {
     vi.mocked(useNamespaces).mockReturnValue(['namespace-a']);
@@ -166,6 +212,33 @@ describe('useGetAllRelations', () => {
         node(pod({ uid: 'cluster-pod', name: 'pod', labels: { app: 'web' } }))
       )
     ).toBe(true);
+  });
+
+  it('links NetworkPolicies to the Pods selected by their podSelector', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'networkpolicy-pod');
+    const policy = (podSelector: Record<string, any>) =>
+      new NetworkPolicy(
+        {
+          metadata: { uid: 'np', name: 'np', namespace: 'namespace-a' },
+          spec: { podSelector, policyTypes: [] },
+        } as any,
+        'cluster-a'
+      );
+    const webPod = pod({
+      uid: 'web',
+      name: 'web',
+      namespace: 'namespace-a',
+      labels: { app: 'web' },
+    });
+    const dbPod = pod({ uid: 'db', name: 'db', namespace: 'namespace-a', labels: { app: 'db' } });
+    const bare = pod({ uid: 'bare', name: 'bare', namespace: 'namespace-a' });
+    const appIn = policy({ matchExpressions: [{ key: 'app', operator: 'In', values: ['web'] }] });
+
+    expect(relation.predicate(node(appIn), node(webPod))).toBe(true);
+    expect(relation.predicate(node(appIn), node(dbPod))).toBe(false);
+    expect(relation.predicate(node(policy({})), node(bare))).toBe(true);
   });
 
   it.each([
