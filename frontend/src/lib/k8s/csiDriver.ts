@@ -39,7 +39,7 @@ class CSIDriver extends KubeObject<KubeCSIDriver> {
   static getBaseObject(): KubeCSIDriver {
     const baseObject = super.getBaseObject() as KubeCSIDriver;
     baseObject.spec = {
-      attachRequired: false,
+      attachRequired: true,
       podInfoOnMount: false,
       storageCapacity: false,
       volumeLifecycleModes: [],
