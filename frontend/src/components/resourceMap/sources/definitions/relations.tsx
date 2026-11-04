@@ -17,6 +17,7 @@
 import { useMemo } from 'react';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import type { LabelSelector } from '../../../../lib/k8s/cluster';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -66,6 +67,40 @@ export const matchesLabels = (matchLabels: Record<string, string>, item: KubeObj
     item.metadata.labels &&
     Object.entries(matchLabels).every(([key, value]) => item.metadata?.labels?.[key] === value)
   );
+};
+
+/**
+ * Check if the given item is selected by a Kubernetes label selector.
+ * An empty selector selects every item.
+ */
+export const matchesLabelSelector = (selector: LabelSelector | undefined, item: KubeObject) => {
+  if (!selector) {
+    return false;
+  }
+  const labels = item.metadata.labels ?? {};
+  const hasLabel = (key: string) => Object.prototype.hasOwnProperty.call(labels, key);
+
+  const labelsMatch = Object.entries(selector.matchLabels ?? {}).every(
+    ([key, value]) => hasLabel(key) && labels[key] === value
+  );
+  if (!labelsMatch) {
+    return false;
+  }
+
+  return (selector.matchExpressions ?? []).every(({ key, operator, values = [] }) => {
+    switch (operator) {
+      case 'In':
+        return hasLabel(key) && values.includes(labels[key]);
+      case 'NotIn':
+        return !hasLabel(key) || !values.includes(labels[key]);
+      case 'Exists':
+        return hasLabel(key);
+      case 'DoesNotExist':
+        return !hasLabel(key);
+      default:
+        return false;
+    }
+  });
 };
 
 const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
@@ -269,7 +304,7 @@ const ingressToSecret = makeRelation('ingress-secret', Ingress, Secret, (ingress
 );
 
 const networkPolicyToPod = makeRelation('networkpolicy-pod', NetworkPolicy, Pod, (np, pod) =>
-  matchesLabels(np.spec.podSelector.matchLabels ?? {}, pod)
+  matchesLabelSelector(np.spec.podSelector, pod)
 );
 
 const roleBindingsToRole = makeRelation(
