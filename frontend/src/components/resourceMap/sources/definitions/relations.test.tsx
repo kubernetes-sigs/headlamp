@@ -19,6 +19,7 @@ import App from '../../../../App';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
+import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
@@ -89,7 +90,7 @@ const service = (
   cluster = 'cluster-a'
 ) => new Service({ metadata, spec: { selector, ports: [] }, status: {} } as any, cluster);
 
-type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
+type L4RouteClass = typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute;
 
 const l4Route = (
   RouteClass: L4RouteClass,
@@ -242,6 +243,7 @@ describe('useGetAllRelations', () => {
   });
 
   it.each([
+    ['HTTPRoute', HTTPRoute, 'httproute-gateway'],
     ['TCPRoute', TCPRoute, 'tcproute-gateway'],
     ['UDPRoute', UDPRoute, 'udproute-gateway'],
   ] as const)(
@@ -310,6 +312,7 @@ describe('useGetAllRelations', () => {
   );
 
   it.each([
+    ['HTTPRoute', HTTPRoute, 'httproute-service'],
     ['TCPRoute', TCPRoute, 'tcproute-service'],
     ['UDPRoute', UDPRoute, 'udproute-service'],
   ] as const)(
