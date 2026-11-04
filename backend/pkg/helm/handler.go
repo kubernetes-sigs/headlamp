@@ -55,7 +55,7 @@ func NewActionConfig(clientConfig clientcmd.ClientConfig, namespace string) (*ac
 	}
 	logger := func(format string, a ...interface{}) {
 		logger.Log(logger.LevelInfo, map[string]string{"namespace": namespace},
-			nil, format+"\n"+fmt.Sprintf("%v", a))
+			nil, fmt.Sprintf(format, a...))
 	}
 
 	err := actionConfig.Init(restConfGetter, namespace, "secret", logger)
