@@ -176,7 +176,9 @@ func createSampler(samplingRate float64) trace.Sampler {
 }
 
 // createTracingExporter creates a span exporter based on cfg.
-func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolint:funlen
+//
+//nolint:funlen // Selects and initializes stdout, Jaeger, or OTLP trace exporter based on config.
+func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) {
 	if cfg.StdoutTraceEnabled == nil {
 		defaultValue := false
 		cfg.StdoutTraceEnabled = &defaultValue

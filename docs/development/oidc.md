@@ -116,6 +116,8 @@ You can also configure OIDC with custom CA certificates directly in your kubecon
 
 ### Using CA Certificate File Path
 
+> **Note:** File-backed `idp-certificate-authority` is only supported for static kubeconfig files loaded directly by the server. Dynamically added clusters reject local file paths for security reasons and must use `idp-certificate-authority-data` instead.
+
 Add the `idp-certificate-authority` field to your OIDC auth provider configuration:
 
 ```yaml
@@ -136,7 +138,7 @@ users:
 
 ### Using Base64-encoded CA Certificate Data
 
-Alternatively, you can embed the CA certificate directly in the kubeconfig using base64-encoded data:
+Alternatively, you can embed the CA certificate directly in the kubeconfig using base64-encoded data (required for dynamically added clusters):
 
 ```yaml
 apiVersion: v1

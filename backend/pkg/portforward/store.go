@@ -69,7 +69,7 @@ func portforwardstore(cache cache.Cache[interface{}], p portForward) {
 func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id string, isStopRequest bool) error {
 	portforward, err := getPortForwardByID(cache, cluster, id)
 	if err != nil {
-		//nolint:goconst
+		//nolint:goconst // Duplicate logger message string maintained for logging readability.
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster, "id": id},
 			err, "getting portforward")
 

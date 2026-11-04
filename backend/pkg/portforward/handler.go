@@ -140,7 +140,7 @@ func getFreePort() (int, error) {
 
 // StartPortForward handles the port forward request.
 //
-//nolint:funlen
+//nolint:funlen // StartPortForward handles multi-step websocket tunnel setup.
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
 	contextKey string,
@@ -166,7 +166,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	// deterministically and avoid unnecessary listener churn.
 	if existingPF, err := getPortForwardByID(cache, contextKey, p.ID); err == nil &&
 		(existingPF.Status == RUNNING || existingPF.Status == RECONNECTING) {
-		//nolint:goconst
+		//nolint:goconst // Duplicate logger message string maintained for logging readability.
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID already exists")
 		http.Error(w, "portforward with this ID is already active", http.StatusConflict)
