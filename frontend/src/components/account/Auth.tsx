@@ -129,7 +129,11 @@ export function PureAuthToken({
 
   return (
     <Box component="main">
-      <ClusterDialog useCover onClose={onClose} aria-label={title}>
+      <ClusterDialog
+        useCover
+        onClose={onClose}
+        PaperProps={{ 'aria-label': title, 'aria-labelledby': undefined }}
+      >
         <DialogTitle id="authtoken-dialog-title">{title}</DialogTitle>
         <DialogContent>
           <DialogContentText>

@@ -126,13 +126,14 @@ describe('PureAuthToken', () => {
   it('uses the authentication title for aria-label without duplicate IDs', () => {
     renderPure({ title: 'Authentication: my-cluster' });
 
-    const dialog = document.querySelector('.MuiDialog-root');
+    const dialog = screen.getByRole('dialog', { name: 'Authentication: my-cluster' });
     const title = screen.getByRole('heading', {
       level: 1,
       name: 'Authentication: my-cluster',
     });
 
     expect(dialog).toHaveAttribute('aria-label', 'Authentication: my-cluster');
+    expect(dialog).not.toHaveAttribute('aria-labelledby');
     expect(title).toHaveAttribute('id', 'authtoken-dialog-title');
     expect(document.querySelectorAll('#authtoken-dialog-title')).toHaveLength(1);
   });
