@@ -1634,6 +1634,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.Handle("/", r)
 	}
 
+	var handler http.Handler = r
+
 	// On dev mode we're loose about where connections come from
 	if config.DevMode {
 		headers := handlers.AllowedHeaders([]string{
@@ -1643,7 +1645,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
 
-		return handlers.CORS(
+		handler = handlers.CORS(
 			headers,
 			methods,
 			handlers.AllowCredentials(),
@@ -1651,7 +1653,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		)(r)
 	}
 
-	return r
+	return securityHeadersMiddleware(handler)
+}
+
+// securityHeadersMiddleware sets security headers to prevent MIME-type sniffing attacks.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func clearRequestAuthorization(r *http.Request) {
