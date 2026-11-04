@@ -78,19 +78,21 @@ export default function EndpointSliceDetails(props: {
                       getter: endpoint => (
                         <>
                           <Box display="inline-block">
-                            <StatusLabel status={endpoint.conditions.ready ? 'success' : 'error'}>
+                            <StatusLabel
+                              status={endpoint.conditions?.ready === false ? 'error' : 'success'}
+                            >
                               {t('Ready')}
                             </StatusLabel>
                           </Box>
                           <Box display="inline-block">
-                            <StatusLabel status={endpoint.conditions.serving ? 'success' : 'error'}>
+                            <StatusLabel
+                              status={endpoint.conditions?.serving === false ? 'error' : 'success'}
+                            >
                               {t('Serving')}
                             </StatusLabel>
                           </Box>
                           <Box display="inline-block">
-                            <StatusLabel
-                              status={endpoint.conditions.terminating ? 'success' : 'error'}
-                            >
+                            <StatusLabel status={endpoint.conditions?.terminating ? 'warning' : ''}>
                               {t('Terminating')}
                             </StatusLabel>
                           </Box>
