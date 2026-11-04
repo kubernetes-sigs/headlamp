@@ -5637,3 +5637,30 @@ func assertCookieCleared(t *testing.T, rr *httptest.ResponseRecorder, cookiePref
 
 	assert.True(t, foundCookie, "Expected cookie with prefix %q to be cleared", cookiePrefix)
 }
+
+func TestRequestBodySizeLimit(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	// A body larger than maxRequestBodySize, made of valid JSON so only the size
+	// limit (not JSON validity) can reject it.
+	huge := strings.Repeat("A", int(maxRequestBodySize)+1)
+	body := fmt.Sprintf(`{"cluster":"c","nodeName":"%s"}`, huge)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/drain-node",
+		strings.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	cfg.handleNodeDrain(rr, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+	assert.Contains(t, rr.Body.String(), "too large")
+}
