@@ -16,6 +16,8 @@
 
 import { renderHook } from '@testing-library/react';
 import App from '../../../../App';
+import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
+import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import Gateway from '../../../../lib/k8s/gateway';
@@ -397,6 +399,34 @@ describe('useGetAllRelations', () => {
       expect.arrayContaining(expectedIds)
     );
     expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
+  });
+
+  it.each([
+    ['BackendTLSPolicy', BackendTLSPolicy, 'backendtlspolicy-service'],
+    ['BackendTrafficPolicy', BackendTrafficPolicy, 'backendtrafficpolicy-service'],
+  ] as const)('links a %s to the Services in its targetRefs', (_kind, PolicyClass, relationId) => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, relationId);
+    const policy = new PolicyClass(
+      {
+        metadata: { uid: 'policy', name: 'policy', namespace: 'routes' },
+        spec: {
+          targetRefs: [
+            { group: '', kind: 'Service', name: 'first' },
+            { group: '', kind: 'Service', name: 'second' },
+            { group: 'example.io', kind: 'Service', name: 'custom' },
+          ],
+        },
+      } as any,
+      'cluster-a'
+    );
+    const target = (name: string) => service({ uid: name, name, namespace: 'routes' }, {});
+
+    expect(relation.predicate(node(policy), node(target('first')))).toBe(true);
+    expect(relation.predicate(node(policy), node(target('second')))).toBe(true);
+    expect(relation.predicate(node(policy), node(target('other')))).toBe(false);
+    expect(relation.predicate(node(policy), node(target('custom')))).toBe(false);
   });
 
   it('exercises volume, environment, and projected-secret predicates', () => {
