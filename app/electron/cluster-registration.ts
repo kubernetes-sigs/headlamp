@@ -227,6 +227,8 @@ async function executeCommandWithShellEnvironment(
     const child = spawn(command, args, {
       env: environment,
       shell: false,
+      // Without this, the Azure CLI opens a console window on Windows.
+      windowsHide: true,
     });
     child.stdout?.on('data', () => {});
     child.stderr?.on('data', () => {});
