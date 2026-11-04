@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "正在刪除外掛 {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "取消刪除外掛 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "已刪除外掛 {{ itemName }}。",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "刪除外掛 {{ itemName }} 時出錯。",
   "Uh-oh! Something went wrong.": "哎呀！出現問題。",
   "Error loading {{ routeName }}": "讀取 {{ routeName }} 時出錯",

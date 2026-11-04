@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Menghapus plugin {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "Penghapusan {{ itemName }} dibatalkan.",
   "Deleted plugin {{ itemName }}.": "Plugin {{ itemName }} dihapus.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Kesalahan saat menghapus plugin {{ itemName }}.",
   "Uh-oh! Something went wrong.": "Oh, tidak! Terjadi kesalahan.",
   "Error loading {{ routeName }}": "Kesalahan saat memuat {{ routeName }}",

@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "Invoegtoepassing {{ itemName }} verwijderen...",
   "Cancelled deletion of {{ itemName }}.": "Verwijderen van {{ itemName }} is geannuleerd.",
   "Deleted plugin {{ itemName }}.": "Invoegtoepassing {{ itemName }} is verwijderd.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Fout bij het verwijderen van invoegtoepassing {{ itemName }}.",
   "Uh-oh! Something went wrong.": "Oeps! Er is iets misgegaan.",
   "Error loading {{ routeName }}": "Fout bij het laden van {{ routeName }}",

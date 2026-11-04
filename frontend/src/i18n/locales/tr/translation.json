@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "{{ itemName }} eklentisi siliniyor...",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} öğesini silme işlemi iptal edildi.",
   "Deleted plugin {{ itemName }}.": "{{ itemName }} eklentisi silindi.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "{{ itemName }} eklentisi silinirken hata oluştu.",
   "Uh-oh! Something went wrong.": "Hay aksi! Bir sorun oluştu.",
   "Error loading {{ routeName }}": "{{ routeName }} yüklenirken hata oluştu",

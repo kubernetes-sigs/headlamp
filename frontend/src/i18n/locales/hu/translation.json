@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "{{ itemName }} beépülő modul törlése...",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} törlése visszavonva.",
   "Deleted plugin {{ itemName }}.": "{{ itemName }} beépülő modul törölve.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "Hiba történt a(z) {{ itemName }} beépülő modul törlése során.",
   "Uh-oh! Something went wrong.": "Hoppá! Hiba történt.",
   "Error loading {{ routeName }}": "Hiba a(z) {{ routeName }} betöltése során",

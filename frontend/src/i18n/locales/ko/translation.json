@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} 삭제 취소됨.",
   "Deleted plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "",
   "Uh-oh! Something went wrong.": "앗! 문제가 발생했습니다.",
   "Error loading {{ routeName }}": "{{ routeName }} 로드를 실패했습니다.",

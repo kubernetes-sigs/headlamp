@@ -138,6 +138,7 @@
   "Deleting plugin {{ itemName }}...": "جارٍ حذف الإضافة {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "تم إلغاء حذف {{ itemName }}",
   "Deleted plugin {{ itemName }}.": "تم حذف الإضافة {{ itemName }}",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Error deleting plugin {{ itemName }}.": "حدث خطأ أثناء حذف الإضافة {{ itemName }}",
   "Uh-oh! Something went wrong.": "عذرًا! حدث خطأ ما.",
   "Error loading {{ routeName }}": "حدث خطأ أثناء تحميل {{ routeName }}",
