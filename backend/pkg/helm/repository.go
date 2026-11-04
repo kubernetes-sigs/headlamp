@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o644)
+	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o600)
 	defaultNewConfigFolderMode os.FileMode = os.FileMode(0o770)
 )
 
@@ -81,7 +81,13 @@ func createFileIfNotThere(fileName string) error {
 		return file.Close()
 	}
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	// An existing file may predate the 0o600 default and already hold
+	// credentials, so a failed chmod must not be ignored.
+	return os.Chmod(fileName, defaultNewConfigFileMode)
 }
 
 func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
@@ -195,9 +201,7 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 
 	repoFile.Update(newRepo)
 
-	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo file")
+	if err = writeRepositoryFile(repoFile, settings); err != nil {
 		return err
 	}
 
@@ -263,7 +267,7 @@ func createFullPath(p string) (*os.File, error) {
 		return nil, err
 	}
 
-	return os.Create(p) //nolint:gosec
+	return os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, defaultNewConfigFileMode) //nolint:gosec
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
@@ -354,13 +358,7 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 		return errRepositoryNotFound
 	}
 
-	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo file")
-		return err
-	}
-
-	return nil
+	return writeRepositoryFile(repoFile, settings)
 }
 
 func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
@@ -456,13 +454,7 @@ func updateRepositoryWithRequest(request AddUpdateRepoRequest, settings *cli.Env
 	applyRequestFields(updated, request)
 	repoFile.Update(updated)
 
-	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo file")
-		return err
-	}
-
-	return nil
+	return writeRepositoryFile(repoFile, settings)
 }
 
 func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
@@ -496,4 +488,27 @@ func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func writeRepositoryFile(repoFile *repo.File, settings *cli.EnvSettings) error {
+	// Tighten permissions before writing, so credentials are never written
+	// into a file that is still readable by others.
+	err := os.Chmod(settings.RepositoryConfig, defaultNewConfigFileMode)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		logger.Log(logger.LevelError, nil, err, "chmodding repo file")
+		return err
+	}
+
+	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo file")
+		return err
+	}
+
+	if err := os.Chmod(settings.RepositoryConfig, defaultNewConfigFileMode); err != nil {
+		logger.Log(logger.LevelError, nil, err, "chmodding repo file")
+		return err
+	}
+
+	return nil
 }
