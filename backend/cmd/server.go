@@ -222,7 +222,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
 		OidcCallbackURL:           conf.OidcCallbackURL,
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
-		OidcScopes:                strings.Split(conf.OidcScopes, ","),
+		OidcScopes:                splitOIDCScopes(conf.OidcScopes),
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
@@ -401,3 +401,22 @@ func runListPlugins() {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 	}
 }
+
+func splitOIDCScopes(scopes string) []string {
+	result := []string{}
+
+	for _, scope := range strings.Split(scopes, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			result = append(result, scope)
+		}
+	}
+
+	return result
+}
+
+type resolvedClusterContext struct {
+	key     string
+	context *kubeconfig.Context
+}
+
+type resolvedClusterContextKey struct{}

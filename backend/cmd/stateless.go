@@ -268,6 +268,10 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 // For stateless clusters it is combination of cluster name and user id.
 // For normal clusters it is just the cluster name.
 func (c *HeadlampConfig) getContextKeyForRequest(r *http.Request) (string, error) {
+	if resolved, ok := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext); ok {
+		return resolved.key, nil
+	}
+
 	var contextKey string
 
 	clusterName := mux.Vars(r)["clusterName"]
