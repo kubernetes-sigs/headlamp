@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -111,19 +113,33 @@ const (
 	DynamicCluster
 	InCluster
 	ClusterInventory
+	DiscoveredCluster
 )
+
+// DiscoveryOrigin identifies a generated connection without imposing source-specific types.
+type DiscoveryOrigin struct {
+	Source      string
+	DisplayName string
+	Root        string
+	Namespace   string
+	Name        string
+	Entry       string
+}
 
 // Context contains all information related to a kubernetes context.
 type Context struct {
-	Name        string                 `json:"name"`
-	KubeContext *api.Context           `json:"kubeContext"`
-	Cluster     *api.Cluster           `json:"cluster"`
-	AuthInfo    *api.AuthInfo          `json:"authInfo"`
-	Source      int                    `json:"source"`
-	OidcConf    *OidcConfig            `json:"oidcConfig"`
-	proxy       *httputil.ReverseProxy `json:"-"`
-	Internal    bool                   `json:"internal"`
-	Error       string                 `json:"error"`
+	Discovery         *DiscoveryOrigin           `json:"-"`
+	DiscoveryMetadata map[string]json.RawMessage `json:"-"`
+	Presentation      *ConnectionPresentation    `json:"-"`
+	Name              string                     `json:"name"`
+	KubeContext       *api.Context               `json:"kubeContext"`
+	Cluster           *api.Cluster               `json:"cluster"`
+	AuthInfo          *api.AuthInfo              `json:"authInfo"`
+	Source            int                        `json:"source"`
+	OidcConf          *OidcConfig                `json:"oidcConfig"`
+	proxy             *httputil.ReverseProxy     `json:"-"`
+	Internal          bool                       `json:"internal"`
+	Error             string                     `json:"error"`
 	// KubeConfigPath is the file path for the kubeconfig file.
 	KubeConfigPath string `json:"kubeConfigPath"`
 	// KubeConfigContextName is the original on-disk context key, before display-name changes.
@@ -136,33 +152,6 @@ type Context struct {
 
 // Copy creates a deep copy of the Context, excluding the proxy field which is created on demand.
 func (c *Context) Copy() *Context {
-	var oidcConf *OidcConfig
-	if c.OidcConf != nil {
-		oidcConf = &OidcConfig{
-			ClientID:     c.OidcConf.ClientID,
-			ClientSecret: c.OidcConf.ClientSecret,
-			IdpIssuerURL: c.OidcConf.IdpIssuerURL,
-			Scopes:       make([]string, len(c.OidcConf.Scopes)),
-		}
-		copy(oidcConf.Scopes, c.OidcConf.Scopes)
-
-		// Deep copy pointer fields
-		if c.OidcConf.SkipTLSVerify != nil {
-			skipTLSVerify := *c.OidcConf.SkipTLSVerify
-			oidcConf.SkipTLSVerify = &skipTLSVerify
-		}
-
-		if c.OidcConf.CACert != nil {
-			caCert := *c.OidcConf.CACert
-			oidcConf.CACert = &caCert
-		}
-
-		if c.OidcConf.APIProxy != nil {
-			apiProxy := *c.OidcConf.APIProxy
-			oidcConf.APIProxy = &apiProxy
-		}
-	}
-
 	var kubeContext *api.Context
 	if c.KubeContext != nil {
 		kubeContext = c.KubeContext.DeepCopy()
@@ -178,13 +167,32 @@ func (c *Context) Copy() *Context {
 		authInfo = c.AuthInfo.DeepCopy()
 	}
 
+	var origin *DiscoveryOrigin
+
+	if c.Discovery != nil {
+		copied := *c.Discovery
+		origin = &copied
+	}
+
+	var metadata map[string]json.RawMessage
+	if c.DiscoveryMetadata != nil {
+		metadata = make(map[string]json.RawMessage, len(c.DiscoveryMetadata))
+	}
+
+	for key, value := range c.DiscoveryMetadata {
+		metadata[key] = append(json.RawMessage(nil), value...)
+	}
+
 	return &Context{
+		Discovery:             origin,
+		DiscoveryMetadata:     metadata,
+		Presentation:          c.Presentation.Copy(),
 		Name:                  c.Name,
 		KubeContext:           kubeContext,
 		Cluster:               cluster,
 		AuthInfo:              authInfo,
 		Source:                c.Source,
-		OidcConf:              oidcConf,
+		OidcConf:              c.OidcConf.Copy(),
 		Internal:              c.Internal,
 		Error:                 c.Error,
 		KubeConfigPath:        c.KubeConfigPath,
@@ -203,11 +211,40 @@ func (c *Context) UsesInClusterServiceAccountToken() bool {
 		c.AuthInfo.TokenFile != ""
 }
 
+// CanRename reports whether this context has a kubeconfig origin to persist a name change.
+func (c *Context) CanRename() bool {
+	return c != nil && c.KubeConfigPath != "" && c.KubeConfigContextName != ""
+}
+
+// RequiresUserAuthentication identifies OIDC connections without stored cluster credentials.
+func (c *Context) RequiresUserAuthentication() bool {
+	if c == nil {
+		return false
+	}
+
+	a := c.AuthInfo
+	if c.OidcConf == nil && (a == nil || a.AuthProvider == nil || a.AuthProvider.Name != "oidc") {
+		return false
+	}
+
+	if a == nil {
+		return true
+	}
+
+	if a.Token != "" || a.TokenFile != "" || a.Username != "" || a.ClientCertificate != "" ||
+		len(a.ClientCertificateData) > 0 || a.Exec != nil {
+		return false
+	}
+
+	return a.AuthProvider == nil ||
+		(a.AuthProvider.Config["id-token"] == "" && a.AuthProvider.Config["refresh-token"] == "")
+}
+
 type OidcConfig struct {
 	// OIDC client ID.
 	ClientID string
-	// OIDC client secret.
-	ClientSecret string
+	// OIDC client secret. It is server-side only and must never be serialized.
+	ClientSecret string `json:"-"`
 	// OIDC issuer URL.
 	IdpIssuerURL string
 	// OIDC scopes.
@@ -234,6 +271,34 @@ type APIProxySettings struct {
 	CACert string
 	// SkipTLSVerify disables verification of the proxy certificate. Testing only.
 	SkipTLSVerify bool
+}
+
+// Copy creates a deep copy of the OidcConfig.
+func (o *OidcConfig) Copy() *OidcConfig {
+	if o == nil {
+		return nil
+	}
+
+	oidcConf := *o
+	oidcConf.Scopes = append([]string{}, o.Scopes...)
+
+	// Deep copy pointer fields
+	if o.SkipTLSVerify != nil {
+		skipTLSVerify := *o.SkipTLSVerify
+		oidcConf.SkipTLSVerify = &skipTLSVerify
+	}
+
+	if o.CACert != nil {
+		caCert := *o.CACert
+		oidcConf.CACert = &caCert
+	}
+
+	if o.APIProxy != nil {
+		apiProxy := *o.APIProxy
+		oidcConf.APIProxy = &apiProxy
+	}
+
+	return &oidcConf
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -689,8 +754,17 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 	return kubernetes.NewForConfig(restConf)
 }
 
+// IsDiscovered reports whether a discovery source generated the connection.
+func (c *Context) IsDiscovered() bool {
+	return c != nil && (c.Discovery != nil || c.Source == ClusterInventory || c.Source == DiscoveredCluster)
+}
+
 // SourceStr returns the source from which the context was loaded.
 func (c *Context) SourceStr() string {
+	if c.Discovery != nil {
+		return c.Discovery.Source
+	}
+
 	switch c.Source {
 	case KubeConfig:
 		return "kubeconfig"
@@ -736,12 +810,12 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 
 	restConf, err := c.RESTConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("build proxy configuration: %w", err)
 	}
 
 	roundTripper, err := makeTransportFor(restConf)
 	if err != nil {
-		return err
+		return fmt.Errorf("build proxy transport: %w", err)
 	}
 
 	// Static bearer/basic auth takes precedence over exec in client-go.
@@ -766,6 +840,8 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 // user's bearer token is forwarded as-is in the Authorization header by the
 // request handler.
 func (c *Context) SetupProxy() error {
+	c.proxy = nil
+
 	URL, err := c.UpstreamURL()
 	if err != nil {
 		return err
@@ -774,13 +850,7 @@ func (c *Context) SetupProxy() error {
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
 	if err := c.setupProxyTransport(proxy); err != nil {
-		// Without a dedicated transport the default one would silently
-		// bypass the proxy TLS settings, so fail loudly when a proxy is set.
-		// Direct clusters keep the previous behaviour of falling back to the
-		// default transport.
-		if apiProxy, _ := c.APIProxy(); apiProxy != nil {
-			return fmt.Errorf("setting up api-proxy transport: %w", err)
-		}
+		return err
 	}
 
 	c.proxy = proxy
@@ -1370,7 +1440,7 @@ func createKubeConfig(
 // skipProxySetup is a flag to skip proxy setup.
 func convertToContext(contextName string, clientConfig *api.Config, source int, skipProxySetup bool) (Context, error) {
 	context, exists := clientConfig.Contexts[contextName]
-	if !exists {
+	if !exists || context == nil {
 		return Context{}, ContextError{
 			ContextName: contextName,
 			Reason:      "context not found in loaded config",
@@ -1378,7 +1448,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	}
 
 	cluster, exists := clientConfig.Clusters[context.Cluster]
-	if !exists {
+	if !exists || cluster == nil {
 		return Context{}, ClusterError{
 			ClusterName: context.Cluster,
 			Reason:      "cluster not found in loaded config",
@@ -1389,6 +1459,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	newContext := Context{
 		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigPath:        context.LocationOfOrigin,
 		KubeConfigContextName: contextName,
 		KubeContext:           context,
 		Cluster:               cluster,
@@ -1415,31 +1486,11 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 	contexts := []Context{}
 	errors := []error{}
 
-	for contextName, context := range config.Contexts {
-		cluster := config.Clusters[context.Cluster]
-		if cluster == nil {
-			errors = append(errors, fmt.Errorf("cluster not found for context: %q", contextName))
+	for contextName := range config.Contexts {
+		context, err := convertToContext(contextName, config, 0, skipProxySetup)
+		if err != nil {
+			errors = append(errors, err)
 			continue
-		}
-
-		// Note: nil authInfo is valid as authInfo can be provided by token.
-		authInfo := config.AuthInfos[context.AuthInfo]
-
-		context := Context{
-			Name:                  MakeDNSFriendly(contextName),
-			KubeConfigPath:        context.LocationOfOrigin,
-			KubeConfigContextName: contextName,
-			KubeContext:           context,
-			Cluster:               cluster,
-			AuthInfo:              authInfo,
-		}
-
-		if !skipProxySetup {
-			err := context.SetupProxy()
-			if err != nil {
-				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", context.Name, err))
-				continue
-			}
 		}
 
 		contexts = append(contexts, context)
@@ -1745,4 +1796,23 @@ func MakeDNSFriendly(name string) string {
 	name = strings.ReplaceAll(name, " ", "__")
 
 	return name
+}
+
+// SetDiscoveryMetadata copies public source metadata and retains the legacy Inventory view.
+func (c *Context) SetDiscoveryMetadata(metadata map[string]json.RawMessage) error {
+	c.DiscoveryMetadata = make(map[string]json.RawMessage, len(metadata))
+	for key, value := range metadata {
+		c.DiscoveryMetadata[key] = append(json.RawMessage(nil), value...)
+	}
+
+	if inventory, ok := metadata["clusterInventory"]; ok {
+		value := &inventorymetadata.Metadata{}
+		if err := json.Unmarshal(inventory, value); err != nil {
+			return fmt.Errorf("invalid Inventory metadata: %w", err)
+		}
+
+		c.ClusterInventory = value
+	}
+
+	return nil
 }

@@ -18,7 +18,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { storeStatelessClusterKubeconfig } from '../../../../stateless';
-import { setCluster } from './clusterApi';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { renameCluster, setCluster } from './clusterApi';
 import { request } from './clusterRequests';
 
 vi.mock('../../../../helpers/addBackstageAuthHeaders', () => ({
@@ -41,6 +43,10 @@ vi.mock('../../../../stateless/deleteClusterKubeconfig', () => ({
 
 vi.mock('../../../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(),
+}));
+
+vi.mock('../../../../stateless/getUserIdFromLocalStorage', () => ({
+  getUserIdFromLocalStorage: vi.fn(() => 'browser-user'),
 }));
 
 vi.mock('../../../cluster', () => ({
@@ -82,5 +88,47 @@ describe('setCluster', () => {
       false,
       false
     );
+  });
+});
+
+describe('renameCluster', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(request).mockResolvedValue({ clusters: [] });
+  });
+
+  it('identifies the browser whose cached IndexedDB connection must be removed', async () => {
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('base64-kubeconfig');
+
+    await renameCluster('shared-connection', 'my-workload', 'dynamic_cluster');
+
+    expect(request).toHaveBeenCalledWith(
+      '/cluster/shared-connection',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({
+          'X-HEADLAMP_BACKEND-TOKEN': 'backend-token',
+          'X-HEADLAMP-USER-ID': 'browser-user',
+        }),
+        body: JSON.stringify({
+          newClusterName: 'my-workload',
+          source: 'dynamic_cluster',
+          stateless: true,
+        }),
+      }),
+      false,
+      false
+    );
+  });
+
+  it('keeps file-backed renames independent of the browser identity', async () => {
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue(null);
+
+    await renameCluster('file-context', 'my-workload', 'kubeconfig');
+
+    const [, options] = vi.mocked(request).mock.calls[0];
+    expect(new Headers(options?.headers).has('X-HEADLAMP-USER-ID')).toBe(false);
+    expect(JSON.parse(options!.body as string)).toMatchObject({ stateless: false });
+    expect(getUserIdFromLocalStorage).not.toHaveBeenCalled();
   });
 });

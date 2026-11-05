@@ -30,7 +30,6 @@ import (
 
 	"github.com/cli/browser"
 	"github.com/gorilla/mux"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -225,7 +224,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
 		OidcCallbackURL:           conf.OidcCallbackURL,
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
-		OidcScopes:                strings.Split(conf.OidcScopes, ","),
+		OidcScopes:                splitOIDCScopes(conf.OidcScopes),
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
@@ -386,11 +385,11 @@ func handleCacheAuthorization(
 	kContext *kubeconfig.Context,
 	key string,
 ) bool {
-	c.applyClusterRequestAuthentication(r, kContext)
+	c.normalizeClusterCredentials(r, mux.Vars(r)["clusterName"], kContext)
 
 	if !c.shouldUseUnsafeServiceAccountTokenForContext(kContext) &&
 		kContext.UsesInClusterServiceAccountToken() &&
-		auth.BearerTokenValue(r.Header.Get("Authorization")) == "" {
+		requestBearerToken(r) == "" {
 		return false
 	}
 
@@ -435,3 +434,26 @@ func runListPlugins() {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 	}
 }
+
+// splitOIDCScopes splits a comma-separated list of scopes and drops the empty entries.
+func splitOIDCScopes(scopes string) []string {
+	result := []string{}
+
+	for _, scope := range strings.Split(scopes, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			result = append(result, scope)
+		}
+	}
+
+	return result
+}
+
+// resolvedClusterContext is the context store key and connection already resolved for a
+// request, so that later handlers use the same connection.
+type resolvedClusterContext struct {
+	key     string
+	context *kubeconfig.Context
+}
+
+// resolvedClusterContextKey is the request context key of a resolvedClusterContext.
+type resolvedClusterContextKey struct{}
