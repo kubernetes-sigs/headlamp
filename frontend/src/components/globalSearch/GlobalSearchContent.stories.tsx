@@ -72,7 +72,7 @@ const meta: Meta<typeof GlobalSearchContent> = {
   args: {
     defaultValue: '',
     maxWidth: 500,
-    onBlur: () => {},
+    onClose: () => {},
   },
   parameters: {
     msw: {
