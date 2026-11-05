@@ -15,7 +15,8 @@
  */
 
 import '../../../i18n/config';
-import { Meta, StoryFn } from '@storybook/react';
+import { Decorator, Meta, StoryFn } from '@storybook/react';
+import React from 'react';
 import { getTestDate } from '../../../helpers/testHelpers';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { TestContext } from '../../../test';
@@ -50,12 +51,36 @@ const createMockItem = (name: string, namespace: string = 'default', kind: strin
 
 const Template: StoryFn<typeof DeleteMultipleButton> = args => <DeleteMultipleButton {...args} />;
 
+/** Clicks the button it wraps once rendered, to open the confirmation dialog. */
+function OpenDialogOnMount({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    ref.current?.querySelector('button')?.click();
+  }, []);
+  return <div ref={ref}>{children}</div>;
+}
+
+/** Opens the confirmation dialog, so the snapshots cover the items it lists. A play function
+ *  would not: storybook.test.tsx runs it before the story's render is committed, which is why
+ *  stories with one disable their snapshots. The Docs page is left alone, where an open modal
+ *  would cover it. */
+const withDialogOpen: Decorator = (Story, context) =>
+  context.viewMode === 'docs' ? (
+    <Story />
+  ) : (
+    <OpenDialogOnMount>
+      <Story />
+    </OpenDialogOnMount>
+  );
+
 export const Default = Template.bind({});
 Default.args = {
   items: [createMockItem('configmap-1'), createMockItem('configmap-2')],
 };
+Default.decorators = [withDialogOpen];
 
 export const SingleItem = Template.bind({});
 SingleItem.args = {
   items: [createMockItem('configmap-single')],
 };
+SingleItem.decorators = [withDialogOpen];
