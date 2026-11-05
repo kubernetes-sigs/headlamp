@@ -16,6 +16,7 @@
 
 import '../../../i18n/config';
 import { Box } from '@mui/material';
+import MenuList from '@mui/material/MenuList';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
@@ -138,3 +139,10 @@ CustomStyle.args = {
   item: pod,
   buttonStyle: 'menu',
 };
+CustomStyle.decorators = [
+  Story => (
+    <MenuList>
+      <Story />
+    </MenuList>
+  ),
+];
