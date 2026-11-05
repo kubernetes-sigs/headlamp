@@ -70,6 +70,12 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	content = h.rewriteIndexContent(content, isServingIndex)
 
+	// Require revalidation of the SPA entry point so browsers do not
+	// reuse stale HTML after authentication state changes.
+	if isServingIndex {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+
 	// Set the correct Content-Type header. When we fell back to serving the
 	// index file, use the index path's extension (always .html), not the
 	// originally-requested path (which could be .css, .js, etc.).
