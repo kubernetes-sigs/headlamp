@@ -59,17 +59,21 @@ const Container = styled('div')<{
     borderColor: isSelected ? undefined : alpha(theme.palette.action.active, 0.2),
     boxShadow: '4px 4px 6px rgba(0,0,0,0.06)',
     zIndex: 10,
-    '& .label-container': {
-      overflow: 'visible',
-    },
   },
 
   ':focus-within': {
     zIndex: 10,
+  },
+
+  ...(isExpanded && {
     '& .label-container': {
       overflow: 'visible',
     },
-  },
+    '& .resource-node-title': {
+      WebkitLineClamp: 'unset',
+      overflow: 'visible',
+    },
+  }),
 
   '::before':
     childrenCount > 1
@@ -147,7 +151,10 @@ const Subtitle = styled('div')({
 });
 
 const Title = styled('div')({
-  whiteSpace: 'normal',
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
+  overflow: 'hidden',
   wordBreak: 'break-word',
 });
 
@@ -294,7 +301,9 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
         {icon}
         <LabelContainer className="label-container" isCollapsed={isCollapsed}>
           <Subtitle>{subtitle}</Subtitle>
-          <Title>{label}</Title>
+          <Title className="resource-node-title" title={label}>
+            {label}
+          </Title>
         </LabelContainer>
       </TextContainer>
       {isExpanded && <NodeGlance node={node} />}
