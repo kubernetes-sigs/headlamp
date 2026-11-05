@@ -19,7 +19,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import reducers from '../../../redux/reducers/reducers';
-import { API_BASE, TestContext } from '../../../test';
+import { TestContext } from '../../../test';
 import DetailsDrawer from './DetailsDrawer';
 
 export default {
@@ -64,11 +64,10 @@ Open.parameters = {
   msw: {
     handlers: {
       storyBase: [
-        http.post(
-          `${API_BASE}/clusters/minikube/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
-          () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+        http.post('*/clusters/minikube/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
+          HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
         ),
-        http.get(`${API_BASE}/clusters/minikube/api/v1/namespaces/default/pods`, () =>
+        http.get('*/clusters/minikube/api/v1/namespaces/default/pods', () =>
           HttpResponse.json({
             kind: 'PodList',
             apiVersion: 'v1',
@@ -84,7 +83,7 @@ Open.parameters = {
             ],
           })
         ),
-        http.get(`${API_BASE}/clusters/minikube/api/v1/namespaces/default/pods/my-pod`, () =>
+        http.get('*/clusters/minikube/api/v1/namespaces/default/pods/my-pod', () =>
           HttpResponse.json({
             kind: 'Pod',
             apiVersion: 'v1',
@@ -93,7 +92,7 @@ Open.parameters = {
             status: { phase: 'Running' },
           })
         ),
-        http.get(`${API_BASE}/clusters/minikube/api/v1/namespaces/default/events`, () =>
+        http.get('*/clusters/minikube/api/v1/namespaces/default/events', () =>
           HttpResponse.json({
             kind: 'EventList',
             items: [],
