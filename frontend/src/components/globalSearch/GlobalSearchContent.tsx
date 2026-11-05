@@ -168,7 +168,7 @@ interface GlobalSearchContentProps {
   /** The initial search query to display in the search field. */
   defaultValue: string;
   /** Callback called when the search field loses focus. */
-  onBlur: () => void;
+  onClose: () => void;
 }
 
 /**
@@ -179,7 +179,7 @@ interface GlobalSearchContentProps {
  * @param props - The component props.
  */
 export function GlobalSearchContent(props: GlobalSearchContentProps) {
-  const { maxWidth, defaultValue, onBlur } = props;
+  const { maxWidth, defaultValue, onClose } = props;
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
@@ -385,10 +385,10 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       label: t('Configure Keyboard Shortcuts'),
       onClick: () => {
         dispatch(setShortcutsDialogOpen(true));
-        onBlur();
+        onClose();
       },
     }),
-    [dispatch, t, onBlur]
+    [dispatch, t, onClose]
   );
 
   const allOptions = useMemo(
@@ -520,9 +520,15 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       if (value && typeof value !== 'string') {
         bump(value.id);
         value.onClick();
+        onClose();
       }
     },
-    onClose: onBlur,
+    onClose: (_, reason) => {
+      // Only trigger onClose for explicit actions, not blur
+      if (reason === 'escape' || reason === 'selectOption') {
+        onClose();
+      }
+    },
   });
 
   const listRef = useRef<FixedSizeList>(null);
