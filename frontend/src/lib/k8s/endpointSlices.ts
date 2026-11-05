@@ -56,6 +56,12 @@ class EndpointSlice extends KubeObject<KubeEndpointSlice> {
 
   static getBaseObject(): KubeEndpointSlice {
     const baseObject = super.getBaseObject() as KubeEndpointSlice;
+    baseObject.addressType = 'IPv4';
+    baseObject.ports = [{ name: 'http', port: 80, protocol: 'TCP' }];
+    baseObject.endpoints = [
+      // hostname and the other conditions are optional in the API, so they are left unset.
+      { addresses: [''], conditions: { ready: true } } as KubeEndpointSliceEndpoint,
+    ];
     return baseObject;
   }
   get spec() {

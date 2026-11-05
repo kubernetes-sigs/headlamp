@@ -16,6 +16,10 @@
 
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
+import {
+  areEndpointSliceEndpointsValid,
+  areEndpointSlicePortsValid,
+} from '../../components/endpointSlices/endpointSliceValidation';
 import EndpointSlice from './endpointSlices';
 
 // cyclic imports fix
@@ -77,6 +81,27 @@ describe('EndpointSlice class', () => {
       delete data.metadata.ownerReferences;
       const endpointSlice = new EndpointSlice(data);
       expect(endpointSlice.getOwnerServiceName()).toBeUndefined();
+    });
+  });
+  describe('EndpointSlice.getBaseObject', () => {
+    it('seeds the create form with an IPv4 slice, one port and one ready endpoint', () => {
+      expect(EndpointSlice.getBaseObject()).toEqual({
+        apiVersion: 'discovery.k8s.io/v1',
+        kind: 'EndpointSlice',
+        metadata: { name: '' },
+        addressType: 'IPv4',
+        ports: [{ name: 'http', port: 80, protocol: 'TCP' }],
+        endpoints: [{ addresses: [''], conditions: { ready: true } }],
+      });
+    });
+
+    it('only needs an address to pass the create form validation', () => {
+      const base = EndpointSlice.getBaseObject();
+      expect(areEndpointSlicePortsValid(base.ports)).toBe(true);
+      expect(areEndpointSliceEndpointsValid(base.endpoints, base.addressType)).toBe(false);
+
+      base.endpoints![0].addresses = ['10.1.2.3'];
+      expect(areEndpointSliceEndpointsValid(base.endpoints, base.addressType)).toBe(true);
     });
   });
 });

@@ -236,7 +236,7 @@ func fileExists(filename string) bool {
 }
 
 func mustReadFile(path string) []byte {
-	data, err := os.ReadFile(path) //nolint:gosec
+	data, err := os.ReadFile(path) //nolint:gosec // Path is validated/trusted configuration file path
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
@@ -458,7 +458,7 @@ func getOIDCLogoutProvider(
 		if ok {
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Insecure mode explicitly requested via config
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
@@ -857,7 +857,7 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
-//nolint:gocognit,funlen,gocyclo
+//nolint:gocognit,funlen,gocyclo // Main router setup function wires all endpoints and middleware
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
@@ -1187,7 +1187,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
 		defer cancel()
 
-		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
+		//nolint:gosec // Target URL is validated against allowed proxy URLs whitelist
+		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1209,7 +1210,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		client := http.Client{}
 
-		resp, err := client.Do(proxyReq) //nolint:gosec
+		resp, err := client.Do(proxyReq) //nolint:gosec // Target URL is validated against allowed proxy URLs whitelist
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -1332,7 +1333,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Insecure mode explicitly requested via config
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
@@ -2282,7 +2283,8 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
+//nolint:funlen // Handler orchestrates request forwarding, auth, and telemetry
+func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
@@ -2685,7 +2687,9 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // addCluster adds cluster to store and updates the kubeconfig file.
-func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//
+//nolint:funlen // Handler validates cluster configs, updates store, and manages kubeconfig
+func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 
@@ -2810,8 +2814,13 @@ func (c *HeadlampConfig) processKubeConfig(clusterReq ClusterReq) ([]kubeconfig.
 	setupErrors := c.handleLoadErrors(err, contextLoadErrors)
 
 	if len(contextLoadErrors) == 0 {
-		if err := c.writeKubeConfig(*clusterReq.KubeConfig); err != nil {
+		configPath, err := c.writeKubeConfig(*clusterReq.KubeConfig)
+		if err != nil {
 			setupErrors = append(setupErrors, err)
+		} else {
+			for i := range contexts {
+				contexts[i].KubeConfigPath = configPath
+			}
 		}
 	}
 
@@ -2853,24 +2862,28 @@ func (c *HeadlampConfig) handleLoadErrors(err error, contextLoadErrors []kubecon
 	return setupErrors
 }
 
-// writeKubeConfig writes the kubeconfig to the kubeconfig file.
-func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) error {
+// writeKubeConfig persists the kubeconfig and returns its server-selected file path.
+func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) (string, error) {
 	kubeConfigByte, err := base64.StdEncoding.DecodeString(kubeConfigBase64)
 	if err != nil {
-		return fmt.Errorf("decoding kubeconfig: %w", err)
+		return "", fmt.Errorf("decoding kubeconfig: %w", err)
 	}
 
 	config, err := clientcmd.Load(kubeConfigByte)
 	if err != nil {
-		return fmt.Errorf("loading kubeconfig: %w", err)
+		return "", fmt.Errorf("loading kubeconfig: %w", err)
 	}
 
 	kubeConfigPersistenceDir, err := cfg.MakeKubeConfigsDir(c.KubeConfigDir)
 	if err != nil {
-		return fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
+		return "", fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
 	}
 
-	return kubeconfig.WriteToFile(*config, kubeConfigPersistenceDir)
+	if err := kubeconfig.WriteToFile(*config, kubeConfigPersistenceDir); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(kubeConfigPersistenceDir, "config"), nil
 }
 
 // addContextsToStore adds the contexts to the store.
@@ -2915,6 +2928,11 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Query().Get("removeKubeConfig") == "true" &&
+		!c.handleRemoveKubeConfig(w, ctx, span, name) {
+		return
+	}
+
 	err := c.KubeConfigStore.RemoveContext(name)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to delete cluster", http.StatusInternalServerError)
@@ -2922,52 +2940,50 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.handleDeleteCluster(w, r, ctx, span, name)
-
-	c.getConfig(w, r)
-}
-
-// handleDeleteCluster handles the deletion of a cluster.
-func (c *HeadlampConfig) handleDeleteCluster(
-	w http.ResponseWriter,
-	r *http.Request,
-	ctx context.Context,
-	span trace.Span,
-	name string,
-) {
-	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
-	if removeKubeConfig {
-		c.handleRemoveKubeConfig(w, r, ctx, span, name)
-		return
-	}
-
 	logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: name, "proxy": name},
 		nil, "removed cluster successfully")
+
+	c.getConfig(w, r)
 }
 
 // handleRemoveKubeConfig removes the cluster from the kubeconfig file.
 func (c *HeadlampConfig) handleRemoveKubeConfig(
 	w http.ResponseWriter,
-	r *http.Request,
 	ctx context.Context,
 	span trace.Span,
 	name string,
-) {
-	configPath := r.URL.Query().Get("configPath")
-	originalName := r.URL.Query().Get("originalName")
-	clusterID := r.URL.Query().Get("clusterID")
+) bool {
+	if !c.AllowKubeconfigChanges {
+		c.handleError(w, ctx, span, errors.New("kubeconfig changes are disabled"),
+			"removing cluster from kubeconfig is forbidden", http.StatusForbidden)
 
-	var configName string
-
-	if originalName != "" && clusterID != "" {
-		configName = originalName
-	} else {
-		configName = name
+		return false
 	}
 
-	if err := kubeconfig.RemoveContextFromFile(configName, configPath); err != nil {
+	clusterContext, err := c.KubeConfigStore.GetContext(name)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to find cluster", http.StatusNotFound)
+
+		return false
+	}
+
+	if clusterContext.KubeConfigPath == "" || clusterContext.KubeConfigContextName == "" {
+		c.handleError(w, ctx, span, errors.New("cluster has no persistent kubeconfig origin"),
+			"failed to determine cluster kubeconfig", http.StatusBadRequest)
+
+		return false
+	}
+
+	// Keep the import lock identity: both operations use the server-recorded origin.
+	if err := kubeconfig.RemoveContextFromFile(
+		clusterContext.KubeConfigContextName, clusterContext.KubeConfigPath,
+	); err != nil {
 		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
+
+		return false
 	}
+
+	return true
 }
 
 // Get path of kubeconfig we load headlamp with from source.
@@ -3342,7 +3358,9 @@ func (c *HeadlampConfig) drainContextKey(r *http.Request, cluster string) (strin
 }
 
 // handleNodeDrain submits a drain using the caller's cluster credentials.
-func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//
+//nolint:funlen // Handler validates request, resolves client config, and initiates node drain
+func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) {
 	if mux.Vars(r)["clusterName"] != "" {
 		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil || mediaType != "application/json" {
@@ -3548,7 +3566,8 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 Since node drain is an async operation, we need to poll for the status of the drain operation
 This endpoint returns the status of the drain operation.
 */
-func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//nolint:funlen // Handler validates request, queries drain status, and formats response
+func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	ctx := r.Context()
 

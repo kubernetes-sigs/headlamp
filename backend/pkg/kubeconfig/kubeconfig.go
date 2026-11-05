@@ -138,6 +138,8 @@ type Context struct {
 	Error       string                 `json:"error"`
 	// KubeConfigPath is the file path for the kubeconfig file.
 	KubeConfigPath string `json:"kubeConfigPath"`
+	// KubeConfigContextName is the original on-disk context key, before display-name changes.
+	KubeConfigContextName string `json:"-"`
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
 	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
@@ -184,17 +186,18 @@ func (c *Context) Copy() *Context {
 	}
 
 	return &Context{
-		Name:             c.Name,
-		KubeContext:      kubeContext,
-		Cluster:          cluster,
-		AuthInfo:         authInfo,
-		Source:           c.Source,
-		OidcConf:         oidcConf,
-		Internal:         c.Internal,
-		Error:            c.Error,
-		KubeConfigPath:   c.KubeConfigPath,
-		ClusterID:        c.ClusterID,
-		ClusterInventory: c.ClusterInventory.DeepCopy(),
+		Name:                  c.Name,
+		KubeContext:           kubeContext,
+		Cluster:               cluster,
+		AuthInfo:              authInfo,
+		Source:                c.Source,
+		OidcConf:              oidcConf,
+		Internal:              c.Internal,
+		Error:                 c.Error,
+		KubeConfigPath:        c.KubeConfigPath,
+		KubeConfigContextName: c.KubeConfigContextName,
+		ClusterID:             c.ClusterID,
+		ClusterInventory:      c.ClusterInventory.DeepCopy(),
 	}
 }
 
@@ -302,7 +305,7 @@ type Base64Error struct {
 
 // Error returns a string representation of the error.
 func (e Base64Error) Error() string {
-	var messages []string //nolint:prealloc
+	var messages []string //nolint:prealloc // Small slice allocated only on error formatting
 
 	for _, err := range e.Errors {
 		messages = append(messages, err.Error())
@@ -418,7 +421,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec
+		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA certificate file path is loaded from kubeconfig
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -593,7 +596,7 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
-	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
+	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec // Kubeconfig file path is provided via configuration
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
@@ -1165,21 +1168,19 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
-	// Make contextName DNS friendly.
-	contextName = MakeDNSFriendly(contextName)
-
 	newContext := Context{
-		Name:        contextName,
-		KubeContext: context,
-		Cluster:     cluster,
-		AuthInfo:    authInfo,
-		Source:      source,
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigContextName: contextName,
+		KubeContext:           context,
+		Cluster:               cluster,
+		AuthInfo:              authInfo,
+		Source:                source,
 	}
 
 	if !skipProxySetup {
 		err := newContext.SetupProxy()
 		if err != nil {
-			return Context{}, ContextError{ContextName: contextName, Reason: fmt.Sprintf("couldn't setup proxy: %v", err)}
+			return Context{}, ContextError{ContextName: newContext.Name, Reason: fmt.Sprintf("couldn't setup proxy: %v", err)}
 		}
 	}
 
@@ -1201,20 +1202,19 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		// Note: nil authInfo is valid as authInfo can be provided by token.
 		authInfo := config.AuthInfos[context.AuthInfo]
 
-		// Make contextName DNS friendly.
-		contextName = MakeDNSFriendly(contextName)
-
 		context := Context{
-			Name:        contextName,
-			KubeContext: context,
-			Cluster:     cluster,
-			AuthInfo:    authInfo,
+			Name:                  MakeDNSFriendly(contextName),
+			KubeConfigPath:        context.LocationOfOrigin,
+			KubeConfigContextName: contextName,
+			KubeContext:           context,
+			Cluster:               cluster,
+			AuthInfo:              authInfo,
 		}
 
 		if !skipProxySetup {
 			err := context.SetupProxy()
 			if err != nil {
-				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", contextName, err))
+				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", context.Name, err))
 				continue
 			}
 		}
@@ -1412,16 +1412,21 @@ func AllowAllKubeContext(_ Context) bool {
 // whose names are in the given comma-separated string.
 // For example, if pass the "a,b" for blackKubeContextNameStr,
 // the contexts named "a" and "b" will be skipped.
+// A context matches by its name in the kubeconfig or by its DNS-friendly name.
 func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
 	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
 	blackKubeContextNameMap := map[string]bool{}
 
 	for _, blackKubeContextName := range blackKubeContextNameList {
-		blackKubeContextNameMap[blackKubeContextName] = true
+		name := strings.TrimSpace(blackKubeContextName)
+		if name != "" {
+			blackKubeContextNameMap[name] = true
+		}
 	}
 
 	return func(kubeContext Context) bool {
-		return blackKubeContextNameMap[kubeContext.Name]
+		return blackKubeContextNameMap[kubeContext.Name] ||
+			blackKubeContextNameMap[kubeContext.KubeConfigContextName]
 	}
 }
 

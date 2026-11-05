@@ -17,6 +17,7 @@
 import { useMemo } from 'react';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import type { LabelSelector } from '../../../../lib/k8s/cluster';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
@@ -66,6 +67,40 @@ export const matchesLabels = (matchLabels: Record<string, string>, item: KubeObj
     item.metadata.labels &&
     Object.entries(matchLabels).every(([key, value]) => item.metadata?.labels?.[key] === value)
   );
+};
+
+/**
+ * Check if the given item is selected by a Kubernetes label selector.
+ * An empty selector selects every item.
+ */
+export const matchesLabelSelector = (selector: LabelSelector | undefined, item: KubeObject) => {
+  if (!selector) {
+    return false;
+  }
+  const labels = item.metadata.labels ?? {};
+  const hasLabel = (key: string) => Object.prototype.hasOwnProperty.call(labels, key);
+
+  const labelsMatch = Object.entries(selector.matchLabels ?? {}).every(
+    ([key, value]) => hasLabel(key) && labels[key] === value
+  );
+  if (!labelsMatch) {
+    return false;
+  }
+
+  return (selector.matchExpressions ?? []).every(({ key, operator, values = [] }) => {
+    switch (operator) {
+      case 'In':
+        return hasLabel(key) && values.includes(labels[key]);
+      case 'NotIn':
+        return !hasLabel(key) || !values.includes(labels[key]);
+      case 'Exists':
+        return hasLabel(key);
+      case 'DoesNotExist':
+        return !hasLabel(key);
+      default:
+        return false;
+    }
+  });
 };
 
 const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
@@ -269,7 +304,7 @@ const ingressToSecret = makeRelation('ingress-secret', Ingress, Secret, (ingress
 );
 
 const networkPolicyToPod = makeRelation('networkpolicy-pod', NetworkPolicy, Pod, (np, pod) =>
-  matchesLabels(np.spec.podSelector.matchLabels ?? {}, pod)
+  matchesLabelSelector(np.spec.podSelector, pod)
 );
 
 const roleBindingsToRole = makeRelation(
@@ -372,32 +407,17 @@ const gatewayToGatewayClass = makeRelation(
   (gateway, gatewayClass) => gateway.spec?.gatewayClassName === gatewayClass.metadata.name
 );
 
-const httpRouteToGateway = makeRelation(
-  'httproute-gateway',
-  HTTPRoute,
-  Gateway,
-  (httpRoute, gateway) => httpRoute.spec.parentRefs?.find(ref => ref.name === gateway.metadata.name)
-);
+// HTTPRoute, TCPRoute and UDPRoute share the same parentRefs and backendRefs
+// semantics, including references to objects in other namespaces.
+type GatewayRoute = HTTPRoute | TCPRoute | UDPRoute;
+type GatewayRouteClass = typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute;
 
-const httpRouteToService = makeRelation(
-  'httproute-service',
-  HTTPRoute,
-  Service,
-  (httpRoute, service) =>
-    httpRoute.spec.rules?.find(rule =>
-      rule.backendRefs?.find(backend => backend.name === service.metadata.name)
-    )
-);
-
-type L4Route = TCPRoute | UDPRoute;
-type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
-
-const makeL4RouteToGatewayRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+const makeRouteToGatewayRelation = (id: string, RouteClass: GatewayRouteClass): Relation => ({
   id,
   fromSource: makeKubeSourceId(RouteClass),
   toSource: makeKubeSourceId(Gateway),
   predicate(fromNode, toNode) {
-    const route = fromNode.kubeObject as L4Route;
+    const route = fromNode.kubeObject as GatewayRoute;
     const gateway = toNode.kubeObject as Gateway;
 
     return (
@@ -417,12 +437,12 @@ const makeL4RouteToGatewayRelation = (id: string, RouteClass: L4RouteClass): Rel
   },
 });
 
-const makeL4RouteToServiceRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+const makeRouteToServiceRelation = (id: string, RouteClass: GatewayRouteClass): Relation => ({
   id,
   fromSource: makeKubeSourceId(RouteClass),
   toSource: makeKubeSourceId(Service),
   predicate(fromNode, toNode) {
-    const route = fromNode.kubeObject as L4Route;
+    const route = fromNode.kubeObject as GatewayRoute;
     const service = toNode.kubeObject as Service;
 
     return (
@@ -444,10 +464,12 @@ const makeL4RouteToServiceRelation = (id: string, RouteClass: L4RouteClass): Rel
   },
 });
 
-const tcpRouteToGateway = makeL4RouteToGatewayRelation('tcproute-gateway', TCPRoute);
-const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRoute);
-const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
-const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
+const httpRouteToGateway = makeRouteToGatewayRelation('httproute-gateway', HTTPRoute);
+const httpRouteToService = makeRouteToServiceRelation('httproute-service', HTTPRoute);
+const tcpRouteToGateway = makeRouteToGatewayRelation('tcproute-gateway', TCPRoute);
+const tcpRouteToService = makeRouteToServiceRelation('tcproute-service', TCPRoute);
+const udpRouteToGateway = makeRouteToGatewayRelation('udproute-gateway', UDPRoute);
+const udpRouteToService = makeRouteToServiceRelation('udproute-service', UDPRoute);
 
 const backendTLSPolicyToService = makeRelation(
   'backendtlspolicy-service',

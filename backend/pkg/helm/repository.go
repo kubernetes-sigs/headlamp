@@ -263,7 +263,7 @@ func createFullPath(p string) (*os.File, error) {
 		return nil, err
 	}
 
-	return os.Create(p) //nolint:gosec
+	return os.Create(p) //nolint:gosec // Path is constructed from controlled repository configuration
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {

@@ -116,7 +116,18 @@ function copyPackageLock() {
   const resolvedPattern = new RegExp(`"resolved": "file:\\.\\./${tgzFile.replace(/\./g, '\\.')}"`, 'g');
   const resolvedReplacement = `"resolved": "https://registry.npmjs.org/@kinvolk/headlamp-plugin/-/headlamp-plugin-${pluginVersion}.tgz"`;
   packageLockContent = packageLockContent.replace(resolvedPattern, resolvedReplacement);
-    
+
+  // Leave out the integrity of @kinvolk/headlamp-plugin. It's the one of the local
+  // "npm pack" above, and the published package never matches it (it even contains
+  // this file), so "npm ci" would fail with EINTEGRITY after "create --noinstall".
+  // "create" sets the integrity from the npm registry when it installs.
+  const packageLock = JSON.parse(packageLockContent);
+  const headlampPluginLock = packageLock.packages?.['node_modules/@kinvolk/headlamp-plugin'];
+  if (headlampPluginLock) {
+    delete headlampPluginLock.integrity;
+  }
+  packageLockContent = JSON.stringify(packageLock, null, 2) + '\n';
+
   fs.writeFileSync('template/package-lock.json', packageLockContent);
   console.log('copy_package_lock: Updated template/package-lock.json');
 }

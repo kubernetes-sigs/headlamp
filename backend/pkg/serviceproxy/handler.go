@@ -26,6 +26,8 @@ func RequestHandler(
 	// Must run before anything writes to w: changing the header map after
 	// WriteHeader or Write has no effect.
 	disableResponseCaching(w)
+	setResponseSecurityHeaders(w)
+
 	// Get the context
 	ctx, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {

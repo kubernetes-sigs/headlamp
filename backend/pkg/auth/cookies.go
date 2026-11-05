@@ -136,7 +136,7 @@ func SetTokenCookie(
 	for i, chunk := range chunks {
 		// G124: Secure is set from IsSecureContext so localhost development still works;
 		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec
+		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
 			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
@@ -207,7 +207,7 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 
 		// G124: Secure is set from IsSecureContext so localhost development still works;
 		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec
+		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
 			Name:     cookieName,
 			Value:    "",
 			HttpOnly: true,
@@ -252,7 +252,7 @@ func boundedAuthTokenChunks(token string) ([]string, error) {
 func clearAuthTokenChunkCookie(w http.ResponseWriter, secure bool, cookiePath, sanitizedCluster string, index int) {
 	// G124: Secure is set from IsSecureContext so localhost development still works;
 	// HttpOnly and SameSite are set unconditionally.
-	cookie := &http.Cookie{ //nolint:gosec
+	cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
 		Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, index),
 		Value:    "",
 		HttpOnly: true,
@@ -292,7 +292,7 @@ func SetIDTokenCookie(
 	for i, chunk := range chunks {
 		// G124: Secure is set from IsSecureContext so localhost development still works;
 		// HttpOnly and SameSite are set unconditionally.
-		cookie := &http.Cookie{ //nolint:gosec
+		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
 			Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
@@ -381,7 +381,7 @@ func clearIDTokenChunkCookie(
 ) {
 	// G124: Secure is set from IsSecureContext so localhost development still works;
 	// HttpOnly and SameSite are set unconditionally.
-	cookie := &http.Cookie{ //nolint:gosec
+	cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
 		Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, index),
 		Value:    "",
 		HttpOnly: true,

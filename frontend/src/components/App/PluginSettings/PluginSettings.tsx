@@ -250,7 +250,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
   return (
     <>
       {props.showDevelopmentPluginsSetting && (
-        <SectionBox title={t('translation|Plugin Development Mode')}>
+        <SectionBox title={t('translation|Plugin Development Mode')} backLink>
           <Box
             sx={{
               display: 'grid',
@@ -287,6 +287,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
       )}
       <SectionBox
         title={<SectionFilterHeader title={t('translation|Plugins')} noNamespaceFilter />}
+        backLink={!props.showDevelopmentPluginsSetting}
       >
         <Table
           columns={[

@@ -172,7 +172,29 @@ func TestLoadContextFromFile(t *testing.T) {
 		assert.Contains(t, expectedNames, ctx.Name, "Unexpected context name")
 		assert.Contains(t, expectedClusterIDs, ctx.ClusterID, "Unexpected ClusterID")
 		assert.Equal(t, kubeConfigFile, ctx.KubeConfigPath, "Unexpected kubeconfig path")
+		assert.Equal(t, ctx.Name, ctx.KubeConfigContextName, "Unexpected original context name")
 		assert.Equal(t, fmt.Sprintf("%s+%s", kubeConfigFile, ctx.Name), ctx.ClusterID, "Unexpected ClusterID")
+	}
+}
+
+func TestLoadContextsFromAPIConfigPreservesOrigin(t *testing.T) {
+	for _, origin := range []string{"", filepath.Join(t.TempDir(), "config")} {
+		t.Run(origin, func(t *testing.T) {
+			config := api.NewConfig()
+			config.Clusters["cluster"] = &api.Cluster{Server: "https://cluster.example.com"}
+			config.Contexts["team/cluster + dev"] = &api.Context{
+				Cluster:          "cluster",
+				LocationOfOrigin: origin,
+			}
+
+			contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, true)
+
+			require.Empty(t, errs)
+			require.Len(t, contexts, 1)
+			assert.Equal(t, "team--cluster__+__dev", contexts[0].Name)
+			assert.Equal(t, "team/cluster + dev", contexts[0].KubeConfigContextName)
+			assert.Equal(t, origin, contexts[0].KubeConfigPath)
+		})
 	}
 }
 
@@ -810,10 +832,11 @@ func newTestContext() *kubeconfig.Context {
 			SkipTLSVerify: boolPtr(true),
 			CACert:        stringPtr("test-ca-cert"),
 		},
-		Internal:       true,
-		Error:          "test-error",
-		KubeConfigPath: "/path/to/kubeconfig",
-		ClusterID:      "test-cluster-id",
+		Internal:              true,
+		Error:                 "test-error",
+		KubeConfigPath:        "/path/to/kubeconfig",
+		KubeConfigContextName: "original-context",
+		ClusterID:             "test-cluster-id",
 	}
 }
 
@@ -1521,4 +1544,57 @@ users:
 	assert.Equal(t, filepath.Join(root, "pki", "ca.pem"), filepath.Clean(ctx.Cluster.CertificateAuthority))
 	assert.Equal(t, filepath.Join(root, "pki", "admin.pem"), filepath.Clean(ctx.AuthInfo.ClientCertificate))
 	assert.Equal(t, filepath.Join(root, "pki", "admin.key"), filepath.Clean(ctx.AuthInfo.ClientKey))
+}
+
+func TestSkipKubeContextInCommaSeparatedString(t *testing.T) {
+	eks := kubeconfig.Context{
+		Name:                  "arn:aws:eks:us-east-1:123456789012:cluster--prod",
+		KubeConfigContextName: "arn:aws:eks:us-east-1:123456789012:cluster/prod",
+	}
+	dev := kubeconfig.Context{Name: "dev", KubeConfigContextName: "dev"}
+	staging := kubeconfig.Context{Name: "staging", KubeConfigContextName: "staging"}
+	// A context can be named "" in the kubeconfig.
+	unnamed := kubeconfig.Context{}
+
+	tests := []struct {
+		name    string
+		skipped string
+		want    map[string]bool
+	}{
+		{
+			name:    "kubeconfig name with a slash",
+			skipped: "arn:aws:eks:us-east-1:123456789012:cluster/prod",
+			want:    map[string]bool{eks.Name: true, dev.Name: false, staging.Name: false, unnamed.Name: false},
+		},
+		{
+			name:    "DNS-friendly name",
+			skipped: "arn:aws:eks:us-east-1:123456789012:cluster--prod",
+			want:    map[string]bool{eks.Name: true, dev.Name: false, staging.Name: false, unnamed.Name: false},
+		},
+		{
+			name:    "spaces around entries",
+			skipped: "dev, staging ",
+			want:    map[string]bool{eks.Name: false, dev.Name: true, staging.Name: true, unnamed.Name: false},
+		},
+		{
+			name:    "empty",
+			skipped: "",
+			want:    map[string]bool{eks.Name: false, dev.Name: false, staging.Name: false, unnamed.Name: false},
+		},
+		{
+			name:    "empty entries",
+			skipped: "dev,,",
+			want:    map[string]bool{eks.Name: false, dev.Name: true, staging.Name: false, unnamed.Name: false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			skip := kubeconfig.SkipKubeContextInCommaSeparatedString(tt.skipped)
+
+			for _, ctx := range []kubeconfig.Context{eks, dev, staging, unnamed} {
+				assert.Equal(t, tt.want[ctx.Name], skip(ctx), "context %q", ctx.Name)
+			}
+		})
+	}
 }

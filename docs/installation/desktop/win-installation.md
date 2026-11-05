@@ -17,7 +17,7 @@ winget install headlamp
 
 ### Upgrading
 
-To upgrade Headlamp when its installed with Winget, run the command:
+To upgrade Headlamp when it's installed with Winget, run the command:
 
 ```powershell
 winget upgrade headlamp
@@ -35,13 +35,13 @@ choco install headlamp
 
 ### Upgrading
 
-To upgrade Headlamp when its installed with Chocolatey, run the command:
+To upgrade Headlamp when it's installed with Chocolatey, run the command:
 
 ```powershell
 choco upgrade headlamp
 ```
 
-## Install via Github Releases
+## Install via GitHub Releases
 
 To install Headlamp from its official installer, first download the _.exe_ file for the [latest release](https://github.com/kubernetes-sigs/headlamp/releases/latest)'s assets section (located at the bottom of the section). Then double click the file and follow the installer's instructions.
 

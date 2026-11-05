@@ -40,7 +40,7 @@
               <a
                 class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-147kpcx-MuiTypography-root-MuiLink-root"
                 href="https://jobset.sigs.k8s.io/docs/installation/"
-                rel="noopener"
+                rel="noopener noreferrer"
                 target="_blank"
               >
                 Learn More
