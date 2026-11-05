@@ -66,6 +66,9 @@ export const supportedKinds = [
   'ReferenceGrant',
   'BackendTLSPolicy',
   'XBackendTrafficPolicy',
+  'Workload',
+  'CompositePodGroup',
+  'PodGroup',
 ];
 
 export const canRenderDetails = (maybeKind: string) =>
