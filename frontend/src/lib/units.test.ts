@@ -30,6 +30,12 @@ describe('parseRam', () => {
     expect(parseRam('')).toBe(0);
   });
 
+  it('preserves negative Kubernetes memory and disk quantities', () => {
+    expect(parseRam('-1Gi')).toBe(-(1024 ** 3));
+    expect(parseRam('-500M')).toBe(-500000000);
+    expect(parseDiskSpace('-1Gi')).toBe(-(1024 ** 3));
+  });
+
   it('should parse binary units', () => {
     expect(parseRam('1Ki')).toBe(1024);
     expect(parseRam('1Mi')).toBe(1024 * 1024);
