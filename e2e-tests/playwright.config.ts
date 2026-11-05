@@ -58,7 +58,9 @@ const config: PlaywrightTestConfig = {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.HEADLAMP_TEST_URL || 'http://localhost:3000',
 
-    ignoreHTTPSErrors: process.env.HEADLAMP_POMERIUM_E2E === 'true',
+    ignoreHTTPSErrors:
+      process.env.HEADLAMP_POMERIUM_E2E === 'true' ||
+      process.env.HEADLAMP_CLUSTER_INVENTORY_E2E === 'true',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
