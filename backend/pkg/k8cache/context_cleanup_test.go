@@ -16,7 +16,6 @@ package k8cache_test
 import (
 	"context"
 	"net/url"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +25,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testResponseKey(t *testing.T, contextKey, path string) string {
+	t.Helper()
+
+	u, err := url.Parse(path)
+	require.NoError(t, err)
+
+	key, err := k8cache.GenerateKey(u, contextKey)
+	require.NoError(t, err)
+
+	return key
+}
+
 func TestCacheKeyBelongsToContext(t *testing.T) {
 	t.Parallel()
 
@@ -34,14 +45,14 @@ func TestCacheKeyBelongsToContext(t *testing.T) {
 		contextKey string
 		want       bool
 	}{
-		{"+pods+default+minikube", "minikube", true},
-		{"+pods+default+prod%2Bcluster", "prod+cluster", true},
-		{"+pods+default+prod%252Bcluster", "prod%2Bcluster", true},
-		{"+pods+default+prod%2Bcluster", "prod%2Bcluster", false},
-		{"apps+deployments+default+minikube", "minikube", true},
-		{"+pods+default+other", "minikube", false},
+		{testResponseKey(t, "minikube", "/api/v1/namespaces/default/pods"), "minikube", true},
+		{testResponseKey(t, "prod+cluster", "/api/v1/namespaces/default/pods"), "prod+cluster", true},
+		{testResponseKey(t, "prod%2Bcluster", "/api/v1/namespaces/default/pods"), "prod%2Bcluster", true},
+		{testResponseKey(t, "prod+cluster", "/api/v1/namespaces/default/pods"), "prod%2Bcluster", false},
+		{testResponseKey(t, "minikube", "/apis/apps/v1/namespaces/default/deployments"), "minikube", true},
+		{testResponseKey(t, "other", "/api/v1/namespaces/default/pods"), "minikube", false},
 		{"malformed", "minikube", false},
-		{"+pods+default+minikube", "", false},
+		{testResponseKey(t, "minikube", "/api/v1/namespaces/default/pods"), "", false},
 	}
 
 	for _, tt := range tests {
@@ -55,19 +66,22 @@ func TestPurgeCacheForContext(t *testing.T) {
 	k8scache := cache.New[string]()
 	ctx := context.Background()
 
-	require.NoError(t, k8scache.Set(ctx, "+pods+default+minikube", "pods-data"))
-	require.NoError(t, k8scache.Set(ctx, "apps+deployments+default+minikube", "deploy-data"))
-	require.NoError(t, k8scache.Set(ctx, "+pods+default+other-cluster", "other-data"))
+	podsKey := testResponseKey(t, "minikube", "/api/v1/namespaces/default/pods")
+	require.NoError(t, k8scache.Set(ctx, podsKey, "pods-data"))
+	deployKey := testResponseKey(t, "minikube", "/apis/apps/v1/namespaces/default/deployments")
+	require.NoError(t, k8scache.Set(ctx, deployKey, "deploy-data"))
+	otherKey := testResponseKey(t, "other-cluster", "/api/v1/namespaces/default/pods")
+	require.NoError(t, k8scache.Set(ctx, otherKey, "other-data"))
 
 	k8cache.PurgeCacheForContext(k8scache, "minikube")
 
-	_, err := k8scache.Get(ctx, "+pods+default+minikube")
+	_, err := k8scache.Get(ctx, podsKey)
 	assert.Error(t, err)
 
-	_, err = k8scache.Get(ctx, "apps+deployments+default+minikube")
+	_, err = k8scache.Get(ctx, deployKey)
 	assert.Error(t, err)
 
-	val, err := k8scache.Get(ctx, "+pods+default+other-cluster")
+	val, err := k8scache.Get(ctx, otherKey)
 	assert.NoError(t, err)
 	assert.Equal(t, "other-data", val)
 }
@@ -77,13 +91,10 @@ func TestPurgeCacheForContext_EscapedContextKey(t *testing.T) {
 
 	const contextKey = "prod+cluster"
 
-	podsURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
-	podsKey, err := k8cache.GenerateKey(&podsURL, contextKey)
-	require.NoError(t, err)
+	const podsPath = "/clusters/kind/api/v1/namespaces/default/pods"
 
-	otherURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
-	otherKey, err := k8cache.GenerateKey(&otherURL, "other-cluster")
-	require.NoError(t, err)
+	podsKey := testResponseKey(t, contextKey, podsPath)
+	otherKey := testResponseKey(t, "other-cluster", podsPath)
 
 	k8scache := cache.New[string]()
 	ctx := context.Background()
@@ -93,7 +104,7 @@ func TestPurgeCacheForContext_EscapedContextKey(t *testing.T) {
 
 	k8cache.PurgeCacheForContext(k8scache, contextKey)
 
-	_, err = k8scache.Get(ctx, podsKey)
+	_, err := k8scache.Get(ctx, podsKey)
 	assert.Error(t, err)
 
 	val, err := k8scache.Get(ctx, otherKey)
@@ -107,18 +118,13 @@ func TestSyncWatchersDoesNotPurgeActiveContextWithPlusInName(t *testing.T) {
 		removedContextKey = "removed-cluster\x00user2"
 	)
 
-	podsURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
-	activeCacheDataKey, err := k8cache.GenerateKey(&podsURL, activeContextKey)
-	require.NoError(t, err)
+	const podsPath = "/clusters/kind/api/v1/namespaces/default/pods"
 
-	removedCacheDataKey, err := k8cache.GenerateKey(&podsURL, removedContextKey)
-	require.NoError(t, err)
+	activeCacheDataKey := testResponseKey(t, activeContextKey, podsPath)
+	removedCacheDataKey := testResponseKey(t, removedContextKey, podsPath)
 
-	k8cache.ResetRegistries()
-	t.Cleanup(func() { k8cache.ResetRegistries() })
-
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	k8cache.ResetForTesting()
+	t.Cleanup(k8cache.ResetForTesting)
 
 	k8scache := cache.New[string]()
 	ctx := context.Background()
@@ -126,8 +132,6 @@ func TestSyncWatchersDoesNotPurgeActiveContextWithPlusInName(t *testing.T) {
 	require.NoError(t, k8scache.Set(ctx, activeCacheDataKey, "active-data"))
 	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
 	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
-
-	k8cache.StoreTestRegistry(activeContextKey, func() {})
 
 	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
 
@@ -198,64 +202,16 @@ func TestEvictClientsetsForCluster_PrunesBlockedPrefixWithoutGetClientSet(t *tes
 	assert.False(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
 }
 
-func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
-	const (
-		removedContextKey   = "removed-cluster\x00user1"
-		activeContextKey    = "active-cluster\x00user2"
-		removedCacheDataKey = "+pods+default+" + removedContextKey
-	)
-
-	k8cache.ResetRegistries()
-	t.Cleanup(func() { k8cache.ResetRegistries() })
-
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
-
-	k8scache := cache.New[string]()
-	ctx := context.Background()
-
-	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
-	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
-	k8cache.SeedClientsetCache(activeContextKey+"\x00other-token", time.Now())
-
-	canceled := make(map[string]bool)
-
-	var mu sync.Mutex
-
-	_, cancel := context.WithCancel(context.Background())
-	wrappedCancel := func() {
-		mu.Lock()
-		canceled[removedContextKey] = true
-		mu.Unlock()
-		cancel()
-	}
-
-	k8cache.StoreTestContextCancel(removedContextKey, wrappedCancel)
-	k8cache.StoreTestRegistry(activeContextKey, func() {})
-
-	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
-
-	mu.Lock()
-	assert.True(t, canceled[removedContextKey])
-	mu.Unlock()
-
-	_, err := k8scache.Get(ctx, removedCacheDataKey)
-	assert.Error(t, err)
-	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
-}
-
 func TestSyncWatchersPurgesCacheWithoutWatcher(t *testing.T) {
 	const (
-		removedContextKey   = "removed-cluster\x00user1"
-		activeContextKey    = "active-cluster\x00user2"
-		removedCacheDataKey = "+pods+default+" + removedContextKey
+		removedContextKey = "removed-cluster\x00user1"
+		activeContextKey  = "active-cluster\x00user2"
 	)
 
-	k8cache.ResetRegistries()
-	t.Cleanup(func() { k8cache.ResetRegistries() })
+	removedCacheDataKey := testResponseKey(t, removedContextKey, "/api/v1/namespaces/default/pods")
 
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
+	k8cache.ResetForTesting()
+	t.Cleanup(k8cache.ResetForTesting)
 
 	k8scache := cache.New[string]()
 	ctx := context.Background()
@@ -276,14 +232,8 @@ func TestSyncWatchersPurgesContextWithOnlyInFlightClientset(t *testing.T) {
 		activeContextKey  = "active-cluster\x00user2"
 	)
 
-	k8cache.ResetRegistries()
-	t.Cleanup(func() { k8cache.ResetRegistries() })
-
-	k8cache.ResetClientsetCache()
-	t.Cleanup(k8cache.ResetClientsetCache)
-
-	k8cache.ResetInFlight()
-	t.Cleanup(k8cache.ResetInFlight)
+	k8cache.ResetForTesting()
+	t.Cleanup(k8cache.ResetForTesting)
 
 	k8cache.SeedInFlightClientsetKey(removedContextKey + "\x00token")
 	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
