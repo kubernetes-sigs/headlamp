@@ -287,7 +287,11 @@ const configSlice = createSlice({
         state.settings[key] = action.payload[key];
       });
       state.userSettings = { ...state.userSettings, ...action.payload };
-      localStorage.setItem('settings', JSON.stringify(state.userSettings));
+      try {
+        localStorage.setItem('settings', JSON.stringify(state.userSettings));
+      } catch (error) {
+        console.warn('Could not save the settings preference to localStorage:', error);
+      }
     },
   },
 });

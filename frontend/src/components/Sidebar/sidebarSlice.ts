@@ -213,7 +213,11 @@ const sidebarSlice = createSlice({
      * Sets whether the sidebar is open or not.
      */
     setWhetherSidebarOpen(state, action: PayloadAction<boolean>) {
-      localStorage.setItem('sidebar', JSON.stringify({ shrink: !action.payload }));
+      try {
+        localStorage.setItem('sidebar', JSON.stringify({ shrink: !action.payload }));
+      } catch (error) {
+        console.warn('Could not save the sidebar preference to localStorage:', error);
+      }
       state.isSidebarOpen = action.payload;
       state.isSidebarOpenUserSelected = action.payload;
     },
