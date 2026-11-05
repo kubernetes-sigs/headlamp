@@ -100,7 +100,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		UserPluginDir:          conf.UserPluginsDir,
 		EnableHelm:             conf.EnableHelm,
 		EnableDynamicClusters:  conf.EnableDynamicClusters,
-		EnableClusterInventory: conf.EnableClusterInventory,
+		DiscoverySources:       conf.DiscoverySources,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
@@ -118,25 +118,20 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 
 			return proxyURLs
 		}(),
-		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
-		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
-		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,
-		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
-		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
-		TLSCertPath:                           conf.TLSCertPath,
-		TLSKeyPath:                            conf.TLSKeyPath,
-		SessionTTL:                            conf.SessionTTL,
-		PodDebugImage:                         conf.PodDebugImage,
-		NodeShellImage:                        conf.NodeShellImage,
-		NodeShellNamespace:                    conf.NodeShellNamespace,
-		BackstageOrigin:                       conf.BackstageOrigin,
-		OidcUseCookie:                         conf.OidcUseCookie,
-		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
-		DefaultLightTheme:                     conf.DefaultLightTheme,
-		DefaultDarkTheme:                      conf.DefaultDarkTheme,
-		ForceTheme:                            conf.ForceTheme,
-		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
-		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
+		TLSCertPath:                  conf.TLSCertPath,
+		TLSKeyPath:                   conf.TLSKeyPath,
+		SessionTTL:                   conf.SessionTTL,
+		PodDebugImage:                conf.PodDebugImage,
+		NodeShellImage:               conf.NodeShellImage,
+		NodeShellNamespace:           conf.NodeShellNamespace,
+		BackstageOrigin:              conf.BackstageOrigin,
+		OidcUseCookie:                conf.OidcUseCookie,
+		OidcUseTokenBroadcast:        conf.OidcUseTokenBroadcast,
+		DefaultLightTheme:            conf.DefaultLightTheme,
+		DefaultDarkTheme:             conf.DefaultDarkTheme,
+		ForceTheme:                   conf.ForceTheme,
+		UnsafeUseServiceAccountToken: conf.UnsafeUseServiceAccountToken,
+		ServiceAccountTokenPath:      conf.ServiceAccountTokenPath,
 	}
 }
 
@@ -217,6 +212,19 @@ func loadOidcCACert(oidcCAFile string) string {
 	return string(caFileContents)
 }
 
+// splitOIDCScopes splits a comma-separated list of scopes and drops the empty entries.
+func splitOIDCScopes(scopes string) []string {
+	result := []string{}
+
+	for _, scope := range strings.Split(scopes, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			result = append(result, scope)
+		}
+	}
+
+	return result
+}
+
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -291,6 +299,16 @@ func loadAdminSettings(path string) (json.RawMessage, error) {
 	}
 
 	return data, nil
+}
+
+// resolvedClusterContextKey is the request context key of a resolvedClusterContext.
+type resolvedClusterContextKey struct{}
+
+// resolvedClusterContext is the context store key and connection already resolved for a
+// request, so that later handlers use the same connection.
+type resolvedClusterContext struct {
+	key     string
+	context *kubeconfig.Context
 }
 
 // GetContextKeyAndKContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
@@ -397,41 +415,6 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 	serveCachedResource(c, next, w, r, span, key, kContext)
 }
 
-func runListPlugins() {
-	conf, err := config.Parse(os.Args[2:])
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
-		os.Exit(1)
-	}
-
-	if err := plugins.ListPlugins(conf.StaticDir, conf.UserPluginsDir, conf.PluginsDir); err != nil {
-		logger.Log(logger.LevelError, nil, err, "listing plugins")
-	}
-}
-
-// splitOIDCScopes splits a comma-separated list of scopes and drops the empty entries.
-func splitOIDCScopes(scopes string) []string {
-	result := []string{}
-
-	for _, scope := range strings.Split(scopes, ",") {
-		if scope = strings.TrimSpace(scope); scope != "" {
-			result = append(result, scope)
-		}
-	}
-
-	return result
-}
-
-// resolvedClusterContext is the context store key and connection already resolved for a
-// request, so that later handlers use the same connection.
-type resolvedClusterContext struct {
-	key     string
-	context *kubeconfig.Context
-}
-
-// resolvedClusterContextKey is the request context key of a resolvedClusterContext.
-type resolvedClusterContextKey struct{}
-
 // serveCachedResource forwards the request while the shared watch of its resource is not
 // synchronized. Otherwise it serves the cached response, or forwards the request and
 // stores the response.
@@ -460,5 +443,17 @@ func serveCachedResource(c *HeadlampConfig, next http.Handler, w http.ResponseWr
 
 	if err := read.Store(response); err != nil {
 		logger.Log(logger.LevelWarn, nil, err, "failed to store Kubernetes response")
+	}
+}
+
+func runListPlugins() {
+	conf, err := config.Parse(os.Args[2:])
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
+		os.Exit(1)
+	}
+
+	if err := plugins.ListPlugins(conf.StaticDir, conf.UserPluginsDir, conf.PluginsDir); err != nil {
+		logger.Log(logger.LevelError, nil, err, "listing plugins")
 	}
 }
