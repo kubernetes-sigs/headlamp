@@ -68,6 +68,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/oauth2"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,8 +79,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-
-	"golang.org/x/oauth2"
 )
 
 const (
@@ -979,7 +979,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			contextKey, err := config.getContextKeyForRequest(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -999,7 +999,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			contextKey, err := config.getContextKeyForRequest(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1012,7 +1012,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	r.Handle(
 		"/clusters/{clusterName}/portforward/list",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			contextKey, err := config.getContextKeyForRequest(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1024,7 +1024,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	)
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			contextKey, err := config.getContextKeyForRequest(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1036,7 +1036,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
-	r.Handle("/clusters/{clusterName}/me", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+	r.Handle("/clusters/{clusterName}/me", config.authenticatedHandler(
 		auth.HandleMe(auth.MeHandlerOptions{
 			UsernamePaths:           config.MeUsernamePaths,
 			EmailPaths:              config.MeEmailPaths,
@@ -1050,7 +1050,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	)).Methods("GET")
 
 	r.Handle("/encoded-clusters/{encodedClusterName}/oidc-logout",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || mediaType != "application/json" {
 				http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
@@ -1309,19 +1309,19 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 	})
-	r.Handle("/externalproxy", auth.NewBackendTokenMiddleware(config.UseInCluster)(externalProxyHandler))
+	r.Handle("/externalproxy", config.authenticatedHandler(externalProxyHandler))
 
 	// Configuration
-	r.Handle("/config", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+	r.Handle("/config", config.authenticatedHandler(
 		http.HandlerFunc(config.getConfig))).Methods("GET")
 
 	// Auth token management
-	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+	r.Handle("/auth/set-token", config.authenticatedHandler(
 		http.HandlerFunc(config.handleSetToken))).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
-		r.Handle("/wsMultiplexer", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		r.Handle("/wsMultiplexer", config.authenticatedHandler(
 			http.HandlerFunc(config.Multiplexer.HandleClientWebSocket),
 		))
 	}
@@ -1480,9 +1480,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}).Queries("cluster", "{cluster}")
 
 	r.Handle("/drain-node",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
+		config.authenticatedHandler(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
 	r.Handle("/drain-node-status",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
+		config.authenticatedHandler(http.HandlerFunc(
 			config.handleNodeDrainStatus))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
@@ -1729,6 +1729,10 @@ func (c *HeadlampConfig) getContextWithWebSocketFallback(
 	r *http.Request,
 	contextKey string,
 ) (string, *kubeconfig.Context, error) {
+	if resolved, ok := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext); ok {
+		return resolved.key, resolved.context, nil
+	}
+
 	kContext, err := c.KubeConfigStore.GetContext(contextKey)
 	if err == nil {
 		return contextKey, kContext, nil
@@ -2143,7 +2147,7 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 // to proxy requests to in-cluster services.
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
 		}))).Queries("request", "{request}").
 		Methods("GET")
@@ -2151,7 +2155,7 @@ func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").Handler(
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			path := r.URL.Path
 			clusterName := mux.Vars(r)["clusterName"]
@@ -2365,6 +2369,9 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 			return
 		}
 
+		processWebSocketProtocolHeader(r)
+		c.normalizeClusterCredentials(r, mux.Vars(r)["clusterName"], kContext)
+
 		clusterURL, err := url.Parse(kContext.Cluster.Server)
 		if err != nil {
 			c.handleError(w, ctx, span, err, "failed to parse cluster URL", http.StatusNotFound)
@@ -2392,29 +2399,6 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
 
-		// Process WebSocket protocol headers if present
-		processWebSocketProtocolHeader(r)
-
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
-			clearRequestAuthorization(r)
-		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
-
-			if token == "" {
-				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-			}
-
-			if token != "" {
-				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			}
-		}
-
-		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
-
 		plugins.HandlePluginReload(c.Cache, w)
 
 		if err = kContext.ProxyRequest(w, r); err != nil {
@@ -2438,20 +2422,20 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/drain-node",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
+		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/drain-node-status",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
+		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
 	router.Handle("/encoded-clusters/{encodedClusterName}/clear-token",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleClearToken))).Methods("POST")
+		c.authenticatedHandler(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleSetToken))).Methods("POST")
+		c.authenticatedHandler(http.HandlerFunc(c.handleSetToken))).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
 		handler = CacheMiddleWare(c)(handler)
 	}
 
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(c.authenticatedHandler(handler))
 }
 
 func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {
@@ -3060,10 +3044,19 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 	defer span.End()
 
-	if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+	if userID == "" {
+		c.handleError(w, ctx, span, errors.New("user ID is required for stateless cluster rename"),
+			"missing stateless user ID", http.StatusBadRequest)
+
+		return
+	}
+
+	contextKey := statelessContextKey(clusterName, userID)
+	if err := c.KubeConfigStore.RemoveContext(contextKey); err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
-			err, "decoding request body")
-		c.TelemetryHandler.RecordError(span, err, "decoding request body")
+			err, "removing stateless cluster context")
+		c.TelemetryHandler.RecordError(span, err, "removing stateless cluster context")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "remove_context_failure"))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
@@ -3218,6 +3211,14 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Request,
 	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
 ) error {
+	stored, err := c.KubeConfigStore.GetContext(clusterName)
+	if err == nil && !stored.CanRename() {
+		renameErr := errors.New("cluster has no persistent kubeconfig origin")
+		c.handleError(w, ctx, span, renameErr, "cluster name is managed by its source", http.StatusBadRequest)
+
+		return renameErr
+	}
+
 	// Load kubeconfig
 	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
@@ -3382,7 +3383,7 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 		return
 	}
 	// Get stateless cluster
-	r.Handle("/parseKubeConfig", auth.NewBackendTokenMiddleware(c.UseInCluster)(
+	r.Handle("/parseKubeConfig", c.authenticatedHandler(
 		http.HandlerFunc(c.parseKubeConfig))).Methods("POST")
 
 	// POST a cluster
@@ -3393,7 +3394,7 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 
 	// Rename a cluster
 	r.Handle("/cluster/{name}",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.renameCluster))).Methods("PUT")
+		c.authenticatedHandler(http.HandlerFunc(c.renameCluster))).Methods("PUT")
 }
 
 func (c *HeadlampConfig) drainContextKey(r *http.Request, cluster string) (string, error) {
@@ -3465,8 +3466,9 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
 
-	if token == "" && c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
-		!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {
+	if token == "" && (ctxtProxy.RequiresUserAuthentication() ||
+		(c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
+			!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy))) {
 		c.handleError(w, ctx, span, errors.New("user authentication is required"),
 			"missing drain credentials", http.StatusUnauthorized)
 
@@ -3723,4 +3725,13 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// proxyAuthToken returns the token supplied by the trusted auth proxy header, if any.
+func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
+	if !c.ProxyAuthEnabled || c.ProxyAuthTokenHeader == "" {
+		return ""
+	}
+
+	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
 }

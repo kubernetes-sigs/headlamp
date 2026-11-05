@@ -18,16 +18,27 @@ limitations under the License.
 package clusterinventory
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,8 +54,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 
-	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	apisv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 	ciaclient "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned"
 	ciafake "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned/fake"
@@ -107,7 +116,7 @@ func clusterProfile(name, providerName, server string) *apisv1alpha1.ClusterProf
 				Name: providerName,
 				Cluster: clientcmdv1.Cluster{
 					Server:                   server,
-					CertificateAuthorityData: []byte("ca-" + name),
+					CertificateAuthorityData: testCAPEM(),
 				},
 			},
 		}
@@ -373,7 +382,7 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 	restConfig := &rest.Config{
 		Host: "https://spoke.example.com",
 		TLSClientConfig: rest.TLSClientConfig{
-			CAData:     []byte("ca-data"),
+			CAData:     testCAPEM(),
 			CAFile:     "/tmp/ca.pem",
 			Insecure:   true,
 			ServerName: "spoke.internal",
@@ -391,7 +400,7 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 
 	assert.Equal(t, "ctx-name", ctx.Name)
 	assert.Equal(t, "https://spoke.example.com", ctx.Cluster.Server)
-	assert.Equal(t, []byte("ca-data"), ctx.Cluster.CertificateAuthorityData)
+	assert.Equal(t, testCAPEM(), ctx.Cluster.CertificateAuthorityData)
 	assert.Equal(t, "/tmp/ca.pem", ctx.Cluster.CertificateAuthority)
 	assert.True(t, ctx.Cluster.InsecureSkipTLSVerify)
 	assert.Equal(t, "spoke.internal", ctx.Cluster.TLSServerName)
@@ -1364,3 +1373,30 @@ func TestNoCRDCacheTTL(t *testing.T) {
 
 	assert.False(t, runner.hasNoCRD("https://no-crd.example.com"))
 }
+
+var generatedTestCA = sync.OnceValue(func() []byte {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "discovery-test-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign,
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		panic(err)
+	}
+
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+})
+
+// testCAPEM returns a self-signed CA certificate that passes TLS validation.
+func testCAPEM() []byte { return bytes.Clone(generatedTestCA()) }

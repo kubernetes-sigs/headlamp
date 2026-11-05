@@ -23,6 +23,7 @@ import store from '../../../../redux/stores/store';
 import { storeStatelessClusterKubeconfig } from '../../../../stateless';
 import { deleteClusterKubeconfig } from '../../../../stateless/deleteClusterKubeconfig';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster, getSelectedClusters } from '../../../cluster';
 import type { ClusterRequest } from './clusterRequests';
 import { clusterRequest, post, request } from './clusterRequests';
@@ -297,7 +298,11 @@ export async function renameCluster(
     renameURL,
     {
       method: 'PUT',
-      headers: { ...headers, ...getHeadlampAPIHeaders() },
+      headers: {
+        ...headers,
+        ...getHeadlampAPIHeaders(),
+        ...(stateless ? { 'X-HEADLAMP-USER-ID': getUserIdFromLocalStorage() } : {}),
+      },
       body: JSON.stringify({ newClusterName, source, stateless }),
     },
     false,

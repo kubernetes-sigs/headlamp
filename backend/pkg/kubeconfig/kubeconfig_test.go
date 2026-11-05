@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -18,8 +20,60 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+func TestLoadOIDCConfigFromFileAndMemory(t *testing.T) {
+	config := api.NewConfig()
+	config.Clusters["cluster"] = &api.Cluster{
+		Server: "https://gateway.example.com/clusters/spoke", TLSServerName: "spoke.internal",
+		ProxyURL: "http://proxy.example.com:8080", InsecureSkipTLSVerify: true,
+	}
+	config.AuthInfos["user"] = &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{
+		Name: "oidc", Config: map[string]string{
+			"client-id": "headlamp", "idp-issuer-url": "https://issuer.example.com", "scope": "openid,email",
+		},
+	}}
+	config.Contexts["team/spoke"] = &api.Context{Cluster: "cluster", AuthInfo: "user", Namespace: "apps"}
+	memory, loadErrors := kubeconfig.LoadContextsFromAPIConfig(config, true)
+	require.Empty(t, loadErrors)
+	require.Len(t, memory, 1)
+	path := filepath.Join(t.TempDir(), "config")
+	require.NoError(t, clientcmd.WriteToFile(*config, path))
+	file, contextErrors, err := kubeconfig.LoadContextsFromFile(path, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, file, 1)
+	require.Equal(t, memory[0].Name, file[0].Name)
+	require.Equal(t, memory[0].KubeConfigContextName, file[0].KubeConfigContextName)
+	require.Equal(t, memory[0].AuthType(), file[0].AuthType())
+	fileOIDC, err := file[0].OidcConfig()
+	require.NoError(t, err)
+	memoryOIDC, err := memory[0].OidcConfig()
+	require.NoError(t, err)
+	require.Equal(t, fileOIDC, memoryOIDC)
+
+	fileConfig, err := file[0].RESTConfig()
+	require.NoError(t, err)
+	memoryConfig, err := memory[0].RESTConfig()
+	require.NoError(t, err)
+	require.Equal(t, fileConfig.Host, memoryConfig.Host)
+	require.Equal(t, fileConfig.ServerName, memoryConfig.ServerName)
+	require.Equal(t, fileConfig.Insecure, memoryConfig.Insecure)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com", nil)
+	fileProxy, err := fileConfig.Proxy(request)
+	require.NoError(t, err)
+	memoryProxy, err := memoryConfig.Proxy(request)
+	require.NoError(t, err)
+	require.Equal(t, fileProxy, memoryProxy)
+	require.False(t, memory[0].CanRename())
+	require.True(t, file[0].CanRename())
+	require.True(t, memory[0].RequiresUserAuthentication())
+	require.True(t, file[0].RequiresUserAuthentication())
+	file[0].AuthInfo.AuthProvider.Config["refresh-token"] = "stored-user-credential"
+	require.False(t, file[0].RequiresUserAuthentication(), "existing stored OIDC credentials remain usable")
+}
 
 var kubeConfigFilePath = filepath.Join(getTestDataPath(), "kubeconfig1")
 
@@ -473,6 +527,32 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 	}
 }
 
+func TestSetupProxyRejectsInvalidTLSWithoutTransportFallback(t *testing.T) {
+	var requests atomic.Int32
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	connection := &kubeconfig.Context{
+		Name: "invalid-tls", KubeContext: &api.Context{Cluster: "cluster", AuthInfo: "user"},
+		Cluster: &api.Cluster{Server: server.URL}, AuthInfo: &api.AuthInfo{},
+	}
+	require.NoError(t, connection.SetupProxy())
+	connection.Cluster.CertificateAuthorityData = []byte("invalid CA")
+	require.ErrorContains(t, connection.SetupProxy(), "build proxy transport")
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/pods", nil)
+	require.ErrorContains(t, connection.ProxyRequest(httptest.NewRecorder(), request), "build proxy transport")
+	require.Zero(t, requests.Load())
+
+	connection.Cluster.CertificateAuthorityData = nil
+	connection.Cluster.InsecureSkipTLSVerify = true
+	require.NoError(t, connection.ProxyRequest(httptest.NewRecorder(), request))
+	require.EqualValues(t, 1, requests.Load())
+}
+
 func TestLoadContextsFromBase64String(t *testing.T) {
 	t.Run("valid_base64", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
@@ -722,6 +802,21 @@ func TestContextCopyReturnsDeepCopy(t *testing.T) {
 
 	assert.Equal(t, original, copied)
 	assert.NotSame(t, original, copied)
+}
+
+func TestContextJSONRedactsOIDCClientSecret(t *testing.T) {
+	original := newTestContext()
+	copied := original.Copy()
+
+	for _, contextCopy := range []*kubeconfig.Context{original, copied} {
+		encoded, err := json.Marshal(contextCopy)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "test-client-secret")
+		assert.NotContains(t, string(encoded), "ClientSecret")
+	}
+
+	assert.Equal(t, "test-client-secret", original.OidcConf.ClientSecret)
+	assert.Equal(t, "test-client-secret", copied.OidcConf.ClientSecret)
 }
 
 func TestContextCopyExcludesProxy(t *testing.T) {
@@ -1170,9 +1265,7 @@ func writeRelativePKIFixture(t *testing.T, dir, contextName string) string {
 	keyPath := filepath.Join(pkiDir, "admin.key")
 	tokenPath := filepath.Join(pkiDir, "token")
 
-	for _, path := range []string{caPath, certPath, keyPath, tokenPath} {
-		require.NoError(t, os.WriteFile(path, []byte("test-pki-material\n"), 0o600))
-	}
+	writeTestPKIFiles(t, caPath, certPath, keyPath, tokenPath)
 
 	kubeconfigPath := filepath.Join(dir, "config")
 	content := fmt.Sprintf(`apiVersion: v1
@@ -1266,9 +1359,7 @@ func TestLoadContextsFromFileKeepsAbsolutePKIPaths(t *testing.T) {
 	absKey := filepath.Join(pkiDir, "admin.key")
 	absToken := filepath.Join(pkiDir, "token")
 
-	for _, path := range []string{absCA, absCert, absKey, absToken} {
-		require.NoError(t, os.WriteFile(path, []byte("test-pki-material\n"), 0o600))
-	}
+	writeTestPKIFiles(t, absCA, absCert, absKey, absToken)
 
 	kubeconfigPath := filepath.Join(dir, "config")
 	content := fmt.Sprintf(`apiVersion: v1
@@ -1385,9 +1476,10 @@ func TestLoadContextsFromFileResolvesParentRelativePKIPaths(t *testing.T) {
 	require.NoError(t, os.MkdirAll(pkiDir, 0o750))
 	require.NoError(t, os.MkdirAll(configDir, 0o750))
 
-	require.NoError(t, os.WriteFile(filepath.Join(pkiDir, "ca.pem"), []byte("ca\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(pkiDir, "admin.pem"), []byte("cert\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(pkiDir, "admin.key"), []byte("key\n"), 0o600))
+	writeTestPKIFiles(t,
+		filepath.Join(pkiDir, "ca.pem"), filepath.Join(pkiDir, "admin.pem"),
+		filepath.Join(pkiDir, "admin.key"), filepath.Join(pkiDir, "token"),
+	)
 
 	kubeconfigPath := filepath.Join(configDir, "config")
 	content := `apiVersion: v1
@@ -1473,4 +1565,29 @@ func TestSkipKubeContextInCommaSeparatedString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestContextCopyKeepsDiscoveryMetadataIndependent(t *testing.T) {
+	original := &kubeconfig.Context{
+		Discovery:         &kubeconfig.DiscoveryOrigin{Source: "example", DisplayName: "Example"},
+		DiscoveryMetadata: map[string]json.RawMessage{"example": json.RawMessage(`{"name":"original"}`)},
+	}
+	copied := original.Copy()
+	copied.Discovery.DisplayName = "Changed"
+	copied.DiscoveryMetadata["example"][9] = 'X'
+
+	require.Equal(t, "Example", original.Discovery.DisplayName)
+	require.JSONEq(t, `{"name":"original"}`, string(original.DiscoveryMetadata["example"]))
+}
+
+func writeTestPKIFiles(t *testing.T, caPath, certPath, keyPath, tokenPath string) {
+	t.Helper()
+
+	config, err := clientcmd.LoadFromFile(kubeConfigFilePath)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(caPath, config.Clusters["minikube"].CertificateAuthorityData, 0o600))
+	require.NoError(t, os.WriteFile(certPath, config.AuthInfos["minikube"].ClientCertificateData, 0o600))
+	require.NoError(t, os.WriteFile(keyPath, config.AuthInfos["minikube"].ClientKeyData, 0o600))
+	require.NoError(t, os.WriteFile(tokenPath, []byte("test-token"), 0o600))
 }

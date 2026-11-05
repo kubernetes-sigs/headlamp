@@ -126,3 +126,11 @@ func TestLoadAdminSettings(t *testing.T) {
 		require.ErrorContains(t, err, "not valid JSON")
 	})
 }
+
+func TestSplitOIDCScopes(t *testing.T) {
+	assert.Equal(t,
+		[]string{"profile", "email", "offline_access"},
+		splitOIDCScopes("profile, email, , offline_access"),
+	)
+	assert.Empty(t, splitOIDCScopes(" ,\t"))
+}

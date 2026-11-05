@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -581,6 +582,10 @@ func TestDynamicClusters(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	caData := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+
 	var (
 		newCluster        = "mynewcluster"
 		newClusterServer  = "https://mysupercluster.io"
@@ -602,18 +607,17 @@ func TestDynamicClusters(t *testing.T) {
 				{
 					Name:                     &newCluster,
 					Server:                   &newClusterServer,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 				{
-					Name:                     &newCluster2,
-					Server:                   &newCluster2Server,
-					InsecureSkipTLSVerify:    true,
-					CertificateAuthorityData: []byte("abcde"),
+					Name:                  &newCluster2,
+					Server:                &newCluster2Server,
+					InsecureSkipTLSVerify: true,
 				},
 				{
 					Name:                     &newCluster3,
 					Server:                   &newCluster3Server,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 			},
 			expectedState:       http.StatusCreated,
@@ -625,12 +629,12 @@ func TestDynamicClusters(t *testing.T) {
 				{
 					Name:                     &newCluster,
 					Server:                   &newClusterServer,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 				{
 					Name:                     &newCluster, // same name will override
 					Server:                   &newCluster2Server,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 			},
 			expectedState:       http.StatusCreated,
@@ -653,6 +657,27 @@ func TestDynamicClusters(t *testing.T) {
 			expectedState:       http.StatusBadRequest,
 			expectedNumClusters: 0,
 		},
+		{
+			name: "invalid CA",
+			clusters: []ClusterReq{{
+				Name:                     &newCluster,
+				Server:                   &newClusterServer,
+				CertificateAuthorityData: []byte("abcde"),
+			}},
+			expectedState:       http.StatusBadRequest,
+			expectedNumClusters: 0,
+		},
+		{
+			name: "CA with insecure TLS",
+			clusters: []ClusterReq{{
+				Name:                     &newCluster,
+				Server:                   &newClusterServer,
+				InsecureSkipTLSVerify:    true,
+				CertificateAuthorityData: caData,
+			}},
+			expectedState:       http.StatusBadRequest,
+			expectedNumClusters: 0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -664,6 +689,7 @@ func TestDynamicClusters(t *testing.T) {
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:          false,
 						KubeConfigPath:        "",
+						KubeConfigDir:         t.TempDir(),
 						EnableDynamicClusters: true,
 						KubeConfigStore:       kubeConfigStore,
 					},
@@ -682,7 +708,7 @@ func TestDynamicClusters(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				assert.Equal(t, r.Code, tc.expectedState)
+				assert.Equal(t, tc.expectedState, r.Code, r.Body.String())
 
 				// Verify if the created cluster matches what we asked to be created
 				if r.Code == http.StatusCreated {
@@ -735,8 +761,9 @@ func TestDynamicClusters(t *testing.T) {
 				}
 
 				assert.Equal(t, len(clusterConfig.Clusters), len(config.Clusters))
-				assert.Equal(t, tc.expectedNumClusters, len(c.getClusters()))
 			}
+
+			assert.Len(t, c.getClusters(), tc.expectedNumClusters)
 		})
 	}
 }
@@ -2155,21 +2182,24 @@ func handleClusterRenameRequest(
 		expectedState int
 	},
 ) {
-	var r *httptest.ResponseRecorder
-
-	var err error
-
+	url := "/cluster/minikubetest?ClusterID=minikubetest"
 	if tc.clusterReq.Source == "kubeconfig" {
-		url := "/cluster/minikubetestnondynamic?ClusterID=./headlamp_testdata/kubeconfig_rename:minikubetestnondynamic"
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
-	} else {
-		url := "/cluster/minikubetest?ClusterID=minikubetest"
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
+		url = "/cluster/minikubetestnondynamic?ClusterID=./headlamp_testdata/kubeconfig_rename:minikubetestnondynamic"
 	}
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "rename-token")
+
+	req, err := makeJSONReq(http.MethodPut, url, tc.clusterReq)
+	require.NoError(t, err)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "rename-token")
+
+	if tc.clusterReq.Stateless {
+		req.Header.Set("X-HEADLAMP-USER-ID", "rename-user")
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	assert.Equal(t, tc.expectedState, response.Code)
 }
 
 // TestCheckUniqueName checks the CheckUniqueName function which checks if a new name is unique among existing contexts.
@@ -2438,6 +2468,16 @@ func TestRenameCluster(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, r.Code)
 
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "minikubetest", KubeContext: &api.Context{}, Cluster: &api.Cluster{Server: "https://global.example.com"},
+		KubeConfigPath: c.KubeConfigPath, KubeConfigContextName: "minikubetest",
+	}))
+
+	statelessKey := statelessContextKey("minikubetest", "rename-user")
+	require.NoError(t, kubeConfigStore.AddContextWithKeyAndTTL(&kubeconfig.Context{
+		Internal: true, KubeContext: &api.Context{}, Cluster: &api.Cluster{Server: "https://user.example.com"},
+	}, statelessKey, time.Minute))
+
 	tests := []struct {
 		name          string
 		clusterReq    RenameClusterRequest
@@ -2464,6 +2504,11 @@ func TestRenameCluster(t *testing.T) {
 
 	runClusterRenameTests(t, handler, tests)
 
+	_, err = kubeConfigStore.GetContext(statelessKey)
+	require.Error(t, err)
+	_, err = kubeConfigStore.GetContext("minikubetest")
+	require.NoError(t, err, "stateless rename must preserve the global connection")
+
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
 
@@ -2477,9 +2522,7 @@ func TestRenameCluster(t *testing.T) {
 		clustersByName[cl.Name] = cl
 	}
 
-	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The failed kubeconfig rename left the original context intact, which was removed above.
-	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
+	assert.NotContains(t, clustersByName, "minikubetest", "expected cleanup to remove the global context")
 	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
 		"expected failed kubeconfig rename not to create a new cluster name in the store")
 	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
