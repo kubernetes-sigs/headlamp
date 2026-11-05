@@ -445,8 +445,22 @@ i18n:
 	cd app && npm run i18n
 	cd frontend && npm run i18n
 
+HELM_VERSION ?= v4.3.1
+YQ_VERSION ?= v4.54.1
+HELM = $(CURDIR)/bin/helm
+YQ = $(CURDIR)/bin/yq
+
+.PHONY: helm
+helm: ## Download helm locally if necessary.
+	GOBIN=$(CURDIR)/bin go install helm.sh/helm/v4/cmd/helm@$(HELM_VERSION)
+
+.PHONY: yq
+yq: ## Download yq locally if necessary.
+	GOBIN=$(CURDIR)/bin go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
+
 .PHONY: helm-chart-package
-helm-chart-package: ## Package a chart into a versioned chart archive file.
+helm-chart-package: helm yq ## Package a chart into a versioned chart archive file.
+	HELM="$(HELM)" YQ="$(YQ)" \
 	DEST_CHART_DIR=$(DEST_CHART_DIR) \
 	GIT_TAG="$(DOCKER_IMAGE_VERSION)" \
 	IMAGE_REGISTRY="$(DOCKER_REPO)" \
