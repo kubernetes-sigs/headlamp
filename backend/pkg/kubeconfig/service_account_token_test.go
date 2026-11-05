@@ -44,7 +44,7 @@ func TestResolveServiceAccountTokenPath(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Table-driven test covers many service-account-token-file scenarios
 func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 	defaultTokenPath := path.Join("/", "var", "run", "secrets", "kubernetes.io", "serviceaccount", "token")
 

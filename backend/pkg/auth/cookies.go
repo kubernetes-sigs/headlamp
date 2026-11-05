@@ -311,7 +311,7 @@ func SetTokenCookie(
 
 	// G124: Secure is set from IsSecureContext so localhost development still works;
 	// HttpOnly and SameSite are set unconditionally.
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
 		Name:     chunkCountCookieName(sanitizedCluster),
 		Value:    fmt.Sprintf("%s:%d", scope, len(chunks)),
 		HttpOnly: true,
@@ -494,7 +494,7 @@ func readChunkedCookie(r *http.Request, sanitizedName string, maxChunks int) str
 // a sizeable ID token and its own logout-hint cookie in the same response, that unconditional
 // floor could by itself push a login response past an upstream's response-header buffer.
 //
-//nolint:funlen
+//nolint:funlen // Clears both cookie-name formats, both path scopes, and their chunk-count metadata
 func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
 	sanitizedCluster := SanitizeClusterName(cluster)
 	if sanitizedCluster == "" {

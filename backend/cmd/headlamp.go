@@ -3930,16 +3930,39 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		serverCtx = context.Background()
 	}
 
-	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
+	var impersonationExpiry time.Time
+	if impersonation != nil {
+		impersonationExpiry = impersonation.Expiry
+	}
+
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey, impersonationExpiry)
 }
 
+// drainNode cordons nodeName and evicts its pods in a background goroutine. impersonationExpiry,
+// when non-zero, is the verified identity's token expiry that authorized this drain (see
+// kubeconfig.Impersonation.Expiry): the drain runs on Headlamp's own service account credential,
+// which Kubernetes has no token to re-verify or expire on its own, so without this the drain
+// would keep cordoning and evicting under that identity for as long as it takes to finish --
+// cordoning the node and deleting every non-DaemonSet pod on it, independent of the user's own
+// session -- even once the session that authorized it has ended. Binding ctx to that deadline
+// reuses every cancellation check already in this function and drainNodePods (ctx.Err() and
+// errors.Is(err, context.DeadlineExceeded)), which already treat an expired context as reason to
+// stop rather than record an error.
 func (c *HeadlampConfig) drainNode(
 	ctx context.Context,
 	clientset kubernetes.Interface,
 	nodeName string,
 	cluster string,
+	impersonationExpiry time.Time,
 ) {
 	go func() {
+		if !impersonationExpiry.IsZero() {
+			var cancel context.CancelFunc
+
+			ctx, cancel = context.WithDeadline(ctx, impersonationExpiry)
+			defer cancel()
+		}
+
 		if ctx.Err() != nil {
 			return
 		}

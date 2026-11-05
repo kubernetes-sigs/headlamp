@@ -387,7 +387,7 @@ func (c *Connection) safeClose() {
 
 // establishClusterConnection creates a new WebSocket connection to a Kubernetes cluster.
 //
-//nolint:funlen
+//nolint:funlen // Resolves context, builds the dial URL/headers, and dials in one request flow
 func (m *Multiplexer) establishClusterConnection(
 	clusterID,
 	userID,
@@ -1216,13 +1216,25 @@ func (m *Multiplexer) sendDataMessage(
 	return nil
 }
 
-// cleanupConnection performs cleanup for a connection.
+// cleanupConnection performs cleanup for a connection. It only removes the map entry for
+// conn's key if that entry still IS conn: checkConnectionIdentity's own cleanupConnection call
+// can replace the map entry with a freshly established connection for the same key before the
+// old reader's handleClusterMessages loop notices conn.Done and runs its own deferred
+// cleanupConnection(conn) call for the connection it was actually reading from. Deleting
+// unconditionally would then remove the replacement's entry instead of a no-op, leaving that
+// live connection untracked: invisible to CloseConnection/cleanupConnections, and indistinguishable
+// from "no connection for this key" to the next message for it, which would establish yet another
+// one instead of reusing it.
 func (m *Multiplexer) cleanupConnection(conn *Connection) {
 	conn.safeClose()
 
 	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
+
 	m.mutex.Unlock()
 }
 

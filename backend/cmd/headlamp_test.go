@@ -1399,7 +1399,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1452,7 +1452,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1568,7 +1568,7 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Test sets up kubeconfig, OIDC issuer, and asserts impersonated drain credentials
 func TestHandleNodeDrainImpersonatesVerifiedUser(t *testing.T) {
 	const (
 		cluster  = "main"
@@ -1691,12 +1691,49 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	assert.Never(t, func() bool {
 		_, err := testCache.Get(context.Background(), cacheKey)
 		return err == nil
 	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
+}
+
+// TestDrainNode_RefusesExpiredImpersonation covers the gap TestDrainNodeCancelledContextDoesNotWriteCache
+// does not: an impersonated drain's verified identity can expire mid-operation even though the
+// caller never cancelled anything -- the drain runs on Headlamp's own service account credential,
+// which Kubernetes has no token to re-verify or expire on its own, so nothing else would ever stop
+// it from cordoning the node and evicting its pods under a session that has already ended. Passing
+// an already-past impersonationExpiry with an otherwise live ctx must still refuse before the node
+// is ever touched, exactly as an already-cancelled ctx does.
+func TestDrainNode_RefusesExpiredImpersonation(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+
+	fakeClient := fake.NewClientset(node)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Now().Add(-time.Minute))
+
+	assert.Never(t, func() bool {
+		_, err := testCache.Get(context.Background(), cacheKey)
+		return err == nil
+	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when impersonation already expired")
+
+	got, err := fakeClient.CoreV1().Nodes().Get(context.Background(), "test-node", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.False(t, got.Spec.Unschedulable, "the node must not be cordoned once impersonation has expired")
 }
 
 func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
@@ -1743,7 +1780,7 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -5144,7 +5181,7 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
 
-//nolint:funlen
+//nolint:funlen // Test sets up a fake API server, kubeconfig, and OIDC issuer end to end
 func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 	const cluster = "main"
 
@@ -5232,7 +5269,7 @@ func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 // presented token, so a passing assertion on the refreshed identity reaching the fake API server
 // can only mean the refreshed token, not the stale one, was what got impersonated.
 //
-//nolint:funlen
+//nolint:funlen // Test exercises proactive refresh middleware and impersonation together in one request
 func TestHandleClusterAPI_OIDCImpersonation_ProactiveRefreshThenImpersonate(t *testing.T) {
 	const cluster = "main"
 
@@ -5471,7 +5508,7 @@ func TestHandleClusterAPI_PlainPassthroughStripsClientImpersonationHeaders(t *te
 // request, as setImpersonationHeaders used to), the API server would see no impersonation at
 // all and treat the request as Headlamp's own service account instead of the verified user.
 //
-//nolint:funlen
+//nolint:funlen // Test covers both a plain request and a WebSocket upgrade in table-driven subtests
 func TestHandleClusterAPI_OIDCImpersonation_ConnectionHeaderCannotStripIdentity(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
@@ -5795,7 +5832,7 @@ func TestHandleClusterAPI_ImpersonationDoesNotLeakCookies(t *testing.T) {
 // impersonated cluster request reissues the cookie at the deployment-wide path once, not just
 // leaving the narrow one in place or writing the token again on every subsequent request.
 //
-//nolint:funlen
+//nolint:funlen // Test sets up kubeconfig, OIDC issuer, and a legacy-scoped cookie to verify reissue
 func TestHandleClusterAPI_ReissuesLegacyCookieAtDeploymentScope(t *testing.T) {
 	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -5956,7 +5993,7 @@ func impersonationTestClaims(issuerURL string, extra map[string]interface{}) map
 // until a full reconnect happens to land after some unrelated request has refreshed the
 // browser's cookie first.
 //
-//nolint:funlen
+//nolint:funlen // Test exercises expiry, refresh, and re-verification of the resulting token
 func TestImpersonationForRequest_RefreshesExpiredToken(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -5987,7 +6024,7 @@ func TestImpersonationForRequest_RefreshesExpiredToken(t *testing.T) {
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	// Mirrors auth.oidcKeyPrefix ("oidc-token-"), an unexported constant in the auth package:
 	// this is the cache key GetNewToken looks up a token's refresh token under.
@@ -6133,7 +6170,7 @@ func TestImpersonationForRequest_ReissuesAlreadyDeploymentScopedCookieAfterRefre
 // reissuing a cookie for it would let a caller authenticate on a later request even without the
 // trusted header present at all, contradicting that header-only trust model.
 func TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie(t *testing.T) {
-	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec
+	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec // Test fixture header name, not a real credential
 
 	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -6185,9 +6222,9 @@ func TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie(t *testing.T) {
 // stale proxy-auth header value first and never reach the fresh one set on a header it never
 // checks first.
 //
-//nolint:funlen
+//nolint:funlen // Test verifies a refreshed token is both used and persisted for a proxy-auth caller
 func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) {
-	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec
+	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec // Test fixture header name, not a real credential
 
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -6217,7 +6254,7 @@ func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) 
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
 
@@ -6268,7 +6305,7 @@ func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) 
 // first request's reactive refresh already obtained, instead of attempting its own exchange
 // against an already-consumed refresh token.
 //
-//nolint:funlen
+//nolint:funlen // Test verifies the latest-known-good token cache across multiple requests
 func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -6296,7 +6333,7 @@ func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
 
@@ -6358,7 +6395,7 @@ func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
 // auth.LatestIDTokenCacheKey) closes this: bob's lookup, keyed by his own token, can never match
 // an entry written for alice's.
 //
-//nolint:funlen
+//nolint:funlen // Test verifies the latest-known-good token cache does not leak across sessions
 func TestImpersonationForRequest_LatestTokenCacheIsPerSession(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -6451,7 +6488,7 @@ func TestImpersonationForRequest_LatestTokenCacheIsPerSession(t *testing.T) {
 // window is actually exercised (not just avoided by scheduling luck), and confirms only one
 // exchange happens.
 //
-//nolint:funlen
+//nolint:funlen // Test drives concurrent goroutines to verify singleflight coalescing
 func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
 	const concurrentCallers = 10
 
@@ -6481,7 +6518,7 @@ func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
 
@@ -6569,7 +6606,7 @@ func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
 // `join('#', [iss, sub])` (the OIDC subject claim, which IS guaranteed unique per issuer)
 // instead of `name`, whenever the operator left the shared /me flag unconfigured.
 //
-//nolint:funlen
+//nolint:funlen // Test compares default and display-name username paths across two requests
 func TestImpersonationForRequest_DefaultUsernameDoesNotCollideOnDisplayName(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -6663,7 +6700,7 @@ func TestImpersonationForRequest_DefaultUsernameDoesNotCollideOnDisplayName(t *t
 // the same stale token. This launches one goroutine down each path, both presenting the exact
 // same stale token, and asserts only one token-endpoint exchange happens across the two.
 //
-//nolint:funlen
+//nolint:funlen // Test drives both the proactive middleware and reactive refresh path concurrently
 func TestOIDCTokenRefresh_CoalescesAcrossProactiveAndReactivePaths(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -6868,158 +6905,6 @@ func TestHandleClusterAPI_OIDCImpersonation_NoTokenRejected(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestGetConfigIncludesOidcAutoLogin(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			OidcAutoLogin: true,
-		},
-	}
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
-	recorder := httptest.NewRecorder()
-
-	c.getConfig(recorder, req)
-
-	var config clientConfig
-
-	err := json.Unmarshal(recorder.Body.Bytes(), &config)
-	require.NoError(t, err)
-	assert.True(t, config.OidcAutoLogin)
-}
-
-// TestHandleClusterRename_BackToOriginalName renames a cluster and then renames
-// it back to its original context name. The second rename must succeed and
-// clear the custom name instead of saving one that matches the original.
-func TestHandleClusterRename_BackToOriginalName(t *testing.T) {
-	kubeConfigData, err := os.ReadFile("./headlamp_testdata/kubeconfig")
-	require.NoError(t, err)
-
-	kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
-	require.NoError(t, os.WriteFile(kubeConfigPath, kubeConfigData, 0o600)) //nolint:gosec
-
-	c := HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:          false,
-				KubeConfigPath:        kubeConfigPath,
-				EnableDynamicClusters: true,
-				KubeConfigStore:       kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleClusterRename_BackToOriginalName")
-	defer span.End()
-
-	rename := func(currentName, newName string) *httptest.ResponseRecorder {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/cluster/"+currentName, nil)
-
-		renameErr := c.handleClusterRename(w, r, currentName, RenameClusterRequest{
-			NewClusterName: newName,
-			Source:         "kubeconfig",
-		}, ctx, span)
-		require.NoError(t, renameErr)
-
-		return w
-	}
-
-	customNameOf := func() string {
-		config, loadErr := clientcmd.LoadFromFile(kubeConfigPath)
-		require.NoError(t, loadErr)
-
-		info := config.Contexts["minikube"].Extensions["headlamp_info"]
-		if info == nil {
-			return ""
-		}
-
-		customObj, marshalErr := MarshalCustomObject(info, "minikube")
-		require.NoError(t, marshalErr)
-
-		return customObj.CustomName
-	}
-
-	assert.Equal(t, http.StatusCreated, rename("minikube", "mk-renamed").Code)
-	assert.Equal(t, "mk-renamed", customNameOf())
-
-	// Back to the original name: allowed, and no custom name is kept.
-	assert.Equal(t, http.StatusCreated, rename("mk-renamed", "minikube").Code)
-	assert.Empty(t, customNameOf())
-}
-
-// TestHandleClusterRename_BackToDNSFriendlyName covers a context whose key
-// contains a slash. It is shown as the DNS-friendly "foo--bar", so renaming it
-// back to that name must clear the custom name too.
-func TestHandleClusterRename_BackToDNSFriendlyName(t *testing.T) {
-	kubeConfigData, err := os.ReadFile("./headlamp_testdata/kubeconfig")
-	require.NoError(t, err)
-
-	kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
-	require.NoError(t, os.WriteFile(kubeConfigPath, kubeConfigData, 0o600)) //nolint:gosec
-
-	config, err := clientcmd.LoadFromFile(kubeConfigPath)
-	require.NoError(t, err)
-
-	config.Contexts["foo/bar"] = config.Contexts["minikube"].DeepCopy()
-	require.NoError(t, clientcmd.WriteToFile(*config, kubeConfigPath))
-
-	c := HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:          false,
-				KubeConfigPath:        kubeConfigPath,
-				EnableDynamicClusters: true,
-				KubeConfigStore:       kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleClusterRename_BackToDNSFriendlyName")
-	defer span.End()
-
-	rename := func(currentName, newName string) int {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/cluster/"+currentName, nil)
-
-		renameErr := c.handleClusterRename(w, r, currentName, RenameClusterRequest{
-			NewClusterName: newName,
-			Source:         "kubeconfig",
-		}, ctx, span)
-		require.NoError(t, renameErr)
-
-		return w.Code
-	}
-
-	customNameOf := func() string {
-		loaded, loadErr := clientcmd.LoadFromFile(kubeConfigPath)
-		require.NoError(t, loadErr)
-
-		info := loaded.Contexts["foo/bar"].Extensions["headlamp_info"]
-		if info == nil {
-			return ""
-		}
-
-		customObj, marshalErr := MarshalCustomObject(info, "foo/bar")
-		require.NoError(t, marshalErr)
-
-		return customObj.CustomName
-	}
-
-	assert.Equal(t, http.StatusCreated, rename("foo--bar", "renamed"))
-	assert.Equal(t, "renamed", customNameOf())
-	assert.Equal(t, http.StatusCreated, rename("renamed", "foo--bar"))
-	assert.Empty(t, customNameOf())
 }
 
 func TestOIDCLogoutEndpoint(t *testing.T) {

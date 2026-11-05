@@ -1820,7 +1820,7 @@ func TestHandleMe_SingleStringGroupsClaim(t *testing.T) {
 		"exp":                float64(expiry),
 	}
 
-	token := makeTestToken(t, claims)
+	token := testutil.MakeUnsignedJWT(t, claims)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
