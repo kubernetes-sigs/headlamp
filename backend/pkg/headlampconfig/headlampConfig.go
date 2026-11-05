@@ -31,6 +31,12 @@ type HeadlampConfig struct {
 	OidcCACert                string
 	OidcUsePKCE               bool
 	OidcSkipLogout            bool
+	OidcStsEnabled            bool
+	OidcStsIssuerURL          string
+	OidcStsClientID           string
+	OidcStsClientSecret       string
+	OidcStsSubjectTokenType   string
+	OidcStsAudienceMap        string
 	OidcScopes                []string
 	Cache                     cache.Cache[interface{}]
 	Multiplexer               WebSocketMultiplexer

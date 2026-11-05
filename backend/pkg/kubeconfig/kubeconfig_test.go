@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -1473,4 +1474,40 @@ func TestSkipKubeContextInCommaSeparatedString(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRESTConfigWithTokenSource checks that the token source replaces the
+// context's credentials, while the rest of its user entry, such as
+// impersonation, still applies, as it does for the cluster proxy.
+func TestRESTConfigWithTokenSource(t *testing.T) {
+	type request struct{ authorization, impersonateUser string }
+
+	requests := make(chan request, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- request{r.Header.Get("Authorization"), r.Header.Get("Impersonate-User")}
+	}))
+	t.Cleanup(server.Close)
+
+	kContext := &kubeconfig.Context{
+		Name:     "test",
+		Cluster:  &api.Cluster{Server: server.URL},
+		AuthInfo: &api.AuthInfo{Token: "static-token", Impersonate: "alice"},
+	}
+
+	restConf, err := kContext.RESTConfigWithTokenSource(func(context.Context) (string, error) {
+		return "fresh-token", nil
+	})
+	require.NoError(t, err)
+
+	client, err := rest.HTTPClientFor(restConf)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, request{"Bearer fresh-token", "alice"}, <-requests)
 }

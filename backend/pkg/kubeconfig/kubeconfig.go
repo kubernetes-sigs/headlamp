@@ -25,6 +25,7 @@ import (
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"golang.org/x/oauth2"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	rest "k8s.io/client-go/rest"
@@ -462,6 +463,40 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 	}
 
 	return kubernetes.NewForConfig(restConf)
+}
+
+// RESTConfigWithTokenSource returns the context's REST config with the token
+// from tokenSource, called for every request, instead of the context's own
+// credentials. It is for work that outlives a short-lived token, such as an
+// STS-exchanged one.
+func (c *Context) RESTConfigWithTokenSource(
+	tokenSource func(context.Context) (string, error),
+) (*rest.Config, error) {
+	restConf, err := c.RESTConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	tokenConf := rest.AnonymousClientConfig(restConf)
+	// Keep what isn't a token, as the cluster proxy does.
+	tokenConf.Impersonate = restConf.Impersonate
+	tokenConf.CertFile, tokenConf.KeyFile = restConf.CertFile, restConf.KeyFile
+	tokenConf.CertData, tokenConf.KeyData = restConf.CertData, restConf.KeyData
+	tokenConf.Wrap(transport.TokenSourceWrapTransport(tokenSourceFunc(tokenSource)))
+
+	return tokenConf, nil
+}
+
+// tokenSourceFunc adapts a token function to an oauth2.TokenSource.
+type tokenSourceFunc func(context.Context) (string, error)
+
+func (f tokenSourceFunc) Token() (*oauth2.Token, error) {
+	token, err := f(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	return &oauth2.Token{AccessToken: token}, nil
 }
 
 // SourceStr returns the source from which the context was loaded.
