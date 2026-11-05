@@ -237,7 +237,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
                   }
                 />
               ),
-              plugin.isLoaded === false && plugin.overriddenBy && (
+              plugin.isLoaded === false && (plugin.overriddenBy || plugin.isEnabled !== false) && (
                 <Chip
                   label={t('translation|Not Loaded')}
                   size="small"

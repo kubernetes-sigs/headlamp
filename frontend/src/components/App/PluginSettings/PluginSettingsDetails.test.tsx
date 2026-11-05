@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
@@ -54,5 +54,31 @@ describe('PluginSettingsDetails events', () => {
         { type: HeadlampEventType.PLUGIN_DETAILS_VIEW, data: { plugin } },
       ]);
     });
+  });
+});
+
+describe('PluginSettingsDetails status', () => {
+  function renderDetails(details: PluginInfo) {
+    store.dispatch(setPluginSettings([details]));
+
+    render(
+      <TestContext routerMap={{ name: details.name }}>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetails />
+        </ThemeProvider>
+      </TestContext>
+    );
+  }
+
+  it('shows an enabled plugin blocked by a disabled scoped version as not loaded', () => {
+    renderDetails({ ...plugin, name: 'app-catalog', isLoaded: false });
+
+    expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+  });
+
+  it('does not show a plugin the user disabled as not loaded', () => {
+    renderDetails({ ...plugin, isEnabled: false, isLoaded: false });
+
+    expect(screen.queryByText('Not Loaded')).not.toBeInTheDocument();
   });
 });

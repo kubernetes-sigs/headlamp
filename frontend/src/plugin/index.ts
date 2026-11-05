@@ -66,6 +66,7 @@ import {
 } from './developmentPlugins';
 import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
+import { getPluginBaseName, isOfficiallyScoped } from './officialScope';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
@@ -234,30 +235,6 @@ export function filterSources(
     sourcesToExecute: compatible.map(({ source }) => source),
     incompatiblePlugins,
   };
-}
-
-/** The npm scope Headlamp controls, see https://github.com/kubernetes-sigs/headlamp/issues/2597 */
-const OFFICIAL_PLUGIN_SCOPE = '@headlamp-k8s';
-
-/**
- * Strips the official scope, so that a renamed plugin and its old unscoped name, like
- * "@headlamp-k8s/app-catalog" and "app-catalog", are treated as one plugin. Other scopes
- * are returned unchanged.
- *
- * @param name the plugin name, as found in its package.json.
- * @returns the name without the official scope prefix.
- */
-function getPluginBaseName(name: string): string {
-  const scopePrefix = `${OFFICIAL_PLUGIN_SCOPE}/`;
-  return name.startsWith(scopePrefix) ? name.slice(scopePrefix.length) : name;
-}
-
-/**
- * @param plugin the plugin to check.
- * @returns true if the plugin is published under the scope Headlamp controls.
- */
-function isOfficiallyScoped(plugin: PluginInfo): boolean {
-  return plugin.name.startsWith(`${OFFICIAL_PLUGIN_SCOPE}/`);
 }
 
 /**

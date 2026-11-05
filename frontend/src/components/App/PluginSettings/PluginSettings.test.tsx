@@ -290,6 +290,9 @@ describe('PluginSettingsPure', () => {
 });
 
 describe('PluginSettingsPure with an overridden plugin', () => {
+  const BLOCKED_REASON =
+    'This plugin is not loaded because a @headlamp-k8s version of it is installed.';
+
   /** A plugin renamed into the official scope, next to the old unscoped copy it overrides. */
   function createRenamedPlugins(): PluginInfo[] {
     return [
@@ -319,6 +322,7 @@ describe('PluginSettingsPure with an overridden plugin', () => {
     renderPluginSettings({ plugins: createRenamedPlugins() });
 
     expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+    expect(screen.getByLabelText(BLOCKED_REASON)).toBeInTheDocument();
     expect(screen.queryByText('Save & Apply')).not.toBeInTheDocument();
   });
 
@@ -334,6 +338,34 @@ describe('PluginSettingsPure with an overridden plugin', () => {
     expect(screen.getByText('Disabled')).toBeInTheDocument();
     expect(screen.getByText('Not Loaded')).toBeInTheDocument();
     expect(screen.queryByText('Loaded')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(BLOCKED_REASON)).toBeInTheDocument();
+  });
+
+  it('gives no scoped reason for a plugin that is not loaded for another reason', () => {
+    const plugins = [{ ...createPlugins(1)[0], isLoaded: false }];
+
+    renderPluginSettings({ plugins });
+
+    expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+    expect(screen.queryByLabelText(BLOCKED_REASON)).not.toBeInTheDocument();
+  });
+
+  it('shows a disabled plugin as disabled even when another version overrides it', () => {
+    const plugins: PluginInfo[] = [
+      { ...createPlugins(1)[0], name: 'foo', type: 'development' },
+      {
+        ...createPlugins(1)[0],
+        name: 'foo',
+        isEnabled: false,
+        isLoaded: false,
+        overriddenBy: 'development',
+      },
+    ];
+
+    renderPluginSettings({ plugins });
+
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(screen.queryByText('Not Loaded')).not.toBeInTheDocument();
   });
 
   it('keeps the overridden plugin enabled when the settings are saved', () => {
