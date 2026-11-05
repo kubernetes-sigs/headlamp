@@ -1649,7 +1649,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1703,7 +1703,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1782,7 +1782,7 @@ func TestDrainNodeEvictsInsteadOfDeleting(t *testing.T) {
 	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
 	evictionRemovesPod(fakeClient)
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 
 	var evictions, deletes int
@@ -1829,7 +1829,7 @@ func TestDrainNodeRetriesEvictionBlockedByPDB(t *testing.T) {
 		return false, nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(3), attempts.Load())
 }
@@ -1850,7 +1850,7 @@ func TestDrainNodeFailsWhenPDBBlocksUntilTimeout(t *testing.T) {
 		return false, nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
@@ -1963,7 +1963,7 @@ func TestDrainNodeWaitsForEvictedPodToTerminate(t *testing.T) {
 		return action.GetSubresource() == "eviction", nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 
 	assert.Never(t, func() bool {
 		item, err := testCache.Get(context.Background(), cacheKey)
@@ -1990,7 +1990,7 @@ func TestDrainNodeFailsWhenEvictedPodNeverTerminates(t *testing.T) {
 		return action.GetSubresource() == "eviction", nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
@@ -2025,7 +2025,7 @@ func TestDrainNodeDoesNotEvictReplacementPod(t *testing.T) {
 			corev1.Resource("pods"), "pdb-pod", errors.New("precondition failed: UID mismatch"))
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(2), attempts.Load(), "the replacement pod must not be evicted")
 }
@@ -2061,7 +2061,7 @@ func TestDrainNodeDoesNotWaitForReplacementPodBlockedByPDB(t *testing.T) {
 
 	start := time.Now()
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Less(t, time.Since(start), drainEvictTimeout, "the drain must not wait for the replacement pod")
 	assert.Equal(t, int32(2), attempts.Load())
@@ -2106,14 +2106,14 @@ func TestDrainNodeJoiningRequestWaitsForInitialStatus(t *testing.T) {
 		return true, nil, errors.New("node is gone")
 	})
 
-	go c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	go c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 
 	<-blocking.entered
 
 	joined := make(chan struct{})
 
 	go func() {
-		c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+		c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 		close(joined)
 	}()
 
@@ -2169,7 +2169,7 @@ func TestDrainNodeStopsEvictingAtTheDeadline(t *testing.T) {
 		return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Time{})
 	assert.Equal(t, "error: failed to evict 3 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(1), attempts.Load(), "no eviction may be started after the deadline")
 }
@@ -2194,7 +2194,7 @@ func TestDrainNodeReportsInProgressWhileBlocked(t *testing.T) {
 
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	item, err := testCache.Get(ctx, cacheKey)
 	require.NoError(t, err, "a status must exist as soon as the drain is started")
@@ -2237,7 +2237,7 @@ func TestDrainNodeRenewsStatusWhileARequestIsStalled(t *testing.T) {
 
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	<-started
 
@@ -2304,11 +2304,11 @@ func TestDrainNodeIgnoresRequestsWhileDraining(t *testing.T) {
 
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	<-started
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	assert.Equal(t, int32(1), nodeReads.Load(), "a drain that is already running must not be started again")
 
@@ -2321,7 +2321,7 @@ func TestDrainNodeIgnoresRequestsWhileDraining(t *testing.T) {
 	// The guard is released when the drain ends.
 	waitForDrainToEnd(t, c, cacheKey)
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(2), nodeReads.Load(), "the node must be drainable again after the drain finished")
@@ -2354,7 +2354,7 @@ func TestWaitForPodsGoneReportsReadErrors(t *testing.T) {
 	assert.Contains(t, stuck[0], "no get permission")
 }
 
-//nolint:funlen
+//nolint:funlen // Test sets up kubeconfig, OIDC issuer, and asserts impersonated drain credentials
 func TestHandleNodeDrainImpersonatesVerifiedUser(t *testing.T) {
 	const (
 		cluster  = "main"
@@ -2477,12 +2477,52 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	assert.Never(t, func() bool {
 		_, err := testCache.Get(context.Background(), cacheKey)
 		return err == nil
 	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
+}
+
+// TestDrainNode_RefusesExpiredImpersonation covers the gap TestDrainNodeCancelledContextDoesNotWriteCache
+// does not: an impersonated drain's verified identity can expire mid-operation even though the
+// caller never cancelled anything -- the drain runs on Headlamp's own service account credential,
+// which Kubernetes has no token to re-verify or expire on its own, so nothing else would ever stop
+// it from cordoning the node and evicting its pods under a session that has already ended. Passing
+// an already-past impersonationExpiry with an otherwise live ctx must still refuse before the node
+// is ever touched, exactly as an already-cancelled ctx does.
+func TestDrainNode_RefusesExpiredImpersonation(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+
+	fakeClient := fake.NewClientset(node)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Now().Add(-time.Minute))
+
+	// The initial in-progress status is always published synchronously, win or lose, so later
+	// requests polling this drain's status find one instead of a 404. What the expiry must
+	// prevent is the status ever advancing past that to a completed (success or error) one.
+	assert.Never(t, func() bool {
+		status, err := testCache.Get(context.Background(), cacheKey)
+		return err == nil && status != drainStatusInProgress
+	}, 100*time.Millisecond, 10*time.Millisecond, "the drain must not complete once impersonation has already expired")
+
+	got, err := fakeClient.CoreV1().Nodes().Get(context.Background(), "test-node", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.False(t, got.Spec.Unschedulable, "the node must not be cordoned once impersonation has expired")
 }
 
 func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
@@ -2532,7 +2572,7 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -6060,7 +6100,7 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
 
-//nolint:funlen
+//nolint:funlen // Test sets up a fake API server, kubeconfig, and OIDC issuer end to end
 func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 	const cluster = "main"
 
@@ -6148,7 +6188,7 @@ func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 // presented token, so a passing assertion on the refreshed identity reaching the fake API server
 // can only mean the refreshed token, not the stale one, was what got impersonated.
 //
-//nolint:funlen
+//nolint:funlen // Test exercises proactive refresh middleware and impersonation together in one request
 func TestHandleClusterAPI_OIDCImpersonation_ProactiveRefreshThenImpersonate(t *testing.T) {
 	const cluster = "main"
 
@@ -6387,7 +6427,7 @@ func TestHandleClusterAPI_PlainPassthroughStripsClientImpersonationHeaders(t *te
 // request, as setImpersonationHeaders used to), the API server would see no impersonation at
 // all and treat the request as Headlamp's own service account instead of the verified user.
 //
-//nolint:funlen
+//nolint:funlen // Test covers both a plain request and a WebSocket upgrade in table-driven subtests
 func TestHandleClusterAPI_OIDCImpersonation_ConnectionHeaderCannotStripIdentity(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
@@ -6711,7 +6751,7 @@ func TestHandleClusterAPI_ImpersonationDoesNotLeakCookies(t *testing.T) {
 // impersonated cluster request reissues the cookie at the deployment-wide path once, not just
 // leaving the narrow one in place or writing the token again on every subsequent request.
 //
-//nolint:funlen
+//nolint:funlen // Test sets up kubeconfig, OIDC issuer, and a legacy-scoped cookie to verify reissue
 func TestHandleClusterAPI_ReissuesLegacyCookieAtDeploymentScope(t *testing.T) {
 	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -6872,7 +6912,7 @@ func impersonationTestClaims(issuerURL string, extra map[string]interface{}) map
 // until a full reconnect happens to land after some unrelated request has refreshed the
 // browser's cookie first.
 //
-//nolint:funlen
+//nolint:funlen // Test exercises expiry, refresh, and re-verification of the resulting token
 func TestImpersonationForRequest_RefreshesExpiredToken(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -6903,7 +6943,7 @@ func TestImpersonationForRequest_RefreshesExpiredToken(t *testing.T) {
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	// Mirrors auth.oidcKeyPrefix ("oidc-token-"), an unexported constant in the auth package:
 	// this is the cache key GetNewToken looks up a token's refresh token under.
@@ -7049,7 +7089,7 @@ func TestImpersonationForRequest_ReissuesAlreadyDeploymentScopedCookieAfterRefre
 // reissuing a cookie for it would let a caller authenticate on a later request even without the
 // trusted header present at all, contradicting that header-only trust model.
 func TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie(t *testing.T) {
-	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec
+	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec // Test fixture header name, not a real credential
 
 	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -7101,9 +7141,9 @@ func TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie(t *testing.T) {
 // stale proxy-auth header value first and never reach the fresh one set on a header it never
 // checks first.
 //
-//nolint:funlen
+//nolint:funlen // Test verifies a refreshed token is both used and persisted for a proxy-auth caller
 func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) {
-	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec
+	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec // Test fixture header name, not a real credential
 
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -7133,7 +7173,7 @@ func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) 
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
 
@@ -7184,7 +7224,7 @@ func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) 
 // first request's reactive refresh already obtained, instead of attempting its own exchange
 // against an already-consumed refresh token.
 //
-//nolint:funlen
+//nolint:funlen // Test verifies the latest-known-good token cache across multiple requests
 func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -7212,7 +7252,7 @@ func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
 
@@ -7274,7 +7314,7 @@ func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
 // auth.LatestIDTokenCacheKey) closes this: bob's lookup, keyed by his own token, can never match
 // an entry written for alice's.
 //
-//nolint:funlen
+//nolint:funlen // Test verifies the latest-known-good token cache does not leak across sessions
 func TestImpersonationForRequest_LatestTokenCacheIsPerSession(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -7367,7 +7407,7 @@ func TestImpersonationForRequest_LatestTokenCacheIsPerSession(t *testing.T) {
 // window is actually exercised (not just avoided by scheduling luck), and confirms only one
 // exchange happens.
 //
-//nolint:funlen
+//nolint:funlen // Test drives concurrent goroutines to verify singleflight coalescing
 func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
 	const concurrentCallers = 10
 
@@ -7397,7 +7437,7 @@ func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
 		"email": "alice@example.com",
 	}))
 
-	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
 
 	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
 
@@ -7485,7 +7525,7 @@ func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
 // `join('#', [iss, sub])` (the OIDC subject claim, which IS guaranteed unique per issuer)
 // instead of `name`, whenever the operator left the shared /me flag unconfigured.
 //
-//nolint:funlen
+//nolint:funlen // Test compares default and display-name username paths across two requests
 func TestImpersonationForRequest_DefaultUsernameDoesNotCollideOnDisplayName(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)
@@ -7579,7 +7619,7 @@ func TestImpersonationForRequest_DefaultUsernameDoesNotCollideOnDisplayName(t *t
 // the same stale token. This launches one goroutine down each path, both presenting the exact
 // same stale token, and asserts only one token-endpoint exchange happens across the two.
 //
-//nolint:funlen
+//nolint:funlen // Test drives both the proactive middleware and reactive refresh path concurrently
 func TestOIDCTokenRefresh_CoalescesAcrossProactiveAndReactivePaths(t *testing.T) {
 	clusterName := "main"
 	tokenFile := writeTestTokenFile(t)

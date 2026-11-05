@@ -118,21 +118,21 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 
 			return proxyURLs
 		}(),
-		TLSCertPath:                           conf.TLSCertPath,
-		TLSKeyPath:                            conf.TLSKeyPath,
-		SessionTTL:                            conf.SessionTTL,
-		PodDebugImage:                         conf.PodDebugImage,
-		NodeShellImage:                        conf.NodeShellImage,
-		NodeShellNamespace:                    conf.NodeShellNamespace,
-		BackstageOrigin:                       conf.BackstageOrigin,
-		OidcUseCookie:                         conf.OidcUseCookie,
-		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
-		DefaultLightTheme:                     conf.DefaultLightTheme,
-		DefaultDarkTheme:                      conf.DefaultDarkTheme,
-		ForceTheme:                            conf.ForceTheme,
-		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
-		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
-		OidcUseImpersonation:                  conf.OidcUseImpersonation,
+		TLSCertPath:                  conf.TLSCertPath,
+		TLSKeyPath:                   conf.TLSKeyPath,
+		SessionTTL:                   conf.SessionTTL,
+		PodDebugImage:                conf.PodDebugImage,
+		NodeShellImage:               conf.NodeShellImage,
+		NodeShellNamespace:           conf.NodeShellNamespace,
+		BackstageOrigin:              conf.BackstageOrigin,
+		OidcUseCookie:                conf.OidcUseCookie,
+		OidcUseTokenBroadcast:        conf.OidcUseTokenBroadcast,
+		DefaultLightTheme:            conf.DefaultLightTheme,
+		DefaultDarkTheme:             conf.DefaultDarkTheme,
+		ForceTheme:                   conf.ForceTheme,
+		UnsafeUseServiceAccountToken: conf.UnsafeUseServiceAccountToken,
+		ServiceAccountTokenPath:      conf.ServiceAccountTokenPath,
+		OidcUseImpersonation:         conf.OidcUseImpersonation,
 	}
 }
 
@@ -283,6 +283,14 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		compiledProxyURLs: compiledProxyURLs,
 	}
 
+	wireMultiplexerImpersonation(headlampConfig, multiplexer)
+
+	return headlampConfig
+}
+
+// wireMultiplexerImpersonation lets the multiplexer resolve a WebSocket message's identity
+// through the same verified-impersonation path cluster API requests use.
+func wireMultiplexerImpersonation(headlampConfig *HeadlampConfig, multiplexer *Multiplexer) {
 	// The multiplexer calls this once per client message with no per-message response of its
 	// own (see impersonationForRequest's doc comment), so w is always nil here.
 	multiplexer.resolveImpersonation = func(
@@ -290,8 +298,6 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	) (*kubeconfig.Impersonation, error) {
 		return headlampConfig.impersonationForRequest(nil, r, clusterName, kContext)
 	}
-
-	return headlampConfig
 }
 
 // loadAdminSettings reads and validates the admin settings JSON file.
@@ -402,24 +408,39 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return // The mutation was forwarded exactly once.
 	}
 
+	key, ok := cacheRequestKey(c, next, w, r, contextKey, kContext, connection)
+	if !ok {
+		return
+	}
+
+	serveCachedResource(c, next, w, r, span, key, kContext)
+}
+
+// cacheRequestKey resolves the cache key a cacheable, authorized request should read or write
+// under. ok is false whenever the request was already forwarded to next and the caller must
+// not do anything further with it -- for a request this cache does not apply to, or one this
+// caller is not authorized to make, in which case a response has already been written too.
+func cacheRequestKey(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request,
+	contextKey string, kContext *kubeconfig.Context, connection string,
+) (key string, ok bool) {
 	missingUserToken := kContext.UsesInClusterServiceAccountToken() &&
 		!c.shouldUseUnsafeServiceAccountTokenForContext(kContext) &&
 		requestBearerToken(r) == ""
 	if missingUserToken || !k8cache.CacheableRequest(r) {
 		next.ServeHTTP(w, r)
-		return
+		return "", false
 	}
 
 	key, err := k8cache.GenerateRequestKey(r, connection)
 	if err != nil {
 		next.ServeHTTP(w, r)
-		return
+		return "", false
 	}
 
 	allowed, err := k8cache.IsAllowed(contextKey, kContext, r)
 	if err != nil {
 		next.ServeHTTP(w, r)
-		return
+		return "", false
 	}
 
 	if !allowed {
@@ -427,10 +448,10 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 			logger.Log(logger.LevelError, nil, err, "failed to return authorization response")
 		}
 
-		return
+		return "", false
 	}
 
-	serveCachedResource(c, next, w, r, span, key, kContext)
+	return key, true
 }
 
 // serveCachedResource forwards the request while the shared watch of its resource is not

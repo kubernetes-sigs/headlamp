@@ -419,7 +419,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		}
 
 		tlsSkipTransport.TLSClientConfig = tlsCfg
-		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport, Timeout: oidcHTTPClientTimeout})
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
 	}
 
 	if caCert != nil && *caCert != "" {
@@ -451,7 +451,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		tlsCfg.InsecureSkipVerify = false
 
 		customTransport.TLSClientConfig = tlsCfg
-		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport, Timeout: oidcHTTPClientTimeout})
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
 	}
 
 	return ctx
@@ -527,8 +527,8 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 	}
 
 	exchange := func(exchangeCtx context.Context) (*oauth2.Token, error) {
-		exchangeCtx = oidc.ClientContext(exchangeCtx, &http.Client{Timeout: oidcHTTPClientTimeout})
 		exchangeCtx = ConfigureTLSContext(exchangeCtx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+		exchangeCtx = WithClientTimeout(exchangeCtx, oidcHTTPClientTimeout)
 
 		if validatorIssuerURL != "" {
 			exchangeCtx = oidc.InsecureIssuerURLContext(exchangeCtx, validatorIssuerURL)
@@ -596,7 +596,7 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 		return nil, err
 	}
 
-	return result.(*oauth2.Token), nil //nolint:forcetypeassert
+	return result.(*oauth2.Token), nil //nolint:forcetypeassert // group.Do's fn only ever returns *oauth2.Token
 }
 
 type MeHandlerOptions struct {

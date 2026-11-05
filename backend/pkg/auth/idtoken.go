@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -96,11 +95,12 @@ func (v *IDTokenVerifier) keyVerifier() (*oidc.IDTokenVerifier, error) {
 
 	skipTLSVerify := v.skipTLSVerify
 
-	// A timeout-bound client by default, so a stalled issuer cannot hang a signing-key fetch
-	// forever even without custom TLS settings. ConfigureTLSContext overrides this with its own
-	// client (also timeout-bound) when skip-TLS or a custom CA is configured.
-	ctx := oidc.ClientContext(context.Background(), &http.Client{Timeout: oidcHTTPClientTimeout})
-	ctx = ConfigureTLSContext(ctx, &skipTLSVerify, caCert)
+	// WithClientTimeout runs after ConfigureTLSContext, not before: ConfigureTLSContext installs
+	// its own client (with no timeout of its own) when skip-TLS or a custom CA is configured,
+	// which would otherwise replace a timeout set beforehand and leave a stalled issuer able to
+	// hang a signing-key fetch forever for that configuration.
+	ctx := ConfigureTLSContext(context.Background(), &skipTLSVerify, caCert)
+	ctx = WithClientTimeout(ctx, oidcHTTPClientTimeout)
 
 	if v.validatorIssuerURL != "" {
 		ctx = oidc.InsecureIssuerURLContext(ctx, v.validatorIssuerURL)

@@ -96,7 +96,7 @@ type HeadlampConfig struct {
 	oidcStateReader   io.Reader
 	// activeDrains holds the cache keys of the drains that are running, so that a node is drained
 	// by one goroutine at a time.
-	activeDrains sync.Map
+	activeDrains      sync.Map
 	impersonationOnce sync.Once
 	impersonationCfg  *impersonationConfig
 	// tokenRefreshGroup coalesces concurrent latestOrRefreshedIDToken calls for the same stale
@@ -4087,10 +4087,15 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		serverCtx = context.Background()
 	}
 
+	var impersonationExpiry time.Time
+	if impersonation != nil {
+		impersonationExpiry = impersonation.Expiry
+	}
+
 	// The drain can take minutes and runs in the background. drainNode publishes its status before it
 	// returns, so the client's first poll finds one instead of a 404. Starting it before the response is
 	// written also means a request that joins a running drain does not touch that drain's status.
-	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey, impersonationExpiry)
 
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
 		c.handleError(w, ctx, span, err, "writing response", http.StatusInternalServerError)
@@ -4110,11 +4115,16 @@ func (c *HeadlampConfig) setDrainStatus(ctx context.Context, cacheKey, status st
 	_ = c.Cache.SetWithTTL(ctx, cacheKey, status, DrainNodeCacheTTL*time.Second)
 }
 
+// drainNode cordons nodeName and evicts its pods in a background goroutine, publishing status
+// under a cache key a second, concurrent drain of the same node joins instead of duplicating.
+// impersonationExpiry, when non-zero, bounds how long that background work may run (see
+// cordonAndEvictNode).
 func (c *HeadlampConfig) drainNode(
 	ctx context.Context,
 	clientset kubernetes.Interface,
 	nodeName string,
 	contextKey string,
+	impersonationExpiry time.Time,
 ) {
 	if ctx.Err() != nil {
 		return
@@ -4151,35 +4161,68 @@ func (c *HeadlampConfig) drainNode(
 	go func() {
 		defer c.activeDrains.Delete(cacheKey)
 
-		nodeClient := clientset.CoreV1().Nodes()
-
-		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
-		if err != nil {
-			finish(drainErrorStatus(err))
-
-			return
-		}
-
-		// cordon the node first
-		node.Spec.Unschedulable = true
-
-		_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
-		if err != nil {
-			finish(drainErrorStatus(err))
-
-			return
-		}
-
-		pods, err := clientset.CoreV1().Pods("").List(ctx,
-			v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
-		if err != nil {
-			finish(drainErrorStatus(err))
-
-			return
-		}
-
-		c.drainNodePods(ctx, clientset, pods.Items, finish)
+		c.cordonAndEvictNode(ctx, clientset, nodeName, impersonationExpiry, finish)
 	}()
+}
+
+// cordonAndEvictNode cordons nodeName and evicts its pods, reporting the outcome through finish.
+// impersonationExpiry, when non-zero, is the verified identity's token expiry that authorized
+// this drain (see kubeconfig.Impersonation.Expiry): the drain runs on Headlamp's own service
+// account credential, which Kubernetes has no token to re-verify or expire on its own, so
+// without this the drain would keep cordoning and evicting under that identity for as long as it
+// takes to finish -- cordoning the node and deleting every non-DaemonSet pod on it, independent
+// of the user's own session -- even once the session that authorized it has ended. Binding ctx to
+// that deadline reuses every cancellation check already in this function and drainNodePods
+// (ctx.Err() and errors.Is(err, context.DeadlineExceeded)), which already treat an expired
+// context as reason to stop rather than record an error.
+func (c *HeadlampConfig) cordonAndEvictNode(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	nodeName string,
+	impersonationExpiry time.Time,
+	finish func(status string),
+) {
+	if !impersonationExpiry.IsZero() {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithDeadline(ctx, impersonationExpiry)
+		defer cancel()
+	}
+
+	if ctx.Err() != nil {
+		finish(drainErrorStatus(ctx.Err()))
+
+		return
+	}
+
+	nodeClient := clientset.CoreV1().Nodes()
+
+	node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
+	if err != nil {
+		finish(drainErrorStatus(err))
+
+		return
+	}
+
+	// cordon the node first
+	node.Spec.Unschedulable = true
+
+	_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
+	if err != nil {
+		finish(drainErrorStatus(err))
+
+		return
+	}
+
+	pods, err := clientset.CoreV1().Pods("").List(ctx,
+		v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
+	if err != nil {
+		finish(drainErrorStatus(err))
+
+		return
+	}
+
+	c.drainNodePods(ctx, clientset, pods.Items, finish)
 }
 
 // drainErrorStatus is the final status for a drain that stopped because of err. It is empty if the
