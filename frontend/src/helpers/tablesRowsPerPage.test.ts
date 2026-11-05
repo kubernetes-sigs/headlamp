@@ -111,3 +111,67 @@ describe('setTablesRowsPerPage', () => {
     }
   );
 });
+
+describe('setTablesRowsPerPage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    // A successful write clears the session fallback left by a failed one.
+    setTablesRowsPerPage(5);
+    localStorage.clear();
+  });
+
+  test('stores the value', () => {
+    setTablesRowsPerPage(25);
+
+    expect(getTablesRowsPerPage()).toBe(25);
+  });
+
+  test('does not throw and logs a warning when the storage write fails', () => {
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(() => setTablesRowsPerPage(25)).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps the value for the session when the storage write fails', () => {
+    localStorage.setItem('tables_rows_per_page', '15');
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    setTablesRowsPerPage(25);
+
+    expect(getTablesRowsPerPage()).toBe(25);
+  });
+
+  test.each([10.5, 4, 1001, NaN])(
+    'returns the default when the storage write fails with an invalid value: %s',
+    value => {
+      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota exceeded', 'QuotaExceededError');
+      });
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      setTablesRowsPerPage(value);
+
+      expect(getTablesRowsPerPage(5)).toBe(5);
+    }
+  );
+
+  test('uses the stored value again after a later write succeeds', () => {
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    setTablesRowsPerPage(25);
+    setItem.mockRestore();
+    setTablesRowsPerPage(50);
+
+    expect(getTablesRowsPerPage()).toBe(50);
+  });
+});

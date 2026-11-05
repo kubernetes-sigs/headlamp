@@ -116,6 +116,19 @@ describe('Settings theme', () => {
     });
   });
 
+  it('renders when localStorage writes fail', async () => {
+    // The rows per page input writes its value on mount, so a full or blocked
+    // storage used to throw before the settings page could be used.
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    renderWithProviders(<Settings />);
+
+    expect(await screen.findByText(/Number of rows for tables/i)).toBeInTheDocument();
+  });
+
   it('dispatches CLUSTER_SETTINGS_VIEW with the cluster from the URL', async () => {
     // SettingsCluster resolves the cluster from window.location, not from the router.
     window.history.pushState({}, '', '/c/cluster-1/settings');

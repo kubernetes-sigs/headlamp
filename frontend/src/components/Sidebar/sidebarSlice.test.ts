@@ -102,6 +102,30 @@ describe('sidebarSlice', () => {
       expect(state.isSidebarOpenUserSelected).toBe(false);
       expect(localStorage.getItem('sidebar')).not.toEqual(previousValue);
     });
+
+    describe('when localStorage cannot be written', () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it('should still update the state and warn', () => {
+        const quotaError = new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+        vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+          throw quotaError;
+        });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const open = !initialState.isSidebarOpen;
+
+        let state: SidebarState = initialState;
+        expect(() => {
+          state = sidebarReducer(initialState, setWhetherSidebarOpen(open));
+        }).not.toThrow();
+
+        expect(state.isSidebarOpen).toBe(open);
+        expect(state.isSidebarOpenUserSelected).toBe(open);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('sidebar'), quotaError);
+      });
+    });
   });
 });
 
