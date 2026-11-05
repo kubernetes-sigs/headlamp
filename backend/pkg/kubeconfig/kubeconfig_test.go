@@ -186,7 +186,7 @@ func TestLoadContextsFromAPIConfigPreservesOrigin(t *testing.T) {
 				LocationOfOrigin: origin,
 			}
 
-			contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, true)
+			contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, kubeconfig.KubeConfig, true)
 
 			require.Empty(t, errs)
 			require.Len(t, contexts, 1)
