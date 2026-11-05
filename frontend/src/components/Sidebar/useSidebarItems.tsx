@@ -19,7 +19,9 @@ import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
+import { hasConfiguredClusterSources } from '../../helpers/clusterPresentation';
 import { isElectron } from '../../helpers/isElectron';
+import { useClusterPresentation } from '../../helpers/useClusterPresentation';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
@@ -66,7 +68,9 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
-  const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
+  const { getLabel, sources } = useClusterPresentation();
+  const shouldShowHomeItem =
+    isElectron() || Object.keys(clusters).length !== 1 || hasConfiguredClusterSources(sources);
   const selectedClusters = useSelectedClusters();
   const allClustersConf = useClustersConf();
   const { t } = useTranslation();
@@ -159,7 +163,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             return (
               <ClusterBadge
                 key={clusterName}
-                name={clusterName}
+                name={getLabel(clusterName).name}
+                secondary={getLabel(clusterName).secondary}
                 accentColor={
                   appearance.accentColor ||
                   theme.palette.getContrastText(theme.palette.text.primary)
@@ -658,6 +663,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     // eslint-disable-next-line react-hooks/exhaustive-deps
     selectedClusters.join(','),
     allClustersConf,
+    sources,
+    getLabel,
     crdsSidebarEntries,
     gatewayKinds,
     devicesEnabled,

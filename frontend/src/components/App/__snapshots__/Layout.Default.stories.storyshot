@@ -356,7 +356,7 @@
                                     <p
                                       class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
                                     >
-                                      All Clusters
+                                      Clusters
                                     </p>
                                     <span
                                       class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -387,29 +387,78 @@
                             </div>
                           </div>
                           <div
-                            class="MuiBox-root css-5cned0"
+                            class="MuiBox-root css-1fkybvm"
                           >
-                            <span
-                              aria-label="Loading..."
-                              class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
-                              role="progressbar"
-                              style="width: 40px; height: 40px;"
-                              title="Loading..."
+                            <div
+                              class="MuiTabs-root css-tkn350-MuiTabs-root"
                             >
-                              <svg
-                                class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"
-                                viewBox="22 22 44 44"
+                              <div
+                                class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
+                                style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
+                              />
+                              <div
+                                class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
+                                style="margin-bottom: 0px;"
                               >
-                                <circle
-                                  class="MuiCircularProgress-circle MuiCircularProgress-circleIndeterminate css-176wh8e-MuiCircularProgress-circle"
-                                  cx="44"
-                                  cy="44"
-                                  fill="none"
-                                  r="20.2"
-                                  stroke-width="3.6"
+                                <div
+                                  aria-label="Cluster sources"
+                                  class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+                                  role="tablist"
+                                >
+                                  <button
+                                    aria-controls=":mock-test-id:"
+                                    aria-selected="true"
+                                    class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                                    id=":mock-test-id:"
+                                    role="tab"
+                                    tabindex="0"
+                                    type="button"
+                                  >
+                                    All (0)
+                                    <span
+                                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                                    />
+                                  </button>
+                                </div>
+                                <span
+                                  class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+                                  style="left: 0px; width: 0px;"
                                 />
-                              </svg>
-                            </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div
+                            aria-labelledby=":mock-test-id:"
+                            class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+                            id=":mock-test-id:"
+                            role="tabpanel"
+                            tabindex="-1"
+                          >
+                            <div
+                              class="MuiBox-root css-5cned0"
+                            >
+                              <span
+                                aria-label="Loading..."
+                                class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+                                role="progressbar"
+                                style="width: 40px; height: 40px;"
+                                title="Loading..."
+                              >
+                                <svg
+                                  class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"
+                                  viewBox="22 22 44 44"
+                                >
+                                  <circle
+                                    class="MuiCircularProgress-circle MuiCircularProgress-circleIndeterminate css-176wh8e-MuiCircularProgress-circle"
+                                    cx="44"
+                                    cy="44"
+                                    fill="none"
+                                    r="20.2"
+                                    stroke-width="3.6"
+                                  />
+                                </svg>
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>

@@ -1,0 +1,29 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-p20wo7"
+    >
+      <div
+        class="MuiBox-root css-172hjuw"
+      >
+        <div
+          class="MuiBox-root css-iyhyxy"
+        />
+        <div
+          class="MuiBox-root css-31l7gp"
+        >
+          <span
+            class="MuiTypography-root MuiTypography-caption css-1catroc-MuiTypography-root"
+          >
+            a-very-long-cluster-name-that-should-be-truncated-with-an-ellipsis
+          </span>
+          <span
+            class="MuiTypography-root MuiTypography-caption css-q99ks0-MuiTypography-root"
+          >
+            Cluster Inventory API · team-a · direct
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
