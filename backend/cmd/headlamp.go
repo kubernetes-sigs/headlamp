@@ -53,7 +53,7 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
@@ -68,8 +68,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/oauth2"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,6 +77,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -196,17 +196,18 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                  []Cluster       `json:"clusters"`
-	IsDynamicClusterEnabled   bool            `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges    bool            `json:"allowKubeconfigChanges"`
-	DefaultPodDebugImage      string          `json:"defaultPodDebugImage"`
-	DefaultNodeShellImage     string          `json:"defaultNodeShellImage"`
-	DefaultNodeShellNamespace string          `json:"defaultNodeShellNamespace"`
-	DefaultLightTheme         string          `json:"defaultLightTheme,omitempty"`
-	DefaultDarkTheme          string          `json:"defaultDarkTheme,omitempty"`
-	ForceTheme                string          `json:"forceTheme,omitempty"`
-	OidcAutoLogin             bool            `json:"oidcAutoLogin"`
-	AdminSettings             json.RawMessage `json:"adminSettings,omitempty"`
+	ClusterSources            []clusterdiscovery.SourceView `json:"clusterSources"`
+	Clusters                  []Cluster                     `json:"clusters"`
+	IsDynamicClusterEnabled   bool                          `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges    bool                          `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage      string                        `json:"defaultPodDebugImage"`
+	DefaultNodeShellImage     string                        `json:"defaultNodeShellImage"`
+	DefaultNodeShellNamespace string                        `json:"defaultNodeShellNamespace"`
+	DefaultLightTheme         string                        `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme          string                        `json:"defaultDarkTheme,omitempty"`
+	ForceTheme                string                        `json:"forceTheme,omitempty"`
+	OidcAutoLogin             bool                          `json:"oidcAutoLogin"`
+	AdminSettings             json.RawMessage               `json:"adminSettings,omitempty"`
 }
 
 type OauthConfig struct {
@@ -735,8 +736,13 @@ func validateServiceAccountNamespace(data []byte) (string, error) {
 	return namespace, nil
 }
 
-func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
-	if !config.EnableClusterInventory {
+func startClusterDiscovery(ctx context.Context, config *HeadlampConfig) error {
+	enabled := false
+	for _, settings := range config.DiscoverySources {
+		enabled = enabled || settings.Enabled
+	}
+
+	if !enabled {
 		return nil
 	}
 
@@ -750,33 +756,37 @@ func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 
 		hubConfig, err = rest.InClusterConfig()
 		if err != nil {
-			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
+			return fmt.Errorf("get in-cluster discovery config: %w", err)
 		}
 
 		hubNamespace, err = readServiceAccountNamespace()
 		if err != nil {
-			return fmt.Errorf("get pod namespace for cluster inventory: %w", err)
+			return fmt.Errorf("get discovery namespace: %w", err)
 		}
 	}
 
-	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
-		Store:                 config.KubeConfigStore,
-		ProviderFile:          config.ClusterInventoryProviderFile,
-		LabelSelector:         config.ClusterInventoryLabelSelector,
-		Namespaces:            config.ClusterInventoryNamespaces,
-		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
-		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
-		HubConfig:             hubConfig,
-		HubNamespace:          hubNamespace,
-		DiscoverFromStore:     !config.UseInCluster,
-	})
-	if err != nil {
-		return err
+	return startDiscoverySources(ctx, config, clusterdiscovery.Options{HubConfig: hubConfig, HubNamespace: hubNamespace})
+}
+
+// globalOidcConfig assembles Headlamp's global OIDC settings for discovered clusters.
+func globalOidcConfig(config *HeadlampConfig) *kubeconfig.OidcConfig {
+	skipTLSVerify := config.OidcSkipTLSVerify
+
+	var caCert *string
+
+	if config.OidcCACert != "" {
+		oidcCACert := config.OidcCACert
+		caCert = &oidcCACert
 	}
 
-	go runner.Run(ctx)
-
-	return nil
+	return &kubeconfig.OidcConfig{
+		ClientID:      config.OidcClientID,
+		ClientSecret:  config.OidcClientSecret,
+		IdpIssuerURL:  config.OidcIdpIssuerURL,
+		Scopes:        config.OidcScopes,
+		SkipTLSVerify: &skipTLSVerify,
+		CACert:        caCert,
+	}
 }
 
 func setupInClusterContext(config *HeadlampConfig) {
@@ -1715,6 +1725,15 @@ func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader strin
 	}
 }
 
+// proxyAuthToken returns the token supplied by the trusted auth proxy header, if any.
+func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
+	if !c.ProxyAuthEnabled || c.ProxyAuthTokenHeader == "" {
+		return ""
+	}
+
+	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+}
+
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
 	return c != nil && c.UseInCluster && c.UnsafeUseServiceAccountToken
 }
@@ -1934,7 +1953,7 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
 	handler := createHeadlampHandler(ctx, config)
 
-	if err := startClusterInventory(ctx, config); err != nil {
+	if err := startClusterDiscovery(ctx, config); err != nil {
 		return nil, err
 	}
 
@@ -2575,26 +2594,7 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			continue
 		}
 
-		kubeconfigPath := context.KubeConfigPath
-
-		source := context.SourceStr()
-
-		clusterID := context.ClusterID
-
-		metadata := map[string]interface{}{
-			"source":     source,
-			"namespace":  context.KubeContext.Namespace,
-			"extensions": context.KubeContext.Extensions,
-			"origin": map[string]interface{}{
-				"kubeconfig": kubeconfigPath,
-			},
-			"originalName":    context.Name,
-			logFieldClusterID: clusterID,
-		}
-
-		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
-			metadata["clusterInventory"] = context.ClusterInventory
-		}
+		metadata := clusterMetadata(context)
 
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
@@ -2701,6 +2701,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	cc := clientConfig{
+		ClusterSources:            clusterdiscovery.ClientSourceViews(clusterdiscovery.BuiltinSources(), c.DiscoverySources),
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
@@ -3727,11 +3728,60 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-// proxyAuthToken returns the token supplied by the trusted auth proxy header, if any.
-func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
-	if !c.ProxyAuthEnabled || c.ProxyAuthTokenHeader == "" {
-		return ""
+func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
+	metadata := map[string]interface{}{
+		"source":     context.SourceStr(),
+		"canRename":  context.CanRename(),
+		"namespace":  context.KubeContext.Namespace,
+		"extensions": context.KubeContext.Extensions,
+		"origin": map[string]interface{}{
+			"kubeconfig": context.KubeConfigPath,
+		},
+		"originalName":    context.Name,
+		logFieldClusterID: context.ClusterID,
 	}
 
-	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+	if context.Discovery != nil {
+		metadata["sourceLabel"] = context.Discovery.DisplayName
+	}
+
+	for key, value := range context.DiscoveryMetadata {
+		metadata[key] = value
+	}
+
+	if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
+		metadata["clusterInventory"] = context.ClusterInventory
+	}
+
+	metadata["presentation"] = context.PublicPresentation()
+
+	return metadata
+}
+
+func startDiscoverySources(ctx context.Context, config *HeadlampConfig, defaults clusterdiscovery.Options) error {
+	for _, source := range clusterdiscovery.BuiltinSources().Sources() {
+		entry := config.DiscoverySources[source.Descriptor().ID]
+		if !entry.Enabled {
+			continue
+		}
+
+		options := clusterdiscovery.Options{
+			Namespaces: entry.Namespaces, LabelSelector: entry.LabelSelector,
+			RootReconcileInterval: entry.RootReconcileInterval, NoCRDCacheTTL: entry.NoCRDCacheTTL,
+		}
+		options.Store = config.KubeConfigStore
+		options.OIDC = globalOidcConfig(config)
+		options.HubConfig = defaults.HubConfig
+		options.HubNamespace = defaults.HubNamespace
+		options.DiscoverFromStore = !config.UseInCluster
+
+		runner, err := clusterdiscovery.NewRunner(options, source)
+		if err != nil {
+			return err
+		}
+
+		go runner.Run(ctx)
+	}
+
+	return nil
 }
