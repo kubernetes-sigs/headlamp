@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useMutation } from '@tanstack/react-query';
 import { post, remove, request } from './api/v1/clusterRequests';
 import type { KubeCondition } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
@@ -168,4 +169,15 @@ export async function requestPoolStatus(
     // A user allowed to create but not delete leaves it to the controller's cleanup.
     await remove(requestUrl, { cluster }).catch(() => {});
   }
+}
+
+/**
+ * Runs a pool status request when asked, for example from a button.
+ * @param cluster - The cluster to ask.
+ * @returns A mutation whose variables are the spec of the request.
+ */
+export function usePoolStatusRequest(cluster: string) {
+  return useMutation({
+    mutationFn: (spec: ResourcePoolStatusRequestSpec) => requestPoolStatus(spec, cluster),
+  });
 }

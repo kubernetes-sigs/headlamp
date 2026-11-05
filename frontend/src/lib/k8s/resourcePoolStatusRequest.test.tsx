@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import type {
@@ -23,6 +26,7 @@ import type {
 import ResourcePoolStatusRequest, {
   PoolStatusRequestTimeoutError,
   requestPoolStatus,
+  usePoolStatusRequest,
 } from './resourcePoolStatusRequest';
 
 const { mockPost, mockRemove, mockRequest } = vi.hoisted(() => ({
@@ -261,5 +265,39 @@ describe('requestPoolStatus', () => {
 
     await expect(requestPoolStatus(spec, cluster)).rejects.toThrow('Forbidden');
     expect(mockRemove).not.toHaveBeenCalled();
+  });
+});
+
+describe('usePoolStatusRequest', () => {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+  );
+
+  beforeEach(() => {
+    mockPost.mockReset();
+    mockRemove.mockReset();
+    mockRemove.mockResolvedValue({});
+  });
+
+  it('asks only when told to, and gives the answer', async () => {
+    mockPost.mockResolvedValue(complete);
+    const { result } = renderHook(() => usePoolStatusRequest(cluster), { wrapper });
+
+    expect(mockPost).not.toHaveBeenCalled();
+
+    result.current.mutate({ driver: 'gpu.example.com' });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.pools).toEqual([pool]);
+  });
+
+  it('gives the error when the request cannot be created', async () => {
+    mockPost.mockRejectedValue(new Error('Forbidden'));
+    const { result } = renderHook(() => usePoolStatusRequest(cluster), { wrapper });
+
+    result.current.mutate({ driver: 'gpu.example.com' });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe('Forbidden');
   });
 });
