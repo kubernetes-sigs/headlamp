@@ -20,6 +20,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import JobSet from '../../../lib/k8s/jobSet';
 import LeaderWorkerSet from '../../../lib/k8s/leaderWorkerSet';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import CompositePodGroupDetails from '../../compositePodGroup/Details';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
@@ -49,11 +50,13 @@ import { NetworkPolicyDetails } from '../../networkpolicy/Details';
 import NodeDetails from '../../node/Details';
 import PodDetails from '../../pod/Details';
 import PDBDetails from '../../podDisruptionBudget/Details';
+import PodGroupDetails from '../../podGroup/Details';
 import PriorityClassDetails from '../../priorityClass/Details';
 import ResourceQuotaDetails from '../../resourceQuota/Details';
 import RoleBindingDetails from '../../role/BindingDetails';
 import RoleDetails from '../../role/Details';
 import { RuntimeClassDetails } from '../../runtimeClass/Details';
+import SchedulingWorkloadDetails from '../../schedulingWorkload/Details';
 import SecretDetails from '../../secret/Details';
 import ServiceDetails from '../../service/Details';
 import ServiceAccountDetails from '../../serviceaccount/Details';
@@ -129,6 +132,9 @@ const kindComponentMap: Record<
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,
   XBackendTrafficPolicy: BackendTLSPolicyDetails,
+  Workload: SchedulingWorkloadDetails,
+  CompositePodGroup: CompositePodGroupDetails,
+  PodGroup: PodGroupDetails,
 };
 
 export const canRenderDetails = (maybeKind: string) =>
