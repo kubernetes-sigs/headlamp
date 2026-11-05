@@ -29,6 +29,16 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
 import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
+import {
+  ClusterSourceView,
+  createClusterPresentation,
+  EMPTY_SOURCE_VIEWS,
+  getClusterDisplayName,
+  getClusterField,
+  getClusterSearchText,
+  getClusterSourceLabel,
+  translateClusterLabel,
+} from '../../../helpers/clusterPresentation';
 import { isElectron } from '../../../helpers/isElectron';
 import { setRecentCluster } from '../../../helpers/recentClusters';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
@@ -50,7 +60,6 @@ import {
   getClusterStatusAccessor,
   getClusterStatusInfo,
   getConditionTooltip,
-  isClusterInventoryCluster,
   STATUS_VARIANTS,
 } from './ClusterInventory';
 import { canSelectCluster } from './clusterStatus';
@@ -157,6 +166,8 @@ function ClusterStatus({
 }
 
 export interface ClusterTableProps {
+  source?: ClusterSourceView;
+  sourceViews?: ClusterSourceView[];
   /** Some clusters have custom names. */
   customNameClusters: ReturnType<typeof getCustomClusterNames>;
   /** Versions for each cluster. */
@@ -189,27 +200,35 @@ export default function ClusterTable({
   warningLabels,
   connectedClusterNames,
   onConnectCluster,
+  source,
+  sourceViews = EMPTY_SOURCE_VIEWS,
 }: ClusterTableProps) {
+  const tableId = source
+    ? `${CLUSTER_TABLE_ID}.${encodeURIComponent(source.id)}`
+    : CLUSTER_TABLE_ID;
   const history = useHistory();
   const { t } = useTranslation(['translation']);
+  const { getLabel } = useMemo(
+    () => createClusterPresentation(Object.values(clusters || {}), sourceViews, label => t(label)),
+    [clusters, sourceViews, t]
+  );
 
   const isClusterConnected = (clusterName: string) =>
     connectedClusterNames ? connectedClusterNames.has(clusterName) : true;
 
   const [columnVisibility, setColumnVisibility] = useState<MRT_VisibilityState>(() => {
     const visibility: Record<string, boolean> = {};
-    const stored = loadTableSettings(CLUSTER_TABLE_ID);
+    const stored = loadTableSettings(tableId);
     stored.forEach(({ id, show }) => (visibility[id] = show));
     return visibility;
   });
 
-  const [sorting, setSorting] = useLocalStorageState<MRT_SortingState>(
-    `table_sorting.${CLUSTER_TABLE_ID}`,
-    [{ id: 'name', desc: false }]
-  );
+  const [sorting, setSorting] = useLocalStorageState<MRT_SortingState>(`table_sorting.${tableId}`, [
+    { id: 'name', desc: false },
+  ]);
 
   const [columnFilters, setColumnFilters] = useLocalStorageState<MRT_ColumnFiltersState>(
-    `table_filters.${CLUSTER_TABLE_ID}`,
+    `table_filters.${tableId}`,
     []
   );
 
@@ -221,11 +240,11 @@ export default function ClusterTable({
           id,
           show: (show ?? true) as boolean,
         }));
-        storeTableSettings(CLUSTER_TABLE_ID, colsToStore);
+        storeTableSettings(tableId, colsToStore);
         return newCols;
       });
     },
-    []
+    [tableId]
   );
 
   const handleSortingChange = useCallback(
@@ -244,24 +263,11 @@ export default function ClusterTable({
     [setColumnFilters]
   );
 
-  /**
-   * Gets the origin of a cluster.
-   *
-   * @param cluster
-   * @returns A description of where the cluster is picked up from: dynamic, in-cluster, or from a kubeconfig file.
-   */
   function getOrigin(cluster: Cluster): string {
-    if (cluster?.meta_data?.source === 'kubeconfig') {
-      const sourcePath = cluster?.meta_data?.origin?.kubeconfig;
-      return sourcePath ? `Kubeconfig: ${sourcePath}` : 'Kubeconfig';
-    } else if (cluster?.meta_data?.source === 'dynamic_cluster') {
-      return t('translation|Plugin');
-    } else if (cluster?.meta_data?.source === 'incluster') {
-      return t('translation|In-cluster');
-    } else if (isClusterInventoryCluster(cluster)) {
-      return t('translation|Cluster Inventory');
-    }
-    return t('translation|Unknown');
+    const label = translateClusterLabel(getClusterSourceLabel(cluster, sourceViews), t);
+    const path =
+      cluster.meta_data?.source === 'kubeconfig' ? cluster.meta_data?.origin?.kubeconfig : '';
+    return path ? `${label}: ${path}` : label;
   }
 
   const viewClusters = t('View Clusters');
@@ -287,12 +293,18 @@ export default function ClusterTable({
           style={{ fontSize: 64, color: '#ccc', marginBottom: 16 }}
         />
         <Typography variant="h6" gutterBottom>
-          {t('No clusters found')}
+          {source
+            ? t('No clusters found in {{source}}', {
+                source: translateClusterLabel(source.label, t),
+              })
+            : t('No clusters found')}
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          {t('Add a cluster to get started.')}
+          {source
+            ? t('No connections are available from this source.')
+            : t('Add a cluster to get started.')}
         </Typography>
-        {isElectron() && (
+        {!source && isElectron() && (
           <Button
             variant="contained"
             startIcon={<Icon icon="mdi:plus" />}
@@ -305,19 +317,25 @@ export default function ClusterTable({
         )}
       </Box>
     );
-    return <RegisteredClusterEmptyState defaultContent={defaultContent} />;
+    return source ? (
+      defaultContent
+    ) : (
+      <RegisteredClusterEmptyState defaultContent={defaultContent} />
+    );
   }
 
   return (
     <Table
+      key={tableId}
       columns={[
         {
           id: 'name',
-          header: t('Name'),
-          accessorKey: 'name',
+          header: source ? translateClusterLabel(source.nameLabel, t) : t('Name'),
+          accessorFn: cluster => getClusterDisplayName(cluster),
           gridTemplate: 2,
           Cell: ({ row: { original } }) => {
             const appearance = getClusterAppearanceFromMeta(original.name);
+            const label = getLabel(original);
             return (
               <LightTooltip title={original.name}>
                 {/* Record as recently-used on open so it auto-connects on return.
@@ -334,7 +352,8 @@ export default function ClusterTable({
                 >
                   <Link routeName="cluster" params={{ cluster: original.name }}>
                     <ClusterBadge
-                      name={original.name}
+                      name={getClusterDisplayName(original)}
+                      secondary={source ? label.disambiguator : label.secondary}
                       icon={appearance.icon}
                       accentColor={appearance.accentColor}
                     />
@@ -344,14 +363,27 @@ export default function ClusterTable({
             );
           },
         },
-        {
-          id: 'origin',
-          header: t('Origin'),
-          accessorFn: cluster => getOrigin(cluster),
-          Cell: ({ row: { original } }) => (
-            <Typography variant="body2">{getOrigin((clusters || {})[original.name])}</Typography>
-          ),
-        },
+        ...(source?.columns?.length
+          ? source.columns.map(column => ({
+              id: `field.${column.key}`,
+              header: translateClusterLabel(column.label, t),
+              accessorFn: (cluster: Cluster) => getClusterField(cluster, column.key),
+              Cell: ({ row: { original } }: { row: { original: Cluster } }) => (
+                <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
+                  {getClusterField(original, column.key) || '—'}
+                </Typography>
+              ),
+            }))
+          : [
+              {
+                id: 'origin',
+                header: t('Origin'),
+                accessorFn: (cluster: Cluster) => getOrigin(cluster),
+                Cell: ({ row: { original } }: { row: { original: Cluster } }) => (
+                  <Typography variant="body2">{getOrigin(original)}</Typography>
+                ),
+              },
+            ]),
         {
           id: 'status',
           header: t('Status'),
@@ -400,6 +432,15 @@ export default function ClusterTable({
         },
       ]}
       data={clustersList}
+      getRowId={cluster => cluster.name}
+      filterFns={{
+        clusterPresentation: (row, columnId, value) =>
+          [row.getValue(columnId), getClusterSearchText(row.original, sourceViews)]
+            .join(' ')
+            .toLowerCase()
+            .includes(String(value).toLowerCase()),
+      }}
+      globalFilterFn="clusterPresentation"
       enableRowSelection={
         MULTI_HOME_ENABLED
           ? row => {

@@ -23,6 +23,7 @@ import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
 import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
 import { useQuery } from '@tanstack/react-query';
+import { isEqual } from 'lodash';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -145,14 +146,12 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
   return request('/config', { timeout: CONFIG_FETCH_TIMEOUT_MS }, false, false).then(config => {
     const clustersToConfig: ConfigState['clusters'] = {};
     config?.clusters.forEach((cluster: Cluster) => {
-      if (cluster.meta_data?.extensions?.headlamp_info?.customName) {
-        cluster.name = cluster.meta_data?.extensions?.headlamp_info?.customName;
-      }
       clustersToConfig[cluster.name] = cluster;
     });
 
     const configToStore = {
       ...config,
+      clusterSources: config.clusterSources ?? [],
       clusters: clustersToConfig,
       oidcAutoLogin: config.oidcAutoLogin,
     };
@@ -163,7 +162,10 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       // Check if the config is different
       const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
 
-      if (configDifferent) {
+      if (
+        configDifferent ||
+        !isEqual(store.getState().config.clusterSources, config.clusterSources ?? [])
+      ) {
         // Merge the new config with the current config
         const mergedClusters = mergeClusterConfigs(
           configToStore.clusters,

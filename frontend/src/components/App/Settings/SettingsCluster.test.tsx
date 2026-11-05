@@ -15,11 +15,14 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../../../i18n/config';
 import { createMuiTheme } from '../../../lib/themes';
+import { initialState as configInitialState } from '../../../redux/configSlice';
+import reducers from '../../../redux/reducers/reducers';
 import { TestContext } from '../../../test';
 import SettingsCluster from './SettingsCluster';
 
@@ -122,7 +125,7 @@ describe('SettingsCluster appearance controls', () => {
     mockState.clustersConf = {
       [clusterName]: {
         name: clusterName,
-        meta_data: { namespace: 'default', source: 'kubeconfig' },
+        meta_data: { namespace: 'default', source: 'kubeconfig', canRename: true },
       },
     };
   });
@@ -203,7 +206,7 @@ describe('SettingsCluster states and namespaces', () => {
     mockState.clustersConf = {
       [clusterName]: {
         name: clusterName,
-        meta_data: { namespace: 'default', source: 'kubeconfig' },
+        meta_data: { namespace: 'default', source: 'kubeconfig', canRename: true },
       },
     };
   });
@@ -284,6 +287,37 @@ describe('SettingsCluster states and namespaces', () => {
     expect(screen.getByText('Cluster name editor')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove Cluster' }));
     await waitFor(() => expect(mockDeleteCluster).toHaveBeenCalledWith(clusterName));
+  });
+
+  it.each(['cluster_inventory', 'kubeconfig', 'incluster'])(
+    'does not offer renaming for a %s connection without a persistence origin',
+    source => {
+      mockState.electron = true;
+      mockState.clustersConf[clusterName].meta_data = { source, canRename: false };
+      renderSettings();
+
+      expect(screen.queryByText('Cluster name editor')).not.toBeInTheDocument();
+    }
+  );
+
+  it('offers renaming for a connection persisted in IndexedDB', () => {
+    mockState.electron = true;
+    mockState.clustersConf[clusterName].meta_data.canRename = false;
+    const store = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        config: { ...configInitialState, statelessClusters: mockState.clustersConf },
+      },
+    });
+    render(
+      <TestContext store={store} urlSearchParams={{ c: clusterName }}>
+        <ThemeProvider theme={theme}>
+          <SettingsCluster />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(screen.getByText('Cluster name editor')).toBeInTheDocument();
   });
 
   it('handles a dynamic cluster removal failure', async () => {

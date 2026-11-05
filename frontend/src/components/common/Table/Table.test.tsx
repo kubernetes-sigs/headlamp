@@ -88,6 +88,7 @@ vi.mock('material-react-table', () => ({
     const rows = options.data.map((item: Record<string, unknown>, index: number) => {
       const row: any = {
         id: String(index),
+        original: item,
         getCanSelect: () => true,
         getIsSelected: () => false,
       };
@@ -110,6 +111,7 @@ vi.mock('material-react-table', () => ({
               id: 'selection',
               column: {
                 id: 'selection',
+                columnDef: options.columns[0],
                 getFilterValue: () => undefined,
                 getIsFiltered: () => false,
                 getIsSorted: () => false,
@@ -186,6 +188,52 @@ describe('Table toolbar and selection props', () => {
     renderTable(props);
 
     expect(screen.getByTestId('top-toolbar')).toBeVisible();
+  });
+
+  it('forwards visibility changes so a caller can save and restore its columns', () => {
+    const onColumnVisibilityChange = vi.fn();
+    renderTable({ state: { columnVisibility: { detail: false } }, onColumnVisibilityChange });
+    tableMocks.options.onColumnVisibilityChange({ detail: true });
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({ detail: true });
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(false);
+  });
+
+  it('lets local visibility toggles override caller defaults without a change callback', () => {
+    renderTable({ state: { columnVisibility: { cluster: true } } });
+    expect(tableMocks.options.state.columnVisibility.cluster).toBe(true);
+
+    act(() => tableMocks.options.onColumnVisibilityChange({ cluster: false }));
+    expect(tableMocks.options.state.columnVisibility.cluster).toBe(false);
+
+    act(() => {
+      tableMocks.options.onColumnVisibilityChange((previous: Record<string, boolean>) => ({
+        ...previous,
+        cluster: true,
+      }));
+    });
+    expect(tableMocks.options.state.columnVisibility.cluster).toBe(true);
+  });
+
+  it('uses updated caller visibility over initial visibility with a change callback', () => {
+    const onColumnVisibilityChange = vi.fn();
+    const props = {
+      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      data: [{ selected: false }],
+      initialState: { columnVisibility: { detail: true } },
+      onColumnVisibilityChange,
+    };
+    const { rerender } = renderTable({
+      ...props,
+      state: { columnVisibility: { detail: false } },
+    });
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(false);
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} state={{ columnVisibility: { detail: true } }} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(true);
   });
 
   it('hides the top toolbar when disabled', () => {
