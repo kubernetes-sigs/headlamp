@@ -32,11 +32,11 @@ const _dont_delete_me = App;
 const PREFERRED_DARK_THEME_KEY = 'headlampPreferredDarkTheme';
 const REMEMBER_THEME_CHOICES_KEY = 'headlampRememberThemeChoices';
 
-function renderSearch() {
+function renderSearch(onCloseMock = () => {}) {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <TestContext>
-        <GlobalSearchContent defaultValue="" maxWidth={500} onBlur={() => {}} />
+        <GlobalSearchContent defaultValue="" maxWidth={500} onClose={onCloseMock} />
       </TestContext>
     </QueryClientProvider>
   );
@@ -89,5 +89,31 @@ describe('GlobalSearchContent theme actions', () => {
       screen.findByRole('option', { name: 'Theme Lights Out' }, { timeout: 500 })
     ).rejects.toThrow();
     expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBeNull();
+  });
+
+  describe('GlobalSearchContent dismissal behavior', () => {
+    it('calls onClose when the Escape key is pressed', async () => {
+      const mockOnClose = vi.fn();
+      renderSearch(mockOnClose);
+
+      const input = screen.getByRole('combobox');
+      await userEvent.type(input, 'test');
+      await userEvent.keyboard('{Escape}');
+
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+
+    it('calls onClose when an option is selected', async () => {
+      const mockOnClose = vi.fn();
+      renderSearch(mockOnClose);
+
+      const input = screen.getByRole('combobox');
+      await userEvent.type(input, 'Lights Out');
+
+      const option = await screen.findByRole('option', { name: 'Theme Lights Out' });
+      await userEvent.click(option);
+
+      expect(mockOnClose).toHaveBeenCalled();
+    });
   });
 });
