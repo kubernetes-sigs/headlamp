@@ -23,7 +23,15 @@
           role="combobox"
           tabindex="0"
         >
-          dev
+          <div
+            class="MuiBox-root css-172hjuw"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-caption css-11m88l0-MuiTypography-root"
+            >
+              dev
+            </span>
+          </div>
         </div>
         <input
           aria-hidden="true"

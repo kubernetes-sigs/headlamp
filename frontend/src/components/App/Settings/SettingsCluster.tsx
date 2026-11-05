@@ -34,6 +34,7 @@ import { useAllowedNamespacesFromSelector } from '../../../lib/k8s/allowedNamesp
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
+import { useTypedSelector } from '../../../redux/hooks';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
 import Link from '../../common/Link';
@@ -57,6 +58,9 @@ export default function SettingsCluster() {
   const { t } = useTranslation(['translation']);
   const initialCluster = useCluster() || '';
   const [cluster, setCluster] = React.useState(initialCluster);
+  const statelessCluster = useTypedSelector(state => state.config.statelessClusters?.[cluster]);
+  const metadata = clusterConf?.[cluster]?.meta_data;
+  const canRename = !!statelessCluster || (metadata?.canRename ?? !!metadata?.origin?.kubeconfig);
 
   const [clusterSettings, setClusterSettings] = useClusterSettings(cluster);
 
@@ -261,7 +265,7 @@ export default function SettingsCluster() {
             {t('translation|Go to cluster')}
           </Link>
         </Box>
-        {isElectron() && (
+        {isElectron() && canRename && (
           <ClusterNameEditor
             cluster={cluster}
             clusterConf={clusterConf}

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { ConnectionPresentation } from '../../helpers/clusterPresentation';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { KubeMetadata } from './KubeMetadata';
@@ -56,7 +57,12 @@ export function getAllowedNamespaces(cluster: string | null = getCluster()): str
 }
 
 export interface Cluster {
+  /** Connection key used for routes, authentication and persisted settings. */
   name: string;
+  meta_data?: {
+    presentation?: ConnectionPresentation;
+    [key: string]: any;
+  };
   useToken?: boolean;
   /**
    * Either 'oidc' or ''. '' means unknown.

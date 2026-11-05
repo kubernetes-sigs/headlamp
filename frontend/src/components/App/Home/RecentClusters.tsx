@@ -23,6 +23,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
 import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
+import {
+  ClusterSourceView,
+  createClusterPresentation,
+  EMPTY_SOURCE_VIEWS,
+} from '../../../helpers/clusterPresentation';
 import { isElectron } from '../../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../../lib/cluster';
@@ -37,12 +42,13 @@ const ToggleButton = styled(MuiToggledButton)({
 interface ClusterButtonProps extends React.PropsWithChildren<{}> {
   /** The cluster to display this button for. */
   cluster: Cluster;
+  label?: string;
   /** Callback for when the button is clicked. */
   onClick?: (...args: any[]) => void;
 }
 
 const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((props, ref) => {
-  const { cluster, onClick = undefined } = props;
+  const { cluster, label, onClick = undefined } = props;
   const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
   const icon = appearance.icon || 'mdi:kubernetes';
 
@@ -51,7 +57,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
       focusRipple
       icon={icon}
       iconColor={appearance.accentColor}
-      label={cluster.name}
+      label={label || cluster.name}
       ref={ref}
       onClick={onClick}
     />
@@ -59,6 +65,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
 });
 
 export interface RecentClustersProps {
+  sourceViews?: ClusterSourceView[];
   /** The clusters available. So if there's a record of recent clusters, it'll try to use
    * them only if they exist, otherwise it'll just use the first 3 of the ones passed here.
    */
@@ -68,7 +75,7 @@ export interface RecentClustersProps {
 }
 
 export default function RecentClusters(props: RecentClustersProps) {
-  const { clusters } = props;
+  const { clusters, sourceViews: sources = EMPTY_SOURCE_VIEWS } = props;
   const history = useHistory();
   const focusedRef = React.useCallback((node: HTMLButtonElement | null) => {
     if (node !== null) {
@@ -76,6 +83,10 @@ export default function RecentClusters(props: RecentClustersProps) {
     }
   }, []);
   const { t } = useTranslation('translation');
+  const { getLabel } = React.useMemo(
+    () => createClusterPresentation(clusters, sources, label => t(label)),
+    [clusters, sources, t]
+  );
   const [selectedClusters, setSelectedClusters] = React.useState<Cluster[]>([]);
 
   const recentClustersLabelId = 'recent-clusters-label';
@@ -151,6 +162,7 @@ export default function RecentClusters(props: RecentClustersProps) {
             <ClusterButton
               ref={i === 0 ? focusedRef : undefined}
               cluster={cluster}
+              label={getLabel(cluster).text}
               onClick={() => onClusterButtonClicked(cluster)}
             />
           </Grid>
@@ -165,7 +177,7 @@ export default function RecentClusters(props: RecentClustersProps) {
           >
             {recentClusters.map(cluster => (
               <ToggleButton key={cluster.name} value={cluster}>
-                {cluster.name}
+                {getLabel(cluster).text}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
