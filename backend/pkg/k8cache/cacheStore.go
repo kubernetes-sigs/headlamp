@@ -22,16 +22,12 @@ package k8cache
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
@@ -65,6 +61,7 @@ func IsKubernetesAPIPath(path string) bool {
 // CachedResponseData stores information such as StatusCode, Headers, and Body.
 // It helps cache responses efficiently and serve them from the cache.
 type CachedResponseData struct {
+	Generation uint64      `json:"generation,omitempty"`
 	StatusCode int         `json:"statusCode"`
 	Headers    http.Header `json:"headers"`
 	Body       string      `json:"body"`
@@ -97,129 +94,6 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 	return string(dcmpBody), nil
 }
 
-// GetAPIGroup parses the URL path and returns the apiGroup and version.
-func GetAPIGroup(path string) (apiGroup, version string, err error) {
-	path = strings.TrimRight(path, "/")
-	parts := strings.Split(path, "/")
-	apiIdx := kubernetesAPIPathIndex(parts)
-
-	if apiIdx == -1 {
-		return "", "", fmt.Errorf("invalid url format")
-	}
-
-	switch parts[apiIdx] {
-	case apiPathSegment:
-		// Core API group
-		apiGroup = ""
-
-		if len(parts) > apiIdx+1 {
-			version = parts[apiIdx+1]
-		}
-	case apisPathSegment:
-		// Named API group
-		if len(parts) > apiIdx+1 {
-			apiGroup = parts[apiIdx+1]
-		}
-
-		if len(parts) > apiIdx+2 {
-			version = parts[apiIdx+2]
-		}
-	}
-
-	return
-}
-
-// ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
-// cache key more specific to a particular namespace.
-func ExtractNamespace(rawURL string) (string, string) {
-	if idx := strings.Index(rawURL, "?"); idx != -1 {
-		rawURL = rawURL[:idx]
-	}
-
-	rawURL = strings.TrimRight(rawURL, "/")
-
-	var namespace, kind string
-
-	urls := strings.Split(rawURL, "/")
-
-	n := len(urls)
-
-	apiIdx := kubernetesAPIPathIndex(urls)
-	if apiIdx == -1 {
-		return "", ""
-	}
-
-	for i := 0; i < n-1; i++ {
-		if urls[i] == namespacePathSegment {
-			namespace = urls[i+1]
-			break
-		}
-	}
-
-	if n > 2 {
-		kind = urls[n-1]
-	}
-
-	return namespace, kind
-}
-
-// escapeCacheKeySegment percent-escapes "%" and "+" so cache key segments can
-// be joined with "+" delimiters without ambiguity. "%" is escaped first so the
-// encoding is injective (see buildCacheKey).
-func escapeCacheKeySegment(s string) string {
-	s = strings.ReplaceAll(s, "%", "%25")
-	s = strings.ReplaceAll(s, "+", "%2B")
-
-	return s
-}
-
-// unescapeCacheKeySegment reverses escapeCacheKeySegment.
-func unescapeCacheKeySegment(s string) string {
-	s = strings.ReplaceAll(s, "%2B", "+")
-	s = strings.ReplaceAll(s, "%25", "%")
-
-	return s
-}
-
-// buildCacheKey joins apiGroup, kind, namespace, and contextID into a single
-// cache key using "+" as the delimiter. Each field is percent-escaped so
-// that the only "+" characters left in the key are the delimiters
-// themselves and the encoding round-trips uniquely back to its inputs.
-// This matters most for the context field, since kubeconfig context names
-// are not restricted by Kubernetes naming rules and may legitimately
-// contain "+" (or "%").
-//
-// This function is the single source of truth for constructing cache keys.
-// Any code that parses or otherwise manipulates the key format (e.g. the
-// namespace stripping in cache invalidation) must stay consistent with this
-// encoding to avoid the two sides silently drifting out of sync.
-func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
-	return escapeCacheKeySegment(apiGroup) + "+" +
-		escapeCacheKeySegment(kind) + "+" +
-		escapeCacheKeySegment(namespace) + "+" +
-		escapeCacheKeySegment(contextID)
-}
-
-// GenerateKey function helps to generate a unique key based on the request from the client
-// The function accepts url( which includes all the information of request ) and contextID which
-// helps to differentiate in multiple contexts.
-func GenerateKey(url *url.URL, contextID string) (string, error) {
-	namespace, kind := ExtractNamespace(url.Path)
-
-	apiGroup, _, err := GetAPIGroup(url.Path)
-	if err != nil {
-		return "", err
-	}
-
-	k := CacheKey{
-		Kind:      kind,
-		Namespace: namespace,
-		Context:   contextID,
-	}
-
-	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
-}
-
 // SetHeader function help to serve response from cache to ensure the client
 // receives correct metadata about the response.
 func SetHeader(cacheData CachedResponseData, w http.ResponseWriter) {
@@ -240,7 +114,8 @@ func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Hea
 	cacheHeader := make(http.Header)
 
 	for idx, header := range responseHeaders {
-		if strings.EqualFold(idx, "Content-Encoding") && encoding == gzipEncoding {
+		if encoding == gzipEncoding &&
+			(strings.EqualFold(idx, "Content-Encoding") || strings.EqualFold(idx, "Content-Length")) {
 			continue
 		}
 
@@ -250,84 +125,60 @@ func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Hea
 	return cacheHeader
 }
 
-// LoadFromCache checks if a cached resource exists and the user has permission to view it.
-// If found, it writes the cached data to the ResponseWriter and returns (true, nil).
-// If not found or on error, it returns (false, error).
-func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
-	key string, w http.ResponseWriter, r *http.Request,
-) (bool, error) {
-	k8Resource, err := k8scache.Get(context.Background(), key)
-	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed {
-		var cachedData CachedResponseData
-		if err := json.Unmarshal([]byte(k8Resource), &cachedData); err != nil {
-			return false, err
-		}
-
-		SetHeader(cachedData, w)
-
-		_, writeErr := w.Write([]byte(cachedData.Body))
-		if writeErr != nil {
-			return false, writeErr
-		}
-
-		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+redactCacheKey(key))
-
-		return true, nil
+// encodeResponse serializes a cacheable response tagged with the generation of
+// the watch it was read under. It returns "" for responses that must not be shared.
+func encodeResponse(rcw *ResponseCapture, generation uint64) (string, error) {
+	if rcw.StatusCode != http.StatusOK {
+		return "", nil
 	}
 
-	return false, nil
-}
-
-// StoreK8sResponseInCache ensures if the key was not found inside the cache then this will make actual call to k8's
-// and this will capture the response body and convert the captured response to string.
-// After converting it will store the response with the key and TTL of 10*min.
-func StoreK8sResponseInCache(k8scache cache.Cache[string],
-	url *url.URL,
-	rcw *ResponseCapture,
-	key string,
-) error {
-	if rcw.StatusCode >= 500 {
-		return nil
+	headers := rcw.Header()
+	// Kubernetes marks authenticated responses private; this cache reauthorizes every hit.
+	// An explicit no-store response is never retained.
+	if strings.Contains(strings.ToLower(headers.Get("Cache-Control")), "no-store") {
+		return "", nil
 	}
 
-	capturedHeaders := rcw.Header()
-	encoding := capturedHeaders.Get("Content-Encoding")
-	bodyBytes := rcw.Body.Bytes()
+	if headers.Get("Set-Cookie") != "" {
+		return "", nil
+	}
 
-	dcmpBody, err := GetResponseBody(bodyBytes, encoding)
+	for _, vary := range headers.Values("Vary") {
+		for _, field := range strings.Split(vary, ",") {
+			if field = strings.TrimSpace(field); field != "" &&
+				!strings.EqualFold(field, "Accept") && !strings.EqualFold(field, "Accept-Encoding") {
+				return "", nil
+			}
+		}
+	}
+
+	body, err := GetResponseBody(rcw.Body.Bytes(), headers.Get("Content-Encoding"))
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
-
-	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
-		// Check the decompressed body for Kubernetes error status before
-		// marshalling the full CachedResponseData. This avoids allocating
-		// the JSON envelope for responses that will be discarded anyway.
-		if strings.Contains(dcmpBody, "Failure") {
-			return nil
-		}
-
-		cachedData := CachedResponseData{
-			StatusCode: rcw.StatusCode,
-			Headers:    headersToCache,
-			Body:       dcmpBody,
-		}
-
-		jsonBytes, err := json.Marshal(cachedData)
-		if err != nil {
-			return err
-		}
-
-		if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
-			return err
-		}
-
-		logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+redactCacheKey(key))
+	// Resources carry an object-valued status; only a Status object has a string one.
+	var object struct {
+		Kind   string          `json:"kind"`
+		Status json.RawMessage `json:"status"`
+	}
+	if json.Unmarshal([]byte(body), &object) != nil || object.Kind == "" {
+		return "", nil
 	}
 
-	return nil
+	if object.Kind == "Status" {
+		var status string
+		if json.Unmarshal(object.Status, &status) == nil && status == "Failure" {
+			return "", nil
+		}
+	}
+
+	encoded, err := json.Marshal(CachedResponseData{
+		Generation: generation, StatusCode: rcw.StatusCode,
+		Headers: FilterHeaderForCache(headers, headers.Get("Content-Encoding")), Body: body,
+	})
+
+	return string(encoded), err
 }
 
 // redactContextKey returns a redacted version of the context key to avoid leaking PII/sensitive info in logs.
@@ -343,15 +194,11 @@ func redactContextKey(key string) string {
 	return key[:3] + "...[redacted]"
 }
 
-// redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
+// redactCacheKey omits resource names, selectors and connection identifiers from logs.
 func redactCacheKey(key string) string {
-	parts := strings.SplitN(key, "+", 4)
-
-	if len(parts) >= 4 {
-		parts[3] = redactContextKey(parts[3])
-
-		return strings.Join(parts, "+")
+	if parsed, ok := parseCacheKey(key); ok {
+		return "response for " + redactContextKey(parsed.Context)
 	}
 
-	return key
+	return "[invalid cache key]"
 }
