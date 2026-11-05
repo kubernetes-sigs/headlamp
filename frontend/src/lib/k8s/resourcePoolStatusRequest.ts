@@ -78,6 +78,40 @@ class ResourcePoolStatusRequest extends KubeObject<KubeResourcePoolStatusRequest
   get status() {
     return this.jsonData.status;
   }
+
+  private hasCondition(type: string): boolean {
+    return !!this.status?.conditions?.some(
+      condition => condition.type === type && condition.status === 'True'
+    );
+  }
+
+  get isComplete(): boolean {
+    return this.hasCondition('Complete');
+  }
+
+  get isFailed(): boolean {
+    return this.hasCondition('Failed');
+  }
+
+  get isPending(): boolean {
+    return !this.isComplete && !this.isFailed;
+  }
+
+  get failureMessage(): string | undefined {
+    return this.status?.conditions?.find(condition => condition.type === 'Failed')?.message;
+  }
+
+  get pools(): PoolStatus[] {
+    return this.status?.pools ?? [];
+  }
+
+  get poolCount(): number {
+    return this.status?.poolCount ?? 0;
+  }
+
+  get isTruncated(): boolean {
+    return this.pools.length < this.poolCount;
+  }
 }
 
 export default ResourcePoolStatusRequest;
