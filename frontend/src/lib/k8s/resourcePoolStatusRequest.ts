@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { post, remove, request } from './api/v1/clusterRequests';
 import type { KubeCondition } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -115,3 +116,56 @@ class ResourcePoolStatusRequest extends KubeObject<KubeResourcePoolStatusRequest
 }
 
 export default ResourcePoolStatusRequest;
+
+const POOL_STATUS_TIMEOUT_MS = 30_000;
+const POOL_STATUS_POLL_INTERVAL_MS = 1_000;
+
+export class PoolStatusRequestTimeoutError extends Error {
+  constructor(driver: string) {
+    super(`Timed out waiting for the pool status of driver ${driver}`);
+    this.name = 'PoolStatusRequestTimeoutError';
+  }
+}
+
+/**
+ * Asks a cluster for the status of a driver's pools, and removes the request afterwards.
+ *
+ * The answer is computed once per request. The wait has a limit because, as of Kubernetes
+ * 1.37, a driver with an incomplete pool leaves its request without a status.
+ * @param spec - The driver, and optionally the pool, to ask about.
+ * @param cluster - The cluster to ask.
+ * @returns The answered request, which may have failed.
+ * @throws PoolStatusRequestTimeoutError when the cluster does not answer in time.
+ */
+export async function requestPoolStatus(
+  spec: ResourcePoolStatusRequestSpec,
+  cluster: string
+): Promise<ResourcePoolStatusRequest> {
+  const { apiVersion, apiName, kind } = ResourcePoolStatusRequest;
+  const url = `/apis/${apiVersion}/${apiName}`;
+  const created: KubeResourcePoolStatusRequest = await post(
+    url,
+    { apiVersion, kind, metadata: { generateName: 'headlamp-pool-status-' }, spec },
+    true,
+    { cluster }
+  );
+  const requestUrl = `${url}/${created.metadata.name}`;
+
+  try {
+    const deadline = Date.now() + POOL_STATUS_TIMEOUT_MS;
+    let current = new ResourcePoolStatusRequest(created, cluster);
+
+    while (current.isPending) {
+      if (Date.now() >= deadline) {
+        throw new PoolStatusRequestTimeoutError(spec.driver);
+      }
+      await new Promise(resolve => setTimeout(resolve, POOL_STATUS_POLL_INTERVAL_MS));
+      current = new ResourcePoolStatusRequest(await request(requestUrl, { cluster }), cluster);
+    }
+
+    return current;
+  } finally {
+    // A user allowed to create but not delete leaves it to the controller's cleanup.
+    await remove(requestUrl, { cluster }).catch(() => {});
+  }
+}

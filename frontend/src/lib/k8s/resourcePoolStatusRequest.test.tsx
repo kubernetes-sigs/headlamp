@@ -14,18 +14,27 @@
  * limitations under the License.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import type {
   KubeResourcePoolStatusRequest,
   ResourcePoolStatusRequestStatus,
 } from './resourcePoolStatusRequest';
-import ResourcePoolStatusRequest from './resourcePoolStatusRequest';
+import ResourcePoolStatusRequest, {
+  PoolStatusRequestTimeoutError,
+  requestPoolStatus,
+} from './resourcePoolStatusRequest';
 
-const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
+const { mockPost, mockRemove, mockRequest } = vi.hoisted(() => ({
+  mockPost: vi.fn(),
+  mockRemove: vi.fn(),
+  mockRequest: vi.fn(),
+}));
 
 vi.mock('./api/v1/clusterRequests', async importOriginal => ({
   ...(await importOriginal<typeof import('./api/v1/clusterRequests')>()),
+  post: mockPost,
+  remove: mockRemove,
   request: mockRequest,
 }));
 
@@ -35,6 +44,7 @@ const _dont_delete_me = App;
 
 const cluster = 'gpu-cluster';
 const name = 'headlamp-pool-status-bt8kb';
+const url = `/apis/resource.k8s.io/v1alpha3/resourcepoolstatusrequests`;
 
 const makeRequest = (status?: ResourcePoolStatusRequestStatus) =>
   ({
@@ -151,5 +161,105 @@ describe('ResourcePoolStatusRequest', () => {
 
     expect(request.isComplete).toBe(false);
     expect(request.isPending).toBe(true);
+  });
+});
+
+describe('requestPoolStatus', () => {
+  const spec = { driver: 'gpu.example.com' };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockPost.mockReset();
+    mockRequest.mockReset();
+    mockRemove.mockReset();
+    mockRemove.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('creates a request with a generated name and removes it once answered', async () => {
+    mockPost.mockResolvedValue(complete);
+
+    const result = await requestPoolStatus(spec, cluster);
+
+    expect(mockPost).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({
+        apiVersion: 'resource.k8s.io/v1alpha3',
+        kind: 'ResourcePoolStatusRequest',
+        metadata: { generateName: 'headlamp-pool-status-' },
+        spec,
+      }),
+      true,
+      { cluster }
+    );
+    expect(mockRequest).not.toHaveBeenCalled();
+    expect(result.pools).toEqual([pool]);
+    expect(result.cluster).toBe(cluster);
+    expect(mockRemove).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+  });
+
+  it('keeps asking until the controller answers', async () => {
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockResolvedValueOnce(makeRequest()).mockResolvedValueOnce(complete);
+
+    const result = requestPoolStatus(spec, cluster);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect((await result).isComplete).toBe(true);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(mockRequest).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+  });
+
+  it('returns a failed request, and removes it', async () => {
+    const failed = makeRequest({ conditions: [condition('Failed', 'Listing failed')] });
+    mockPost.mockResolvedValue(failed);
+
+    const result = await requestPoolStatus(spec, cluster);
+
+    expect(result.failureMessage).toBe('Listing failed');
+    expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up on a request that is never answered, and removes it', async () => {
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockResolvedValue(makeRequest());
+
+    const result = requestPoolStatus(spec, cluster);
+    const rejection = expect(result).rejects.toBeInstanceOf(PoolStatusRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await rejection;
+    expect(mockRemove).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+  });
+
+  it('removes the request when asking for it fails', async () => {
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockRejectedValue(new Error('Bad gateway'));
+
+    const result = requestPoolStatus(spec, cluster);
+    const rejection = expect(result).rejects.toThrow('Bad gateway');
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+    expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('still answers when the user may not delete the request', async () => {
+    mockPost.mockResolvedValue(complete);
+    mockRemove.mockRejectedValue(new Error('Forbidden'));
+
+    await expect(requestPoolStatus(spec, cluster)).resolves.toBeInstanceOf(
+      ResourcePoolStatusRequest
+    );
+  });
+
+  it('passes on the error when the request cannot be created, with nothing to remove', async () => {
+    mockPost.mockRejectedValue(new Error('Forbidden'));
+
+    await expect(requestPoolStatus(spec, cluster)).rejects.toThrow('Forbidden');
+    expect(mockRemove).not.toHaveBeenCalled();
   });
 });
