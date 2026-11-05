@@ -1687,6 +1687,115 @@ func TestDrainNodeDoesNotEvictReplacementPod(t *testing.T) {
 	assert.Equal(t, int32(2), attempts.Load(), "the replacement pod must not be evicted")
 }
 
+// A pod that was replaced by one that the PodDisruptionBudget still blocks is refused with 429 before
+// the UID precondition is checked, so every eviction of it looks like a refusal. The pod being drained
+// is gone then, and the drain must finish instead of retrying until the timeout.
+func TestDrainNodeDoesNotWaitForReplacementPodBlockedByPDB(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 5*time.Second
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		// The pod is replaced after the first refusal, and the replacement stays blocked.
+		if attempts.Add(1) == 2 {
+			_ = fakeClient.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "replacement-uid"},
+				Spec:       corev1.PodSpec{NodeName: "other-node"},
+			}, "default")
+		}
+
+		return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+	})
+
+	start := time.Now()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Less(t, time.Since(start), drainEvictTimeout, "the drain must not wait for the replacement pod")
+	assert.Equal(t, int32(2), attempts.Load())
+}
+
+// blockingCache holds back SetWithTTL until released, to widen the window between a drain winning the
+// guard and publishing its initial status.
+type blockingCache struct {
+	cache.Cache[interface{}]
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingCache) SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	b.once.Do(func() {
+		close(b.entered)
+		<-b.release
+	})
+
+	return b.Cache.SetWithTTL(ctx, key, value, ttl)
+}
+
+// A request that joins a drain that has taken the guard but not yet published its status must wait for
+// it: otherwise its caller polls too early and finds no status, or the result of an earlier drain.
+func TestDrainNodeJoiningRequestWaitsForInitialStatus(t *testing.T) {
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	// The result of an earlier drain, which a premature poll would report.
+	require.NoError(t, testCache.SetWithTTL(context.Background(), cacheKey, "success", time.Minute))
+
+	blocking := &blockingCache{Cache: testCache, entered: make(chan struct{}), release: make(chan struct{})}
+	c.Cache = blocking
+
+	// Stall the drain right after it has published its status, so that it is still running, and make it
+	// end with an error once released.
+	stall := make(chan struct{})
+
+	fakeClient.PrependReactor("get", "nodes", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		<-stall
+
+		return true, nil, errors.New("node is gone")
+	})
+
+	go c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+
+	<-blocking.entered
+
+	joined := make(chan struct{})
+
+	go func() {
+		c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+		close(joined)
+	}()
+
+	select {
+	case <-joined:
+		t.Fatal("a joining request returned before the drain published its status")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(blocking.release)
+
+	select {
+	case <-joined:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the joining request did not return once the status was published")
+	}
+
+	item, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, drainStatusInProgress, item, "the joining request must see this drain's status, not the earlier result")
+
+	close(stall)
+	waitForDrainToEnd(t, c, cacheKey)
+}
+
 // The timeout is checked inside the pass over the pods, so slow evictions can't keep the drain going.
 func TestDrainNodeStopsEvictingAtTheDeadline(t *testing.T) {
 	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout

@@ -3494,12 +3494,25 @@ func (c *HeadlampConfig) drainNode(
 
 	// A drain of this node is already running. It keeps the status up to date, and a second one would
 	// renew it independently and could overwrite or publish a result while the first is still going.
-	if _, running := c.activeDrains.LoadOrStore(cacheKey, struct{}{}); running {
+	// The value is closed once the initial in-progress status is published. A request that joins a
+	// running drain waits for it, so that its caller never polls before there is a status of this
+	// drain, which could be missing or still the result of an earlier one.
+	published := make(chan struct{})
+
+	if running, joined := c.activeDrains.LoadOrStore(cacheKey, published); joined {
+		if ready, ok := running.(chan struct{}); ok {
+			select {
+			case <-ready:
+			case <-ctx.Done():
+			}
+		}
+
 		return
 	}
 
 	// Replaces the result of an earlier drain of the same node, which would otherwise be reported.
 	c.setDrainStatus(ctx, cacheKey, drainStatusInProgress)
+	close(published)
 
 	// The in-progress status expires after DrainNodeCacheTTL, but the API calls below can take longer,
 	// so it is renewed on its own timer until the final status is stored by finish.
@@ -3738,6 +3751,15 @@ func evictPending(
 				}
 			case evictCtx.Err() != nil || apierrors.IsTooManyRequests(err):
 				// Refused, typically by a PodDisruptionBudget, or cut short by the drain's deadline.
+				// The API server checks the PodDisruptionBudget before the UID precondition, so a pod
+				// that was replaced by one that is still blocked is refused here too. The pod this
+				// drain was evicting is gone then, and there is nothing left to wait for.
+				if evictCtx.Err() == nil {
+					if replaced, getErr := podGone(evictCtx, clientset, pod); getErr == nil && replaced {
+						continue
+					}
+				}
+
 				retry = append(retry, pod)
 				lastRefusal[pod] = err
 			default:
