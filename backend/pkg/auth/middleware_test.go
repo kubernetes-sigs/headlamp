@@ -73,7 +73,8 @@ func newImpersonationMiddlewareTestContext(
 		Cluster: &api.Cluster{Server: "https://" + clusterName + ".example.com"},
 		// Not a real credential: a fixed path a kubeconfig.Context checks is merely non-empty
 		// (see UsesInClusterServiceAccountToken) to decide impersonation applies, never read.
-		AuthInfo: &api.AuthInfo{TokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"}, //nolint:gosec
+		//nolint:gosec // Standard in-cluster service account token path, not a secret
+		AuthInfo: &api.AuthInfo{TokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"},
 		Source:   kubeconfig.InCluster,
 		OidcConf: &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srvURL},
 	}
@@ -161,7 +162,7 @@ func TestNewOIDCTokenRefreshMiddleware_BearerTokenImpersonationSkipsCookie(t *te
 // behavior change to bearer-sourced tokens only, without breaking the legitimate impersonation
 // cookie-refresh path real browser sessions depend on.
 //
-//nolint:funlen
+//nolint:funlen // Test covers cookie-backed impersonation refresh narrowing to bearer-sourced tokens
 func TestNewOIDCTokenRefreshMiddleware_CookieBackedImpersonationWidensCookie(t *testing.T) {
 	const clusterName = "main"
 

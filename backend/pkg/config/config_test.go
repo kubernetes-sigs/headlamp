@@ -399,7 +399,7 @@ func TestParseWithEnv(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Table-driven test covers many config-parsing error cases
 func TestParseErrors(t *testing.T) {
 	tests := []struct {
 		name          string
