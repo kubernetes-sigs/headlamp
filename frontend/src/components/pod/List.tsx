@@ -336,11 +336,14 @@ export function PodListRenderer(props: PodListProps) {
           total: (loadedCount + remainingItemCount).toLocaleString(),
         });
 
-  const metricsMap = useMemo(() => {
+  // The table keeps the values it read from a row until its data changes, so it gets a new
+  // array along with the metrics. Otherwise usage and its alerts would stay as they were when
+  // the pods last changed.
+  const [metricsMap, tableData] = useMemo(() => {
     const map = new Map<string, PodMetrics>();
     metrics?.forEach(m => map.set(podMetricKey(m.cluster, m.getNamespace(), m.getName()), m));
-    return map;
-  }, [metrics]);
+    return [map, pods && [...pods]] as const;
+  }, [metrics, pods]);
 
   const getCpuUsage = (pod: Pod) => {
     const metric = metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()));
@@ -750,7 +753,7 @@ export function PodListRenderer(props: PodListProps) {
         'labels',
         'age',
       ]}
-      data={pods}
+      data={tableData}
       reflectInURL={reflectTableInURL}
       id="headlamp-pods"
       enableRowActions={enableRowActions}
