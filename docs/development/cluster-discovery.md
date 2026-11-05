@@ -4,8 +4,8 @@ title: Cluster discovery sources
 
 # Cluster discovery sources
 
-Headlamp operators can discover connections from Cluster Inventory API ClusterProfiles.
-Discovery sources produce in-memory kubeconfigs and
+Headlamp operators can discover connections from Cluster Inventory API ClusterProfiles
+and Cluster API workload Clusters. Both sources produce in-memory kubeconfigs and
 use the same OIDC login, kubeconfig loader, proxy, context store, and response cache
 as other OIDC connections. Generated connections have no persistent kubeconfig
 origin, so their names cannot be edited.
@@ -13,6 +13,7 @@ origin, so their names cannot be edited.
 | Source                | Resources read on the management cluster                                  | Workload authentication |
 | --------------------- | ------------------------------------------------------------------------- | ----------------------- |
 | Cluster Inventory API | `multicluster.x-k8s.io/v1alpha1` ClusterProfiles                          | Each user's OIDC token  |
+| Cluster API           | `cluster.x-k8s.io/v1beta2` Clusters and their standard kubeconfig Secrets | Each user's OIDC token  |
 
 A management cluster's credentials are used for discovery only. In-cluster
 Headlamp uses its service account and pod namespace. Outside a cluster it uses
@@ -29,11 +30,13 @@ different sources remain separate even when their API server URLs match.
 ## Adding a Go source
 
 Implement `clusterdiscovery.Source` and register it in `BuiltinSources`. Registration
-also exposes `enable-<source>`, `<source>-namespaces`, and `<source>-label-selector`
-flags, with underscores in the source ID replaced by hyphens:
+also exposes `enable-<source>`, `<source>-namespaces`, `<source>-label-selector`,
+`<source>-root-reconcile-interval`, and `<source>-no-crd-cache-ttl` flags, with
+underscores in the source ID replaced by hyphens:
 
 - `Descriptor` supplies a stable source ID, display name, primary resource, and
-  `View` with the name-column label, text columns, and compact summary fields.
+  `View` with the name-column label, text columns, additional connection-detail
+  fields, and compact summary fields.
 - `Watches` creates unstarted informer factories and caches for a namespace.
 - `OwnersForChange` maps primary or dependency events to an owner name.
 - `Build` reads the cache snapshot and returns one `GeneratedKubeconfig` per
@@ -63,17 +66,20 @@ fields. Column visibility, sorting, and filters are saved separately for each ta
 | --------------------- | ---------------------------- | ------------------------------------------- |
 | Kubeconfig            | Custom name or context name  | Cluster, context namespace, kubeconfig file |
 | Cluster Inventory API | ClusterProfile resource name | Resource namespace, access provider         |
+| Cluster API           | Cluster resource name        | Resource namespace, management context      |
 
 `Cluster.name` remains the connection key for routes, authentication, saved
 appearance, and recent selections. `meta_data.presentation.displayName` supplies
 the human-readable name; an existing custom name takes precedence. The engine
-adds the owner's namespace and management root to `presentation.fields`; adapters
+adds the owner's namespace and management context name to `presentation.fields`; adapters
 supply fields such as `provider` or `secret`. These fields contain no credentials.
 A workload context's default namespace remains separate from the resource namespace.
 
 Cluster selectors show the same display name and source summary. Identical labels
 are distinguished by management context, then by connection ID. The Connection
-details action shows the raw connection ID and provides a copy button. Older
+details action shows the raw connection ID and provides a copy button. A source's
+`detailFields` adds fields to this dialog without adding table columns or summary
+text. Cluster API shows the kubeconfig Secret reference here. Older
 servers without these definitions retain the context names and common columns.
 
 This is a compiled Go extension point. It does not load executables or dynamically

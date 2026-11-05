@@ -34,6 +34,8 @@ type SourceView struct {
 	NameLabel string `json:"nameLabel"`
 	// Columns are added to the source's tab and to the connection details.
 	Columns []SourceColumn `json:"columns,omitempty"`
+	// DetailFields are shown only in the connection details.
+	DetailFields []SourceColumn `json:"detailFields,omitempty"`
 	// SummaryFields are the keys of the fields shown after the source name in cluster selectors.
 	SummaryFields []string `json:"summaryFields,omitempty"`
 	// Configured marks an enabled discovery source, which keeps its tab without connections.
