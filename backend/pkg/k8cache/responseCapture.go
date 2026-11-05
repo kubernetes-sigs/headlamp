@@ -55,3 +55,6 @@ func NewResponseCapture(w http.ResponseWriter) *ResponseCapture {
 		StatusCode:     http.StatusOK,
 	}
 }
+
+// Unwrap preserves ResponseController support through the capture writer.
+func (r *ResponseCapture) Unwrap() http.ResponseWriter { return r.ResponseWriter }

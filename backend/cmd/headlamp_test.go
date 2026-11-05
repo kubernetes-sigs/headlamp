@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -3344,34 +3345,30 @@ func TestProcessTokenProtocol(t *testing.T) {
 	}
 }
 
-// newFakeK8sServer creates a mock Kubernetes API server for testing the cache
-// mechanism without making requests to a real Kubernetes server.
 const fakeK8sResourceListResponse = `{"kind":"List","apiVersion":"v1","items":[{"metadata":{"name":"resource-test"}}]}`
 
-func newFakeK8sServer(authAllowed bool) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// newFakeK8sServer creates a mock Kubernetes API server for testing the cache
+// mechanism without making requests to a real Kubernetes server. A denied access
+// review makes the middleware answer itself, so resources are never fetched then.
+func newFakeK8sServer(t *testing.T, authAllowed bool) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
+			writeAccessReview(w, authAllowed)
+			return
+		}
 
-			status := fmt.Sprintf(`{"status":{"allowed":%v}}`, authAllowed)
-			_, _ = w.Write([]byte(status))
-
+		if strings.Contains(r.Header.Get("Accept"), "as=PartialObjectMetadata") {
+			serveMetadataListWatch(w, r, nil)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-
-		if authAllowed {
-			_, _ = w.Write([]byte(fakeK8sResourceListResponse))
-		} else {
-			_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-				`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot get resource ` +
-				`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
-				`"code":403}`))
-		}
+		_, _ = w.Write([]byte(fakeK8sResourceListResponse))
 	}))
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 // resetCacheMiddlewareTestState clears package-global k8cache state so
@@ -3388,20 +3385,20 @@ func resetCacheMiddlewareTestState() {
 
 // newHeadlampConfig create mock HeadlampConfig for testing CacheMiddleware
 // mechanism without creating actual HeadlampConfig.
-func newHeadlampConfig(fakeK8s *httptest.Server, testName string) *HeadlampConfig {
+func newHeadlampConfig(t *testing.T, fakeK8s *httptest.Server) *HeadlampConfig {
 	resetCacheMiddlewareTestState()
+	t.Cleanup(resetCacheMiddlewareTestState)
 
 	store := kubeconfig.NewContextStore()
 
 	err := store.AddContext(&kubeconfig.Context{
-		ClusterID: fmt.Sprintf("./home/user/kube/config+test-cluster-%s", testName),
-		Name:      "test",
-		Cluster:   &api.Cluster{Server: fakeK8s.URL},
-		AuthInfo:  &api.AuthInfo{Token: "test-token"},
+		ClusterID:   fmt.Sprintf("./home/user/kube/config+test-cluster-%s", t.Name()),
+		Name:        "test",
+		KubeContext: &api.Context{Cluster: "test", AuthInfo: "test"},
+		Cluster:     &api.Cluster{Server: fakeK8s.URL},
+		AuthInfo:    &api.AuthInfo{Token: "test-token"},
 	})
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	return &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -3447,10 +3444,9 @@ func addBackendTokenHeader(req *http.Request) {
 const istrue = true
 
 func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
+	fakeK8s := newFakeK8sServer(t, true)
 
-	c := newHeadlampConfig(fakeK8s, t.Name())
+	c := newHeadlampConfig(t, fakeK8s)
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -3497,271 +3493,74 @@ func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
 	}
 }
 
-//nolint:funlen // Test verifies caching behavior for versioned resources
-func TestCacheMiddleware_CachesResourceNamedVersion(t *testing.T) {
-	oldCache := k8sResponseCache
-	k8sResponseCache = cache.New[string]()
-
-	t.Cleanup(func() { k8sResponseCache = oldCache })
-
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
+func newFakeCacheRouter(t *testing.T, allowed bool) *mux.Router {
+	t.Helper()
+	fakeK8s := newFakeK8sServer(t, allowed)
+	c := newHeadlampConfig(t, fakeK8s)
+	target, err := url.Parse(fakeK8s.URL)
+	require.NoError(t, err)
 
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
+		CacheMiddleWare(c)(httputil.NewSingleHostReverseProxy(target)),
 	)
 
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps/version"
-	expectedResponse := fakeK8sResourceListResponse
-
-	resp1, err := httpRequestWithContext(context.Background(), resourceURL, http.MethodGet)
-	require.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	require.NoError(t, err)
-
-	resp2, err := httpRequestWithContext(context.Background(), resourceURL, http.MethodGet)
-	require.NoError(t, err)
-
-	defer func() { _ = resp2.Body.Close() }()
-
-	resp2String, err := stringResponse(resp2)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp2.StatusCode)
-	assert.Equal(t, expectedResponse, resp2String)
-	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE"))
+	return router
 }
 
-// TestCacheMiddleware_CacheHitAndCacheMiss test whether the k8s is storing into the cache
-// and returns the data if the data is present in the cache.
+func fakeCacheRequest(t *testing.T, router http.Handler, method, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequestWithContext(t.Context(), method, "/clusters/test"+path, nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	return response
+}
+
+func requireFakeCacheHit(t *testing.T, router http.Handler, path string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		response := fakeCacheRequest(t, router, http.MethodGet, path)
+		return response.Code == http.StatusOK && response.Header().Get("X-HEADLAMP-CACHE") == "true"
+	}, 5*time.Second, 5*time.Millisecond)
+}
+
 func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
+	// A resource named like an API discovery path ("version") is still a cacheable resource.
+	for _, path := range []string{"/api/v1/resource", "/api/v1/namespaces/ns/configmaps/version"} {
+		t.Run(path, func(t *testing.T) {
+			router := newFakeCacheRouter(t, true)
+			first := fakeCacheRequest(t, router, http.MethodGet, path)
+			require.Equal(t, http.StatusOK, first.Code)
+			require.Equal(t, fakeK8sResourceListResponse, first.Body.String())
+			require.Empty(t, first.Header().Get("X-HEADLAMP-CACHE"))
+			requireFakeCacheHit(t, router, path)
+			second := fakeCacheRequest(t, router, http.MethodGet, path)
+			require.Equal(t, fakeK8sResourceListResponse, second.Body.String())
+			require.Equal(t, "true", second.Header().Get("X-HEADLAMP-CACHE"))
+		})
 	}
-
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	ctx := context.Background()
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use the incoming request's context
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
-
-	// 4. Wrap the proxy handler with the CacheMiddleWare
-	router := mux.NewRouter()
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
-	)
-
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	expectedResponse := fakeK8sResourceListResponse
-
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp2, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp2.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	resp2String, err := stringResponse(resp2)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE")) // response is from k8s server, hence X-HEADLAMP-CACHE: ""
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
-	assert.Equal(t, expectedResponse, resp2String)
-	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE")) // response is from cache, hence X-HEADLAMP-CACHE: true
-	assert.Equal(t, http.StatusOK, resp2.StatusCode)
 }
 
-// TestCacheMiddleware_AuthErrorResponse test if the user is not authorized
-// to access a resource, CacheMiddleware should return AuthErrorResponse to
-// the client without going to k8 server.
 func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
-	}
-
-	fakeK8s := newFakeK8sServer(false)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use the incoming request's context
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
-
-	router := mux.NewRouter()
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
-	)
-
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	ctx := context.Background()
-
-	expectedResponse := `{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot list resource ` +
-		`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
-		`"code":403}`
-
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResponse, resp1String) // expected authErroResponse to the client.
-	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusForbidden, resp1.StatusCode)
+	router := newFakeCacheRouter(t, false)
+	response := fakeCacheRequest(t, router, http.MethodGet, "/api/v1/resource")
+	require.Equal(t, http.StatusForbidden, response.Code)
+	require.Contains(t, response.Body.String(), `"reason":"Forbidden"`)
+	require.NotContains(t, response.Body.String(), "resource-test")
 }
 
-// TestCacheMiddlware_CacheInvalidation test if the request is modifying
-// it should delete the keys, making new fresh request to k8s server and store
-// into the cache if the request is same it should return response from the client.
 func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
-	}
-
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use the incoming request's context
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
-
-	router := mux.NewRouter()
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
-	)
-
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	ctx := context.Background()
-
-	expectedResponse := fakeK8sResourceListResponse
-
-	resp, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "POST")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	router := newFakeCacheRouter(t, true)
+	path := "/api/v1/resource"
+	requireFakeCacheHit(t, router, path)
+	mutation := fakeCacheRequest(t, router, http.MethodPost, path)
+	require.Equal(t, http.StatusOK, mutation.Code)
+	first := fakeCacheRequest(t, router, http.MethodGet, path)
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, fakeK8sResourceListResponse, first.Body.String())
+	require.Empty(t, first.Header().Get("X-HEADLAMP-CACHE"))
+	requireFakeCacheHit(t, router, path)
 }
 
 // newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests
@@ -3918,21 +3717,27 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 	resp1, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
 	require.NoError(t, err)
 
-	defer func() { _ = resp1.Body.Close() }()
+	_, err = io.Copy(io.Discard, resp1.Body)
+	_ = resp1.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
-	firstFromCache := resp1.Header.Get("X-HEADLAMP-CACHE")
-
-	resp2, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
 	require.NoError(t, err)
 
-	defer func() { _ = resp2.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
+	assert.NotEqual(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"), "first request should not be from cache")
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "second GET should succeed")
-	secondFromCache := resp2.Header.Get("X-HEADLAMP-CACHE")
+	// Requests bypass the cache until the invalidation watch has synchronized.
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+		if !assert.NoError(collect, err) {
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
 
-	assert.NotEqual(t, "true", firstFromCache, "first request should not be from cache")
-	assert.Equal(t, "true", secondFromCache, "second request should be from cache")
+		_, err = io.Copy(io.Discard, resp.Body)
+		assert.NoError(collect, err)
+		assert.Equal(collect, http.StatusOK, resp.StatusCode)
+		assert.Equal(collect, "true", resp.Header.Get("X-HEADLAMP-CACHE"))
+	}, 10*time.Second, 50*time.Millisecond, "a synchronized watch should allow cache hits")
 }
 
 // TestCacheMiddleware_CacheInvalidation_RealK8s tests cache invalidation with a

@@ -17,13 +17,101 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+func TestGetClientSet_InFlightConnectionReplacement(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	k8cache.ResetInFlight()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	oldContext := &kubeconfig.Context{
+		Name: "cluster", KubeContext: &api.Context{Cluster: "cluster", AuthInfo: "cluster"},
+		Cluster: &api.Cluster{Server: "https://old.example.com"}, AuthInfo: &api.AuthInfo{},
+	}
+	newContext := oldContext.Copy()
+	newContext.Cluster.Server = "https://new.example.com"
+	started, release := make(chan struct{}), make(chan struct{})
+
+	var unblock sync.Once
+
+	restore := k8cache.SetClientsetCreator(func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+		if k.Cluster.Server == oldContext.Cluster.Server {
+			close(started)
+			<-release
+		}
+
+		return k.ClientSetWithToken(token)
+	})
+	defer restore()
+	defer unblock.Do(func() { close(release) })
+
+	get := func(k *kubeconfig.Context, done chan<- *kubernetes.Clientset) {
+		client, err := k8cache.GetClientSet("cluster", k, "user")
+		assert.NoError(t, err)
+
+		done <- client
+	}
+
+	oldDone, newDone := make(chan *kubernetes.Clientset, 1), make(chan *kubernetes.Clientset, 1)
+	go get(oldContext, oldDone)
+
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("old client creation did not start")
+	}
+
+	go get(newContext, newDone)
+
+	var current *kubernetes.Clientset
+
+	select {
+	case current = <-newDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("new connection waited for the old connection's client")
+	}
+
+	unblock.Do(func() { close(release) })
+
+	old := <-oldDone
+	cached, err := k8cache.GetClientSet("cluster", newContext, "user")
+	require.NoError(t, err)
+	require.NotSame(t, old, cached)
+	require.Same(t, current, cached, "late client creation must not replace the current connection's client")
+}
+
+func TestGetClientSet_StatelessUserIsolation(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	kContext := &kubeconfig.Context{
+		Name: "cluster", KubeContext: &api.Context{Cluster: "cluster", AuthInfo: "cluster"},
+		Cluster: &api.Cluster{Server: "https://example.com"}, AuthInfo: &api.AuthInfo{},
+	}
+	first, err := k8cache.GetClientSet("cluster\x00user-a", kContext, "shared-token")
+	require.NoError(t, err)
+	second, err := k8cache.GetClientSet("cluster\x00user-b", kContext, "shared-token")
+	require.NoError(t, err)
+	require.NotSame(t, first, second)
+
+	k8cache.EvictClientsetsForCluster("cluster\x00user-a")
+
+	stillActive, err := k8cache.GetClientSet("cluster\x00user-b", kContext, "shared-token")
+	require.NoError(t, err)
+	require.Same(t, second, stillActive)
+
+	recreated, err := k8cache.GetClientSet("cluster\x00user-a", kContext, "shared-token")
+	require.NoError(t, err)
+	require.NotSame(t, first, recreated)
+}
 
 // TestGetClientSet_InFlightDedup verifies that concurrent GetClientSet calls
 // for the same cache key result in only a single clientset creation.

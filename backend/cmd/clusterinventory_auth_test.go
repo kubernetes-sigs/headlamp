@@ -222,6 +222,22 @@ func TestInventoryMultiplexerRejectsMissingCredentialsOnReusedConnection(t *test
 	require.NoError(t, err)
 }
 
+func TestOIDCRoutesUseTheSameAuthenticationForEachSource(t *testing.T) {
+	for _, source := range []int{
+		kubeconfig.ClusterInventory, kubeconfig.DiscoveredCluster, kubeconfig.KubeConfig, kubeconfig.DynamicCluster,
+	} {
+		t.Run(fmt.Sprint(source), func(t *testing.T) {
+			apiServer, _ := newCacheConnectionServer(t, "pod", "user", nil)
+			_, router := cacheConnectionRouter(t, cacheConnectionContext(t, apiServer, source))
+			anonymous := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/clusters/cache-switch/api/v1/pods", nil)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, anonymous)
+			require.Equal(t, http.StatusUnauthorized, response.Code)
+			require.Equal(t, http.StatusOK, cacheConnectionRequest(t, router, http.MethodGet, "user").Code)
+		})
+	}
+}
+
 func TestRenameRejectsContextsWithoutPersistentOrigin(t *testing.T) {
 	for _, source := range []int{
 		kubeconfig.ClusterInventory, kubeconfig.DiscoveredCluster, kubeconfig.KubeConfig, kubeconfig.DynamicCluster,

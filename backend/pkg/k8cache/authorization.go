@@ -29,10 +29,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	"k8s.io/client-go/kubernetes"
@@ -171,8 +171,8 @@ func pruneBlockedClientsetPrefixesLocked(now time.Time) {
 
 // EvictClientsetsForCluster removes cached authorization clientsets whose keys share
 // the given prefix immediately when a kube context is removed, instead of waiting for
-// TTL expiry. The prefix is the Headlamp context store key (the part before the token
-// separator in clientset cache keys), which includes the user ID for stateless contexts.
+// TTL expiry. The prefix can identify a store key (including the user ID for
+// stateless contexts) or a specific connection revision returned by ContextCacheKey.
 func EvictClientsetsForCluster(clientsetCachePrefix string) {
 	if clientsetCachePrefix == "" {
 		return
@@ -207,8 +207,8 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 	}
 }
 
-// clientsetCachePrefixFromCacheKey returns the Headlamp context store key prefix
-// from a clientset cache key (everything before the final NUL separator).
+// clientsetCachePrefixFromCacheKey returns the connection revision prefix from a
+// clientset cache key (everything before the final NUL separator).
 func clientsetCachePrefixFromCacheKey(cacheKey string) string {
 	if i := strings.LastIndex(cacheKey, "\x00"); i >= 0 {
 		return cacheKey[:i]
@@ -224,8 +224,24 @@ func clearBlockedClientsetPrefixesForActiveContexts(activeContexts []string) {
 	defer mu.Unlock()
 
 	for _, contextKey := range activeContexts {
-		delete(blockedClientsetPrefixes, clientsetCachePrefixFromContextKey(contextKey))
+		for prefix := range blockedClientsetPrefixes {
+			if contextKey == prefix || strings.HasPrefix(contextKey, prefix+"\x00") {
+				delete(blockedClientsetPrefixes, prefix)
+			}
+		}
 	}
+}
+
+// isClientsetPrefixBlockedLocked also checks a connection revision's store key.
+// mu must be held.
+func isClientsetPrefixBlockedLocked(prefix string) bool {
+	for blocked := range blockedClientsetPrefixes {
+		if prefix == blocked || strings.HasPrefix(prefix, blocked+"\x00") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // getCachedClientSet retrieves a clientset from the cache if it's valid and not expired.
@@ -261,7 +277,6 @@ func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 func createAndCacheClientSet(
 	k *kubeconfig.Context,
 	token, cacheKey string,
-	contextKey []string,
 ) (*kubernetes.Clientset, error) {
 	hookMu.RLock()
 
@@ -271,7 +286,7 @@ func createAndCacheClientSet(
 
 	cs, err := creator(k, token)
 	if err != nil {
-		return nil, fmt.Errorf("error while creating clientset for cluster %s: %w", contextKey[1], err)
+		return nil, fmt.Errorf("error while creating clientset for cluster %s: %w", k.Name, err)
 	}
 
 	mu.Lock()
@@ -291,7 +306,7 @@ func createAndCacheClientSet(
 	}
 
 	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
-	if _, blocked := blockedClientsetPrefixes[prefix]; blocked {
+	if isClientsetPrefixBlockedLocked(prefix) {
 		return cs, nil
 	}
 
@@ -346,14 +361,14 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 		return nil, fmt.Errorf("empty headlamp context key in GetClientSet")
 	}
 
-	contextKey := strings.Split(k.ClusterID, "+")
-	if len(contextKey) < 2 {
-		return nil, fmt.Errorf("unexpected ClusterID format in GetClientSet: %q", k.ClusterID)
-	}
-
 	startJanitor()
 
-	cacheKey := headlampContextKey + "\x00" + token
+	contextCacheKey, err := ContextCacheKey(headlampContextKey, k)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := contextCacheKey + "\x00" + token
 
 	// Check cache first
 	if cs, found := getCachedClientSet(cacheKey); found {
@@ -388,7 +403,7 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 
 	mu.Unlock()
 
-	cs, err := createAndCacheClientSet(k, token, cacheKey, contextKey)
+	cs, err := createAndCacheClientSet(k, token, cacheKey)
 
 	finishInFlightClientset(cacheKey, entry, cs, err)
 
@@ -511,15 +526,30 @@ func getResourceAttributes(r *http.Request) (*authorizationv1.ResourceAttributes
 		return nil, fmt.Errorf("could not determine resource or verb from request")
 	}
 
-	return &authorizationv1.ResourceAttributes{
-		Group:       request.group,
-		Version:     request.version,
-		Resource:    request.resource,
-		Subresource: request.subresource,
-		Namespace:   request.namespace,
-		Name:        request.name,
-		Verb:        kubeVerb,
-	}, nil
+	attributes := &authorizationv1.ResourceAttributes{
+		Group: request.group, Version: request.version, Resource: request.resource,
+		Subresource: request.subresource, Namespace: request.namespace, Name: request.name, Verb: kubeVerb,
+	}
+
+	query := r.URL.Query()
+
+	if selector := query.Get("fieldSelector"); selector != "" {
+		parsed, err := fields.ParseSelector(selector)
+		if err != nil {
+			return nil, err
+		}
+
+		attributes.FieldSelector = &authorizationv1.FieldSelectorAttributes{RawSelector: selector}
+		if attributes.Name == "" {
+			attributes.Name, _ = parsed.RequiresExactMatch("metadata.name")
+		}
+	}
+
+	if selector := query.Get("labelSelector"); selector != "" {
+		attributes.LabelSelector = &authorizationv1.LabelSelectorAttributes{RawSelector: selector}
+	}
+
+	return attributes, nil
 }
 
 // IsAllowed checks the user's permission to access the resource.
@@ -562,24 +592,4 @@ func IsAllowed(
 	}
 
 	return result.Status.Allowed, err
-}
-
-// ServeFromCacheOrForwardToK8s attempts to serve a Kubernetes resource from cache.
-// If no cached value is found (or `isAllowed` is false), it forwards the request
-// to the next handler and stores the response in the cache for future requests.
-func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, next http.Handler, key string,
-	w http.ResponseWriter, r *http.Request, rcw *ResponseCapture,
-) {
-	served, _ := LoadFromCache(k8scache, isAllowed, key, w, r)
-	if served {
-		return
-	}
-
-	next.ServeHTTP(rcw, r)
-
-	err := StoreK8sResponseInCache(k8scache, r.URL, rcw, key)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while storing in the cache")
-		return
-	}
 }
