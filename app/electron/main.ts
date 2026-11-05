@@ -868,7 +868,7 @@ async function startServer(
     `--listen-addr=${INTERNAL_BACKEND_HOST}`,
     `--port=${actualPort}`,
     '--app-name',
-    app.getName(),
+    productMetadata?.backendAppName ?? app.getName(),
   ];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);

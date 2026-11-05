@@ -61,7 +61,11 @@ describe('applyRuntimeProductIdentity', () => {
   it('uses the product display name for the Electron runtime', () => {
     expect(
       applyRuntimeProductIdentity(runtimeApp, {
-        product: { name: 'example-desktop', productName: 'Example Desktop' },
+        product: {
+          name: 'example-desktop',
+          productName: 'Example Desktop',
+          backendAppName: 'Example backend',
+        },
       })
     ).toBe('Example Desktop');
     expect(runtimeApp.setName).toHaveBeenCalledWith('Example Desktop');
@@ -73,6 +77,14 @@ describe('applyRuntimeProductIdentity', () => {
 
   it('preserves the package name when product metadata is absent', () => {
     expect(applyRuntimeProductIdentity(runtimeApp, {})).toBe('Headlamp');
+    expect(runtimeApp.setName).not.toHaveBeenCalled();
+    expect(runtimeApp.setPath).not.toHaveBeenCalled();
+  });
+
+  it('does not select an Electron name or profile from a backend-only name', () => {
+    expect(
+      applyRuntimeProductIdentity(runtimeApp, { product: { backendAppName: 'Example backend' } })
+    ).toBe('Headlamp');
     expect(runtimeApp.setName).not.toHaveBeenCalled();
     expect(runtimeApp.setPath).not.toHaveBeenCalled();
   });

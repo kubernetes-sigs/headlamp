@@ -19,6 +19,7 @@ export type ProductMetadata = {
   name?: string;
   companyName?: string;
   productName?: string;
+  backendAppName?: string;
   version?: string;
   appId?: string;
   artifactName?: string;
@@ -51,6 +52,7 @@ export function readProductMetadata(manifest: unknown): ProductMetadata | undefi
     'name',
     'companyName',
     'productName',
+    'backendAppName',
     'version',
     'appId',
     'artifactName',
@@ -60,6 +62,12 @@ export function readProductMetadata(manifest: unknown): ProductMetadata | undefi
     if (metadata[field] !== undefined && typeof metadata[field] !== 'string') {
       throw new Error(`Build manifest product.${field} must be a string`);
     }
+  }
+  if (
+    metadata.backendAppName !== undefined &&
+    (metadata.backendAppName.trim() === '' || /[^\x20-\x7e]/.test(metadata.backendAppName))
+  ) {
+    throw new Error('Build manifest product.backendAppName must be non-blank printable ASCII');
   }
   if (
     metadata.protocols !== undefined &&
