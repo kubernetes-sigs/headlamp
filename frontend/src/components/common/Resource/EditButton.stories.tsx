@@ -22,7 +22,7 @@ import { useEffect } from 'react';
 import { getTestDate } from '../../../helpers/testHelpers';
 import ConfigMap from '../../../lib/k8s/configMap';
 import Pod from '../../../lib/k8s/pod';
-import { API_BASE, TestContext } from '../../../test';
+import { TestContext } from '../../../test';
 import { ActivitiesRenderer, Activity } from '../../activity/Activity';
 import EditButton from './EditButton';
 
@@ -111,14 +111,13 @@ export default {
       handlers: {
         storyBase: [
           http.post(
-            `${API_BASE}/clusters/minikube/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
+            '*/clusters/minikube/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
             () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
           ),
-          http.get(
-            `${API_BASE}/clusters/minikube/api/v1/namespaces/default/configmaps/my-configmap`,
-            () => HttpResponse.json(configMap.jsonData)
+          http.get('*/clusters/minikube/api/v1/namespaces/default/configmaps/my-configmap', () =>
+            HttpResponse.json(configMap.jsonData)
           ),
-          http.get(`${API_BASE}/clusters/minikube/api/v1/namespaces/default/pods/my-pod`, () =>
+          http.get('*/clusters/minikube/api/v1/namespaces/default/pods/my-pod', () =>
             HttpResponse.json(pod.jsonData)
           ),
         ],
