@@ -1429,6 +1429,9 @@ describe('schemaLoader', () => {
       ['#%2Fcomponents%2Fschemas%2Fspace%20name', 'space name'],
       ['#/components/schemas/slash~1name', 'slash/name'],
       ['#/components/schemas/tilde~01name', 'tilde~1name'],
+      ['#/components/schemas/constructor', 'constructor'],
+      ['#/components/schemas/__proto__', '__proto__'],
+      ['#/components/schemas/hasOwnProperty', 'hasOwnProperty'],
     ])('resolves URI fragment %s without modifying its document', (ref, name) => {
       const schema = { type: 'object' as const };
       const document = {
@@ -1455,6 +1458,15 @@ describe('schemaLoader', () => {
         expect(resolveLocalRef(ref, mockCoreV1Document)).toBeNull();
       }
     );
+
+    it.each([
+      '#/components/schemas/constructor',
+      '#/components/schemas/toString',
+      '#/components/schemas/__proto__',
+      '#/components/schemas/__proto__/constructor',
+    ])('returns null for inherited members in local reference %s', ref => {
+      expect(resolveLocalRef(ref, mockCoreV1Document)).toBeNull();
+    });
 
     it('safely handles recursive schemas without infinite recursion', async () => {
       vi.mocked(clusterRequest).mockImplementation(async path => {

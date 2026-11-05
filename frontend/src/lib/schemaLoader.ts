@@ -305,7 +305,11 @@ export function resolveLocalRef(ref: string, document: SchemaDocument): SchemaOb
 
   let current: any = document;
   for (const token of tokens) {
-    if (current && typeof current === 'object' && token in current) {
+    if (
+      current &&
+      typeof current === 'object' &&
+      Object.prototype.hasOwnProperty.call(current, token)
+    ) {
       current = current[token];
     } else {
       return null;
