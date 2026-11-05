@@ -378,6 +378,23 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 	return ctx
 }
 
+// WithClientTimeout returns a context whose HTTP client, the one oidc.ClientContext stores,
+// has the given timeout. It copies the client already in ctx (for example the one
+// ConfigureTLSContext installed) or http.DefaultClient, keeps its Transport and leaves the
+// original untouched. The timeout is on the client and not on the context because the
+// context can outlive the request that created it. Call it after the client is configured.
+func WithClientTimeout(ctx context.Context, timeout time.Duration) context.Context {
+	client := http.DefaultClient
+	if existing, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok && existing != nil {
+		client = existing
+	}
+
+	clientWithTimeout := *client
+	clientWithTimeout.Timeout = timeout
+
+	return oidc.ClientContext(ctx, &clientWithTimeout)
+}
+
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
 // and re-populates the cache so subsequent requests can reuse it. The provided ctx
 // controls cancellation and deadlines for all outbound requests during the refresh.

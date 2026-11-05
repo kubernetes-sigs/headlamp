@@ -169,6 +169,12 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
 
+// oidcRequestTimeout is the maximum time to wait for the identity provider on each request,
+// such as discovery and the token exchange.
+//
+//nolint:gochecknoglobals // allow test override
+var oidcRequestTimeout = 30 * time.Second
+
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
 const (
@@ -473,6 +479,8 @@ func getOIDCLogoutProvider(
 	if config.OidcValidatorIdpIssuerURL != "" {
 		ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 	}
+
+	ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
 	return oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 }
@@ -1372,6 +1380,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if config.OidcValidatorIdpIssuerURL != "" {
 			ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 		}
+
+		// ctx is kept in the oauth config and reused by the callback, so the timeout goes on
+		// its HTTP client and not on the context.
+		ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
 		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 		if err != nil {
