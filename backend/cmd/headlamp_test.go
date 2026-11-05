@@ -799,6 +799,7 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	clusters := c.getClusters()
 	require.Len(t, clusters, 1)
 	assert.Equal(t, "cluster_inventory", clusters[0].Metadata["source"])
+	assert.Equal(t, false, clusters[0].Metadata["canRename"])
 	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", clusters[0].Metadata["clusterID"])
 	inventory, ok := clusters[0].Metadata["clusterInventory"].(*inventorymetadata.Metadata)
 	require.True(t, ok)
@@ -5569,4 +5570,23 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 			assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
 		})
 	}
+}
+
+func TestClusterMetadataSeparatesResourceAndContextNamespaces(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	connection := clusterInventoryConfigContext()
+	connection.Presentation = &kubeconfig.ConnectionPresentation{DisplayName: "workload", Fields: map[string]string{
+		"namespace": "inventory-team", "provider": "oidc", "root": "in-cluster",
+	}}
+	require.NoError(t, store.AddContext(connection))
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+	}}
+	metadata := c.getClusters()[0].Metadata
+	require.Equal(t, "default", metadata["namespace"])
+	presentation, ok := metadata["presentation"].(*kubeconfig.ConnectionPresentation)
+	require.True(t, ok)
+	require.Equal(t, "inventory-team", presentation.Fields["namespace"])
+	require.Equal(t, "workload", presentation.DisplayName)
+	require.Equal(t, connection.Name, c.getClusters()[0].Name)
 }

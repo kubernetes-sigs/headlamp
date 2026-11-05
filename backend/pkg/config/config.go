@@ -10,16 +10,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"k8s.io/apimachinery/pkg/labels"
-	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 )
 
 const (
@@ -50,7 +48,6 @@ type Config struct {
 	CacheEnabled           bool   `koanf:"cache-enabled"`
 	EnableHelm             bool   `koanf:"enable-helm"`
 	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
-	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
 	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr             string `koanf:"listen-addr"`
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
@@ -68,11 +65,9 @@ type Config struct {
 	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
 
-	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
-	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
-	ClusterInventoryNamespaces            string        `koanf:"cluster-inventory-namespaces"`
-	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
-	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
+	ClusterInventoryProviderFile string `koanf:"cluster-inventory-provider-file"`
+
+	DiscoverySources map[string]clusterdiscovery.Settings `koanf:"-"`
 
 	OidcClientID                 string `koanf:"oidc-client-id"`
 	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
@@ -132,13 +127,6 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
-			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
-			"meant to be used in inCluster mode or with --oidc-use-cookie")
-	}
-
 	// Extracted to keep Validate's cognitive complexity within the linter limit.
 	c.warnRedundantThemeDefaults()
 
@@ -151,7 +139,7 @@ func (c *Config) Validate() error {
 		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
 	}
 
-	if err := c.validateOIDCCAFile(); err != nil {
+	if err := c.validateOIDC(); err != nil {
 		return err
 	}
 
@@ -189,6 +177,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateDiscoverySources(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -204,7 +196,16 @@ func (c *Config) validateAppName() error {
 	return nil
 }
 
-func (c *Config) validateOIDCCAFile() error {
+func (c *Config) validateOIDC() error {
+	if !c.InCluster && !c.OidcUseCookie && !c.discoveryEnabled() &&
+		(c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+			c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode, with --oidc-use-cookie, or with " +
+			"enabled cluster discovery")
+	}
+
 	if c.OidcCAFile == "" {
 		return nil
 	}
@@ -223,38 +224,8 @@ func (c *Config) validateOIDCCAFile() error {
 }
 
 func (c *Config) validateClusterInventory() error {
-	if !c.EnableClusterInventory {
-		return nil
-	}
-
-	if c.ClusterInventoryProviderFile == "" {
-		return errors.New("cluster-inventory-provider-file is required when cluster inventory is enabled")
-	}
-
-	info, err := os.Stat(c.ClusterInventoryProviderFile)
-	if err != nil {
-		return fmt.Errorf("error reading cluster-inventory-provider-file: %w", err)
-	}
-
-	if !info.Mode().IsRegular() {
-		return errors.New("cluster-inventory-provider-file must be a regular file")
-	}
-
-	if _, err := access.NewFromFile(c.ClusterInventoryProviderFile); err != nil {
-		return fmt.Errorf("invalid cluster-inventory-provider-file: %w", err)
-	}
-
-	labelSelector := strings.TrimSpace(c.ClusterInventoryLabelSelector)
-	if labelSelector != "" {
-		if _, err := labels.Parse(labelSelector); err != nil {
-			return fmt.Errorf("invalid cluster-inventory-label-selector: %w", err)
-		}
-	}
-
-	c.ClusterInventoryLabelSelector = labelSelector
-
-	if err := clusterinventory.ValidateNamespaces(c.ClusterInventoryNamespaces); err != nil {
-		return err
+	if c.ClusterInventoryProviderFile != "" {
+		return errors.New("cluster-inventory-provider-file is no longer supported; Cluster Inventory requires per-user OIDC")
 	}
 
 	return nil
@@ -475,6 +446,8 @@ func ParseWithAppNameDefault(args []string, appName string) (*Config, error) {
 		return nil, err
 	}
 
+	config.loadDiscoverySettings(k)
+
 	// 7. Post-process: patch plugin flag and kubeconfig path.
 	patchWatchPluginsChanges(&config, explicitFlags, watchPluginsChangesEnvSet)
 
@@ -633,18 +606,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
-	f.Bool("enable-cluster-inventory", false,
-		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
-	f.String("cluster-inventory-provider-file", "",
-		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
-	f.String("cluster-inventory-label-selector", "",
-		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
-	f.String("cluster-inventory-namespaces", "",
-		"Comma-separated namespaces watched for experimental/alpha ClusterProfile resources; \"*\" watches all")
-	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
-		"Interval for reconciling experimental/alpha Cluster Inventory roots")
-	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,
-		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
+	addClusterDiscoveryFlags(f)
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
 	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
@@ -787,4 +749,73 @@ func GetDefaultKubeConfigPath() (string, error) {
 	}
 
 	return filepath.Join(homeDirectory, ".kube", "config"), nil
+}
+
+func (c *Config) loadDiscoverySettings(k *koanf.Koanf) {
+	c.DiscoverySources = make(map[string]clusterdiscovery.Settings)
+
+	for _, source := range clusterdiscovery.BuiltinSources().Sources() {
+		d := source.Descriptor()
+		prefix := d.FlagPrefix()
+		c.DiscoverySources[d.ID] = clusterdiscovery.Settings{
+			Enabled:               k.Bool("enable-" + prefix),
+			Namespaces:            k.String(prefix + "-namespaces"),
+			LabelSelector:         strings.TrimSpace(k.String(prefix + "-label-selector")),
+			RootReconcileInterval: k.Duration(prefix + "-root-reconcile-interval"),
+			NoCRDCacheTTL:         k.Duration(prefix + "-no-crd-cache-ttl"),
+		}
+	}
+}
+
+func (c *Config) discoveryEnabled() bool {
+	for _, settings := range c.DiscoverySources {
+		if settings.Enabled {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Config) validateDiscoverySources() error {
+	for id, settings := range c.DiscoverySources {
+		if !settings.Enabled {
+			continue
+		}
+
+		if err := clusterdiscovery.ValidateOIDC(c.OidcClientID, c.OidcIdpIssuerURL,
+			strings.Split(c.OidcScopes, ",")); err != nil {
+			return fmt.Errorf("%s: %w", id, err)
+		}
+
+		prefix := clusterdiscovery.Descriptor{ID: id}.FlagPrefix()
+
+		if err := clusterdiscovery.ValidateNamespaces(settings.Namespaces); err != nil {
+			return fmt.Errorf("%s-namespaces: %w", prefix, err)
+		}
+
+		if _, err := labels.Parse(settings.LabelSelector); err != nil {
+			return fmt.Errorf("invalid %s-label-selector: %w", prefix, err)
+		}
+	}
+
+	return nil
+}
+
+func addClusterDiscoveryFlags(f *flag.FlagSet) {
+	for _, source := range clusterdiscovery.BuiltinSources().Sources() {
+		d := source.Descriptor()
+		prefix := d.FlagPrefix()
+		f.Bool("enable-"+prefix, false, "Discover "+d.DisplayName+" connections with per-user OIDC")
+		f.String(prefix+"-namespaces", "",
+			"Namespaces watched for "+d.DisplayName+"; empty uses each root default, * watches all")
+		f.String(prefix+"-label-selector", "", "Label selector for "+d.DisplayName+" resources")
+	}
+
+	f.String("cluster-inventory-provider-file", "",
+		"Removed: Cluster Inventory requires per-user OIDC; provider files are no longer supported")
+	f.Duration("cluster-inventory-root-reconcile-interval", clusterdiscovery.DefaultRootReconcileInterval,
+		"Interval for reconciling experimental/alpha Cluster Inventory roots")
+	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterdiscovery.DefaultNoCRDCacheTTL,
+		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
 }
