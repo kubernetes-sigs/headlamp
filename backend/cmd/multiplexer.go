@@ -91,8 +91,10 @@ type Connection struct {
 	Done chan struct{}
 	// mu is a mutex to synchronize access to the connection.
 	mu sync.RWMutex
-	// writeMu is a mutex to synchronize access to the write operations.
+	// writeMu serializes messages sent to the client.
 	writeMu sync.Mutex
+	// clusterWriteMu serializes cluster writes independently of client writes.
+	clusterWriteMu sync.Mutex
 	// heartbeatInterval overrides the default HeartbeatInterval for this connection.
 	// Zero means the default HeartbeatInterval is used.
 	heartbeatInterval time.Duration
@@ -576,9 +578,10 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-heartbeat.C:
-			conn.writeMu.Lock()
+			conn.clusterWriteMu.Lock()
 			err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
-			conn.writeMu.Unlock()
+			conn.clusterWriteMu.Unlock()
+
 			if err != nil {
 				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 
@@ -869,9 +872,10 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 
 // writeMessageToCluster writes a message to the cluster WebSocket connection.
 func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error {
-	conn.writeMu.Lock()
+	conn.clusterWriteMu.Lock()
 	err := conn.WSConn.WriteMessage(websocket.BinaryMessage, data)
-	conn.writeMu.Unlock()
+	conn.clusterWriteMu.Unlock()
+
 	if err != nil {
 		conn.updateStatus(StateError, err)
 		logger.Log(
