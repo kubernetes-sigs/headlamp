@@ -142,6 +142,13 @@ config:
   nodeShellNamespace: ""
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
+  clusterAPI:
+    # -- Discover Cluster API v1beta2 workload clusters using each user's OIDC identity.
+    enabled: false
+    # -- Label selector applied to Cluster resources.
+    labelSelector: "!headlamp.dev/ignore"
+    # -- Namespaces containing Cluster resources and their kubeconfig Secrets. Empty uses each root's default namespace; ["*"] watches all.
+    namespaces: []
   clusterInventory:
     # -- Enable experimental/alpha Cluster Inventory discovery. Requires config.oidc; each user authenticates with their own OIDC identity.
     enabled: false

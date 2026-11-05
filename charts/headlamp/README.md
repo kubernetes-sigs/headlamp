@@ -98,6 +98,9 @@ $ helm upgrade my-headlamp headlamp/headlamp \
 | config.clusterInventory.namespaces | list | `[]` | Namespaces watched for experimental/alpha ClusterProfile resources. Empty uses the Headlamp pod namespace for in-cluster roots and the kubeconfig context namespace for kubeconfig roots; `["*"]` watches all and requires equivalent cluster-wide RBAC permissions |
 | config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
 | config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
+| config.clusterAPI.enabled | bool | `false` | Enable Cluster API v1beta2 discovery with per-user OIDC |
+| config.clusterAPI.labelSelector | string | `"!headlamp.dev/ignore"` | Select Cluster API Cluster resources |
+| config.clusterAPI.namespaces | list | `[]` | Management namespaces; empty uses each root default, `["*"]` watches all |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
@@ -194,6 +197,28 @@ The chart no longer creates a provider ConfigMap or mounts access-provider
 binaries. The former `accessProvidersConfig` and `plugins` values
 are rejected. Headlamp UI plugins configured elsewhere are independent of
 Cluster Inventory.
+
+### Cluster API discovery
+
+Enable `config.clusterAPI.enabled` to discover `cluster.x-k8s.io/v1beta2` Clusters.
+The adapter reads each Cluster's standard `<cluster>-kubeconfig` Secret for
+connection and TLS settings, then uses the same OIDC kubeconfig loader as Cluster
+Inventory. Credentials in the Secret are not used for workload access.
+
+```yaml
+config:
+  clusterAPI:
+    enabled: true
+    namespaces:
+      - workload-team-a
+```
+
+The OIDC settings above are required. The Headlamp service account needs
+`get`, `list`, and `watch` permissions on Cluster API `clusters` and core `secrets`
+in the selected namespaces. `config.clusterAPI.labelSelector` defaults to
+`!headlamp.dev/ignore`. With empty `namespaces`, discovery uses the pod namespace
+in-cluster or the management kubeconfig context's namespace outside a cluster.
+Use `["*"]` only when discovery has equivalent cluster-wide permissions.
 
 ### Deployment Configuration
 

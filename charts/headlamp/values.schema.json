@@ -309,6 +309,23 @@
           "type": "string",
           "description": "Path of private key file for TLS"
         },
+        "clusterAPI": {
+          "type": "object",
+          "description": "Cluster API v1beta2 discovery configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Cluster API discovery with per-user OIDC",
+              "default": false
+            },
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter Cluster resources",
+              "default": "!headlamp.dev/ignore"
+            },
+            "namespaces": { "$ref": "#/definitions/discoveryNamespaces" }
+          }
+        },
         "clusterInventory": {
           "type": "object",
           "description": "Experimental/alpha Cluster Inventory configuration",

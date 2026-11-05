@@ -74,6 +74,26 @@ Headlamp does not execute access-provider plugins or read cluster credentials
 from Inventory. `accessProvidersConfig`, `plugins`, and
 `--cluster-inventory-provider-file` are no longer supported and return an error.
 
+### Cluster API
+
+Set `config.clusterAPI.enabled: true` to discover v1beta2 Cluster API workloads
+using the same OIDC configuration as Cluster Inventory. For example:
+
+```yaml
+config:
+  clusterAPI:
+    enabled: true
+    namespaces: [workload-team-a]
+```
+
+Headlamp reads each Cluster and its `<cluster>-kubeconfig` Secret in the same
+namespace for connection and TLS information. It uses each signed-in user's OIDC
+identity, without using credentials in that Secret for workload access.
+The management identity needs `get`, `list`, and `watch` on `clusters` in
+`cluster.x-k8s.io` and core `secrets` in the selected namespaces.
+See [Cluster API discovery](../../development/cluster-api.md) for the Secret
+contract and supported settings.
+
 ## Using simple yaml
 
 We also maintain a simple/vanilla [file](https://github.com/kubernetes-sigs/headlamp/blob/main/kubernetes-headlamp.yaml)

@@ -810,12 +810,12 @@ func addClusterDiscoveryFlags(f *flag.FlagSet) {
 		f.String(prefix+"-namespaces", "",
 			"Namespaces watched for "+d.DisplayName+"; empty uses each root default, * watches all")
 		f.String(prefix+"-label-selector", "", "Label selector for "+d.DisplayName+" resources")
+		f.Duration(prefix+"-root-reconcile-interval", clusterdiscovery.DefaultRootReconcileInterval,
+			"Interval for reconciling "+d.DisplayName+" roots")
+		f.Duration(prefix+"-no-crd-cache-ttl", clusterdiscovery.DefaultNoCRDCacheTTL,
+			"How long to cache that an API server has no "+d.DisplayName+" CRD")
 	}
 
 	f.String("cluster-inventory-provider-file", "",
 		"Removed: Cluster Inventory requires per-user OIDC; provider files are no longer supported")
-	f.Duration("cluster-inventory-root-reconcile-interval", clusterdiscovery.DefaultRootReconcileInterval,
-		"Interval for reconciling experimental/alpha Cluster Inventory roots")
-	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterdiscovery.DefaultNoCRDCacheTTL,
-		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
 }
