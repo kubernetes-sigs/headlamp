@@ -17,6 +17,8 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
@@ -65,6 +67,39 @@ function renderPluginSettings(
 }
 
 describe('PluginSettingsPure', () => {
+  it.each([false, true])(
+    'shows one back link above all sections and restores the previous route, development mode=%s',
+    async showDevelopmentPluginsSetting => {
+      const history = createMemoryHistory({
+        initialEntries: ['/c/main/pods?filter=web', '/settings/plugins'],
+        initialIndex: 1,
+      });
+      render(
+        <TestContext>
+          <Router history={history}>
+            <ThemeProvider theme={theme}>
+              <PluginSettingsPure
+                plugins={createPlugins(1)}
+                onSave={vi.fn()}
+                showDevelopmentPluginsSetting={showDevelopmentPluginsSetting}
+              />
+            </ThemeProvider>
+          </Router>
+        </TestContext>
+      );
+
+      const back = screen.getByRole('button', { name: 'Back' });
+      const heading = screen.getByRole('heading', {
+        name: showDevelopmentPluginsSetting ? 'Plugin Development Mode' : 'Plugins',
+      });
+      expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(history.location.pathname).toBe('/settings/plugins');
+      await userEvent.click(back);
+      expect(history.location.pathname).toBe('/c/main/pods');
+      expect(history.location.search).toBe('?filter=web');
+    }
+  );
+
   let confirmSpy: { mockRestore: () => void } | undefined;
 
   afterEach(() => {

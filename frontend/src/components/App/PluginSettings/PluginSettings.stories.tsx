@@ -53,6 +53,7 @@ PackagedDesktopDevelopmentMode.parameters = {
 };
 PackagedDesktopDevelopmentMode.play = async ({ canvasElement }) => {
   setDevelopmentPlugins.mockClear();
+  await expect(within(canvasElement).getByRole('button', { name: 'Back' })).toBeVisible();
   const pluginDevelopmentMode = await within(canvasElement).findByRole('checkbox', {
     name: 'Load development plugins',
   });
