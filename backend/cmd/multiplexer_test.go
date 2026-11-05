@@ -249,7 +249,7 @@ func TestDialWebSocket_SendsImpersonationHeaders(t *testing.T) {
 	token := "service-account-token"
 	impersonation := &kubeconfig.Impersonation{Username: "alice@example.com", Groups: []string{"dev", "ops"}}
 
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 	conn, err := m.dialWebSocket(wsURL, tlsConfig, server.URL, &token, impersonation)
 	require.NoError(t, err)
 
@@ -529,6 +529,38 @@ func TestCleanupConnections(t *testing.T) {
 
 	assert.Empty(t, m.connections)
 	assert.Equal(t, StateClosed, conn.Status.State)
+}
+
+// TestCleanupConnection_DoesNotRemoveReplacementInstalledUnderSameKey covers a race
+// checkConnectionIdentity's own cleanup can cause: it closes the OLD connection (conn.Done) and
+// removes its map entry when the identity no longer matches, but the OLD reader's
+// handleClusterMessages goroutine, blocked in conn.WSConn.ReadMessage(), does not notice
+// conn.Done until that read returns -- so a replacement connection can be established and
+// installed under the exact same key in between. When the old reader's loop finally exits and
+// runs ITS OWN deferred cleanupConnection(conn) call, conn's map entry is gone, but naively
+// recomputing the key and deleting it anyway would remove the REPLACEMENT instead, since it now
+// occupies that same key.
+func TestCleanupConnection_DoesNotRemoveReplacementInstalledUnderSameKey(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+
+	defer clientServer.Close()
+
+	oldConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.connections[connKey] = oldConn
+
+	// A replacement is established and installed under the same key before the old reader's
+	// deferred cleanup runs -- exactly what checkConnectionIdentity's own cleanupConnection(conn)
+	// call sets up by closing conn.Done without removing conn from the goroutine still reading it.
+	newConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	m.connections[connKey] = newConn
+
+	m.cleanupConnection(oldConn)
+
+	got, exists := m.connections[connKey]
+	assert.True(t, exists, "the replacement connection must remain tracked after the old reader's cleanup")
+	assert.Same(t, newConn, got, "cleanup for the old connection must not remove the replacement")
 }
 
 func TestCloseConnection(t *testing.T) {
