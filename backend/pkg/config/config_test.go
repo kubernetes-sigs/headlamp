@@ -656,6 +656,35 @@ func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
 	assert.Empty(t, conf.DiscoverySources["cluster_inventory"].Namespaces)
 }
 
+// Every discovery source gets the same tuning flags, not only Cluster Inventory.
+func TestParseClusterAPITuningFlags(t *testing.T) {
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-api",
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
+		"--cluster-api-root-reconcile-interval=15s",
+		"--cluster-api-no-crd-cache-ttl=1m",
+	})
+	require.NoError(t, err)
+
+	assert.True(t, conf.DiscoverySources["cluster_api"].Enabled)
+	assert.Equal(t, 15*time.Second, conf.DiscoverySources["cluster_api"].RootReconcileInterval)
+	assert.Equal(t, time.Minute, conf.DiscoverySources["cluster_api"].NoCRDCacheTTL)
+	// The sources are configured independently.
+	assert.Equal(t, clusterdiscovery.DefaultRootReconcileInterval,
+		conf.DiscoverySources["cluster_inventory"].RootReconcileInterval)
+}
+
+func TestParseClusterAPIDefaultIntervals(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd"})
+	require.NoError(t, err)
+
+	assert.Equal(t, clusterdiscovery.DefaultRootReconcileInterval,
+		conf.DiscoverySources["cluster_api"].RootReconcileInterval)
+	assert.Equal(t, clusterdiscovery.DefaultNoCRDCacheTTL, conf.DiscoverySources["cluster_api"].NoCRDCacheTTL)
+}
+
 func TestClusterInventoryValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -1285,4 +1314,42 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	path, err := config.GetDefaultKubeConfigPath()
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
+}
+
+func TestClusterAPIDiscoveryConfiguration(t *testing.T) {
+	for _, args := range [][]string{
+		{"headlamp", "--enable-cluster-api"},
+		{
+			"headlamp",
+			"--enable-cluster-api",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--cluster-api-namespaces=team,*",
+		},
+		{
+			"headlamp",
+			"--enable-cluster-api",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--cluster-api-label-selector=bad in (",
+		},
+	} {
+		_, err := config.Parse(args)
+		require.Error(t, err)
+	}
+
+	parsed, err := config.Parse(
+		[]string{
+			"headlamp",
+			"--enable-cluster-api",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--cluster-api-namespaces=workloads",
+			"--cluster-api-label-selector=!headlamp.dev/ignore",
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, parsed.DiscoverySources["cluster_api"].Enabled)
+	require.False(t, parsed.DiscoverySources["cluster_inventory"].Enabled)
+	require.Equal(t, "workloads", parsed.DiscoverySources["cluster_api"].Namespaces)
 }

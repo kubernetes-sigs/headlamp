@@ -16,7 +16,7 @@ limitations under the License.
 
 package clusterdiscovery
 
-// SourceColumn reads a public presentation field as a text column.
+// SourceColumn describes a public presentation field and its label.
 type SourceColumn struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
@@ -28,6 +28,7 @@ type SourceView struct {
 	Label         string         `json:"label"`
 	NameLabel     string         `json:"nameLabel"`
 	Columns       []SourceColumn `json:"columns,omitempty"`
+	DetailFields  []SourceColumn `json:"detailFields,omitempty"`
 	SummaryFields []string       `json:"summaryFields,omitempty"`
 	Configured    bool           `json:"configured,omitempty"`
 }

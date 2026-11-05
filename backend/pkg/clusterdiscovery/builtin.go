@@ -19,7 +19,7 @@ package clusterdiscovery
 // BuiltinSources is the only registration point for source implementations.
 func BuiltinSources() *Registry {
 	registry := &Registry{}
-	for _, source := range []Source{NewClusterProfileSource()} {
+	for _, source := range []Source{NewClusterProfileSource(), NewClusterAPISource()} {
 		if err := registry.Register(source); err != nil {
 			panic(err)
 		}
