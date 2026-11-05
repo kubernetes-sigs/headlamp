@@ -782,23 +782,37 @@ export async function fetchAndExecutePlugins(
 }
 
 /**
- * Initialize i18n for all plugins that have i18n configuration
+ * Initialize i18n for all plugins that have i18n configuration.
+ *
+ * Every single initialization is bounded by the startup deadline. Once one of
+ * them times out the returned promise rejects and no further entries that
+ * share its package name are started, so a late initialization cannot go on
+ * to overwrite the shared plugin i18n state.
  */
-async function initializePluginsI18n(
+export async function initializePluginsI18n(
   packageInfos: PluginInfo[],
   pluginPaths: string[],
   deadline: number
 ) {
-  // Initialize every plugin's i18n concurrently. Each call already catches its
-  // own errors, so one plugin's failure cannot reject the batch; only the
-  // shared startup deadline can.
-  await beforePluginStartupDeadline(
-    Promise.all(
-      packageInfos.map((packageInfo, i) =>
-        initializePluginI18n(packageInfo.name, packageInfo, pluginPaths[i])
-      )
-    ),
-    deadline
+  // Plugin i18n state is keyed by package name, and several installed versions
+  // can share one name. Keep those sequential, in their original order, so the
+  // result is deterministic, and run different plugins concurrently.
+  const indicesByName = new Map<string, number[]>();
+  packageInfos.forEach((packageInfo, i) => {
+    const indices = indicesByName.get(packageInfo.name) ?? [];
+    indices.push(i);
+    indicesByName.set(packageInfo.name, indices);
+  });
+
+  await Promise.all(
+    [...indicesByName.values()].map(async indices => {
+      for (const i of indices) {
+        await beforePluginStartupDeadline(
+          initializePluginI18n(packageInfos[i].name, packageInfos[i], pluginPaths[i]),
+          deadline
+        );
+      }
+    })
   );
 
   // Set up language change synchronization
