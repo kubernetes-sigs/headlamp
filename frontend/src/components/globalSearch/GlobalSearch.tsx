@@ -22,7 +22,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatShortcutKey, useShortcut, useShortcutKey } from '../../lib/useShortcut';
 import { Delayed } from './Delayed';
@@ -44,10 +44,16 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
   const smallBreakpoint = useMediaQuery(theme.breakpoints.down('md'));
   const { t } = useTranslation();
   const [focused, setFocused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const blur = () => {
-    setFocused(false);
-    setPlaceholderValue('');
+    // Defer the check until the browser has naturally moved focus to the next element
+    setTimeout(() => {
+      if (containerRef.current && !containerRef.current.contains(document.activeElement)) {
+        setFocused(false);
+        setPlaceholderValue('');
+      }
+    }, 0);
   };
 
   const searchShortcutKey = useShortcutKey('GLOBAL_SEARCH');
@@ -174,6 +180,7 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
 
   return (
     <Box
+      ref={containerRef}
       sx={{
         display: 'flex',
         alignItems: 'center',
