@@ -72,6 +72,13 @@ export default {
  *  `onChange` is still forwarded to the Actions panel. */
 const Template: StoryFn<CreateDaemonSetFormProps> = args => {
   const [resource, setResource] = React.useState<DaemonSetDraft | undefined>(args.resource);
+  // Use the resource arg again when it is changed from Storybook Controls. Only an actual
+  // change replaces the draft, so the labels seeded on mount are kept.
+  const [resourceArg, setResourceArg] = React.useState(args.resource);
+  if (args.resource !== resourceArg) {
+    setResourceArg(args.resource);
+    setResource(args.resource);
+  }
   return (
     <CreateDaemonSetForm
       {...args}
