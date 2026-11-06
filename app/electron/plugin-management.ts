@@ -966,13 +966,16 @@ export class PluginManager {
    * @param {string} name - The name of the plugin to uninstall.
    * @param {string} [folder=defaultUserPluginsDir()] - The folder where the plugin is installed.
    * @param {function} [progressCallback=null] - Optional callback for progress updates.
-   * @returns {void}
+   * @returns {string | undefined} The folder name of the plugin bundle once its removal has
+   * started, even if removing it or a later cleanup step failed, or undefined if the error went
+   * to the progress callback before that.
    */
   static uninstall(
     name: string,
     folder = defaultUserPluginsDir(),
     progressCallback: null | ProgressCallback = null
-  ) {
+  ): string | undefined {
+    let removedFolderName: string | undefined;
     try {
       // @todo: should list call take progressCallback?
       const installedPlugins = PluginManager.list(folder);
@@ -990,6 +993,9 @@ export class PluginManager {
       }
 
       if (fs.existsSync(pluginDir)) {
+        // Set before deleting: a delete that fails part way leaves a bundle that can't be found
+        // again, so its consents must be cleared now.
+        removedFolderName = plugin.folderName;
         fs.rmSync(pluginDir, { recursive: true, force: true });
         removePluginInstallationReceipt(pluginDir);
       } else {
@@ -998,12 +1004,15 @@ export class PluginManager {
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Uninstalled' });
       }
+      return removedFolderName;
     } catch (e) {
       if (progressCallback) {
         progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
         throw e;
       }
+      // The bundle may already be gone, so its consents still have to be cleared.
+      return removedFolderName;
     }
   }
 
