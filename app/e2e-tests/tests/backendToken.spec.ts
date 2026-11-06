@@ -20,6 +20,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { _electron, Page } from 'playwright';
+import { dismissWelcome } from './welcome';
 
 const clusterName = `headlamp-token-${process.pid}`;
 const watchNamespace = `headlamp-token-watch-${process.pid}`;
@@ -246,6 +247,7 @@ test.beforeAll(async () => {
   });
   electronPage = await electronApp.firstWindow();
   await electronPage.waitForLoadState('load');
+  await dismissWelcome(electronPage);
 });
 
 test.afterAll(async () => {
