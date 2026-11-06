@@ -405,4 +405,143 @@ describe('useSidebarItems', () => {
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
   });
+
+  it('exposes Overview child in Cluster and Workloads subList and Definitions child in Custom Resources subList', () => {
+    const store = mockStore({}, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const cluster = result.current.find(it => it.name === 'cluster');
+    expect(cluster).toBeDefined();
+    expect(cluster?.subList?.[0]).toMatchObject({
+      name: 'cluster',
+      label: 'Overview',
+    });
+
+    const workloads = result.current.find(it => it.name === 'workloads');
+    expect(workloads).toBeDefined();
+    expect(workloads?.subList?.[0]).toMatchObject({
+      name: 'workloads',
+      label: 'Overview',
+    });
+
+    const crds = result.current.find(it => it.name === 'crds');
+    expect(crds).toBeDefined();
+    expect(crds?.subList?.[0]).toMatchObject({
+      name: 'crds',
+      label: 'Definitions',
+    });
+    expect(crds?.subList?.[1]).toMatchObject({
+      name: 'crs',
+      label: 'Instances',
+    });
+  });
+
+  it('attaches plugin entries directly to parent groups rather than same-named destination children', () => {
+    const customEntries = {
+      workloadPlugin: {
+        name: 'workloadPlugin',
+        label: 'Workload Plugin',
+        url: '/workload-plugin',
+        parent: 'workloads',
+      },
+      clusterPlugin: {
+        name: 'clusterPlugin',
+        label: 'Cluster Plugin',
+        url: '/cluster-plugin',
+        parent: 'cluster',
+      },
+      crdPlugin: {
+        name: 'crdPlugin',
+        label: 'CRD Plugin',
+        url: '/crd-plugin',
+        parent: 'crds',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    // Workloads: plugin attaches to workloads group, not inside Overview child
+    const workloads = result.current.find(it => it.name === 'workloads');
+    expect(workloads?.subList?.some(it => it.name === 'workloadPlugin')).toBe(true);
+    const workloadsOverview = workloads?.subList?.find(it => it.name === 'workloads');
+    expect(workloadsOverview?.subList).toBeUndefined();
+
+    // Cluster: plugin attaches to cluster group, not inside Overview child
+    const cluster = result.current.find(it => it.name === 'cluster');
+    expect(cluster?.subList?.some(it => it.name === 'clusterPlugin')).toBe(true);
+    const clusterOverview = cluster?.subList?.find(it => it.name === 'cluster');
+    expect(clusterOverview?.subList).toBeUndefined();
+
+    // CRDs (without CRD list): plugin attaches to crds group, not inside Definitions child
+    const crds = result.current.find(it => it.name === 'crds');
+    expect(crds?.subList?.some(it => it.name === 'crdPlugin')).toBe(true);
+    const crdsDefinitions = crds?.subList?.find(it => it.name === 'crds');
+    expect(crdsDefinitions?.subList).toBeUndefined();
+  });
+
+  it('attaches plugin entries to Custom Resources parent group when CRDs are populated', () => {
+    const mockCRDs: [CRD[], null] = [
+      [
+        new CRD({
+          apiVersion: 'apiextensions.k8s.io/v1',
+          kind: 'CustomResourceDefinition',
+          metadata: {
+            name: 'mycrds.example.com',
+            uid: 'phony-crd',
+            creationTimestamp: new Date().toISOString(),
+          },
+          spec: {
+            group: 'example.com',
+            names: {
+              kind: 'MyCRD',
+              plural: 'mycrds',
+              singular: 'mycrd',
+              listKind: 'MyCRDList',
+            },
+            scope: 'Namespaced',
+            versions: [],
+            version: 'v1',
+          },
+        } as any),
+      ],
+      null,
+    ];
+    vi.spyOn(CRD, 'useList').mockReturnValue(
+      Object.assign(mockCRDs, {
+        data: null,
+        items: mockCRDs[0],
+        error: null,
+        errors: null,
+        isError: false,
+        isLoading: false,
+        isFetching: false,
+        isSuccess: true,
+        status: 'success' as const,
+      })
+    );
+
+    const customEntries = {
+      crdPlugin: {
+        name: 'crdPlugin',
+        label: 'CRD Plugin',
+        url: '/crd-plugin',
+        parent: 'crds',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const crds = result.current.find(it => it.name === 'crds');
+    expect(crds?.subList?.some(it => it.name === 'crdPlugin')).toBe(true);
+    const crdsDefinitions = crds?.subList?.find(it => it.name === 'crds');
+    expect(crdsDefinitions?.subList).toBeUndefined();
+  });
 });

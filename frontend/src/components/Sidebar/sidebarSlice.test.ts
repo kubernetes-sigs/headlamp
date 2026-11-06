@@ -27,6 +27,7 @@ import sidebarReducer, {
   setWhetherSidebarOpen,
   SidebarEntry,
   SidebarState,
+  toggleSidebarItemExpanded,
 } from './sidebarSlice';
 
 describe('sidebarSlice', () => {
@@ -101,6 +102,30 @@ describe('sidebarSlice', () => {
       expect(state.isSidebarOpen).toBe(false);
       expect(state.isSidebarOpenUserSelected).toBe(false);
       expect(localStorage.getItem('sidebar')).not.toEqual(previousValue);
+    });
+  });
+
+  describe('toggleSidebarItemExpanded', () => {
+    it('should toggle expansion of an item using string payload', () => {
+      const state1 = sidebarReducer(initialState, toggleSidebarItemExpanded('workloads'));
+      expect(state1.expandedItems?.['workloads']).toBe(true);
+
+      const state2 = sidebarReducer(state1, toggleSidebarItemExpanded('workloads'));
+      expect(state2.expandedItems?.['workloads']).toBe(false);
+    });
+
+    it('should set expansion explicitly using object payload with expanded flag', () => {
+      const state1 = sidebarReducer(
+        initialState,
+        toggleSidebarItemExpanded({ name: 'cluster', expanded: true })
+      );
+      expect(state1.expandedItems?.['cluster']).toBe(true);
+
+      const state2 = sidebarReducer(
+        state1,
+        toggleSidebarItemExpanded({ name: 'cluster', expanded: false })
+      );
+      expect(state2.expandedItems?.['cluster']).toBe(false);
     });
   });
 });

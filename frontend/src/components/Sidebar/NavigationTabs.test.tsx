@@ -97,4 +97,46 @@ describe('NavigationTabs', () => {
     expect(netPoliciesTab).toBeInTheDocument();
     expect(netPoliciesTab).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('does not duplicate level 1 tab when root item has a child with matching name', async () => {
+    const { getRoute } = await import('../../lib/router');
+    vi.mocked(getRoute).mockImplementation(name =>
+      name === 'workloads' ? ({} as any) : undefined
+    );
+
+    const mockItems = [
+      {
+        name: 'workloads',
+        label: 'Workloads',
+        subList: [
+          {
+            name: 'workloads',
+            label: 'Overview',
+            hide: false,
+          },
+          {
+            name: 'Pods',
+            label: 'Pods',
+            hide: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(useSidebarItems).mockReturnValue(mockItems);
+
+    const store = mockStore('workloads');
+
+    render(
+      <TestContext store={store}>
+        <NavigationTabs />
+      </TestContext>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(2);
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pods' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Workloads' })).not.toBeInTheDocument();
+  });
 });

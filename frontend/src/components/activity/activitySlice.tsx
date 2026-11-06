@@ -78,7 +78,9 @@ export const activitySlice = createSlice({
       // Dispatch resize event so the content adjusts
       // 200ms delay for animations
       setTimeout(() => {
-        window?.dispatchEvent?.(new Event('resize'));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent?.(new Event('resize'));
+        }
       }, 200);
     },
     close(state, action: PayloadAction<string>) {
