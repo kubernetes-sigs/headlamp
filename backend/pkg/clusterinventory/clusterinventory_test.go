@@ -76,6 +76,15 @@ func writeProviderFile(t *testing.T) string {
 	return path
 }
 
+func writeOIDCProviderFile(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "providers.json")
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"providers":[{"name":"oidc","credentialSource":"oidc"}]}`), 0o600))
+
+	return path
+}
+
 func newTestRunner(t *testing.T, opts Options) *Runner {
 	t.Helper()
 
@@ -304,6 +313,21 @@ func TestNewRunnerValidatesProviderFile(t *testing.T) {
 		Namespaces:   "team-a,*",
 	})
 	require.ErrorContains(t, err, `"*" must be used on its own`)
+
+	_, err = NewRunner(Options{Store: store, ProviderFile: writeOIDCProviderFile(t)})
+	require.ErrorContains(t, err, "requires Headlamp OIDC configuration")
+
+	unsupported := filepath.Join(t.TempDir(), "unsupported.json")
+	require.NoError(t, os.WriteFile(unsupported,
+		[]byte(`{"providers":[{"name":"other","credentialSource":"other"}]}`), 0o600))
+	_, err = NewRunner(Options{Store: store, ProviderFile: unsupported})
+	require.ErrorContains(t, err, `unsupported credentialSource "other"`)
+
+	both := filepath.Join(t.TempDir(), "both.json")
+	require.NoError(t, os.WriteFile(both, []byte(`{"providers":[{"name":"oidc","credentialSource":"oidc",`+
+		`"execConfig":{"apiVersion":"client.authentication.k8s.io/v1","command":"/bin/echo"}}]}`), 0o600))
+	_, err = NewRunner(Options{Store: store, ProviderFile: both, OIDCConfig: &kubeconfig.OidcConfig{}})
+	require.ErrorContains(t, err, "cannot configure both credentialSource and execConfig")
 }
 
 func TestNormalizeNamespaces(t *testing.T) {
@@ -386,7 +410,12 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 		},
 	}
 
-	ctx, err := restConfigToContext(restConfig, "ctx-name", "root/ns/spoke")
+	skipTLSVerify := false
+	oidcConfig := &kubeconfig.OidcConfig{
+		ClientID: "kubernetes-client", IdpIssuerURL: "https://identity.example.com",
+		Scopes: []string{"openid", "profile", "groups"}, SkipTLSVerify: &skipTLSVerify,
+	}
+	ctx, err := restConfigToContext(restConfig, "ctx-name", "root/ns/spoke", oidcConfig)
 	require.NoError(t, err)
 
 	assert.Equal(t, "ctx-name", ctx.Name)
@@ -402,6 +431,131 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 	assert.Equal(t, "/bin/token", ctx.AuthInfo.Exec.Command)
 	assert.Equal(t, clientcmdapi.NeverExecInteractiveMode, ctx.AuthInfo.Exec.InteractiveMode)
 	assert.Equal(t, execConfig.Config, ctx.Cluster.Extensions[clusterExecConfigExtensionKey])
+	require.NotNil(t, ctx.OidcConf)
+	assert.Equal(t, "kubernetes-client", ctx.OidcConf.ClientID)
+	assert.Equal(t, []string{"openid", "profile", "groups"}, ctx.OidcConf.Scopes)
+	assert.NotSame(t, oidcConfig, ctx.OidcConf)
+}
+
+func TestOIDCCredentialSourceUsesHeadlampOIDC(t *testing.T) {
+	oidc := &kubeconfig.OidcConfig{ClientID: "kubernetes-client", IdpIssuerURL: "https://identity.example.com"}
+	runner := newTestRunner(t, Options{ProviderFile: writeOIDCProviderFile(t), OIDCConfig: oidc})
+	cp := clusterProfile("spoke", "oidc", "https://gateway.example.com/clusters/spoke/kubernetes")
+	cp.Status.AccessProviders[0].Cluster.TLSServerName = "kubernetes.internal"
+
+	restConfig, usesOIDC, err := runner.restConfigFromClusterProfile(cp)
+	require.NoError(t, err)
+	assert.True(t, usesOIDC)
+	assert.Equal(t, cp.Status.AccessProviders[0].Cluster.Server, restConfig.Host)
+	assert.Equal(t, "kubernetes.internal", restConfig.ServerName)
+	assert.Nil(t, restConfig.ExecProvider)
+
+	context, ok := runner.contextFromClusterProfile("in-cluster/default/spoke", cp)
+	require.True(t, ok)
+	require.NotNil(t, context.OidcConf)
+	assert.Equal(t, oidc.ClientID, context.OidcConf.ClientID)
+	assert.Nil(t, context.AuthInfo.Exec)
+}
+
+func TestExecCredentialSourceDoesNotInheritHeadlampOIDC(t *testing.T) {
+	runner := newTestRunner(t, Options{
+		ProviderFile: writeProviderFile(t),
+		OIDCConfig: &kubeconfig.OidcConfig{
+			ClientID: "kubernetes-client", IdpIssuerURL: "https://identity.example.com",
+		},
+	})
+	cp := clusterProfile("spoke", "static-token", "https://spoke.example.com")
+
+	context, ok := runner.contextFromClusterProfile("in-cluster/default/spoke", cp)
+	require.True(t, ok)
+	assert.Nil(t, context.OidcConf)
+	require.NotNil(t, context.AuthInfo.Exec)
+	assert.Equal(t, "/bin/echo", context.AuthInfo.Exec.Command)
+}
+
+func TestOIDCCredentialSourceUsesProviderFileOrder(t *testing.T) {
+	providerFile := filepath.Join(t.TempDir(), "providers.json")
+	require.NoError(t, os.WriteFile(providerFile, []byte(`{
+		"providers": [
+			{"name":"oidc-b","credentialSource":"oidc"},
+			{"name":"oidc-a","credentialSource":"oidc"}
+		]
+	}`), 0o600))
+	runner := newTestRunner(t, Options{
+		ProviderFile: providerFile,
+		OIDCConfig:   &kubeconfig.OidcConfig{ClientID: "kubernetes-client"},
+	})
+	cp := clusterProfile("spoke", "oidc-a", "https://a.example.com")
+	cp.Status.AccessProviders = append(cp.Status.AccessProviders, apisv1alpha1.AccessProvider{
+		Name: "oidc-b",
+		Cluster: clientcmdv1.Cluster{
+			Server: "https://b.example.com",
+		},
+	})
+
+	restConfig, usesOIDC, err := runner.restConfigFromClusterProfile(cp)
+	require.NoError(t, err)
+	assert.True(t, usesOIDC)
+	assert.Equal(t, "https://b.example.com", restConfig.Host)
+}
+
+func TestExecProviderErrorDoesNotFallBackToOIDC(t *testing.T) {
+	providerFile := filepath.Join(t.TempDir(), "providers.json")
+	require.NoError(t, os.WriteFile(providerFile, []byte(`{
+		"providers": [
+			{
+				"name":"exec",
+				"execConfig":{
+					"apiVersion":"client.authentication.k8s.io/v1",
+					"command":"/bin/echo"
+				},
+				"profileSourcedCLIArgsPolicy":"Append"
+			},
+			{"name":"oidc","credentialSource":"oidc"}
+		]
+	}`), 0o600))
+	runner := newTestRunner(t, Options{
+		ProviderFile: providerFile,
+		OIDCConfig:   &kubeconfig.OidcConfig{ClientID: "kubernetes-client"},
+	})
+	cp := clusterProfile("spoke", "exec", "https://exec.example.com")
+	cp.Status.AccessProviders[0].Cluster.Extensions = []clientcmdv1.NamedExtension{
+		{
+			Name: "clusterprofiles.multicluster.x-k8s.io/exec/additional-args",
+			Extension: k8sruntime.RawExtension{
+				Raw: []byte(`{"not":"a list"}`),
+			},
+		},
+	}
+	cp.Status.AccessProviders = append(cp.Status.AccessProviders, apisv1alpha1.AccessProvider{
+		Name: "oidc",
+		Cluster: clientcmdv1.Cluster{
+			Server: "https://oidc.example.com",
+		},
+	})
+
+	restConfig, usesOIDC, err := runner.restConfigFromClusterProfile(cp)
+	require.ErrorContains(t, err, "failed to unmarshal additional CLI args extension")
+	assert.False(t, usesOIDC)
+	assert.Nil(t, restConfig)
+}
+
+func TestOIDCCredentialSourceRejectsInvalidConnectionURLs(t *testing.T) {
+	oidc := &kubeconfig.OidcConfig{ClientID: "kubernetes-client", IdpIssuerURL: "https://identity.example.com"}
+	runner := newTestRunner(t, Options{ProviderFile: writeOIDCProviderFile(t), OIDCConfig: oidc})
+
+	invalidServer := clusterProfile("spoke", "oidc", "file:///etc/kubernetes/admin.conf")
+	_, _, err := runner.restConfigFromClusterProfile(invalidServer)
+	require.ErrorContains(t, err, "invalid server URL")
+
+	insecureServer := clusterProfile("spoke", "oidc", "http://gateway.example.com")
+	_, _, err = runner.restConfigFromClusterProfile(insecureServer)
+	require.ErrorContains(t, err, "HTTPS is required")
+
+	invalidProxy := clusterProfile("spoke", "oidc", "https://gateway.example.com")
+	invalidProxy.Status.AccessProviders[0].Cluster.ProxyURL = "not-a-proxy-url"
+	_, _, err = runner.restConfigFromClusterProfile(invalidProxy)
+	require.ErrorContains(t, err, "invalid proxy URL")
 }
 
 func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {

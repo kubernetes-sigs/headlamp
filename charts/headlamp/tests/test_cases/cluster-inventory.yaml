@@ -4,6 +4,7 @@ config:
     accessProvidersConfig:
       providers:
         - name: static-provider
+          credentialSource: oidc
     namespaces:
       - inventory-e2e
       - shared-inventory
