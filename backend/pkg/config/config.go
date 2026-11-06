@@ -75,8 +75,10 @@ type Config struct {
 	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
 
 	OidcClientID                 string `koanf:"oidc-client-id"`
+	OidcClientIDFile             string `koanf:"oidc-client-id-file"`
 	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret             string `koanf:"oidc-client-secret"`
+	OidcClientSecretFile         string `koanf:"oidc-client-secret-file"`
 	OidcIdpIssuerURL             string `koanf:"oidc-idp-issuer-url"`
 	OidcCallbackURL              string `koanf:"oidc-callback-url"`
 	OidcValidatorIdpIssuerURL    string `koanf:"oidc-validator-idp-issuer-url"`
@@ -217,6 +219,38 @@ func (c *Config) validateOIDCCAFile() error {
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caFileContents) {
 		return errors.New("invalid oidc-ca-file")
+	}
+
+	return nil
+}
+
+func readSecretFromFile(path string) (string, error) {
+	data, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(data)), nil
+}
+
+func (c *Config) loadOIDCSecretFiles(explicitFlags map[string]bool) error {
+	// Explicit direct flags take precedence, so skip reading the file entirely.
+	if c.OidcClientIDFile != "" && !explicitFlags["oidc-client-id"] {
+		clientID, err := readSecretFromFile(c.OidcClientIDFile)
+		if err != nil {
+			return fmt.Errorf("error reading oidc-client-id-file: %w", err)
+		}
+
+		c.OidcClientID = clientID
+	}
+
+	if c.OidcClientSecretFile != "" && !explicitFlags["oidc-client-secret"] {
+		clientSecret, err := readSecretFromFile(c.OidcClientSecretFile)
+		if err != nil {
+			return fmt.Errorf("error reading oidc-client-secret-file: %w", err)
+		}
+
+		c.OidcClientSecret = clientSecret
 	}
 
 	return nil
@@ -482,6 +516,11 @@ func ParseWithAppNameDefault(args []string, appName string) (*Config, error) {
 		return nil, err
 	}
 
+	if err := config.loadOIDCSecretFiles(explicitFlags); err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading OIDC secret files")
+		return nil, err
+	}
+
 	setMeDefaults(&config)
 
 	// 8. Validate flags that depend on build-time behaviour.
@@ -659,7 +698,9 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-auto-login", false, "Automatic Redirect to OIDC provider")
 	f.String("oidc-client-id", "", "ClientID for OIDC")
+	f.String("oidc-client-id-file", "", "Path to file containing ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
+	f.String("oidc-client-secret-file", "", "Path to file containing ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
 	f.String("oidc-callback-url", "", "OIDC callback URL and trusted logout return origin")
