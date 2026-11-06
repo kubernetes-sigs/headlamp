@@ -135,7 +135,7 @@
   "Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.": "",
   "Save & Apply": "محفوظ کریں اور لاگو کریں",
   "Open Plugin Folder": "پلگ ان فولڈر کھولیں",
-  "By": "بذریعہ",
+  "Published by {{author}}": "",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "یہ پلگ ان اس وقت لوڈ نہیں ہوا کیونکہ اس کی جگہ \"{{type}}\" ورژن استعمال ہو رہا ہے",
   "Deleting plugin {{ itemName }}...": "پلگ ان {{ itemName }} حذف کیا جا رہا ہے...",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} کا حذف کرنا منسوخ کر دیا گیا",

@@ -135,7 +135,7 @@
   "Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.": "",
   "Save & Apply": "保存并应用",
   "Open Plugin Folder": "打开插件文件夹",
-  "By": "由",
+  "Published by {{author}}": "",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "当前未加载此插件，因为正在使用 \"{{type}}\" 版本。",
   "Deleting plugin {{ itemName }}...": "正在删除插件 {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "取消删除 {{ itemName }}。",

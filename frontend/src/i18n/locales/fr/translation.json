@@ -135,7 +135,7 @@
   "Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.": "Chargez les plugins depuis votre répertoire de développement local. N'activez cette option que si vous faites confiance à tous les plugins de ce répertoire.",
   "Save & Apply": "Sauvegarder et appliquer",
   "Open Plugin Folder": "Ouvrir le dossier du plugin",
-  "By": "Par",
+  "Published by {{author}}": "",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "Ce plugin n'est pas actuellement chargé car une version \"{{type}}\" est utilisée à la place.",
   "Deleting plugin {{ itemName }}...": "Suppression du plugin {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "Suppression de {{ itemName }} annulée.",

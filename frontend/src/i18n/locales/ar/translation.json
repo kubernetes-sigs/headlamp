@@ -135,7 +135,7 @@
   "Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.": "",
   "Save & Apply": "حفظ وتطبيق",
   "Open Plugin Folder": "فتح مجلد الإضافة",
-  "By": "بواسطة",
+  "Published by {{author}}": "",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "هذه الإضافة غير محمّلة حالياً لأنه يتم استخدام إصدار \"{{type}}\" بدلاً منها.",
   "Deleting plugin {{ itemName }}...": "جارٍ حذف الإضافة {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "تم إلغاء حذف {{ itemName }}",

@@ -135,7 +135,7 @@
   "Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.": "",
   "Save & Apply": "Kaydet ve Uygula",
   "Open Plugin Folder": "Eklenti Klasörünü Aç",
-  "By": "Oluşturan:",
+  "Published by {{author}}": "",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "Bunun yerine \"{{type}}\" sürümü kullanıldığından bu eklenti şu anda yüklü değil.",
   "Deleting plugin {{ itemName }}...": "{{ itemName }} eklentisi siliniyor...",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} öğesini silme işlemi iptal edildi.",
