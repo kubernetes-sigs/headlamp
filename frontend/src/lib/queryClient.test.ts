@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
+import { QueryObserver } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { invalidateClusterUserInfo, queryClient, shouldRetryQuery } from './queryClient';
+import {
+  invalidateClusterUserInfo,
+  queryClient,
+  removeClusterResourceQueries,
+  shouldRetryQuery,
+} from './queryClient';
 
 describe('queryClient', () => {
   it('keeps the existing query defaults', () => {
@@ -66,6 +72,13 @@ describe('invalidateClusterUserInfo', () => {
     // now Bob's — so B's cached "alice" must not be served for its staleTime.
     queryClient.setQueryData(['clusterMe', 'cluster-a'], { name: 'alice' });
     queryClient.setQueryData(['clusterMe', 'cluster-b'], { name: 'alice' });
+    queryClient.setQueryData(['object', 'cluster-b', '/api/v1/pods', 'ns', 'pod-a', {}], {
+      name: 'pod-a',
+    });
+    queryClient.setQueryData(
+      ['kubeObject', 'list', 'v1', 'pods', 'cluster-b', 'ns', {}],
+      [{ name: 'pod-a' }]
+    );
     // An unrelated cache entry must be left alone.
     queryClient.setQueryData(['auth', 'cluster-b'], { ok: true });
 
@@ -74,5 +87,57 @@ describe('invalidateClusterUserInfo', () => {
     expect(queryClient.getQueryState(['clusterMe', 'cluster-a'])?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(['clusterMe', 'cluster-b'])?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(['auth', 'cluster-b'])?.isInvalidated).toBe(false);
+    expect(
+      queryClient.getQueryData(['object', 'cluster-b', '/api/v1/pods', 'ns', 'pod-a', {}])
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'cluster-b', 'ns', {}])
+    ).toBeUndefined();
+  });
+});
+
+describe('removeClusterResourceQueries', () => {
+  beforeEach(() => {
+    queryClient.clear();
+  });
+
+  it('removes only object and list results belonging to the specified cluster', () => {
+    const clusterAObject = ['object', 'cluster-a', '/api/v1/pods', 'ns', 'pod-a', {}];
+    const clusterAList = ['kubeObject', 'list', 'v1', 'pods', 'cluster-a', 'ns', {}];
+    const clusterBObject = ['object', 'cluster-b', '/api/v1/pods', 'ns', 'pod-b', {}];
+    const clusterBList = ['kubeObject', 'list', 'v1', 'pods', 'cluster-b', 'ns', {}];
+    const otherClusterData = ['clusterVersion', 'cluster-a'];
+
+    queryClient.setQueryData(clusterAObject, { name: 'pod-a' });
+    queryClient.setQueryData(clusterAList, [{ name: 'pod-a' }]);
+    queryClient.setQueryData(clusterBObject, { name: 'pod-b' });
+    queryClient.setQueryData(clusterBList, [{ name: 'pod-b' }]);
+    queryClient.setQueryData(otherClusterData, 'v1.30.0');
+
+    removeClusterResourceQueries('cluster-a');
+
+    expect(queryClient.getQueryData(clusterAObject)).toBeUndefined();
+    expect(queryClient.getQueryData(clusterAList)).toBeUndefined();
+    expect(queryClient.getQueryData(clusterBObject)).toEqual({ name: 'pod-b' });
+    expect(queryClient.getQueryData(clusterBList)).toEqual([{ name: 'pod-b' }]);
+    expect(queryClient.getQueryData(otherClusterData)).toBe('v1.30.0');
+  });
+
+  it('clears results already held by active observers', () => {
+    const queryKey = ['kubeObject', 'list', 'v1', 'pods', 'cluster-a', 'ns', {}];
+    queryClient.setQueryData(queryKey, [{ name: 'pod-a' }]);
+    const observer = new QueryObserver(queryClient, {
+      queryKey,
+      queryFn: async () => [{ name: 'pod-a' }],
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+
+    expect(observer.getCurrentResult().data).toEqual([{ name: 'pod-a' }]);
+
+    removeClusterResourceQueries('cluster-a');
+
+    expect(observer.getCurrentResult().data).toBeNull();
+    unsubscribe();
   });
 });

@@ -22,9 +22,9 @@ import { Base64 } from 'js-base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
+import { queryClient, removeClusterResourceQueries } from './queryClient';
 import { canLogoutFromProvider } from './k8s/clusterAuthType';
 import { encodeClusterPath, redirectToOIDCLogout } from './oidcLogout';
-import { queryClient } from './queryClient';
 
 /**
  * Retrieves the authentication token for a given cluster.
@@ -122,10 +122,15 @@ async function setCookieToken(cluster: string, token: string | null) {
 export function setToken(cluster: string, token: string | null) {
   const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
   if (setTokenMethodToUse) {
-    return Promise.resolve(setTokenMethodToUse(cluster, token));
+    return Promise.resolve(setTokenMethodToUse(cluster, token)).then(result => {
+      removeClusterResourceQueries(cluster);
+      return result;
+    });
   }
 
   return setCookieToken(cluster, token).then(result => {
+    removeClusterResourceQueries(cluster);
+
     if (token) {
       queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
     } else {
