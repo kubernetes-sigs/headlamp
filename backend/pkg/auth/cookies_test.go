@@ -42,6 +42,9 @@ func addRequestCookie(req *http.Request, name, value string) {
 }
 
 func TestSanitizeClusterName(t *testing.T) {
+	longInput := "very-long-cluster-name-that-exceeds-fifty-characters-limit"
+	longExpected := "very-long-cluster-name-that-exceeds-fifty-1daebb19"
+
 	tests := []struct {
 		input    string
 		expected string
@@ -51,7 +54,7 @@ func TestSanitizeClusterName(t *testing.T) {
 		{"cluster123", "cluster123"},
 		{"my-cluster@#$%", "my-cluster"},
 		{"", ""},
-		{"very-long-cluster-name-that-exceeds-fifty-characters-limit", "very-long-cluster-name-that-exceeds-fifty-characte"},
+		{longInput, longExpected},
 	}
 
 	for _, test := range tests {
@@ -59,6 +62,69 @@ func TestSanitizeClusterName(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("SanitizeClusterName(%q) = %q, expected %q", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestSanitizeClusterName_NoCollisionsOnLongPrefixes(t *testing.T) {
+	clusterA := "production-us-east-1-kubernetes-cluster-primary-alpha"
+	clusterB := "production-us-east-1-kubernetes-cluster-primary-bravo"
+
+	sanitizedA := auth.SanitizeClusterName(clusterA)
+	sanitizedB := auth.SanitizeClusterName(clusterB)
+
+	if len(sanitizedA) > 50 {
+		t.Errorf("Expected len(sanitizedA) <= 50, got %d", len(sanitizedA))
+	}
+
+	if len(sanitizedB) > 50 {
+		t.Errorf("Expected len(sanitizedB) <= 50, got %d", len(sanitizedB))
+	}
+
+	if sanitizedA == sanitizedB {
+		t.Errorf("Expected distinct sanitized names for distinct clusters, but both got %q", sanitizedA)
+	}
+
+	// Test distinct cluster names >50 chars that sanitize to the same 50-char base prefix
+	lossyA := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@"
+	lossyB := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#"
+
+	sanitizedLossyA := auth.SanitizeClusterName(lossyA)
+	sanitizedLossyB := auth.SanitizeClusterName(lossyB)
+
+	if sanitizedLossyA == sanitizedLossyB {
+		t.Errorf("Expected distinct sanitized names for lossy sanitized clusters, but got %q", sanitizedLossyA)
+	}
+}
+
+func TestClearTokenCookieBoundedClearsLegacyLongClusterCookies(t *testing.T) {
+	cluster := "very-long-cluster-name-that-exceeds-fifty-characters-limit"
+	legacyName := "headlamp-auth-very-long-cluster-name-that-exceeds-fifty-characte.0"
+	currentName := "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0"
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, localhostOrigin, nil)
+	w := httptest.NewRecorder()
+
+	auth.ClearTokenCookieBounded(w, req, cluster, "")
+
+	cleared := map[string]bool{}
+
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Value != "" || cookie.MaxAge != -1 {
+			t.Fatalf("Expected cleared cookie, got %#v", cookie)
+		}
+
+		cleared[cookie.Name] = true
+	}
+
+	if !cleared[currentName] || !cleared[legacyName] {
+		t.Fatalf("Expected %q and %q to be cleared, got %v", currentName, legacyName, cleared)
+	}
+
+	w = httptest.NewRecorder()
+	auth.ClearTokenCookieBounded(w, req, "test-cluster", "")
+
+	if len(w.Result().Cookies()) != 1 {
+		t.Fatalf("Expected only chunk zero cleared for short cluster names, got %d", len(w.Result().Cookies()))
 	}
 }
 
