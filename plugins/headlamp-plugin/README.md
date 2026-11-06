@@ -74,6 +74,11 @@ API for linting, Storybook, and i18n extraction. See the
 [TypeScript setup and limitations](../../docs/development/plugins/getting-started.md#typescript-versions).
 Do not globally override `typescript` to version 7.
 
+The shared plugin configuration includes ES2022, DOM, and DOM.Iterable type
+libraries, so APIs such as `Array.prototype.at()` and iterable DOM collections
+do not need a plugin-specific `lib` override. The JavaScript emit target remains
+ES2017; these type libraries do not provide runtime polyfills.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:
