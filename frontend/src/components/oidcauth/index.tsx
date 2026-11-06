@@ -66,6 +66,11 @@ function OIDCAuth() {
 
     if (isPopup) {
       localStorage.setItem(AUTH_STATUS_KEY, 'success');
+      try {
+        window.close();
+      } catch (e) {
+        console.error('Error occurred while closing window', e);
+      }
     }
 
     if (clusters?.[cluster] && clusters[cluster].useToken !== false) {
