@@ -1127,10 +1127,17 @@ func TestMakeKubeConfigsDir(t *testing.T) {
 
 	t.Run("uses Headlamp default when unset", func(t *testing.T) {
 		setUserConfigDir(t, t.TempDir())
+		userConfigDir, err := os.UserConfigDir()
+		require.NoError(t, err)
+
+		want := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
+		if runtime.GOOS == "windows" {
+			want = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
+		}
 
 		dir, err := config.MakeKubeConfigsDir("")
 		require.NoError(t, err)
-		assert.Contains(t, dir, filepath.Join("Headlamp", "kubeconfigs"))
+		assert.Equal(t, want, dir)
 	})
 
 	t.Run("falls back to the executable directory", func(t *testing.T) {
