@@ -78,49 +78,17 @@ of exposing the Service will do, as long as `HEADLAMP_TEST_URL` points at it.
 (`playwright.config.ts`), so an unset variable shows up as connection errors
 rather than as an obvious configuration problem.
 
-### Kubeconfig with certificates on disk
+### Kubeconfig certificate handling
 
-`dynamicCluster.spec.ts` reads your kubeconfig with `kubectl config view`, which
-redacts embedded `certificate-authority-data` and the client certificate fields,
-and then reads the referenced files from disk. If those fields are embedded
-rather than file paths, seven tests in that file fail with `ENOENT`.
-
-CI works around this by rewriting the kubeconfig so the certificates live in
-files. If you hit those failures, do the same, and note that the paths must be
-absolute, because the test resolves them relative to its own working directory:
-
-```bash
-umask 077
-mkdir -p ~/headlamp-e2e-certs
-
-# test cluster
-kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/test-ca.crt
-kubectl config view --raw --minify --context=test -o jsonpath='{.users[0].user.client-certificate-data}' | base64 --decode > ~/headlamp-e2e-certs/test-client.crt
-kubectl config view --raw --minify --context=test -o jsonpath='{.users[0].user.client-key-data}' | base64 --decode > ~/headlamp-e2e-certs/test-client.key
-
-kubectl config set-cluster kind-test \
-  --certificate-authority="$HOME/headlamp-e2e-certs/test-ca.crt" \
-  --embed-certs=false
-
-kubectl config set-credentials admin@kind-test \
-  --client-certificate="$HOME/headlamp-e2e-certs/test-client.crt" \
-  --client-key="$HOME/headlamp-e2e-certs/test-client.key" \
-  --embed-certs=false
-
-# test2 cluster
-kubectl config view --raw --minify --context=test2 -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-ca.crt
-kubectl config view --raw --minify --context=test2 -o jsonpath='{.users[0].user.client-certificate-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-client.crt
-kubectl config view --raw --minify --context=test2 -o jsonpath='{.users[0].user.client-key-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-client.key
-
-kubectl config set-cluster kind-test2 \
-  --certificate-authority="$HOME/headlamp-e2e-certs/test2-ca.crt" \
-  --embed-certs=false
-
-kubectl config set-credentials admin@kind-test2 \
-  --client-certificate="$HOME/headlamp-e2e-certs/test2-client.crt" \
-  --client-key="$HOME/headlamp-e2e-certs/test2-client.key" \
-  --embed-certs=false
-```
+`dynamicCluster.spec.ts` reads your kubeconfig with
+`kubectl config view --minify --raw --flatten --context test`, which embeds
+the certificate data directly in the output and includes only the `test`
+context (selected explicitly — the current context may point elsewhere, e.g.
+at `test2` after `setup-multicluster.sh`), so credentials for unrelated
+contexts stay out of the tests. Embedded
+`certificate-authority-data`/client certificate fields and file-based
+certificates (absolute or kubeconfig-relative paths) all work as-is, so no
+kubeconfig rewriting is needed.
 
 ### Additional suites
 
