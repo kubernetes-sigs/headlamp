@@ -100,13 +100,13 @@ spec:
           
           env:
             - name: OIDC_CLIENT_ID
-              value: generic-oidc-client
+              value: "generic-oidc-client"
             - name: OIDC_CLIENT_SECRET
-              value: generic-oidc-secret
+              value: "generic-oidc-secret"
             - name: OIDC_ISSUER_URL
-              value: https://auth.example.com
+              value: "https://auth.example.com"
             - name: OIDC_SCOPES
-              value: openid email profile
+              value: "openid email profile"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"

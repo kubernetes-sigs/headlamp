@@ -1,0 +1,16 @@
+# This is a test case for direct OIDC configuration with values that YAML would
+# otherwise reinterpret: a numeric client ID, a client secret starting with a YAML
+# indicator and containing " #", and a client ID that looks like a boolean.
+# Each value must be rendered into the Deployment env unchanged.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "12345"
+    clientSecret: "*abc #def"
+    issuerURL: "https://issuer.example.com"
+    scopes: "openid,profile,email"
+    callbackURL: "https://headlamp.example.com/oidc-callback"
+    validatorClientID: "true"
+    validatorIssuerURL: "https://validator.example.com"
+    meUserInfoURL: "https://headlamp.example.com/oauth2/userinfo"
