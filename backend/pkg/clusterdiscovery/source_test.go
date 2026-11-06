@@ -24,6 +24,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"math/big"
 	"sync"
@@ -32,6 +34,8 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -108,4 +112,156 @@ func TestConnectionClusterRequiresUsableTLSSettings(t *testing.T) {
 			require.Equal(t, tc.cluster.TLSServerName, got.TLSServerName)
 		})
 	}
+}
+
+// describedSource is the sample source under a descriptor chosen by the test.
+type describedSource struct {
+	*sampleFleetSource
+	descriptor Descriptor
+}
+
+// Descriptor returns the descriptor of the test instead of that of the sample source.
+func (s describedSource) Descriptor() Descriptor { return s.descriptor }
+
+// A registry only accepts sources that can be identified and watched.
+func TestRegistryRejectsUnusableSources(t *testing.T) {
+	registry := &Registry{}
+
+	require.ErrorContains(t, registry.Register(nil), "discovery source is required")
+
+	for _, tc := range []struct {
+		name       string
+		descriptor Descriptor
+	}{
+		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource}},
+		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource}},
+		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := registry.Register(describedSource{descriptor: tc.descriptor})
+			require.ErrorContains(t, err, "descriptor is incomplete")
+		})
+	}
+
+	require.Empty(t, registry.Sources())
+}
+
+// Callers cannot change what is registered through the sources they are given.
+func TestRegistrySourcesReturnsACopy(t *testing.T) {
+	registry := &Registry{}
+	require.NoError(t, registry.Register(&sampleFleetSource{}))
+
+	sources := registry.Sources()
+	sources[0] = nil
+
+	require.NotNil(t, registry.Sources()[0])
+}
+
+// Informers report a deletion they missed as a tombstone, which still names the owner.
+func TestObjectOwnerUnwrapsDeletionTombstones(t *testing.T) {
+	member := sampleFleetMember("member-a", "https://a.example.com", "eu")
+	want := []types.NamespacedName{{Namespace: "default", Name: "member-a"}}
+
+	require.Equal(t, want, objectOwner(member))
+	require.Equal(t, want, objectOwner(cache.DeletedFinalStateUnknown{Key: "default/member-a", Obj: member}))
+	require.Equal(t, want, objectOwner(&cache.DeletedFinalStateUnknown{Key: "default/member-a", Obj: member}))
+	require.Nil(t, objectOwner("not a Kubernetes object"))
+}
+
+// Adapters read what a watched resource has cached, and nothing else.
+func TestRootWatchGetReadsWatchedResources(t *testing.T) {
+	watch := sampleRootWatch(t, sampleFleetWith(sampleFleetMember("member-a", "https://a.example.com", "eu")))
+	owner := types.NamespacedName{Namespace: "default", Name: "member-a"}
+
+	obj, exists := watch.Get(sampleFleetResource, owner)
+	require.True(t, exists)
+	require.Equal(t, []types.NamespacedName{owner}, objectOwner(obj))
+
+	_, exists = watch.Get(sampleFleetResource, types.NamespacedName{Namespace: "default", Name: "missing"})
+	require.False(t, exists)
+
+	_, exists = watch.Get(secretResource, owner)
+	require.False(t, exists)
+}
+
+// Whatever a source leaves in its kubeconfig, users sign in with the global OIDC settings.
+func TestGeneratedOIDCConfigUsesGlobalOIDCSettings(t *testing.T) {
+	ca := "issuer CA"
+	fromSource := ConfigForCluster("from-source", &api.Cluster{Server: "https://member.example.com"}, "team")
+	fromSource.Contexts["from-source"].AuthInfo = "from-source"
+	fromSource.AuthInfos = map[string]*api.AuthInfo{"from-source": {Token: "must-not-be-forwarded"}}
+
+	config, err := generatedOIDCConfig(
+		GeneratedKubeconfig{Key: "default", Name: "member", ClusterID: "fleet/member", Config: fromSource},
+		&kubeconfig.OidcConfig{
+			ClientID: "headlamp", IdpIssuerURL: "https://idp.example.com", Scopes: []string{"openid", "email"}, CACert: &ca,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "team", config.Contexts["member"].Namespace)
+	require.Equal(t, map[string]*api.AuthInfo{"member": {AuthProvider: &api.AuthProviderConfig{
+		Name: "oidc",
+		Config: map[string]string{
+			"client-id":                      "headlamp",
+			"idp-issuer-url":                 "https://idp.example.com",
+			"scope":                          "openid,email",
+			"idp-certificate-authority-data": base64.StdEncoding.EncodeToString([]byte(ca)),
+		},
+	}}}, config.AuthInfos)
+}
+
+// A source that does not describe exactly one usable connection produces none.
+func TestGeneratedOIDCConfigRejectsIncompleteConnections(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mutate  func(g *GeneratedKubeconfig)
+		wantErr string
+	}{
+		{name: "no key", mutate: func(g *GeneratedKubeconfig) { g.Key = "" }, wantErr: "exactly one context"},
+		{name: "no name", mutate: func(g *GeneratedKubeconfig) { g.Name = "" }, wantErr: "exactly one context"},
+		{name: "no cluster ID", mutate: func(g *GeneratedKubeconfig) { g.ClusterID = "" }, wantErr: "exactly one context"},
+		{name: "no kubeconfig", mutate: func(g *GeneratedKubeconfig) { g.Config = nil }, wantErr: "exactly one context"},
+		{
+			name:    "two contexts",
+			mutate:  func(g *GeneratedKubeconfig) { g.Config.Contexts["other"] = &api.Context{Cluster: "member"} },
+			wantErr: "exactly one context",
+		},
+		{
+			name:    "a nil context",
+			mutate:  func(g *GeneratedKubeconfig) { g.Config.Contexts["member"] = nil },
+			wantErr: "context is nil",
+		},
+		{
+			name:    "a context without its cluster",
+			mutate:  func(g *GeneratedKubeconfig) { g.Config.Clusters = nil },
+			wantErr: "no server URL",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			generated := GeneratedKubeconfig{
+				Key: "default", Name: "member", ClusterID: "fleet/member",
+				Config: ConfigForCluster("member", &api.Cluster{Server: "https://member.example.com"}, ""),
+			}
+			tc.mutate(&generated)
+
+			_, err := generatedOIDCConfig(generated, testOIDCOptions())
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}
+
+// A connection whose Cluster Inventory metadata clients could not read is not published.
+func TestLoadGeneratedRejectsInvalidInventoryMetadata(t *testing.T) {
+	runner, _ := sampleFleetRunner(t, nil, &sampleFleetSource{})
+
+	_, err := runner.loadGenerated(
+		"root",
+		types.NamespacedName{Namespace: "default", Name: "member-a"},
+		GeneratedKubeconfig{
+			Key: "default", Name: "member", ClusterID: "fleet/member",
+			Config:   ConfigForCluster("member", &api.Cluster{Server: "https://member.example.com"}, ""),
+			Metadata: map[string]json.RawMessage{"clusterInventory": json.RawMessage(`"not an object"`)},
+		},
+	)
+	require.ErrorContains(t, err, "invalid Inventory metadata")
 }
