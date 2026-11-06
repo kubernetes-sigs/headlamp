@@ -763,9 +763,11 @@ export function extractEnvVarReferences(container: KubeContainer): EnvVarReferen
 
   // Process env variables
   container?.env?.forEach(item => {
-    if (item.value) {
-      refs.push({ name: item.name, type: 'value', value: item.value });
-    } else if (item.valueFrom) {
+    // Without valueFrom an env var is a plain value, and that value can be empty. The API leaves
+    // out an empty value, so a missing one is an empty string as well.
+    if (!item.valueFrom) {
+      refs.push({ name: item.name, type: 'value', value: item.value ?? '' });
+    } else {
       const vf = item.valueFrom;
       if (vf.secretKeyRef) {
         refs.push({
