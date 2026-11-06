@@ -15,6 +15,7 @@
  */
 
 import store from '../../redux/stores/store';
+import type { Cluster } from './cluster';
 
 /**
  * @returns Auth type of the cluster, or an empty string if the cluster is not found.
@@ -23,13 +24,17 @@ import store from '../../redux/stores/store';
  * @param cluster - Name of the cluster.
  */
 export function getClusterAuthType(cluster: string): string {
-  const state = store.getState();
-  const config = state.config;
-  const clusterConfig =
-    config?.statelessClusters?.[cluster] ??
-    config?.clusters?.[cluster] ??
-    config?.allClusters?.[cluster];
-  return clusterConfig?.auth_type || '';
+  return getClusterConfig(cluster)?.auth_type || '';
+}
+
+/** Resolve the selected entry without treating missing config as a known empty auth type. */
+export function getClusterConfig(cluster: string): Cluster | undefined {
+  const config = store.getState().config;
+  return (
+    config.statelessClusters?.[cluster] ??
+    config.clusters?.[cluster] ??
+    config.allClusters?.[cluster]
+  );
 }
 
 /** Provider logout is limited to server-owned contexts, not user-scoped stateless contexts. */

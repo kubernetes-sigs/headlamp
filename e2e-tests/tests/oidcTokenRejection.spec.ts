@@ -17,7 +17,7 @@
 import { expect, test } from '@playwright/test';
 
 const CLUSTER_NAME = 'test';
-const AUTH_PROBE_URL = `**/clusters/${CLUSTER_NAME}/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`;
+const AUTH_PROBE_URL = `**/clusters/${CLUSTER_NAME}/apis/authentication.k8s.io/v1/selfsubjectreviews`;
 
 /**
  * Model the point where the identity provider accepted the sign-in, but the
@@ -36,6 +36,10 @@ test('shows an error when the API server rejects an OIDC token', async ({ page }
     })
   );
   await page.route('**/plugins', route => route.fulfill({ json: [] }));
+  // Keep display-identity fallbacks out of the auth-probe count.
+  await page.route(`**/clusters/${CLUSTER_NAME}/me`, route =>
+    route.fulfill({ json: { username: 'oidc-user' } })
+  );
 
   await page.route(AUTH_PROBE_URL, async route => {
     authProbeCount++;
@@ -62,11 +66,7 @@ test('shows an error when the API server rejects an OIDC token', async ({ page }
     })
   );
 
-  await page.goto('/');
-  await page.evaluate(clusterName => {
-    window.history.pushState({}, '', `/c/${clusterName}/login`);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, CLUSTER_NAME);
+  await page.goto(`/c/${CLUSTER_NAME}/login`);
   await expect(page.getByRole('heading', { level: 1, name: 'Authentication' })).toBeVisible();
 
   const [popup] = await Promise.all([

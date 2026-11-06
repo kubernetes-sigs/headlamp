@@ -19,15 +19,24 @@
  * https://github.com/nock/nock
  */
 
+import { IDBFactory } from 'fake-indexeddb';
 import nock from 'nock';
 import { Mock, MockedFunction } from 'vitest';
 import WS from 'vitest-websocket-mock';
+import { encodeBase64 } from '../../../../helpers/base64';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import * as headers from '../../../../helpers/getHeadlampAPIHeaders';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
+import { setConfig, setStatelessConfig } from '../../../../redux/configSlice';
+import store from '../../../../redux/stores/store';
+import * as stateless from '../../../../stateless';
 import * as cluster from '../../../cluster';
 import { encodeClusterPath } from '../../../oidcLogout';
+import { queryClient } from '../../../queryClient';
 import * as apiProxy from '../../apiProxy';
+import { setCluster, testAuth } from './clusterApi';
 
+const realFetch = globalThis.fetch;
 const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
 const testPath = '/test/url';
@@ -950,6 +959,9 @@ describe('apiProxy', () => {
     const specCustom = { namespace: customNamespace };
 
     beforeEach(() => {
+      store.dispatch(
+        setConfig({ clusters: { [clusterName]: { name: clusterName, auth_type: '' } } })
+      );
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}${apiPath}`, { spec: specDefault })
         .reply(200, mockResponse);
@@ -1376,4 +1388,171 @@ describe('apiProxy', () => {
       await expect(apiProxy.deletePlugin(fakePluginName)).rejects.toThrow('Plugin not found');
     });
   });
+});
+
+const baseUrl = getAppUrl();
+const name = 'oidc-cluster';
+const identityPath = `/clusters/${name}/apis/authentication.k8s.io/v1/selfsubjectreviews`;
+const rulesPath = `/clusters/${name}/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`;
+const identityRequest = { apiVersion: 'authentication.k8s.io/v1', kind: 'SelfSubjectReview' };
+const identity = (username: unknown) => ({ status: { userInfo: { username } } });
+const rules = { status: { resourceRules: [], nonResourceRules: [], incomplete: false } };
+const kubeconfig = encodeBase64(
+  JSON.stringify({
+    apiVersion: 'v1',
+    kind: 'Config',
+    preferences: {},
+    clusters: [{ name: 'api', cluster: { server: 'https://api.example' } }],
+    contexts: [{ name, context: { cluster: 'api', user: 'transport-user' } }],
+    'current-context': name,
+    users: [{ name: 'transport-user', user: { 'auth-provider': { name: 'oidc' } } }],
+  })
+);
+
+describe('auth request and user-import boundaries', () => {
+  let logout: nock.Scope;
+  let fallback: nock.Scope;
+  beforeEach(() => {
+    // Earlier base tests assign fetch directly; this boundary needs the real network adapter.
+    vi.stubGlobal('fetch', realFetch);
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    store.dispatch(setConfig({ clusters: { [name]: { name, auth_type: 'oidc' } } }));
+    store.dispatch(setStatelessConfig({ statelessClusters: {} }));
+    vi.spyOn(cluster, 'getCluster').mockReturnValue(name);
+    // Exercise the request branch which could auto-logout on 401 if the probe enabled it.
+    vi.spyOn(headers, 'getHeadlampAPIHeaders').mockReturnValue({ authorization: 'Bearer fixture' });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    queryClient.clear();
+    localStorage.clear();
+    logout = nock(baseUrl)
+      .post(/\/encoded-clusters\/.*\/clear-token/)
+      .reply(200, {});
+    fallback = nock(baseUrl)
+      .post(rulesPath, { spec: { namespace: 'default' } })
+      .reply(201, rules);
+  });
+  afterEach(() => {
+    expect(logout.isDone()).toBe(false);
+    queryClient.clear();
+    nock.cleanAll();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    [201, 'mapped-subject', null],
+    [201, 'system:anonymous-reader', null],
+    [201, 'system:anonymous', 401],
+    [201, '', 502],
+    [201, '   ', 502],
+    [201, null, 502],
+    [201, 42, 502],
+    [201, undefined, 502],
+    [401, null, 401],
+    [403, null, 403],
+    [500, null, 500],
+    [502, null, 502],
+    [408, null, 408],
+  ] as const)(
+    'SSReview HTTP %s identity %s yields %s without SSRR',
+    async (status, username, error) => {
+      const timer = vi.spyOn(globalThis, 'setTimeout');
+      nock(baseUrl)
+        .post(identityPath, identityRequest)
+        .reply(status, username === undefined ? {} : identity(username));
+      const result = testAuth();
+      if (error) await expect(result).rejects.toMatchObject({ status: error });
+      else await expect(result).resolves.toEqual(identity(username));
+      expect(timer).toHaveBeenCalledWith(expect.any(Function), 5000);
+      expect(fallback.isDone()).toBe(false);
+    }
+  );
+
+  it.each(['network', 'timeout'])('propagates %s without fallback', async mode => {
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(
+        mode === 'timeout'
+          ? Object.assign(new Error('aborted'), { name: 'AbortError' })
+          : new TypeError('offline')
+      );
+    await expect(testAuth(name)).rejects.toMatchObject({ status: mode === 'timeout' ? 408 : 502 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toContain(identityPath);
+    expect(fallback.isDone()).toBe(false);
+  });
+
+  it.each([201, 401])('404 preserves same-cluster/namespace SSRR result %s', async status => {
+    const timer = vi.spyOn(globalThis, 'setTimeout');
+    nock(baseUrl).post(identityPath, identityRequest).reply(404, {});
+    const sameCluster = nock(baseUrl)
+      .post(rulesPath, { spec: { namespace: 'team' } })
+      .reply(status, rules);
+    vi.mocked(cluster.getCluster).mockReturnValue('unrelated-cluster');
+    const result = testAuth(name, 'team');
+    if (status === 201) await expect(result).resolves.toEqual(rules);
+    else await expect(result).rejects.toMatchObject({ status });
+    expect(sameCluster.isDone()).toBe(true);
+    expect(timer.mock.calls.filter(([, delay]) => delay === 5000)).toHaveLength(2);
+    expect(fallback.isDone()).toBe(false);
+  });
+
+  it.each([null, 'unknown'])('absent selected entry %s fails without probing', async selected => {
+    vi.mocked(cluster.getCluster).mockReturnValue(selected);
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    await expect(testAuth()).rejects.toMatchObject({ status: 503 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('known empty stateless auth wins over server OIDC, unlike absent config', async () => {
+    store.dispatch(setStatelessConfig({ statelessClusters: { [name]: { name, auth_type: '' } } }));
+    await expect(testAuth(name)).resolves.toEqual(rules);
+    expect(fallback.isDone()).toBe(true);
+  });
+
+  it('stateless OIDC probes use imported credential headers', async () => {
+    store.dispatch(setConfig({ clusters: null }));
+    store.dispatch(
+      setStatelessConfig({ statelessClusters: { [name]: { name, auth_type: 'oidc' } } })
+    );
+    await stateless.storeStatelessClusterKubeconfig(kubeconfig);
+    localStorage.setItem('headlamp-userId', 'fixture-user');
+    nock(baseUrl)
+      .matchHeader('KUBECONFIG', kubeconfig)
+      .matchHeader('X-HEADLAMP-USER-ID', 'fixture-user')
+      .post(identityPath, identityRequest)
+      .reply(201, identity('transport-user'));
+    await expect(testAuth(name)).resolves.toEqual(identity('transport-user'));
+    expect(fallback.isDone()).toBe(false);
+  });
+
+  it.each([false, true])(
+    'user import resets auth only after storage succeeds (failed=%s)',
+    async failed => {
+      queryClient.setQueryData(['auth', name], 'old-success');
+      queryClient.setQueryData(['pods', name], 'keep-resources');
+      const realStore = stateless.storeStatelessClusterKubeconfig;
+      let finish!: () => void;
+      vi.spyOn(stateless, 'storeStatelessClusterKubeconfig').mockImplementation(async value => {
+        await new Promise<void>(resolve => {
+          finish = resolve;
+        });
+        if (failed) throw new Error('storage failed');
+        await realStore(value);
+      });
+      const parsed = nock(baseUrl)
+        .post('/parseKubeConfig', { kubeconfigs: [kubeconfig] })
+        .reply(200, { clusters: [] });
+      const importing = setCluster({ kubeconfig });
+      const outcome = importing.catch(error => error);
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      expect(queryClient.getQueryData(['auth', name])).toBe('old-success');
+      finish();
+      if (failed) expect(await outcome).toBeInstanceOf(Error);
+      else await importing;
+      expect(parsed.isDone()).toBe(!failed);
+      expect(queryClient.getQueryData(['auth', name])).toBe(failed ? 'old-success' : undefined);
+      expect(queryClient.getQueryData(['pods', name])).toBe('keep-resources');
+    }
+  );
 });

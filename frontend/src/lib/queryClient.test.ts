@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { QueryObserver } from '@tanstack/react-query';
+import { IDBFactory } from 'fake-indexeddb';
+import nock from 'nock';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getAppUrl } from '../helpers/getAppUrl';
+import store from '../redux/stores/store';
+import { logout, setToken } from './auth';
+import { encodeClusterPath } from './oidcLogout';
 import { invalidateClusterUserInfo, queryClient, shouldRetryQuery } from './queryClient';
 
 describe('queryClient', () => {
@@ -66,13 +73,112 @@ describe('invalidateClusterUserInfo', () => {
     // now Bob's — so B's cached "alice" must not be served for its staleTime.
     queryClient.setQueryData(['clusterMe', 'cluster-a'], { name: 'alice' });
     queryClient.setQueryData(['clusterMe', 'cluster-b'], { name: 'alice' });
-    // An unrelated cache entry must be left alone.
     queryClient.setQueryData(['auth', 'cluster-b'], { ok: true });
+    // Non-auth resource data must be left alone.
+    queryClient.setQueryData(['pods', 'cluster-b'], { items: [] });
 
     await invalidateClusterUserInfo();
 
     expect(queryClient.getQueryState(['clusterMe', 'cluster-a'])?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(['clusterMe', 'cluster-b'])?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(['auth', 'cluster-b'])?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryData(['auth', 'cluster-b'])).toBeUndefined();
+    expect(queryClient.getQueryState(['pods', 'cluster-b'])?.isInvalidated).toBe(false);
+  });
+});
+
+describe('credential auth cache lifecycle', () => {
+  const key = ['auth', 'sample', 'oidc', 'server'] as const;
+  const unsubscribers: (() => void)[] = [];
+  beforeEach(() => {
+    queryClient.clear();
+    vi.stubGlobal('indexedDB', new IDBFactory());
+  });
+  afterEach(() => {
+    unsubscribers.splice(0).forEach(unsubscribe => unsubscribe());
+    queryClient.clear();
+    nock.cleanAll();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function observe(queryFn: () => Promise<string>) {
+    const observer = new QueryObserver(queryClient, { queryKey: key, queryFn, retry: false });
+    unsubscribers.push(observer.subscribe(() => {}));
+    return observer;
+  }
+  function mockWrite(token: string | null, override: boolean) {
+    if (override) {
+      const state = store.getState();
+      vi.spyOn(store, 'getState').mockReturnValue({
+        ...state,
+        ui: { ...state.ui, functionsToOverride: { setToken: () => true } },
+      });
+    } else {
+      const endpoint = token
+        ? '/clusters/sample/set-token'
+        : `/encoded-clusters/${encodeClusterPath('sample')}/clear-token`;
+      nock(getAppUrl()).post(endpoint, { token }).reply(200, {});
+    }
+  }
+
+  it.each(['active', 'inactive', 'override', 'popup'])(
+    '%s completion clears stale auth before current requests complete',
+    async mode => {
+      const pending = [Promise.withResolvers<string>(), Promise.withResolvers<string>()];
+      let requests = 0;
+      queryClient.setQueryData(key, 'old-success');
+      queryClient.setQueryData(['auth', 'other'], 'other-success');
+      queryClient.setQueryData(['pods', 'other'], 'keep-resources');
+      const observer = mode === 'inactive' ? undefined : observe(() => pending[requests++].promise);
+      if (observer) void observer.refetch();
+      if (mode !== 'popup') mockWrite('replacement', mode === 'override');
+      const writing =
+        mode === 'popup' ? invalidateClusterUserInfo() : setToken('sample', 'replacement');
+      await vi.waitFor(() => expect(queryClient.getQueryData(key)).toBeUndefined());
+      if (observer) {
+        expect(observer.getCurrentResult().isSuccess).toBe(false);
+        pending[0].resolve('late-old-success');
+        await Promise.resolve();
+        expect(queryClient.getQueryData(key)).toBeUndefined();
+        pending[1].resolve('current-success');
+        expect(requests).toBe(2);
+      }
+      await writing;
+      const current = observer ?? observe(async () => 'current-success');
+      await vi.waitFor(() => expect(current.getCurrentResult().data).toBe('current-success'));
+      expect(queryClient.getQueryData(['auth', 'other'])).toBe(
+        mode === 'popup' ? undefined : 'other-success'
+      );
+      expect(queryClient.getQueryData(['pods', 'other'])).toBe('keep-resources');
+    }
+  );
+
+  it.each(['clear', 'empty-clear', 'override-clear', 'logout'])(
+    '%s evicts auth without a new probe or late repopulation',
+    async mode => {
+      const old = Promise.withResolvers<string>();
+      let requests = 0;
+      const observer = observe(() =>
+        ++requests === 1 ? old.promise : Promise.resolve('forbidden-refetch')
+      );
+      const token = mode === 'empty-clear' ? '' : null;
+      mockWrite(token, mode === 'override-clear');
+      if (mode === 'logout') await logout('sample', true);
+      else await setToken('sample', token);
+      expect(queryClient.getQueryState(key)).toBeUndefined();
+      old.resolve('late-success');
+      await Promise.resolve();
+      expect(queryClient.getQueryData(key)).toBeUndefined();
+      expect(requests).toBe(1);
+      expect(observer.getCurrentResult().isSuccess).toBe(false);
+    }
+  );
+
+  it('failed token SET leaves current auth intact', async () => {
+    queryClient.setQueryData(key, 'current-authenticated');
+    nock(getAppUrl()).post('/clusters/sample/set-token', { token: 'bad-write' }).reply(500, {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(setToken('sample', 'bad-write')).rejects.toMatchObject({ status: 500 });
+    expect(queryClient.getQueryData(key)).toBe('current-authenticated');
   });
 });

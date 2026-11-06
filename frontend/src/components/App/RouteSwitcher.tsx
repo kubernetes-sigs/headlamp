@@ -160,30 +160,44 @@ function AuthRoute(props: AuthRouteProps) {
 
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
+  const config = useTypedSelector(state => state.config);
+  const clusterConf = cluster
+    ? config.statelessClusters?.[cluster] ??
+      config.clusters?.[cluster] ??
+      config.allClusters?.[cluster]
+    : undefined;
+  const source = !clusterConf
+    ? 'unresolved'
+    : config.statelessClusters?.[cluster!]
+    ? 'stateless'
+    : config.clusters?.[cluster!]
+    ? 'server'
+    : 'fallback';
+  const configQuery = useQuery({ queryKey: ['cluster-fetch'], enabled: false });
+  const isConfigPending = configQuery.isPending || configQuery.isFetching;
   const query = useQuery({
-    queryKey: ['auth', cluster],
+    // Public policy and origin only: credential writes reset this cache separately.
+    queryKey: ['auth', cluster, source, clusterConf?.auth_type ?? '', clusterConf?.server ?? ''],
     queryFn: () => testAuth(cluster!),
-    enabled: !!cluster && requiresAuth,
+    enabled: !!cluster && requiresAuth && (!!clusterConf || !isConfigPending),
     retry: 0,
   });
 
-  const clusters = useClustersConf();
   const currentCluster = getCluster();
-  const clusterConf = currentCluster && clusters ? clusters[currentCluster] : null;
   const authError = query.error as any;
   const isExplicitAuthError = [401, 403].includes(authError?.status);
 
   // Once the cluster successfully accepts the token, clear the flag that marked
   // previous OIDC sign-in as rejected by the API server. See Issue #2848
   React.useEffect(() => {
-    if (cluster && clusters?.[cluster]?.auth_type === 'oidc' && query.isSuccess) {
+    if (cluster && clusterConf?.auth_type === 'oidc' && query.isSuccess) {
       try {
         sessionStorage.removeItem(`oidc-login-attempted.${cluster}`);
       } catch {
         // sessionStorage unavailable (e.g. private browsing with strict settings).
       }
     }
-  }, [cluster, clusters, query.isSuccess]);
+  }, [cluster, clusterConf?.auth_type, query.isSuccess]);
 
   let redirectRoute: string;
 
