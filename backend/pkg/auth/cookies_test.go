@@ -169,6 +169,18 @@ func TestGetCookiePath(t *testing.T) {
 			cluster:  "team/cluster",
 			wantPath: "/headlamp/clusters/team/cluster",
 		},
+		{
+			name:     "slash-only base URL",
+			baseURL:  "/",
+			cluster:  "test-cluster",
+			wantPath: "/clusters/test-cluster",
+		},
+		{
+			name:     "multiple slashes only base URL",
+			baseURL:  "///",
+			cluster:  "test-cluster",
+			wantPath: "/clusters/test-cluster",
+		},
 	}
 
 	for _, tt := range tests {
