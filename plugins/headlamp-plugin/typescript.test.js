@@ -20,6 +20,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
+const ts = require('typescript');
 const {
   getNativeTypeScriptCommand,
   getUpgradeOverrides,
@@ -51,6 +52,62 @@ function installNative(directory, metadata = {}) {
 const nativeDependency = { '@typescript/native': 'npm:typescript@^7.0.2' };
 
 const templateOverrides = { typescript: '5.6.2', vitest: '^5.0.4' };
+
+test('shared plugin config provides ES2022 and iterable DOM APIs', t => {
+  const directory = fixture(t);
+  const scope = path.join(directory, 'node_modules', '@kinvolk');
+  fs.mkdirSync(scope);
+  fs.symlinkSync(__dirname, path.join(scope, 'headlamp-plugin'), 'junction');
+  const template = JSON.parse(
+    fs.readFileSync(path.join(__dirname, 'template', 'tsconfig.json'), 'utf8')
+  );
+  const configPath = path.join(directory, 'tsconfig.json');
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      ...template,
+      // Avoid third-party ambient libraries masking the shared lib defaults.
+      compilerOptions: { ...template.compilerOptions, types: [], noEmit: true },
+    })
+  );
+  fs.mkdirSync(path.join(directory, 'src'));
+  fs.writeFileSync(
+    path.join(directory, 'src', 'index.ts'),
+    `const last: number | undefined = [1, 2, 3].at(-1);
+const letter: string | undefined = 'plugin'.at(-1);
+for (const element of document.querySelectorAll('div')) {
+  element.dataset.last = String(last);
+  element.textContent = letter ?? '';
+}
+export {};
+`
+  );
+
+  const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+  assert.equal(configFile.error, undefined);
+  const parsed = ts.parseJsonConfigFileContent(
+    configFile.config,
+    ts.sys,
+    directory,
+    undefined,
+    configPath
+  );
+  const program = ts.createProgram(parsed.fileNames, parsed.options);
+  const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
+  assert.equal(
+    diagnostics.length,
+    0,
+    diagnostics
+      .map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
+      .join('\n')
+  );
+  assert.equal(parsed.options.target, ts.ScriptTarget.ES2017);
+  assert.deepEqual(parsed.options.lib, [
+    'lib.es2022.d.ts',
+    'lib.dom.d.ts',
+    'lib.dom.iterable.d.ts',
+  ]);
+});
 
 test('default upgrades retain the full template overrides', () => {
   assert.deepEqual(getUpgradeOverrides({}, templateOverrides), {
