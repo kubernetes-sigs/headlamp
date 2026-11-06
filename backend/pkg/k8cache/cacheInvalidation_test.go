@@ -15,6 +15,7 @@ package k8cache_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
@@ -471,6 +473,188 @@ func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
 	assert.Equal(t, "unrelated-data", val)
 }
 
+// TestInvalidateCacheKeysForResourceEvent_FilteredListsAndSubresources verifies that
+// when an informer event fires, cached filtered lists and named subresources for that
+// resource are evicted from the cache store across all versions, while respecting
+// name boundaries so that unrelated resources (e.g. test-pod-2) are preserved.
+func TestInvalidateCacheKeysForResourceEvent_FilteredListsAndSubresources(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	ctx := context.Background()
+
+	realCache := cache.New[string]()
+
+	keysToEvict := []string{
+		"+v1+pods+default+" + contextKey,
+		"+v1+pods++" + contextKey,
+		"+v1+pods?labelSelector=env%253Dprod+default+" + contextKey,
+		"+v1+pods?labelSelector=env%253Ddev++" + contextKey,
+		"+v1+pods/test-pod+default+" + contextKey,
+		"+v2+pods/test-pod+default+" + contextKey,
+		"+v1+pods/test-pod/status+default+" + contextKey,
+		"+v1+pods/test-pod/log?container=app+default+" + contextKey,
+	}
+
+	keysToPreserve := []string{
+		"+v1+pods/other-pod+default+" + contextKey,
+		"+v1+pods/test-pod-2+default+" + contextKey,
+		"+v1+pods/test-pod-webhook+default+" + contextKey,
+		"+v1+services+default+" + contextKey,
+	}
+
+	for _, k := range keysToEvict {
+		require.NoError(t, realCache.Set(ctx, k, "evict-me"))
+		k8cache.ExportedIndexCacheKey(k)
+	}
+
+	for _, k := range keysToPreserve {
+		require.NoError(t, realCache.Set(ctx, k, "keep-me"))
+		k8cache.ExportedIndexCacheKey(k)
+	}
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+		gvr, "default", "test-pod", contextKey, realCache,
+	)
+
+	for _, k := range keysToEvict {
+		_, err := realCache.Get(ctx, k)
+		assert.Error(t, err, "key %q should be evicted", k)
+	}
+
+	for _, k := range keysToPreserve {
+		val, err := realCache.Get(ctx, k)
+		assert.NoError(t, err, "key %q should be preserved", k)
+		assert.Equal(t, "keep-me", val)
+	}
+}
+
+// TestInvalidateCacheKeysForResourceEvent_NamespaceResource verifies that an informer
+// event for a cluster-scoped Namespace resource (e.g. name "default", namespace "")
+// correctly evicts the canonical +v1+namespaces/default++ctx key.
+func TestInvalidateCacheKeysForResourceEvent_NamespaceResource(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
+	contextKey := "test-context"
+	ctx := context.Background()
+
+	realCache := cache.New[string]()
+
+	keysToEvict := []string{
+		"+v1+namespaces/default++" + contextKey,
+		"+v1+namespaces++" + contextKey,
+	}
+
+	keysToPreserve := []string{
+		"+v1+namespaces/other-ns++" + contextKey,
+		"+v1+namespaces/default-system++" + contextKey,
+	}
+
+	for _, k := range keysToEvict {
+		require.NoError(t, realCache.Set(ctx, k, "evict-me"))
+		k8cache.ExportedIndexCacheKey(k)
+	}
+
+	for _, k := range keysToPreserve {
+		require.NoError(t, realCache.Set(ctx, k, "keep-me"))
+		k8cache.ExportedIndexCacheKey(k)
+	}
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+		gvr, "", "default", contextKey, realCache,
+	)
+
+	for _, k := range keysToEvict {
+		_, err := realCache.Get(ctx, k)
+		assert.Error(t, err, "key %q should be evicted", k)
+	}
+
+	for _, k := range keysToPreserve {
+		val, err := realCache.Get(ctx, k)
+		assert.NoError(t, err, "key %q should be preserved", k)
+		assert.Equal(t, "keep-me", val)
+	}
+}
+
+// TestInvalidateCacheKeysForResourceEvent_MultiVersionCRD verifies that an informer
+// event for a resource evicts cached entries across all served API versions (e.g. v1 and v2).
+func TestInvalidateCacheKeysForResourceEvent_MultiVersionCRD(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "example.io", Version: "v1", Resource: "widgets"}
+	contextKey := "test-context"
+	ctx := context.Background()
+
+	realCache := cache.New[string]()
+
+	keysToEvict := []string{
+		"example.io+v1+widgets++" + contextKey,
+		"example.io+v2+widgets++" + contextKey,
+		"example.io+v1+widgets/my-widget++" + contextKey,
+		"example.io+v2+widgets/my-widget++" + contextKey,
+		"example.io+v1+widgets/my-widget/status++" + contextKey,
+	}
+
+	keysToPreserve := []string{
+		"example.io+v1+widgets/my-widget-2++" + contextKey,
+		"example.io+v2+widgets/my-widget-2++" + contextKey,
+		"example.io+v1+gadgets++" + contextKey,
+	}
+
+	for _, k := range keysToEvict {
+		require.NoError(t, realCache.Set(ctx, k, "evict-me"))
+		k8cache.ExportedIndexCacheKey(k)
+	}
+
+	for _, k := range keysToPreserve {
+		require.NoError(t, realCache.Set(ctx, k, "keep-me"))
+		k8cache.ExportedIndexCacheKey(k)
+	}
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+		gvr, "", "my-widget", contextKey, realCache,
+	)
+
+	for _, k := range keysToEvict {
+		_, err := realCache.Get(ctx, k)
+		assert.Error(t, err, "key %q should be evicted", k)
+	}
+
+	for _, k := range keysToPreserve {
+		val, err := realCache.Get(ctx, k)
+		assert.NoError(t, err, "key %q should be preserved", k)
+		assert.Equal(t, "keep-me", val)
+	}
+}
+
+// TestInvalidateCacheKeysForResourceEvent_IndexedPath verifies that keys registered
+// in the resource index are evicted via the indexed fast-path without a full scan.
+func TestInvalidateCacheKeysForResourceEvent_IndexedPath(t *testing.T) {
+	k8cache.ResetRegistries()
+
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	ctx := context.Background()
+
+	realCache := cache.New[string]()
+
+	keyToEvict := "+v1+pods/indexed-pod+default+" + contextKey
+	keyToPreserve := "+v1+pods/indexed-pod-2+default+" + contextKey
+
+	require.NoError(t, realCache.Set(ctx, keyToEvict, "evict-me"))
+	require.NoError(t, realCache.Set(ctx, keyToPreserve, "keep-me"))
+
+	k8cache.ExportedIndexCacheKey(keyToEvict)
+	k8cache.ExportedIndexCacheKey(keyToPreserve)
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+		gvr, "default", "indexed-pod", contextKey, realCache,
+	)
+
+	_, err := realCache.Get(ctx, keyToEvict)
+	assert.Error(t, err, "indexed key %q should be evicted", keyToEvict)
+
+	val, err := realCache.Get(ctx, keyToPreserve)
+	assert.NoError(t, err, "indexed key %q should be preserved", keyToPreserve)
+	assert.Equal(t, "keep-me", val)
+}
+
 // TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys verifies
 // informer events evict namespaced list, all-namespace list, and named GET keys.
 func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *testing.T) {
@@ -558,7 +742,7 @@ func TestGetKindAndVerb_EmptyAPIVar(t *testing.T) {
 	assert.Equal(t, "unknown", verb)
 }
 
-// IsAllowed — "could not determine resource or verb" guard branch
+// IsAllowed : "could not determine resource or verb" guard branch
 
 // TestIsAllowed_EmptyKind drives the `last == ""` guard inside IsAllowed
 // by sending a request with no mux "api" variable so that
@@ -585,7 +769,7 @@ func TestIsAllowed_EmptyKind(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ServeFromCacheOrForwardToK8s — StoreK8sResponseInCache error path
+// ServeFromCacheOrForwardToK8s : StoreK8sResponseInCache error path
 
 // errOnWriteCache wraps MockCache and makes SetWithTTL always return an
 // error, triggering the error-logging branch in ServeFromCacheOrForwardToK8s.
@@ -635,7 +819,7 @@ func TestServeFromCacheOrForwardToK8s_StoreError(t *testing.T) {
 	assert.Error(t, err, "failed cache write must not persist the key")
 }
 
-// HandleNonGETCacheInvalidation — three branches currently at 0%
+// HandleNonGETCacheInvalidation : three branches currently at 0%
 
 // TestHandleNonGETCacheInvalidation_GETSkipped verifies that GET requests
 // return nil immediately without touching the cache or calling next.
@@ -659,7 +843,7 @@ func TestHandleNonGETCacheInvalidation_GETSkipped(t *testing.T) {
 
 // TestHandleNonGETCacheInvalidation_BypassURLExcluded verifies that a POST
 // on a selfsubjectrulesreviews authorization endpoint is NOT invalidated because
-// IsAuthBypassURL returns false for that path — the function returns nil.
+// IsAuthBypassURL returns false for that path : the function returns nil.
 func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	mockCache := NewMockCache()
 	called := false
@@ -734,6 +918,74 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	require.NoError(t, err)
 	assert.Contains(t, cachedValue, "ConfigMap")
 	assert.NotContains(t, cachedValue, "stale")
+}
+
+func TestHandleNonGETCacheInvalidation_EvictsQueryAndListVariants(t *testing.T) { //nolint:funlen
+	mockCache := NewMockCache()
+	ctxKey := "ctx"
+
+	// 1. Base resource: /api/v1/namespaces/default/widgets/w
+	basePodURL, err := url.Parse("/clusters/kind/api/v1/namespaces/default/widgets/w")
+	require.NoError(t, err)
+	basePodKey, err := k8cache.GenerateKey(basePodURL, ctxKey)
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), basePodKey, `{"metadata":{"name":"w"}}`))
+	k8cache.ExportedIndexCacheKey(basePodKey)
+
+	// 2. Resource with query parameter: /api/v1/namespaces/default/widgets/w?includeUninitialized=true
+	queryPodURL, err := url.Parse("/clusters/kind/api/v1/namespaces/default/widgets/w?includeUninitialized=true")
+	require.NoError(t, err)
+	queryPodKey, err := k8cache.GenerateKey(queryPodURL, ctxKey)
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), queryPodKey, `{"metadata":{"name":"w"},"uninitialized":true}`))
+	k8cache.ExportedIndexCacheKey(queryPodKey)
+
+	// 3. Collection list with label selector: /api/v1/namespaces/default/widgets?labelSelector=app%3Dtest
+	listURL, err := url.Parse("/clusters/kind/api/v1/namespaces/default/widgets?labelSelector=app%3Dtest")
+	require.NoError(t, err)
+	listKey, err := k8cache.GenerateKey(listURL, ctxKey)
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), listKey, `{"items":[{"metadata":{"name":"w"}}]}`))
+	k8cache.ExportedIndexCacheKey(listKey)
+
+	// 4. Unrelated resource: /api/v1/namespaces/default/widgets/other
+	otherURL, err := url.Parse("/clusters/kind/api/v1/namespaces/default/widgets/other")
+	require.NoError(t, err)
+	otherKey, err := k8cache.GenerateKey(otherURL, ctxKey)
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), otherKey, `{"metadata":{"name":"other"}}`))
+	k8cache.ExportedIndexCacheKey(otherKey)
+
+	// A mutation (e.g. PATCH) arrives for /clusters/kind/api/v1/namespaces/default/widgets/w?fieldManager=headlamp
+	targetURL, err := url.Parse("/clusters/kind/api/v1/namespaces/default/widgets/w?fieldManager=headlamp")
+	require.NoError(t, err)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"metadata":{"name":"w"}}`))
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, targetURL.String(), nil)
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, ctxKey)
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	// Base resource, query-specific resource, and collection list should all be evicted
+	_, err = mockCache.Get(context.Background(), basePodKey)
+	assert.Error(t, err, "base GET key should be evicted on mutation")
+
+	_, err = mockCache.Get(context.Background(), queryPodKey)
+	assert.Error(t, err, "query-specific GET key should be evicted on mutation")
+
+	_, err = mockCache.Get(context.Background(), listKey)
+	assert.Error(t, err, "collection list key should be evicted on mutation")
+
+	// Unrelated resource should remain in cache
+	val, err := mockCache.Get(context.Background(), otherKey)
+	assert.NoError(t, err, "unrelated resource key should not be evicted")
+	assert.Contains(t, val, "other")
 }
 
 var filterImportantResourcesTests = []struct {
@@ -882,4 +1134,305 @@ func TestSyncWatchers(t *testing.T) {
 	assert.False(t, canceled["ctx1"], "ctx1 should not be canceled")
 	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
 	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
+}
+
+func TestStoreAndInvalidationSynchronization(t *testing.T) {
+	k8cache.ResetRegistries()
+
+	mockCache := NewMockCache()
+
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "sync-test-cluster"
+	namespace := "default"
+
+	var wg sync.WaitGroup
+
+	start := make(chan struct{})
+
+	for i := 0; i < 20; i++ {
+		wg.Add(2)
+
+		go func(idx int) {
+			defer wg.Done()
+
+			<-start
+
+			u, err := url.Parse(fmt.Sprintf("/api/v1/namespaces/default/pods/pod-%d", idx))
+			assert.NoError(t, err)
+
+			key, err := k8cache.GenerateKey(u, contextKey)
+			assert.NoError(t, err)
+
+			rec := httptest.NewRecorder()
+			rcw := k8cache.NewResponseCapture(rec)
+			rcw.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprintf(rcw, `{"metadata":{"name":"pod-%d"}}`, idx)
+
+			_ = k8cache.StoreK8sResponseInCache(mockCache, u, rcw, key)
+		}(i)
+
+		go func(idx int) {
+			defer wg.Done()
+
+			<-start
+
+			k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+				gvr,
+				namespace,
+				fmt.Sprintf("pod-%d", idx),
+				contextKey,
+				mockCache,
+			)
+		}(i)
+	}
+
+	close(start)
+	wg.Wait()
+}
+
+// TestResourceKeyIndex_EvictionOnExpiration verifies that when cached responses expire,
+// the cache's eviction callback unindexes the corresponding resource key index entries.
+func TestResourceKeyIndex_EvictionOnExpiration(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	realCache := cache.New[string]()
+	contextKey := "cluster-a"
+	u, err := url.Parse("/api/v1/namespaces/default/events?limit=50")
+	require.NoError(t, err)
+
+	key, err := k8cache.GenerateKey(u, contextKey)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	rcw := k8cache.NewResponseCapture(rec)
+	rcw.WriteHeader(http.StatusOK)
+	_, _ = rcw.Write([]byte(`{"kind":"EventList","items":[]}`))
+
+	require.NoError(t, k8cache.StoreK8sResponseInCache(realCache, u, rcw, key))
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key), "key should be indexed after store")
+
+	// Trigger eviction callback as would occur when cache entry expires.
+	k8cache.ExportedUnindexIfExpired(key, time.Now().Add(time.Hour))
+	assert.False(t, k8cache.ExportedIsKeyIndexed(key), "key should be unindexed after expiration")
+}
+
+// TestResourceKeyIndex_ReplacementSynchronized verifies that expiring an older response
+// cannot unindex a fresh replacement entry that replaced it with a later expiration timestamp.
+func TestResourceKeyIndex_ReplacementSynchronized(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	key := "+v1+pods?page=1+default+cluster-a"
+	tOld := time.Now().Add(5 * time.Second)
+	tNew := time.Now().Add(10 * time.Minute)
+
+	// Old entry indexed.
+	k8cache.ExportedIndexCacheKeyWithTTL(key, 5*time.Second)
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key))
+
+	// Replaced by newer entry with longer TTL.
+	k8cache.ExportedIndexCacheKeyWithTTL(key, 10*time.Minute)
+
+	// An expiration event from the old entry fires at tOld.
+	k8cache.ExportedUnindexIfExpired(key, tOld)
+
+	// The replacement entry must not have been unindexed.
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key), "replacement entry must remain indexed")
+
+	// When tNew passes, expiration unindexes it.
+	k8cache.ExportedUnindexIfExpired(key, tNew.Add(time.Second))
+	assert.False(t, k8cache.ExportedIsKeyIndexed(key), "key should be unindexed once new entry expires")
+}
+
+// TestResourceKeyIndex_UnmonitoredResourceJanitor verifies that entries for unmonitored resources
+// (e.g. Events, custom resources excluded from informers) are cleaned up by expiration sweep.
+func TestResourceKeyIndex_UnmonitoredResourceJanitor(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	key1 := "+v1+events?limit=25+default+cluster-b"
+	key2 := "+v1+events?limit=50+default+cluster-b"
+
+	k8cache.ExportedIndexCacheKeyWithTTL(key1, -1*time.Minute) // already expired
+	k8cache.ExportedIndexCacheKeyWithTTL(key2, 10*time.Minute) // active
+
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key1))
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key2))
+
+	k8cache.ExportedEvictExpiredIndexEntries(time.Now())
+
+	assert.False(t, k8cache.ExportedIsKeyIndexed(key1), "expired event index entry should be pruned")
+	assert.True(t, k8cache.ExportedIsKeyIndexed(key2), "active event index entry should remain")
+}
+
+type MockTrackingCache struct {
+	onGetAll func()
+}
+
+func (m *MockTrackingCache) Set(ctx context.Context, key, value string) error { return nil }
+
+func (m *MockTrackingCache) SetWithTTL(ctx context.Context, key, value string, ttl time.Duration) error {
+	return nil
+}
+
+func (m *MockTrackingCache) Get(ctx context.Context, key string) (string, error) { return "", nil }
+
+func (m *MockTrackingCache) Delete(ctx context.Context, key string) error { return nil }
+
+func (m *MockTrackingCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]string, error) {
+	if m.onGetAll != nil {
+		m.onGetAll()
+	}
+
+	return nil, nil
+}
+
+func (m *MockTrackingCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration) error {
+	return nil
+}
+
+func (m *MockTrackingCache) SetOnEvicted(f func(key string, value string)) {}
+
+func (m *MockTrackingCache) Close() error { return nil }
+
+// TestGetKeysForResourceInvalidation_EmptyBucketDoesNotScanCache verifies that when
+// candidate bucket is empty (no cached entries for resource), invalidation does not
+// execute a global GetAll scan of the response cache.
+func TestGetKeysForResourceInvalidation_EmptyBucketDoesNotScanCache(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	getAllCalled := false
+	mockCache := &MockTrackingCache{
+		onGetAll: func() {
+			getAllCalled = true
+		},
+	}
+
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(gvr, "default", "uncached-pod", "test-context", mockCache)
+
+	assert.False(t, getAllCalled, "empty candidate bucket must not trigger a global GetAll cache scan")
+}
+
+// TestInvalidateCacheKeysForResourceEvent_NamespaceSubresources verifies that an informer
+// event for a Namespace resource evicts cached /namespaces/{name}/status and /finalize keys.
+func TestInvalidateCacheKeysForResourceEvent_NamespaceSubresources(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
+	contextKey := "test-context"
+	ctx := context.Background()
+
+	realCache := cache.New[string]()
+
+	statusKey := "+v1+namespaces/default/status++" + contextKey
+	finalizeKey := "+v1+namespaces/default/finalize++" + contextKey
+	otherNsStatusKey := "+v1+namespaces/other/status++" + contextKey
+
+	require.NoError(t, realCache.Set(ctx, statusKey, "status-data"))
+	require.NoError(t, realCache.Set(ctx, finalizeKey, "finalize-data"))
+	require.NoError(t, realCache.Set(ctx, otherNsStatusKey, "other-status-data"))
+
+	k8cache.ExportedIndexCacheKey(statusKey)
+	k8cache.ExportedIndexCacheKey(finalizeKey)
+	k8cache.ExportedIndexCacheKey(otherNsStatusKey)
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(gvr, "", "default", contextKey, realCache)
+
+	_, err := realCache.Get(ctx, statusKey)
+	assert.Error(t, err, "namespace status key should be evicted on namespace event")
+
+	_, err = realCache.Get(ctx, finalizeKey)
+	assert.Error(t, err, "namespace finalize key should be evicted on namespace event")
+
+	val, err := realCache.Get(ctx, otherNsStatusKey)
+	assert.NoError(t, err, "unrelated namespace status key should be preserved")
+	assert.Equal(t, "other-status-data", val)
+}
+
+// TestHandleNonGETCacheInvalidation_ObjectNamedExecInvalidatesList verifies that a DELETE request
+// for an object named "exec" is not skipped as an interactive subresource and invalidates cached lists.
+func TestHandleNonGETCacheInvalidation_ObjectNamedExecInvalidatesList(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	ctxKey := "test-context"
+	listKey := "+v1+widgets+default+" + ctxKey
+	namedKey := "+v1+widgets/exec+default+" + ctxKey
+
+	realCache := cache.New[string]()
+	ctx := context.Background()
+
+	require.NoError(t, realCache.Set(ctx, listKey, "widget-list"))
+	require.NoError(t, realCache.Set(ctx, namedKey, "widget-named"))
+
+	k8cache.ExportedIndexCacheKey(listKey)
+	k8cache.ExportedIndexCacheKey(namedKey)
+
+	targetURL, err := url.Parse("/api/v1/namespaces/default/widgets/exec")
+	require.NoError(t, err)
+
+	r := httptest.NewRequestWithContext(ctx, http.MethodDelete, targetURL.String(), nil)
+	r.URL = targetURL
+
+	// Ensure ShouldSkipCache evaluates to false for object named "exec"
+	assert.False(t, k8cache.ShouldSkipCache(r), "DELETE on object named 'exec' must not skip cache invalidation")
+
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		nextCalled = true
+
+		if req.Method == http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+
+			_, _ = w.Write([]byte(`{"kind":"Status","status":"Failure","reason":"NotFound"}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	err = k8cache.HandleNonGETCacheInvalidation(realCache, w, r, next, ctxKey)
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	assert.True(t, nextCalled)
+
+	_, err = realCache.Get(ctx, namedKey)
+	assert.Error(t, err, "named key for object 'exec' should be evicted")
+
+	_, err = realCache.Get(ctx, listKey)
+	assert.Error(t, err, "list key should be evicted on mutation of object 'exec'")
+}
+
+// TestInvalidateCacheKeysForResourceEvent_EncodedIdentifiers verifies that cached entries
+// created via percent-encoded identifiers are properly indexed and invalidated by informer events.
+func TestInvalidateCacheKeysForResourceEvent_EncodedIdentifiers(t *testing.T) {
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	ctx := context.Background()
+
+	realCache := cache.New[string]()
+
+	reqURL, err := url.Parse("/api/v1/namespaces/%64efault/pods/my%2Dpod")
+	require.NoError(t, err)
+
+	key, err := k8cache.GenerateKey(reqURL, contextKey)
+	require.NoError(t, err)
+	assert.Equal(t, "+v1+pods/my-pod+default+test-context", key)
+
+	require.NoError(t, realCache.Set(ctx, key, "pod-data"))
+	k8cache.ExportedIndexCacheKey(key)
+
+	// Informer event carries decoded name and namespace
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(gvr, "default", "my-pod", contextKey, realCache)
+
+	_, err = realCache.Get(ctx, key)
+	assert.Error(t, err, "cache entry with normalized key should be evicted by informer event")
 }
