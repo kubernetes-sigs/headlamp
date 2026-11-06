@@ -135,7 +135,7 @@
   "Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.": "",
   "Save & Apply": "Сохранить и применить",
   "Open Plugin Folder": "Открыть папку плагинов",
-  "By": "Автор",
+  "Published by {{author}}": "",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "Этот плагин в настоящее время не загружен, поскольку вместо него используется версия «{{type}}».",
   "Deleting plugin {{ itemName }}...": "Удаление плагина {{ itemName }}...",
   "Cancelled deletion of {{ itemName }}.": "Удаление {{ itemName }} отменено.",
