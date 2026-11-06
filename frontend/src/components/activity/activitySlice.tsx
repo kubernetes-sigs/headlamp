@@ -78,7 +78,13 @@ export const activitySlice = createSlice({
       // Dispatch resize event so the content adjusts
       // 200ms delay for animations
       setTimeout(() => {
-        window?.dispatchEvent?.(new Event('resize'));
+        // The timer outlives the window under test teardown, where window stops
+        // being declared rather than becoming undefined, so optional chaining
+        // does not help: reading it at all throws a ReferenceError.
+        if (typeof window === 'undefined') {
+          return;
+        }
+        window.dispatchEvent(new Event('resize'));
       }, 200);
     },
     close(state, action: PayloadAction<string>) {
@@ -116,7 +122,13 @@ export const activitySlice = createSlice({
       // Dispatch resize event so the content adjusts
       // 200ms delay for animations
       setTimeout(() => {
-        window?.dispatchEvent?.(new Event('resize'));
+        // The timer outlives the window under test teardown, where window stops
+        // being declared rather than becoming undefined, so optional chaining
+        // does not help: reading it at all throws a ReferenceError.
+        if (typeof window === 'undefined') {
+          return;
+        }
+        window.dispatchEvent(new Event('resize'));
       }, 200);
     },
     reset() {
