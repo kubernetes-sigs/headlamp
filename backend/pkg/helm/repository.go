@@ -63,6 +63,10 @@ func (r AddUpdateRepoRequest) Validate() error {
 		return errors.New("name is required")
 	}
 
+	if strings.ContainsAny(r.Name, `/\`) || strings.Contains(r.Name, "..") {
+		return errors.New("name must not contain path separators or '..'")
+	}
+
 	if strings.TrimSpace(r.URL) == "" {
 		return errors.New("url is required")
 	}
