@@ -1,0 +1,111 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1fkybvm"
+    >
+      <div
+        class="MuiTabs-root css-tkn350-MuiTabs-root"
+      >
+        <div
+          class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
+          style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
+        />
+        <div
+          class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
+          style="margin-bottom: 0px;"
+        >
+          <div
+            aria-label="Cluster sources"
+            class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+            role="tablist"
+          >
+            <button
+              aria-controls=":mock-test-id:"
+              aria-selected="true"
+              class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+              id=":mock-test-id:"
+              role="tab"
+              tabindex="0"
+              type="button"
+            >
+              All (0)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              aria-controls=":mock-test-id:"
+              aria-selected="false"
+              class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+              id=":mock-test-id:"
+              role="tab"
+              tabindex="-1"
+              type="button"
+            >
+              Cluster Inventory API (0)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              aria-controls=":mock-test-id:"
+              aria-selected="false"
+              class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+              id=":mock-test-id:"
+              role="tab"
+              tabindex="-1"
+              type="button"
+            >
+              Cluster API (0)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+          <span
+            class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+            style="left: 0px; width: 0px;"
+          />
+        </div>
+      </div>
+    </div>
+    <div
+      aria-labelledby=":mock-test-id:"
+      class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+      id=":mock-test-id:"
+      role="tabpanel"
+      tabindex="-1"
+    >
+      <div
+        class="MuiBox-root css-1pr5e03"
+      >
+        <h6
+          class="MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-r34k9t-MuiTypography-root"
+        >
+          No clusters found
+        </h6>
+        <p
+          class="MuiTypography-root MuiTypography-body2 MuiTypography-paragraph css-16b0dx8-MuiTypography-root"
+        >
+          Add a cluster to get started.
+        </p>
+      </div>
+    </div>
+    <div
+      aria-labelledby=":mock-test-id:"
+      class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+      hidden=""
+      id=":mock-test-id:"
+      role="tabpanel"
+      tabindex="-1"
+    />
+    <div
+      aria-labelledby=":mock-test-id:"
+      class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+      hidden=""
+      id=":mock-test-id:"
+      role="tabpanel"
+      tabindex="-1"
+    />
+  </div>
+</body>

@@ -95,7 +95,15 @@ vi.mock('../../common/Table', () => ({
               data-testid={`cluster-row-${cluster.name}`}
               data-status-accessor={statusColumn.accessorFn(cluster) ?? ''}
             >
-              <td>{originColumn.Cell({ row: { original: cluster } })}</td>
+              <td>{originColumn?.Cell({ row: { original: cluster } })}</td>
+              {columns
+                .filter(column => column.id.startsWith('field.'))
+                .map(column => (
+                  <td key={column.id}>{column.accessorFn(cluster)}</td>
+                ))}
+              <td>
+                {columns.find(column => column.id === 'name')?.Cell({ row: { original: cluster } })}
+              </td>
               <td>{statusColumn.Cell({ row: { original: cluster } })}</td>
             </tr>
           ))}
@@ -109,6 +117,83 @@ describe('ClusterTable', () => {
   afterEach(() => {
     vi.clearAllMocks();
     ClusterEmptyState = null;
+  });
+
+  it.each([undefined, []])('keeps kubeconfig origins when source columns are %j', columns => {
+    const cluster: Cluster = {
+      name: 'legacy-context',
+      auth_type: '',
+      meta_data: { source: 'kubeconfig', origin: { kubeconfig: '/home/test/.kube/config' } },
+    };
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ [cluster.name]: cluster }}
+          source={{ id: 'kubeconfig', label: 'Kubeconfig', nameLabel: 'Name', columns }}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Kubeconfig: /home/test/.kube/config')).toBeInTheDocument();
+  });
+
+  it.each(['Cluster API', 'Third discovery source'])(
+    'renders a registered source label %s',
+    sourceLabel => {
+      const cluster = {
+        name: 'discovered',
+        auth_type: 'oidc',
+        meta_data: { source: 'registered_source', sourceLabel },
+      };
+      renderWithTheme(
+        <MemoryRouter>
+          <ClusterTable
+            customNameClusters={[cluster]}
+            clusters={{ discovered: cluster }}
+            versions={{}}
+            errors={{}}
+            warningLabels={{}}
+          />
+        </MemoryRouter>
+      );
+      expect(screen.getByText(sourceLabel)).toBeInTheDocument();
+    }
+  );
+
+  it('renders a third source column and routes its display name using the original ID', () => {
+    const cluster = {
+      name: 'opaque-connection-id',
+      auth_type: 'oidc',
+      meta_data: {
+        source: 'fleet',
+        presentation: { displayName: 'production', fields: { region: 'ap-northeast-1' } },
+      },
+    };
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ [cluster.name]: cluster }}
+          source={{
+            id: 'fleet',
+            label: 'Fleet',
+            nameLabel: 'Fleet cluster',
+            columns: [{ key: 'region', label: 'Region' }],
+          }}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('ap-northeast-1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'production' })).toHaveAttribute(
+      'href',
+      '/c/opaque-connection-id/'
+    );
   });
 
   it('renders the standard empty state when no custom state is registered', () => {
@@ -191,7 +276,7 @@ describe('ClusterTable', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Cluster Inventory')).toBeInTheDocument();
+    expect(screen.getByText('Cluster Inventory API')).toBeInTheDocument();
   });
 
   it('renders in-cluster source labels', () => {

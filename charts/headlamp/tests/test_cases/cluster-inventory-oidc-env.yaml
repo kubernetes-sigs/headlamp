@@ -1,0 +1,8 @@
+env:
+  - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
+    value: headlamp
+  - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
+    value: https://idp.example.com
+config:
+  clusterInventory:
+    enabled: true

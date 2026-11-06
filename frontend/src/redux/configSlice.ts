@@ -16,9 +16,11 @@
 
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
+import type { ClusterSourceView } from '../helpers/clusterPresentation';
 import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
+  clusterSources?: ClusterSourceView[];
   /**
    * Clusters is a map of cluster names to cluster objects.
    * Null indicates that the clusters have not been loaded yet.
@@ -169,6 +171,7 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
 const storedSettings = loadStoredSettings();
 
 export const initialState: ConfigState = {
+  clusterSources: [],
   clusters: null,
   statelessClusters: null,
   allClusters: null,
@@ -201,6 +204,7 @@ const configSlice = createSlice({
       state,
       action: PayloadAction<{
         clusters: ConfigState['clusters'];
+        clusterSources?: ClusterSourceView[];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
@@ -213,6 +217,9 @@ const configSlice = createSlice({
       }>
     ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.clusterSources !== undefined) {
+        state.clusterSources = action.payload.clusterSources;
+      }
 
       if (action.payload.oidcAutoLogin !== undefined) {
         state.oidcAutoLogin = action.payload.oidcAutoLogin;

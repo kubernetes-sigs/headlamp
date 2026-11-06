@@ -22,16 +22,22 @@ import { useTranslation } from 'react-i18next';
 import { useHistory, useLocation } from 'react-router-dom';
 import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessageReceiver';
 import { useAutoConnectClusters } from '../../../helpers/clusterAutoConnect';
+import {
+  getClusterSource,
+  hasConfiguredClusterSources,
+} from '../../../helpers/clusterPresentation';
 import { isBackstage } from '../../../helpers/isBackstage';
 import { isElectron } from '../../../helpers/isElectron';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { useEventWarningList } from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
+import { useTypedSelector } from '../../../redux/hooks';
 import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ProjectList from '../../project/ProjectList';
+import ClusterSourceTabs from './ClusterSourceTabs';
 import ClusterTable from './ClusterTable';
 import { ENABLE_RECENT_CLUSTERS } from './config';
 import { getCustomClusterNames } from './customClusterNames';
@@ -41,16 +47,18 @@ export default function Home() {
   const history = useHistory();
   const location = useLocation();
   const clusters = useClustersConf();
+  const sources = useTypedSelector(state => state.config.clusterSources);
 
   if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
     const cluster = Object.keys(clusters)[0];
     const isLogout = new URLSearchParams(location.search).get('logout') === 'true';
     if (isLogout) {
       history.push(createRouteURL('login', { cluster }) + '?logout=true');
-    } else {
+      return null;
+    } else if (!hasConfiguredClusterSources(sources)) {
       history.push(createRouteURL('cluster', { cluster }));
+      return null;
     }
-    return null;
   }
 
   return (
@@ -128,6 +136,7 @@ function HomeComponent(props: HomeComponentProps) {
     'clusters'
   );
   const { clusters } = props;
+  const sources = useTypedSelector(state => state.config.clusterSources);
   const [customNameClusters, setCustomNameClusters] = React.useState(
     getCustomClusterNames(clusters)
   );
@@ -176,21 +185,41 @@ function HomeComponent(props: HomeComponentProps) {
     () => (
       <>
         {ENABLE_RECENT_CLUSTERS && (
-          <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
+          <RecentClusters
+            clusters={Object.values(customNameClusters)}
+            sourceViews={sources}
+            onButtonClick={() => {}}
+          />
         )}
-        <ClusterTable
-          customNameClusters={customNameClusters}
-          versions={versions}
-          errors={errors}
-          warningLabels={warningLabels}
-          clusters={clusters}
-          connectedClusterNames={connectedClusters}
-          onConnectCluster={handleConnectCluster}
-        />
+        <ClusterSourceTabs
+          clusters={customNameClusters}
+          sources={sources ?? []}
+          loading={clusters === null}
+        >
+          {source => (
+            <ClusterTable
+              key={source?.id || 'all'}
+              source={source}
+              sourceViews={sources}
+              customNameClusters={
+                source
+                  ? customNameClusters.filter(cluster => getClusterSource(cluster) === source.id)
+                  : customNameClusters
+              }
+              versions={versions}
+              errors={errors}
+              warningLabels={warningLabels}
+              clusters={clusters}
+              connectedClusterNames={connectedClusters}
+              onConnectCluster={handleConnectCluster}
+            />
+          )}
+        </ClusterSourceTabs>
       </>
     ),
     [
       customNameClusters,
+      sources,
       errors,
       versions,
       warningLabels,
@@ -210,7 +239,7 @@ function HomeComponent(props: HomeComponentProps) {
               label={
                 <>
                   <Icon icon="mdi:hexagon-multiple-outline" />
-                  <Typography>{t('All Clusters')}</Typography>
+                  <Typography>{t('Clusters')}</Typography>
                 </>
               }
               sx={{

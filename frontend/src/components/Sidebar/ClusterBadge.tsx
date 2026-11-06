@@ -23,6 +23,7 @@ import React from 'react';
 export interface ClusterBadgeProps {
   /** Cluster display name */
   name: string;
+  secondary?: string;
   /** Accent color for the circular icon background */
   accentColor?: string;
   /** Icon to display in the badge */
@@ -33,10 +34,26 @@ export interface ClusterBadgeProps {
  * ClusterBadge displays an icon with a colored circle and cluster name
  * Used in the sidebar to show selected clusters
  */
-export default function ClusterBadge({ name, accentColor, icon }: ClusterBadgeProps) {
+export default function ClusterBadge({ name, secondary, accentColor, icon }: ClusterBadgeProps) {
   const theme = useTheme();
   const iconColor = theme.palette.primary.main;
   const backgroundColor = theme.palette.secondary.main;
+
+  const label = (
+    <Typography
+      variant="caption"
+      display={secondary ? 'block' : undefined}
+      sx={{
+        fontSize: '0.875rem',
+        fontWeight: 500,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {name}
+    </Typography>
+  );
 
   return (
     <Box
@@ -71,19 +88,21 @@ export default function ClusterBadge({ name, accentColor, icon }: ClusterBadgePr
         </Box>
       )}
 
-      {/* Cluster name */}
-      <Typography
-        variant="caption"
-        sx={{
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {name}
-      </Typography>
+      {secondary ? (
+        <Box sx={{ minWidth: 0 }}>
+          {label}
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            sx={{ overflowWrap: 'anywhere', whiteSpace: 'normal' }}
+          >
+            {secondary}
+          </Typography>
+        </Box>
+      ) : (
+        label
+      )}
     </Box>
   );
 }

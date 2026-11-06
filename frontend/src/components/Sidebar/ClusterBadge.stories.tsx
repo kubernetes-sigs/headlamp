@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
+import { TestContext } from '../../test';
 import ClusterBadge, { ClusterBadgeProps } from './ClusterBadge';
 
 export default {
@@ -56,3 +58,15 @@ LongName.args = {
   name: 'a-very-long-cluster-name-that-should-be-truncated-with-an-ellipsis',
   icon: 'mdi:kubernetes',
 };
+
+export const LongNameWithSecondary: StoryFn = () => (
+  <TestContext>
+    <Box sx={{ width: 240 }}>
+      <ClusterBadge
+        name="a-very-long-cluster-name-that-should-be-truncated-with-an-ellipsis"
+        secondary="Cluster Inventory API · team-a · direct"
+        icon="mdi:kubernetes"
+      />
+    </Box>
+  </TestContext>
+);

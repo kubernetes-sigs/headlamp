@@ -20,21 +20,8 @@ metadata:
   namespace: default
 type: Opaque
 data:
----
-# Source: headlamp/templates/cluster-inventory-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: headlamp-cluster-inventory
-  namespace: default
-  labels:
-    helm.sh/chart: headlamp-0.46.0
-    app.kubernetes.io/name: headlamp
-    app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.46.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  config.json: "{\"providers\":[{\"execConfig\":{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"command\":\"/access-plugins/secretreader/bin/secretreader-plugin\",\"interactiveMode\":\"Never\",\"provideClusterInfo\":true},\"name\":\"secretreader\"},{\"execConfig\":{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"command\":\"/access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin\",\"interactiveMode\":\"Never\",\"provideClusterInfo\":true},\"name\":\"kubeconfig-secretreader\"}]}"
+  clientID: "aGVhZGxhbXA="
+  issuerURL: "aHR0cHM6Ly9pZHAuZXhhbXBsZS5jb20="
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -123,15 +110,29 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: oidc
+                  key: clientID
+            - name: OIDC_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: oidc
+                  key: issuerURL
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            - "-enable-cluster-inventory"
-            - "-cluster-inventory-provider-file=/etc/cluster-inventory/config.json"
-            - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
+            - "-enable-cluster-api"
+            - "-cluster-api-label-selector=!headlamp.dev/ignore"
+            - "-cluster-api-namespaces=workload-team-a"
             # Check if externalSecret is disabled
+            # Check if clientID is non empty either from env or oidc.config
+            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            # Check if issuerURL is non empty either from env or oidc.config
+            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
           ports:
             - name: http
               containerPort: 4466
@@ -158,26 +159,3 @@ spec:
             failureThreshold: 3
           resources:
             {}
-          volumeMounts:
-            - name: cluster-inventory-config
-              mountPath: /etc/cluster-inventory
-              readOnly: true
-            - name: secretreader
-              mountPath: /access-plugins/secretreader
-              readOnly: true
-            - name: kubeconfig-secretreader
-              mountPath: /access-plugins/kubeconfig-secretreader
-              readOnly: true
-      volumes:
-        - name: cluster-inventory-config
-          configMap:
-            name: headlamp-cluster-inventory
-            items:
-              - key: config.json
-                path: config.json
-        - name: secretreader
-          image:
-            reference: "registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d"
-        - name: kubeconfig-secretreader
-          image:
-            reference: "registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0"

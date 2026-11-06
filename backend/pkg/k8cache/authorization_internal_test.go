@@ -23,6 +23,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestGetResourceAttributesPreservesSelectors(t *testing.T) {
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/api/v1/namespaces/team/pods?fieldSelector=metadata.name%3Dweb&labelSelector=app%3Dweb", nil)
+	request = mux.SetURLVars(request, map[string]string{"api": "api/v1/namespaces/team/pods"})
+
+	attributes, err := getResourceAttributes(request)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	assert.Equal(t, "list", attributes.Verb)
+	assert.Equal(t, "team", attributes.Namespace)
+	assert.Equal(t, "pods", attributes.Resource)
+	assert.Equal(t, "web", attributes.Name)
+	assert.Equal(t, "metadata.name=web", attributes.FieldSelector.RawSelector)
+	assert.Equal(t, "app=web", attributes.LabelSelector.RawSelector)
+}
+
 type resourceAttributesTestCase struct {
 	name                string
 	urlPath             string

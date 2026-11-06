@@ -19,6 +19,7 @@ package main
 import (
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -31,19 +32,18 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 	t.Run("maps basic fields and splits proxy urls", func(t *testing.T) {
 		conf := &config.Config{
-			AppName:                    "Branded Headlamp",
-			Port:                       4444,
-			InCluster:                  true,
-			InClusterContextName:       "test-incluster",
-			InsecureSsl:                true,
-			KubeConfigDir:              "/kubeconfigs",
-			PluginsDir:                 "/plugins",
-			UserPluginsDir:             "/user-plugins",
-			AllowKubeconfigChanges:     true,
-			WatchPluginsChanges:        false,
-			BaseURL:                    "/headlamp",
-			ProxyURLs:                  "http://proxy1,http://proxy2",
-			ClusterInventoryNamespaces: "team-a,team-b",
+			AppName:                "Branded Headlamp",
+			Port:                   4444,
+			InCluster:              true,
+			InClusterContextName:   "test-incluster",
+			InsecureSsl:            true,
+			KubeConfigDir:          "/kubeconfigs",
+			PluginsDir:             "/plugins",
+			UserPluginsDir:         "/user-plugins",
+			AllowKubeconfigChanges: true,
+			WatchPluginsChanges:    false,
+			BaseURL:                "/headlamp",
+			ProxyURLs:              "http://proxy1,http://proxy2",
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
@@ -61,7 +61,6 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Equal(t, "/headlamp", headlampCFG.BaseURL)
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
-		assert.Equal(t, "team-a,team-b", headlampCFG.ClusterInventoryNamespaces)
 	})
 
 	t.Run("empty proxy urls yields empty slice", func(t *testing.T) {
@@ -85,4 +84,24 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, allowed)
 	})
+}
+
+func TestBuildHeadlampCFGDiscoverySources(t *testing.T) {
+	conf := &config.Config{DiscoverySources: map[string]clusterdiscovery.Settings{
+		"cluster_inventory": {Enabled: true, Namespaces: "team-a,team-b"},
+		"cluster_api":       {Enabled: true, Namespaces: "workloads"},
+		"third_source":      {Enabled: true, Namespaces: "another"},
+	}}
+
+	headlampCFG := buildHeadlampCFG(conf, kubeconfig.NewContextStore())
+
+	assert.Equal(t, conf.DiscoverySources, headlampCFG.DiscoverySources)
+}
+
+func TestSplitOIDCScopes(t *testing.T) {
+	assert.Equal(t,
+		[]string{"profile", "email", "offline_access"},
+		splitOIDCScopes("profile, email, , offline_access"),
+	)
+	assert.Empty(t, splitOIDCScopes(" ,\t"))
 }
