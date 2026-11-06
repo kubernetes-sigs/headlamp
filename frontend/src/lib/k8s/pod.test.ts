@@ -17,7 +17,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { post } from './api/v1/clusterRequests';
-import Pod from './pod';
+import { stream } from './api/v1/streamingApi';
+import Pod, { LogOptions } from './pod';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -35,6 +36,11 @@ vi.mock('./api/v1/clusterRequests', async importOriginal => {
       capturedPatchBodies.push(body);
     }),
   };
+});
+
+vi.mock('./api/v1/streamingApi', async importOriginal => {
+  const actual = await importOriginal<typeof import('./api/v1/streamingApi')>();
+  return { ...actual, stream: vi.fn(() => ({ cancel: vi.fn(), failed: () => false })) };
 });
 
 describe('Pod class', () => {
@@ -255,6 +261,41 @@ describe('Pod.addEphemeralContainer targetContainerName', () => {
     const ephemeralContainers = capturedPatchBodies[0]?.spec?.ephemeralContainers;
     expect(ephemeralContainers).toBeDefined();
     expect(ephemeralContainers[0].targetContainerName).toBeUndefined();
+  });
+  describe('getLogs sinceSeconds', () => {
+    const getStreamUrl = (logOptions: LogOptions) => {
+      vi.mocked(stream).mockClear();
+      new Pod({
+        kind: 'Pod',
+        metadata: { name: 'test-pod', namespace: 'default', uid: 'uid-1' },
+      } as any).getLogs('container-1', () => {}, logOptions);
+      return vi.mocked(stream).mock.calls[0][0];
+    };
+
+    it('does not add sinceSeconds by default', () => {
+      expect(getStreamUrl({})).not.toContain('sinceSeconds');
+    });
+
+    it('does not add sinceSeconds when it is zero', () => {
+      expect(getStreamUrl({ sinceSeconds: 0 })).not.toContain('sinceSeconds');
+    });
+
+    it('adds sinceSeconds to the log URL', () => {
+      expect(getStreamUrl({ sinceSeconds: 900 })).toContain('&sinceSeconds=900');
+    });
+
+    it('combines sinceSeconds with tailLines, previous and follow', () => {
+      const url = getStreamUrl({
+        sinceSeconds: 300,
+        tailLines: 1000,
+        showPrevious: true,
+        follow: false,
+      });
+      expect(url).toContain('previous=true');
+      expect(url).toContain('follow=false');
+      expect(url).toContain('&tailLines=1000');
+      expect(url).toContain('&sinceSeconds=300');
+    });
   });
 });
 

@@ -93,12 +93,16 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [formatJsonValues, setFormatJsonValues] = React.useState<boolean>(false);
   const [hasJsonLogs, setHasJsonLogs] = React.useState<boolean>(false);
   const [lines, setLines] = React.useState<number>(100);
+  // Time window in seconds. 0 means all time (no limit).
+  const [sinceSeconds, setSinceSeconds] = React.useState<number>(0);
   const [logs, setLogs] = React.useState<{ logs: string[]; lastLineShown: number }>({
     logs: [],
     lastLineShown: -1,
   });
   const [showReconnectButton, setShowReconnectButton] = React.useState(false);
-  const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
+  // Cleanup of the active log stream (cancels the stream and its pending debounced update),
+  // shared by the log effect and Reconnect.
+  const cancelLogsStreamRef = React.useRef<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
@@ -187,7 +191,32 @@ export function PodLogViewer(props: PodLogViewerProps) {
     }
   }
 
-  const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
+  // Starts a log stream and returns a cleanup that cancels the stream together with
+  // its debounced callback, so a queued batch cannot be applied after the stream is gone.
+  function startLogsStream() {
+    const debounced = _.debounce(setLogsDebounced, 500, options);
+    const cancelStream = item.getLogs(container, debounced, {
+      tailLines: lines,
+      sinceSeconds: sinceSeconds || undefined,
+      showPrevious,
+      showTimestamps,
+      follow,
+      prettifyLogs,
+      formatJsonValues,
+      /**
+       * When the connection is lost, show the reconnect button.
+       * This will stop the current log stream.
+       */
+      onReconnectStop: () => {
+        setShowReconnectButton(true);
+      },
+    });
+    return () => {
+      cancelStream?.();
+      debounced.cancel();
+    };
+  }
+
   React.useEffect(() => {
     const next = getDefaultContainer(item);
     if (next && !container) {
@@ -198,38 +227,31 @@ export function PodLogViewer(props: PodLogViewerProps) {
 
   React.useEffect(
     () => {
-      let callback: any = null;
-
       if (props.open) {
         xtermRef.current?.clear();
         setLogs({ logs: [], lastLineShown: -1 });
         setHasJsonLogs(false);
 
-        callback = item.getLogs(container, debouncedSetState, {
-          tailLines: lines,
-          showPrevious,
-          showTimestamps,
-          follow,
-          prettifyLogs,
-          formatJsonValues,
-          /**
-           * When the connection is lost, show the reconnect button.
-           * This will stop the current log stream.
-           */
-          onReconnectStop: () => {
-            setShowReconnectButton(true);
-          },
-        });
+        cancelLogsStreamRef.current = startLogsStream();
       }
 
       return function cleanup() {
-        if (callback) {
-          callback();
-        }
+        cancelLogsStreamRef.current?.();
+        cancelLogsStreamRef.current = null;
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues]
+    [
+      container,
+      lines,
+      sinceSeconds,
+      open,
+      showPrevious,
+      showTimestamps,
+      follow,
+      prettifyLogs,
+      formatJsonValues,
+    ]
   );
 
   function handleContainerChange(event: any) {
@@ -239,6 +261,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
 
   function handleLinesChange(event: any) {
     setLines(event.target.value);
+  }
+
+  function handleSinceChange(event: any) {
+    setSinceSeconds(event.target.value);
   }
 
   function handlePreviousChange() {
@@ -278,29 +304,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
    */
   function handleReconnect() {
     // If there's an existing log stream, cancel it
-    if (cancelLogsStream) {
-      cancelLogsStream();
-    }
+    cancelLogsStreamRef.current?.();
 
     // Start a new log stream
-    const newCancelLogsStream = item.getLogs(container, debouncedSetState, {
-      tailLines: lines,
-      showPrevious,
-      showTimestamps,
-      follow,
-      prettifyLogs,
-      formatJsonValues,
-      /**
-       * When the connection is lost, show the reconnect button.
-       * This will stop the current log stream.
-       */
-      onReconnectStop: () => {
-        setShowReconnectButton(true);
-      },
-    });
-
-    // Set the cancelLogsStream function to the new one
-    setCancelLogsStream(() => newCancelLogsStream);
+    cancelLogsStreamRef.current = startLogsStream();
 
     // Hide the reconnect button
     setShowReconnectButton(false);
@@ -375,6 +382,24 @@ export function PodLogViewer(props: PodLogViewerProps) {
               </MenuItem>
             ))}
             <MenuItem value={-1}>All</MenuItem>
+          </Select>
+        </FormControl>,
+        <FormControl sx={{ minWidth: '8rem' }}>
+          <InputLabel shrink id="container-since-chooser-label">
+            {t('translation|Since')}
+          </InputLabel>
+          <Select
+            labelId="container-since-chooser-label"
+            id="container-since-chooser"
+            value={sinceSeconds}
+            onChange={handleSinceChange}
+          >
+            <MenuItem value={0}>{t('translation|All time')}</MenuItem>
+            <MenuItem value={300}>{t('translation|Last 5 minutes')}</MenuItem>
+            <MenuItem value={900}>{t('translation|Last 15 minutes')}</MenuItem>
+            <MenuItem value={3600}>{t('translation|Last hour')}</MenuItem>
+            <MenuItem value={21600}>{t('translation|Last 6 hours')}</MenuItem>
+            <MenuItem value={86400}>{t('translation|Last 24 hours')}</MenuItem>
           </Select>
         </FormControl>,
         <LightTooltip

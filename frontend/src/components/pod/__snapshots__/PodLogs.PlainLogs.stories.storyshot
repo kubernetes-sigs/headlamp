@@ -187,6 +187,55 @@
               <div
                 class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
+                <div
+                  class="MuiFormControl-root css-1kwzpar-MuiFormControl-root"
+                >
+                  <label
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
+                    data-shrink="true"
+                    id="container-since-chooser-label"
+                  >
+                    Since
+                  </label>
+                  <div
+                    class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                  >
+                    <div
+                      aria-controls=":mock-test-id:"
+                      aria-expanded="false"
+                      aria-haspopup="listbox"
+                      aria-labelledby="container-since-chooser-label container-since-chooser"
+                      class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input css-9t3t1q-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                      id="container-since-chooser"
+                      role="combobox"
+                      tabindex="0"
+                    >
+                      All time
+                    </div>
+                    <input
+                      aria-hidden="true"
+                      aria-invalid="false"
+                      class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                      tabindex="-1"
+                      value="0"
+                    />
+                    <svg
+                      aria-hidden="true"
+                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconStandard css-pqjvzy-MuiSvgIcon-root-MuiSelect-icon"
+                      data-testid="ArrowDropDownIcon"
+                      focusable="false"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M7 10l5 5 5-5z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
                 <label
                   aria-label="You can only select this option for containers that have been restarted."
                   class="MuiFormControlLabel-root Mui-disabled MuiFormControlLabel-labelPlacementEnd css-10aumk-MuiFormControlLabel-root"
