@@ -181,8 +181,24 @@ spec:
               mountPath: /config
             - name: headlamp-plugins-tmp
               mountPath: /tmp
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - for exe in /proc/[0-9]*/exe; do case "$(readlink "$exe" 2>/dev/null)" in */node) exit 0;; esac; done; exit 1
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
           resources:
-            null
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
           securityContext:
             readOnlyRootFilesystem: true
       volumes:
