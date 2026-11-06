@@ -417,7 +417,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 
 	go func(h *Handler) {
-		h.uninstallRelease(req, actionConfig)
+		h.uninstallRelease(req, actionConfig, context.Background())
 	}(h)
 
 	response := map[string]string{
@@ -437,11 +437,22 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 }
 
-func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) uninstallRelease(
+	req UninstallReleaseRequest,
+	actionConfig *action.Configuration,
+	ctx context.Context,
+) {
 	// Get uninstall client
 	uninstallClient := action.NewUninstall(actionConfig)
 
 	status := success
+
+	if ctx.Err() != nil {
+		status = failed
+		h.setReleaseStatusSilent("uninstall", req.Name, status, ctx.Err())
+
+		return
+	}
 
 	_, err := uninstallClient.Run(req.Name)
 	if err != nil {
@@ -513,7 +524,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	go func(h *Handler) {
-		h.rollbackRelease(req, actionConfig)
+		h.rollbackRelease(req, actionConfig, context.Background())
 	}(h)
 
 	response := map[string]string{
@@ -532,11 +543,18 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 }
 
-func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration, ctx context.Context) {
 	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
 	status := success
+
+	if ctx.Err() != nil {
+		status = failed
+		h.setReleaseStatusSilent("rollback", req.Name, status, ctx.Err())
+
+		return
+	}
 
 	err := rollbackClient.Run(req.Name)
 	if err != nil {
@@ -627,7 +645,7 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	}
 
 	go func(h *Handler) {
-		h.installRelease(req, actionConfig)
+		h.installRelease(req, actionConfig, context.Background())
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
@@ -690,7 +708,7 @@ func (h *Handler) getChart(
 
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
-func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
+func VerifyUser(actionConfig *action.Configuration, req InstallRequest, ctx context.Context) bool {
 	restConfig, err := actionConfig.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError,
@@ -709,7 +727,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 		return false
 	}
 
-	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(),
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(ctx,
 		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
 		logger.Log(logger.LevelError,
@@ -729,7 +747,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	return true
 }
 
-func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
+func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration, ctx context.Context) {
 	installClient := action.NewInstall(actionConfig)
 	installClient.ReleaseName = req.Name
 	installClient.Namespace = req.Namespace
@@ -737,7 +755,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.Version = req.Version
 
-	if !VerifyUser(actionConfig, req) {
+	if !VerifyUser(actionConfig, req, ctx) {
 		return
 	}
 
@@ -768,7 +786,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 		return
 	}
 
-	if _, err = installClient.Run(chart, values); err != nil {
+	if _, err = installClient.RunWithContext(ctx, chart, values); err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "installing chart")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
@@ -828,7 +846,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	}
 
 	go func(h *Handler) {
-		h.upgradeRelease(req, actionConfig)
+		h.upgradeRelease(req, actionConfig, context.Background())
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
@@ -855,7 +873,7 @@ func (h *Handler) logActionState(zlog *zerolog.Event,
 	h.setReleaseStatusSilent(action, releaseName, status, err)
 }
 
-func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration, ctx context.Context) {
 	// find chart
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
@@ -885,7 +903,7 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	}
 
 	// Upgrade chart
-	_, err = upgradeClient.Run(req.Name, chart, values)
+	_, err = upgradeClient.RunWithContext(ctx, req.Name, chart, values)
 	if err != nil {
 		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "chart upgrade failed")
 		return
