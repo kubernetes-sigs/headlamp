@@ -187,6 +187,8 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 		return err
 	}
 
+	r.CachePath = settings.RepositoryCache
+
 	_, err = r.DownloadIndexFile()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "downloading index file")
