@@ -16,7 +16,7 @@
 
 import merge from 'lodash/merge';
 import React from 'react';
-import { useHistory } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
@@ -430,6 +430,7 @@ export function useURLState<T extends string | number | undefined = string>(
     typeof paramsOrDefault === 'object' ? paramsOrDefault : { defaultValue: paramsOrDefault };
   const { defaultValue, hideDefault = true, prefix = '' } = params;
   const history = useHistory();
+  const location = useLocation();
   // Don't even use the prefix if the key is empty
   const fullKey = !key ? '' : !!prefix ? prefix + '.' + key : key;
 
@@ -467,6 +468,9 @@ export function useURLState<T extends string | number | undefined = string>(
 
   React.useEffect(
     () => {
+      if (fullKey === '') {
+        return;
+      }
       const newValue = getURLValue();
       if (newValue === null) {
         if (defaultValue !== undefined && defaultValue !== value) {
@@ -477,7 +481,7 @@ export function useURLState<T extends string | number | undefined = string>(
       }
     },
     // eslint-disable-next-line
-    [history]
+    [history, location.search]
   );
 
   React.useEffect(() => {
