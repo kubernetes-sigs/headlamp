@@ -350,3 +350,25 @@ func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 		assert.Contains(t, w2.Body.String(), "next handler called")
 	})
 }
+
+func TestGetClientSet_ClusterIDWithPlusErrorFormatting(t *testing.T) {
+	// Set a custom clientset creator that always returns an error
+	restore := k8cache.SetClientsetCreator(func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+		return nil, fmt.Errorf("simulated connection failure")
+	})
+	defer restore()
+
+	ctx := &kubeconfig.Context{
+		ClusterID:   "/home/user/.kubeconfig+prod+cluster+name",
+		Cluster:     &api.Cluster{Server: "https://example.com"},
+		AuthInfo:    &api.AuthInfo{Token: "abcdef"},
+		KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
+	}
+
+	_, err := k8cache.GetClientSet("prod+cluster+name", ctx, "some-token")
+	assert.Error(t, err)
+
+	if err != nil {
+		assert.Contains(t, err.Error(), "error while creating clientset for cluster prod+cluster+name")
+	}
+}
