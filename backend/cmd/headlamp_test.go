@@ -164,6 +164,36 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 	require.Error(t, err)
 }
 
+// TestCreateHeadlampHandlerDevModeExposesWarningHeader checks that in dev mode the
+// frontend, served from another origin, is allowed to read the Warning header that
+// the Kubernetes API server uses to report warnings.
+func TestCreateHeadlampHandlerDevModeExposesWarningHeader(t *testing.T) {
+	setupTestEnv(t)
+
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				DevMode:         true,
+				KubeConfigDir:   t.TempDir(),
+				PluginDir:       t.TempDir(),
+				UserPluginDir:   t.TempDir(),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Contains(t, rr.Header().Get("Access-Control-Expose-Headers"), "Warning")
+}
+
 // TestCreateHeadlampHandlerTracesRequests checks that the handler serving Headlamp
 // requests is traced, and that its request span continues an incoming trace.
 //

@@ -20,6 +20,7 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { subscribeToApiWarnings } from './apiWarnings';
 import { clusterRequest } from './clusterRequests';
 
 vi.mock('../../../../helpers/addBackstageAuthHeaders', () => ({
@@ -155,5 +156,93 @@ describe('clusterRequest transports', () => {
     await vi.advanceTimersByTimeAsync(100);
 
     await expectation;
+  });
+
+  describe('API server warnings', () => {
+    const PSA_WARNING =
+      'would violate PodSecurity "restricted:latest": privileged (container "c" must not set securityContext.privileged=true)';
+
+    function responseWithWarnings(status: number, ...warnings: string[]) {
+      const headers = new Headers();
+      warnings.forEach(warning =>
+        headers.append('Warning', `299 - "${warning.replace(/"/g, '\\"')}"`)
+      );
+      return new Response(JSON.stringify({ kind: 'Pod' }), { status, headers });
+    }
+
+    let received: string[][];
+    let unsubscribe: () => void;
+
+    beforeEach(() => {
+      received = [];
+      unsubscribe = subscribeToApiWarnings(warnings => received.push(warnings));
+    });
+
+    afterEach(() => {
+      unsubscribe();
+    });
+
+    it('reports the warnings of a write', async () => {
+      (fetch as Mock).mockResolvedValue(
+        responseWithWarnings(201, PSA_WARNING, 'unknown field "bogus"')
+      );
+
+      await clusterRequest('/api/v1/namespaces/psa-test/pods', {
+        method: 'POST',
+        cluster: 'desktop-cluster',
+      });
+
+      expect(received).toEqual([[PSA_WARNING, 'unknown field "bogus"']]);
+    });
+
+    it.each(['PUT', 'PATCH', 'DELETE', 'post'])('reports the warnings of a %s', async method => {
+      (fetch as Mock).mockResolvedValue(responseWithWarnings(200, PSA_WARNING));
+
+      await clusterRequest('/api/v1/namespaces/psa-test/pods/p', { method });
+
+      expect(received).toEqual([[PSA_WARNING]]);
+    });
+
+    it('does not report the warnings of a read', async () => {
+      (fetch as Mock).mockImplementation(() =>
+        Promise.resolve(responseWithWarnings(200, 'v1 Endpoints is deprecated'))
+      );
+
+      await clusterRequest('/api/v1/endpoints');
+      await clusterRequest('/api/v1/endpoints', { method: 'GET' });
+
+      expect(received).toEqual([]);
+    });
+
+    it('does not report anything when the response has no warnings', async () => {
+      (fetch as Mock).mockResolvedValue(new Response(JSON.stringify({}), { status: 201 }));
+
+      await clusterRequest('/api/v1/namespaces/psa-test/pods', { method: 'POST' });
+
+      expect(received).toEqual([]);
+    });
+
+    it('does not report warnings of a request that failed', async () => {
+      (fetch as Mock).mockResolvedValue(
+        new Response(JSON.stringify({ message: 'forbidden' }), {
+          status: 403,
+          headers: { Warning: '299 - "ignored"' },
+        })
+      );
+
+      await expect(
+        clusterRequest('/api/v1/namespaces/psa-test/pods', { method: 'POST' })
+      ).rejects.toMatchObject({ status: 403 });
+
+      expect(received).toEqual([]);
+    });
+
+    it('still returns the body of a write that had warnings', async () => {
+      (fetch as Mock).mockResolvedValue(responseWithWarnings(201, PSA_WARNING));
+
+      const result = await clusterRequest('/api/v1/namespaces/psa-test/pods', { method: 'POST' });
+
+      expect(result).toEqual({ kind: 'Pod' });
+    });
   });
 });
