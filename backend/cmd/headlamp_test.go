@@ -758,6 +758,50 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	}
 }
 
+// TestGetClustersOriginalName checks that originalName is the name the context has in the
+// kubeconfig file, also after the context gets a custom name.
+func TestGetClustersOriginalName(t *testing.T) {
+	tests := []struct {
+		name        string
+		contextName string
+		customName  string
+	}{
+		{name: "renamed context", contextName: "minikube", customName: "mk-renamed"},
+		{name: "renamed context whose name is not DNS friendly", contextName: "team/dev", customName: "dev"},
+		{name: "context whose name is not DNS friendly", contextName: "prod/us"},
+		{name: "context with its kubeconfig name", contextName: "kind-dev"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _, _, name := newClusterDeletionTestConfig(t, tt.contextName, tt.customName, false)
+
+			clustersByName := map[string]Cluster{}
+			for _, cluster := range c.getClusters() {
+				clustersByName[cluster.Name] = cluster
+			}
+
+			require.Contains(t, clustersByName, name)
+			assert.Equal(t, tt.contextName, clustersByName[name].Metadata["originalName"])
+		})
+	}
+
+	t.Run("context that does not come from a kubeconfig file", func(t *testing.T) {
+		kubeConfigStore := kubeconfig.NewContextStore()
+		require.NoError(t, kubeConfigStore.AddContext(clusterInventoryConfigContext()))
+
+		c := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			},
+		}
+
+		clusters := c.getClusters()
+		require.Len(t, clusters, 1)
+		assert.Equal(t, clusters[0].Name, clusters[0].Metadata["originalName"])
+	})
+}
+
 func TestGetClustersClusterInventorySource(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	require.NoError(t, kubeConfigStore.AddContext(clusterInventoryConfigContext()))
