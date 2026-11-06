@@ -140,6 +140,34 @@ describe('Pod class', () => {
     expect(status.reason).toBe('ExitCode:1');
   });
 
+  it('returns SchedulingGated for a pending pod held back by scheduling gates', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.spec.schedulingGates = [{ name: 'example.com/gate' }];
+    data.status = {
+      phase: 'Pending',
+      conditions: [
+        {
+          type: 'PodScheduled',
+          status: 'False',
+          reason: 'SchedulingGated',
+          message: 'Scheduling is blocked due to non-empty scheduling gates',
+        },
+      ],
+    };
+    const pod = new Pod(data);
+    expect(pod.getDetailedStatus().reason).toBe('SchedulingGated');
+  });
+
+  it('keeps Pending for an unschedulable pod', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.status = {
+      phase: 'Pending',
+      conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable' }],
+    };
+    const pod = new Pod(data);
+    expect(pod.getDetailedStatus().reason).toBe('Pending');
+  });
+
   describe('getHealth', () => {
     const makePod = (status: any, metadata: any = {}) =>
       new Pod({
