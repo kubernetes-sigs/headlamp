@@ -101,23 +101,20 @@ describe('Import tests', () => {
     });
   });
 
-  // todo: currently it fails because of the bug in vitest
-  // wait for it to be fixed or we can try to fix cyclic dependencies in the code
-  // https://github.com/vitest-dev/vitest/issues/4143
-  //
-  // test('Check imports', async () => {
-  //   filesToVerify.forEach((file: string) => {
-  //     const r = require(`./${file}`);
+  test('Check imports', async () => {
+    const AllComps = await import('./index');
+    for (const file of filesToVerify) {
+      const r = await import(`./${file}`);
 
-  //     // Check that all components are exported.
-  //     for (const key in r) {
-  //       if (key === 'default') {
-  //         // If default, then we try to import by file name.
-  //         expect(AllComps).toHaveProperty(file);
-  //       } else {
-  //         expect(AllComps).toHaveProperty(key);
-  //       }
-  //     }
-  //   });
-  // });
+      // Check that all components are exported.
+      for (const key in r) {
+        if (key === 'default') {
+          // If default, then we try to import by file name.
+          expect(AllComps).toHaveProperty(file);
+        } else {
+          expect(AllComps).toHaveProperty(key);
+        }
+      }
+    }
+  }, 30000);
 });

@@ -25,7 +25,7 @@ import type { ApiError } from './k8s/api/v2/ApiError';
 import type { KubeMetrics } from './k8s/cluster';
 import type { KubeEvent } from './k8s/event';
 import type { KubeObjectInterface } from './k8s/KubeObject';
-import Node from './k8s/node';
+import type Node from './k8s/node';
 import type { Workload } from './k8s/Workload';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 

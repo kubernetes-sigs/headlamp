@@ -34,6 +34,7 @@ vi.mock('../../lib/k8s/event', () => ({
 vi.mock('../common/ObjectEventList', () => ({ default: () => null }));
 vi.mock('./Home', () => ({ default: () => null }));
 
+import '../../lib/router/index';
 import { useCluster } from '../../lib/k8s';
 import RouteSwitcher from './RouteSwitcher';
 
