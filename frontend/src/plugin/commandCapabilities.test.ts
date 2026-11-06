@@ -132,6 +132,7 @@ describe('preparePluginCommandCapabilities', () => {
         source: 'shipped',
         capability: 'secret',
         clusterRegistrationProviders: ['example'],
+        githubOAuth: true,
       },
     ];
     const bridge = { register: vi.fn().mockResolvedValue(capabilities) };
