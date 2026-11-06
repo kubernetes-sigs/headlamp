@@ -519,13 +519,20 @@ export async function fetchAndExecutePlugins(
       fetchPluginResource(
         `${getAppUrl()}${path}/main.js`,
         headers,
-        response => response.text(),
+        response => {
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch plugin main.js for ${path}: HTTP ${response.status} ${response.statusText}`
+            );
+          }
+          return response.text();
+        },
         remainingStartupTime(deadline)
       )
     )
   );
 
-  const packageInfosPromise = await Promise.all<PluginInfo>(
+  const packageInfosPromise = Promise.all<PluginInfo>(
     pluginPaths.map((path, index) =>
       fetchPluginResource(
         `${getAppUrl()}${path}/package.json`,
@@ -564,8 +571,11 @@ export async function fetchAndExecutePlugins(
     )
   );
 
-  const sources = await sourcesPromise;
-  const packageInfos = await packageInfosPromise;
+  // Await both batches together. Awaiting them one after the other would leave
+  // the other promise without a rejection handler in the meantime, so a main.js
+  // that fails while package.json requests are still in flight would surface as
+  // an unhandled rejection before the plugin load error handling ever sees it.
+  const [sources, packageInfos] = await Promise.all([sourcesPromise, packageInfosPromise]);
   const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
