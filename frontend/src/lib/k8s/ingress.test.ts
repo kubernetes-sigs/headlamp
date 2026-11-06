@@ -94,6 +94,8 @@ describe('Ingress class', () => {
       expect(base.spec.rules).toHaveLength(1);
       expect(base.spec.rules![0].host).toBe('');
       expect(base.spec.rules![0].http?.paths).toHaveLength(1);
+      expect(base.spec.rules![0].http!.paths[0].path).toBe('');
+      expect((base.spec.rules![0].http!.paths[0] as { pathType?: string }).pathType).toBe('Prefix');
       const defaultBackend = base.spec.rules![0].http!.paths[0].backend as IngressBackend;
       expect(defaultBackend.service!.name).toBe('');
       expect(defaultBackend.service!.port!.number).toBe(80);
