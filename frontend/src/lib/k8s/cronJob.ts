@@ -42,6 +42,7 @@ export interface KubeCronJob extends KubeObjectInterface {
           spec: {
             metadata?: Partial<KubeMetadata>;
             containers: KubeContainer[];
+            restartPolicy?: 'Never' | 'OnFailure';
           };
         };
       };
@@ -86,6 +87,7 @@ class CronJob extends KubeObject<KubeCronJob> {
         spec: {
           template: {
             spec: {
+              restartPolicy: 'Never',
               containers: [
                 {
                   name: '',
