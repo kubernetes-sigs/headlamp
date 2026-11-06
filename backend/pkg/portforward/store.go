@@ -20,9 +20,16 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+)
+
+var (
+	storeMu             sync.Mutex
+	nextGeneration      uint64
+	stopOrDeleteBarrier func()
 )
 
 const storeKeyPrefix = "PORT_FORWARD_"
@@ -52,14 +59,22 @@ func portforwardKeyGenerator(p portForward) string {
 	return key
 }
 
-// portforwardstore stores a port forward in the cache.
-func portforwardstore(cache cache.Cache[interface{}], p portForward) {
+// portforwardstoreLocked stores a port forward in the cache, assuming storeMu is held.
+func portforwardstoreLocked(cache cache.Cache[interface{}], p portForward) {
 	key := portforwardKeyGenerator(p)
 
 	err := cache.Set(context.Background(), key, p)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "storing portforward")
 	}
+}
+
+// portforwardstore stores a port forward in the cache.
+func portforwardstore(cache cache.Cache[interface{}], p portForward) {
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	portforwardstoreLocked(cache, p)
 }
 
 // stopOrDeletePortForward stops or deletes a port forward by its cluster and id.
@@ -76,16 +91,52 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 		return err
 	}
 
+	// Retire the resolved instance before closing its channel so any pending or
+	// waking terminal writer skips publishing STOPPED to the cache.
+	if portforward.state != nil {
+		portforward.state.mu.Lock()
+		portforward.state.retired = true
+		safeCloseChan(portforward.state.closeChan)
+		portforward.state.mu.Unlock()
+	}
+
 	// Always signal the portforward to stop, whether it's a stop or delete request.
 	// This prevents orphaned goroutines and leaked ports.
 	safeCloseChan(portforward.closeChan)
 
+	if stopOrDeleteBarrier != nil {
+		stopOrDeleteBarrier()
+	}
+
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	// Conditional cache update: only mutate if the cache entry is still this exact instance.
+	current, err := getPortForwardByID(cache, cluster, id)
+	if err != nil {
+		// Entry no longer in cache; nothing to delete or update.
+		return nil
+	}
+
+	if current.generation > portforward.generation ||
+		(current.generation == portforward.generation && portforward.state != nil && current.state != portforward.state) {
+		// A replacement instance has been stored under the same key; preserve it.
+		return nil
+	}
+
+	key := portforwardKeyGenerator(current)
+
 	if isStopRequest {
-		portforward.Status = STOPPED
-		portforwardstore(cache, portforward)
+		current.Status = STOPPED
+
+		if err := cache.Set(context.Background(), key, current); err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": cluster, "id": id},
+				err, "storing stopped portforward")
+
+			return err
+		}
 	} else {
-		err := cache.Delete(context.Background(), portforwardKeyGenerator(portforward))
-		if err != nil {
+		if err := cache.Delete(context.Background(), key); err != nil {
 			logger.Log(logger.LevelError, map[string]string{"cluster": cluster, "id": id},
 				err, "deleting portforward")
 
