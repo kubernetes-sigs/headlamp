@@ -14,7 +14,21 @@
  * limitations under the License.
  */
 
-import { beforePluginStartupDeadline } from './index';
+import { beforePluginStartupDeadline, isPluginDevelopmentMode } from './index';
+
+describe('isPluginDevelopmentMode', () => {
+  it('uses Electron development mode for a production renderer build', () => {
+    expect(isPluginDevelopmentMode(true, 'production')).toBe(true);
+  });
+
+  it('does not trust renderer development mode in a packaged Electron host', () => {
+    expect(isPluginDevelopmentMode(false, 'development')).toBe(false);
+  });
+
+  it('uses renderer development mode outside Electron', () => {
+    expect(isPluginDevelopmentMode(undefined, 'development')).toBe(true);
+  });
+});
 
 describe('beforePluginStartupDeadline', () => {
   afterEach(() => {

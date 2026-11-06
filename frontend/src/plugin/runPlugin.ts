@@ -61,6 +61,14 @@ export type runPluginProps = [
 const privateApply = Reflect.apply;
 const privateConstruct = Reflect.construct;
 const privateCreate = Object.create;
+const privateAtob = atob;
+const privateBtoa = btoa;
+const privateJsonParse = JSON.parse;
+const privateJsonStringify = JSON.stringify;
+const privateStringCharCodeAt = String.prototype.charCodeAt;
+const privateStringLastIndexOf = String.prototype.lastIndexOf;
+const privateStringRepeat = String.prototype.repeat;
+const privateStringSlice = String.prototype.slice;
 
 /**
  * Prepares the information needed to run a plugin with the `runPlugin` function.
@@ -150,29 +158,46 @@ export function getInfoForRunningPlugins({
 export function adjustSourceMapOffsetForFunction(jsSource: string) {
   try {
     const marker = '//# sourceMappingURL=data:application/json;charset=utf-8;base64,';
-    const markerIndex = jsSource.lastIndexOf(marker);
+    const markerIndex = privateApply(privateStringLastIndexOf, jsSource, [marker]);
 
     if (markerIndex === -1) {
       return jsSource;
     }
 
     const base64Start = markerIndex + marker.length;
-    const base64Data = jsSource.slice(base64Start).split(/[\s\n]/)[0];
+    const sourceMapTail = privateApply(privateStringSlice, jsSource, [base64Start]);
+    let base64Length = sourceMapTail.length;
+    for (let index = 0; index < sourceMapTail.length; index += 1) {
+      const charCode = privateApply(privateStringCharCodeAt, sourceMapTail, [index]);
+      if (
+        charCode === 9 ||
+        charCode === 10 ||
+        charCode === 11 ||
+        charCode === 12 ||
+        charCode === 13 ||
+        charCode === 32
+      ) {
+        base64Length = index;
+        break;
+      }
+    }
+    const base64Data = privateApply(privateStringSlice, sourceMapTail, [0, base64Length]);
 
-    const sourceMap = JSON.parse(atob(base64Data));
+    const sourceMap = privateJsonParse(privateAtob(base64Data));
 
     if (typeof sourceMap.mappings !== 'string') {
       return jsSource;
     }
 
     const wrapperLineCount = 2;
-    sourceMap.mappings = ';'.repeat(wrapperLineCount) + sourceMap.mappings;
+    sourceMap.mappings =
+      privateApply(privateStringRepeat, ';', [wrapperLineCount]) + sourceMap.mappings;
 
-    const newBase64 = btoa(JSON.stringify(sourceMap));
+    const newBase64 = privateBtoa(privateJsonStringify(sourceMap));
     const newSourceMapComment = `//# sourceMappingURL=data:application/json;charset=utf-8;base64,${newBase64}`;
 
-    const before = jsSource.slice(0, markerIndex);
-    const after = jsSource.slice(base64Start + base64Data.length);
+    const before = privateApply(privateStringSlice, jsSource, [0, markerIndex]);
+    const after = privateApply(privateStringSlice, jsSource, [base64Start + base64Data.length]);
 
     return before + newSourceMapComment + after;
   } catch (error) {
@@ -205,11 +230,6 @@ export function runPlugin(
   args: string[],
   values: unknown[]
 ): void {
-  // Build the Function constructor argument list by index. Iterating `args`
-  // would let an earlier plugin replace a parameter name with destructuring code
-  // that exports a private value while the generated function binds arguments.
-  // A null prototype prevents inherited numeric getters or setters from changing
-  // the parameter strings written to and read from this array-like object.
   const constructorArgs = privateCreate(null) as Record<number, string> & { length: number };
   constructorArgs.length = args.length + 1;
   for (let index = 0; index < args.length; index += 1) {
@@ -217,21 +237,11 @@ export function runPlugin(
   }
   constructorArgs[args.length] = adjustSourceMapOffsetForFunction(source);
 
-  // Use the private Function reference and avoid the mutable array iterator.
-  const executePlugin = privateConstruct(PrivateFunction, constructorArgs) as Function;
-
   try {
-    // This executes in the global scope,
-    //   so the plugin can't access variables in this scope.
-    // Meaning, it can NOT access "permissionSecrets".
-    // Each plugin gets its own "pluginPermissionSecrets" which contains only the secrets
-    //   that it is allowed to access.
-    // Avoid spread syntax here: it would expose values to a mutable global array
-    // iterator. `undefined` is the receiver because generated plugin functions do
-    // not use a privileged `this`; `values` becomes their positional arguments.
+    const executePlugin = privateConstruct(PrivateFunction, constructorArgs) as Function;
     privateApply(executePlugin, undefined, values);
-  } catch (e) {
-    handleError(e, packageName, packageVersion);
+  } catch (error) {
+    handleError(error, packageName, packageVersion);
   }
 }
 
@@ -286,7 +296,11 @@ export function identifyPackages(
       'user-plugins/headlamp_ai_assistantprerelease',
       'static-plugins/headlamp_ai_assistantprerelease',
     ],
-    'azure-aks': ['plugins/azure-aks', 'static-plugins/azure-aks', 'user-plugins/azure-aks'],
+    'aks-desktop': [
+      'plugins/aks-desktop',
+      'static-plugins/aks-desktop',
+      'user-plugins/aks-desktop',
+    ],
   };
 
   if (isDevelopmentMode) {
@@ -303,7 +317,7 @@ export function identifyPackages(
       '@headlamp-k8s/ai-assistant',
       '@headlamp-k8s/ai-assistantprerelease',
     ],
-    'azure-aks': ['azure-aks'],
+    'aks-desktop': ['aks-desktop'],
   };
   const isPackage: Record<string, boolean> = {};
   for (const key in pluginPaths) {
