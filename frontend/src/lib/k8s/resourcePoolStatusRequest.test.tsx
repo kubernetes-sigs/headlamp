@@ -214,7 +214,10 @@ describe('requestPoolStatus', () => {
 
     expect((await result).isComplete).toBe(true);
     expect(mockRequest).toHaveBeenCalledTimes(2);
-    expect(mockRequest).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+    expect(mockRequest).toHaveBeenCalledWith(`${url}/${name}`, {
+      cluster,
+      timeout: expect.any(Number),
+    });
   });
 
   it('returns a failed request, and removes it', async () => {
@@ -237,6 +240,50 @@ describe('requestPoolStatus', () => {
 
     await rejection;
     expect(mockRemove).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+  });
+
+  it('gives up at the deadline on an answer that is slow to arrive', async () => {
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockImplementation(
+      (_url: string, { timeout }: { timeout: number }) =>
+        new Promise((_resolve, reject) =>
+          setTimeout(
+            () => reject(Object.assign(new Error('Request timed-out'), { status: 408 })),
+            timeout
+          )
+        )
+    );
+
+    const result = requestPoolStatus(spec, cluster);
+    const rejection = expect(result).rejects.toBeInstanceOf(PoolStatusRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await rejection;
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest).toHaveBeenCalledWith(`${url}/${name}`, { cluster, timeout: 29_000 });
+    expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not wait for the removal to answer', async () => {
+    mockPost.mockResolvedValue(complete);
+    mockRemove.mockReturnValue(new Promise(() => {}));
+
+    await expect(requestPoolStatus(spec, cluster)).resolves.toBeInstanceOf(
+      ResourcePoolStatusRequest
+    );
+    expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not delay giving up on the removal answering', async () => {
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockResolvedValue(makeRequest());
+    mockRemove.mockReturnValue(new Promise(() => {}));
+
+    const result = requestPoolStatus(spec, cluster);
+    const rejection = expect(result).rejects.toBeInstanceOf(PoolStatusRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await rejection;
   });
 
   it('removes the request when asking for it fails', async () => {

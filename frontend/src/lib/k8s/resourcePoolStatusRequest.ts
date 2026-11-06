@@ -16,6 +16,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { post, remove, request } from './api/v1/clusterRequests';
+import type { ApiError } from './api/v2/ApiError';
 import type { KubeCondition } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -120,6 +121,7 @@ export default ResourcePoolStatusRequest;
 
 const POOL_STATUS_TIMEOUT_MS = 30_000;
 const POOL_STATUS_POLL_INTERVAL_MS = 1_000;
+const REQUEST_TIMED_OUT_STATUS = 408;
 
 export class PoolStatusRequestTimeoutError extends Error {
   constructor(driver: string) {
@@ -157,17 +159,32 @@ export async function requestPoolStatus(
     let current = new ResourcePoolStatusRequest(created, cluster);
 
     while (current.isPending) {
-      if (Date.now() >= deadline) {
+      await new Promise(resolve =>
+        setTimeout(resolve, Math.min(POOL_STATUS_POLL_INTERVAL_MS, deadline - Date.now()))
+      );
+
+      const timeout = deadline - Date.now();
+      if (timeout <= 0) {
         throw new PoolStatusRequestTimeoutError(spec.driver);
       }
-      await new Promise(resolve => setTimeout(resolve, POOL_STATUS_POLL_INTERVAL_MS));
-      current = new ResourcePoolStatusRequest(await request(requestUrl, { cluster }), cluster);
+
+      try {
+        current = new ResourcePoolStatusRequest(
+          await request(requestUrl, { cluster, timeout }),
+          cluster
+        );
+      } catch (err) {
+        throw (err as ApiError).status === REQUEST_TIMED_OUT_STATUS
+          ? new PoolStatusRequestTimeoutError(spec.driver)
+          : err;
+      }
     }
 
     return current;
   } finally {
-    // A user allowed to create but not delete leaves it to the controller's cleanup.
-    await remove(requestUrl, { cluster }).catch(() => {});
+    // Not awaited, so a slow removal cannot extend the wait. A user allowed to create but not
+    // delete leaves it to the controller's cleanup.
+    remove(requestUrl, { cluster }).catch(() => {});
   }
 }
 
