@@ -2700,6 +2700,16 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 	return clusters
 }
 
+// originalContextName returns the name the context has in the kubeconfig file. Name becomes the
+// custom name after a rename, so it is only used for contexts that don't come from a kubeconfig.
+func originalContextName(context *kubeconfig.Context) string {
+	if context.KubeConfigContextName != "" {
+		return context.KubeConfigContextName
+	}
+
+	return context.Name
+}
+
 // parseCustomNameClusters parses the custom name clusters from the kubeconfig.
 func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error) {
 	clusters := []Cluster{}
@@ -4135,7 +4145,7 @@ func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
 		"origin": map[string]interface{}{
 			"kubeconfig": context.KubeConfigPath,
 		},
-		"originalName":    context.Name,
+		"originalName":    originalContextName(context),
 		logFieldClusterID: context.ClusterID,
 	}
 
