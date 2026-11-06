@@ -25,6 +25,7 @@ import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
+import DeviceTaintRule from '../../lib/k8s/deviceTaintRule';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PodGroup from '../../lib/k8s/podGroup';
 import { useIsResourceServed } from '../../lib/k8s/resourceAvailability';
@@ -97,6 +98,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   // Dynamic resource allocation is stable from Kubernetes 1.34, so only show the
   // Devices section on clusters that serve resource.k8s.io/v1.
   const devicesEnabled = useIsResourceServed(DeviceClass);
+  const deviceTaintRulesEnabled = useIsResourceServed(DeviceTaintRule);
 
   // CompositePodGroup needs its own feature gate on top, and unlike the flat resources
   // it is only ever served by v1alpha3, so ask for the resource itself.
@@ -495,7 +497,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     if (devicesEnabled) {
       inClusterItems.push({
         name: 'devices',
-        label: t('glossary|Devices (alpha)'),
+        label: t('translation|Devices'),
         icon: 'mdi:expansion-card',
         subList: [
           {
@@ -510,6 +512,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'resourceClaimTemplates',
             label: t('glossary|Resource Claim Templates'),
           },
+          ...(deviceTaintRulesEnabled
+            ? [
+                {
+                  name: 'deviceTaintRules',
+                  label: t('translation|Device Taint Rules'),
+                },
+              ]
+            : []),
         ],
       });
     }

@@ -41,6 +41,8 @@ import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
 import DeviceClassDetails from '../../components/device/DeviceClassDetails';
 import DeviceClassList from '../../components/device/DeviceClassList';
+import DeviceTaintRuleDetails from '../../components/device/DeviceTaintRuleDetails';
+import DeviceTaintRuleList from '../../components/device/DeviceTaintRuleList';
 import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
 import ResourceClaimList from '../../components/device/ResourceClaimList';
 import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
@@ -839,6 +841,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Resource Claim Template',
     sidebar: 'resourceClaimTemplates',
     component: () => <ResourceClaimTemplateDetails />,
+  },
+  devicetaintrules: {
+    path: '/devicetaintrules',
+    exact: true,
+    name: 'Device Taint Rules',
+    sidebar: 'deviceTaintRules',
+    component: () => <DeviceTaintRuleList />,
+  },
+  deviceTaintRule: {
+    path: '/devicetaintrules/:name',
+    exact: true,
+    name: 'Device Taint Rule',
+    sidebar: 'deviceTaintRules',
+    component: () => <DeviceTaintRuleDetails />,
   },
   priorityclasses: {
     path: '/priorityclasses',

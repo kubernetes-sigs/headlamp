@@ -283,7 +283,6 @@
   "Leases": "Dzierżawy",
   "Mutating Webhook Configurations": "Modyfikowanie konfiguracji elementów webhook",
   "Validating Webhook Configurations": "Sprawdzanie poprawności konfiguracji elementu webhook",
-  "Devices (alpha)": "",
   "Scheduling (alpha)": "",
   "Git Version": "Wersja usługi Git",
   "Git Tree State": "Stan drzewa Git",
