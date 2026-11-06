@@ -594,6 +594,62 @@ export function parseServerNameToolName(fullToolName: string): {
  *   // result: { valid: true }
  * ```
  */
+function permitsNull(propSchema: any): boolean | undefined {
+  if (typeof propSchema === 'boolean') {
+    return propSchema;
+  }
+  if (!propSchema || typeof propSchema !== 'object') {
+    return undefined;
+  }
+
+  // Undefined means downstream validation must decide, e.g. for references.
+  const checks: (boolean | undefined)[] = [];
+  if ('$ref' in propSchema || '$dynamicRef' in propSchema || 'if' in propSchema) {
+    checks.push(undefined);
+  }
+  if (propSchema.type !== undefined) {
+    const types: unknown[] = Array.isArray(propSchema.type) ? propSchema.type : [propSchema.type];
+    if (propSchema.nullable === true || types.includes('null')) {
+      checks.push(true);
+    } else {
+      checks.push(
+        types.every(
+          type =>
+            typeof type === 'string' &&
+            ['string', 'number', 'integer', 'boolean', 'array', 'object'].includes(type)
+        )
+          ? false
+          : undefined
+      );
+    }
+  }
+  if (Array.isArray(propSchema.enum)) {
+    checks.push(propSchema.enum.includes(null));
+  }
+  if ('const' in propSchema) {
+    checks.push(propSchema.const === null);
+  }
+  if (Array.isArray(propSchema.allOf)) {
+    checks.push(...propSchema.allOf.map(permitsNull));
+  }
+  if (Array.isArray(propSchema.anyOf)) {
+    const branches: (boolean | undefined)[] = propSchema.anyOf.map(permitsNull);
+    checks.push(branches.includes(true) ? true : branches.includes(undefined) ? undefined : false);
+  }
+  if (Array.isArray(propSchema.oneOf)) {
+    const branches: (boolean | undefined)[] = propSchema.oneOf.map(permitsNull);
+    const matches = branches.filter(result => result === true).length;
+    checks.push(matches > 1 ? false : branches.includes(undefined) ? undefined : matches === 1);
+  }
+  if (propSchema.not !== undefined) {
+    const excluded = permitsNull(propSchema.not);
+    checks.push(excluded === undefined ? undefined : !excluded);
+  }
+
+  // Constraints on the same schema all apply; {} does not prohibit null.
+  return checks.includes(false) ? false : checks.includes(undefined) ? undefined : true;
+}
+
 export function validateToolArgs(
   schema: MCPToolState['inputSchema'] | null,
   args: Record<string, any>
@@ -607,7 +663,7 @@ export function validateToolArgs(
     // Basic validation - check required properties
     if (schema.required && Array.isArray(schema.required)) {
       for (const requiredProp of schema.required) {
-        if (args[requiredProp] === undefined || args[requiredProp] === null) {
+        if (args[requiredProp] === undefined) {
           return {
             valid: false,
             error: `Required parameter '${requiredProp}' is missing`,
@@ -620,8 +676,56 @@ export function validateToolArgs(
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties as any)) {
         if (args[propName] !== undefined) {
+          if (args[propName] === null) {
+            if (permitsNull(propSchema) !== false) {
+              continue;
+            }
+            const expectedType = (propSchema as any)?.type;
+            const typeStr = Array.isArray(expectedType)
+              ? expectedType.join('/')
+              : expectedType || 'non-null value';
+            const article = ['object', 'array'].includes(typeStr) ? 'an' : 'a';
+            return {
+              valid: false,
+              error:
+                (propSchema as any)?.nullable === true ||
+                (Array.isArray(expectedType)
+                  ? expectedType.includes('null')
+                  : expectedType === 'null')
+                  ? `Parameter '${propName}' violates its schema constraints, got null`
+                  : `Parameter '${propName}' should be ${article} ${typeStr}, got null`,
+            };
+          }
+
           const propType = (propSchema as any).type;
           const actualType = typeof args[propName];
+
+          if (Array.isArray(propType)) {
+            const nonNullTypes = propType.filter(t => t !== 'null');
+            const matches = nonNullTypes.some(t => {
+              if (t === 'string') return actualType === 'string';
+              if (t === 'number') return actualType === 'number';
+              if (t === 'integer') return Number.isInteger(args[propName]);
+              if (t === 'boolean') return actualType === 'boolean';
+              if (t === 'array') return Array.isArray(args[propName]);
+              if (t === 'object')
+                return (
+                  actualType === 'object' &&
+                  !Array.isArray(args[propName]) &&
+                  args[propName] !== null
+                );
+              return false;
+            });
+            if (!matches) {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be a ${propType.join(
+                  '/'
+                )}, got ${actualType}`,
+              };
+            }
+            continue;
+          }
 
           if (propType === 'string' && actualType !== 'string') {
             return {
