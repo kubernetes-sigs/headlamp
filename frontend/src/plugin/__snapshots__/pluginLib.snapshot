@@ -536,6 +536,7 @@
       "ResourceClaim": [Function],
       "ResourceClaimTemplate": [Function],
       "ResourceQuota": [Function],
+      "ResourceSlice": [Function],
       "Role": [Function],
       "RoleBinding": [Function],
       "RuntimeClass": [Function],
@@ -674,6 +675,9 @@
       "getResourceClaimState": [Function],
     },
     "resourceClaimTemplate": {
+      "default": [Function],
+    },
+    "resourceSlice": {
       "default": [Function],
     },
     "role": {
