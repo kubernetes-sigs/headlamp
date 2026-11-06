@@ -1091,6 +1091,19 @@ function validatePluginName(pluginName: string): boolean {
   return !invalidPattern.test(pluginName);
 }
 
+export function normalizeChecksum(checksum: string): string {
+  const normalized = checksum
+    .trim()
+    .replace(/^sha256:/i, '')
+    .toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error(
+      'Invalid checksum. Expected a SHA-256 hex digest like "sha256:<64 hex chars>".'
+    );
+  }
+  return normalized;
+}
+
 /**
  * @param {string} archiveURL - the one to validate
  * @returns true if the archiveURL looks good.
@@ -1379,11 +1392,7 @@ async function downloadAndExtractSingleArchive(
     throw new Error('Invalid plugin metadata. Please check the plugin details.');
   }
 
-  let checksum = archiveChecksum;
-  if (checksum.startsWith('sha256:') || checksum.startsWith('SHA256:')) {
-    checksum = checksum.replace('sha256:', '');
-    checksum = checksum.replace('SHA256:', '');
-  }
+  const checksum = normalizeChecksum(archiveChecksum);
 
   if (signal && signal.aborted) {
     throw new Error('Download cancelled');
