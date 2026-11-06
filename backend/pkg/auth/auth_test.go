@@ -479,6 +479,9 @@ type fakeCache struct {
 		ttl time.Duration
 	}
 	errOnGet, errOnSet, errOnSetWithTTL error
+	// errOnSetWithTTLCall restricts errOnSetWithTTL to a single 1-indexed
+	// SetWithTTL call (by call order); 0 means every call fails.
+	errOnSetWithTTLCall int
 }
 
 var _ cache.Cache[interface{}] = (*fakeCache)(nil)
@@ -511,7 +514,15 @@ func (f *fakeCache) SetWithTTL(_ context.Context, key string, val interface{}, t
 		ttl time.Duration
 	}{key, val, ttl})
 
-	return f.errOnSetWithTTL
+	if f.errOnSetWithTTL == nil {
+		return nil
+	}
+
+	if f.errOnSetWithTTLCall == 0 || len(f.setWithTTLCalls) == f.errOnSetWithTTLCall {
+		return f.errOnSetWithTTL
+	}
+
+	return nil
 }
 
 func (f *fakeCache) Delete(_ context.Context, key string) error {
@@ -541,46 +552,63 @@ func TestCacheRefreshedToken_Success(t *testing.T) {
 	fc := &fakeCache{}
 	tok := tokenWithExtra("id_token", "NEW")
 
-	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc)
+	// sessionTTL=0 falls back to defaultIDTokenTTL (24h).
+	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc, 0)
 	if err != nil {
 		t.Fatalf("CacheRefreshedToken() unexpected error: %v", err)
 	}
 
-	if len(fc.setCalls) != 1 {
-		t.Fatalf("expected 1 Set call, got %d", len(fc.setCalls))
+	if len(fc.setCalls) != 0 {
+		t.Fatalf("expected 0 Set calls (new token now goes through SetWithTTL), got %d", len(fc.setCalls))
 	}
 
-	if fc.setCalls[0].key != "oidc-token-NEW" {
-		t.Errorf("new token key = %q, want %q", fc.setCalls[0].key, "oidc-token-NEW")
+	if len(fc.setWithTTLCalls) != 2 {
+		t.Fatalf("expected 2 SetWithTTL calls, got %d", len(fc.setWithTTLCalls))
 	}
 
-	if fc.setCalls[0].val != "REFRESH_NEW" {
-		t.Errorf("new token value = %v, want %v", fc.setCalls[0].val, "REFRESH_NEW")
+	newCall := fc.setWithTTLCalls[0]
+	if newCall.key != "oidc-token-NEW" {
+		t.Errorf("new token key = %q, want %q", newCall.key, "oidc-token-NEW")
 	}
 
-	if len(fc.setWithTTLCalls) != 1 {
-		t.Fatalf("expected 1 SetWithTTL call, got %d", len(fc.setWithTTLCalls))
+	if newCall.val != "REFRESH_NEW" {
+		t.Errorf("new token value = %v, want %v", newCall.val, "REFRESH_NEW")
 	}
 
-	call := fc.setWithTTLCalls[0]
-	if call.key != "oidc-token-OLD" {
-		t.Errorf("old token key = %q, want %q", call.key, "oidc-token-OLD")
+	if newCall.ttl != 24*time.Hour {
+		t.Errorf("new token ttl = %v, want %v (defaultIDTokenTTL fallback)", newCall.ttl, 24*time.Hour)
 	}
 
-	if call.val != "REFRESH_OLD" {
-		t.Errorf("old token value = %v, want %v", call.val, "REFRESH_OLD")
+	oldCall := fc.setWithTTLCalls[1]
+	if oldCall.key != "oidc-token-OLD" {
+		t.Errorf("old token key = %q, want %q", oldCall.key, "oidc-token-OLD")
 	}
 
-	if call.ttl != 10*time.Second {
-		t.Errorf("ttl = %v, want %v", call.ttl, 10*time.Second)
+	if oldCall.val != "REFRESH_OLD" {
+		t.Errorf("old token value = %v, want %v", oldCall.val, "REFRESH_OLD")
 	}
+
+	if oldCall.ttl != 10*time.Second {
+		t.Errorf("old token ttl = %v, want %v", oldCall.ttl, 10*time.Second)
+	}
+}
+
+func TestCacheRefreshedToken_SessionTTLUsedForNewestEntry(t *testing.T) {
+	fc := &fakeCache{}
+	tok := tokenWithExtra("id_token", "NEW")
+
+	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc, time.Hour)
+	require.NoError(t, err)
+
+	require.Len(t, fc.setWithTTLCalls, 2)
+	assert.Equal(t, time.Hour, fc.setWithTTLCalls[0].ttl, "newest entry should use the provided sessionTTL")
 }
 
 func TestCacheRefreshedToken_NoExtra_NoOp(t *testing.T) {
 	fc := &fakeCache{}
 	tok := tokenWithExtra("", "") // no extra set → Extra(tokenType) not ok
 
-	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc)
+	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -597,7 +625,7 @@ func TestCacheRefreshedToken_ExtraNotString_NoOp(t *testing.T) {
 		map[string]interface{}{"id_token": 123}, // not a string → type assertion fails
 	)
 
-	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc)
+	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -608,31 +636,32 @@ func TestCacheRefreshedToken_ExtraNotString_NoOp(t *testing.T) {
 	}
 }
 
-func TestCacheRefreshedToken_SetError_StopsEarly(t *testing.T) {
-	fc := &fakeCache{errOnSet: errors.New("boom")}
+func TestCacheRefreshedToken_NewestEntryError_StopsEarly(t *testing.T) {
+	fc := &fakeCache{errOnSetWithTTL: errors.New("boom"), errOnSetWithTTLCall: 1}
 	tok := tokenWithExtra("id_token", "NEW")
 
-	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc)
+	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc, 0)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 
-	if len(fc.setWithTTLCalls) != 0 {
-		t.Fatalf("expected no SetWithTTL after Set error, got %d calls", len(fc.setWithTTLCalls))
+	if len(fc.setWithTTLCalls) != 1 {
+		t.Fatalf("expected only the newest-entry SetWithTTL call to have been attempted, got %d calls",
+			len(fc.setWithTTLCalls))
 	}
 }
 
-func TestCacheRefreshedToken_SetWithTTLError_Propagates(t *testing.T) {
-	fc := &fakeCache{errOnSetWithTTL: errors.New("late-boom")}
+func TestCacheRefreshedToken_OldEntryError_Propagates(t *testing.T) {
+	fc := &fakeCache{errOnSetWithTTL: errors.New("late-boom"), errOnSetWithTTLCall: 2}
 	tok := tokenWithExtra("id_token", "NEW")
 
-	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc)
+	err := auth.CacheRefreshedToken(tok, "id_token", "OLD", "REFRESH_OLD", fc, 0)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 
-	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 1 {
-		t.Fatalf("expected both Set and SetWithTTL to be called once; got Set=%d, SetWithTTL=%d",
+	if len(fc.setCalls) != 0 || len(fc.setWithTTLCalls) != 2 {
+		t.Fatalf("expected both the newest-entry and old-entry SetWithTTL calls to be attempted; got Set=%d, SetWithTTL=%d",
 			len(fc.setCalls), len(fc.setWithTTLCalls))
 	}
 }
@@ -752,14 +781,9 @@ func TestGetNewToken_Success(t *testing.T) {
 	}
 
 	// CacheRefreshedToken side-effects
-	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 2 {
-		t.Fatalf("expected Set=1, SetWithTTL=2; got Set=%d, SetWithTTL=%d",
+	if len(fc.setCalls) != 0 || len(fc.setWithTTLCalls) != 3 {
+		t.Fatalf("expected Set=0, SetWithTTL=3; got Set=%d, SetWithTTL=%d",
 			len(fc.setCalls), len(fc.setWithTTLCalls))
-	}
-
-	if fc.setCalls[0].key != "oidc-token-NEW" || fc.setCalls[0].val != refreshNew {
-		t.Fatalf("Set call = {%q,%v}, want {%q,%q}",
-			fc.setCalls[0].key, fc.setCalls[0].val, "oidc-token-NEW", refreshNew)
 	}
 
 	idTokenCall := fc.setWithTTLCalls[0]
@@ -767,7 +791,13 @@ func TestGetNewToken_Success(t *testing.T) {
 		t.Fatalf("ID token SetWithTTL call = {%q,%v,%v}", idTokenCall.key, idTokenCall.val, idTokenCall.ttl)
 	}
 
-	call := fc.setWithTTLCalls[1]
+	newCall := fc.setWithTTLCalls[1]
+	if newCall.key != "oidc-token-NEW" || newCall.val != refreshNew || newCall.ttl != time.Hour {
+		t.Fatalf("new token SetWithTTL = {%q,%v,%v}, want {%q,%q,%v}",
+			newCall.key, newCall.val, newCall.ttl, "oidc-token-NEW", refreshNew, time.Hour)
+	}
+
+	call := fc.setWithTTLCalls[2]
 	if call.key != "oidc-token-OLD" || call.val != "REFRESH_OLD" || call.ttl != 10*time.Second {
 		t.Fatalf("SetWithTTL = {%q,%v,%v}, want {%q,%q,%v}",
 			call.key, call.val, call.ttl, "oidc-token-OLD", "REFRESH_OLD", 10*time.Second)
@@ -795,11 +825,15 @@ func TestGetNewToken_IDTokenOmittedRetainsRotatedRefreshToken(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "OLD", newTok.Extra("id_token"))
 
-	require.Len(t, fc.setCalls, 1)
-	assert.Equal(t, "oidc-token-OLD", fc.setCalls[0].key)
-	assert.Equal(t, refreshNew, fc.setCalls[0].val)
-	require.Len(t, fc.setWithTTLCalls, 1)
+	// newAuthToken == oldToken here (id_token omitted from the refresh response),
+	// so CacheRefreshedToken's newest-entry write and old-entry write collapse
+	// into a single write to the same key ("oidc-token-OLD").
+	require.Empty(t, fc.setCalls)
+	require.Len(t, fc.setWithTTLCalls, 2)
 	assert.Equal(t, "oidc-id-token-OLD", fc.setWithTTLCalls[0].key)
+	assert.Equal(t, "oidc-token-OLD", fc.setWithTTLCalls[1].key)
+	assert.Equal(t, refreshNew, fc.setWithTTLCalls[1].val)
+	assert.Equal(t, time.Hour, fc.setWithTTLCalls[1].ttl)
 	assert.Empty(t, fc.deleteCalls)
 }
 
@@ -860,27 +894,18 @@ func TestGetNewToken_EndpointFailures(t *testing.T) {
 }
 
 func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		setErr    error
-		setTTLErr error
-	}{
-		{"Set error", errors.New("cache-set-broke"), nil},
-		{"SetWithTTL error", nil, errors.New("cache-ttl-broke")},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			srv := newTokenServerJSON(t, http.StatusOK, oauthSuccessBody)
-			fc := &fakeCache{
-				store:           map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"},
-				errOnSet:        tc.setErr,
-				errOnSetWithTTL: tc.setTTLErr,
-			}
+	// The refresh-token cache write (new entry, then old entry) now goes
+	// through SetWithTTL exclusively; there is no remaining plain Set() call
+	// in this path to fail independently.
+	srv := newTokenServerJSON(t, http.StatusOK, oauthSuccessBody)
+	fc := &fakeCache{
+		store:           map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"},
+		errOnSetWithTTL: errors.New("cache-ttl-broke"),
+	}
 
-			if _, err := auth.GetNewToken(
-				"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour); err == nil {
-				t.Fatal("expected error containing 'caching refreshed token', got nil")
-			}
-		})
+	if _, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour); err == nil {
+		t.Fatal("expected error containing 'caching refreshed token', got nil")
 	}
 }
 
@@ -911,17 +936,21 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	assert.NotNil(t, tok)
 	assert.Equal(t, refreshNew, tok.RefreshToken)
 
-	require.Len(t, fc.setCalls, 1)
-	assert.Equal(t, "oidc-token-NEW", fc.setCalls[0].key)
-	assert.Equal(t, refreshNew, fc.setCalls[0].val)
+	assert.Empty(t, fc.setCalls)
 
-	require.Len(t, fc.setWithTTLCalls, 2)
+	require.Len(t, fc.setWithTTLCalls, 3)
 	assert.Equal(t, "oidc-id-token-NEW", fc.setWithTTLCalls[0].key)
 	assert.Equal(t, "NEW", fc.setWithTTLCalls[0].val)
 	assert.Positive(t, fc.setWithTTLCalls[0].ttl)
-	assert.Equal(t, oldKey, fc.setWithTTLCalls[1].key)
-	assert.Equal(t, "REFRESH_OLD", fc.setWithTTLCalls[1].val)
-	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[1].ttl)
+
+	assert.Equal(t, "oidc-token-NEW", fc.setWithTTLCalls[1].key)
+	assert.Equal(t, refreshNew, fc.setWithTTLCalls[1].val)
+	assert.Equal(t, time.Hour, fc.setWithTTLCalls[1].ttl)
+
+	assert.Equal(t, oldKey, fc.setWithTTLCalls[2].key)
+	assert.Equal(t, "REFRESH_OLD", fc.setWithTTLCalls[2].val)
+	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[2].ttl)
+
 	assert.Empty(t, fc.deleteCalls)
 	require.Len(t, fc.updateTTLCalls, 1)
 	assert.Equal(t, "oidc-id-token-"+oldToken, fc.updateTTLCalls[0].key)

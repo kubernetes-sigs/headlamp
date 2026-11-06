@@ -1067,6 +1067,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
+			// Drop the cached refresh token immediately on logout, instead of
+			// waiting for CacheRefreshedToken's TTL to expire it.
+			if authToken, authTokenErr := auth.GetTokenFromCookie(r, cluster); authTokenErr != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+					authTokenErr, "failed to get auth token from cookie for oidc logout cache cleanup")
+			} else if authToken != "" {
+				if err := auth.DeleteCachedRefreshToken(r.Context(), config.Cache, authToken); err != nil {
+					logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+						err, "failed to delete cached refresh token on logout")
+				}
+			}
+
 			if config.OidcSkipLogout {
 				logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: cluster},
 					nil, "oidc-logout: disabled, clearing cookie and redirecting")

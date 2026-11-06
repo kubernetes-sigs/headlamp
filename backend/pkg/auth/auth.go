@@ -223,17 +223,26 @@ func retainIDTokenForRefreshedToken(
 }
 
 // CacheRefreshedToken updates the refresh token in the cache.
+//
+// The new entry is given sessionTTL as its lifetime (falling back to
+// defaultIDTokenTTL when sessionTTL is not positive) so that a session that
+// is never explicitly logged out still eventually gets cleaned up, instead
+// of its refresh token entry staying cached indefinitely.
 func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
-	oldRefreshToken string, cache cache.Cache[interface{}],
+	oldRefreshToken string, cache cache.Cache[interface{}], sessionTTL time.Duration,
 ) error {
 	newToken := oauthTokenValue(token, tokenType)
 	if newToken == "" {
 		return nil
 	}
 
+	if sessionTTL <= 0 {
+		sessionTTL = defaultIDTokenTTL
+	}
+
 	ctx := context.Background()
 
-	if err := cache.Set(ctx, oidcKeyPrefix+newToken, token.RefreshToken); err != nil {
+	if err := cache.SetWithTTL(ctx, oidcKeyPrefix+newToken, token.RefreshToken, sessionTTL); err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to cache refreshed token")
 		return err
 	}
@@ -248,6 +257,17 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 	}
 
 	return nil
+}
+
+// DeleteCachedRefreshToken removes the cached refresh token for an auth token,
+// if present. Callers should invoke this on logout so a session that does log
+// out cleanly doesn't wait for its CacheRefreshedToken TTL to expire.
+func DeleteCachedRefreshToken(ctx context.Context, tokenCache cache.Cache[interface{}], token string) error {
+	if token == "" {
+		return nil
+	}
+
+	return tokenCache.Delete(ctx, oidcKeyPrefix+token)
 }
 
 // GetNewToken uses the provided credentials and fetches the old refresh
@@ -301,7 +321,7 @@ func GetNewToken(clientID, clientSecret string, tokenCache cache.Cache[interface
 
 	// Update the refresh token cache after determining the effective authentication
 	// token, since providers may omit id_token in refresh responses.
-	if err := CacheRefreshedToken(retainedToken, tokenType, token, rToken, tokenCache); err != nil {
+	if err := CacheRefreshedToken(retainedToken, tokenType, token, rToken, tokenCache, sessionTTL); err != nil {
 		return nil, fmt.Errorf("caching refreshed token: %w", err)
 	}
 
