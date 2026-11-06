@@ -330,6 +330,11 @@ export const WebSocketManager = {
         return;
       }
 
+      // STATUS only reports the connection state, it is not resource data for the listeners
+      if (data.type === 'STATUS') {
+        return;
+      }
+
       // Handle ERROR messages from backend
       if (data.type === 'ERROR') {
         let errorMessage = 'Unknown error';
