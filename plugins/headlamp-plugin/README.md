@@ -112,6 +112,11 @@ it prints which agent config files it kept and what to add to them.
 Like the default `AGENTS.md`, the harness `AGENTS.md` is kept in sync with the
 template by `upgrade`.
 
+The shared plugin configuration includes ES2022, DOM, and DOM.Iterable type
+libraries, so APIs such as `Array.prototype.at()` and iterable DOM collections
+do not need a plugin-specific `lib` override. The JavaScript emit target remains
+ES2017; these type libraries do not provide runtime polyfills.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:
