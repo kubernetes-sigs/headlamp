@@ -35,6 +35,7 @@ function testHeadlampPlugin() {
   run('npm', ['install']);
   run('npm', ['run', 'test:typescript']);
   run('npm', ['run', 'test:storybook-mocks']);
+  run('npm', ['run', 'test:upgrade']);
   run('npm', ['run', 'build']);
   checkFileContains(join('lib', 'index.js'), 'DefaultCreateProject');
   checkFileContains(join('lib', 'index.d.ts'), 'DefaultCreateProject');
@@ -81,9 +82,8 @@ function testHeadlampPlugin() {
     .filter(file => file.match('kinvolk-headlamp-plugin-.*gz'))[0];
   console.log('Packed headlamp-plugin package file:', packedFile);
 
-  // Use "link" to test the repo version of the headlamp-plugin tool.
-  run('npm', ['link']);
-  run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--link']);
+  // Install the packed candidate without first resolving its unpublished version from npm.
+  run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--noinstall']);
   curDir = join('.', PACKAGE_NAME);
   run('npm', ['install', join('..', packedFile)]);
 
@@ -100,7 +100,7 @@ function testHeadlampPlugin() {
   // test headlamp-plugin build folder
   curDir = '.';
   fs.rmSync(PACKAGE_NAME, { recursive: true });
-  run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--link']);
+  run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--noinstall']);
   curDir = PACKAGE_NAME;
   run('npm', ['install', join('..', packedFile)]);
   curDir = '.';
@@ -133,7 +133,7 @@ function testHeadlampPlugin() {
 
   // test format command and that default code is formatted correctly
   fs.rmSync(PACKAGE_NAME, { recursive: true });
-  run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--link']);
+  run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--noinstall']);
   curDir = PACKAGE_NAME;
   run('npm', ['install', join('..', packedFile)]);
   run('npm', ['run', 'format']);
@@ -209,7 +209,11 @@ export const Default: Story = {};
   fs.writeFileSync(packageJsonPath, changedJson);
 
   // test upgrade updates the package line, and the old version is not in there
-  run('node', [join('..', 'bin', 'headlamp-plugin.js'), 'upgrade']);
+  run('node', [
+    join('..', 'bin', 'headlamp-plugin.js'),
+    'upgrade',
+    `--headlamp-plugin-version=file:${resolve(packedFile)}`,
+  ]);
   const oldVersion = '0.4.9';
   if (fs.readFileSync(packageJsonPath, 'utf8').includes(oldVersion)) {
     exit(`Error: old version still in ${packageJsonPath}`);
