@@ -104,6 +104,9 @@ const meta: Meta<typeof GlobalSearchContent> = {
           http.get(`${sampleClusterApiBase}/api/v1/configmaps`, () =>
             HttpResponse.json(makeKubeList('v1', 'ConfigMap'))
           ),
+          http.get(`${sampleClusterApiBase}/api/v1/secrets`, () =>
+            HttpResponse.json(makeKubeList('v1', 'Secret'))
+          ),
           http.get(`${sampleClusterApiBase}/api/v1/namespaces`, () =>
             HttpResponse.json(makeKubeList('v1', 'Namespace'))
           ),
