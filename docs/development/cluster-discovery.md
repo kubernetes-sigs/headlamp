@@ -27,6 +27,210 @@ connections. Once caches synchronize, removed owners and invalid connections are
 pruned. Names and IDs remain stable when connection settings change. Entries from
 different sources remain separate even when their API server URLs match.
 
+## Design
+
+Sources only describe what to watch and how to turn a resource into a connection.
+Everything else is shared: informer lifecycle, pruning, OIDC, the kubeconfig
+loader, the context store, the proxy, the response cache, and the home page
+views. A discovered connection is therefore an ordinary OIDC kubeconfig context
+and follows the same path as one loaded from a kubeconfig file.
+
+```mermaid
+flowchart TD
+    subgraph mgmt["Management cluster (read for discovery only)"]
+        CP["ClusterProfile<br/>multicluster.x-k8s.io/v1alpha1"]
+        CAPI["Cluster and its -kubeconfig Secret<br/>cluster.x-k8s.io/v1beta2"]
+        NEW["Resources watched by a new source"]
+    end
+
+    subgraph adapters["Source adapters (each implements Source)"]
+        A1["cluster_inventory"]
+        A2["cluster_api"]
+        A3["your source"]
+    end
+
+    CP --> A1
+    CAPI --> A2
+    NEW --> A3
+
+    subgraph engine["Shared engine: clusterdiscovery.Runner, one per enabled source"]
+        R1["Roots: in-cluster hub and<br/>non-discovered store contexts"]
+        R2["Informers per namespace,<br/>owner reconcile, pruning"]
+        R3["generatedOIDCConfig<br/>keep HTTPS endpoint and TLS fields,<br/>drop every credential, inject user OIDC"]
+        R4["kubeconfig.LoadContextsFromAPIConfig"]
+        R1 --> R2
+        R2 -->|"GeneratedKubeconfig<br/>without credentials"| R3
+        R3 --> R4
+    end
+
+    A1 & A2 & A3 <--> SRC{{"Source interface<br/>Watches, OwnersForChange, Build"}}
+    SRC <--> R2
+
+    R4 --> STORE[("ContextStore<br/>shared with kubeconfig,<br/>in-cluster and dynamic contexts")]
+
+    STORE --> CFG["GET /config<br/>meta_data and clusterSources"]
+    STORE --> PROXY["/clusters/:name/...<br/>requires a user token, then proxies"]
+    CFG --> UI["Frontend<br/>source tabs and columns from SourceView"]
+    PROXY --> CACHE["k8cache<br/>per-user SelfSubjectAccessReview,<br/>shared watch"]
+```
+
+The extension contract is the `Source` interface. The engine calls it and owns
+everything the interface does not mention.
+
+```mermaid
+classDiagram
+    class Registry {
+        +Register(Source) error
+        +Sources() []Source
+    }
+    class Source {
+        <<interface>>
+        +Descriptor() Descriptor
+        +Watches(config, namespace, selector) []ResourceWatch
+        +OwnersForChange(resource, obj) []NamespacedName
+        +Build(root, owner, snapshot) []GeneratedKubeconfig
+    }
+    class Descriptor {
+        +string ID
+        +string DisplayName
+        +GroupVersionResource Resource
+        +SourceView View
+    }
+    class SourceView {
+        +string NameLabel
+        +[]SourceColumn Columns
+        +[]SourceColumn DetailFields
+        +[]string SummaryFields
+    }
+    class ResourceWatch {
+        +GroupVersionResource Resource
+        +InformerFactory Factory
+        +SharedIndexInformer Informer
+    }
+    class Snapshot {
+        <<interface>>
+        +Get(resource, owner) object
+    }
+    class GeneratedKubeconfig {
+        +string Key
+        +string Name
+        +string ClusterID
+        +Config Config
+        +map Metadata
+        +ConnectionPresentation Presentation
+    }
+    class Runner {
+        +Run(ctx)
+    }
+    Registry o-- Source
+    Source <|.. clusterProfileSource
+    Source <|.. clusterAPISource
+    Source ..> Descriptor
+    Descriptor *-- SourceView
+    Source ..> ResourceWatch
+    Source ..> Snapshot
+    Source ..> GeneratedKubeconfig
+    Runner --> Source : drives one source
+    Runner ..> GeneratedKubeconfig : validates and publishes
+```
+
+## Flows
+
+### Discovery
+
+Each enabled source gets its own `Runner`. Roots are the in-cluster hub and, outside
+a cluster, the non-internal, non-discovered contexts in the store. A root is
+reconciled at start-up and then every root reconcile interval.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Main as startDiscoverySources
+    participant R as Runner
+    participant API as Management API server
+    participant S as Source adapter
+    participant St as ContextStore
+
+    Main->>R: NewRunner(options, source) and go Run(ctx)
+    loop at start and every root reconcile interval
+        R->>R: reconcileRoots (hub and store roots)
+        R->>R: reconcileRoot, skip if the CRD is cached as missing or the root is unchanged
+        R->>S: Watches(restConfig, namespace, selector)
+        S-->>R: ResourceWatch list (informers not started)
+        R->>API: start informers (list and watch)
+    end
+    API-->>R: caches synchronized
+    R->>St: RemoveContext for tracked owners missing from the synchronized cache
+    loop each owner in the cache and each add, update or delete event
+        API-->>R: event (resource, object)
+        R->>S: OwnersForChange(resource, object)
+        S-->>R: owner names
+        R->>S: Build(root, owner, snapshot)
+        S-->>R: GeneratedKubeconfig list (no credentials)
+        R->>R: loadGenerated, inject OIDC and load as a kubeconfig context
+        R->>St: AddContext
+        R->>St: RemoveContext for connections the owner no longer advertises
+    end
+    alt owner deleted, excluded by the label selector, or Build fails
+        R->>St: RemoveContext for every connection of the owner
+    else watch error says the CRD is missing
+        R->>R: markRootNoCRD, stop the root, prune it and skip it until the TTL expires
+    end
+```
+
+A root moves through these states. A missing CRD never affects other sources
+because each `Runner` keeps its own cache.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Desired : hub or store context is a root
+    Desired --> Active : watches built and started
+    Active --> Active : same server and fingerprint, nothing to do
+    Active --> Active : server or credentials changed, replace the root
+    Active --> NoCRD : watch error says the CRD is missing
+    NoCRD --> Desired : TTL expired, next reconcile retries
+    Active --> Stopped : root is no longer desired
+    Stopped --> [*] : connections pruned
+```
+
+### Signing in and using a discovered connection
+
+Discovery never stores workload credentials. Each user signs in through the
+configured OIDC provider, and every request reaches the workload API server with
+that user's own token. Kubernetes validates the token and applies the user's RBAC.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User (browser)
+    participant H as Headlamp backend
+    participant IdP as OIDC provider
+    participant W as Workload API server
+
+    U->>H: GET /config
+    H-->>U: clusters with meta_data and clusterSources
+    Note over U: the home page builds one tab per source from clusterSources
+
+    U->>H: GET /oidc?cluster=NAME
+    H-->>U: redirect to the provider (state, optional PKCE)
+    U->>IdP: authenticate
+    IdP-->>U: redirect to /oidc-callback with code and state
+    U->>H: GET /oidc-callback
+    H->>IdP: exchange the code and verify the ID token
+    H-->>U: per-cluster token cookie and redirect to /auth?cluster=NAME
+
+    U->>H: GET /clusters/NAME/api/v1/pods with the cookie
+    H->>H: requireUserAuthentication, cookie becomes a bearer token and no token is a 401
+    opt response cache enabled and the request is cacheable
+        H->>W: SelfSubjectAccessReview with the user's token
+        W-->>H: allowed or denied
+        Note over H: denied returns an authorization error, allowed is served from the shared watch cache when it is current
+    end
+    H->>W: proxy the request with the user's bearer token
+    W-->>H: response after OIDC validation and the user's RBAC
+    H-->>U: response
+```
+
 ## Adding a Go source
 
 Implement `clusterdiscovery.Source` and register it in `BuiltinSources`. Registration
@@ -55,6 +259,27 @@ credentials. The source display name is returned as `meta_data.sourceLabel`. Its
 returned in `/config.clusterSources`; enabled sources remain available as tabs
 even when they have no connections. The frontend renders those column definitions
 without source-specific components.
+
+### What a new source touches
+
+`backend/pkg/clusterdiscovery/extensibility_test.go` defines a source that exists only
+in that file and runs it through the unmodified engine. It checks registration,
+the home page view, the OIDC connection, credential removal, update and delete,
+rejection of invalid output, and coexistence with the built-in sources.
+
+| Layer | Change for a new source |
+| --- | --- |
+| Source adapter | One new Go file that implements `Source` |
+| Registration | One line in `BuiltinSources` |
+| Flags, settings and validation | None. They are generated from the descriptor for every registered source |
+| Engine: roots, informers, pruning, OIDC, loader, store | None |
+| Proxy, user authentication, response cache | None. They only see an OIDC kubeconfig context |
+| Home page tabs, columns and details | None. They come from `Descriptor.View` |
+| Translations | Optional. Labels missing from `labelTranslations` in `frontend/src/helpers/clusterPresentation.ts` are shown untranslated |
+| Helm values and e2e manifests | Optional, only to expose the source there |
+
+New sources put their public data in `GeneratedKubeconfig.Metadata`. Cluster Inventory
+additionally keeps a typed `Context.ClusterInventory` field for compatibility.
 
 ## Cluster names and source views
 
