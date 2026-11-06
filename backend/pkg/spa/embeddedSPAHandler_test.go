@@ -189,3 +189,60 @@ func TestEmbeddedSpaHandlerTraversal(t *testing.T) {
 		})
 	}
 }
+
+func TestEmbeddedSpaHandlerCacheControl(t *testing.T) {
+	testHTML := getTestHTML()
+	files := map[string]*fstest.MapFile{
+		"static/index.html": {Data: []byte(testHTML)},
+		"static/app.js":     {Data: []byte("console.log('test')")},
+		"static/style.css":  {Data: []byte("body { color: red; }")},
+	}
+
+	handler := spa.NewEmbeddedHandler(createTestFS(files), "index.html", "/headlamp")
+
+	tests := []struct {
+		name             string
+		path             string
+		wantCacheControl string
+	}{
+		{
+			name:             "direct index.html request",
+			path:             "/headlamp/index.html",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "empty path falls back to index.html",
+			path:             "/headlamp/",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "deep link falls back to index.html",
+			path:             "/headlamp/c/main/pods",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "static JS asset does not set no-cache",
+			path:             "/headlamp/app.js",
+			wantCacheControl: "",
+		},
+		{
+			name:             "static CSS asset does not set no-cache",
+			path:             "/headlamp/style.css",
+			wantCacheControl: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(
+				context.Background(), http.MethodGet, tt.path, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tt.wantCacheControl, rr.Header().Get("Cache-Control"))
+		})
+	}
+}
