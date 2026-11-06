@@ -5679,6 +5679,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "strict-origin-when-cross-origin", rr.Header().Get("Referrer-Policy"))
 }
 
 func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
@@ -5719,6 +5720,7 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+			assert.Equal(t, "strict-origin-when-cross-origin", rr.Header().Get("Referrer-Policy"))
 		})
 	}
 }
