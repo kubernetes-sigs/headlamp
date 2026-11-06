@@ -541,7 +541,7 @@
                 </th>
                 <th
                   aria-sort="none"
-                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-d44cqc-MuiTableCell-root"
+                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-edua17-MuiTableCell-root"
                   colspan="1"
                   data-can-sort="true"
                   data-index="-1"
@@ -747,7 +747,7 @@
                   </span>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"
+                  class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-18g5val-MuiTableCell-root"
                 >
                   <span
                     aria-label="/ › service1:80
@@ -854,7 +854,7 @@
                   </span>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"
+                  class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-18g5val-MuiTableCell-root"
                 >
                   <span
                     aria-label="/ › Service:service1"
