@@ -26,7 +26,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useLocation } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
@@ -209,7 +208,6 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
-  const location = useLocation();
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
@@ -250,11 +248,7 @@ export default function Layout({}: LayoutProps) {
   }, [cluster, dispatch]);
 
   const selectedClusters = useSelectedClusters();
-  const { pathname } = location;
-  const configuredClusters = pathname.startsWith('/project/') ? Object.keys(allClusters || {}) : [];
-  const clustersToResolve = [
-    ...new Set([...configuredClusters, cluster || '', ...selectedClusters].filter(Boolean)),
-  ];
+  const clustersToResolve = [...new Set([cluster || '', ...selectedClusters].filter(Boolean))];
 
   const urlClusters = getSelectedClusters();
   const clustersNotInURL =
@@ -376,17 +370,7 @@ export default function Layout({}: LayoutProps) {
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
-                  {clustersToResolve.length > 0 ? (
-                    <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
-                      <RouteSwitcher
-                        requiresToken={() => {
-                          const clusterName = getCluster() || '';
-                          const cluster = clusters ? clusters[clusterName] : undefined;
-                          return cluster?.useToken === undefined || cluster?.useToken;
-                        }}
-                      />
-                    </AllowedNamespacesSelectorGate>
-                  ) : (
+                  <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
                     <RouteSwitcher
                       requiresToken={() => {
                         const clusterName = getCluster() || '';
@@ -394,7 +378,7 @@ export default function Layout({}: LayoutProps) {
                         return cluster?.useToken === undefined || cluster?.useToken;
                       }}
                     />
-                  )}
+                  </AllowedNamespacesSelectorGate>
                 </Container>
               </Box>
             </Main>

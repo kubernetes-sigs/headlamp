@@ -100,6 +100,12 @@ export default function AllowedNamespacesSelectorGate({
   const waiting = resolutionKeys.some(key => key === null);
   const resolutionKey = JSON.stringify(resolutionKeys);
 
+  // With no clusters to resolve, `clusters.map` below renders no resolvers and
+  // `resolutionKeys` is empty, so `waiting` is always false and this collapses
+  // to rendering `children` directly (through the same Provider element).
+  // Keeping one return shape regardless of `clusters.length` avoids swapping
+  // the element type at this slot, which would otherwise remount `children`
+  // the moment `clusters` transitions from empty to populated.
   return (
     <>
       {clusters.map(cluster => (
