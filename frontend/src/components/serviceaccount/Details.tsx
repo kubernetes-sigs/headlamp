@@ -26,14 +26,14 @@ import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 
-function SecretLinks(props: { items?: { name: string }[]; namespace: string }) {
-  const { items, namespace } = props;
+function SecretLinks(props: { items?: { name: string }[]; namespace: string; cluster?: string }) {
+  const { items, namespace, cluster } = props;
   if (!items?.length) return null;
   return (
     <React.Fragment>
       {items.map(({ name }, index) => (
         <React.Fragment key={`${name}__${index}`}>
-          <Link routeName="secret" params={{ namespace, name }}>
+          <Link routeName="secret" params={{ namespace, name }} activeCluster={cluster}>
             {name}
           </Link>
           {index !== items.length - 1 && ', '}
@@ -186,12 +186,20 @@ export default function ServiceAccountDetails(props: {
         item && [
           {
             name: t('Secrets'),
-            value: <SecretLinks items={item.secrets} namespace={namespace} />,
+            value: (
+              <SecretLinks items={item.secrets} namespace={namespace} cluster={item.cluster} />
+            ),
             hide: !item.secrets?.length,
           },
           {
             name: t('Image Pull Secrets'),
-            value: <SecretLinks items={item.imagePullSecrets} namespace={namespace} />,
+            value: (
+              <SecretLinks
+                items={item.imagePullSecrets}
+                namespace={namespace}
+                cluster={item.cluster}
+              />
+            ),
             hide: !item.imagePullSecrets?.length,
           },
           {
