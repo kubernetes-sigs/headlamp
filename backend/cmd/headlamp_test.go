@@ -4930,6 +4930,60 @@ func TestOIDCLogoutEndpointWithSpecialContext(t *testing.T) {
 	}
 }
 
+// TestOIDCLogoutDeletesCachedRefreshToken covers the regression where logging
+// out left the session's cached OIDC refresh token (written by
+// auth.CacheRefreshedToken) in the cache indefinitely, since nothing ever
+// deleted it and it was never given a TTL.
+func TestOIDCLogoutDeletesCachedRefreshToken(t *testing.T) {
+	setupTestEnv(t)
+
+	testCluster := "test-cluster"
+	sanitizedCluster := auth.SanitizeClusterName(testCluster)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(newOIDCLogoutTestContext(t, testCluster, "", false)))
+
+	tokenCache := cache.New[interface{}]()
+
+	// Seed the cache as if CacheRefreshedToken had stored this auth token's
+	// refresh token during an earlier request.
+	require.NoError(t, tokenCache.Set(context.Background(), "oidc-token-test-auth-token", "some-refresh-token"))
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			OidcSkipLogout:   true,
+			Cache:            tokenCache,
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(newTestHandlerCtx(t), cfg)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		auth.GetOIDCLogoutCookiePath("", testCluster), nil)
+	require.NoError(t, err)
+
+	req.Host = "headlamp.example"
+	req.Header.Set("Content-Type", "application/json")
+	//nolint:gosec // Test cookie used for local test request
+	req.AddCookie(&http.Cookie{
+		Name:  "headlamp-auth-" + sanitizedCluster + ".0",
+		Value: "test-auth-token",
+		Path:  auth.GetCookiePath("", testCluster),
+	})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, err = tokenCache.Get(context.Background(), "oidc-token-test-auth-token")
+	assert.ErrorIs(t, err, cache.ErrNotFound, "expected the cached refresh token to be deleted on logout")
+}
+
 func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	setupTestEnv(t)
 
