@@ -4,6 +4,7 @@
   "Cluster selector": "Pemilih kluster",
   "Namespace": "Namespace",
   "Git Commit": "Git Commit",
+  "Certificate Signing Requests": "",
   "Memory": "Memori",
   "CPU": "CPU",
   "Pods": "Pod",
