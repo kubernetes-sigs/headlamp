@@ -471,22 +471,21 @@ const tcpRouteToService = makeRouteToServiceRelation('tcproute-service', TCPRout
 const udpRouteToGateway = makeRouteToGatewayRelation('udproute-gateway', UDPRoute);
 const udpRouteToService = makeRouteToServiceRelation('udproute-service', UDPRoute);
 
+const isCoreServiceRef = (ref: { group?: string; kind: string; name: string }, service: Service) =>
+  (ref.group ?? '') === '' && ref.kind === 'Service' && ref.name === service.metadata.name;
+
 const backendTLSPolicyToService = makeRelation(
   'backendtlspolicy-service',
   BackendTLSPolicy,
   Service,
-  (tlsPolicy, service) =>
-    tlsPolicy.spec.targetRef?.name === service.metadata.name &&
-    tlsPolicy.spec.targetRef?.kind === 'Service'
+  (tlsPolicy, service) => tlsPolicy.targetRefs.some(ref => isCoreServiceRef(ref, service))
 );
 
 const backendTrafficPolicyToService = makeRelation(
   'backendtrafficpolicy-service',
   BackendTrafficPolicy,
   Service,
-  (trafficPolicy, service) =>
-    trafficPolicy.spec.targetRef?.name === service.metadata.name &&
-    trafficPolicy.spec.targetRef?.kind === 'Service'
+  (trafficPolicy, service) => trafficPolicy.targetRefs.some(ref => isCoreServiceRef(ref, service))
 );
 
 const staticRelations = [
