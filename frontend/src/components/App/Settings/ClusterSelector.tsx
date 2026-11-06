@@ -18,6 +18,7 @@ import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
+import { getClusterSettingsURL } from '../../../lib/router/clusterSettings';
 
 export interface ClusterSelectorProps {
   currentCluster?: string;
@@ -35,7 +36,7 @@ const ClusterSelector: React.FC<ClusterSelectorProps> = ({ currentCluster = '', 
         labelId="settings--cluster-selector"
         value={currentCluster}
         onChange={event => {
-          history.replace(`/settings/cluster?c=${event.target.value}`);
+          history.replace(getClusterSettingsURL(event.target.value));
         }}
         label={t('glossary|Cluster')}
         autoWidth
