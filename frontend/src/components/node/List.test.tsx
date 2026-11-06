@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import App from '../../App';
 import type Node from '../../lib/k8s/node';
-import { filterNode } from './List';
+import { TestContext } from '../../test';
+import NodeList, { filterNode } from './List';
+
+// cyclic imports fix
+// eslint-disable-next-line no-unused-vars
+const _dont_delete_me = App;
+
+const { mockListView } = vi.hoisted(() => ({
+  mockListView: vi.fn(),
+}));
 
 vi.mock('../../lib/k8s', () => ({
   useConnectApi: vi.fn(),
@@ -24,7 +35,7 @@ vi.mock('../../lib/k8s', () => ({
 
 vi.mock('../../lib/k8s/node', () => ({
   default: class Node {
-    static useMetrics = vi.fn(() => [null, null]);
+    static useMetrics = vi.fn(() => [[], null]);
     static useList = vi.fn(() => ({ items: [] }));
   },
 }));
@@ -34,6 +45,7 @@ vi.mock('./Charts', () => ({
 }));
 
 vi.mock('./Details', () => ({
+  default: () => null,
   NodeReadyLabel: () => null,
 }));
 
@@ -42,7 +54,10 @@ vi.mock('./UpgradeVisualizationPanel', () => ({
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
-  default: () => null,
+  default: (props: any) => {
+    mockListView(props);
+    return null;
+  },
 }));
 
 describe('filterNode', () => {
@@ -81,6 +96,11 @@ describe('filterNode', () => {
     },
   } as unknown as Node;
 
+  const nodeWithoutStatus = {
+    spec: { unschedulable: false },
+    status: undefined,
+  } as unknown as Node;
+
   it('filters ready schedulable nodes correctly', () => {
     expect(filterNode(readySchedulableNode, 'Ready')).toBe(true);
     expect(filterNode(readySchedulableNode, 'ready')).toBe(true);
@@ -89,6 +109,7 @@ describe('filterNode', () => {
     expect(filterNode(notReadyNode, 'Ready')).toBe(false);
     expect(filterNode(notReadyCordonedNode, 'Ready')).toBe(false);
     expect(filterNode(pendingNode, 'Ready')).toBe(false);
+    expect(filterNode(nodeWithoutStatus, 'Ready')).toBe(false);
   });
 
   it('filters cordoned nodes correctly', () => {
@@ -97,6 +118,7 @@ describe('filterNode', () => {
     expect(filterNode(notReadyCordonedNode, 'Cordoned')).toBe(false);
     expect(filterNode(readySchedulableNode, 'Cordoned')).toBe(false);
     expect(filterNode(notReadyNode, 'Cordoned')).toBe(false);
+    expect(filterNode(nodeWithoutStatus, 'Cordoned')).toBe(false);
   });
 
   it('filters not ready nodes correctly', () => {
@@ -106,11 +128,68 @@ describe('filterNode', () => {
     expect(filterNode(notReadyCordonedNode, 'NotReady')).toBe(true);
     expect(filterNode(pendingNode, 'NotReady')).toBe(true);
     expect(filterNode(readySchedulableNode, 'NotReady')).toBe(false);
+    expect(filterNode(nodeWithoutStatus, 'NotReady')).toBe(true);
   });
 
   it('returns undefined for unrelated search terms so default fuzzy column matching applies', () => {
     expect(filterNode(readySchedulableNode, 'node-1')).toBeUndefined();
     expect(filterNode(readyCordonedNode, 'node-1')).toBeUndefined();
     expect(filterNode(notReadyCordonedNode, 'node-1')).toBeUndefined();
+  });
+});
+
+describe('NodeList', () => {
+  beforeEach(() => {
+    mockListView.mockReset();
+  });
+
+  it('renders the expected columns', () => {
+    render(
+      <TestContext>
+        <NodeList />
+      </TestContext>
+    );
+
+    expect(mockListView).toHaveBeenCalled();
+    const props = mockListView.mock.calls[0][0];
+    const columnIds = props.columns.map((c: any) => (typeof c === 'string' ? c : c.id));
+    expect(columnIds).toContain('ready');
+    expect(columnIds).toContain('roles');
+    expect(columnIds).toContain('version');
+    expect(columnIds).toContain('software');
+  });
+
+  it('safely handles nodes with undefined status without crashing', () => {
+    render(
+      <TestContext>
+        <NodeList />
+      </TestContext>
+    );
+
+    const props = mockListView.mock.calls[0][0];
+    const readyCol = props.columns.find((c: any) => c?.id === 'ready');
+    const rolesCol = props.columns.find((c: any) => c?.id === 'roles');
+    const versionCol = props.columns.find((c: any) => c?.id === 'version');
+    const softwareCol = props.columns.find((c: any) => c?.id === 'software');
+
+    const nodeWithoutStatus = {
+      status: undefined,
+      getRoles: () => ['worker'],
+    };
+
+    expect(() => readyCol.getValue(nodeWithoutStatus)).not.toThrow();
+    expect(readyCol.getValue(nodeWithoutStatus)).toBe('No');
+
+    expect(() => rolesCol.getValue(nodeWithoutStatus)).not.toThrow();
+    expect(rolesCol.getValue(nodeWithoutStatus)).toBe('worker');
+
+    expect(() => versionCol.getValue(nodeWithoutStatus)).not.toThrow();
+    expect(versionCol.getValue(nodeWithoutStatus)).toBeUndefined();
+
+    expect(() => softwareCol.getValue(nodeWithoutStatus)).not.toThrow();
+    expect(softwareCol.getValue(nodeWithoutStatus)).toBeUndefined();
+
+    expect(() => softwareCol.render(nodeWithoutStatus)).not.toThrow();
+    expect(softwareCol.render(nodeWithoutStatus)).toEqual(<></>);
   });
 });

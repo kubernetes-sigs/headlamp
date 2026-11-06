@@ -16,7 +16,7 @@
 
 import type { KubeMetrics } from '../../lib/k8s/cluster';
 import type { KubeEvent } from '../../lib/k8s/event';
-import type { KubeNode } from '../../lib/k8s/node';
+import type { KubeNode, KubeNodeStatus } from '../../lib/k8s/node';
 import { NODE_POOL_LABEL_KEYS } from '../../lib/k8s/nodeConstants';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
@@ -239,7 +239,7 @@ function makeAKSNode(name: string): KubeNode {
           message: 'kubelet is posting ready status',
         },
       ],
-      nodeInfo: { kubeletVersion: 'v1.29.0' } as KubeNode['status']['nodeInfo'],
+      nodeInfo: { kubeletVersion: 'v1.29.0' } as KubeNodeStatus['nodeInfo'],
     },
   } as KubeNode;
 }
