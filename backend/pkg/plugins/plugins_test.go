@@ -180,6 +180,29 @@ func TestGeneratePluginPaths(t *testing.T) {
 		require.Empty(t, pathList)
 	})
 
+	t.Run("PluginPathMissingPackageJSON", func(t *testing.T) {
+		subDirName := uuid.NewString()
+		subDir := filepath.Join(testDirName, subDirName)
+		err = os.Mkdir(subDir, 0o750)
+		require.NoError(t, err)
+
+		// create main.js only, without package.json
+		pluginPath := filepath.Join(subDir, "main.js")
+		pf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock plugin main.js file.
+		require.NoError(t, err)
+		require.NoError(t, pf.Close())
+
+		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
+		require.NoError(t, err)
+		require.Len(t, pathList, 1)
+		require.Equal(t, "plugins/"+subDirName, pathList[0].Path)
+		require.Equal(t, "development", pathList[0].Type)
+
+		// clean up
+		err = os.RemoveAll(subDir)
+		require.NoError(t, err)
+	})
+
 	t.Run("StaticPluginPaths", func(t *testing.T) {
 		// create a new directory in dirName
 		subDirName := uuid.NewString()
