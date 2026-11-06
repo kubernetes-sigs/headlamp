@@ -3666,6 +3666,12 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 // handlerSetToken sets the authentication token in a cookie.
 // If the token is an empty string, the cookie is cleared.
 func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
 	cluster := mux.Vars(r)["clusterName"]
 
 	var req struct {
