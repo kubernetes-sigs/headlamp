@@ -59,6 +59,24 @@
 
 ## Accessors
 
+### listRoute
+
+• `Static` `get` **listRoute**(): `string`
+
+#### Returns
+
+`string`
+
+#### Overrides
+
+Role.listRoute
+
+#### Defined in
+
+[lib/k8s/clusterRole.ts:27](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRole.ts#L27)
+
+___
+
 ### detailsRoute
 
 • `get` **detailsRoute**(): `string`
