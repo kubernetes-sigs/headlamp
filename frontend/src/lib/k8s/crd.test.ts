@@ -16,7 +16,12 @@
 
 import { describe, expect, it } from 'vitest';
 import type { CRDSpecLike } from './crdSpec';
-import { resolveCRDApiGroup, selectMainAPIGroup, validateCRDSpec } from './crdSpec';
+import {
+  orderCRDVersions,
+  resolveCRDApiGroup,
+  selectMainAPIGroup,
+  validateCRDSpec,
+} from './crdSpec';
 
 function spec(overrides: Partial<CRDSpecLike> = {}): CRDSpecLike {
   return {
@@ -100,7 +105,7 @@ describe('selectMainAPIGroup', () => {
     ]);
   });
 
-  it('honors spec.version when it matches a served entry in versions[]', () => {
+  it('continues to prefer the storage version when spec.version matches a served entry', () => {
     expect(
       selectMainAPIGroup(
         spec({
@@ -111,7 +116,7 @@ describe('selectMainAPIGroup', () => {
           ],
         })
       )
-    ).toEqual(['example.com', 'v1beta1', 'widgets']);
+    ).toEqual(['example.com', 'v1', 'widgets']);
   });
 
   it('ignores spec.version when it does not match a served entry in versions[]', () => {
@@ -123,6 +128,22 @@ describe('selectMainAPIGroup', () => {
         })
       )
     ).toEqual(['example.com', 'v1', 'widgets']);
+  });
+});
+
+describe('orderCRDVersions', () => {
+  it('puts the storage version first while preserving fallback order', () => {
+    expect(
+      orderCRDVersions([
+        { name: 'v1alpha1', served: true, storage: false },
+        { name: 'v1beta1', served: true, storage: false },
+        { name: 'v1', served: true, storage: true },
+      ])
+    ).toEqual([
+      { name: 'v1', served: true, storage: true },
+      { name: 'v1alpha1', served: true, storage: false },
+      { name: 'v1beta1', served: true, storage: false },
+    ]);
   });
 });
 
