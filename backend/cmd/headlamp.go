@@ -2866,7 +2866,7 @@ func (c *HeadlampConfig) processManualConfig(clusterReq ClusterReq) ([]kubeconfi
 		},
 	}
 
-	return kubeconfig.LoadContextsFromAPIConfig(conf, false)
+	return kubeconfig.LoadContextsFromAPIConfig(conf, kubeconfig.DynamicCluster, false)
 }
 
 // handleLoadErrors handles the load errors.
@@ -3090,8 +3090,8 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 }
 
 // updateCustomContextToCache updates the custom context to the cache.
-func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string) []error {
-	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, false)
+func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string, source int) []error {
+	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, source, false)
 	if len(contexts) == 0 {
 		logger.Log(logger.LevelError, nil, errs, "no contexts found in kubeconfig")
 		errs = append(errs, errors.New("no contexts found in kubeconfig"))
@@ -3221,7 +3221,12 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
+	source := kubeconfig.DynamicCluster
+	if reqBody.Source == kubeConfigSource {
+		source = kubeconfig.KubeConfig
+	}
+
+	if errs := c.updateCustomContextToCache(config, clusterName, source); len(errs) > 0 {
 		cacheErr := errors.Join(errs...)
 		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
 

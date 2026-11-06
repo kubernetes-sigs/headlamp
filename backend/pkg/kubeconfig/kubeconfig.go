@@ -341,7 +341,16 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 		return nil, errors.New("clientConfig is nil")
 	}
 
-	return clientConfig.ClientConfig()
+	restConf, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Source == DynamicCluster && restConf.ExecProvider != nil {
+		return nil, fmt.Errorf("exec credential plugins are not permitted in dynamic clusters")
+	}
+
+	return restConf, nil
 }
 
 // makeTransportFor creates an HTTP transport configuration with special handling for
@@ -1132,6 +1141,13 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
+	if source == DynamicCluster && authInfo != nil && authInfo.Exec != nil {
+		return Context{}, ContextError{
+			ContextName: contextName,
+			Reason:      "exec credential plugins are not permitted in dynamic clusters",
+		}
+	}
+
 	newContext := Context{
 		Name:                  MakeDNSFriendly(contextName),
 		KubeConfigContextName: contextName,
@@ -1152,7 +1168,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 }
 
 // LoadContextsFromAPIConfig loads contexts from the given api.Config.
-func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Context, []error) {
+func LoadContextsFromAPIConfig(config *api.Config, source int, skipProxySetup bool) ([]Context, []error) {
 	contexts := []Context{}
 	errors := []error{}
 
@@ -1166,6 +1182,14 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		// Note: nil authInfo is valid as authInfo can be provided by token.
 		authInfo := config.AuthInfos[context.AuthInfo]
 
+		if source == DynamicCluster && authInfo != nil && authInfo.Exec != nil {
+			errors = append(errors, ContextError{
+				ContextName: contextName,
+				Reason:      "exec credential plugins are not permitted in dynamic clusters",
+			})
+			continue
+		}
+
 		context := Context{
 			Name:                  MakeDNSFriendly(contextName),
 			KubeConfigPath:        context.LocationOfOrigin,
@@ -1173,6 +1197,7 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 			KubeContext:           context,
 			Cluster:               cluster,
 			AuthInfo:              authInfo,
+			Source:                source,
 		}
 
 		if !skipProxySetup {

@@ -2288,6 +2288,54 @@ func runClusterRenameTests(
 	require.NoError(t, err)
 }
 
+func TestUpdateCustomContextToCacheRejectsExecForDynamicCluster(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	original := &kubeconfig.Context{
+		Name:                  "dynamic-context",
+		KubeConfigContextName: "dynamic-context",
+		KubeContext: &api.Context{
+			Cluster:  "dynamic-cluster",
+			AuthInfo: "token-user",
+		},
+		Cluster: &api.Cluster{Server: "https://127.0.0.1:6443"},
+		AuthInfo: &api.AuthInfo{
+			Token: "test-token",
+		},
+		Source: kubeconfig.DynamicCluster,
+	}
+	require.NoError(t, store.AddContext(original))
+
+	config := api.NewConfig()
+	config.Clusters["dynamic-cluster"] = &api.Cluster{Server: "https://127.0.0.1:6443"}
+	config.Contexts["dynamic-context"] = &api.Context{
+		Cluster:  "dynamic-cluster",
+		AuthInfo: "exec-user",
+	}
+	config.AuthInfos["exec-user"] = &api.AuthInfo{
+		Exec: &api.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    "should-not-run",
+		},
+	}
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: store,
+			},
+		},
+	}
+
+	errs := c.updateCustomContextToCache(config, original.Name, kubeconfig.DynamicCluster)
+	require.NotEmpty(t, errs)
+	assert.ErrorContains(t, errors.Join(errs...), "exec credential plugins are not permitted in dynamic clusters")
+
+	stored, err := store.GetContext(original.Name)
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, stored.Source)
+	assert.Nil(t, stored.AuthInfo.Exec)
+}
+
 // TestRenameCluster checks the cluster rename functionality.
 // note: needed to split into multiple parts for linter.
 //
