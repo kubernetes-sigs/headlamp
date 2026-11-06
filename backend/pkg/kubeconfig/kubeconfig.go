@@ -110,6 +110,10 @@ const (
 	ClusterInventory
 )
 
+// proxyMu guards the lazily set up proxy field of every Context. It is package-level rather than a
+// field because Context is copied by value in many places, which would copy a lock (go vet copylocks).
+var proxyMu sync.RWMutex
+
 // Context contains all information related to a kubernetes context.
 type Context struct {
 	Name        string                 `json:"name"`
@@ -438,14 +442,29 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 
 // ProxyRequest proxies the given request to the cluster.
 func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request) error {
-	if c.proxy == nil {
-		err := c.SetupProxy()
-		if err != nil {
-			return err
+	proxyMu.RLock()
+
+	proxy := c.proxy
+
+	proxyMu.RUnlock()
+
+	if proxy == nil {
+		proxyMu.Lock()
+
+		// Another request may have set the proxy up while we waited for the lock.
+		if c.proxy == nil {
+			if err := c.setupProxyLocked(); err != nil {
+				proxyMu.Unlock()
+				return err
+			}
 		}
+
+		proxy = c.proxy
+
+		proxyMu.Unlock()
 	}
 
-	c.proxy.ServeHTTP(writer, request)
+	proxy.ServeHTTP(writer, request)
 
 	return nil
 }
@@ -482,6 +501,14 @@ func (c *Context) SourceStr() string {
 
 // SetupProxy sets up a reverse proxy for the context.
 func (c *Context) SetupProxy() error {
+	proxyMu.Lock()
+	defer proxyMu.Unlock()
+
+	return c.setupProxyLocked()
+}
+
+// setupProxyLocked sets up the reverse proxy. The caller must hold proxyMu for writing.
+func (c *Context) setupProxyLocked() error {
 	URL, err := url.Parse(c.Cluster.Server)
 	if err != nil {
 		return err
