@@ -55,14 +55,14 @@ export default function RoleBindingDetails(props: {
           },
         ]
       }
-      extraSections={item =>
-        item && [
+      extraSections={binding =>
+        binding && [
           {
             id: 'headlamp.role-binding-info',
             section: (
               <SectionBox title={t('Binding Info')}>
                 <SimpleTable
-                  data={item.subjects}
+                  data={binding.subjects}
                   columns={[
                     {
                       label: t('Kind'),
@@ -78,6 +78,7 @@ export default function RoleBindingDetails(props: {
                           <Link
                             routeName={item.kind}
                             params={{ namespace: item.namespace || namespace, name: item.name }}
+                            activeCluster={binding.cluster}
                           >
                             {item.name}
                           </Link>
