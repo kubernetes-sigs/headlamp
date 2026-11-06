@@ -41,11 +41,16 @@ vi.mock('./webSocket', () => ({
   BASE_WS_URL: 'http://localhost:3000',
 }));
 
-vi.mock('./multiplexer', () => ({
-  WebSocketManager: {
-    subscribe: (...args: any[]) => mockSubscribe(...args),
-  },
-}));
+vi.mock('./multiplexer', async () => {
+  const actual = await vi.importActual<any>('./multiplexer');
+  return {
+    ...actual,
+    WebSocketManager: {
+      ...actual.WebSocketManager,
+      subscribe: (...args: any[]) => mockSubscribe(...args),
+    },
+  };
+});
 
 vi.mock('./fetch', () => ({
   clusterFetch: vi.fn(),
@@ -450,6 +455,38 @@ describe('useWatchKubeObjectLists', () => {
       }
     );
     expect(mockSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('should invalidate list queries on 410 Expired watch update', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const kubeObjectClass = mockClass;
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'default', resourceVersion: '1', namespace: 'a' }];
+
+    renderHook(() => useWatchKubeObjectLists({ kubeObjectClass, lists, endpoint }), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+    connection.onMessage({
+      type: 'ERROR',
+      object: {
+        kind: 'Status',
+        status: 'Failure',
+        code: 410,
+        reason: 'Expired',
+        message: 'too old resource version: 1',
+      },
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey,
+    });
   });
 });
 
@@ -1711,5 +1748,172 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         )
       ).toBe(true)
     );
+  });
+
+  it('should invalidate list queries on 410 Expired watch update or error', () => {
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }];
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const onUpdate = mockSubscribe.mock.calls[0][3];
+    const onError = mockSubscribe.mock.calls[0][4];
+
+    // Trigger expired update
+    onUpdate({
+      type: 'ERROR',
+      object: {
+        kind: 'Status',
+        code: 410,
+        reason: 'Expired',
+        message: 'too old resource version',
+      },
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: kubeObjectListQuery(
+        mockClass,
+        { version: 'v1', resource: 'pods' },
+        'namespace-a',
+        'cluster-a',
+        {}
+      ).queryKey,
+    });
+
+    invalidateSpy.mockClear();
+
+    // Trigger expired error callback
+    onError(new Error('410 Gone: too old resource version'));
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: kubeObjectListQuery(
+        mockClass,
+        { version: 'v1', resource: 'pods' },
+        'namespace-a',
+        'cluster-a',
+        {}
+      ).queryKey,
+    });
+
+    invalidateSpy.mockClear();
+
+    // Normal non-ERROR watch events with expiration strings must not trigger query invalidation
+    onUpdate({
+      type: 'ADDED',
+      object: {
+        kind: 'Event',
+        reason: 'Expired',
+        message: 'certificate has expired',
+      },
+    });
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it('cleans up subscription when unmounted during pending subscription', async () => {
+    let resolveSubscribe: (cleanup: () => void) => void = () => {};
+    const mockCleanup = vi.fn();
+    mockSubscribe.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveSubscribe = resolve;
+        })
+    );
+
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }];
+
+    const { unmount } = renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    unmount();
+    resolveSubscribe(mockCleanup);
+
+    await waitFor(() => expect(mockCleanup).toHaveBeenCalled());
+  });
+
+  it('does not re-subscribe or reconnect when an ordinary watch update advances resourceVersion', async () => {
+    let onUpdate: (update: any) => void = () => {};
+    mockSubscribe.mockImplementation((cluster, path, query, onMsg) => {
+      onUpdate = onMsg;
+      return Promise.resolve(vi.fn());
+    });
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            resourceVersion: '100',
+            items: [],
+          })
+        ),
+    } as Response);
+
+    const queryClient = new QueryClient();
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'cluster-a', namespaces: ['namespace-a'] }],
+          watch: true,
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() =>
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        'cluster-a',
+        expect.any(String),
+        expect.stringContaining('resourceVersion=100'),
+        expect.any(Function),
+        expect.any(Function)
+      )
+    );
+    mockSubscribe.mockClear();
+
+    // Deliver an ordinary watch update advancing resourceVersion
+    act(() => {
+      onUpdate({
+        type: 'ADDED',
+        object: {
+          kind: 'Pod',
+          metadata: {
+            name: 'pod-1',
+            namespace: 'namespace-a',
+            uid: 'pod-1-uid',
+            resourceVersion: '101',
+          },
+        },
+      });
+    });
+
+    result.rerender();
+
+    // Verify mockSubscribe was NOT called again because subscription identity did not change
+    expect(mockSubscribe).not.toHaveBeenCalled();
   });
 });

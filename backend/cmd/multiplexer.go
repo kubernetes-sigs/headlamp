@@ -20,7 +20,9 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -506,6 +508,25 @@ func (m *Multiplexer) createConnection(
 	}
 }
 
+type handshakeError struct {
+	err        error
+	statusCode int
+	status     string
+	body       string
+}
+
+func (e *handshakeError) Error() string {
+	if e.body != "" {
+		return fmt.Sprintf("dialing WebSocket (%s: %s): %v", e.status, e.body, e.err)
+	}
+
+	return fmt.Sprintf("dialing WebSocket (%s): %v", e.status, e.err)
+}
+
+func (e *handshakeError) Unwrap() error {
+	return e.err
+}
+
 // dialWebSocket establishes a WebSocket connection.
 func (m *Multiplexer) dialWebSocket(
 	wsURL string,
@@ -548,6 +569,17 @@ func (m *Multiplexer) dialWebSocket(
 			)
 
 			defer func() { _ = resp.Body.Close() }()
+
+			const maxHandshakeErrorBodyBytes = 64 * 1024
+
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxHandshakeErrorBodyBytes))
+
+			return nil, &handshakeError{
+				err:        err,
+				statusCode: resp.StatusCode,
+				status:     resp.Status,
+				body:       strings.TrimSpace(string(body)),
+			}
 		}
 
 		return nil, fmt.Errorf("dialing WebSocket: %w", err)
@@ -773,6 +805,18 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	conn, exists := m.connections[connKey]
 	m.mutex.RUnlock()
 
+	if exists {
+		conn.mu.RLock()
+		queryChanged := conn.Query != msg.Query
+		conn.mu.RUnlock()
+
+		if queryChanged {
+			m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
+
+			exists = false
+		}
+	}
+
 	if !exists {
 		var err error
 
@@ -817,10 +861,19 @@ func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *str
 
 // sendClientError sends an error message to the client WebSocket connection.
 func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, query, userID string, err error) {
+	var statusCode int
+
+	var hErr *handshakeError
+	if errors.As(err, &hErr) {
+		statusCode = hErr.statusCode
+	}
+
 	errorData := struct {
-		Error string `json:"error"`
+		Error      string `json:"error"`
+		StatusCode int    `json:"statusCode,omitempty"`
 	}{
-		Error: err.Error(),
+		Error:      err.Error(),
+		StatusCode: statusCode,
 	}
 
 	jsonData, jsonErr := json.Marshal(errorData)
