@@ -17,6 +17,7 @@ type ContextChangeListener func()
 // ContextStore is an interface for storing and retrieving contexts.
 type ContextStore interface {
 	AddContext(headlampContext *Context) error
+	UpdateContextIfCurrent(expected, updated *Context) error
 	GetContexts() ([]*Context, error)
 	GetContext(name string) (*Context, error)
 	RemoveContext(name string) error
@@ -107,6 +108,18 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 	headlampContext.Name = name
 
 	err := c.cache.Set(context.Background(), name, headlampContext)
+	if err == nil {
+		c.notifyListeners()
+	}
+
+	return err
+}
+
+// UpdateContextIfCurrent cannot recreate an entry removed or replaced during a save.
+func (c *contextStore) UpdateContextIfCurrent(expected, updated *Context) error {
+	err := c.cache.UpdateIf(context.Background(), expected.Name, updated, func(current *Context) bool {
+		return current == expected
+	})
 	if err == nil {
 		c.notifyListeners()
 	}

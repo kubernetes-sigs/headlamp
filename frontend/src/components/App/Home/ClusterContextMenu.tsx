@@ -33,8 +33,10 @@ import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
+import { enqueueConfigOperation } from '../../../stateless/configOperationQueue';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+import ClusterTagsDialog from '../Settings/ClusterTagsEditor';
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -56,6 +58,7 @@ export default function ClusterContextMenu({
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuId = useId('context-menu');
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
+  const [tagsDialogOpen, setTagsDialogOpen] = React.useState(false);
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
   const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
@@ -70,9 +73,17 @@ export default function ClusterContextMenu({
     const originalName = cluster.meta_data?.originalName ?? '';
     const clusterName = cluster.name;
 
-    deleteCluster(clusterName, deleteFromKubeconfig, clusterID, kubeconfigOrigin, originalName)
-      .then(config => {
-        dispatch(setConfig(config));
+    enqueueConfigOperation(async () => {
+      const config = await deleteCluster(
+        clusterName,
+        deleteFromKubeconfig,
+        clusterID,
+        kubeconfigOrigin,
+        originalName
+      );
+      dispatch(setConfig(config));
+    })
+      .then(() => {
         onClusterRemoved();
       })
       .catch((err: Error) => {
@@ -164,6 +175,14 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setTagsDialogOpen(true);
+            handleMenuClose();
+          }}
+        >
+          <ListItemText>{t('translation|Edit tags')}</ListItemText>
+        </MenuItem>
         {(!menuItems || menuItems.length === 0) &&
           ((cluster.meta_data?.source === 'dynamic_cluster' &&
             (helpers.isElectron() || isDynamicClusterEnabled)) ||
@@ -199,6 +218,12 @@ export default function ClusterContextMenu({
         }}
         title={t('translation|Delete Cluster')}
         description={removeClusterDescription(cluster)}
+      />
+      <ClusterTagsDialog
+        open={tagsDialogOpen}
+        cluster={cluster.name}
+        clusterInfo={cluster}
+        onClose={() => setTagsDialogOpen(false)}
       />
       {openConfirmDialog !== null &&
         dialogs.map((Dialog, index) => {

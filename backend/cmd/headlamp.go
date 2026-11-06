@@ -71,7 +71,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -2641,7 +2640,8 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
 			Metadata: map[string]interface{}{
-				"source": "dynamic_cluster",
+				"source":     "dynamic_cluster",
+				"extensions": context.KubeContext.Extensions,
 			},
 		})
 	}
@@ -3053,68 +3053,63 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 // customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
 func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
-	// Get the context with the given cluster name
-	contextConfig, ok := config.Contexts[contextName]
-	if !ok {
-		err := fmt.Errorf("context %q not found in kubeconfig", contextName)
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
-			err, "getting context from kubeconfig")
+	return kubeconfig.ModifyConfigFile(path, func(current *api.Config) error {
+		contextConfig, ok := current.Contexts[contextName]
+		if !ok {
+			return fmt.Errorf("context %q not found in kubeconfig", contextName)
+		}
 
-		return err
-	}
-
-	// Create a CustomObject with CustomName field
-	customObj := &kubeconfig.CustomObject{
-		TypeMeta:   v1.TypeMeta{},
-		ObjectMeta: v1.ObjectMeta{},
-		CustomName: newClusterName,
-	}
-
-	// Assign the CustomObject to the Extensions map.
-	// Extensions is nil for contexts that have never had extensions set; initialize
-	// it before writing to avoid a nil-map panic.
-	if contextConfig.Extensions == nil {
-		contextConfig.Extensions = make(map[string]k8sruntime.Object)
-	}
-
-	contextConfig.Extensions["headlamp_info"] = customObj
-
-	if err := clientcmd.WriteToFile(*config, path); err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
-			err, "writing kubeconfig file")
-
-		return err
-	}
-
-	return nil
+		return updateHeadlampInfo(contextConfig, map[string]interface{}{"customName": newClusterName})
+	}, func(current *api.Config) error {
+		*config = *current
+		return nil
+	})
 }
 
 // updateCustomContextToCache updates the custom context to the cache.
-func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string) []error {
-	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, false)
-	if len(contexts) == 0 {
-		logger.Log(logger.LevelError, nil, errs, "no contexts found in kubeconfig")
-		errs = append(errs, errors.New("no contexts found in kubeconfig"))
-
-		return errs
+func (c *HeadlampConfig) updateCustomContextToCache(
+	config *api.Config, clusterName, contextName, source string,
+) []error {
+	context, ok := config.Contexts[contextName]
+	if !ok {
+		return []error{fmt.Errorf("context %q not found in kubeconfig", contextName)}
 	}
 
-	for _, context := range contexts {
-		// Remove the old context from the store
+	original, err := c.KubeConfigStore.GetContext(clusterName)
+	exists := err == nil
+
+	if errors.Is(err, cache.ErrNotFound) {
+		// A valid context can be renamed before it has been added to the cache.
+		contextSource := kubeconfig.DynamicCluster
+		if source == kubeConfigSource {
+			contextSource = kubeconfig.KubeConfig
+		}
+
+		original = &kubeconfig.Context{
+			Cluster:        config.Clusters[context.Cluster],
+			AuthInfo:       config.AuthInfos[context.AuthInfo],
+			KubeContext:    context,
+			Source:         contextSource,
+			KubeConfigPath: context.LocationOfOrigin,
+			ClusterID:      fmt.Sprintf("%s+%s", context.LocationOfOrigin, kubeconfig.MakeDNSFriendly(contextName)),
+		}
+	} else if err != nil {
+		return []error{err}
+	}
+
+	// Renaming must not discard the source, kubeconfig identity, or other contexts.
+	updated := original.Copy()
+	updated.Name = kubeconfig.MakeDNSFriendly(contextName)
+	updated.KubeContext = context.DeepCopy()
+
+	if err := c.KubeConfigStore.AddContext(updated); err != nil {
+		return []error{err}
+	}
+
+	if exists && updated.Name != clusterName {
 		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Removing context from the store")
-			errs = append(errs, err)
+			return []error{err}
 		}
-
-		// Add the new context to the store
-		if err := c.KubeConfigStore.AddContext(&context); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Adding context to the store")
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errs
 	}
 
 	return nil
@@ -3124,6 +3119,13 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (string, *api.Config, error) {
 	// Get path of kubeconfig from source
 	path, err := c.getKubeConfigPath(source)
+
+	cachedContext, contextErr := c.KubeConfigStore.GetContext(clusterName)
+	if contextErr == nil && cachedContext.KubeConfigPath != "" {
+		path = cachedContext.KubeConfigPath
+		err = nil
+	}
+
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "getting kubeconfig file")
@@ -3189,43 +3191,46 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
 ) error {
 	// Load kubeconfig
-	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
+	path, _, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get kubeconfig file", http.StatusInternalServerError)
 		return err
 	}
 
-	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
-	if !isUnique {
-		http.Error(w, "custom name already in use", http.StatusBadRequest)
+	var contextName string
 
-		renameErr := errors.New("cluster name already in use")
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
-			renameErr, "cluster name already exists in the kubeconfig")
+	duplicateName := errors.New("cluster name already in use")
 
-		return renameErr
-	}
+	err = kubeconfig.ModifyConfigFile(path, func(config *api.Config) error {
+		if !CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName) {
+			return duplicateName
+		}
 
-	contextName := findMatchingContextName(config, clusterName)
+		contextName = findMatchingContextName(config, clusterName)
 
-	// Renaming a cluster to its own context name, or to the DNS-friendly form
-	// shown for it, goes back to the original, so clear the custom name instead
-	// of saving one that matches the original.
-	newClusterName := reqBody.NewClusterName
-	if newClusterName == contextName || newClusterName == kubeconfig.MakeDNSFriendly(contextName) {
-		newClusterName = ""
-	}
+		contextConfig, ok := config.Contexts[contextName]
+		if !ok {
+			return fmt.Errorf("context %q not found in kubeconfig", contextName)
+		}
 
-	if err := customNameToExtensions(config, contextName, newClusterName, path); err != nil {
-		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
+		newClusterName := reqBody.NewClusterName
+		if newClusterName == contextName || newClusterName == kubeconfig.MakeDNSFriendly(contextName) {
+			newClusterName = ""
+		}
+
+		return updateHeadlampInfo(contextConfig, map[string]interface{}{"customName": newClusterName})
+	}, func(config *api.Config) error {
+		return errors.Join(c.updateCustomContextToCache(config, clusterName, contextName, reqBody.Source)...)
+	})
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, duplicateName) {
+			status = http.StatusBadRequest
+		}
+
+		c.handleError(w, ctx, span, err, "failed to rename kubeconfig context", status)
+
 		return err
-	}
-
-	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
-		cacheErr := errors.Join(errs...)
-		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
-
-		return cacheErr
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -3364,6 +3369,9 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 	// Rename a cluster
 	r.Handle("/cluster/{name}",
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.renameCluster))).Methods("PUT")
+
+	r.Handle("/cluster/{name}/tags",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.updateClusterTags))).Methods("PUT")
 }
 
 func (c *HeadlampConfig) drainContextKey(r *http.Request, cluster string) (string, error) {

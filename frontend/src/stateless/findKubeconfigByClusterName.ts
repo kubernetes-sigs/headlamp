@@ -17,13 +17,8 @@
 import * as jsyaml from 'js-yaml';
 import { decodeBase64 } from '../helpers/base64';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
-import {
-  CursorSuccessEvent,
-  DatabaseEvent,
-  findMatchingContexts,
-  handleDataBaseError,
-  handleDatabaseUpgrade,
-} from '.';
+import { findMatchingContexts } from '.';
+import { visitKubeconfigRows } from './visitKubeconfigRows';
 
 /**
  * Finds a kubeconfig by cluster name.
@@ -40,56 +35,19 @@ export function findKubeconfigByClusterName(
   /** The ID for a cluster, composed of the kubeconfig path and cluster name */
   clusterID?: string
 ): Promise<string | null> {
-  return new Promise<string | null>(async (resolve, reject) => {
-    try {
-      const request = indexedDB.open('kubeconfigs', 1) as any;
-
-      // The onupgradeneeded event is fired when the database is created for the first time.
-      request.onupgradeneeded = handleDatabaseUpgrade;
-
-      // The onsuccess event is fired when the database is opened.
-      // This event is where you specify the actions to take when the database is opened.
-      request.onsuccess = function handleDatabaseSuccess(event: DatabaseEvent) {
-        const db = event.target.result;
-        const transaction = db.transaction(['kubeconfigStore'], 'readonly');
-        const store = transaction.objectStore('kubeconfigStore');
-
-        // The onsuccess event is fired when the request has succeeded.
-        // This is where you handle the results of the request.
-        // The result is the cursor. It is used to iterate through the object store.
-        // The cursor is null when there are no more objects to iterate through.
-        // The cursor is used to find the kubeconfig by cluster name.
-        store.openCursor().onsuccess = function storeSuccess(event: Event) {
-          const successEvent = event as CursorSuccessEvent;
-          const cursor = successEvent.target.result;
-          if (cursor) {
-            const kubeconfigObject = cursor.value;
-            const kubeconfig = kubeconfigObject.kubeconfig;
-
-            const parsedKubeconfig = jsyaml.load(decodeBase64(kubeconfig)) as KubeconfigObject;
-            // Check for "headlamp_info" in extensions
-            const { matchingKubeconfig, matchingContext } = findMatchingContexts(
-              clusterName,
-              parsedKubeconfig,
-              clusterID
-            );
-
-            if (matchingKubeconfig || matchingContext) {
-              resolve(kubeconfig);
-            } else {
-              cursor.continue();
-            }
-          } else {
-            resolve(null); // No matching kubeconfig found
-          }
-        };
-      };
-
-      // The onerror event is fired when the database is opened.
-      // This is where you handle errors.
-      request.onerror = handleDataBaseError;
-    } catch (error) {
-      reject(error);
+  return visitKubeconfigRows<string | null>('readonly', cursor => {
+    if (!cursor) {
+      return { value: null };
+    }
+    const kubeconfig = cursor.value.kubeconfig;
+    const parsed = jsyaml.load(decodeBase64(kubeconfig)) as KubeconfigObject;
+    const { matchingKubeconfig, matchingContext } = findMatchingContexts(
+      clusterName,
+      parsed,
+      clusterID
+    );
+    if (matchingKubeconfig || matchingContext) {
+      return { value: kubeconfig };
     }
   });
 }

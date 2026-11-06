@@ -14,268 +14,95 @@
  * limitations under the License.
  */
 
+import { IDBCursor, IDBFactory } from 'fake-indexeddb';
 import * as jsyaml from 'js-yaml';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { decodeBase64, encodeBase64 } from '../helpers/base64';
+import type { KubeconfigObject } from '../lib/k8s/kubeconfig';
+import { getStatelessClusterKubeConfigs, storeStatelessClusterKubeconfig } from './index';
 import { updateStatelessClusterKubeconfig } from './updateStatelessClusterKubeconfig';
 
-// --- PARTIAL MOCK: keep the real module but override findMatchingContexts
-vi.mock('./index', async () => {
-  const actual = await vi.importActual<typeof import('./index')>('./index');
-  return {
-    ...actual,
-    findMatchingContexts: vi.fn((clusterName: string, parsed: any) => {
-      const ctx = (parsed.contexts || []).find(
-        (c: any) =>
-          c?.name === clusterName ||
-          (c?.context?.extensions || []).some(
-            (e: any) => e?.name === 'headlamp_info' && e?.extension?.customName === clusterName
-          )
-      );
-      return { matchingKubeconfig: ctx || null, matchingContext: ctx || null };
-    }),
-    handleDataBaseError: vi.fn(),
-    handleDatabaseUpgrade: vi.fn(),
-  };
+beforeEach(() => vi.stubGlobal('indexedDB', new IDBFactory()));
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
-// Provide global atob/btoa for Node test env
-if (typeof (global as any).atob === 'undefined') {
-  (global as any).atob = (s: string) => Buffer.from(s, 'base64').toString('utf8');
-}
-if (typeof (global as any).btoa === 'undefined') {
-  (global as any).btoa = (s: string) => Buffer.from(s, 'utf8').toString('base64');
-}
-
-type Row = { key: string; kubeconfig: string };
-
-function makeFakeIndexedDB(rows: Row[], opts?: { failPut?: boolean }) {
-  const calls: { deletedKeys: any[]; putArgs: any[] } = { deletedKeys: [], putArgs: [] };
-
-  const store = {
-    delete: (key: any) => {
-      const req: any = {};
-      setTimeout(() => {
-        calls.deletedKeys.push(key);
-        req.onsuccess?.({});
-      }, 0);
-      return req;
-    },
-    put: (arg: any) => {
-      const req: any = {};
-      setTimeout(() => {
-        if (opts?.failPut) {
-          req.onerror?.({ target: { error: new Error('boom') } });
-          return;
-        }
-        calls.putArgs.push(arg);
-        req.onsuccess?.({});
-      }, 0);
-      return req;
-    },
-    openCursor: () => {
-      const req: any = {};
-      Object.defineProperty(req, 'onsuccess', {
-        set(fn: (ev: any) => void) {
-          let idx = 0;
-          const iterate = () => {
-            const cursor =
-              idx < rows.length
-                ? {
-                    value: rows[idx],
-                    key: rows[idx].key,
-                    continue: () => {
-                      idx++;
-                      setTimeout(iterate, 0);
+function document(name: string, customName?: string) {
+  return encodeBase64(
+    jsyaml.dump({
+      contexts: [
+        {
+          name,
+          context: {
+            cluster: name,
+            user: name,
+            extensions: [
+              { name: 'other', extension: { retained: true } },
+              ...(customName
+                ? [
+                    {
+                      name: 'headlamp_info',
+                      extension: { customName, tags: { env: 'prod' }, unknown: 'retained' },
                     },
-                  }
-                : null;
-            setTimeout(() => fn({ target: { result: cursor } }), 0);
-          };
-          iterate();
+                  ]
+                : []),
+            ],
+          },
         },
-      });
-      return req;
-    },
-  };
-
-  const db = {
-    transaction: () => ({
-      objectStore: () => store,
-    }),
-  };
-
-  const open = () => {
-    const req: any = {};
-    Object.defineProperty(req, 'onsuccess', {
-      set(fn: (ev: any) => void) {
-        setTimeout(() => fn({ target: { result: db } }), 0);
-      },
-    });
-    return req;
-  };
-
-  return { open, calls };
+      ],
+      clusters: [{ name, cluster: {} }],
+      users: [{ name, user: {} }],
+    })
+  );
 }
 
-function makeKubeB64({
-  name,
-  headlampCustomName,
-  otherExts = [],
-}: {
-  name: string;
-  headlampCustomName?: string | null;
-  otherExts?: any[];
-}) {
-  const exts: any[] = [...otherExts];
-  if (headlampCustomName !== undefined) {
-    exts.push({
-      name: 'headlamp_info',
-      extension: headlampCustomName ? { customName: headlampCustomName } : {},
+it.each([undefined, 'Previous'])(
+  'adds or replaces customName %s without losing extensions',
+  async previous => {
+    await storeStatelessClusterKubeconfig(document('target', previous));
+    await updateStatelessClusterKubeconfig('', 'Pretty', previous ?? 'target');
+    const [stored] = await getStatelessClusterKubeConfigs();
+    const parsed = jsyaml.load(decodeBase64(stored)) as KubeconfigObject;
+    const extensions = parsed.contexts?.[0].context.extensions ?? [];
+    expect(extensions.find(extension => extension.name === 'other')?.extension).toEqual({
+      retained: true,
     });
+    const headlamp = extensions.filter(extension => extension.name === 'headlamp_info');
+    expect(headlamp).toHaveLength(1);
+    expect(headlamp[0].extension).toEqual(
+      previous
+        ? { customName: 'Pretty', tags: { env: 'prod' }, unknown: 'retained' }
+        : { customName: 'Pretty' }
+    );
   }
-  const obj = {
-    apiVersion: 'v1',
-    kind: 'Config',
-    clusters: [{ name: `${name}-cluster`, cluster: {} }],
-    users: [{ name: `${name}-user`, user: {} }],
-    contexts: [
-      { name, context: { cluster: `${name}-cluster`, user: `${name}-user`, extensions: exts } },
-    ],
-    'current-context': name,
-  };
-  return (global as any).btoa(jsyaml.dump(obj));
-}
+);
 
-describe('updateStatelessClusterKubeconfig (dynamic; no clusterID path)', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
+it('changes only the document containing the target context', async () => {
+  const unrelated = document('other');
+  await storeStatelessClusterKubeconfig(unrelated);
+  await storeStatelessClusterKubeconfig(document('target'));
+  await updateStatelessClusterKubeconfig('', 'Pretty', 'target');
+  expect(await getStatelessClusterKubeConfigs()).toContain(unrelated);
+});
+
+it('rejects a missing context', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await storeStatelessClusterKubeconfig(document('target'));
+  await expect(updateStatelessClusterKubeconfig('', 'Pretty', 'missing')).rejects.toThrow(
+    'not found'
+  );
+});
+
+it('rejects failed writes without committing a renamed document', async () => {
+  const original = document('target');
+  await storeStatelessClusterKubeconfig(original);
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(IDBCursor.prototype, 'update').mockImplementationOnce(() => {
+    throw new Error('write unavailable');
   });
-
-  test('adds headlamp_info.customName when none exists', async () => {
-    const row = {
-      key: 'row-1',
-      kubeconfig: makeKubeB64({ name: 'ctx1', headlampCustomName: undefined }),
-    };
-    const fake = makeFakeIndexedDB([row]);
-    (global as any).indexedDB = { open: fake.open };
-
-    await expect(
-      updateStatelessClusterKubeconfig('IGNORED', 'Pretty Name', 'ctx1')
-    ).resolves.toBeUndefined();
-
-    expect(fake.calls.putArgs.length).toBe(1);
-    const updated = fake.calls.putArgs[0] as any;
-    expect(updated.key).toBe('row-1');
-
-    const parsed = jsyaml.load((global as any).atob(updated.kubeconfig)) as any;
-    const exts = parsed.contexts[0].context.extensions;
-    const headlamp = exts.find((e: any) => e.name === 'headlamp_info');
-    expect(headlamp).toBeTruthy();
-    expect(headlamp.extension.customName).toBe('Pretty Name');
-  });
-
-  test('overwrites existing headlamp_info.customName without duplicating and preserves other extensions', async () => {
-    const otherExt = { name: 'foo', extension: { a: 1 } };
-    const row = {
-      key: 'row-1',
-      kubeconfig: makeKubeB64({
-        name: 'ctx1',
-        headlampCustomName: 'Old Name',
-        otherExts: [otherExt],
-      }),
-    };
-    const fake = makeFakeIndexedDB([row]);
-    (global as any).indexedDB = { open: fake.open };
-
-    await expect(
-      updateStatelessClusterKubeconfig('IGNORED', 'New Name', 'ctx1')
-    ).resolves.toBeUndefined();
-
-    expect(fake.calls.putArgs.length).toBe(1);
-    const parsed = jsyaml.load(
-      (global as any).atob((fake.calls.putArgs[0] as any).kubeconfig)
-    ) as any;
-    const exts = parsed.contexts[0].context.extensions;
-
-    const headlamps = exts.filter((e: any) => e.name === 'headlamp_info');
-    expect(headlamps.length).toBe(1);
-    expect(headlamps[0].extension.customName).toBe('New Name');
-
-    const stillHasOther = exts.find((e: any) => e.name === 'foo');
-    expect(stillHasOther).toBeTruthy();
-    expect(stillHasOther.extension.a).toBe(1);
-  });
-
-  test('updates only the row that actually contains the target context when multiple rows exist', async () => {
-    const rowA = {
-      key: 'row-A',
-      kubeconfig: makeKubeB64({ name: 'ctxA', headlampCustomName: undefined }),
-    };
-    const rowB = {
-      key: 'row-B',
-      kubeconfig: makeKubeB64({ name: 'ctxB', headlampCustomName: undefined }),
-    };
-    const fake = makeFakeIndexedDB([rowA, rowB]);
-    (global as any).indexedDB = { open: fake.open };
-
-    await expect(
-      updateStatelessClusterKubeconfig('IGNORED', 'Nice B', 'ctxB')
-    ).resolves.toBeUndefined();
-
-    expect(fake.calls.putArgs.length).toBe(1);
-    const updatedRow = fake.calls.putArgs[0] as any;
-    expect(updatedRow.key).toBe('row-B');
-
-    const parsedB = jsyaml.load((global as any).atob(updatedRow.kubeconfig)) as any;
-    const headlamp = parsedB.contexts[0].context.extensions.find(
-      (e: any) => e.name === 'headlamp_info'
-    );
-    expect(headlamp.extension.customName).toBe('Nice B');
-  });
-
-  test('can locate by existing customName (not just context.name)', async () => {
-    const row = {
-      key: 'row-1',
-      kubeconfig: makeKubeB64({ name: 'ctx1', headlampCustomName: 'Pretty' }),
-    };
-    const fake = makeFakeIndexedDB([row]);
-    (global as any).indexedDB = { open: fake.open };
-
-    await expect(
-      updateStatelessClusterKubeconfig('IGNORED', 'Even Prettier', 'Pretty')
-    ).resolves.toBeUndefined();
-
-    const updated = fake.calls.putArgs[0] as any;
-    const parsed = jsyaml.load((global as any).atob(updated.kubeconfig)) as any;
-    const headlamp = parsed.contexts[0].context.extensions.find(
-      (e: any) => e.name === 'headlamp_info'
-    );
-    expect(headlamp.extension.customName).toBe('Even Prettier');
-  });
-
-  test('rejects when no matching context in any row', async () => {
-    const row = {
-      key: 'row-1',
-      kubeconfig: makeKubeB64({ name: 'ctx1', headlampCustomName: undefined }),
-    };
-    const fake = makeFakeIndexedDB([row]);
-    (global as any).indexedDB = { open: fake.open };
-
-    await expect(
-      updateStatelessClusterKubeconfig('IGNORED', 'Nope', 'missing-ctx')
-    ).rejects.toContain('not found');
-  });
-
-  test('rejects when put fails', async () => {
-    const row = {
-      key: 'row-1',
-      kubeconfig: makeKubeB64({ name: 'ctx1', headlampCustomName: undefined }),
-    };
-    const fake = makeFakeIndexedDB([row], { failPut: true });
-    (global as any).indexedDB = { open: fake.open };
-
-    await expect(updateStatelessClusterKubeconfig('IGNORED', 'Pretty', 'ctx1')).rejects.toContain(
-      'Failed to update kubeconfig'
-    );
-  });
+  await expect(updateStatelessClusterKubeconfig('', 'Pretty', 'target')).rejects.toThrow(
+    'write unavailable'
+  );
+  await expect(getStatelessClusterKubeConfigs()).resolves.toEqual([original]);
 });
