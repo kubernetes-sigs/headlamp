@@ -36,7 +36,7 @@
               <h1
                 class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
-                Plugins
+                Plugin Settings
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
@@ -47,6 +47,15 @@
         <div
           class="MuiBox-root css-1txv3mw"
         >
+          <div
+            class="MuiBox-root css-1fg81o4"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h4 css-1wbghzm-MuiTypography-root"
+            >
+              Installed Plugins
+            </h2>
+          </div>
           <div
             class="MuiBox-root css-8atqhb"
           >
