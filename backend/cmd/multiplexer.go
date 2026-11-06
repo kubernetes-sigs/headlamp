@@ -591,13 +591,18 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
+	conn.mu.RLock()
+	clientConn := conn.Client
+	token := conn.Token
+	conn.mu.RUnlock()
+
 	newConn, err := m.establishClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
 		conn.Query,
-		conn.Client,
-		conn.Token,
+		clientConn,
+		token,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
@@ -608,6 +613,18 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	m.mutex.Lock()
 	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = newConn
 	m.mutex.Unlock()
+
+	// Start reading from the new connection. establishClusterConnection only
+	// starts the heartbeat, so without this the reconnected socket stays alive
+	// but nothing forwards its messages and the client silently stops receiving
+	// updates.
+	newConn.mu.RLock()
+	clientConn = newConn.Client
+	newConn.mu.RUnlock()
+
+	if clientConn != nil {
+		go m.handleClusterMessages(newConn, clientConn)
+	}
 
 	return newConn, nil
 }
@@ -1063,7 +1080,12 @@ func (m *Multiplexer) cleanupConnection(conn *Connection) {
 
 	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+	// Only drop the entry if it still points at this connection. After a
+	// reconnect the key holds the new connection, so cleaning up the old one
+	// must not evict the live entry.
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
 }
 
