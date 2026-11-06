@@ -66,5 +66,8 @@ export const queryClient = new QueryClient({
  * capability plugins should have.
  */
 export function invalidateClusterUserInfo() {
-  return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['clusterMe'] }),
+    queryClient.invalidateQueries({ queryKey: ['plugin-manager-info'] }),
+  ]);
 }

@@ -121,15 +121,16 @@ async function setCookieToken(cluster: string, token: string | null) {
  */
 export function setToken(cluster: string, token: string | null) {
   const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
-  if (setTokenMethodToUse) {
-    return Promise.resolve(setTokenMethodToUse(cluster, token));
-  }
-
-  return setCookieToken(cluster, token).then(result => {
+  const result = setTokenMethodToUse
+    ? Promise.resolve(setTokenMethodToUse(cluster, token))
+    : setCookieToken(cluster, token);
+  return result.then(result => {
     if (token) {
       queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['plugin-manager-info', cluster], exact: true });
     } else {
       queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      queryClient.removeQueries({ queryKey: ['plugin-manager-info', cluster], exact: true });
     }
 
     return result;

@@ -35,7 +35,11 @@ export async function fetchPluginResource<T>(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, { headers: new Headers(headers), signal: controller.signal });
+    const response = await fetch(url, {
+      headers: new Headers(headers),
+      signal: controller.signal,
+      cache: 'no-store',
+    });
     return await consume(response);
   } finally {
     clearTimeout(timeout);

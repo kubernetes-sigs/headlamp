@@ -16,6 +16,7 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import React, { ReactElement } from 'react';
+import { isElectron } from '../helpers/isElectron';
 
 /**
  * Props for PluginSettingsDetailsProps component.
@@ -229,3 +230,13 @@ export const { pluginsLoaded, setPluginSettings, setPluginSettingsComponent, rel
   pluginsSlice.actions;
 
 export default pluginsSlice.reducer;
+
+export const PLUGINS_RELOAD_EVENT = 'headlamp:reload-plugins';
+
+export function requestPluginReload() {
+  if (isElectron()) {
+    window.location.reload();
+    return;
+  }
+  window.dispatchEvent(new Event(PLUGINS_RELOAD_EVENT));
+}

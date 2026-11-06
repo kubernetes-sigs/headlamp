@@ -84,6 +84,10 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // sidecar exists. The Content-Type is always derived from the original
 // filename so the encoding handshake is invisible to the client.
 func (h spaHandler) serveStatic(w http.ResponseWriter, r *http.Request, root *os.Root, rel string) {
+	if rel == filepath.FromSlash(h.indexPath) {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+
 	// `Vary: Accept-Encoding` must be set on every response so caches keep
 	// per-encoding entries even when we end up serving the identity bytes.
 	setEncodingHeaders(w, "")

@@ -195,6 +195,10 @@ export default function AppContainer() {
     >
       <GlobalStyles
         styles={{
+          '.notistack-MuiContent-success': {
+            backgroundColor: '#2e7d32',
+            color: '#fff',
+          },
           ':root': {
             '@media (prefers-reduced-motion: reduce)': {
               '& *': {

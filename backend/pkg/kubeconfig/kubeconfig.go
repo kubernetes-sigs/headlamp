@@ -1,6 +1,7 @@
 package kubeconfig
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -43,7 +44,31 @@ type userAgentRoundTripper struct {
 }
 
 func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	const maxReplayBodySize = 1 << 20
+
 	newReq := req.Clone(req.Context())
+
+	if newReq.GetBody == nil && newReq.Body != nil && newReq.ContentLength > 0 &&
+		newReq.ContentLength <= maxReplayBodySize {
+		body, err := io.ReadAll(io.LimitReader(newReq.Body, maxReplayBodySize+1))
+		if err != nil {
+			_ = newReq.Body.Close()
+			return nil, fmt.Errorf("reading proxy request body: %w", err)
+		}
+
+		if len(body) > maxReplayBodySize {
+			newReq.Body = struct {
+				io.Reader
+				io.Closer
+			}{io.MultiReader(bytes.NewReader(body), newReq.Body), newReq.Body}
+		} else {
+			_ = newReq.Body.Close()
+			newReq.GetBody = func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(body)), nil
+			}
+			newReq.Body = io.NopCloser(bytes.NewReader(body))
+		}
+	}
 
 	newReq.Header.Set("User-Agent", rt.userAgent)
 
