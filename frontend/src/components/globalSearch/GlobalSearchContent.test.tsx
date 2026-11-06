@@ -36,7 +36,7 @@ function renderSearch() {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <TestContext>
-        <GlobalSearchContent defaultValue="" maxWidth={500} onBlur={() => {}} />
+        <GlobalSearchContent defaultValue="" maxWidth={500} onClose={() => {}} />
       </TestContext>
     </QueryClientProvider>
   );

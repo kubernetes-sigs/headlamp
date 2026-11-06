@@ -33,12 +33,6 @@ const LazySearchContent = lazy(async () => {
 
 const SEARCH_MAX_WIDTH = 500;
 
-/**
- * The `GlobalSearch` component provides a search functionality
- * It can be rendered as either an icon button or a text field based on the `isIconButton` prop.
- *
- * @param props.isIconButton - Determines if the search should be displayed as an icon button or a text field.
- */
 export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
   const theme = useTheme();
   const smallBreakpoint = useMediaQuery(theme.breakpoints.down('md'));
@@ -46,14 +40,17 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
   const [focused, setFocused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const blur = () => {
-    // Defer the check until the browser has naturally moved focus to the next element
-    setTimeout(() => {
-      if (containerRef.current && !containerRef.current.contains(document.activeElement)) {
-        setFocused(false);
-        setPlaceholderValue('');
-      }
-    }, 0);
+  // Unconditional close for Escape key or selecting an item
+  const closeSearch = () => {
+    setFocused(false);
+    setPlaceholderValue('');
+  };
+
+  // Bubbling blur handler to detect when focus completely leaves the search widget
+  const handleContainerBlur = (e: React.FocusEvent) => {
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+      closeSearch();
+    }
   };
 
   const searchShortcutKey = useShortcutKey('GLOBAL_SEARCH');
@@ -63,7 +60,6 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
     setFocused(true);
   });
 
-  // If search is not focused, display this placeholder
   const [placeholderValue, setPlaceholderValue] = useState('');
   const iconSize = isIconButton ? 24 : 18;
   const textFieldPlaceholder = smallBreakpoint ? (
@@ -153,7 +149,6 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
     />
   );
 
-  // Fallback while search is lazy loaded
   const searchFallback = (
     <TextField
       fullWidth
@@ -181,6 +176,7 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
   return (
     <Box
       ref={containerRef}
+      onBlur={handleContainerBlur}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -191,7 +187,6 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
 
         ...(isIconButton
           ? {
-              // icon shouldn't grow and no paddings/margins
               flexGrow: undefined,
               px: undefined,
               mx: undefined,
@@ -200,14 +195,12 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
 
         ...(smallBreakpoint
           ? {
-              // on small breakpoint we should center it instead of growing
               flexGrow: undefined,
             }
           : {}),
 
         ...(smallBreakpoint && focused
           ? {
-              // display container that covers the whole top bar
               flexGrow: 1,
               position: 'absolute',
               height: '100%',
@@ -231,7 +224,7 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
         {focused ? (
           <Suspense fallback={searchFallback}>
             <LazySearchContent
-              onBlur={blur}
+              onClose={closeSearch}
               defaultValue={placeholderValue}
               maxWidth={SEARCH_MAX_WIDTH}
             />
