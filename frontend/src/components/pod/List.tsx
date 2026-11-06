@@ -64,6 +64,17 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
   const { reason, message: tooltip } = pod.getDetailedStatus();
 
   const containerStatuses = pod.status?.containerStatuses || [];
+  const allContainerStatuses = [
+    ...(pod.status?.initContainerStatuses ?? []),
+    ...containerStatuses,
+    ...(pod.status?.ephemeralContainerStatuses ?? []),
+  ];
+  const isOOMKilled = allContainerStatuses.some(
+    cs =>
+      cs.state?.terminated?.reason === 'OOMKilled' ||
+      cs.lastState?.terminated?.reason === 'OOMKilled'
+  );
+
   const containerIndicators = containerStatuses.map((cs, index) => {
     const { color, tooltip } = getContainerDisplayStatus(cs, t);
     return (
@@ -107,6 +118,18 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
           </StatusLabel>
         </Box>
       </LightTooltip>
+      {isOOMKilled && !reason.endsWith('OOMKilled') && (
+        <LightTooltip
+          title={t('translation|Container was terminated due to OOMKilled (Out of Memory)')}
+        >
+          <Box display="inline" tabIndex={0}>
+            <StatusLabel status="error">
+              <Icon aria-hidden="true" icon="mdi:alert-circle" width="1.2rem" height="1.2rem" />
+              {t('translation|OOMKilled')}
+            </StatusLabel>
+          </Box>
+        </LightTooltip>
+      )}
       {showContainerStatus && containerIndicators.length > 0 && (
         <Box display="flex" gap={0.5}>
           {containerIndicators}
@@ -193,6 +216,56 @@ function getContainerDisplayStatus(container: KubeContainerStatus, t: TFunction)
   };
 }
 
+export function getMaxContainerCpuLimitPercent(pod: Pod, metric?: PodMetrics): number {
+  if (!metric) return 0;
+  let maxPercent = 0;
+  const containers = [...(pod.spec?.containers ?? []), ...(pod.spec?.initContainers ?? [])];
+  for (const container of containers) {
+    const limit = parseCpu(container.resources?.limits?.cpu || '0');
+    if (limit > 0) {
+      const cMetric = metric.jsonData?.containers?.find(c => c.name === container.name);
+      if (cMetric) {
+        const usage = parseCpu(cMetric.usage?.cpu || '0');
+        const percent = (usage / limit) * 100;
+        if (percent > maxPercent) {
+          maxPercent = percent;
+        }
+      }
+    }
+  }
+  return maxPercent;
+}
+
+export function getMaxContainerMemoryLimitPercent(pod: Pod, metric?: PodMetrics): number {
+  if (!metric) return 0;
+  let maxPercent = 0;
+  const containers = [...(pod.spec?.containers ?? []), ...(pod.spec?.initContainers ?? [])];
+  for (const container of containers) {
+    const limit = parseRam(container.resources?.limits?.memory || '0');
+    if (limit > 0) {
+      const cMetric = metric.jsonData?.containers?.find(c => c.name === container.name);
+      if (cMetric) {
+        const usage = parseRam(cMetric.usage?.memory || '0');
+        const percent = (usage / limit) * 100;
+        if (percent > maxPercent) {
+          maxPercent = percent;
+        }
+      }
+    }
+  }
+  return maxPercent;
+}
+
+/**
+ * Returns the table value of a CPU or memory cell. Table cells only re-render when this value
+ * changes, so it also reflects the per-container limit usage behind the cell's alert, which can
+ * change while the pod's total usage does not. Scaling the total by a tiny factor keeps the value
+ * numeric, so the column still sorts largest first on the first click.
+ */
+export function resourceCellValue(usage: number, limitPercent: number): number {
+  return usage * (1 + Math.floor(limitPercent * 10) / 1e9);
+}
+
 function podMetricKey(cluster: string, namespace: string | undefined, name: string) {
   return `${cluster}/${namespace ?? ''}/${name}`;
 }
@@ -263,11 +336,14 @@ export function PodListRenderer(props: PodListProps) {
           total: (loadedCount + remainingItemCount).toLocaleString(),
         });
 
-  const metricsMap = useMemo(() => {
+  // The table keeps the values it read from a row until its data changes, so it gets a new
+  // array along with the metrics. Otherwise usage and its alerts would stay as they were when
+  // the pods last changed.
+  const [metricsMap, tableData] = useMemo(() => {
     const map = new Map<string, PodMetrics>();
     metrics?.forEach(m => map.set(podMetricKey(m.cluster, m.getNamespace(), m.getName()), m));
-    return map;
-  }, [metrics]);
+    return [map, pods && [...pods]] as const;
+  }, [metrics, pods]);
 
   const getCpuUsage = (pod: Pod) => {
     const metric = metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()));
@@ -354,12 +430,22 @@ export function PodListRenderer(props: PodListProps) {
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           label: t('translation|Status'),
-          // include ready condition status so the cell re-renders when icon state changes
+          // include ready condition, OOMKilled status so the cell re-renders when icon state changes
           getValue: pod => {
             const status = pod.getDetailedStatus();
             const readyCondition = (pod.status?.conditions || []).find(c => c.type === 'Ready');
             const phase = pod.status?.phase || '';
-            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}`;
+            const allStatuses = [
+              ...(pod.status?.initContainerStatuses ?? []),
+              ...(pod.status?.containerStatuses ?? []),
+              ...(pod.status?.ephemeralContainerStatuses ?? []),
+            ];
+            const isOOMKilled = allStatuses.some(
+              cs =>
+                cs.state?.terminated?.reason === 'OOMKilled' ||
+                cs.lastState?.terminated?.reason === 'OOMKilled'
+            );
+            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}:${isOOMKilled}`;
           },
           render: pod => makePodStatusLabel(pod, true, t),
         },
@@ -401,9 +487,35 @@ export function PodListRenderer(props: PodListProps) {
                     );
                   }
 
+                  const metric = metricsMap.get(
+                    podMetricKey(pod.cluster, pod.getNamespace(), pod.getName())
+                  );
+                  const limitPercent = getMaxContainerCpuLimitPercent(pod, metric);
+                  const isHighCpu = limitPercent >= 95;
+
                   return (
                     <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {isHighCpu && (
+                        <LightTooltip
+                          title={t('translation|CPU Near Limit: {{ percent }}% of limit', {
+                            percent: limitPercent.toFixed(0),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            tabIndex={0}
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'warning.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-outline"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|CPU Near Limit')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
                       {tooltipLines.length > 0 && (
                         <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
                           <TooltipIcon>
@@ -416,7 +528,15 @@ export function PodListRenderer(props: PodListProps) {
                     </Box>
                   );
                 },
-                getValue: (pod: Pod) => getCpuUsage(pod) ?? 0,
+                sort: (a: Pod, b: Pod) => (getCpuUsage(a) ?? 0) - (getCpuUsage(b) ?? 0),
+                getValue: (pod: Pod) =>
+                  resourceCellValue(
+                    getCpuUsage(pod) ?? 0,
+                    getMaxContainerCpuLimitPercent(
+                      pod,
+                      metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()))
+                    )
+                  ),
               },
               {
                 id: 'memory',
@@ -453,9 +573,56 @@ export function PodListRenderer(props: PodListProps) {
                     );
                   }
 
+                  const metric = metricsMap.get(
+                    podMetricKey(pod.cluster, pod.getNamespace(), pod.getName())
+                  );
+                  const limitPercent = getMaxContainerMemoryLimitPercent(pod, metric);
+                  const isOOMRisk = limitPercent >= 90;
+                  const isHighMemory = limitPercent >= 75 && limitPercent < 90;
+
                   return (
                     <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {isOOMRisk && (
+                        <LightTooltip
+                          title={t('translation|OOM Risk: {{ percent }}% of limit', {
+                            percent: limitPercent.toFixed(0),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            tabIndex={0}
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'error.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-circle"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|OOM Risk')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
+                      {isHighMemory && (
+                        <LightTooltip
+                          title={t('translation|High Memory: {{ percent }}% of limit', {
+                            percent: Math.floor(limitPercent),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            tabIndex={0}
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'warning.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-outline"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|High Memory')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
                       {tooltipLines.length > 0 && (
                         <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
                           <TooltipIcon>
@@ -468,7 +635,15 @@ export function PodListRenderer(props: PodListProps) {
                     </Box>
                   );
                 },
-                getValue: (pod: Pod) => getMemoryUsage(pod) ?? 0,
+                sort: (a: Pod, b: Pod) => (getMemoryUsage(a) ?? 0) - (getMemoryUsage(b) ?? 0),
+                getValue: (pod: Pod) =>
+                  resourceCellValue(
+                    getMemoryUsage(pod) ?? 0,
+                    getMaxContainerMemoryLimitPercent(
+                      pod,
+                      metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()))
+                    )
+                  ),
               },
             ]
           : []),
@@ -578,7 +753,7 @@ export function PodListRenderer(props: PodListProps) {
         'labels',
         'age',
       ]}
-      data={pods}
+      data={tableData}
       reflectInURL={reflectTableInURL}
       id="headlamp-pods"
       enableRowActions={enableRowActions}
