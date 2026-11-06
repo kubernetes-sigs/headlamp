@@ -59,23 +59,23 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('translation|MinReplicas'),
-            value: item.spec.minReplicas,
+            value: item.spec?.minReplicas ?? 1,
           },
           {
             name: t('translation|MaxReplicas'),
-            value: item.spec.maxReplicas,
+            value: item.spec?.maxReplicas,
           },
           {
             name: t('translation|Deployment pods'),
             value: t(`translation|{{ currentReplicas }} current / {{ desiredReplicas }} desired`, {
-              currentReplicas: item.status.currentReplicas,
-              desiredReplicas: item.status.desiredReplicas,
+              currentReplicas: item.status?.currentReplicas ?? t('translation|<unknown>'),
+              desiredReplicas: item.status?.desiredReplicas ?? t('translation|<unknown>'),
             }),
           },
           {
             name: t('translation|Last Scale Time'),
-            value: item.status.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
-            hide: !item.status.lastScaleTime,
+            value: item.status?.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
+            hide: !item.status?.lastScaleTime,
           },
         ]
       }
