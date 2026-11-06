@@ -8,27 +8,46 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // ExportedRunWatcher exposes runWatcher for testing.
 func ExportedRunWatcher(
 	ctx context.Context,
+	cancel context.CancelFunc,
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	var watcher *watcherInstance
+	if val, ok := contextCancel.Load(contextKey); ok {
+		watcher, _ = val.(*watcherInstance)
+	}
+
+	if watcher == nil {
+		watcher = &watcherInstance{cancel: cancel}
+	}
+
+	runWatcher(ctx, watcher, k8scache, contextKey, kContext)
 }
 
-// ResetRegistries clears both registries for test isolation.
+// ExportedRunWatcherWithCancel exposes runWatcher with an explicit cancel function for testing replacement scenarios.
+func ExportedRunWatcherWithCancel(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	k8scache cache.Cache[string],
+	contextKey string,
+	kContext kubeconfig.Context,
+) {
+	runWatcher(ctx, &watcherInstance{cancel: cancel}, k8scache, contextKey, kContext)
+}
+
+// ResetRegistries clears the watcher registry for test isolation.
 // If no keys are provided, it clears all entries.
 func ResetRegistries(keys ...string) {
 	if len(keys) == 0 {
-		watcherRegistry.Range(func(key, _ interface{}) bool {
-			watcherRegistry.Delete(key)
-			return true
-		})
 		contextCancel.Range(func(key, _ interface{}) bool {
 			contextCancel.Delete(key)
 			return true
@@ -38,28 +57,25 @@ func ResetRegistries(keys ...string) {
 	}
 
 	for _, k := range keys {
-		watcherRegistry.Delete(k)
 		contextCancel.Delete(k)
 	}
 }
 
-// StoreTestRegistry populates both registries for test setup.
+// StoreTestRegistry registers a watcher for test setup.
 func StoreTestRegistry(key string, cancel context.CancelFunc) {
-	watcherRegistry.Store(key, struct{}{})
-	contextCancel.Store(key, cancel)
+	contextCancel.Store(key, &watcherInstance{cancel: cancel})
 }
 
 // StoreTestContextCancel stores a cancel function in the registry for tests.
 func StoreTestContextCancel(contextKey string, cancel context.CancelFunc) {
-	contextCancel.Store(contextKey, cancel)
+	contextCancel.Store(contextKey, &watcherInstance{cancel: cancel})
 }
 
-// RegistryLoaded checks if a key exists in both registries.
-func RegistryLoaded(key string) (watcher, cancel bool) {
-	_, watcher = watcherRegistry.Load(key)
-	_, cancel = contextCancel.Load(key)
+// RegistryLoaded reports whether a watcher is registered for key.
+func RegistryLoaded(key string) bool {
+	_, loaded := contextCancel.Load(key)
 
-	return
+	return loaded
 }
 
 // ResetClientsetCache clears the clientset cache for test isolation.
@@ -194,4 +210,19 @@ func ExportedClientsetPrefixBlocked(prefix string) bool {
 	_, blocked := blockedClientsetPrefixes[prefix]
 
 	return blocked
+}
+
+// SetDiscoveryClientCreator sets a custom discovery client creator for testing.
+// It returns a function to restore the original creator.
+func SetDiscoveryClientCreator(fn func(*rest.Config) (discovery.DiscoveryInterface, error)) func() {
+	hookMu.Lock()
+	original := discoveryClientCreator
+	discoveryClientCreator = fn
+	hookMu.Unlock()
+
+	return func() {
+		hookMu.Lock()
+		discoveryClientCreator = original
+		hookMu.Unlock()
+	}
 }
