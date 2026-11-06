@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { render, screen } from '@testing-library/react';
+import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock the K8s modules to avoid circular import issues in the test environment
@@ -22,7 +24,7 @@ vi.mock('../../lib/k8s/pod', () => ({ default: {} }));
 
 import type Node from '../../lib/k8s/node';
 import type Pod from '../../lib/k8s/pod';
-import { isNodeCordoned, isNodeDrained } from './utils';
+import { isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
 
 function makeNode(unschedulable?: boolean): Node {
   return { spec: { unschedulable } } as any;
@@ -74,5 +76,30 @@ describe('isNodeDrained', () => {
       makePod({ ownerKind: 'ReplicaSet', phase: 'Failed' }),
     ];
     expect(isNodeDrained(makeNode(true), pods)).toBe(true);
+  });
+});
+
+describe('NodeTaintsLabel', () => {
+  it('renders taints that share a key without duplicate React keys', () => {
+    // An unreachable node gets both taints from the node controller.
+    const node = {
+      spec: {
+        taints: [
+          { key: 'node.kubernetes.io/unreachable', effect: 'NoSchedule' },
+          { key: 'node.kubernetes.io/unreachable', effect: 'NoExecute' },
+        ],
+      },
+    } as any as Node;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(createElement(NodeTaintsLabel, { node }));
+
+    expect(screen.getByText('node.kubernetes.io/unreachable:NoSchedule')).toBeTruthy();
+    expect(screen.getByText('node.kubernetes.io/unreachable:NoExecute')).toBeTruthy();
+    const duplicateKeyWarnings = consoleError.mock.calls.filter(args =>
+      String(args[0]).includes('same key')
+    );
+    consoleError.mockRestore();
+    expect(duplicateKeyWarnings).toEqual([]);
   });
 });
