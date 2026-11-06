@@ -21,6 +21,7 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
 import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
+import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
 import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
@@ -84,6 +85,7 @@ describe('useSidebarItems', () => {
     vi.spyOn(PodGroup, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(CompositePodGroup, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
+    vi.spyOn(ClusterTrustBundle, 'isEnabled').mockResolvedValue(false);
     const emptyCRDs: [CRD[], null] = [[], null];
     vi.spyOn(CRD, 'useList').mockReturnValue(
       Object.assign(emptyCRDs, {
@@ -164,6 +166,36 @@ describe('useSidebarItems', () => {
       expect(gatewayItems.some(item => item.name === 'udproutes')).toBe(udpVisible);
     }
   );
+
+  describe('Cluster Trust Bundles under Security', () => {
+    const securityItems = (items: ReturnType<typeof useSidebarItems>) =>
+      items.find(item => item.name === 'security')?.subList?.map(item => item.name);
+
+    beforeEach(() => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+    });
+
+    it('is left out when the cluster does not serve trust bundles', async () => {
+      const bundlesEnabled = vi.spyOn(ClusterTrustBundle, 'isEnabled').mockResolvedValue(false);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(bundlesEnabled).toHaveBeenCalledWith('test-cluster'));
+      expect(securityItems(result.current)).not.toContain('clusterTrustBundles');
+      // The rest of the section is unaffected by the gate.
+      expect(securityItems(result.current)).toContain('serviceAccounts');
+    });
+
+    it('is listed once the cluster serves them', async () => {
+      vi.spyOn(ClusterTrustBundle, 'isEnabled').mockResolvedValue(true);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(securityItems(result.current)).toContain('clusterTrustBundles'));
+    });
+  });
 
   describe('the Scheduling (alpha) section', () => {
     const schedulingItems = (items: ReturnType<typeof useSidebarItems>) =>

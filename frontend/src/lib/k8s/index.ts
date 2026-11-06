@@ -25,6 +25,7 @@ import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
+import ClusterTrustBundle from './clusterTrustBundle';
 import CompositePodGroup from './compositePodGroup';
 import ConfigMap from './configMap';
 import ControllerRevision from './controllerRevision';
@@ -76,6 +77,7 @@ import VolumeAttributesClass from './volumeAttributesClass';
 export const ResourceClasses = {
   ClusterRole,
   ClusterRoleBinding,
+  ClusterTrustBundle,
   ConfigMap,
   ControllerRevision,
   CustomResourceDefinition,
@@ -359,6 +361,7 @@ export function useClustersVersion(clusters: Cluster[]) {
 
 // Other exports that can be used by plugins:
 export * as cluster from './cluster';
+export * as clusterTrustBundle from './clusterTrustBundle';
 export * as clusterRole from './clusterRole';
 export * as clusterRoleBinding from './clusterRoleBinding';
 export * as configMap from './configMap';

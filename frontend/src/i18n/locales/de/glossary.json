@@ -4,6 +4,7 @@
   "Cluster selector": "",
   "Namespace": "Namespace",
   "Git Commit": "Git Commit",
+  "Cluster Trust Bundles": "",
   "Memory": "Speicher",
   "CPU": "CPU",
   "Pods": "Pods",
