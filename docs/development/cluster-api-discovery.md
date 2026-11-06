@@ -5,7 +5,7 @@ title: Cluster API discovery
 # Cluster API discovery
 
 Headlamp operators can enable automatic discovery of `cluster.x-k8s.io/v1beta2`
-Clusters. Connections use the same [discovery engine](./cluster-discovery.md) as
+Clusters. Connections use the same [discovery engine](./cluster-discovery-architecture.md) as
 Cluster Inventory and authenticate each signed-in user through OIDC.
 
 | Backend option | Environment variable | Behavior |
