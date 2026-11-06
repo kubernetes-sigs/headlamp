@@ -1,0 +1,73 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1f81hye"
+    >
+      <div
+        class="MuiBox-root css-10zf0fw"
+      >
+        <div
+          class="MuiBox-root css-d8zes7"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          >
+            The objects are identical
+          </p>
+        </div>
+        <label
+          class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+        >
+          <span
+            class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+          >
+            <span
+              class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+            >
+              <input
+                class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                name="showServerFields"
+                type="checkbox"
+              />
+              <span
+                class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+              />
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </span>
+            <span
+              class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+            />
+          </span>
+          <span
+            class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+          >
+            Show server-populated fields
+          </span>
+        </label>
+      </div>
+      <div
+        class="MuiBox-root css-x3oaoe"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-1f7he7x-MuiTypography-root"
+        >
+          staging / default / nginx-deployment
+        </p>
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-1f7he7x-MuiTypography-root"
+        >
+          prod / default / nginx-deployment
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-y5hlt2"
+      >
+        <div
+          class="mock-monaco-diff-editor"
+        />
+      </div>
+    </div>
+  </div>
+</body>
