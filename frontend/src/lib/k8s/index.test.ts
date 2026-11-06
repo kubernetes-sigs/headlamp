@@ -311,6 +311,7 @@ const notNamespacedClasses = [
   'Node',
   'PersistentVolume',
   'PriorityClass',
+  'ResourceSlice',
   'RuntimeClass',
   'StorageClass',
   'VolumeAttributesClass',
