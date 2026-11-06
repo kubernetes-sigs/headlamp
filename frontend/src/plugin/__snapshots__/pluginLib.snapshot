@@ -847,6 +847,7 @@
   "registerClusterStatus": [Function],
   "registerCustomCreateProject": [Function],
   "registerDetailsViewHeaderAction": [Function],
+  "registerDetailsViewHeaderActionButton": [Function],
   "registerDetailsViewHeaderActionsProcessor": [Function],
   "registerDetailsViewSection": [Function],
   "registerDetailsViewSectionsProcessor": [Function],
