@@ -91,3 +91,45 @@ describe('GlobalSearchContent theme actions', () => {
     expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBeNull();
   });
 });
+
+describe('GlobalSearchContent keyboard navigation and accessibility', () => {
+  it('sets tabIndex -1 and aria-hidden on the Clear button when query is empty', () => {
+    renderSearch();
+
+    const clearButton = screen.getByLabelText('Clear');
+    expect(clearButton).toHaveAttribute('tabindex', '-1');
+    expect(clearButton).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('preserves tabIndex -1 on the Clear button when query is present to avoid focus traps', async () => {
+    renderSearch();
+
+    const input = screen.getByPlaceholderText('Search resources, pages, clusters by name');
+    await userEvent.type(input, 'my-pod');
+
+    const clearButton = screen.getByLabelText('Clear');
+    expect(clearButton).toHaveAttribute('tabindex', '-1');
+    expect(clearButton).toHaveAttribute('aria-hidden', 'false');
+  });
+
+  it('allows tabbing past the search input to subsequent controls without getting trapped', async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TestContext>
+          <button data-testid="before-btn">Before</button>
+          <GlobalSearchContent defaultValue="" maxWidth={500} onBlur={() => {}} />
+          <button data-testid="after-btn">After</button>
+        </TestContext>
+      </QueryClientProvider>
+    );
+
+    const input = screen.getByPlaceholderText('Search resources, pages, clusters by name');
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    await userEvent.tab();
+
+    // Focus must move to the next sequential element (after-btn), NOT trapped on Clear button
+    expect(document.activeElement).toBe(screen.getByTestId('after-btn'));
+  });
+});

@@ -25,10 +25,11 @@
             value=""
           />
           <button
+            aria-hidden="true"
             aria-label="Clear"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ppbyx2-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-15u0sql-MuiButtonBase-root-MuiIconButton-root"
             data-mui-internal-clone-element="true"
-            tabindex="0"
+            tabindex="-1"
             type="button"
           >
             <span

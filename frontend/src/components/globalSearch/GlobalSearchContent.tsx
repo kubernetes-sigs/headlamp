@@ -554,8 +554,24 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             autoFocus: true,
             endAdornment: (
               <>
-                <Tooltip title={<Trans>Clear</Trans>} sx={{ opacity: query.length ? 1 : 0 }}>
-                  <IconButton onClick={() => setQuery('')} aria-label={t('Clear')} size="small">
+                <Tooltip
+                  title={<Trans>Clear</Trans>}
+                  sx={{
+                    opacity: query.length ? 1 : 0,
+                    visibility: query.length ? 'visible' : 'hidden',
+                  }}
+                >
+                  <IconButton
+                    onClick={() => setQuery('')}
+                    onMouseDown={event => {
+                      // Prevent input from losing focus when clicking Clear
+                      event.preventDefault();
+                    }}
+                    aria-label={t('Clear')}
+                    size="small"
+                    tabIndex={-1}
+                    aria-hidden={query.length === 0}
+                  >
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </Tooltip>
