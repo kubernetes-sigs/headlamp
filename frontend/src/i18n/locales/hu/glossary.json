@@ -224,6 +224,8 @@
   "Cluster IP": "Fürt IP-címe",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Erőforráskvóták",
   "Reference Kind": "Hivatkozás altípusa",
   "Reference Name": "Hivatkozás neve",

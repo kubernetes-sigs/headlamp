@@ -96,6 +96,30 @@ Default.parameters = {
   },
 };
 
+export const WithScopes = Template.bind({});
+WithScopes.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/namespaces/my-namespace/resourcequotas/my-endpoint`, () =>
+          HttpResponse.json({
+            ...item,
+            spec: {
+              ...item.spec,
+              scopes: ['NotTerminating', 'BestEffort'],
+              scopeSelector: {
+                matchExpressions: [
+                  { scopeName: 'PriorityClass', operator: 'In', values: ['high', 'critical'] },
+                ],
+              },
+            },
+          })
+        ),
+      ],
+    },
+  },
+};
+
 export const Error = Template.bind({});
 
 Error.parameters = {
