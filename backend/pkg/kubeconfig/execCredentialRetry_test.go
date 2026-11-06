@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -272,4 +273,104 @@ func TestSetupProxyDoesNotRetryMixedExecStaticAuthUnauthorized(t *testing.T) {
 			assert.Equal(t, 1, requests)
 		})
 	}
+}
+
+func startExecUpgradeTLSServer(t *testing.T, tokenFile string, requests *int) *httptest.Server {
+	t.Helper()
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		*requests++
+
+		if req.Header.Get("Authorization") == "Bearer token-one" {
+			require.NoError(t, os.WriteFile(tokenFile, []byte("token-two"), 0o600))
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		assert.Equal(t, "Bearer token-two", req.Header.Get("Authorization"))
+
+		if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
+			conn, err := upgrader.Upgrade(w, req, nil)
+			if err != nil {
+				return
+			}
+			defer func() { _ = conn.Close() }()
+
+			mt, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			_ = conn.WriteMessage(mt, msg)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+}
+
+func assertWebSocketTextMessageEcho(t *testing.T, conn *websocket.Conn, payload string) {
+	t.Helper()
+
+	require.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(payload)))
+
+	msgType, msg, err := conn.ReadMessage()
+	require.NoError(t, err)
+	assert.Equal(t, websocket.TextMessage, msgType)
+	assert.Equal(t, payload, string(msg))
+}
+
+func TestSetupProxyWebSocketUpgradeRetriesAfterExecCredentialRefresh(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("token-one"), 0o600))
+
+	requests := 0
+	server := startExecUpgradeTLSServer(t, tokenFile, &requests)
+	defer server.Close()
+
+	ctx := &kubeconfig.Context{
+		Name:        "exec-upgrade-context",
+		KubeContext: &api.Context{Cluster: "cluster", AuthInfo: "user"},
+		Cluster:     &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{Exec: &api.ExecConfig{
+			APIVersion:      "client.authentication.k8s.io/v1",
+			Command:         os.Args[0],
+			Args:            []string{"-test.run=TestExecCredentialPluginProcess"},
+			InteractiveMode: api.NeverExecInteractiveMode,
+			Env: []api.ExecEnvVar{
+				{Name: "HEADLAMP_EXEC_CREDENTIAL_HELPER", Value: "true"},
+				{Name: "HEADLAMP_EXEC_CREDENTIAL_TOKEN_FILE", Value: tokenFile},
+			},
+		}},
+	}
+	require.NoError(t, ctx.SetupProxy())
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, ctx.ProxyRequest(w, r))
+	}))
+	defer proxyServer.Close()
+
+	dialer := websocket.Dialer{}
+	wsURL := "ws" + strings.TrimPrefix(proxyServer.URL, "http") + "/exec"
+
+	conn, resp, err := dialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	defer func() {
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	defer func() { _ = conn.Close() }()
+
+	assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	assert.Equal(t, 2, requests)
+	assertWebSocketTextMessageEcho(t, conn, "echo")
 }
