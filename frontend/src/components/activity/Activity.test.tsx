@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
+import drawerModeReducer, { DrawerModeState } from '../../redux/drawerModeSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { ActivitiesRenderer, Activity } from './Activity';
+import { ActivitiesRenderer, Activity, SingleActivityRenderer } from './Activity';
 import { activitySlice, ActivityState } from './activitySlice';
 
 const { reducer, actions } = activitySlice;
@@ -378,5 +380,128 @@ describe('Activity pointer-down capture', () => {
 
     expect(store.getState().activity.activities['target'].minimized).toBe(true);
     expect(store.getState().activity.history).toEqual(['other']);
+  });
+});
+
+describe('details activity resizing', () => {
+  const BODY_WIDTH = 1000;
+
+  beforeAll(() => {
+    // jsdom does not implement PointerEvent, and without it testing-library falls back to a plain
+    // Event that drops properties such as clientX and button.
+    if (typeof window.PointerEvent === 'undefined') {
+      class PointerEventShim extends MouseEvent {}
+      (window as any).PointerEvent = PointerEventShim;
+    }
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+    Object.defineProperty(document.body, 'clientWidth', {
+      configurable: true,
+      value: BODY_WIDTH,
+    });
+  });
+
+  afterEach(() => {
+    delete (document.body as any).clientWidth;
+    localStorage.clear();
+  });
+
+  function renderActivity(
+    activity: Partial<Activity> = {},
+    drawerModeOverrides: Partial<DrawerModeState> = {},
+    isOverview = false
+  ) {
+    const drawerMode: DrawerModeState = {
+      isDetailDrawerEnabled: true,
+      detailsDrawerLocation: 'split-right',
+      ...drawerModeOverrides,
+    };
+    const drawerStore = configureStore({
+      reducer: { drawerMode: drawerModeReducer },
+      preloadedState: { drawerMode },
+    });
+    render(
+      <TestContext store={drawerStore as any}>
+        <SingleActivityRenderer
+          activity={{
+            id: 'details-pod',
+            kind: 'details',
+            location: 'split-right',
+            title: 'Pod my-pod',
+            content: <div>details content</div>,
+            ...activity,
+          }}
+          zIndex={4}
+          index={0}
+          isOverview={isOverview}
+          onClick={() => {}}
+        />
+      </TestContext>
+    );
+    const handle = screen.queryByRole('separator');
+    return { drawerStore, handle, panel: handle?.parentElement as HTMLElement };
+  }
+
+  it('can be resized by dragging the handle of a split-right details activity', () => {
+    const { drawerStore, handle, panel } = renderActivity();
+    expect(handle).toBeInTheDocument();
+
+    fireEvent.pointerDown(handle!);
+    fireEvent.pointerMove(window, { clientX: 400 });
+    expect(getComputedStyle(panel).width).toBe('600px');
+    // Anchored to the right edge instead of being shifted by its own width.
+    expect(getComputedStyle(panel).right).toBe('0px');
+    expect(getComputedStyle(panel).transform).toBe('none');
+
+    fireEvent.pointerUp(window);
+    expect(drawerStore.getState().drawerMode.detailDrawerWidth).toBe(600);
+    expect(localStorage.getItem('detailDrawerWidth')).toBe('600');
+    expect(getComputedStyle(panel).width).toBe('600px');
+  });
+
+  it('can be resized by dragging the handle of a split-left details activity', () => {
+    const { drawerStore, handle, panel } = renderActivity({ location: 'split-left' });
+    expect(handle).toBeInTheDocument();
+
+    fireEvent.pointerDown(handle!);
+    fireEvent.pointerMove(window, { clientX: 500 });
+    expect(getComputedStyle(panel).width).toBe('500px');
+
+    fireEvent.pointerUp(window);
+    expect(drawerStore.getState().drawerMode.detailDrawerWidth).toBe(500);
+  });
+
+  it('can be resized with the keyboard', () => {
+    const right = renderActivity({}, { detailDrawerWidth: 700 });
+    expect(right.handle).toHaveAttribute('aria-valuenow', '700');
+    fireEvent.keyDown(right.handle!, { key: 'ArrowLeft' });
+    expect(right.drawerStore.getState().drawerMode.detailDrawerWidth).toBe(720);
+  });
+
+  it('uses the saved width and keeps it within bounds', () => {
+    const { panel } = renderActivity({}, { detailDrawerWidth: 700 });
+
+    expect(getComputedStyle(panel).width).toBe('700px');
+    expect(getComputedStyle(panel).minWidth).toBe('400px');
+    expect(getComputedStyle(panel).maxWidth).toBe('90vw');
+  });
+
+  it('keeps the default width until the user resizes it', () => {
+    const { panel } = renderActivity();
+
+    expect(getComputedStyle(panel).width).toBe('50%');
+  });
+
+  it.each([
+    ['a split-bottom details activity', { location: 'split-bottom' as const }, false],
+    ['a full-screen details activity', { location: 'full' as const }, false],
+    ['an activity that is not a details activity', { kind: undefined }, false],
+    ['a minimized details activity', { minimized: true }, false],
+    ['a details activity in the overview', {}, true],
+  ])('has no resize handle for %s', (_name, activity, isOverview) => {
+    const { handle } = renderActivity(activity, {}, isOverview);
+    expect(handle).not.toBeInTheDocument();
   });
 });
