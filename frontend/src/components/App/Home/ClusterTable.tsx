@@ -120,7 +120,7 @@ function ClusterStatus({
   if (isConnected && error === undefined) {
     return (
       <Box display="flex" alignItems="center" justifyContent="center" width="fit-content">
-        <CircularProgress size={14} />
+        <CircularProgress size={14} aria-label={t('translation|Connecting…')} />
         <Typography variant="body2" sx={{ ml: 1, color: theme.palette.text.secondary }}>
           {t('translation|Connecting…')}
         </Typography>
