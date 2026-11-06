@@ -28,6 +28,7 @@ import {
   shell,
 } from 'electron';
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
+import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
 import { platform } from 'os';
@@ -43,6 +44,7 @@ import {
 } from '../scripts/build-manifest';
 import { withBackendMemoryDefaults } from './backendMemory';
 import {
+  configureBackendTokenEnv,
   observeInternalBackendReady,
   resolveBackendToken,
   waitForExternalBackend,
@@ -902,9 +904,6 @@ async function startServer(
   // the same single-user security context.
   process.env.HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES = 'true';
 
-  // Pass a token to the backend that can be used for auth on some routes
-  process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
-
   // Set the bundled plugins in addition to the user's plugins.
   try {
     const stat = await fsPromises.stat(bundledPlugins);
@@ -937,6 +936,11 @@ async function startServer(
     console.error('Failed to get shell environment, using default:', error);
     extendedEnv = process.env;
   }
+
+  // Apply per-launch backend token to the FINAL environment after getShellEnv()
+  // resolves. This ensures a user's shell profile cannot accidentally restore a
+  // stale HEADLAMP_BACKEND_TOKEN value over our configured token.
+  configureBackendTokenEnv(extendedEnv, backendToken);
 
   const options = {
     detached: true,
@@ -1502,83 +1506,6 @@ function startElectron() {
 
   console.log('Check for updates: ', shouldCheckForUpdates);
 
-  /**
-   * Starts the bundled backend and waits for its trusted post-bind output marker.
-   *
-   * Renderer readiness is released only after the spawned child reports a successful
-   * socket bind. If the child loses the port-allocation race, startup is retried
-   * with a newly selected port without sending the token to the port owner.
-   *
-   * @param startPort - First port to consider for this startup attempt.
-   * @returns The backend child process that owns the selected listening socket.
-   * @throws When the backend exits before binding its selected port.
-   */
-  async function startInternalBackend(
-    startPort = defaultPort
-  ): Promise<ChildProcessWithoutNullStreams> {
-    const startedServerProcess = await startServer([], startPort);
-    serverProcess = startedServerProcess;
-    serverProcessQuit = false;
-    attachServerEventHandlers(startedServerProcess);
-    let stopObservingReadiness = () => {};
-    /** Reports when this spawned child confirms that it owns the listening socket. */
-    const readyOutcome = new Promise<InternalBackendReadyOutcome>(resolve => {
-      stopObservingReadiness = observeInternalBackendReady(startedServerProcess.stdout, () => {
-        resolve({ type: 'ready' });
-      });
-    });
-    /** Reports an exit that occurs before trusted post-bind readiness. */
-    const exitOutcome = new Promise<InternalBackendExitOutcome | InternalBackendErrorOutcome>(
-      resolve => {
-        startedServerProcess.once('exit', exitCode => {
-          stopObservingReadiness();
-          resolve({ type: 'exit', exitCode });
-        });
-        startedServerProcess.once('error', error => {
-          stopObservingReadiness();
-          resolve({ type: 'error', error });
-        });
-      }
-    );
-    /** Prevents malformed or missing child output from blocking desktop startup forever. */
-    let readinessTimeout: NodeJS.Timeout | undefined;
-    const timeoutOutcome = new Promise<InternalBackendTimeoutOutcome>(resolve => {
-      readinessTimeout = setTimeout(
-        () => resolve({ type: 'timeout' }),
-        INTERNAL_BACKEND_READY_TIMEOUT_MS
-      );
-    });
-    /** First terminal startup outcome for this child process. */
-    const outcome = await Promise.race([readyOutcome, exitOutcome, timeoutOutcome]);
-    clearTimeout(readinessTimeout);
-    stopObservingReadiness();
-
-    if (outcome.type === 'timeout') {
-      startedServerProcess.kill();
-      throw new Error(
-        `Backend did not become ready within ${INTERNAL_BACKEND_READY_TIMEOUT_MS} ms`
-      );
-    }
-
-    if (outcome.type === 'error') {
-      throw new Error(`Backend failed to start: ${outcome.error.message}`, {
-        cause: outcome.error,
-      });
-    }
-    if (outcome.type === 'exit') {
-      if (outcome.exitCode === SERVER_ADDRESS_IN_USE_EXIT_CODE) {
-        console.warn('Server failed to start because its selected port became occupied; retrying');
-        return startInternalBackend(actualPort + 1);
-      }
-      throw new Error(`Backend exited before becoming ready with code ${outcome.exitCode}`);
-    }
-
-    readyServerProcesses.add(startedServerProcess);
-    backendCredentialsAvailable = true;
-    resolveBackendReady();
-    return startedServerProcess;
-  }
-
   async function startServerIfNeeded() {
     if (useExternalServer) {
       await waitForExternalBackend(actualPort, backendToken);
@@ -2137,15 +2064,114 @@ function attachServerEventHandlers(startedServerProcess: ChildProcessWithoutNull
   });
 }
 
-if (isHeadlessMode) {
-  startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]).then(
-    serverProcess => {
-      attachServerEventHandlers(serverProcess);
-
-      // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
+/**
+ * Starts the bundled backend and waits for its trusted post-bind output marker.
+ *
+ * Renderer readiness is released only after the spawned child reports a successful
+ * socket bind. If the child loses the port-allocation race, startup is retried
+ * with a newly selected port without sending the token to the port owner.
+ *
+ * @param flags - Additional flags passed to startServer.
+ * @param startPort - First port to consider for this startup attempt.
+ * @returns The backend child process that owns the selected listening socket.
+ * @throws When the backend exits before binding its selected port.
+ */
+async function startInternalBackend(
+  flags: string[] = [],
+  startPort = defaultPort
+): Promise<ChildProcessWithoutNullStreams> {
+  const startedServerProcess = await startServer(flags, startPort);
+  serverProcess = startedServerProcess;
+  serverProcessQuit = false;
+  attachServerEventHandlers(startedServerProcess);
+  let stopObservingReadiness = () => {};
+  /** Reports when this spawned child confirms that it owns the listening socket. */
+  const readyOutcome = new Promise<InternalBackendReadyOutcome>(resolve => {
+    stopObservingReadiness = observeInternalBackendReady(startedServerProcess.stdout, () => {
+      resolve({ type: 'ready' });
+    });
+  });
+  /** Reports an exit that occurs before trusted post-bind readiness. */
+  const exitOutcome = new Promise<InternalBackendExitOutcome | InternalBackendErrorOutcome>(
+    resolve => {
+      startedServerProcess.once('exit', exitCode => {
+        stopObservingReadiness();
+        resolve({ type: 'exit', exitCode });
+      });
+      startedServerProcess.once('error', error => {
+        stopObservingReadiness();
+        resolve({ type: 'error', error });
+      });
     }
   );
+  /** Prevents malformed or missing child output from blocking desktop startup forever. */
+  let readinessTimeout: NodeJS.Timeout | undefined;
+  const timeoutOutcome = new Promise<InternalBackendTimeoutOutcome>(resolve => {
+    readinessTimeout = setTimeout(
+      () => resolve({ type: 'timeout' }),
+      INTERNAL_BACKEND_READY_TIMEOUT_MS
+    );
+  });
+  /** First terminal startup outcome for this child process. */
+  const outcome = await Promise.race([readyOutcome, exitOutcome, timeoutOutcome]);
+  clearTimeout(readinessTimeout);
+  stopObservingReadiness();
+
+  if (outcome.type === 'timeout') {
+    startedServerProcess.kill();
+    throw new Error(`Backend did not become ready within ${INTERNAL_BACKEND_READY_TIMEOUT_MS} ms`);
+  }
+
+  if (outcome.type === 'error') {
+    throw new Error(`Backend failed to start: ${outcome.error.message}`, {
+      cause: outcome.error,
+    });
+  }
+  if (outcome.type === 'exit') {
+    if (outcome.exitCode === SERVER_ADDRESS_IN_USE_EXIT_CODE) {
+      console.warn('Server failed to start because its selected port became occupied; retrying');
+      return startInternalBackend(flags, actualPort + 1);
+    }
+    throw new Error(`Backend exited before becoming ready with code ${outcome.exitCode}`);
+  }
+
+  readyServerProcesses.add(startedServerProcess);
+  backendCredentialsAvailable = true;
+  resolveBackendReady();
+  return startedServerProcess;
+}
+
+if (isHeadlessMode) {
+  const staticFrontendDir = isDev
+    ? path.resolve('..', 'frontend', 'build')
+    : path.join(process.resourcesPath, './frontend');
+  startInternalBackend(['-html-static-dir', staticFrontendDir])
+    .then(() => {
+      // In headless mode the external browser cannot receive the per-launch
+      // backend token via Electron IPC. Pass it as a one-time URL fragment
+      // (#backendToken=<token>) so the frontend can authenticate its first
+      // request and immediately strip the fragment from the visible URL without
+      // exposing the token in HTTP request lines, server logs, or referrer headers.
+      // Use 127.0.0.1 so requests match createBackendTokenFetch's loopback origin
+      // and remain same-origin in production mode.
+      const headlessUrl = `http://127.0.0.1:${actualPort}/#backendToken=${encodeURIComponent(
+        backendToken
+      )}`;
+
+      if (isDev && process.env.HEADLAMP_E2E_HEADLESS_URL_PATH) {
+        try {
+          fs.writeFileSync(process.env.HEADLAMP_E2E_HEADLESS_URL_PATH, headlessUrl);
+        } catch {
+          // Ignore E2E hook failures
+        }
+      }
+
+      return shell.openExternal(headlessUrl);
+    })
+    .catch(error => {
+      console.error('Failed to start headless backend:', error);
+      app.exit(1);
+    });
 } else {
   if (!isRunningScript) {
     startElectron();
