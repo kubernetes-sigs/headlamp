@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { isElectron } from '../../../helpers/isElectron';
 import { useFilterFunc } from '../../../lib/util';
+import { getPluginBaseName, isOfficiallyScoped } from '../../../plugin/officialScope';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -133,7 +134,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
   /**
    * pluginChanges state is the array of plugin data and any current changes made by the user to a plugin's "Enable" field via toggler.
    * The name and origin fields are split for consistency.
-   * Plugins that are not loaded (isLoaded === false) are initialized with isEnabled = false.
+   * isEnabled is the stored user preference, kept independent of the runtime isLoaded state.
    */
   const [pluginChanges, setPluginChanges] = useState(() =>
     pluginArr.map((plugin: PluginInfo) => {
@@ -145,9 +146,6 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         ...plugin,
         displayName: name ?? plugin.name,
         origin: plugin.origin ?? author?.substring(1) ?? t('translation|Unknown'),
-        // If the plugin is not loaded, ensure it's disabled
-        isEnabled:
-          plugin.isLoaded === false && !plugin.isDevelopmentModeBlocked ? false : plugin.isEnabled,
       };
     })
   );
@@ -244,6 +242,19 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         }
         return p;
       })
+    );
+  }
+
+  /**
+   * @param plugin the plugin to check.
+   * @returns true if an @headlamp-k8s version of this plugin is installed, which stops it loading.
+   */
+  function isBlockedByOfficialPlugin(plugin: PluginInfo) {
+    return (
+      !isOfficiallyScoped(plugin) &&
+      pluginChanges.some(
+        (p: PluginInfo) => isOfficiallyScoped(p) && getPluginBaseName(p.name) === plugin.name
+      )
     );
   }
 
@@ -425,29 +436,6 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   );
                 }
 
-                // Show if this plugin is overridden by a higher priority version
-                if (plugin.isLoaded === false && plugin.overriddenBy) {
-                  const overrideLabels: Record<string, string> = {
-                    development: t('translation|Development'),
-                    user: t('translation|User-installed'),
-                    shipped: t('translation|Shipped'),
-                  };
-                  return (
-                    <Tooltip
-                      title={t('translation|Overridden by {{type}} version', {
-                        type: overrideLabels[plugin.overriddenBy],
-                      })}
-                    >
-                      <Chip
-                        label={t('translation|Not Loaded')}
-                        size="small"
-                        color="warning"
-                        variant="outlined"
-                      />
-                    </Tooltip>
-                  );
-                }
-
                 // Show if disabled
                 if (plugin.isEnabled === false) {
                   return (
@@ -457,6 +445,37 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                       color="default"
                       variant="outlined"
                     />
+                  );
+                }
+
+                // Show if this plugin is overridden, or blocked by a disabled scoped version
+                if (plugin.isLoaded === false) {
+                  const overrideLabels: Record<string, string> = {
+                    development: t('translation|Development'),
+                    user: t('translation|User-installed'),
+                    shipped: t('translation|Shipped'),
+                  };
+                  return (
+                    <Tooltip
+                      title={
+                        isBlockedByOfficialPlugin(plugin)
+                          ? t(
+                              'translation|This plugin is not loaded because a @headlamp-k8s version of it is installed.'
+                            )
+                          : plugin.overriddenBy
+                          ? t('translation|Overridden by {{type}} version', {
+                              type: overrideLabels[plugin.overriddenBy],
+                            })
+                          : ''
+                      }
+                    >
+                      <Chip
+                        label={t('translation|Not Loaded')}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                      />
+                    </Tooltip>
                   );
                 }
 
