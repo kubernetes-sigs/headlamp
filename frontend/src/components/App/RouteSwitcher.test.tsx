@@ -15,7 +15,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 
@@ -33,8 +33,16 @@ vi.mock('../../lib/k8s/event', () => ({
 }));
 vi.mock('../common/ObjectEventList', () => ({ default: () => null }));
 vi.mock('./Home', () => ({ default: () => null }));
+vi.mock('../../lib/k8s/api/v1/clusterApi', () => ({
+  testAuth: vi.fn(() => Promise.reject({ status: 401 })),
+}));
+vi.mock('../project/ProjectList', () => ({
+  default: () => null,
+  ProjectListPage: () => <div>project-list-page</div>,
+}));
 
 import { useCluster } from '../../lib/k8s';
+import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
 import RouteSwitcher from './RouteSwitcher';
 
 // Verify RouteSwitcher renders stable route keys and handles an unset cluster.
@@ -118,5 +126,28 @@ describe('RouteSwitcher', () => {
     );
 
     await waitFor(() => expect(document.title).toBe('cluster-a - Choose a cluster - Headlamp'));
+  });
+
+  it('renders the projects list when the cluster in the URL rejects auth', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const previousPath = window.location.pathname;
+    // getCluster() reads the cluster from window.location rather than the router.
+    window.history.pushState({}, '', '/c/cluster-a/projects');
+    vi.mocked(useCluster).mockReturnValue('cluster-a');
+
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <TestContext urlPrefix="/c/cluster-a/projects">
+            <RouteSwitcher requiresToken={() => false} />
+          </TestContext>
+        </QueryClientProvider>
+      );
+
+      expect(await screen.findByText('project-list-page')).toBeInTheDocument();
+      expect(testAuth).not.toHaveBeenCalled();
+    } finally {
+      window.history.pushState({}, '', previousPath);
+    }
   });
 });
