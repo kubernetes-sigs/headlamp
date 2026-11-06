@@ -40,6 +40,7 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // SA1019: client-go/tools/portforward still uses this; migrate when upstream does.
 	"k8s.io/client-go/kubernetes"
@@ -233,7 +234,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), statusCodeFromError(err))
 
 		return
 	}
@@ -246,6 +247,28 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 
 		return
 	}
+}
+
+// statusError is an error that carries the HTTP status code that should be
+// reported to the client when it is returned from a request handler.
+type statusError struct {
+	code int
+	err  error
+}
+
+func (e *statusError) Error() string { return e.err.Error() }
+
+func (e *statusError) Unwrap() error { return e.err }
+
+// statusCodeFromError returns the HTTP status code carried by err (or by any
+// error it wraps), defaulting to 500 Internal Server Error.
+func statusCodeFromError(err error) int {
+	var se *statusError
+	if errors.As(err, &se) {
+		return se.code
+	}
+
+	return http.StatusInternalServerError
 }
 
 // checkPortForwardPermission checks if the current user has permission to create pods/portforward.
@@ -279,7 +302,20 @@ func checkPortForwardPermission(clientset *kubernetes.Clientset, namespace, podN
 			reason = result.Status.Reason
 		}
 
-		return fmt.Errorf("access denied: %s", reason)
+		return &statusError{code: http.StatusForbidden, err: fmt.Errorf("access denied: %s", reason)}
+	}
+
+	return nil
+}
+
+// checkPodExists returns a 404 statusError if the pod does not exist. Any
+// other failure (for example the user not being allowed to "get" pods, which
+// is independent from being allowed to port-forward to them) is ignored so
+// that the port-forward attempt itself decides the outcome.
+func checkPodExists(clientset *kubernetes.Clientset, namespace, podName string) error {
+	_, err := clientset.CoreV1().Pods(namespace).Get(context.Background(), podName, v1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return &statusError{code: http.StatusNotFound, err: fmt.Errorf("pod %s/%s not found", namespace, podName)}
 	}
 
 	return nil
@@ -818,6 +854,11 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	err = checkPortForwardPermission(clientset, p.Namespace, p.Pod)
 	if err != nil {
 		return fmt.Errorf("permission check failed: %w", err)
+	}
+
+	err = checkPodExists(clientset, p.Namespace, p.Pod)
+	if err != nil {
+		return err
 	}
 
 	portMapping := p.Port + ":" + p.TargetPort
