@@ -344,6 +344,33 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 	return clientConfig.ClientConfig()
 }
 
+// inlineClientCertificateFiles replaces the client certificate and key files
+// in conf with their contents. It is only for the proxy, which is set up again
+// whenever its context is reloaded: client-go shares one transport, with its
+// open connections, between configs that name the same certificate files, so
+// the reloaded proxy would keep presenting the old certificate. Keyed by the
+// contents, it gets new connections instead. Long-lived clients keep the
+// files, which client-go reloads itself.
+func inlineClientCertificateFiles(conf *rest.Config) {
+	if conf.CertFile == "" || conf.KeyFile == "" || len(conf.CertData) > 0 || len(conf.KeyData) > 0 {
+		return
+	}
+
+	// On a read error, keep the paths so client-go reports it as before.
+	certData, err := os.ReadFile(conf.CertFile)
+	if err != nil {
+		return
+	}
+
+	keyData, err := os.ReadFile(conf.KeyFile)
+	if err != nil {
+		return
+	}
+
+	conf.CertData, conf.KeyData = certData, keyData
+	conf.CertFile, conf.KeyFile = "", ""
+}
+
 // makeTransportFor creates an HTTP transport configuration with special handling for
 // Windows systems to prevent terminal window flashing during exec-based authentication.
 func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
@@ -516,6 +543,8 @@ func (c *Context) SetupProxy() error {
 
 	restConf, err := c.RESTConfig()
 	if err == nil {
+		inlineClientCertificateFiles(restConf)
+
 		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
 			// Static bearer/basic auth takes precedence over exec in client-go.
