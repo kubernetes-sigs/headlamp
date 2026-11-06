@@ -236,6 +236,7 @@
   "API Groups": "API Grupları",
   "Resources": "Kaynaklar",
   "Non Resources": "Kaynak Olmayanlar",
+  "Resource Names": "",
   "Verbs": "Fiiller",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

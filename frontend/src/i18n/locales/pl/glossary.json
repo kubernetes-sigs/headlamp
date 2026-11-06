@@ -236,6 +236,7 @@
   "API Groups": "Grupy interfejsów API",
   "Resources": "Zasoby",
   "Non Resources": "Zasoby niebędące",
+  "Resource Names": "",
   "Verbs": "Czasowniki",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",
