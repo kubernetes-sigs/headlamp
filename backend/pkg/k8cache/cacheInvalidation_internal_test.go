@@ -21,70 +21,121 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func TestReturnGVRList(t *testing.T) {
-	apiResourceLists := []*metav1.APIResourceList{
-		{
-			GroupVersion: "v1",
-			APIResources: []metav1.APIResource{
-				{
-					Name:  "pods",
-					Kind:  "Pod",
-					Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
-				},
-				{
-					Name:  "events",
-					Kind:  "Event", // skipped: Kind in skipKinds
-					Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
-				},
-				{
-					Name:  "pods/status", // skipped: name contains "/"
-					Kind:  "Pod",
-					Verbs: metav1.Verbs{"get", "patch", "update"},
-				},
+func testAPIResourceLists() []*metav1.APIResourceList {
+	return []*metav1.APIResourceList{
+		coreResources(),
+		appsResources(),
+		ingressResources(),
+		namespaceResources(),
+		leaseResources(),
+		invalidGroupVersionResources(),
+	}
+}
+
+func coreResources() *metav1.APIResourceList {
+	return &metav1.APIResourceList{
+		GroupVersion: "v1",
+		APIResources: []metav1.APIResource{
+			{
+				Name:  "pods",
+				Kind:  "Pod",
+				Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
 			},
-		},
-		{
-			GroupVersion: "apps/v1",
-			APIResources: []metav1.APIResource{
-				{
-					Name:  "deployments",
-					Kind:  "Deployment",
-					Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
-				},
-				{
-					Name:  "replicasets",
-					Kind:  "ReplicaSet",
-					Verbs: metav1.Verbs{"create", "delete", "get", "patch", "update"}, // skipped: missing list and watch
-				},
+			{
+				Name:  "events",
+				Kind:  "Event", // skipped: Kind in skipKinds
+				Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
 			},
-		},
-		{
-			GroupVersion: "coordination.k8s.io/v1",
-			APIResources: []metav1.APIResource{
-				{
-					Name:  "leases",
-					Kind:  "Lease", // skipped: Kind in skipKinds
-					Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
-				},
-			},
-		},
-		{
-			GroupVersion: "invalid/group/version", // skipped: ParseGroupVersion fails
-			APIResources: []metav1.APIResource{
-				{
-					Name:  "foos",
-					Kind:  "Foo",
-					Verbs: metav1.Verbs{"list", "watch"},
-				},
+			{
+				Name:  "pods/status", // skipped: name contains "/"
+				Kind:  "Pod",
+				Verbs: metav1.Verbs{"get", "patch", "update"},
 			},
 		},
 	}
+}
 
-	expected := []schema.GroupVersionResource{
+func appsResources() *metav1.APIResourceList {
+	return &metav1.APIResourceList{
+		GroupVersion: "apps/v1",
+		APIResources: []metav1.APIResource{
+			{
+				Name:  "deployments",
+				Kind:  "Deployment",
+				Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
+			},
+			{
+				Name:  "replicasets",
+				Kind:  "ReplicaSet",
+				Verbs: metav1.Verbs{"create", "delete", "get", "patch", "update"}, // skipped: missing list and watch
+			},
+		},
+	}
+}
+
+func ingressResources() *metav1.APIResourceList {
+	return &metav1.APIResourceList{
+		GroupVersion: "networking.k8s.io/v1",
+		APIResources: []metav1.APIResource{
+			{
+				Name:  "ingresses",
+				Kind:  "Ingress",
+				Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
+			},
+		},
+	}
+}
+
+func namespaceResources() *metav1.APIResourceList {
+	return &metav1.APIResourceList{
+		GroupVersion: "v1",
+		APIResources: []metav1.APIResource{
+			{
+				Name:  "namespaces",
+				Kind:  "Namespace",
+				Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
+			},
+		},
+	}
+}
+
+func leaseResources() *metav1.APIResourceList {
+	return &metav1.APIResourceList{
+		GroupVersion: "coordination.k8s.io/v1",
+		APIResources: []metav1.APIResource{
+			{
+				Name:  "leases",
+				Kind:  "Lease", // skipped: Kind in skipKinds
+				Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
+			},
+		},
+	}
+}
+
+func invalidGroupVersionResources() *metav1.APIResourceList {
+	return &metav1.APIResourceList{
+		GroupVersion: "invalid/group/version", // skipped: ParseGroupVersion fails
+		APIResources: []metav1.APIResource{
+			{
+				Name:  "foos",
+				Kind:  "Foo",
+				Verbs: metav1.Verbs{"list", "watch"},
+			},
+		},
+	}
+}
+
+func expectedGVRList() []schema.GroupVersionResource {
+	return []schema.GroupVersionResource{
 		{Group: "", Version: "v1", Resource: "pods"},
 		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+		{Group: "", Version: "v1", Resource: "namespaces"},
 	}
+}
 
-	result := returnGVRList(apiResourceLists)
-	assert.ElementsMatch(t, expected, result)
+func TestReturnGVRList(t *testing.T) {
+	result := returnGVRList(testAPIResourceLists())
+
+	assert.ElementsMatch(t, expectedGVRList(), result)
 }
