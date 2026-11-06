@@ -43,6 +43,7 @@ import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import LeaderWorkerSet from '../../../../lib/k8s/leaderWorkerSet';
 import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
+import ListenerSet from '../../../../lib/k8s/listenerSet';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import Node from '../../../../lib/k8s/node';
@@ -80,6 +81,7 @@ const BUILTIN_CRD_KINDS = [
   'GatewayClass',
   'HTTPRoute',
   'GRPCRoute',
+  'ListenerSet',
   'ReferenceGrant',
   'BackendTLSPolicy',
   'BackendTrafficPolicy',
@@ -307,6 +309,7 @@ export function useGetAllSources(): GraphSource[] {
               sources: [
                 makeKubeSource(GatewayClass),
                 makeKubeSource(Gateway),
+                makeKubeSource(ListenerSet),
                 makeKubeSource(HTTPRoute),
                 makeKubeSource(GRPCRoute),
                 ...(tcpRouteEnabled

@@ -523,6 +523,7 @@
       "LeaderWorkerSet": [Function],
       "Lease": [Function],
       "LimitRange": [Function],
+      "ListenerSet": [Function],
       "Namespace": [Function],
       "NetworkPolicy": [Function],
       "Node": [Function],

@@ -23,13 +23,92 @@ import Gateway, {
   GatewayListenerStatus,
   GatewayStatusAddress,
 } from '../../lib/k8s/gateway';
+import { GATEWAY_API_GROUP, resolveGatewayParentReference } from '../../lib/k8s/gatewayReferences';
+import ListenerSet from '../../lib/k8s/listenerSet';
 import EmptyContent from '../common/EmptyContent';
 import { StatusLabel } from '../common/Label';
 import { StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
+import Loader from '../common/Loader';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../common/SimpleTable';
+import { makeGatewayStatusLabel } from './ClassList';
+
+/** A section listing the ListenerSets whose parentRef targets this Gateway. */
+function GatewayListenerSets(props: { gateway: Gateway }) {
+  const { gateway } = props;
+  const { t } = useTranslation(['glossary', 'translation']);
+
+  const {
+    items: listenerSets,
+    isLoading,
+    errors,
+  } = ListenerSet.useList({
+    cluster: gateway.cluster,
+  });
+
+  const attached = (listenerSets ?? []).filter(ls => {
+    const ref = ls.parentRef;
+    if (!ref) {
+      return false;
+    }
+    const resolved = resolveGatewayParentReference(ref, ls.metadata.namespace);
+    return (
+      resolved.kind === 'Gateway' &&
+      resolved.group === GATEWAY_API_GROUP &&
+      ref.name === gateway.metadata.name &&
+      resolved.namespace === gateway.metadata.namespace
+    );
+  });
+
+  // A missing ListenerSet CRD (404) is benign; other failures must not be
+  // reported as "no ListenerSets".
+  const realErrors = (errors ?? []).filter(e => e.status !== 404);
+
+  return (
+    <SectionBox title={t('glossary|Listener Sets')}>
+      {attached.length > 0 ? (
+        <SimpleTable
+          columns={[
+            {
+              label: t('translation|Name'),
+              getter: (ls: ListenerSet) => (
+                <Link
+                  routeName="listenerset"
+                  params={{ namespace: ls.metadata.namespace, name: ls.metadata.name }}
+                  activeCluster={ls.cluster}
+                >
+                  {ls.metadata.name}
+                </Link>
+              ),
+            },
+            {
+              label: t('translation|Namespace'),
+              getter: (ls: ListenerSet) => ls.metadata.namespace,
+            },
+            {
+              label: t('translation|Listeners'),
+              getter: (ls: ListenerSet) => ls.getListeners().length,
+            },
+            {
+              label: t('translation|Conditions'),
+              getter: (ls: ListenerSet) => makeGatewayStatusLabel(ls.status?.conditions || null),
+            },
+          ]}
+          data={attached}
+          reflectInURL="listenerSets"
+        />
+      ) : isLoading ? (
+        <Loader title="" noContainer />
+      ) : realErrors.length > 0 ? (
+        <EmptyContent color="error">{t('glossary|Could not load ListenerSets')}</EmptyContent>
+      ) : (
+        <EmptyContent>{t('glossary|No ListenerSets target this Gateway')}</EmptyContent>
+      )}
+    </SectionBox>
+  );
+}
 
 function GatewayListenerTable(props: {
   listener: GatewayListener;
@@ -144,6 +223,10 @@ export default function GatewayDetails(props: { name?: string; namespace?: strin
                 )}
               </SectionBox>
             ),
+          },
+          {
+            id: 'headlamp.gateway-listenersets',
+            section: item && <GatewayListenerSets gateway={item} />,
           },
           {
             id: 'headlamp.gateway-conditions',
