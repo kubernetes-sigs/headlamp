@@ -140,6 +140,60 @@ describe('Pod class', () => {
     expect(status.reason).toBe('ExitCode:1');
   });
 
+  describe('a finished container next to a failed one', () => {
+    function makePod(containerStatuses: any[], conditions: any[] = []) {
+      const data = JSON.parse(JSON.stringify(mockPodData));
+      data.spec.containers = containerStatuses.map(c => ({ name: c.name }));
+      data.status.phase = 'Failed';
+      data.status.containerStatuses = containerStatuses;
+      data.status.conditions = conditions;
+      return new Pod(data);
+    }
+
+    const completed = {
+      name: 'main',
+      ready: false,
+      restartCount: 0,
+      state: { terminated: { reason: 'Completed', exitCode: 0 } },
+    };
+    const failed = {
+      name: 'uploader',
+      ready: false,
+      restartCount: 0,
+      state: { terminated: { reason: 'Error', exitCode: 1, message: 'upload failed' } },
+    };
+
+    it('shows the failed container, not Completed', () => {
+      const status = makePod([completed, failed]).getDetailedStatus();
+      expect(status.reason).toBe('Error');
+      expect(status.message).toBe('upload failed');
+    });
+
+    it('uses ExitCode when the failed container has no reason', () => {
+      const noReason = { ...failed, state: { terminated: { exitCode: 2 } } };
+      expect(makePod([completed, noReason]).getDetailedStatus().reason).toBe('ExitCode:2');
+    });
+
+    it('shows Completed when every container exited with 0', () => {
+      const other = { ...completed, name: 'other' };
+      expect(makePod([completed, other]).getDetailedStatus().reason).toBe('Completed');
+    });
+
+    it('prefers the failed container over NotReady when the running one is not ready', () => {
+      const running = {
+        name: 'web',
+        ready: true,
+        restartCount: 0,
+        state: { running: { startedAt: '2020-01-01T00:00:00Z' } },
+      };
+      const status = makePod(
+        [completed, running, failed],
+        [{ type: 'Ready', status: 'False' }]
+      ).getDetailedStatus();
+      expect(status.reason).toBe('Error');
+    });
+  });
+
   describe('getHealth', () => {
     const makePod = (status: any, metadata: any = {}) =>
       new Pod({
