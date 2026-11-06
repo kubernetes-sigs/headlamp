@@ -52,17 +52,17 @@ function DeleteMultipleButtonDescription(props: DeleteMultipleButtonDescriptionP
   const { t } = useTranslation(['translation']);
   const clusters = uniq(props.items?.map(it => it.cluster));
   return (
-    <p>
-      {t('Are you sure you want to delete the following items?')}
+    <>
+      <p>{t('Are you sure you want to delete the following items?')}</p>
       <ul>
         {props.items?.map(item => (
           <li key={item.metadata.uid}>
             {item.kind}: {item.metadata.name}{' '}
-            {clusters.length > 0 ? `(cluster: ${item.cluster})` : ''}
+            {clusters.length > 1 ? `(cluster: ${item.cluster})` : ''}
           </li>
         ))}
       </ul>
-    </p>
+    </>
   );
 }
 
