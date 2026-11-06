@@ -16,7 +16,7 @@
 
 import * as getBaseUrl from '../helpers/getBaseUrl';
 import * as isElectron from '../helpers/isElectron';
-import { getCluster, getClusterPrefixedPath } from './cluster';
+import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
 
 vi.mock('../helpers/getBaseUrl', () => ({
   getBaseUrl: vi.fn(),
@@ -25,6 +25,39 @@ vi.mock('../helpers/getBaseUrl', () => ({
 vi.mock('../helpers/isElectron', () => ({
   isElectron: vi.fn(),
 }));
+
+describe('getClusterGroup', () => {
+  beforeEach(() => {
+    vi.mocked(getBaseUrl.getBaseUrl).mockReturnValue('');
+    vi.mocked(isElectron.isElectron).mockReturnValue(false);
+  });
+
+  it('returns all selected clusters in browser URL order', () => {
+    window.history.replaceState({}, '', '/c/east+west+central/pods');
+    expect(getClusterGroup()).toEqual(['east', 'west', 'central']);
+    expect(getCluster()).toBe('east');
+  });
+
+  it('retains all clusters with a deployment base URL', () => {
+    vi.mocked(getBaseUrl.getBaseUrl).mockReturnValue('/headlamp');
+    window.history.replaceState({}, '', '/headlamp/c/west+east/nodes');
+    expect(getClusterGroup()).toEqual(['west', 'east']);
+  });
+
+  it('returns all selected clusters from the desktop hash', () => {
+    vi.mocked(isElectron.isElectron).mockReturnValue(true);
+    window.history.replaceState({}, '', '/#/c/east+west/pods');
+    expect(getClusterGroup()).toEqual(['east', 'west']);
+  });
+
+  it('keeps the single-cluster and no-cluster fallback behavior', () => {
+    window.history.replaceState({}, '', '/c/east/pods');
+    expect(getClusterGroup()).toEqual(['east']);
+    window.history.replaceState({}, '', '/settings');
+    expect(getClusterGroup()).toEqual([]);
+    expect(getClusterGroup(['fallback'])).toEqual(['fallback']);
+  });
+});
 
 describe('getCluster', () => {
   const originalWindow = { ...window };
