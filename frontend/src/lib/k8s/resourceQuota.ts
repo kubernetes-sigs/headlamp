@@ -19,7 +19,7 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
 interface spec {
-  hard: {
+  hard?: {
     [key: string]: string;
   };
   scopes?: string[];
@@ -42,7 +42,7 @@ interface status {
 }
 
 export interface KubeResourceQuota extends KubeObjectInterface {
-  spec: spec;
+  spec?: spec;
   status?: status;
 }
 
@@ -59,7 +59,7 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
   }
 
   get spec(): spec {
-    return this.jsonData.spec;
+    return this.jsonData.spec ?? { hard: {} };
   }
 
   get status(): status | undefined {
@@ -69,34 +69,28 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
   get requests(): string[] {
     const req: string[] = [];
     const used = this.jsonData.status?.used ?? {};
-    this.spec.hard &&
-      Object.keys(this.spec.hard).forEach(key => {
-        if (key === 'cpu' || key === 'memory' || key.startsWith('requests.')) {
-          req.push(
-            `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(
-              key,
-              this.spec.hard[key]
-            )}`
-          );
-        }
-      });
+    const hard = this.spec.hard ?? {};
+    Object.keys(hard).forEach(key => {
+      if (key === 'cpu' || key === 'memory' || key.startsWith('requests.')) {
+        req.push(
+          `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(key, hard[key])}`
+        );
+      }
+    });
     return req;
   }
 
   get limits(): string[] {
     const limits: string[] = [];
     const used = this.jsonData.status?.used ?? {};
-    this.spec.hard &&
-      Object.keys(this.spec.hard).forEach(key => {
-        if (key.startsWith('limits.')) {
-          limits.push(
-            `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(
-              key,
-              this.spec.hard[key]
-            )}`
-          );
-        }
-      });
+    const hard = this.spec.hard ?? {};
+    Object.keys(hard).forEach(key => {
+      if (key.startsWith('limits.')) {
+        limits.push(
+          `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(key, hard[key])}`
+        );
+      }
+    });
     return limits;
   }
 
