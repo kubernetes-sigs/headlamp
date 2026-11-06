@@ -169,6 +169,10 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
 
+// maxProxyRedirects is the maximum number of redirects the external proxy
+// will follow, matching net/http's own default redirect limit.
+const maxProxyRedirects = 10
+
 // oidcRequestTimeout is the maximum time to wait for the identity provider on each request,
 // such as discovery and the token exchange.
 //
@@ -1216,9 +1220,30 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("X-Accel-Expires", "0")
 
-		client := http.Client{}
+		client := http.Client{
+			// The initial proxyURL is checked against the allowed proxy URLs above, but the
+			// default client follows redirects without re-checking them. Re-validate every
+			// redirect target so a response can't send the proxy to a non-allowed URL.
+			CheckRedirect: func(redirectReq *http.Request, via []*http.Request) error {
+				if len(via) >= maxProxyRedirects {
+					return fmt.Errorf("stopped after %d redirects", maxProxyRedirects)
+				}
 
-		resp, err := client.Do(proxyReq) //nolint:gosec // Target URL is validated against allowed proxy URLs whitelist
+				redirectAllowed, err := config.proxyURLAllowed(redirectReq.URL.String())
+				if err != nil {
+					return fmt.Errorf("compiling proxy URL patterns: %w", err)
+				}
+
+				if !redirectAllowed {
+					return fmt.Errorf("redirect target %q is not in the allowed proxy URLs", redirectReq.URL.String())
+				}
+
+				return nil
+			},
+		}
+
+		//nolint:gosec // Target URL and any redirects are validated against the allowed proxy URLs whitelist
+		resp, err := client.Do(proxyReq)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)

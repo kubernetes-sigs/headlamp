@@ -1080,6 +1080,79 @@ func TestExternalProxyForwarding(t *testing.T) {
 	assert.Empty(t, forwardedBackendToken)
 }
 
+// TestExternalProxyRedirectOutsideAllowlistIsBlocked covers the regression where an allowed
+// upstream could redirect the proxy to a URL that was never checked against ProxyURLs,
+// letting a response the attacker doesn't control (a 302 from an allowed host) send the
+// proxy's request to an arbitrary, non-allowed destination.
+func TestExternalProxyRedirectOutsideAllowlistIsBlocked(t *testing.T) {
+	var disallowedServerHit bool
+
+	disallowedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		disallowedServerHit = true
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("secret"))
+	}))
+	defer disallowedServer.Close()
+
+	allowedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, disallowedServer.URL, http.StatusFound)
+	}))
+	defer allowedServer.Close()
+
+	// Only allowedServer is in the proxy allowlist; disallowedServer is not.
+	handler := newExternalProxyHandler(t, allowedServer.URL)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", allowedServer.URL)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.False(t, disallowedServerHit, "the proxy must not follow a redirect to a non-allowed URL")
+	assert.NotEqual(t, "secret", rr.Body.String())
+	assert.Equal(t, http.StatusBadGateway, rr.Code)
+}
+
+// TestExternalProxyRedirectWithinAllowlistSucceeds confirms the redirect re-check doesn't
+// break a legitimate redirect to another URL that is itself in the allowlist.
+func TestExternalProxyRedirectWithinAllowlistSucceeds(t *testing.T) {
+	finalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	defer finalServer.Close()
+
+	redirectingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, finalServer.URL, http.StatusFound)
+	}))
+	defer redirectingServer.Close()
+
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{redirectingServer.URL, finalServer.URL},
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache: cache.New[interface{}](),
+		},
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", redirectingServer.URL)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "OK", rr.Body.String())
+}
+
 func TestExternalProxyStreamsLargeBody(t *testing.T) {
 	// 32 MiB is far larger than any internal copy buffer, so a buffering
 	// regression is still caught, while staying small enough not to slow down
