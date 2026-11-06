@@ -150,4 +150,39 @@ describe('KubeObject', () => {
       'explicit-cluster'
     );
   });
+
+  it('omits an explicitly undefined name from the authorization attributes', async () => {
+    class MyPod extends KubeObject {
+      static apiVersion = 'v1';
+      static kind = 'Pod';
+      static apiName = 'pods';
+      static isNamespaced = true;
+    }
+
+    const getAuthorization = vi
+      .spyOn(MyPod, 'getAuthorization')
+      .mockResolvedValue({ status: { allowed: true } } as any);
+
+    const pod = new MyPod(
+      {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'default' },
+      },
+      'test-cluster'
+    );
+
+    await pod.getAuthorization('create', { subresource: 'eviction', name: undefined });
+
+    const [verb, attrs, cluster] = getAuthorization.mock.calls[0]! as any;
+    expect(verb).toBe('create');
+    expect(cluster).toBe('test-cluster');
+    expect(attrs).toMatchObject({
+      namespace: 'default',
+      subresource: 'eviction',
+      verb: 'create',
+      version: 'v1',
+    });
+    expect(attrs.name).toBeUndefined();
+  });
 });

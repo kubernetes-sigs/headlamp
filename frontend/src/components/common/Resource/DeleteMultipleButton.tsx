@@ -113,11 +113,39 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
       dispatch(
         clusterAction(
           async () => {
+            const evictionChecks = new Map<string, Promise<boolean>>();
+
+            const canEvict = (pod: Pod) => {
+              const key = `${pod.cluster}/${pod.getNamespace()}`;
+              let check = evictionChecks.get(key);
+
+              if (!check) {
+                // Ask for a namespace-wide answer: a name-scoped SSAR is
+                // pod-specific and cannot be reused for the rest of the namespace.
+                check = pod
+                  .getAuthorization('create', { subresource: 'eviction', name: undefined })
+                  .then(result => result?.status?.allowed === true)
+                  .catch((err: Error) => {
+                    console.error(
+                      `Error while getting authorization for bulk eviction in ` +
+                        `${pod.cluster}/${pod.getNamespace()}:`,
+                      err
+                    );
+                    return false;
+                  });
+                evictionChecks.set(key, check);
+              }
+
+              return check;
+            };
+
             await Promise.all(
-              items.map(item => {
+              items.map(async item => {
                 if (settingsObj.useEvict && item.kind === 'Pod') {
                   const pod = item as Pod;
-                  return pod.evict();
+                  if (await canEvict(pod)) {
+                    return pod.evict();
+                  }
                 }
                 return item.delete();
               })

@@ -25,6 +25,20 @@ vi.mock('react-i18next', () => ({
 // Hoist mock classes before imports so vi.mock can use them. We mock KubeObject/namespace
 // (rather than importing the real ones) to avoid a circular-import ordering issue in the
 // lib/k8s barrel when these modules are loaded first by a unit test.
+const bulkState = vi.hoisted(() => ({
+  allowEvict: (() => true) as (namespace: string) => boolean,
+  failAuth: (() => false) as (namespace: string) => boolean,
+  authCalls: [] as Array<{
+    verb: string;
+    subresource?: string;
+    name?: string;
+    namespace?: string;
+    cluster?: string;
+  }>,
+  evictCalls: [] as string[],
+  deleteCalls: [] as string[],
+}));
+
 const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
@@ -40,7 +54,7 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
       return this.jsonData?.kind ?? (this.constructor as any).kind;
     }
     get cluster() {
-      return '';
+      return this.jsonData?.cluster ?? '';
     }
     getName() {
       return this.jsonData?.metadata?.name ?? '';
@@ -48,7 +62,32 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
     getListLink() {
       return '/namespaces';
     }
-    delete = async () => undefined;
+    getNamespace() {
+      return this.jsonData?.metadata?.namespace ?? '';
+    }
+    delete = async () => {
+      bulkState.deleteCalls.push(this.getName());
+    };
+    getAuthorization = async (verb: string, attrs?: any) => {
+      const attrsObject = attrs ?? {};
+      const namespace = attrsObject.namespace ?? this.getNamespace();
+      // Mirror KubeObject.getAuthorization: it seeds `name` from the object and
+      // lets the caller override it, so an explicit `name: undefined` wins.
+      const name = 'name' in attrsObject ? attrsObject.name : this.getName();
+      bulkState.authCalls.push({
+        verb,
+        subresource: attrsObject.subresource,
+        name,
+        namespace,
+        cluster: this.cluster,
+      });
+
+      if (bulkState.failAuth(namespace)) {
+        throw new Error('authorization check failed');
+      }
+
+      return { status: { allowed: bulkState.allowEvict(namespace) } };
+    };
     _class() {
       return this.constructor as any;
     }
@@ -77,13 +116,30 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
   return { MockKubeObject, MockNamespace };
 });
 
+// The real clusterAction waits out a 5s cancellation grace period before running
+// the callback; unit tests execute it immediately instead.
+vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/clusterActionSlice')>()),
+  clusterAction: (callback: () => Promise<unknown>) => {
+    void callback();
+    return { type: 'clusterAction/test' };
+  },
+}));
+
 vi.mock('../../../lib/k8s/KubeObject', () => ({ KubeObject: MockKubeObject }));
 vi.mock('../../../lib/k8s/namespace', () => ({ __esModule: true, default: MockNamespace }));
 vi.mock('../../../lib/k8s/pod', () => ({
   __esModule: true,
-  default: class Pod extends MockKubeObject {},
+  default: class Pod extends MockKubeObject {
+    evict = async () => {
+      bulkState.evictCalls.push(this.getName());
+    };
+  },
 }));
 
+import Pod from '../../../lib/k8s/pod';
+import { setAppSettings } from '../../../redux/configSlice';
+import store from '../../../redux/stores/store';
 import { TestContext } from '../../../test';
 import DeleteMultipleButton from './DeleteMultipleButton';
 
@@ -93,6 +149,23 @@ function makeNamespace(metadata: Record<string, any>) {
     apiVersion: 'v1',
     metadata: { uid: `uid-${metadata.name}`, ...metadata },
     status: { phase: 'Active' },
+  });
+}
+
+function makePod({
+  name,
+  namespace,
+  cluster = '',
+}: {
+  name: string;
+  namespace: string;
+  cluster?: string;
+}) {
+  return new (Pod as any)({
+    kind: 'Pod',
+    apiVersion: 'v1',
+    metadata: { uid: `uid-${name}`, name, namespace },
+    cluster,
   });
 }
 
@@ -111,6 +184,19 @@ async function openDialog() {
 }
 
 describe('DeleteMultipleButton', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    bulkState.allowEvict = () => true;
+    bulkState.failAuth = () => false;
+    bulkState.authCalls = [];
+    bulkState.evictCalls = [];
+    bulkState.deleteCalls = [];
+    store.dispatch(setAppSettings({ useEvict: true }));
+  });
+
   it('renders nothing when no items are provided', () => {
     const { container } = renderButton(undefined);
     expect(container).toBeEmptyDOMElement();
@@ -172,5 +258,126 @@ describe('DeleteMultipleButton', () => {
       '../../../lib/k8s/namespace'
     );
     expect(MockNamespace.PROTECTED_NAMESPACES).toEqual(RealNamespace.PROTECTED_NAMESPACES);
+  });
+
+  it('evicts selected pods when the user is allowed to evict', async () => {
+    const pod = makePod({ name: 'pod-1', namespace: 'ns-1' });
+    renderButton([pod]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.evictCalls).toEqual(['pod-1']));
+    expect(bulkState.deleteCalls).toEqual([]);
+    expect(bulkState.authCalls).toEqual([
+      {
+        verb: 'create',
+        subresource: 'eviction',
+        name: undefined,
+        namespace: 'ns-1',
+        cluster: '',
+      },
+    ]);
+  });
+
+  it('falls back to delete for selected pods when eviction is denied', async () => {
+    bulkState.allowEvict = () => false;
+    const pod = makePod({ name: 'pod-1', namespace: 'ns-1' });
+    renderButton([pod]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toEqual(['pod-1']));
+    expect(bulkState.evictCalls).toEqual([]);
+  });
+
+  it('checks eviction once per namespace and evicts only where allowed', async () => {
+    bulkState.allowEvict = namespace => namespace === 'ns-allowed';
+    renderButton([
+      makePod({ name: 'pod-a', namespace: 'ns-allowed' }),
+      makePod({ name: 'pod-b', namespace: 'ns-denied' }),
+      makePod({ name: 'pod-c', namespace: 'ns-allowed' }),
+      makePod({ name: 'pod-d', namespace: 'ns-denied' }),
+    ]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls.sort()).toEqual(['pod-b', 'pod-d']));
+    expect(bulkState.evictCalls.sort()).toEqual(['pod-a', 'pod-c']);
+    expect(bulkState.authCalls.map(call => call.namespace).sort()).toEqual([
+      'ns-allowed',
+      'ns-denied',
+    ]);
+    expect(bulkState.authCalls.every(call => call.name === undefined)).toBe(true);
+  });
+
+  it('falls back to delete when the eviction authorization check fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    bulkState.failAuth = () => true;
+    const pod = makePod({ name: 'pod-1', namespace: 'ns-1' });
+    renderButton([pod]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toEqual(['pod-1']));
+    expect(bulkState.evictCalls).toEqual([]);
+    expect(consoleError).toHaveBeenCalled();
+  });
+
+  it('deletes non-pod items without checking eviction', async () => {
+    renderButton([makeNamespace({ name: 'my-app' })]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toEqual(['my-app']));
+    expect(bulkState.evictCalls).toEqual([]);
+    expect(bulkState.authCalls).toEqual([]);
+  });
+
+  it('skips eviction checks when the useEvict setting is off', async () => {
+    store.dispatch(setAppSettings({ useEvict: false }));
+    const pod = makePod({ name: 'pod-1', namespace: 'ns-1' });
+    renderButton([pod]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toEqual(['pod-1']));
+    expect(bulkState.evictCalls).toEqual([]);
+    expect(bulkState.authCalls).toEqual([]);
+  });
+
+  it('checks eviction separately per cluster for the same namespace', async () => {
+    renderButton([
+      makePod({ name: 'pod-a', namespace: 'ns-1', cluster: 'cluster-a' }),
+      makePod({ name: 'pod-b', namespace: 'ns-1', cluster: 'cluster-b' }),
+    ]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.evictCalls.sort()).toEqual(['pod-a', 'pod-b']));
+    expect(bulkState.authCalls.map(call => call.cluster).sort()).toEqual([
+      'cluster-a',
+      'cluster-b',
+    ]);
+  });
+
+  it('continues the batch when one namespace authorization check fails', async () => {
+    bulkState.failAuth = namespace => namespace === 'ns-error';
+    renderButton([
+      makePod({ name: 'pod-error', namespace: 'ns-error' }),
+      makePod({ name: 'pod-ok', namespace: 'ns-ok' }),
+    ]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toEqual(['pod-error']));
+    expect(bulkState.evictCalls).toEqual(['pod-ok']);
   });
 });
