@@ -186,6 +186,29 @@ describe('unparseRam', () => {
 });
 
 describe('parseCpu', () => {
+  it.each<[string, number]>([
+    ['1k', 1e12],
+    ['2M', 2e15],
+    ['3G', 3e18],
+    ['4T', 4e21],
+    ['5P', 5e24],
+    ['6E', 6e27],
+    ['0.5k', 5e11],
+    ['.5M', 5e14],
+    ['+1k', 1e12],
+    ['-1k', -1e12],
+  ])('should scale decimal SI CPU quantity %s to nanocores', (quantity, expected) => {
+    expect(parseCpu(quantity) / expected).toBeCloseTo(1, 12);
+  });
+
+  it('should distinguish exa and mega suffixes from exponents and millicores', () => {
+    expect(parseCpu('1E')).toBe(1e27);
+    expect(parseCpu('1E3')).toBe(1e12);
+    expect(parseCpu('1e3')).toBe(1e12);
+    expect(parseCpu('1M')).toBe(1e15);
+    expect(parseCpu('1m')).toBe(1e6);
+  });
+
   it('should parse CPU units', () => {
     expect(parseCpu('1000n')).toBe(1000);
     expect(parseCpu('1u')).toBe(1000);
@@ -253,6 +276,12 @@ describe('unparseCpu', () => {
 });
 
 describe('divideK8sResources', () => {
+  it('should divide CPU quantities with decimal SI suffixes', () => {
+    expect(divideK8sResources('500', '1k', 'cpu')).toBe(0.5);
+    expect(divideK8sResources('1k', '1000', 'cpu')).toBe(1);
+    expect(divideK8sResources('500k', '1M', 'cpu')).toBe(0.5);
+  });
+
   it('should divide two resource quantities with binary units', () => {
     expect(divideK8sResources('1Gi', '1Mi')).toBe(1024);
     expect(divideK8sResources('2Gi', '1Gi')).toBe(2);
