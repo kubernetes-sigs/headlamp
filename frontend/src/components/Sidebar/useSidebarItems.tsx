@@ -15,19 +15,20 @@
  */
 
 import { useTheme } from '@mui/material/styles';
-import { useQuery } from '@tanstack/react-query';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
-import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
-import PodGroup from '../../lib/k8s/podGroup';
 import { useIsResourceServed } from '../../lib/k8s/resourceAvailability';
+import {
+  useCompositePodGroupClusters,
+  useSchedulingApisEnabled,
+} from '../../lib/k8s/schedulingApis';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
@@ -81,18 +82,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     console.error('Failed to fetch CRDs:', error);
   }
 
-  // The workload aware scheduling APIs are alpha and are only served when the cluster
-  // enables the GenericWorkload feature gate, so only show them when they are available.
-  const { data: schedulingWorkloadsEnabled = false } = useQuery({
-    queryKey: ['schedulingWorkloadsEnabled', ...selectedClusters],
-    queryFn: async () => {
-      const enabledPerCluster = await Promise.all(
-        selectedClusters.map(cluster => PodGroup.isEnabled(cluster))
-      );
-      return enabledPerCluster.some(Boolean);
-    },
-    enabled: selectedClusters.length > 0,
-  });
+  const schedulingWorkloadsEnabled = useSchedulingApisEnabled();
 
   // Dynamic resource allocation is stable from Kubernetes 1.34, so only show the
   // Devices section on clusters that serve resource.k8s.io/v1.
@@ -100,16 +90,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
   // CompositePodGroup needs its own feature gate on top, and unlike the flat resources
   // it is only ever served by v1alpha3, so ask for the resource itself.
-  const { data: compositePodGroupsEnabled = false } = useQuery({
-    queryKey: ['compositePodGroupsEnabled', ...selectedClusters],
-    queryFn: async () => {
-      const enabledPerCluster = await Promise.all(
-        selectedClusters.map(cluster => CompositePodGroup.isEnabled(cluster))
-      );
-      return enabledPerCluster.some(Boolean);
-    },
-    enabled: selectedClusters.length > 0,
-  });
+  const compositePodGroupsEnabled = useCompositePodGroupClusters().length > 0;
 
   const crdsSidebarEntries = useMemo(() => {
     const crdsSidebarEntries: SidebarItemProps[] = [];
