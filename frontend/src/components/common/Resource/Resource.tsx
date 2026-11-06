@@ -2077,6 +2077,8 @@ export function ConditionsSection(props: { resource: KubeObjectInterface | null 
 
 export interface VolumeSectionProps {
   resource: KubeObjectInterface | null;
+  /** Cluster the resource belongs to, so volume links open in that cluster. */
+  cluster?: string;
 }
 
 export interface VolumeRowsProps {
@@ -2096,7 +2098,7 @@ export interface VolumePrints {
 
 export function VolumeSection(props: VolumeSectionProps) {
   const { t } = useTranslation('glossary');
-  const { resource } = props;
+  const { resource, cluster } = props;
   const volumes = resource?.spec?.volumes;
 
   if (!volumes) {
@@ -2133,6 +2135,7 @@ export function VolumeSection(props: VolumeSectionProps) {
               <Link
                 routeName={volumeRoute}
                 params={{ namespace: volumeNamespace, name: detailName }}
+                activeCluster={cluster}
               >
                 {volumeName}
               </Link>
