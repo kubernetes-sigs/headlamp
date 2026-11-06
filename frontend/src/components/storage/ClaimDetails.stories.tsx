@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './ClaimDetails';
-import { BASE_PVC } from './storyHelper';
+import { BASE_PVC, MODERN_PVC } from './storyHelper';
 
 export default {
   title: 'PersistentVolumeClaim/DetailsView',
@@ -49,6 +49,30 @@ Base.parameters = {
       story: [
         http.get(`${API_BASE}/api/v1/persistentvolumeclaims/my-pvc`, () =>
           HttpResponse.json(BASE_PVC)
+        ),
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
+          HttpResponse.json({
+            kind: 'EventList',
+            items: [],
+            metadata: {},
+          })
+        ),
+        http.get(`${API_BASE}/api/v1/persistentvolumeclaims`, () => HttpResponse.error()),
+      ],
+    },
+  },
+};
+
+export const ModernFields = Template.bind({});
+ModernFields.args = {
+  json: MODERN_PVC,
+};
+ModernFields.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/persistentvolumeclaims/my-pvc`, () =>
+          HttpResponse.json(MODERN_PVC)
         ),
         http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({
