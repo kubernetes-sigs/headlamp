@@ -1,0 +1,57 @@
+# Dex IdP config for the OIDC reproduction harness.
+#
+# Two static users so the multi-replica repro can use distinct sessions, and a
+# static client matching what headlamp-server is configured with.
+#
+# __DEX_ISSUER__ and __CALLBACK_URL__ are substituted by scripts/up.sh, which
+# builds them from the kind node's InternalIP. They cannot be hardcoded: the
+# issuer has to be byte-identical from the browser AND from inside the headlamp
+# pods (go-oidc validates the `iss` claim), and the node IP is not known until
+# the cluster exists. See the platform note in README.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-config
+  namespace: dex
+data:
+  config.yaml: |
+    issuer: __DEX_ISSUER__
+
+    storage:
+      type: memory
+
+    web:
+      http: 0.0.0.0:5556
+
+    oauth2:
+      skipApprovalScreen: true
+      # NOTE: PKCE is NOT exercised by this harness. headlamp-server only sends
+      # a code challenge when started with -oidc-use-pkce, and the manifests in
+      # headlamp/two-replicas.yaml deliberately do not set it (the default, and
+      # so the shape most deployments run). Add the flag there and restart if
+      # you need to reproduce a PKCE-specific problem.
+
+    staticClients:
+      - id: headlamp-test
+        redirectURIs:
+          # The in-cluster nginx NodePort address; this is the one the browser
+          # is actually redirected back to.
+          - '__CALLBACK_URL__'
+          # Convenience for running headlamp-server directly on the host
+          # against a port-forwarded Dex.
+          - 'http://localhost:4466/oidc-callback'
+        name: 'Headlamp (repro)'
+        secret: headlamp-test-secret
+
+    enablePasswordDB: true
+    staticPasswords:
+      # The well-known Dex example bcrypt hash for the literal string
+      # "password". Not a credential; safe to keep in the repo.
+      - email: "alice@example.com"
+        hash: "$2y$10$YLGTFTQQZcDOXGoWRMOz7O2VC/XAjLC/gC38fx2y7gjmP29s.1aEK"
+        username: "alice"
+        userID: "alice-id"
+      - email: "bob@example.com"
+        hash: "$2y$10$YLGTFTQQZcDOXGoWRMOz7O2VC/XAjLC/gC38fx2y7gjmP29s.1aEK"
+        username: "bob"
+        userID: "bob-id"
