@@ -327,6 +327,22 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'volumeAttributesClasses',
             label: t('glossary|Volume Attributes Classes'),
           },
+          {
+            name: 'csiDrivers',
+            label: t('glossary|CSI Drivers'),
+          },
+          {
+            name: 'csiNodes',
+            label: t('glossary|CSI Nodes'),
+          },
+          {
+            name: 'csiStorageCapacities',
+            label: t('glossary|CSI Storage Capacities'),
+          },
+          {
+            name: 'volumeAttachments',
+            label: t('glossary|Volume Attachments'),
+          },
         ],
       },
       {

@@ -120,6 +120,14 @@ import PersistentVolumeClaimDetails from '../../components/storage/ClaimDetails'
 import PersistentVolumeClaimList from '../../components/storage/ClaimList';
 import StorageClassDetails from '../../components/storage/ClassDetails';
 import StorageClassList from '../../components/storage/ClassList';
+import CSIDriverDetails from '../../components/storage/CSIDriverDetails';
+import CSIDriverList from '../../components/storage/CSIDriverList';
+import CSINodeDetails from '../../components/storage/CSINodeDetails';
+import CSINodeList from '../../components/storage/CSINodeList';
+import CSIStorageCapacityDetails from '../../components/storage/CSIStorageCapacityDetails';
+import CSIStorageCapacityList from '../../components/storage/CSIStorageCapacityList';
+import VolumeAttachmentDetails from '../../components/storage/VolumeAttachmentDetails';
+import VolumeAttachmentList from '../../components/storage/VolumeAttachmentList';
 import VolumeAttributesClassDetails from '../../components/storage/VolumeAttributesClassDetails';
 import VolumeAttributesClassList from '../../components/storage/VolumeAttributesClassList';
 import PersistentVolumeDetails from '../../components/storage/VolumeDetails';
@@ -306,6 +314,58 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'persistentVolumeClaims',
     exact: true,
     component: () => <PersistentVolumeClaimDetails />,
+  },
+  csiDrivers: {
+    path: '/storage/csidrivers',
+    exact: true,
+    sidebar: 'csiDrivers',
+    name: 'CSI Drivers',
+    component: () => <CSIDriverList />,
+  },
+  csiDriver: {
+    path: '/storage/csidrivers/:name',
+    sidebar: 'csiDrivers',
+    name: 'CSI Driver',
+    component: () => <CSIDriverDetails />,
+  },
+  csiNodes: {
+    path: '/storage/csinodes',
+    exact: true,
+    sidebar: 'csiNodes',
+    name: 'CSI Nodes',
+    component: () => <CSINodeList />,
+  },
+  csiNode: {
+    path: '/storage/csinodes/:name',
+    sidebar: 'csiNodes',
+    name: 'CSI Node',
+    component: () => <CSINodeDetails />,
+  },
+  csiStorageCapacities: {
+    path: '/storage/csistoragecapacities',
+    exact: true,
+    sidebar: 'csiStorageCapacities',
+    name: 'CSI Storage Capacities',
+    component: () => <CSIStorageCapacityList />,
+  },
+  csiStorageCapacity: {
+    path: '/storage/csistoragecapacities/:namespace/:name',
+    sidebar: 'csiStorageCapacities',
+    exact: true,
+    component: () => <CSIStorageCapacityDetails />,
+  },
+  volumeAttachments: {
+    path: '/storage/volumeattachments',
+    exact: true,
+    sidebar: 'volumeAttachments',
+    name: 'Volume Attachments',
+    component: () => <VolumeAttachmentList />,
+  },
+  volumeAttachment: {
+    path: '/storage/volumeattachments/:name',
+    sidebar: 'volumeAttachments',
+    name: 'Volume Attachment',
+    component: () => <VolumeAttachmentDetails />,
   },
   workloads: {
     path: '/workloads',
