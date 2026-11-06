@@ -25,6 +25,24 @@ You can install the required frontend, app, and backend dependencies by running:
 npm run install:all
 ```
 
+## Code scanning
+
+The [CodeQL workflow](https://github.com/kubernetes-sigs/headlamp/blob/main/.github/workflows/codeql.yml) analyzes GitHub Actions workflows,
+Go, and JavaScript/TypeScript on every pull request targeting `main`, including fork and
+dependency-update pull requests, and on every push to `main`. It also runs weekly
+and can be started manually from the Actions tab. There are no path filters, so
+documentation-only changes also receive code-scanning checks.
+
+The workflow uses CodeQL advanced setup. When migrating from default setup, a
+repository administrator must disable default setup in **Settings > Advanced
+Security > CodeQL analysis** so that advanced-setup results can be uploaded.
+After migration, verify all three analyses on a fork pull request before
+requiring their checks in a branch protection rule or ruleset.
+
+OpenSSF Scorecard checks SAST results on the head commits of recently merged pull
+requests. Successful scans on `main` alone do not provide this coverage, and the
+score may take time to improve as older unscanned pull requests leave the sample.
+
 ## Build the code
 
 Headlamp is composed of a `backend` and a `frontend`.
