@@ -23,7 +23,8 @@ import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
 import { EditorDialog } from '../common/Resource';
-import { parseEditorObject, RESOURCE_DEFINITIONS, ResourceType } from './Resource/CreateButton';
+import { RESOURCE_DEFINITIONS, ResourceType } from './Resource/CreateButton';
+import { parseEditorObject } from './Resource/parseEditorObject';
 
 /** Props for {@link CreateResourceButton}. */
 export interface CreateResourceButtonProps {
