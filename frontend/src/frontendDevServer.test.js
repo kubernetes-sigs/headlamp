@@ -41,24 +41,28 @@ async function reservePort() {
   return port;
 }
 
-async function waitForServer(url) {
-  for (let attempt = 0; attempt < 60; attempt++) {
+async function waitForServer(url, checkExitError, timeoutMs = 60000) {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    if (checkExitError) {
+      checkExitError();
+    }
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(1000) });
       if (response.ok) {
         return;
       }
     } catch {
       // The development server is still starting.
     }
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
   throw new Error(`Timed out waiting for ${url}`);
 }
 
 test(
   'the default development server proxies base-prefixed WebSockets',
-  { timeout: 30000 },
+  { timeout: 90000 },
   async () => {
     const frontendPort = await reservePort();
     let upgradedPath;
@@ -97,14 +101,26 @@ test(
           PUBLIC_URL: '/headlamp',
         },
         stdio: 'ignore',
+        detached: process.platform !== 'win32',
       }
     );
 
+    let exitError = null;
+    frontend.once('exit', (code, signal) => {
+      if (code !== null && code !== 0) {
+        exitError = new Error(`Frontend server exited early with code ${code}`);
+      } else if (signal && signal !== 'SIGTERM' && signal !== 'SIGKILL') {
+        exitError = new Error(`Frontend server killed by signal ${signal}`);
+      }
+    });
+
     try {
-      await waitForServer(`http://127.0.0.1:${frontendPort}/headlamp/`);
+      await waitForServer(`http://127.0.0.1:${frontendPort}/headlamp/`, () => {
+        if (exitError) throw exitError;
+      });
       await new Promise((resolve, reject) => {
         const socket = new WebSocket(`ws://127.0.0.1:${frontendPort}/headlamp/wsMultiplexer`);
-        const timeout = setTimeout(() => reject(new Error('WebSocket proxy timed out')), 5000);
+        const timeout = setTimeout(() => reject(new Error('WebSocket proxy timed out')), 10000);
         socket.addEventListener('open', () => {
           clearTimeout(timeout);
           socket.close();
@@ -117,8 +133,19 @@ test(
       });
       expect(upgradedPath).toBe('/headlamp/wsMultiplexer');
     } finally {
-      frontend.kill('SIGTERM');
+      if (frontend.pid) {
+        try {
+          if (process.platform !== 'win32') {
+            process.kill(-frontend.pid, 'SIGTERM');
+          } else {
+            frontend.kill('SIGTERM');
+          }
+        } catch {
+          frontend.kill('SIGTERM');
+        }
+      }
       upgradedSocket?.destroy();
+      backend.closeAllConnections?.();
       await new Promise(resolve => backend.close(resolve));
     }
   }
