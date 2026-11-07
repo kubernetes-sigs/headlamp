@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -198,29 +198,42 @@ export function NamespacesAutocomplete() {
   const location = useLocation();
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
-  const cluster = useCluster();
-  const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
+  const clusters = useSelectedClusters();
+  // The allowed namespaces of every selected cluster, so none of them is left out when
+  // more than one cluster is selected.
+  const allowedPerCluster = useMemo(
+    () => clusters.map(cluster => getCombinedAllowedNamespaces(cluster)),
+    [clusters]
+  );
+  const allowedNames = useMemo(
+    () => uniq(allowedPerCluster.flat()).sort((a, b) => a.localeCompare(b)),
+    [allowedPerCluster]
+  );
+  const [everyClusterLimited, setEveryClusterLimited] = React.useState(false);
 
+  // Switch to only the allowed namespaces in an effect, as before, so the first render still
+  // lists the namespaces from the API.
   React.useEffect(() => {
-    const allowedNamespaces = getCombinedAllowedNamespaces(cluster || '');
-    if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
-    }
-  }, [cluster]);
+    setEveryClusterLimited(
+      allowedPerCluster.length > 0 && allowedPerCluster.every(names => names.length > 0)
+    );
+  }, [allowedPerCluster]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
     dispatch(setNamespaceFilter(newValue));
   };
 
-  return namespaceNames.length > 0 ? (
-    <PureNamespacesAutocomplete
-      namespaceNames={namespaceNames}
+  // A cluster without allowed namespaces still needs its namespaces listed. The allowed
+  // ones of the other clusters are added, as their users may not be able to list them.
+  return everyClusterLimited ? (
+    <PureNamespacesAutocomplete namespaceNames={allowedNames} onChange={onChange} filter={filter} />
+  ) : (
+    <NamespacesFromClusterAutocomplete
       onChange={onChange}
       filter={filter}
+      extraNamespaceNames={allowedNames}
     />
-  ) : (
-    <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />
   );
 }
 
@@ -263,18 +276,27 @@ const useDefaultNamespaceFallback = (
 };
 
 function NamespacesFromClusterAutocomplete(
-  props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
+  props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'> & {
+    /** Namespaces to offer even if the list doesn't have them. */
+    extraNamespaceNames?: string[];
+  }
 ) {
+  const { extraNamespaceNames = [], ...autocompleteProps } = props;
   const [namespacesList, error] = Namespace.useList();
   const namespaceNames = useMemo(
     () =>
-      uniq(namespacesList?.map(namespace => namespace.metadata.name) ?? [])
+      uniq([
+        ...(namespacesList?.map(namespace => namespace.metadata.name) ?? []),
+        ...extraNamespaceNames,
+      ])
         .slice()
         .sort((a, b) => a.localeCompare(b)),
-    [namespacesList]
+    [namespacesList, extraNamespaceNames]
   );
 
-  useDefaultNamespaceFallback(namespacesList, Boolean(error));
+  // Only guess the kubeconfig namespace when there is nothing to offer: it may not be one of
+  // the allowed namespaces, and picking it would hide the resources of those.
+  useDefaultNamespaceFallback(namespacesList, Boolean(error) && namespaceNames.length === 0);
 
-  return <PureNamespacesAutocomplete namespaceNames={namespaceNames} {...props} />;
+  return <PureNamespacesAutocomplete namespaceNames={namespaceNames} {...autocompleteProps} />;
 }
