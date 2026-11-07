@@ -876,7 +876,7 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 
 // handleClusterMessages handles messages from a cluster connection.
 func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
-	defer m.cleanupConnection(conn)
+	defer m.removeConnection(conn)
 
 	var lastResourceVersion string
 
@@ -1057,14 +1057,18 @@ func (m *Multiplexer) sendDataMessage(
 	return nil
 }
 
-// cleanupConnection performs cleanup for a connection.
-func (m *Multiplexer) cleanupConnection(conn *Connection) {
-	conn.safeClose()
-
+// removeConnection closes conn and removes it from the registry. A replacement client may
+// have registered the same key since, so the entry is only removed if it still is conn.
+func (m *Multiplexer) removeConnection(conn *Connection) {
 	m.mutex.Lock()
+
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
+
+	conn.safeClose()
 }
 
 // createWrapperMessage creates a wrapper message for a cluster connection.
