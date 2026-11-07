@@ -310,6 +310,31 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 	}
 }
 
+func TestLoadKubeConfigClustersSkipsMissingFiles(t *testing.T) {
+	logs := captureLogs(t)
+
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	missing := filepath.Join(t.TempDir(), "missing-kubeconfig")
+	path := missing + string(os.PathListSeparator) + "./headlamp_testdata/kubeconfig"
+
+	loadKubeConfigClusters(config, path, nil)
+
+	for _, entry := range logs() {
+		assert.NotEqual(t, logger.LevelError, entry.level, "unexpected error log: %s", entry.msg)
+	}
+
+	contexts, err := config.KubeConfigStore.GetContexts()
+	require.NoError(t, err)
+	assert.NotEmpty(t, contexts, "contexts from the existing file should be loaded")
+}
+
 func TestLoadDynamicClustersLogging(t *testing.T) {
 	invalidKubeconfig := filepath.Join(t.TempDir(), "invalid-kubeconfig")
 	require.NoError(t, os.WriteFile(invalidKubeconfig, []byte("contexts: ["), 0o600))
