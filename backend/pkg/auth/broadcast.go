@@ -62,9 +62,23 @@ func isOIDCAuthContext(kCtx *kubeconfig.Context) bool {
 	return kCtx.AuthInfo.AuthProvider.Name == "oidc"
 }
 
-// BroadcastOIDCToken sets the auth cookie for every kubeconfig context whose
-// OIDC auth-provider has the same idp-issuer-url AND client-id as the source
-// cluster.
+// BroadcastOIDCToken makes the token available to every kubeconfig context
+// whose OIDC auth-provider has the same idp-issuer-url AND client-id as the
+// source cluster.
+//
+// The token is stored once, in a shared cookie keyed by issuer + client-id and
+// scoped to <baseURL>/clusters/. The source has its own chunk zero and logout
+// marker cleared, each target only its logout marker, so the response header
+// size does not grow with token size x number of clusters (reverse proxies such as Envoy
+// reject upstream response headers over 60KB). Which clusters may read the
+// shared cookie is resolved on the server from each cluster's kubeconfig
+// (SharedTokenIdentity), never from a client-supplied cookie; the OIDC
+// refresh middleware strips the shared cookies before any handler can forward
+// them to an API server.
+// Returns shared=true when the token was stored in the shared cookie; the
+// caller then must not also store it in the source cluster's own cookie. An
+// error means the token could not be stored (oversized); an empty token is
+// skipped, as SetTokenCookie does.
 //
 // Precondition: the kube-apiserver of each target cluster must trust the same
 // OIDC application (issuer + client-id) as the source cluster. For the default
@@ -82,31 +96,28 @@ func isOIDCAuthContext(kCtx *kubeconfig.Context) bool {
 //     issuer+client-id therefore does not by itself guarantee the access token
 //     is accepted by the target apiserver; align token audiences fleet-wide.
 //
-// Refresh-path caveat: this runs only at initial OIDC login. The token-refresh
-// middleware (OIDCTokenRefreshMiddleware, backed by RefreshAndSetToken)
-// refreshes each cluster's cookie independently and is not yet broadcast-aware.
-// Because refresh happens per-cluster, sibling cookies diverge as soon as any
-// one cluster refreshes its token; with short token lifetimes (e.g., EKS'
-// default ~1h expiry) siblings then fall back to per-cluster re-login.
-// Whichever token the flag broadcasts (id_token, or access_token when
-// --oidc-use-access-token is set) is the same one SetTokenCookie stores.
-// Broadcast-on-refresh is tracked as a follow-up PR.
+// Refresh-path: this runs at initial OIDC login. When any cluster on the
+// shared token (source included) later refreshes it, RefreshAndSetToken
+// writes the renewed token to the shared cookie, so all of
+// them keep working from a single refresh lineage. Whichever token
+// the flag broadcasts (id_token, or access_token when --oidc-use-access-token
+// is set) is the same one SetTokenCookie stores.
 //
-// Cookie-path caveat (pre-existing, general): SetTokenCookie's chunk-clear
-// pre-step reads existing chunk cookies via r.Cookie(), which only sees cookies
-// the browser sent on the current request path. Cluster cookies are scoped to
-// /clusters/<cluster> while OIDC login completes on /oidc-callback, so stale
-// chunks from a prior longer token are not actively cleared during login. This
-// applies equally to the source cluster; broadcasting just makes the path
-// mismatch hit more clusters per login. In the rare case a re-issued token uses
-// fewer chunks than the previous one, the affected cluster(s) may need a
-// one-time re-login. Also surfaced in the flag's help text.
+// Chunked cookies: SetTokenCookie and SetSharedTokenCookie write the token in
+// chunks and clear the chunk following the last one; reassembly stops at the
+// first missing or empty chunk. A re-issued token that needs fewer chunks is
+// therefore read back intact and any stale higher chunks from a longer
+// predecessor are ignored until they expire.
 //
 // Gated by the --oidc-use-token-broadcast flag (disabled by default).
-func BroadcastOIDCToken(params BroadcastOIDCTokenParams) {
-	sourceOIDCConfig, ok := loadBroadcastSourceOIDCConfig(params.KubeConfigStore, params.SourceCluster)
+func BroadcastOIDCToken(params BroadcastOIDCTokenParams) (bool, error) {
+	if params.Token == "" {
+		return false, nil
+	}
+
+	issuer, clientID, ok := loadBroadcastSourceIdentity(params.KubeConfigStore, params.SourceCluster)
 	if !ok {
-		return
+		return false, nil
 	}
 
 	kContexts, err := params.KubeConfigStore.GetContexts()
@@ -114,68 +125,76 @@ func BroadcastOIDCToken(params BroadcastOIDCTokenParams) {
 		logger.Log(logger.LevelError, map[string]string{logFieldSourceCluster: params.SourceCluster}, err,
 			"failed to get contexts for broadcasting OIDC token")
 
-		return
+		return false, nil
 	}
+
+	var targets []string
 
 	for _, kCtx := range kContexts {
-		if kCtx.Name == params.SourceCluster || !isOIDCAuthContext(kCtx) {
-			continue
+		if kCtx.Name != params.SourceCluster && isBroadcastTarget(params.SourceCluster, issuer, clientID, kCtx) {
+			targets = append(targets, kCtx.Name)
 		}
-
-		// Skip internal contexts, as getClusters() does. These are per-user
-		// stateless/dynamic clusters that must never be visible to other users.
-		// Their store keys also embed a "\x00"-separated user ID (e.g.
-		// "prod\x00alice"), which SanitizeClusterName collapses to "prodalice" —
-		// so broadcasting to one could overwrite the cookie of an unrelated,
-		// legitimately configured cluster whose name sanitizes the same way.
-		if kCtx.Internal {
-			continue
-		}
-
-		broadcastToTarget(params, sourceOIDCConfig, kCtx)
 	}
+
+	if len(targets) == 0 {
+		return false, nil
+	}
+
+	key := SharedTokenKey(issuer, clientID)
+
+	// The caller logs and reports storage errors (oversized token).
+	if err := SetSharedTokenCookie(
+		params.Writer, params.Request, key, params.Token, params.BaseURL, params.SessionTTL,
+	); err != nil {
+		return false, err
+	}
+
+	// The source reads the shared token too: one cookie, one refresh lineage.
+	// A private copy refreshed on its own would rotate the refresh token away
+	// from the shared cookie (or vice versa) and force a re-login on whichever
+	// refreshes second. Only the source's own chunk zero is cleared: a sibling
+	// holding a private (set-token) or older OIDC cookie keeps using it, its
+	// own lineage, as before; only its logout marker is lifted.
+	joinSharedToken(params.Writer, params.Request, params.SourceCluster, params.BaseURL)
+
+	for _, target := range targets {
+		ClearLogoutMarker(params.Writer, params.Request, target, params.BaseURL)
+
+		logger.Log(logger.LevelInfo,
+			map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: target},
+			nil, "broadcasted OIDC token to cluster")
+	}
+
+	return true, nil
 }
 
-// loadBroadcastSourceOIDCConfig validates that the source cluster has a usable
-// OIDC config (auth-provider type, non-nil config, non-empty issuer+client-id).
-// Logs and returns ok=false on any check failure so the caller can return early.
-func loadBroadcastSourceOIDCConfig(
+// loadBroadcastSourceIdentity returns the issuer + client-id of the source
+// cluster when it is eligible for the shared token (SharedTokenIdentity: an
+// operator-configured context with an OIDC auth-provider carrying both). A
+// client-controlled context never resolves a shared key, so sharing its token
+// would leave it without one. Logs and returns ok=false otherwise so the
+// caller falls back to the cluster's own cookie.
+func loadBroadcastSourceIdentity(
 	store kubeconfig.ContextStore, sourceCluster string,
-) (*kubeconfig.OidcConfig, bool) {
+) (issuer, clientID string, ok bool) {
 	sourceContext, err := store.GetContext(sourceCluster)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldSourceCluster: sourceCluster}, err,
 			"failed to get source context for broadcasting OIDC token")
 
-		return nil, false
+		return "", "", false
 	}
 
-	if !isOIDCAuthContext(sourceContext) {
+	issuer, clientID, ok = SharedTokenIdentity(sourceContext)
+	if !ok {
 		logger.Log(logger.LevelInfo,
 			map[string]string{logFieldSourceCluster: sourceCluster},
-			nil, "skipping OIDC token broadcast: source cluster does not use the OIDC auth-provider")
+			nil, "skipping OIDC token broadcast: source cluster is not eligible for the shared token")
 
-		return nil, false
+		return "", "", false
 	}
 
-	oidcCfg, err := sourceContext.OidcConfig()
-	if err != nil || oidcCfg == nil {
-		logger.Log(logger.LevelInfo,
-			map[string]string{logFieldSourceCluster: sourceCluster},
-			err, "skipping OIDC token broadcast: source cluster has no usable OIDC config")
-
-		return nil, false
-	}
-
-	if oidcCfg.IdpIssuerURL == "" || oidcCfg.ClientID == "" {
-		logger.Log(logger.LevelInfo,
-			map[string]string{logFieldSourceCluster: sourceCluster},
-			nil, "skipping OIDC token broadcast: source cluster OIDC config is missing issuer or client-id")
-
-		return nil, false
-	}
-
-	return oidcCfg, true
+	return issuer, clientID, true
 }
 
 // oidcIssuerAndClientID reads the issuer URL and client ID from a context's
@@ -196,64 +215,39 @@ func oidcIssuerAndClientID(kCtx *kubeconfig.Context) (issuer, clientID string) {
 	return "", ""
 }
 
-// broadcastToTarget evaluates one candidate target context and, if it shares
-// the same issuer + client-id as the source, sets the auth cookie for it.
+// isBroadcastTarget reports whether a candidate target context is eligible for
+// the shared token (SharedTokenIdentity, the same predicate the read side
+// uses) and shares the source's issuer + client-id. Nothing is read from disk:
+// the CA file matters for that cluster's own login and refresh, not here.
 //
-// The issuer/client-id comparison is done first via a cheap read that avoids
-// filesystem I/O, so large kubeconfigs with many non-matching contexts do not
-// pay the CA-file read cost during /oidc-callback. Only a matching target is
-// then run through OidcConfig() to validate the config is usable before the
-// cookie is set.
+// Not eligible are non-OIDC contexts, contexts without issuer or client-id, and
+// client-controlled contexts: internal ones, as getClusters() skips them (they
+// are per-user stateless clusters that must never be visible to other users,
+// and their store keys embed a "\x00"-separated user ID, e.g. "prod\x00alice",
+// which SanitizeClusterName collapses to "prodalice", so broadcasting to one
+// could overwrite the cookie of an unrelated, legitimately configured cluster
+// whose name sanitizes the same way), and dynamic clusters, whose kubeconfig
+// may claim any issuer and point at any API server.
 //
-// Missing or empty issuer/client-id, or an unusable OIDC config on a matching
-// target, is logged at Info level so operators can spot misconfiguration.
-// Legitimate issuer/client-id mismatches are intentionally silent because
-// logging them per-target on every login would be noisy in fleets with many
-// non-matching contexts. Either way one bad target does not affect the others.
-func broadcastToTarget(
-	params BroadcastOIDCTokenParams,
-	sourceOIDCConfig *kubeconfig.OidcConfig,
+// An OIDC context that is not eligible is logged at Info level so operators
+// can spot misconfiguration. Legitimate issuer/client-id mismatches are
+// intentionally silent because logging them per-target on every login would be
+// noisy in fleets with many non-matching contexts. Either way one bad target
+// does not affect the others.
+func isBroadcastTarget(
+	sourceCluster, sourceIssuer, sourceClientID string,
 	kCtx *kubeconfig.Context,
-) {
-	issuer, clientID := oidcIssuerAndClientID(kCtx)
-	if issuer == "" || clientID == "" {
-		logger.Log(logger.LevelInfo,
-			map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
-			nil, "skipping OIDC token broadcast: target cluster OIDC config is missing issuer or client-id")
+) bool {
+	issuer, clientID, ok := SharedTokenIdentity(kCtx)
+	if !ok {
+		if isOIDCAuthContext(kCtx) {
+			logger.Log(logger.LevelInfo,
+				map[string]string{logFieldSourceCluster: sourceCluster, logFieldTargetCluster: kCtx.Name},
+				nil, "skipping OIDC token broadcast: target cluster is not eligible for the shared token")
+		}
 
-		return
+		return false
 	}
 
-	if issuer != sourceOIDCConfig.IdpIssuerURL || clientID != sourceOIDCConfig.ClientID {
-		return
-	}
-
-	// Matching target: now pay OidcConfig()'s cost (may read the CA file), which
-	// also validates the config is usable before we set the cookie.
-	if _, err := kCtx.OidcConfig(); err != nil {
-		logger.Log(logger.LevelInfo,
-			map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
-			err, "skipping OIDC token broadcast: target cluster has no usable OIDC config")
-
-		return
-	}
-
-	if err := SetTokenCookie(
-		params.Writer,
-		params.Request,
-		kCtx.Name,
-		params.Token,
-		params.BaseURL,
-		params.SessionTTL,
-	); err != nil {
-		logger.Log(logger.LevelError,
-			map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
-			err, "failed to broadcast OIDC token")
-
-		return
-	}
-
-	logger.Log(logger.LevelInfo,
-		map[string]string{logFieldSourceCluster: params.SourceCluster, logFieldTargetCluster: kCtx.Name},
-		nil, "broadcasted OIDC token to cluster")
+	return issuer == sourceIssuer && clientID == sourceClientID
 }
