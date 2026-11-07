@@ -17,10 +17,10 @@
 import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { getTopCondition } from '../../lib/k8s/conditions';
 import JobSet from '../../lib/k8s/jobSet';
+import { useClustersServing } from '../../lib/k8s/resourceAvailability';
 import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
 import SectionBox from '../common/SectionBox';
@@ -30,27 +30,13 @@ const conditionPriority = ['Failed', 'Completed', 'Suspended', 'StartupPolicyCom
 
 export default function JobSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const [jobSetEnabled, setJobSetEnabled] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const jobSetStatus = async () => {
-      const enabled = await JobSet.isEnabled();
-      if (!cancelled) {
-        setJobSetEnabled(enabled);
-      }
-    };
-    jobSetStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Only some of the selected clusters may have JobSet installed, so ask each of them and
+  // list only from those that do.
+  const servingClusters = useClustersServing(JobSet);
 
   return (
     <>
-      {jobSetEnabled === null ? (
+      {servingClusters === undefined ? (
         <SectionBox title={t('glossary|Job Sets')}>
           <Paper variant="outlined">
             <Empty>
@@ -60,10 +46,11 @@ export default function JobSetList() {
             </Empty>
           </Paper>
         </SectionBox>
-      ) : jobSetEnabled ? (
+      ) : servingClusters.length > 0 ? (
         <ResourceListView
           title={t('glossary|Job Sets')}
           resourceClass={JobSet}
+          clusters={servingClusters}
           columns={[
             'name',
             'namespace',
