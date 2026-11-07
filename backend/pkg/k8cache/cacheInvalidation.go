@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -193,6 +194,7 @@ func CheckForChanges(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	resyncPeriod time.Duration,
 ) {
 	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
 		return
@@ -202,7 +204,7 @@ func CheckForChanges(
 
 	contextCancel.Store(contextKey, cancel)
 
-	go runWatcher(ctx, k8scache, contextKey, kContext)
+	go runWatcher(ctx, k8scache, contextKey, kContext, resyncPeriod)
 }
 
 // SyncWatchers stops watchers for contexts that are no longer active and purges
@@ -259,6 +261,7 @@ func runWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	resyncPeriod time.Duration,
 ) {
 	defer func() {
 		watcherRegistry.Delete(contextKey)
@@ -288,7 +291,7 @@ func runWatcher(
 	}
 
 	gvrList := returnGVRList(apiResourceLists)
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, "", nil)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, resyncPeriod, "", nil)
 
 	RunInformerToWatch(gvrList, factory, contextKey, k8scache)
 
