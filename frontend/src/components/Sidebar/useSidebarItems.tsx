@@ -304,6 +304,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'LeaderWorkerSets',
             label: t('glossary|Leader Worker Sets'),
           },
+          {
+            name: 'DisaggregatedSets',
+            label: t('glossary|Disaggregated Sets'),
+          },
         ],
       },
       {

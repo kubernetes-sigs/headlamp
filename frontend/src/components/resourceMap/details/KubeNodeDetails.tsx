@@ -17,6 +17,7 @@
 import { Box } from '@mui/system';
 import { lazy, memo, ReactElement, Suspense, useEffect } from 'react';
 import Deployment from '../../../lib/k8s/deployment';
+import DisaggregatedSet from '../../../lib/k8s/disaggregatedSet';
 import JobSet from '../../../lib/k8s/jobSet';
 import LeaderWorkerSet from '../../../lib/k8s/leaderWorkerSet';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
@@ -80,6 +81,7 @@ const kindComponentMap: Record<
   Job: JobDetails,
   JobSet: props => <WorkloadDetails {...props} workloadKind={JobSet} />,
   LeaderWorkerSet: props => <WorkloadDetails {...props} workloadKind={LeaderWorkerSet} />,
+  DisaggregatedSet: props => <WorkloadDetails {...props} workloadKind={DisaggregatedSet} />,
   Service: ServiceDetails,
   CronJob: props => (
     <Suspense fallback={null}>

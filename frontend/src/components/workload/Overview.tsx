@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import CronJob from '../../lib/k8s/cronJob';
 import DaemonSet from '../../lib/k8s/daemonSet';
 import Deployment from '../../lib/k8s/deployment';
+import DisaggregatedSet from '../../lib/k8s/disaggregatedSet';
 import Job from '../../lib/k8s/job';
 import JobSet from '../../lib/k8s/jobSet';
 import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
@@ -48,6 +49,7 @@ export default function Overview() {
   const [cronJobs] = CronJob.useList();
   const [jobSets] = JobSet.useList();
   const [leaderWorkerSets] = LeaderWorkerSet.useList();
+  const [disaggregatedSets] = DisaggregatedSet.useList();
 
   const workloadsData: WorkloadDict = useMemo(
     () => ({
@@ -60,6 +62,7 @@ export default function Overview() {
       CronJob: cronJobs ?? [],
       JobSet: jobSets ?? [],
       LeaderWorkerSet: leaderWorkerSets ?? [],
+      DisaggregatedSet: disaggregatedSets ?? [],
     }),
     [
       pods,
@@ -71,6 +74,7 @@ export default function Overview() {
       cronJobs,
       jobSets,
       leaderWorkerSets,
+      disaggregatedSets,
     ]
   );
 

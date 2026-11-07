@@ -23,6 +23,9 @@ import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
+import DisaggregatedSet, {
+  DISAGGREGATED_SET_NAME_LABEL,
+} from '../../../../lib/k8s/disaggregatedSet';
 import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
@@ -400,6 +403,15 @@ const statefulSetToLeaderWorkerSet = makeRelation(
     statefulSet.metadata.labels?.[LEADER_WORKER_SET_NAME_LABEL] === leaderWorkerSet.metadata.name
 );
 
+const leaderWorkerSetToDisaggregatedSet = makeRelation(
+  'leaderworkerset-disaggregatedset',
+  LeaderWorkerSet,
+  DisaggregatedSet,
+  (leaderWorkerSet, disaggregatedSet) =>
+    leaderWorkerSet.metadata.labels?.[DISAGGREGATED_SET_NAME_LABEL] ===
+    disaggregatedSet.metadata.name
+);
+
 const gatewayToGatewayClass = makeRelation(
   'gateway-gatewayclass',
   Gateway,
@@ -514,6 +526,7 @@ const staticRelations = [
   jobToCronJob,
   jobToJobSet,
   statefulSetToLeaderWorkerSet,
+  leaderWorkerSetToDisaggregatedSet,
   gatewayToGatewayClass,
   httpRouteToGateway,
   httpRouteToService,
