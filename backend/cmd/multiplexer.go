@@ -148,6 +148,10 @@ type Multiplexer struct {
 	saTokenCache map[string]saTokenCacheEntry
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
+	// oidcUseImpersonationEnabled mirrors config.Config.OidcUseImpersonation. It is set once at
+	// startup (createHeadlampConfig), after this Multiplexer is constructed, so checkOrigin
+	// reads it through the struct rather than through a constructor argument.
+	oidcUseImpersonationEnabled bool
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -220,18 +224,43 @@ func (conn *WSConnLock) Close() error {
 
 // NewMultiplexer creates a new Multiplexer instance.
 func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
-	return &Multiplexer{
+	m := &Multiplexer{
 		connections:                  make(map[string]*Connection),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
-		upgrader: websocket.Upgrader{
-			Subprotocols: []string{MultiplexerProtocol},
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		},
 	}
+
+	m.upgrader = websocket.Upgrader{
+		Subprotocols: []string{MultiplexerProtocol},
+		CheckOrigin:  m.checkOrigin,
+	}
+
+	return m
+}
+
+// checkOrigin allows any origin unless OIDC impersonation is enabled. Once impersonation is
+// enabled, this socket is authenticated by the deployment-scoped auth cookie
+// reissueDeploymentScopedCookie installs (Path=/, so it reaches /wsMultiplexer): that cookie is
+// SameSite=Strict, which blocks a genuinely cross-site page, but not a same-site sibling
+// subdomain -- a page on such a subdomain could still open this socket and have the browser
+// attach the cookie, reading watch data as the impersonated user. Requiring the handshake's
+// Origin, when a browser sends one, to match the request's own Host closes that gap. A request
+// with no Origin header was not sent by a browser page making a cross-origin request in the
+// first place, so it is let through unconditionally, exactly as before this check existed.
+func (m *Multiplexer) checkOrigin(r *http.Request) bool {
+	if !m.oidcUseImpersonationEnabled {
+		return true
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	originURL, err := url.Parse(origin)
+
+	return err == nil && originURL.Host == r.Host
 }
 
 // readServiceAccountToken reads the service account token from path, caching the value

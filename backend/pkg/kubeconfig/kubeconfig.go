@@ -109,8 +109,13 @@ func ContextWithImpersonation(ctx context.Context, imp Impersonation) context.Co
 	return context.WithValue(ctx, impersonationContextKey{}, imp)
 }
 
-// impersonationFromContext returns the identity ContextWithImpersonation attached to ctx, if any.
-func impersonationFromContext(ctx context.Context) (Impersonation, bool) {
+// ImpersonationFromContext returns the identity ContextWithImpersonation attached to ctx, if
+// any. It is exported so a package that starts a long-lived background job for a request --
+// one that will keep running after the request itself returns, such as pkg/helm's install,
+// upgrade, uninstall and rollback actions -- can read the expiry out synchronously, before
+// starting that job, without needing req.Context() to still be live for the job's own lifetime
+// (it is not: net/http cancels a request's context once its handler returns).
+func ImpersonationFromContext(ctx context.Context) (Impersonation, bool) {
 	imp, ok := ctx.Value(impersonationContextKey{}).(Impersonation)
 	return imp, ok
 }
@@ -125,7 +130,7 @@ type impersonatingRoundTripper struct {
 }
 
 func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	imp, ok := impersonationFromContext(req.Context())
+	imp, ok := ImpersonationFromContext(req.Context())
 	if !ok {
 		return rt.base.RoundTrip(req)
 	}
@@ -646,7 +651,7 @@ func isImpersonatedRequest(c *Context, req *http.Request) bool {
 		return false
 	}
 
-	_, ok := impersonationFromContext(req.Context())
+	_, ok := ImpersonationFromContext(req.Context())
 
 	return ok
 }

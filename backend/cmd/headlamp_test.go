@@ -1660,7 +1660,7 @@ func TestHandleNodeDrainImpersonatesVerifiedUser(t *testing.T) {
 	}
 }
 
-func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
+func TestDrainNodeCancelledContextWritesInterruptedStatus(t *testing.T) {
 	pod1 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-1",
@@ -1693,13 +1693,17 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 
 	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
-	assert.Never(t, func() bool {
+	require.Eventually(t, func() bool {
 		_, err := testCache.Get(context.Background(), cacheKey)
 		return err == nil
-	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
+	}, time.Second, 10*time.Millisecond, "a cancelled drain must still report a status, not vanish silently")
+
+	got, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, "error: node drain was canceled; node may be partially drained", got)
 }
 
-// TestDrainNode_RefusesExpiredImpersonation covers the gap TestDrainNodeCancelledContextDoesNotWriteCache
+// TestDrainNode_RefusesExpiredImpersonation covers the gap TestDrainNodeCancelledContextWritesInterruptedStatus
 // does not: an impersonated drain's verified identity can expire mid-operation even though the
 // caller never cancelled anything -- the drain runs on Headlamp's own service account credential,
 // which Kubernetes has no token to re-verify or expire on its own, so nothing else would ever stop
@@ -1726,14 +1730,73 @@ func TestDrainNode_RefusesExpiredImpersonation(t *testing.T) {
 
 	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Now().Add(-time.Minute))
 
-	assert.Never(t, func() bool {
+	require.Eventually(t, func() bool {
 		_, err := testCache.Get(context.Background(), cacheKey)
 		return err == nil
-	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when impersonation already expired")
+	}, time.Second, 10*time.Millisecond,
+		"a drain refused for expired impersonation must still report a status, not leave the status endpoint 404 forever")
 
-	got, err := fakeClient.CoreV1().Nodes().Get(context.Background(), "test-node", metav1.GetOptions{})
+	got, err := testCache.Get(context.Background(), cacheKey)
 	require.NoError(t, err)
-	assert.False(t, got.Spec.Unschedulable, "the node must not be cordoned once impersonation has expired")
+	assert.Equal(t, "error: authorization expired before node drain finished; node may be partially drained", got)
+
+	gotNode, err := fakeClient.CoreV1().Nodes().Get(context.Background(), "test-node", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.False(t, gotNode.Spec.Unschedulable, "the node must not be cordoned once impersonation has expired")
+}
+
+// TestDrainNodeReportsPartialDrainWhenDeadlinePassesMidOperation covers a gap the other
+// expiry tests do not: TestDrainNode_RefusesExpiredImpersonation only passes a deadline that
+// is already in the past before the drain starts at all. Here the deadline is still in the
+// future when drainNodePods begins deleting pods, and passes partway through -- after pod-1's
+// delete is issued but before the loop reaches pod-2 -- which is the far more realistic case a
+// short-lived impersonated token actually produces in practice.
+func TestDrainNodeReportsPartialDrainWhenDeadlinePassesMidOperation(t *testing.T) {
+	pod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod-1", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	pod2 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod-2", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
+
+	fakeClient := fake.NewClientset(node, pod1, pod2)
+
+	deadline := time.Now().Add(50 * time.Millisecond)
+
+	// Delay pod-1's deletion just long enough for the deadline to pass before the loop reaches
+	// pod-2.
+	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.(k8stesting.DeleteAction).GetName() == "pod-1" {
+			time.Sleep(80 * time.Millisecond)
+		}
+
+		return false, nil, nil
+	})
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{Cache: testCache}}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", deadline)
+
+	require.Eventually(t, func() bool {
+		_, err := testCache.Get(context.Background(), cacheKey)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+
+	got, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, "error: authorization expired before node drain finished; node may be partially drained", got)
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(context.Background(), "pod-1", metav1.GetOptions{})
+	assert.Error(t, err, "pod-1's delete was issued before the deadline passed, so it should be gone")
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(context.Background(), "pod-2", metav1.GetOptions{})
+	assert.NoError(t, err, "pod-2 must not be deleted once the deadline passed before the loop reached it")
 }
 
 func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
@@ -5251,6 +5314,67 @@ func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 	// OIDC token's claims using the configured me-username-path/me-groups-path JMESPaths.
 	assert.Equal(t, "alice@example.com", receivedUser)
 	assert.ElementsMatch(t, []string{"dev", "ops", "system:authenticated"}, receivedGroups)
+}
+
+// TestImpersonationFailureHidesVerificationDetail locks in a fix for a gap where an
+// identity-verification failure on these routes sent the raw underlying OIDC error
+// (issuer/audience/claim detail, token-parsing errors) straight to the client instead of a
+// generic "unauthorized". That detail is diagnostic information about the identity provider's
+// configuration, useful for an operator reading the server log, not something an unverified
+// caller needs to see.
+func TestImpersonationFailureHidesVerificationDetail(t *testing.T) {
+	const cluster = "main"
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{
+			name:   "service proxy",
+			method: http.MethodGet,
+			path:   "/clusters/" + cluster + "/serviceproxy/default/svc?request=/",
+		},
+		{
+			name:   "port forward start",
+			method: http.MethodPost,
+			path:   "/clusters/" + cluster + "/portforward",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenFile := writeTestTokenFile(t)
+
+			kubeConfigStore := kubeconfig.NewContextStore()
+			require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+				Name:     cluster,
+				Cluster:  &api.Cluster{Server: "https://" + cluster + ".example.com"},
+				AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+				Source:   kubeconfig.InCluster,
+			}))
+
+			issuer := testutil.NewFakeOIDCIssuer(t)
+			cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+			handler := createHeadlampHandler(newTestHandlerCtx(t), cfg)
+
+			req := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
+			req.AddCookie(&http.Cookie{
+				Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+				Value:    "not-a-valid-jwt",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+			assert.Equal(t, "unauthorized", strings.TrimSpace(rr.Body.String()))
+		})
+	}
 }
 
 // TestHandleClusterAPI_OIDCImpersonation_ProactiveRefreshThenImpersonate is an end-to-end check

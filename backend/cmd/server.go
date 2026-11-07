@@ -213,6 +213,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	setupKubeConfigStoreWatcher(kubeConfigStore)
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
+	multiplexer.oidcUseImpersonationEnabled = conf.OidcUseImpersonation
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),

@@ -61,6 +61,53 @@ func TestNewMultiplexer(t *testing.T) {
 	assert.Equal(t, []string{MultiplexerProtocol}, m.upgrader.Subprotocols)
 }
 
+func TestCheckOrigin_AllowsAnyOriginWhenImpersonationDisabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+
+	assert.True(t, m.upgrader.CheckOrigin(req),
+		"origin must stay unrestricted for deployments that never enable impersonation")
+}
+
+func TestCheckOrigin_RejectsCrossOriginWhenImpersonationEnabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.oidcUseImpersonationEnabled = true
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+	req.Header.Set("Origin", "https://evil.headlamp.example.com")
+
+	assert.False(t, m.upgrader.CheckOrigin(req),
+		"a same-site sibling subdomain must not be able to open the impersonation-authenticated socket")
+}
+
+func TestCheckOrigin_AllowsSameOriginWhenImpersonationEnabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.oidcUseImpersonationEnabled = true
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+	req.Header.Set("Origin", "http://headlamp.example.com")
+
+	assert.True(t, m.upgrader.CheckOrigin(req))
+}
+
+func TestCheckOrigin_AllowsMissingOriginWhenImpersonationEnabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.oidcUseImpersonationEnabled = true
+
+	// A request with no Origin header was not sent by a browser page making a cross-origin
+	// request in the first place (e.g. kubectl-style or server-side WebSocket clients never
+	// send one), so it is not the CSRF-style scenario this check defends against.
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+
+	assert.True(t, m.upgrader.CheckOrigin(req))
+}
+
 func TestHandleClientWebSocket(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
 	m := NewMultiplexer(contextStore, false)

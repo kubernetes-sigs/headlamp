@@ -990,7 +990,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 			impersonation, err := config.impersonationFor(w, r, mux.Vars(r)["clusterName"], contextKey)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusUnauthorized)
+				// The underlying verification error (e.g. a specific OIDC claim/issuer
+				// mismatch) is logged, not sent to the client: it is diagnostic detail about
+				// the identity provider's configuration, not something an unauthorized caller
+				// needs to see.
+				logger.Log(logger.LevelError, map[string]string{"cluster": contextKey}, err,
+					"failed to verify identity for impersonation")
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+
 				return
 			}
 
@@ -1028,7 +1035,13 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.GetPortForwards(config.Cache, contextKey, w, r)
+			// This endpoint has never been identity-scoped (any caller for this cluster can
+			// list its port-forwards), so a verification failure here is not rejected, only
+			// treated as "nothing to extend": impersonation stays nil, exactly as if this
+			// request had not re-verified an identity at all.
+			impersonation, _ := config.impersonationFor(w, r, mux.Vars(r)["clusterName"], contextKey)
+
+			portforward.GetPortForwards(config.Cache, contextKey, impersonation, w, r)
 		})),
 	)
 	r.Handle(
@@ -1040,7 +1053,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
+			// See the sibling /portforward/list handler above for why a verification
+			// failure here does not reject the request.
+			impersonation, _ := config.impersonationFor(w, r, mux.Vars(r)["clusterName"], contextKey)
+
+			portforward.GetPortForwardByID(config.Cache, contextKey, impersonation, w, r)
 		})),
 	).Methods("GET")
 
@@ -2503,7 +2520,12 @@ func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 
 			impersonation, err := c.impersonationFor(w, r, clusterName, clusterName)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusUnauthorized)
+				// See the port-forward start handler's identical check for why the client
+				// gets a generic message while the detailed verification error is logged.
+				logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err,
+					"failed to verify identity for impersonation")
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+
 				return
 			}
 
@@ -3938,6 +3960,23 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey, impersonationExpiry)
 }
 
+// cordonNode marks nodeName unschedulable, returning whichever of the Get or Update calls
+// failed.
+func cordonNode(ctx context.Context, clientset kubernetes.Interface, nodeName string) error {
+	nodeClient := clientset.CoreV1().Nodes()
+
+	node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	node.Spec.Unschedulable = true
+
+	_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
+
+	return err
+}
+
 // drainNode cordons nodeName and evicts its pods in a background goroutine. impersonationExpiry,
 // when non-zero, is the verified identity's token expiry that authorized this drain (see
 // kubeconfig.Impersonation.Expiry): the drain runs on Headlamp's own service account credential,
@@ -3956,6 +3995,9 @@ func (c *HeadlampConfig) drainNode(
 	impersonationExpiry time.Time,
 ) {
 	go func() {
+		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+cluster)).String()
+		cacheItemTTL := DrainNodeCacheTTL * time.Second
+
 		if !impersonationExpiry.IsZero() {
 			var cancel context.CancelFunc
 
@@ -3963,31 +4005,14 @@ func (c *HeadlampConfig) drainNode(
 			defer cancel()
 		}
 
-		if ctx.Err() != nil {
+		if err := ctx.Err(); err != nil {
+			c.recordDrainInterrupted(ctx, err, cacheKey, cacheItemTTL)
 			return
 		}
 
-		nodeClient := clientset.CoreV1().Nodes()
-		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+cluster)).String()
-		cacheItemTTL := DrainNodeCacheTTL * time.Second
-
-		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
-		if err != nil {
+		if err := cordonNode(ctx, clientset, nodeName); err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return
-			}
-
-			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
-
-			return
-		}
-
-		// cordon the node first
-		node.Spec.Unschedulable = true
-
-		_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				c.recordDrainInterrupted(ctx, err, cacheKey, cacheItemTTL)
 				return
 			}
 
@@ -4000,6 +4025,7 @@ func (c *HeadlampConfig) drainNode(
 			v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				c.recordDrainInterrupted(ctx, err, cacheKey, cacheItemTTL)
 				return
 			}
 
@@ -4010,6 +4036,26 @@ func (c *HeadlampConfig) drainNode(
 
 		c.drainNodePods(ctx, clientset, pods.Items, cacheKey, cacheItemTTL)
 	}()
+}
+
+// recordDrainInterrupted records that a drain stopped partway through because ctx was
+// cancelled or, far more commonly, because the impersonated identity's deadline (see
+// drainNode's impersonationExpiry) passed before the drain finished. Without this, every such
+// exit left no status at all: handleNodeDrainStatus would keep returning 404 forever, so the
+// node could be left cordoned with only some pods evicted and the user never told why.
+// ctx itself is at or past the deadline being reported here, so the write uses
+// context.WithoutCancel(ctx) rather than ctx -- otherwise the very expiry this status exists to
+// report would make the write that reports it fail immediately too.
+func (c *HeadlampConfig) recordDrainInterrupted(
+	ctx context.Context, causeErr error, cacheKey string, cacheItemTTL time.Duration,
+) {
+	reason := "node drain was canceled"
+	if errors.Is(causeErr, context.DeadlineExceeded) {
+		reason = "authorization expired before node drain finished"
+	}
+
+	_ = c.Cache.SetWithTTL(
+		context.WithoutCancel(ctx), cacheKey, "error: "+reason+"; node may be partially drained", cacheItemTTL)
 }
 
 func (c *HeadlampConfig) drainNodePods(
@@ -4024,7 +4070,8 @@ func (c *HeadlampConfig) drainNodePods(
 	var deleteErrors []string
 
 	for i := range pods {
-		if ctx.Err() != nil {
+		if err := ctx.Err(); err != nil {
+			c.recordDrainInterrupted(ctx, err, cacheKey, cacheItemTTL)
 			return
 		}
 
@@ -4042,7 +4089,8 @@ func (c *HeadlampConfig) drainNodePods(
 		}
 	}
 
-	if ctx.Err() != nil {
+	if err := ctx.Err(); err != nil {
+		c.recordDrainInterrupted(ctx, err, cacheKey, cacheItemTTL)
 		return
 	}
 

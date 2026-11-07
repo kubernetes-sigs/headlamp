@@ -93,7 +93,7 @@ func TestStartPortForward_ImpersonationUsesServiceAccountCredential(t *testing.T
 
 	err := startPortForward(
 		kContext.WithImpersonation(impersonation), cache.New[interface{}](), p, "", "test-cluster", "test-cluster",
-		impersonation.Expiry,
+		impersonation.Expiry, impersonation.Username,
 	)
 
 	require.Error(t, err)
@@ -591,6 +591,111 @@ func TestHandlePodCheck_StopsOnExpiredImpersonationBeforeCheckingPod(t *testing.
 	}
 }
 
+// TestExtendImpersonationExpiryForID_ExtendsMatchingIdentity locks in the fix for a gap where
+// an impersonated port-forward was always stopped by its verified ID token's own `exp`
+// (commonly 5-60 minutes), even on a browser session that kept actively refreshing. A GET for
+// this port-forward's status re-verifies the caller's identity anyway (see
+// GetPortForwardByID), so that freshly-verified expiry now extends the running port-forward's
+// own impersonationExpiry when it belongs to the same identity.
+func TestExtendImpersonationExpiryForID_ExtendsMatchingIdentity(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	pf := &portForward{
+		ID:                   "pf-extend",
+		cacheKey:             "cluster",
+		mu:                   &sync.Mutex{},
+		impersonationExpiry:  originalExpiry,
+		impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	laterExpiry := originalExpiry.Add(time.Hour)
+	ExtendImpersonationExpiryForID("cluster", "pf-extend", "alice@example.com", laterExpiry)
+
+	assert.True(t, pf.impersonationExpiry.Equal(laterExpiry),
+		"a re-verification by the same identity must extend the running port-forward's expiry")
+}
+
+func TestExtendImpersonationExpiryForID_IgnoresDifferentIdentity(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	pf := &portForward{
+		ID:                   "pf-other-identity",
+		cacheKey:             "cluster",
+		mu:                   &sync.Mutex{},
+		impersonationExpiry:  originalExpiry,
+		impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	// A different, unrelated caller re-verifying their own identity must never extend the
+	// privilege window of a port-forward it does not own.
+	ExtendImpersonationExpiryForID("cluster", "pf-other-identity", "mallory@example.com", time.Now().Add(time.Hour))
+
+	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry))
+}
+
+func TestExtendImpersonationExpiryForID_NeverShortens(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Hour)
+	pf := &portForward{
+		ID:                   "pf-no-shorten",
+		cacheKey:             "cluster",
+		mu:                   &sync.Mutex{},
+		impersonationExpiry:  originalExpiry,
+		impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	ExtendImpersonationExpiryForID("cluster", "pf-no-shorten", "alice@example.com", time.Now().Add(time.Minute))
+
+	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry),
+		"an earlier expiry (e.g. from a stale or clock-skewed token) must never shorten it")
+}
+
+// TestExtendImpersonationExpiryForCluster_ExtendsAllMatchingInCluster covers GetPortForwards'
+// (the list endpoint's) use of this: a browser polling the list for its own port-forwards must
+// keep every one of them alive, not just a single one looked up by ID.
+func TestExtendImpersonationExpiryForCluster_ExtendsAllMatchingInCluster(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	pf1 := &portForward{
+		ID: "pf-list-1", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+	}
+	pf2 := &portForward{
+		ID: "pf-list-2", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+	}
+
+	registerLivePortForward(pf1)
+	registerLivePortForward(pf2)
+
+	laterExpiry := originalExpiry.Add(time.Hour)
+	ExtendImpersonationExpiryForCluster("cluster", "alice@example.com", laterExpiry)
+
+	assert.True(t, pf1.impersonationExpiry.Equal(laterExpiry))
+	assert.True(t, pf2.impersonationExpiry.Equal(laterExpiry))
+}
+
+// TestPortforwardstore_DeregistersStoppedPortForward verifies the live registry does not leak:
+// once a port-forward reaches STOPPED, it must stop being reachable (and therefore
+// extendable) through the registry at all.
+func TestPortforwardstore_DeregistersStoppedPortForward(t *testing.T) {
+	pf := &portForward{
+		ID: "pf-stop", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: time.Now().Add(time.Minute), impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	portforwardstore(cache.New[interface{}](), portForward{
+		ID: "pf-stop", cacheKey: "cluster", Status: STOPPED,
+	})
+
+	originalExpiry := pf.impersonationExpiry
+
+	ExtendImpersonationExpiryForID("cluster", "pf-stop", "alice@example.com", time.Now().Add(time.Hour))
+
+	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry),
+		"a stopped port-forward must be deregistered, so a later extension call must not reach it")
+}
+
 func TestHandlePortForwardError(t *testing.T) {
 	c := cache.New[interface{}]()
 	ch := make(chan struct{}, 1)
@@ -721,7 +826,7 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward/list", nil)
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 
-	GetPortForwards(c, "cluster", w, r)
+	GetPortForwards(c, "cluster", nil, w, r)
 
 	res := w.Result()
 
@@ -738,7 +843,7 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	r2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward/list", nil)
 	r2 = mux.SetURLVars(r2, map[string]string{"clusterName": "cluster"})
 
-	GetPortForwards(c, "clusteruser999", w2, r2)
+	GetPortForwards(c, "clusteruser999", nil, w2, r2)
 
 	res2 := w2.Result()
 
@@ -766,7 +871,7 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 	r.URL = &url.URL{RawQuery: "id=pf-4"}
 
-	GetPortForwardByID(c, "cluster", w, r)
+	GetPortForwardByID(c, "cluster", nil, w, r)
 
 	res := w.Result()
 
@@ -780,7 +885,7 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 	r2 = mux.SetURLVars(r2, map[string]string{"clusterName": "cluster"})
 	r2.URL = &url.URL{RawQuery: "id=pf-4"}
 
-	GetPortForwardByID(c, "clusteruser999", w2, r2)
+	GetPortForwardByID(c, "clusteruser999", nil, w2, r2)
 
 	res2 := w2.Result()
 
@@ -805,7 +910,7 @@ func TestGetPortForwardByIDHandler_ReturnsRouteClusterName(t *testing.T) {
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 	r.URL = &url.URL{RawQuery: "id=pf-context-key"}
 
-	GetPortForwardByID(c, contextKey, w, r)
+	GetPortForwardByID(c, contextKey, nil, w, r)
 
 	res := w.Result()
 	defer func() { _ = res.Body.Close() }()

@@ -39,8 +39,9 @@ const (
 	// claim, which is fine for /me's purpose -- a label the browser shows the signed-in user --
 	// but not for impersonation, which grants the resolved username's actual Kubernetes RBAC
 	// authority: two different users can share a mutable, non-unique display name, and OIDC
-	// does not require `name` to be unique at all. This chain keeps the same stable-handle
-	// claims first, but ends in `join('#', [iss, sub])` instead of `name`: `sub` is the one
+	// does not require `name` to be unique at all. This chain tries the same human-readable
+	// claims first -- none of them is actually guaranteed stable either, they are just the
+	// common case -- but ends in `join('#', [iss, sub])` instead of `name`: `sub` is the one
 	// claim OIDC guarantees is unique and never reassigned for a given user at its issuer, and
 	// qualifying it with `iss` keeps it unique even if a deployment is ever reconfigured to
 	// trust more than one issuer. An operator who explicitly configured --me-username-path
