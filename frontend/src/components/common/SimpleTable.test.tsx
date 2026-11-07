@@ -227,7 +227,7 @@ describe('SimpleTable', () => {
   });
 
   describe('default sorting with nullish values (regression tests)', () => {
-    it('sorts undefined string values to the bottom in both ascending and descending order (Test A)', async () => {
+    it('sorts undefined string values to the bottom in both ascending and descending order', async () => {
       renderTable({
         columns: [
           { label: 'Name', datum: 'name' },
@@ -266,7 +266,7 @@ describe('SimpleTable', () => {
       );
     });
 
-    it('sorts null string values to the bottom in both ascending and descending order (Test B)', async () => {
+    it('sorts null string values to the bottom in both ascending and descending order', async () => {
       renderTable({
         columns: [
           { label: 'Name', datum: 'name' },
@@ -305,7 +305,7 @@ describe('SimpleTable', () => {
       );
     });
 
-    it('sorts numeric values correctly with 0, positive numbers, and nullish values (Test C)', async () => {
+    it('sorts numeric values correctly with 0, positive numbers, and nullish values', async () => {
       renderTable({
         columns: [
           { label: 'Name', datum: 'name' },
@@ -354,7 +354,7 @@ describe('SimpleTable', () => {
       });
     });
 
-    it('preserves existing sorting behavior for all defined values (Test D)', async () => {
+    it('preserves existing sorting behavior for all defined values', async () => {
       renderTable({
         columns: [{ label: 'Value', datum: 'value', sort: true }],
         data: [{ value: 'charlie' }, { value: 'alpha' }, { value: 'bravo' }],
@@ -368,7 +368,7 @@ describe('SimpleTable', () => {
       await waitFor(() => expect(getBodyCellText()).toEqual(['charlie', 'bravo', 'alpha']));
     });
 
-    it('groups multiple missing values at the bottom while sorting defined values (Test E)', async () => {
+    it('groups multiple missing values at the bottom with stable ordering while sorting defined values', async () => {
       renderTable({
         columns: [
           { label: 'Name', datum: 'name' },
@@ -420,6 +420,54 @@ describe('SimpleTable', () => {
           '',
         ]);
       });
+    });
+
+    it('sorts getter-based columns with nullish values to the bottom in both ascending and descending order', async () => {
+      renderTable({
+        columns: [
+          { label: 'Name', datum: 'name' },
+          {
+            label: 'Role',
+            getter: (row: { role?: string | null }) => row.role,
+            sort: true,
+          },
+        ],
+        data: [
+          { name: 'member-b', role: 'developer' },
+          { name: 'member-null', role: null },
+          { name: 'member-a', role: 'admin' },
+          { name: 'member-undef', role: undefined },
+        ],
+        defaultSortingColumn: 2,
+        showPagination: false,
+      });
+
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'member-a',
+          'admin',
+          'member-b',
+          'developer',
+          'member-null',
+          '',
+          'member-undef',
+          '',
+        ])
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'member-b',
+          'developer',
+          'member-a',
+          'admin',
+          'member-null',
+          '',
+          'member-undef',
+          '',
+        ])
+      );
     });
   });
 });
