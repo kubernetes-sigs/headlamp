@@ -910,16 +910,34 @@ export default function Table<RowItem extends Record<string, any>>({
             </StyledHeadRow>
           </TableHead>
           <StyledBody>
-            {rows.map((row, index) => (
-              <Row
-                key={row.id}
-                rowIndex={index}
-                cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
-                table={table as MRT_TableInstance<Record<string, any>>}
-                isSelected={row.getIsSelected()}
-                onRowClick={handleRowClick}
-              />
-            ))}
+            {rows.length > 0 ? (
+              rows.map((row, index) => (
+                <Row
+                  key={row.id}
+                  rowIndex={index}
+                  cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
+                  table={table as MRT_TableInstance<Record<string, any>>}
+                  isSelected={row.getIsSelected()}
+                  onRowClick={handleRowClick}
+                />
+              ))
+            ) : (
+              <StyledRow>
+                <Box
+                  component="td"
+                  colSpan={headerGroups[0]?.headers?.length || 1}
+                  sx={theme => ({
+                    gridColumn: '1 / -1',
+                    textAlign: 'center',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                  })}
+                >
+                  {tableProps.renderEmptyRowsFallback?.({ table }) ?? (
+                    <Empty>{t('No results found')}</Empty>
+                  )}
+                </Box>
+              </StyledRow>
+            )}
           </StyledBody>
         </MuiTable>
         {(!hideEmptyBottomToolbar ||

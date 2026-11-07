@@ -411,6 +411,22 @@ describe('Table states and options', () => {
     expect(screen.getByRole('status')).toHaveTextContent('No results found');
   });
 
+  it('renders "No results found" in the table body when filtering leaves no rows', () => {
+    tableMocks.forceNoRows = true;
+    renderTable();
+
+    const emptyCell = screen.getByRole('cell');
+    expect(emptyCell).toHaveTextContent('No results found');
+    expect(emptyCell).toHaveAttribute('colspan', '1');
+  });
+
+  it('renders custom empty fallback in the table body when provided and filtering leaves no rows', () => {
+    tableMocks.forceNoRows = true;
+    renderTable({ renderEmptyRowsFallback: () => <div>Custom empty message</div> });
+
+    expect(screen.getByText('Custom empty message')).toBeVisible();
+  });
+
   it('updates pagination and stores a changed page size', async () => {
     renderTable();
 
