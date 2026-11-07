@@ -347,13 +347,25 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 // makeTransportFor creates an HTTP transport configuration with special handling for
 // Windows systems to prevent terminal window flashing during exec-based authentication.
 func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
+	cfg, err := TransportConfigFor(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	return transport.New(cfg)
+}
+
+// TransportConfigFor returns the transport config for conf, for building an HTTP or
+// WebSocket transport that authenticates as conf does. On Windows, an exec credential
+// plugin runs without flashing a console window.
+func TransportConfigFor(conf *rest.Config) (*transport.Config, error) {
 	if conf == nil {
 		return nil, fmt.Errorf("configuration cannot be nil")
 	}
 
-	// Use standard transport for non-Windows systems or when ExecProvider is not configured
+	// Use the standard config for non-Windows systems or when ExecProvider is not configured
 	if conf.ExecProvider == nil || runtime.GOOS != "windows" {
-		return rest.TransportFor(conf)
+		return conf.TransportConfig()
 	}
 
 	confNoExec := *conf
@@ -386,7 +398,7 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 		return nil, fmt.Errorf("failed to update transport config: %w", err)
 	}
 
-	return transport.New(cfg)
+	return cfg, nil
 }
 
 // OidcConfig returns the oidc config for the context.
