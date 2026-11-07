@@ -91,6 +91,10 @@ class Event extends KubeObject<KubeEvent> {
     return this.getValue('source');
   }
 
+  get reportingComponent() {
+    return this.getValue('reportingComponent');
+  }
+
   get count() {
     const series = this.getValue('series');
     if (!!series) {
