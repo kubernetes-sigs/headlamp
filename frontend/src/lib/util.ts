@@ -272,8 +272,8 @@ export function getReadyReplicas(item: Workload) {
 export function getTotalReplicas(item: Workload) {
   return (
     item.spec.replicas ||
-    item.status?.currentNumberScheduled ||
     item.status?.desiredNumberScheduled ||
+    item.status?.currentNumberScheduled ||
     0
   );
 }

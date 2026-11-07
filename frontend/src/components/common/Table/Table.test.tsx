@@ -103,6 +103,7 @@ vi.mock('material-react-table', () => ({
     });
 
     return {
+      options,
       getHeaderGroups: () => [
         {
           headers: [
@@ -121,6 +122,7 @@ vi.mock('material-react-table', () => ({
       getRowModel: () => ({ rows }),
       getSelectedRowModel: () => ({ flatRows: [], rows: [] }),
       getState: () => ({
+        ...options.state,
         columnVisibility: tableMocks.columnVisibility,
         showColumnFilters: false,
       }),
@@ -159,6 +161,56 @@ function renderTable(props: Partial<TableProps<TestRow>> = {}) {
     </ThemeProvider>
   );
 }
+
+describe('empty bottom toolbar spacing', () => {
+  it('preserves caller toolbar spacing and retains native defaults otherwise', () => {
+    const toolbar = { sx: { mb: 2, height: '3.5rem' } };
+    const { unmount } = renderTable({ muiTopToolbarProps: toolbar });
+    expect(tableMocks.options.muiTopToolbarProps).toBe(toolbar);
+    unmount();
+    renderTable();
+    expect(tableMocks.options.muiTopToolbarProps.sx.height).toBe('3.5rem');
+  });
+
+  it('preserves the toolbar by default', () => {
+    renderTable();
+    expect(screen.getByTestId('bottom-toolbar')).toBeTruthy();
+  });
+
+  it('collapses an empty toolbar only when opted in', () => {
+    renderTable({ hideEmptyBottomToolbar: true });
+    expect(screen.queryByTestId('bottom-toolbar')).toBeNull();
+  });
+
+  it('retains pagination for larger lists', () => {
+    renderTable({
+      hideEmptyBottomToolbar: true,
+      data: Array.from({ length: 11 }, () => ({ selected: false })),
+    });
+    expect(screen.getByTestId('bottom-toolbar')).toBeTruthy();
+  });
+
+  it.each([
+    { isLoading: true },
+    { isSaving: true },
+    { showProgressBars: true },
+    { showAlertBanner: true },
+    { showToolbarDropZone: true },
+    { grouping: ['selected'] },
+    { rowSelection: { '0': true } },
+  ])('retains footer status for %j', state => {
+    renderTable({ hideEmptyBottomToolbar: true, state });
+    expect(screen.getByTestId('bottom-toolbar')).toBeTruthy();
+  });
+
+  it('retains custom footer actions', () => {
+    renderTable({
+      hideEmptyBottomToolbar: true,
+      renderBottomToolbarCustomActions: () => <button>Footer action</button>,
+    });
+    expect(screen.getByTestId('bottom-toolbar')).toBeTruthy();
+  });
+});
 
 function toolbarTable(selectedRows: object[] = []) {
   return {

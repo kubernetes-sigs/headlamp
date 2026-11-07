@@ -106,6 +106,16 @@ describe('getReadyReplicas / getTotalReplicas', () => {
     expect(getReadyReplicas(jobSet)).toBe(0);
     expect(getTotalReplicas(jobSet)).toBe(0);
   });
+
+  it('counts every node a DaemonSet should run on, not only the scheduled ones', () => {
+    const daemonSet = {
+      kind: 'DaemonSet',
+      spec: {},
+      status: { desiredNumberScheduled: 3, currentNumberScheduled: 2, numberReady: 2 },
+    } as any;
+    expect(getReadyReplicas(daemonSet)).toBe(2);
+    expect(getTotalReplicas(daemonSet)).toBe(3);
+  });
 });
 
 describe('combineClusterListErrors', () => {

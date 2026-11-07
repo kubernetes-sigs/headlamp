@@ -104,11 +104,17 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
 		ProxyURLs: func() []string {
-			if conf.ProxyURLs == "" {
-				return []string{}
+			proxyURLs := []string{}
+
+			// Trim the spaces around each entry, because a pattern like
+			// " https://b.com" never matches, and drop empty entries.
+			for _, proxyURL := range strings.Split(conf.ProxyURLs, ",") {
+				if proxyURL = strings.TrimSpace(proxyURL); proxyURL != "" {
+					proxyURLs = append(proxyURLs, proxyURL)
+				}
 			}
 
-			return strings.Split(conf.ProxyURLs, ",")
+			return proxyURLs
 		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
@@ -191,7 +197,7 @@ func loadOidcCACert(oidcCAFile string) string {
 		return ""
 	}
 
-	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec // CA file path is provided via CLI configuration
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 		os.Exit(1)

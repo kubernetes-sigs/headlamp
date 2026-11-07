@@ -3,6 +3,24 @@
     <div
       aria-label="Plugin Settings Test Page"
     >
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+        tabindex="0"
+        type="button"
+      >
+        <span
+          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        />
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          style="padding-top: 3px;"
+        >
+          Back
+        </p>
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </button>
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -18,7 +36,7 @@
               <h1
                 class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
-                Plugins
+                Plugin Settings
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
@@ -39,7 +57,7 @@
               role="status"
             />
             <div
-              class="MuiBox-root css-1ipmh7v"
+              class="MuiBox-root css-19cndm7"
             >
               <div
                 class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
@@ -52,7 +70,7 @@
                     class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-tlgbxw-MuiPaper-root-MuiAlert-root"
                       role="alert"
                     >
                       <div
@@ -83,9 +101,13 @@
                 </p>
               </div>
               <div
-                class="MuiBox-root css-zrlv9q"
+                class="MuiBox-root css-wsew38"
               >
-                <span />
+                <h2
+                  class="MuiTypography-root MuiTypography-h4 css-15wpbs4-MuiTypography-root"
+                >
+                  Installed Plugins
+                </h2>
                 <div
                   class="MuiBox-root css-1p0wbhh"
                 >
@@ -711,18 +733,6 @@
                 </tr>
               </tbody>
             </table>
-            <div
-              class="MuiBox-root css-1bxknjp"
-            >
-              <div
-                class="MuiBox-root css-1llu0od"
-              >
-                <span />
-                <div
-                  class="MuiBox-root css-qpxlqp"
-                />
-              </div>
-            </div>
           </div>
         </div>
       </div>
