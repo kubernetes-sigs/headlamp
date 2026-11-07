@@ -70,8 +70,9 @@ export default {
   argTypes: {},
   decorators: [
     Story => {
+      // The list asks the selected clusters whether they have JobSet, so the story needs one selected.
       return (
-        <TestContext>
+        <TestContext routerMap={{ cluster: 'main' }} urlPrefix="/c">
           <Story />
         </TestContext>
       );
@@ -83,14 +84,25 @@ const Template: StoryFn = () => {
   return <List />;
 };
 
-const jobSetApiGroupUrl = `${API_BASE}/apis/jobset.x-k8s.io/v1alpha2`;
-const jobSetListUrl = `${API_BASE}/apis/jobset.x-k8s.io/v1alpha2/jobsets`;
+const jobSetApiGroupUrl = `${API_BASE}/clusters/main/apis/jobset.x-k8s.io/v1alpha2`;
+const jobSetListUrl = `${API_BASE}/clusters/main/apis/jobset.x-k8s.io/v1alpha2/jobsets`;
 
 export const Items = Template.bind({});
 Items.parameters = {
   msw: {
     handlers: {
       story: [
+        http.get(`${API_BASE}/clusters/main/api/v1/namespaces`, () =>
+          HttpResponse.json({ kind: 'NamespaceList', metadata: {}, items: [] })
+        ),
+        http.post(
+          `${API_BASE}/clusters/main/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
+          () => HttpResponse.json({ status: { allowed: true } })
+        ),
+        http.post(
+          `${API_BASE}/clusters/main/apis/authorization.k8s.io/v1beta1/selfsubjectaccessreviews`,
+          () => HttpResponse.json({ status: { allowed: true } })
+        ),
         // JobSet.isEnabled() looks for this resource name on the API group.
         http.get(jobSetApiGroupUrl, () => HttpResponse.json({ resources: [{ name: 'jobsets' }] })),
         http.get(jobSetListUrl, () =>
@@ -106,7 +118,7 @@ Items.parameters = {
 };
 
 /**
- * Keeps JobSet.isEnabled() pending so List.tsx stays on jobSetEnabled === null
+ * Keeps JobSet.isEnabled() pending so List.tsx stays on the checking state
  * ("Checking if JobSet is enabled…").
  * Storyshots disabled: a never-resolving handler never fires request:end.
  */
