@@ -384,6 +384,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace,
       requests: requestedLists,
       refetchInterval,
+      asTable,
       ...queryParams
     }: {
       cluster?: string;
@@ -393,6 +394,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       requests?: Array<{ cluster: string; namespaces?: string[] }>;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
+      /** Request a compact Kubernetes Table response for this list only. */
+      asTable?: boolean;
     } & QueryParameters = {}
   ) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -455,6 +458,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       requests,
       emptyWhenNoRequests,
       refetchInterval,
+      asTable,
     });
 
     return result;
