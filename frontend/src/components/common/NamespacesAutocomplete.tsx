@@ -201,13 +201,17 @@ export function NamespacesAutocomplete() {
   const selectedClusters = useSelectedClusters();
   const clustersKey = selectedClusters.join('+');
 
-  const { namespaceNames, allowedNamespaces } = useMemo(() => {
+  const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
+  const [allowedNamespaces, setAllowedNamespaces] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
     const perCluster = selectedClusters.map(c => getCombinedAllowedNamespaces(c));
     const allowed = uniq(perCluster.flat()).sort((a, b) => a.localeCompare(b));
     // Only use the allowed namespaces alone when every selected cluster has them
     // set; otherwise some cluster's namespaces must come from the API.
     const restrictedEverywhere = perCluster.length > 0 && perCluster.every(l => l.length > 0);
-    return { namespaceNames: restrictedEverywhere ? allowed : [], allowedNamespaces: allowed };
+    setNamespaceNames(restrictedEverywhere ? allowed : []);
+    setAllowedNamespaces(allowed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clustersKey]);
 

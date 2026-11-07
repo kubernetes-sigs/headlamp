@@ -15,21 +15,29 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { storeClusterSettings } from '../../helpers/clusterSettings';
+import configReducer from '../../redux/configSlice';
 import filterReducer from '../../redux/filterSlice';
 import { NamespacesAutocomplete } from './NamespacesAutocomplete';
 
 function renderAt(path: string) {
-  const store = configureStore({ reducer: { filter: filterReducer } as any });
+  const store = configureStore({
+    reducer: { filter: filterReducer, config: configReducer } as any,
+  });
   return render(
-    <Provider store={store}>
-      <MemoryRouter initialEntries={[path]}>
-        <NamespacesAutocomplete />
-      </MemoryRouter>
-    </Provider>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[path]}>
+          <NamespacesAutocomplete />
+        </MemoryRouter>
+      </Provider>
+    </QueryClientProvider>
   );
 }
 
@@ -42,11 +50,11 @@ describe('NamespacesAutocomplete', () => {
 
   it.each(['/c/cluster-a+cluster-b/pods', '/c/cluster-b+cluster-a/pods'])(
     'offers the allowed namespaces of every selected cluster (%s)',
-    path => {
+    async path => {
       renderAt(path);
       fireEvent.focus(screen.getByRole('combobox'));
-      expect(screen.getByText('default')).toBeInTheDocument();
-      expect(screen.getByText('kube-system')).toBeInTheDocument();
+      expect(await screen.findByText('default')).toBeInTheDocument();
+      expect(await screen.findByText('kube-system')).toBeInTheDocument();
     }
   );
 });
