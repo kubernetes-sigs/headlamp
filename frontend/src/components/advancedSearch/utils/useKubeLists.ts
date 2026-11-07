@@ -73,8 +73,10 @@ export const useKubeLists = (
   useEffect(() => {
     if (isLoading) return;
 
+    const limit = Number.isFinite(maxItems) ? maxItems : Infinity;
+
     const newItems = data.flatMap(it => {
-      if (it.items && it.items.length < maxItems) {
+      if (it.items && it.items.length <= limit) {
         return it.items;
       } else {
         // The amount of items exceeds the limit
