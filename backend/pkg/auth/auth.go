@@ -685,6 +685,19 @@ func CompileJMESPaths(pathCSV string) CompiledPaths {
 	return compileJMESPaths(pathCSV)
 }
 
+// reservedIdentityPrefix marks Kubernetes-internal identities (service accounts, nodes,
+// kube-apiserver's own controllers, system:masters, ...), each of which carries its own,
+// usually very broad, RBAC bindings. The API server's own OIDC authenticator guards against
+// an external claim landing on one of these by requiring a username/groups prefix; because
+// impersonation bypasses that authenticator, IdentityFromClaims enforces the same guarantee
+// itself instead of letting any claim value resolve to one.
+const reservedIdentityPrefix = "system:"
+
+// reservedAuthenticatedGroup is the one system: group every impersonated identity carries.
+// It is kept when a claim happens to list it, and added when a claim does not, but it is
+// never treated as something the identity provider granted: see reservedIdentityPrefix.
+const reservedAuthenticatedGroup = "system:authenticated"
+
 // IdentityFromClaims resolves the user and groups to impersonate from ID token claims that
 // have already been verified by IDTokenVerifier. The claims must never come from an
 // unverified token: anyone can write a payload, only the provider's signature proves it.
@@ -694,6 +707,11 @@ func IdentityFromClaims(
 	username := stringValueFromJMESPaths(claims, usernamePaths)
 	if username == "" {
 		return kubeconfig.Impersonation{}, errors.New("could not resolve username claim")
+	}
+
+	if strings.HasPrefix(username, reservedIdentityPrefix) {
+		return kubeconfig.Impersonation{}, fmt.Errorf(
+			"resolved username claim %q must not use the reserved %q prefix", username, reservedIdentityPrefix)
 	}
 
 	// The verifier already rejected an expired token, so this is recorded only for later use:
@@ -706,7 +724,11 @@ func IdentityFromClaims(
 	hasAuthenticatedGroup := false
 
 	for _, group := range groups {
-		if group == "system:authenticated" {
+		if group != reservedAuthenticatedGroup && strings.HasPrefix(group, reservedIdentityPrefix) {
+			continue
+		}
+
+		if group == reservedAuthenticatedGroup {
 			if hasAuthenticatedGroup {
 				continue
 			}
@@ -718,7 +740,7 @@ func IdentityFromClaims(
 	}
 
 	if !hasAuthenticatedGroup {
-		deduplicatedGroups = append(deduplicatedGroups, "system:authenticated")
+		deduplicatedGroups = append(deduplicatedGroups, reservedAuthenticatedGroup)
 	}
 
 	return kubeconfig.Impersonation{

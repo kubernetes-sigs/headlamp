@@ -199,7 +199,7 @@ By default, `--in-cluster` Headlamp forwards the user's raw OIDC token to the Ku
 
 - `--in-cluster` must be set.
 - OIDC must be configured (`-oidc-client-id`, `-oidc-idp-issuer-url`, `-oidc-scopes`).
-- The pod's service account must be granted the `impersonate` verb on `users`, `groups` and `serviceaccounts`. For example:
+- The pod's service account must be granted the `impersonate` verb on `users` and `groups`. This feature only ever impersonates the OIDC-verified user and their groups, never a `serviceaccounts` identity, so the grant does not need to extend to that resource. For example:
 
   ```yaml
   apiVersion: rbac.authorization.k8s.io/v1
@@ -208,7 +208,7 @@ By default, `--in-cluster` Headlamp forwards the user's raw OIDC token to the Ku
     name: headlamp-impersonator
   rules:
     - apiGroups: ['']
-      resources: ['users', 'groups', 'serviceaccounts']
+      resources: ['users', 'groups']
       verbs: ['impersonate']
   ---
   apiVersion: rbac.authorization.k8s.io/v1
@@ -225,9 +225,9 @@ By default, `--in-cluster` Headlamp forwards the user's raw OIDC token to the Ku
       namespace: headlamp
   ```
 
-  This is a deliberate, explicit grant; nothing is escalated automatically. The impersonated user's own RBAC still governs what they can do.
+  This is a deliberate, explicit grant; nothing is escalated automatically. The impersonated user's own RBAC still governs what they can do. Headlamp also refuses to resolve any identity whose username or group claim uses Kubernetes' own reserved `system:` prefix (for example `system:masters` or `system:serviceaccount:...`), so a claim value can never assume one of those built-in identities.
 
-- The username and groups are resolved from the verified token's claims using the existing `-me-username-path` / `-me-groups-path` expressions (the same ones the `/me` endpoint uses); no new claim-mapping flags are introduced.
+- The username and groups are resolved from the verified token's claims using the existing `-me-username-path` / `-me-groups-path` expressions; no new claim-mapping flags are introduced. If `-me-username-path` was never explicitly set, impersonation falls back to a chain that ends in `join('#', [iss, sub])` rather than `/me`'s own default (which ends in the display-oriented `name` claim): `sub` is the one claim OIDC guarantees is unique and never reassigned for a given user at its issuer, which matters for impersonation's RBAC authority in a way it does not for `/me`'s display-only username. An operator who explicitly configured `-me-username-path` is unaffected; that choice is honored as-is for both.
 
 **Incompatible flags.** `--oidc-use-impersonation` cannot be combined with:
 

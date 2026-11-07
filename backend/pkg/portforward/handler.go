@@ -110,6 +110,12 @@ type portForward struct {
 	// use to re-verify or expire the identity, so this package is the only thing that can stop a
 	// service-backed port-forward from outliving the user's real session on its own.
 	impersonationExpiry time.Time
+	// impersonatedUsername is the verified identity's username that impersonationExpiry
+	// belongs to (empty when this port-forward was not started under impersonation). The
+	// Extend* functions in store.go compare it against a later request's freshly-verified
+	// identity before extending impersonationExpiry, so one identity's re-verification can
+	// never extend the privilege window of a port-forward started under a different one.
+	impersonatedUsername string
 }
 
 // setStatusAndSnapshot updates the Status and Error fields and returns a
@@ -241,11 +247,16 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	}
 
 	var impersonationExpiry time.Time
+
+	var impersonatedUsername string
+
 	if impersonation != nil {
 		impersonationExpiry = impersonation.Expiry
+		impersonatedUsername = impersonation.Username
 	}
 
-	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName, impersonationExpiry)
+	err = startPortForward(
+		kContext, cache, p, token, contextKey, requestClusterName, impersonationExpiry, impersonatedUsername)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -854,7 +865,7 @@ func runAndMonitorPortForward(
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
 	p portForwardRequest, token string, clusterName string, requestClusterName string,
-	impersonationExpiry time.Time,
+	impersonationExpiry time.Time, impersonatedUsername string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -884,22 +895,25 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	}
 
 	pfDetails := &portForward{
-		mu:                  &sync.Mutex{},
-		ID:                  p.ID,
-		closeChan:           stopChan,
-		Pod:                 p.Pod,
-		Cluster:             requestClusterName,
-		cacheKey:            clusterName,
-		Namespace:           p.Namespace,
-		Service:             p.Service,
-		ServiceNamespace:    p.ServiceNamespace,
-		TargetPort:          p.TargetPort,
-		Status:              RUNNING,
-		Port:                p.Port,
-		Error:               "",
-		rConf:               rConf,
-		impersonationExpiry: impersonationExpiry,
+		mu:                   &sync.Mutex{},
+		ID:                   p.ID,
+		closeChan:            stopChan,
+		Pod:                  p.Pod,
+		Cluster:              requestClusterName,
+		cacheKey:             clusterName,
+		Namespace:            p.Namespace,
+		Service:              p.Service,
+		ServiceNamespace:     p.ServiceNamespace,
+		TargetPort:           p.TargetPort,
+		Status:               RUNNING,
+		Port:                 p.Port,
+		Error:                "",
+		rConf:                rConf,
+		impersonationExpiry:  impersonationExpiry,
+		impersonatedUsername: impersonatedUsername,
 	}
+
+	registerLivePortForward(pfDetails)
 
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
@@ -973,8 +987,15 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
 	http.Error(w, "failed to delete port forward "+err.Error(), http.StatusInternalServerError)
 }
 
-// GetPortForwards handles get port forwards request.
+// GetPortForwards handles get port forwards request. impersonation is the identity this
+// request just re-verified for contextKey, or nil when impersonation does not apply or could
+// not be verified; either way this request is still served (see ExtendImpersonationExpiryForCluster's
+// callers), but a non-nil impersonation also extends the impersonationExpiry of every live
+// port-forward it owns in this cluster, so a browser that keeps polling this endpoint on an
+// actively-refreshing session does not lose its port-forwards to the comparatively short
+// lifetime of any single verified ID token.
 func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
+	impersonation *kubeconfig.Impersonation,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	cluster := mux.Vars(r)["clusterName"]
@@ -983,6 +1004,10 @@ func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
 		http.Error(w, "cluster is required", http.StatusBadRequest)
 
 		return
+	}
+
+	if impersonation != nil {
+		ExtendImpersonationExpiryForCluster(contextKey, impersonation.Username, impersonation.Expiry)
 	}
 
 	ports := getPortForwardList(cache, contextKey)
@@ -997,8 +1022,11 @@ func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
 	}
 }
 
-// GetPortForwardByID handles get port forward by id request.
+// GetPortForwardByID handles get port forward by id request. impersonation is the identity
+// this request just re-verified for contextKey, or nil when impersonation does not apply or
+// could not be verified; see GetPortForwards' doc comment for what it does with it.
 func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
+	impersonation *kubeconfig.Impersonation,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	cluster := mux.Vars(r)["clusterName"]
@@ -1017,6 +1045,10 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
+	if impersonation != nil {
+		ExtendImpersonationExpiryForID(contextKey, id, impersonation.Username, impersonation.Expiry)
+	}
+
 	p, err := getPortForwardByID(cache, contextKey, id)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting portforward by id")
@@ -1025,20 +1057,31 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
-	type payload struct {
-		ID               string `json:"id"`
-		Pod              string `json:"pod"`
-		Service          string `json:"service"`
-		ServiceNamespace string `json:"serviceNamespace"`
-		Cluster          string `json:"cluster"`
-		Namespace        string `json:"namespace"`
-		Port             string `json:"port"`
-		TargetPort       string `json:"targetPort"`
-		Status           string `json:"status"`
-		Error            string `json:"error"`
-	}
+	w.Header().Set("Content-Type", "application/json")
 
-	portForwardStruct := payload{
+	if err := json.NewEncoder(w).Encode(portForwardByIDPayload(p, cluster)); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing json payload to response")
+		http.Error(w, "failed to write json payload "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
+type portForwardByIDResponse struct {
+	ID               string `json:"id"`
+	Pod              string `json:"pod"`
+	Service          string `json:"service"`
+	ServiceNamespace string `json:"serviceNamespace"`
+	Cluster          string `json:"cluster"`
+	Namespace        string `json:"namespace"`
+	Port             string `json:"port"`
+	TargetPort       string `json:"targetPort"`
+	Status           string `json:"status"`
+	Error            string `json:"error"`
+}
+
+func portForwardByIDPayload(p portForward, cluster string) portForwardByIDResponse {
+	return portForwardByIDResponse{
 		ID:               p.ID,
 		Pod:              p.Pod,
 		Namespace:        p.Namespace,
@@ -1049,14 +1092,5 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		TargetPort:       p.TargetPort,
 		Status:           p.Status,
 		Error:            p.Error,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(portForwardStruct); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing json payload to response")
-		http.Error(w, "failed to write json payload "+err.Error(), http.StatusInternalServerError)
-
-		return
 	}
 }
