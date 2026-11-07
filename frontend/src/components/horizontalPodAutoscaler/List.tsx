@@ -75,7 +75,7 @@ export default function HpaList() {
               if (metrics.length > 1) {
                 value.push(
                   <PaddedChip
-                    label={metrics.length - 1 + t('translation|more…')}
+                    label={t('translation|{{count}} more…', { count: metrics.length - 1 })}
                     variant="outlined"
                     size="small"
                     key="2"
