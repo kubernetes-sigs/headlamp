@@ -1660,6 +1660,36 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
   });
 
+  it('should relist when the watch resource version expires', () => {
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const queryKey = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+    queryClient.setQueryData(queryKey, {
+      list: { items: [], metadata: { resourceVersion: '1' } },
+      cluster: 'default',
+    });
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint,
+          lists: [{ cluster: 'default', namespace: 'a', resourceVersion: '1' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    const onMessage = mockSubscribe.mock.calls[0][3];
+    onMessage({
+      type: 'ERROR',
+      object: { kind: 'Status', metadata: {}, reason: 'Expired', code: 410 },
+    });
+
+    // The watch cannot report what changed since, such as deletions, so the list is fetched again.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey });
+  });
+
   it('should omit pagination query params after loading all pages', async () => {
     const queryClient = new QueryClient();
     mockClusterFetch
