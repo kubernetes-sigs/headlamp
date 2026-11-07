@@ -674,6 +674,94 @@ func TestExtendImpersonationExpiryForCluster_ExtendsAllMatchingInCluster(t *test
 	assert.True(t, pf2.impersonationExpiry.Equal(laterExpiry))
 }
 
+// TestExtendImpersonationExpiryForCluster_DoesNotMatchClusterNamePrefix locks in a fix for a
+// gap where livePortForwards reused portforwardKeyGenerator's plain cluster+id concatenation
+// (no delimiter) and matched it with strings.HasPrefix: a request re-verifying the user's
+// identity for cluster "prod" would also extend an unrelated port-forward running on any other
+// cluster whose name happens to start with "prod" (e.g. "production"), even though that request
+// never verified anything for "production" at all.
+func TestExtendImpersonationExpiryForCluster_DoesNotMatchClusterNamePrefix(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	prodPF := &portForward{
+		ID: "pf-prod", cacheKey: "prod", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+	}
+	productionPF := &portForward{
+		ID: "pf-production", cacheKey: "production", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+	}
+
+	registerLivePortForward(prodPF)
+	registerLivePortForward(productionPF)
+
+	ExtendImpersonationExpiryForCluster("prod", "alice@example.com", originalExpiry.Add(time.Hour))
+
+	assert.True(t, prodPF.impersonationExpiry.After(originalExpiry), "the actually-targeted cluster must be extended")
+	assert.True(t, productionPF.impersonationExpiry.Equal(originalExpiry),
+		"a same-prefixed, unrelated cluster's port-forward must not be extended by a request "+
+			"that never verified anything for it")
+}
+
+// TestExtendImpersonationExpiryForID_DoesNotMatchIDPrefix is the by-ID counterpart: an ID that
+// happens to be a prefix of another port-forward's ID in the same cluster must not extend that
+// other one too.
+func TestExtendImpersonationExpiryForID_DoesNotMatchIDPrefix(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	shortIDPF := &portForward{
+		ID: "pf-1", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+	}
+	longIDPF := &portForward{
+		ID: "pf-10", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+	}
+
+	registerLivePortForward(shortIDPF)
+	registerLivePortForward(longIDPF)
+
+	ExtendImpersonationExpiryForID("cluster", "pf-1", "alice@example.com", originalExpiry.Add(time.Hour))
+
+	assert.True(t, shortIDPF.impersonationExpiry.After(originalExpiry))
+	assert.True(t, longIDPF.impersonationExpiry.Equal(originalExpiry),
+		"an ID that is a textual prefix of another port-forward's ID must not extend that other one")
+}
+
+// TestPortForwardImpersonationExpiry_ConcurrentReadWriteIsRaceFree locks in a fix for a data
+// race: handlePodCheck and tryReconnectOnce read pfDetails.impersonationExpiry (via
+// impersonationExpirySnapshot), while ExtendImpersonationExpiryForID/-ForCluster write the same
+// field from a concurrent HTTP-handler goroutine. Run with -race, this reproduced reliably
+// before impersonationExpirySnapshot took pf.mu for the read.
+func TestPortForwardImpersonationExpiry_ConcurrentReadWriteIsRaceFree(t *testing.T) {
+	pf := &portForward{
+		ID: "pf-race", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: time.Now().Add(time.Minute), impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		for range 200 {
+			_ = pf.impersonationExpirySnapshot()
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for i := range 200 {
+			ExtendImpersonationExpiryForID("cluster", "pf-race", "alice@example.com",
+				time.Now().Add(time.Duration(i+1)*time.Minute))
+		}
+	}()
+
+	wg.Wait()
+}
+
 // TestPortforwardstore_DeregistersStoppedPortForward verifies the live registry does not leak:
 // once a port-forward reaches STOPPED, it must stop being reachable (and therefore
 // extendable) through the registry at all.

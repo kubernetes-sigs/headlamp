@@ -50,12 +50,17 @@ const (
 	// full 256 bits of SHA-256 would be unnecessary length for no further resistance that matters
 	// here.
 	clusterNameHashBytes = 16
-	// authCookieNamePrefix is the prefix every cookie this package sets begins with. Anything
-	// forwarding a caller's own Cookie header to a destination outside Headlamp's own cluster
-	// proxying (see FilterAuthCookies) uses this to find Headlamp's own session cookies without
-	// also stripping cookies the caller attached for its own purposes.
-	authCookieNamePrefix   = "headlamp-auth-"
-	chunkCountCookiePrefix = authCookieNamePrefix + "chunks-"
+	// authCookieNamePrefix and idTokenCookieNamePrefix are the prefixes every cookie this
+	// package sets begins with. Anything forwarding a caller's own Cookie header to a
+	// destination outside Headlamp's own cluster proxying (see FilterAuthCookies) uses both to
+	// find Headlamp's own session cookies without also stripping cookies the caller attached
+	// for its own purposes.
+	authCookieNamePrefix = "headlamp-auth-"
+	// idTokenCookieNamePrefix names the RP-initiated-logout ID-token cookie SetIDTokenCookie
+	// sets (see id_token_hint): a second, separately-prefixed cookie family FilterAuthCookies
+	// must also strip, since it carries a raw OIDC ID token just as sensitive as the auth cookie.
+	idTokenCookieNamePrefix = "headlamp-id-token-" //nolint:gosec // Cookie name prefix, not a credential value
+	chunkCountCookiePrefix  = authCookieNamePrefix + "chunks-"
 	// cookieScopeCluster and cookieScopeDeployment are the two values the chunk-count
 	// metadata's scope field can record (see SetTokenCookie and tokenCookieMetadata).
 	cookieScopeCluster    = "cluster"
@@ -631,7 +636,7 @@ func FilterAuthCookies(r *http.Request) []*http.Cookie {
 	filtered := make([]*http.Cookie, 0, len(cookies))
 
 	for _, cookie := range cookies {
-		if strings.HasPrefix(cookie.Name, authCookieNamePrefix) {
+		if strings.HasPrefix(cookie.Name, authCookieNamePrefix) || strings.HasPrefix(cookie.Name, idTokenCookieNamePrefix) {
 			continue
 		}
 
@@ -670,7 +675,7 @@ func SetIDTokenCookie(
 		// G124: Secure is set from IsSecureContext so localhost development still works;
 		// HttpOnly and SameSite are set unconditionally.
 		cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
-			Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i),
+			Name:     fmt.Sprintf(idTokenCookieNamePrefix+"%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
 			Secure:   secure,
@@ -731,7 +736,7 @@ func readIDTokenChunks(r *http.Request, sanitizedName string) string {
 	var idToken strings.Builder
 
 	for i := 0; i < maxIDTokenChunks; i++ {
-		cookie, err := r.Cookie(fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedName, i))
+		cookie, err := r.Cookie(fmt.Sprintf(idTokenCookieNamePrefix+"%s.%d", sanitizedName, i))
 		if err != nil {
 			break
 		}
@@ -770,7 +775,7 @@ func ClearIDTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL
 
 func clearIDTokenChunks(w http.ResponseWriter, r *http.Request, secure bool, cookiePath, sanitizedName string) {
 	for index := 0; index < maxIDTokenChunks; index++ {
-		if _, err := r.Cookie(fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedName, index)); index > 0 && err != nil {
+		if _, err := r.Cookie(fmt.Sprintf(idTokenCookieNamePrefix+"%s.%d", sanitizedName, index)); index > 0 && err != nil {
 			continue
 		}
 
@@ -787,7 +792,7 @@ func clearIDTokenChunkCookie(
 	// G124: Secure is set from IsSecureContext so localhost development still works;
 	// HttpOnly and SameSite are set unconditionally.
 	cookie := &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
-		Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, index),
+		Name:     fmt.Sprintf(idTokenCookieNamePrefix+"%s.%d", sanitizedCluster, index),
 		Value:    "",
 		HttpOnly: true,
 		Secure:   secure,
