@@ -17,6 +17,10 @@ limitations under the License.
 package auth_test
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -109,4 +113,55 @@ func TestIDTokenVerifier_RejectsMalformedToken(t *testing.T) {
 
 	_, err := newTestVerifier(issuer.URL).Verify(t.Context(), "not-a-jwt")
 	require.Error(t, err)
+}
+
+// TestIDTokenVerifier_ConcurrentDiscoveryCoalescesIntoOneRequest locks in a fix for a gap
+// where a slow or failing issuer's discovery call held keyVerifier's lock for the whole
+// attempt (up to discoveryTimeout): every other, otherwise unrelated, verification request
+// would queue up behind that one lock, turning one stalled issuer into an outage for every
+// request this process was handling. Discovery now runs outside that lock, coalesced through a
+// singleflight group so concurrent callers still share one discovery attempt rather than each
+// firing their own.
+func TestIDTokenVerifier_ConcurrentDiscoveryCoalescesIntoOneRequest(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	gate := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		<-gate
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	verifier := newTestVerifier(srv.URL)
+
+	const concurrency = 5
+
+	var wg sync.WaitGroup
+
+	for range concurrency {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			_, _ = verifier.Verify(t.Context(), "irrelevant-token")
+		}()
+	}
+
+	require.Eventually(t, func() bool { return hits.Load() >= 1 }, time.Second, 5*time.Millisecond)
+
+	// singleflight.Do blocks every other caller on the single in-flight call for this key, so
+	// as long as the one request already in has not been released, hits cannot have advanced
+	// past 1 regardless of how many of the concurrency goroutines have reached Verify by now.
+	assert.EqualValues(t, 1, hits.Load(),
+		"concurrent callers during an outage must coalesce into a single discovery request, not one each")
+
+	close(gate)
+	wg.Wait()
+
+	assert.EqualValues(t, 1, hits.Load(), "releasing the shared call must not trigger any further request")
 }

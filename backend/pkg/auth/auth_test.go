@@ -1978,6 +1978,41 @@ func TestIdentityFromClaims_DeduplicatesAuthenticatedGroup(t *testing.T) {
 	assert.Equal(t, []string{"system:authenticated", "dev"}, identity.Groups)
 }
 
+func TestIdentityFromClaims_RejectsSystemPrefixedUsername(t *testing.T) {
+	t.Parallel()
+
+	// A claim value that resolves to a reserved system: identity (e.g. a service account,
+	// or kube-apiserver's own node/controller identities) must never become an impersonated
+	// user: nothing in a verified OIDC claim should be able to assume Kubernetes-internal
+	// identities that carry their own, usually very broad, RBAC bindings.
+	claims := map[string]interface{}{
+		"preferred_username": "system:serviceaccount:kube-system:cluster-admin-sa",
+		"groups":             []interface{}{"dev"},
+	}
+
+	_, err := auth.IdentityFromClaims(
+		claims, auth.CompileJMESPaths("preferred_username"), auth.CompileJMESPaths("groups"))
+	require.Error(t, err)
+}
+
+func TestIdentityFromClaims_FiltersSystemPrefixedGroups(t *testing.T) {
+	t.Parallel()
+
+	// A groups claim naming system:masters (or any other reserved system: group) must not
+	// grant that group's RBAC authority just because the identity provider's claim said so --
+	// system:authenticated is the one system: group this function itself adds, and it is kept
+	// only because it matches what Headlamp would add anyway, never because the IdP claimed it.
+	claims := map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"system:masters", "dev", "system:authenticated"},
+	}
+
+	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dev", "system:authenticated"}, identity.Groups)
+	assert.NotContains(t, identity.Groups, "system:masters")
+}
+
 func TestIdentityFromClaims_MissingUsernameClaim(t *testing.T) {
 	t.Parallel()
 

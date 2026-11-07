@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/sync/singleflight"
 )
 
 // discoveryTimeout bounds the OIDC provider discovery request, so a stalled issuer cannot block
@@ -41,6 +42,11 @@ type IDTokenVerifier struct {
 
 	mu       sync.Mutex
 	verifier *oidc.IDTokenVerifier
+
+	// discoveryGroup coalesces concurrent discovery attempts onto a single in-flight call,
+	// so an IdP outage (discovery failing, each caller retrying) turns into one bounded-latency
+	// discovery call shared by every waiting request, not N of them.
+	discoveryGroup singleflight.Group
 }
 
 // NewIDTokenVerifier returns a verifier for tokens issued by issuerURL to clientID. The
@@ -80,45 +86,68 @@ func (v *IDTokenVerifier) Verify(ctx context.Context, rawToken string) (map[stri
 
 func (v *IDTokenVerifier) keyVerifier() (*oidc.IDTokenVerifier, error) {
 	v.mu.Lock()
-	defer v.mu.Unlock()
+	cached := v.verifier
+	v.mu.Unlock()
 
-	if v.verifier != nil {
-		return v.verifier, nil
+	if cached != nil {
+		return cached, nil
 	}
 
-	// The provider keeps its key set (and its TLS client) for later requests, so it is built
-	// from a context that outlives any single request.
-	var caCert *string
-	if v.caCert != "" {
-		caCert = &v.caCert
-	}
+	// Discovery itself -- up to discoveryTimeout -- runs without v.mu held: holding it for the
+	// whole call would serialize every unrelated verification request behind whichever one
+	// discovery an IdP outage happens to be retrying, turning a single stalled issuer into an
+	// outage for this entire process. discoveryGroup still coalesces concurrent callers onto one
+	// shared discovery attempt, so an outage does not turn into one discovery call per incoming
+	// request either.
+	result, err, _ := v.discoveryGroup.Do("discover", func() (interface{}, error) {
+		// The provider keeps its key set (and its TLS client) for later requests, so it is
+		// built from a context that outlives any single request.
+		var caCert *string
+		if v.caCert != "" {
+			caCert = &v.caCert
+		}
 
-	skipTLSVerify := v.skipTLSVerify
+		skipTLSVerify := v.skipTLSVerify
 
-	// WithClientTimeout runs after ConfigureTLSContext, not before: ConfigureTLSContext installs
-	// its own client (with no timeout of its own) when skip-TLS or a custom CA is configured,
-	// which would otherwise replace a timeout set beforehand and leave a stalled issuer able to
-	// hang a signing-key fetch forever for that configuration.
-	ctx := ConfigureTLSContext(context.Background(), &skipTLSVerify, caCert)
-	ctx = WithClientTimeout(ctx, oidcHTTPClientTimeout)
+		// WithClientTimeout runs after ConfigureTLSContext, not before: ConfigureTLSContext
+		// installs its own client (with no timeout of its own) when skip-TLS or a custom CA is
+		// configured, which would otherwise replace a timeout set beforehand and leave a
+		// stalled issuer able to hang a signing-key fetch forever for that configuration.
+		ctx := ConfigureTLSContext(context.Background(), &skipTLSVerify, caCert)
+		ctx = WithClientTimeout(ctx, oidcHTTPClientTimeout)
 
-	if v.validatorIssuerURL != "" {
-		ctx = oidc.InsecureIssuerURLContext(ctx, v.validatorIssuerURL)
-	}
+		if v.validatorIssuerURL != "" {
+			ctx = oidc.InsecureIssuerURLContext(ctx, v.validatorIssuerURL)
+		}
 
-	// Discovery gets an additional, tighter deadline of its own: go-oidc keeps the *http.Client
-	// found via ctx (not ctx itself, whose deadline does not carry over) for the signing-key
-	// refreshes a Verifier does later, each on its own context.Background() -- those stay
-	// bounded only by the client's own Timeout set above.
-	discoverCtx, cancel := context.WithTimeout(ctx, discoveryTimeout)
-	defer cancel()
+		// Discovery gets an additional, tighter deadline of its own: go-oidc keeps the
+		// *http.Client found via ctx (not ctx itself, whose deadline does not carry over) for
+		// the signing-key refreshes a Verifier does later, each on its own context.Background()
+		// -- those stay bounded only by the client's own Timeout set above.
+		discoverCtx, cancel := context.WithTimeout(ctx, discoveryTimeout)
+		defer cancel()
 
-	provider, err := oidc.NewProvider(discoverCtx, v.issuerURL)
+		provider, providerErr := oidc.NewProvider(discoverCtx, v.issuerURL)
+		if providerErr != nil {
+			return nil, fmt.Errorf("getting OIDC provider: %w", providerErr)
+		}
+
+		verifier := provider.Verifier(&oidc.Config{ClientID: v.clientID})
+
+		v.mu.Lock()
+		v.verifier = verifier
+		v.mu.Unlock()
+
+		return verifier, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("getting OIDC provider: %w", err)
+		return nil, err
 	}
 
-	v.verifier = provider.Verifier(&oidc.Config{ClientID: v.clientID})
+	verifier, ok := result.(*oidc.IDTokenVerifier)
+	if !ok {
+		return nil, fmt.Errorf("unexpected discovery result type %T", result)
+	}
 
-	return v.verifier, nil
+	return verifier, nil
 }

@@ -27,6 +27,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	"github.com/rs/zerolog"
@@ -52,6 +53,40 @@ const (
 	failed     = "failed"
 	processing = "processing"
 )
+
+// impersonationExpired reports whether impersonationExpiry is set and has already passed,
+// recording the release's status as failed with a clear reason before returning true. Like
+// drainNode's own impersonationExpiry guard (cmd/headlamp.go), an install/upgrade/uninstall/
+// rollback action runs in a goroutine on a client backed by Headlamp's own service account and
+// impersonating the user: Kubernetes has no token here to re-verify or expire that identity on
+// its own, so this package is the only thing that can stop such an action from completing under
+// a session that has already ended. Without recording a status, GetReleaseStatus would also
+// keep reporting "processing" forever instead of ever explaining why the action stopped.
+func (h *Handler) impersonationExpired(impersonationExpiry time.Time, actionName, releaseName string) bool {
+	if impersonationExpiry.IsZero() || time.Now().Before(impersonationExpiry) {
+		return false
+	}
+
+	err := errors.New("authorization expired before the action finished")
+	logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName}, err, actionName)
+	h.setReleaseStatusSilent(actionName, releaseName, failed, err)
+
+	return true
+}
+
+// impersonationExpiryFromRequest reads the expiry the caller's identity was verified for, from
+// the request's context (see kubeconfig.ContextWithImpersonation), synchronously and before a
+// goroutine that will outlive this request is started: req.Context() is cancelled once the HTTP
+// handler returns, so it cannot be read from inside that goroutine itself, only copied out of
+// here first. It returns the zero Time when impersonation does not apply to this request.
+func impersonationExpiryFromRequest(r *http.Request) time.Time {
+	imp, ok := kubeconfig.ImpersonationFromContext(r.Context())
+	if !ok {
+		return time.Time{}
+	}
+
+	return imp.Expiry
+}
 
 // Structured-log field names that recur across many log sites in the helm package.
 const (
@@ -446,8 +481,10 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
 	go func(h *Handler) {
-		h.uninstallRelease(req, actionConfig)
+		h.uninstallRelease(req, actionConfig, impersonationExpiry)
 	}(h)
 
 	response := map[string]string{
@@ -467,7 +504,13 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 }
 
-func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) uninstallRelease(
+	req UninstallReleaseRequest, actionConfig *action.Configuration, impersonationExpiry time.Time,
+) {
+	if h.impersonationExpired(impersonationExpiry, "uninstall", req.Name) {
+		return
+	}
+
 	// Get uninstall client
 	uninstallClient := action.NewUninstall(actionConfig)
 
@@ -543,8 +586,10 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		return
 	}
 
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
 	go func(h *Handler) {
-		h.rollbackRelease(req, actionConfig)
+		h.rollbackRelease(req, actionConfig, impersonationExpiry)
 	}(h)
 
 	response := map[string]string{
@@ -563,7 +608,13 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 }
 
-func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) rollbackRelease(
+	req RollbackReleaseRequest, actionConfig *action.Configuration, impersonationExpiry time.Time,
+) {
+	if h.impersonationExpired(impersonationExpiry, "rollback", req.Name) {
+		return
+	}
+
 	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
@@ -664,8 +715,10 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
 	go func(h *Handler) {
-		h.installRelease(req, actionConfig)
+		h.installRelease(req, actionConfig, impersonationExpiry)
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
@@ -774,7 +827,9 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	return true
 }
 
-func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
+func (h *Handler) installRelease(
+	req InstallRequest, actionConfig *action.Configuration, impersonationExpiry time.Time,
+) {
 	installClient := action.NewInstall(actionConfig)
 	installClient.ReleaseName = req.Name
 	installClient.Namespace = req.Namespace
@@ -810,6 +865,10 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 			err, "unmarshalling values")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
 
+		return
+	}
+
+	if h.impersonationExpired(impersonationExpiry, "install", req.Name) {
 		return
 	}
 
@@ -878,8 +937,10 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
 	go func(h *Handler) {
-		h.upgradeRelease(req, actionConfig)
+		h.upgradeRelease(req, actionConfig, impersonationExpiry)
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
@@ -906,7 +967,9 @@ func (h *Handler) logActionState(zlog *zerolog.Event,
 	h.setReleaseStatusSilent(action, releaseName, status, err)
 }
 
-func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) upgradeRelease(
+	req UpgradeReleaseRequest, actionConfig *action.Configuration, impersonationExpiry time.Time,
+) {
 	// find chart
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
@@ -932,6 +995,10 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	err = yaml.Unmarshal(valuesStr, &values)
 	if err != nil {
 		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "values un-marshalling failed")
+		return
+	}
+
+	if h.impersonationExpired(impersonationExpiry, "upgrade", req.Name) {
 		return
 	}
 
