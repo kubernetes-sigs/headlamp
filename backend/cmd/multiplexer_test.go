@@ -515,6 +515,81 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 	assert.True(t, conn.closed)
 }
 
+func TestCloseClientConnectionsDoesNotBlockOtherClients(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	stalledClient, stalledServer := createTestWebSocketConnection()
+	defer stalledServer.Close()
+
+	closingClient, closingServer := createTestWebSocketConnection()
+	defer closingServer.Close()
+
+	stalledConn := createTestConnection("test-cluster", "user-a", "/api/v1/pods", "", stalledClient)
+	closingConn := createTestConnection("test-cluster", "user-b", "/api/v1/pods", "", closingClient)
+	m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-a")] = stalledConn
+	m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-b")] = closingConn
+
+	// A write to a client that stopped reading holds its connection's lock.
+	stalledConn.mu.Lock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.closeClientConnections(closingClient)
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond) // let closeClientConnections reach the held lock
+
+	locked := m.mutex.TryLock()
+	if locked {
+		m.mutex.Unlock()
+	}
+
+	assert.True(t, locked, "closeClientConnections holds the multiplexer lock")
+
+	stalledConn.mu.Unlock()
+	<-done
+
+	assert.Len(t, m.connections, 1)
+	assert.Same(t, stalledConn, m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-a")])
+	assert.True(t, closingConn.IsClosed())
+}
+
+func TestCloseClientConnectionsClosesReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	m.connections[connKey] = conn
+
+	// After the first pass copies the map, a reconnect registers a replacement for the same
+	// client.
+	replacement := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	registered := false
+
+	m.afterClientSnapshot = func() {
+		if registered {
+			return
+		}
+
+		registered = true
+
+		m.mutex.Lock()
+		m.connections[connKey] = replacement
+		m.mutex.Unlock()
+	}
+
+	m.closeClientConnections(clientConn)
+
+	assert.Empty(t, m.connections)
+	assert.True(t, conn.IsClosed())
+	assert.True(t, replacement.IsClosed())
+}
+
 func TestClusterReaderCleanupKeepsReplacementConnection(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 
@@ -556,6 +631,58 @@ func TestClusterReaderCleanupKeepsReplacementConnection(t *testing.T) {
 	defer m.mutex.RUnlock()
 
 	assert.Same(t, replacement, m.connections[connKey], "the old reader's cleanup removed the replacement")
+}
+
+func TestReconnectingClientDoesNotReuseClosingClientConnection(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	oldClient, oldClientServer := createTestWebSocketConnection()
+	defer oldClientServer.Close()
+
+	newClient, newClientServer := createTestWebSocketConnection()
+	defer newClientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+
+	oldConn, err := m.getOrCreateConnection(msg, oldClient, nil)
+	require.NoError(t, err)
+
+	// The client reconnects and requests the same watch while closeClientConnections is
+	// still going through its copy of the registry, for example waiting on another
+	// connection's lock, so the old client's connection is still registered.
+	var (
+		newConn *Connection
+		newErr  error
+	)
+
+	m.afterClientSnapshot = func() {
+		if newConn == nil {
+			newConn, newErr = m.getOrCreateConnection(msg, newClient, nil)
+		}
+	}
+
+	_ = oldClient.Close()
+	m.closeClientConnections(oldClient)
+
+	require.NoError(t, newErr)
+	assert.NotSame(t, oldConn, newConn, "reused the connection of the client that disconnected")
+	assert.True(t, oldConn.IsClosed())
+	assert.False(t, newConn.IsClosed())
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	assert.Same(t, newConn, m.connections[connKey])
 }
 
 func TestReconnectedConnectionDeliversData(t *testing.T) {
