@@ -218,7 +218,7 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
-                            1 Failed / 1 Running
+                            1 Failed / 0 Running
                           </p>
                         </div>
                         <div
@@ -602,7 +602,7 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
-                            1 Failed / 1 Running
+                            1 Failed / 0 Running
                           </p>
                         </div>
                         <div
