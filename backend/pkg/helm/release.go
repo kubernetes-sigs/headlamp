@@ -62,7 +62,7 @@ const (
 // a session that has already ended. Without recording a status, GetReleaseStatus would also
 // keep reporting "processing" forever instead of ever explaining why the action stopped.
 func (h *Handler) impersonationExpired(impersonationExpiry time.Time, actionName, releaseName string) bool {
-	if impersonationExpiry.IsZero() || time.Now().Before(impersonationExpiry) {
+	if !(kubeconfig.Impersonation{Expiry: impersonationExpiry}).Expired() {
 		return false
 	}
 

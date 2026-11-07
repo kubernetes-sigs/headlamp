@@ -5399,6 +5399,77 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
 
+// TestHelmRouteReleaseHandler_AttachesImpersonationToRequestContext locks in a fix for a gap
+// where helmRouteReleaseHandler resolved the verified impersonation and applied it to the
+// outgoing REST client (context.WithImpersonation, for Impersonate-User/Group headers) but
+// never attached it to r's own context via kubeconfig.ContextWithImpersonation -- the one
+// carrier pkg/helm's impersonationExpiryFromRequest reads from. install/upgrade/uninstall/
+// rollback all run in a goroutine past this handler's own return, and that goroutine's own
+// impersonationExpired guard (added specifically so one of those actions stops once the user's
+// session has expired, exactly like drainNode's existing guard) silently did nothing: it always
+// saw a zero Time and could never expire. Without this handler's own unit tests ever reaching
+// this request/response boundary (they called the internal action functions directly, bypassing
+// this handler entirely), that gap would have shipped invisibly.
+func TestHelmRouteReleaseHandler_AttachesImpersonationToRequestContext(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     cluster,
+		Cluster:  &api.Cluster{Server: "https://" + cluster + ".example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	expiry := time.Now().Add(time.Hour).Truncate(time.Second)
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev"},
+		"exp":    float64(expiry.Unix()),
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+		"/clusters/"+cluster+"/helm/releases/uninstall", nil)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	ctx, span := telemetry.CreateSpan(req.Context(), req, "test", "test")
+
+	defer span.End()
+
+	var (
+		sawImpersonation bool
+		gotExpiry        time.Time
+	)
+
+	cfg.helmRouteReleaseHandler(ctx, span, req, rr, cluster, "/releases/uninstall", "UninstallRelease",
+		func(_ clientcmd.ClientConfig, _ http.ResponseWriter, r *http.Request) {
+			imp, ok := kubeconfig.ImpersonationFromContext(r.Context())
+			sawImpersonation = ok
+
+			if ok {
+				gotExpiry = imp.Expiry
+			}
+		})
+
+	require.True(t, sawImpersonation,
+		"helmRouteReleaseHandler must attach the verified impersonation to the request's context: "+
+			"it is the only carrier pkg/helm's background install/upgrade/uninstall/rollback actions "+
+			"can read an expiry from")
+	assert.True(t, gotExpiry.Equal(expiry))
+}
+
 //nolint:funlen // Test sets up a fake API server, kubeconfig, and OIDC issuer end to end
 func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
 	const cluster = "main"
@@ -6495,11 +6566,16 @@ func TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie(t *testing.T) {
 }
 
 // TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader locks in a follow-up fix to the
-// one above: requestIDToken checks ProxyAuthTokenHeader before Authorization, so when this
-// request's token came in via that header, the refreshed token must be persisted onto that same
-// header, not Authorization -- otherwise a later call on the same request would keep finding the
-// stale proxy-auth header value first and never reach the fresh one set on a header it never
-// checks first.
+// one above: persistTokenOnRequest caches a refreshed token under a cluster-scoped header
+// (refreshedIDTokenHeaderPrefix+clusterName) that requestIDToken checks first, regardless of
+// which header or cookie the original (now-expired) token came in on -- rather than overwriting
+// that original source's own header or a cluster-agnostic Authorization header. The latter
+// would be wrong for two independent reasons: it would never be found by a request whose
+// original token came in via the proxy-auth header (requestIDToken never reaches Authorization
+// for such a request), and -- the reason the cache is cluster-scoped at all -- a WebSocket
+// multiplexer shares one *http.Request across every cluster it multiplexes (see
+// HandleClientWebSocket), so a cluster-agnostic header would leak one cluster's refreshed token
+// into a later message's identity resolution for a different cluster on the same connection.
 //
 //nolint:funlen // Test verifies a refreshed token is both used and persisted for a proxy-auth caller
 func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) {
@@ -6561,17 +6637,103 @@ func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) 
 	require.NotNil(t, identity)
 	assert.Equal(t, "alice@example.com", identity.Username)
 
-	assert.Equal(t, refreshedToken, req.Header.Get(proxyAuthTokenHeader),
-		"the refreshed token must be persisted onto the proxy-auth header, not Authorization, "+
-			"since requestIDToken checks that header first")
+	assert.Equal(t, expiredToken, req.Header.Get(proxyAuthTokenHeader),
+		"the original proxy-auth header must be left untouched -- it is a trusted-proxy-injected "+
+			"header, not something this package should overwrite in place")
 	assert.Empty(t, req.Header.Get("Authorization"),
 		"Authorization must not be set when this request's token came in via the proxy-auth header")
+	assert.NotEmpty(t, req.Header.Get(refreshedIDTokenHeaderPrefix+clusterName),
+		"the refreshed token must be cached under the cluster-scoped header requestIDToken checks first")
 
 	identity, err = c.impersonationForRequest(nil, req, clusterName, kContext)
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits),
 		"a second call on the same request must reuse the refreshed token, not refresh again")
+}
+
+// TestImpersonationForRequest_RefreshDoesNotLeakAcrossClusters locks in the fix for the actual
+// cross-cluster leak TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader's unit-level
+// assertions describe: a WebSocket multiplexer connection shares one *http.Request across every
+// cluster it multiplexes (see HandleClientWebSocket), so persisting a refreshed token under a
+// cluster-agnostic name would make cluster-A's refreshed token resolve cluster-B's identity on
+// a later message for the same connection, even though cluster-B's own cookie was never touched.
+//
+//nolint:funlen // Test sets up two clusters, a fake OIDC issuer, and a shared multiplexer-style request
+func TestImpersonationForRequest_RefreshDoesNotLeakAcrossClusters(t *testing.T) {
+	tokenFileA := writeTestTokenFile(t)
+	tokenFileB := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "cluster-a", Cluster: &api.Cluster{Server: "https://cluster-a.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFileA}, Source: kubeconfig.InCluster,
+	}))
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "cluster-b", Cluster: &api.Cluster{Server: "https://cluster-b.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFileB}, Source: kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+	kContextA, err := kubeConfigStore.GetContext("cluster-a")
+	require.NoError(t, err)
+
+	kContextA.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	kContextB, err := kubeConfigStore.GetContext("cluster-b")
+	require.NoError(t, err)
+
+	kContextB.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	// cluster-a's token is expired and will be refreshed; cluster-b's token is already valid
+	// and must never need a refresh -- so the only way its identity could come back wrong is by
+	// picking up cluster-a's refreshed token instead of its own cookie.
+	expiredTokenA := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com", "exp": float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+	refreshedTokenA := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+	validTokenB := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "bob@example.com",
+	}))
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredTokenA, "cached-refresh-token"))
+
+	issuer.TokenHandler = func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "new-access-token", "token_type": "Bearer", "expires_in": 3600,
+			"refresh_token": "new-refresh-token", "id_token": refreshedTokenA,
+		}))
+	}
+
+	// One *http.Request, as HandleClientWebSocket captures at upgrade and reuses for every
+	// client message regardless of msg.ClusterID.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-a") + ".0", Value: expiredTokenA,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-b") + ".0", Value: validTokenB,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	// Message 1: cluster-a, whose token is expired and gets reactively refreshed.
+	identityA, err := c.impersonationForRequest(nil, req, "cluster-a", kContextA)
+	require.NoError(t, err)
+	require.NotNil(t, identityA)
+	assert.Equal(t, "alice@example.com", identityA.Username)
+
+	// Message 2 on the SAME req: cluster-b must resolve as bob, not alice.
+	identityB, err := c.impersonationForRequest(nil, req, "cluster-b", kContextB)
+	require.NoError(t, err)
+	require.NotNil(t, identityB)
+	assert.Equal(t, "bob@example.com", identityB.Username,
+		"cluster-b's identity must come from its own cookie, not cluster-a's refreshed token "+
+			"cached on the request they share")
 }
 
 // TestImpersonationForRequest_ReusesLatestKnownGoodToken locks in a fix for a gap in the

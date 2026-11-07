@@ -118,6 +118,20 @@ type portForward struct {
 	impersonatedUsername string
 }
 
+// impersonationExpirySnapshot returns pf.impersonationExpiry under pf.mu (nil-safe, matching
+// setStatusAndSnapshot's convention below). Without the lock, this read races with
+// ExtendImpersonationExpiryForID/-ForCluster (store.go), which write the same field from an
+// HTTP-handler goroutine while the monitor goroutine reads it here: time.Time is a multi-word
+// struct, so an unsynchronized read/write pair is a genuine torn-read risk, not just a style nit.
+func (pf *portForward) impersonationExpirySnapshot() time.Time {
+	if pf.mu != nil {
+		pf.mu.Lock()
+		defer pf.mu.Unlock()
+	}
+
+	return pf.impersonationExpiry
+}
+
 // setStatusAndSnapshot updates the Status and Error fields and returns a
 // snapshot of the struct. When mu is initialized (production path), both
 // the update and the snapshot are performed within a single critical section.
@@ -494,7 +508,7 @@ func handlePodCheck(
 	pfDetails *portForward,
 	logParams map[string]string,
 ) bool {
-	if !pfDetails.impersonationExpiry.IsZero() && time.Now().After(pfDetails.impersonationExpiry) {
+	if (kubeconfig.Impersonation{Expiry: pfDetails.impersonationExpirySnapshot()}).Expired() {
 		errMsg := "impersonated identity for this port-forward has expired; stopping monitor"
 		logger.Log(logger.LevelError, logParams, nil, errMsg)
 
@@ -648,7 +662,7 @@ func tryReconnectOnce(
 	pfDetails *portForward,
 	logParams map[string]string,
 ) (ok bool, abort bool) {
-	if !pfDetails.impersonationExpiry.IsZero() && time.Now().After(pfDetails.impersonationExpiry) {
+	if (kubeconfig.Impersonation{Expiry: pfDetails.impersonationExpirySnapshot()}).Expired() {
 		// Reached when this port-forward was started under an impersonated identity whose
 		// verified token has since expired. A reconnect would reuse pfDetails.rConf, which
 		// carries only the impersonated username/groups -- Kubernetes itself has no token to

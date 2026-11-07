@@ -1850,13 +1850,54 @@ const (
 	idTokenSourceCookie
 )
 
-// requestIDToken returns the OIDC ID token the request was made with -- the proxy-auth token
-// header if configured, otherwise the Authorization bearer token, otherwise the cluster's auth
-// cookie -- and which of those it came from. The bearer fallback matters because other paths
-// that accept the user's token -- pkg/serviceproxy and applyRequestTokenToContext's Helm routes
-// -- accept it bearer-only, with no cookie; without this, enabling impersonation would reject
-// those same callers outright.
+// refreshedIDTokenHeaderPrefix names a private header persistTokenOnRequest writes a refreshed
+// token to, scoped to one cluster by name. A WebSocket multiplexer connection shares a single
+// *http.Request across every cluster it multiplexes (see HandleClientWebSocket's loop, which
+// calls processClientMessage with the one *http.Request captured at upgrade for every message
+// regardless of msg.ClusterID); without this scoping, persisting a refreshed token under a
+// cluster-agnostic name (the Authorization header) would make one cluster's just-refreshed
+// token visible to -- and used to resolve the identity for -- a later message naming a
+// completely different cluster on the same connection. This header is never read by anything
+// but requestIDToken, and this inbound request is never itself proxied onward to a cluster API
+// server, so it never leaks past this process.
+const refreshedIDTokenHeaderPrefix = "X-Headlamp-Refreshed-Id-Token-" //nolint:gosec // Header name, not a credential
+
+// encodeRefreshedIDToken and decodeRefreshedIDToken pack source alongside token: a cache hit
+// must report the same idTokenSource the original lookup would have, since callers (e.g. the
+// deployment-scoped-cookie reissue check) decide behavior based on it, and a JWT's base64url
+// segments can never themselves contain ':', so it is an unambiguous separator.
+func encodeRefreshedIDToken(source idTokenSource, token string) string {
+	return strconv.Itoa(int(source)) + ":" + token
+}
+
+func decodeRefreshedIDToken(value string) (idTokenSource, string, bool) {
+	before, after, found := strings.Cut(value, ":")
+	if !found {
+		return idTokenSourceNone, "", false
+	}
+
+	n, err := strconv.Atoi(before)
+	if err != nil {
+		return idTokenSourceNone, "", false
+	}
+
+	return idTokenSource(n), after, true
+}
+
+// requestIDToken returns the OIDC ID token the request was made with -- a token this package
+// itself refreshed earlier for clusterName on this same request (see persistTokenOnRequest),
+// otherwise the proxy-auth token header if configured, otherwise the Authorization bearer
+// token, otherwise the cluster's auth cookie -- and which of those it came from. The bearer
+// fallback matters because other paths that accept the user's token -- pkg/serviceproxy and
+// applyRequestTokenToContext's Helm routes -- accept it bearer-only, with no cookie; without
+// this, enabling impersonation would reject those same callers outright.
 func (c *HeadlampConfig) requestIDToken(r *http.Request, clusterName string) (string, idTokenSource) {
+	if refreshed := r.Header.Get(refreshedIDTokenHeaderPrefix + clusterName); refreshed != "" {
+		if source, token, ok := decodeRefreshedIDToken(refreshed); ok {
+			return token, source
+		}
+	}
+
 	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
 		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
 			return token, idTokenSourceProxyAuthHeader
@@ -1938,7 +1979,7 @@ func (c *HeadlampConfig) impersonationForRequest(
 		}
 
 		verifiedToken = refreshedToken
-		c.persistTokenOnRequest(r, refreshedToken)
+		persistTokenOnRequest(r, clusterName, source, refreshedToken)
 	}
 
 	// Only a token that came from Headlamp's own session cookie represents a session this
@@ -1979,24 +2020,21 @@ func (c *HeadlampConfig) impersonationForRequest(
 }
 
 // persistTokenOnRequest makes a freshly refreshed token visible to the rest of THIS request's
-// own handling, not just the response: requestIDToken checks ProxyAuthTokenHeader, then
-// Authorization, before falling back to the cookie, so without this a later call against the
-// same *http.Request -- as the WebSocket multiplexer makes, once per client message, against
-// the single request captured at the initial upgrade, which can never pick up a new Set-Cookie
-// -- would read the same expired token again and repeat the refresh exchange with the refresh
-// token this one just consumed. A provider that rotates refresh tokens would reject that second
-// exchange outright, and once the old token's short-lived cache grace period (see
-// CacheRefreshedToken) elapses, the lookup fails outright either way.
-func (c *HeadlampConfig) persistTokenOnRequest(r *http.Request, token string) {
-	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" &&
-		strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)) != "" {
-		// requestIDToken checks this header before Authorization, with no "Bearer " prefix:
-		// if this request's token came from it, updating Authorization instead would never
-		// be seen -- the stale proxy-auth header value would keep winning.
-		r.Header.Set(c.ProxyAuthTokenHeader, token)
-	} else {
-		r.Header.Set("Authorization", "Bearer "+token)
-	}
+// own handling, not just the response: requestIDToken checks this cache first, so without this
+// a later call against the same *http.Request -- as the WebSocket multiplexer makes, once per
+// client message, against the single request captured at the initial upgrade, which can never
+// pick up a new Set-Cookie -- would read the same expired token again and repeat the refresh
+// exchange with the refresh token this one just consumed. A provider that rotates refresh
+// tokens would reject that second exchange outright, and once the old token's short-lived cache
+// grace period (see CacheRefreshedToken) elapses, the lookup fails outright either way.
+//
+// source is the original idTokenSource the now-expired token came from (ProxyAuthHeader,
+// AuthorizationHeader or Cookie): it is recorded alongside the refreshed token so a later
+// requestIDToken call for the same cluster reports the same source a fresh lookup would have,
+// since callers (e.g. the deployment-scoped-cookie reissue check above) decide behavior based on
+// it.
+func persistTokenOnRequest(r *http.Request, clusterName string, source idTokenSource, token string) {
+	r.Header.Set(refreshedIDTokenHeaderPrefix+clusterName, encodeRefreshedIDToken(source, token))
 }
 
 // reissueDeploymentScopedCookie writes token to the browser's deployment-scoped auth cookie: once,
@@ -2633,6 +2671,13 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 		clearRequestAuthorization(r)
 
 		context = context.WithImpersonation(*impersonation)
+		// WithImpersonation above only sets the outgoing REST client's Impersonate-User/Group
+		// fields; it carries no expiry. install/upgrade/uninstall/rollback run in a background
+		// goroutine past this handler's own return, so they read the verified identity's expiry
+		// from here instead -- the one way that reaches them, since GetAll/List routes expect
+		// (clientcmd.ClientConfig, http.ResponseWriter, *http.Request): see
+		// impersonationExpiryFromRequest in pkg/helm/release.go.
+		r = r.WithContext(kubeconfig.ContextWithImpersonation(r.Context(), *impersonation))
 	default:
 		applyRequestTokenToContext(r, clusterName, context)
 	}
