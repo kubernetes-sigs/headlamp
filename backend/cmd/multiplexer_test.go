@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -512,6 +513,116 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 	assert.Nil(t, conn.Client)
 	assert.Equal(t, StateClosed, conn.Status.State)
 	assert.True(t, conn.closed)
+}
+
+func TestClusterReaderCleanupKeepsReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	conn.WSConn = clusterConn
+	m.connections[connKey] = conn
+
+	readerDone := make(chan struct{})
+
+	go func() {
+		m.handleClusterMessages(conn, clientConn)
+		close(readerDone)
+	}()
+
+	// A replacement is registered for the same key, then the old connection is closed, as
+	// closeClientConnections does; that wakes the old connection's cluster reader.
+	replacement := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	m.mutex.Lock()
+	m.connections[connKey] = replacement
+	m.mutex.Unlock()
+
+	conn.safeClose()
+
+	select {
+	case <-readerDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("cluster reader did not stop")
+	}
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	assert.Same(t, replacement, m.connections[connKey], "the old reader's cleanup removed the replacement")
+}
+
+func TestReconnectedConnectionDeliversData(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	// Each cluster connection sends one event with its own resource version.
+	var dials atomic.Int32
+
+	cluster := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Numbered before the upgrade completes the dial, so the replacement is always 2.
+		dial := dials.Add(1)
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		event := fmt.Sprintf(`{"type":"ADDED","object":{"metadata":{"resourceVersion":"%d"}}}`, dial)
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(event))
+
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	defer cluster.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: cluster.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+
+	conn, err := m.getOrCreateConnection(msg, clientConn, nil)
+	require.NoError(t, err)
+
+	// A failed heartbeat replaces the connection, which also ends the old cluster reader.
+	_, err = m.reconnect(conn)
+	require.NoError(t, err)
+
+	select {
+	case <-conn.Done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the old cluster reader did not stop")
+	}
+
+	// The test client echoes what the multiplexer sends it.
+	require.NoError(t, clientConn.conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+
+	for {
+		var got Message
+
+		require.NoError(t, clientConn.ReadJSON(&got), "no event from the replacement connection")
+
+		if got.Type == "DATA" && strings.Contains(got.Data, `"resourceVersion":"2"`) {
+			return
+		}
+	}
 }
 
 func createTestConnection(
@@ -1482,11 +1593,8 @@ func TestReconnect_WithToken(t *testing.T) {
 	newToken := "new-refreshed-token"
 	newConn.Token = &newToken // Update the token on the new connection
 
-	// Close the connection to force another reconnection
-	if newConn.WSConn != nil {
-		_ = newConn.WSConn.Close()
-	}
-
+	// reconnect closes the replaced socket itself. Closing it here first would let
+	// the replacement's cluster reader see the close and end the connection.
 	newConn.Status.State = StateError
 
 	// Update the connection in the multiplexer's map

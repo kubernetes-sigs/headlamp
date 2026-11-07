@@ -583,7 +583,11 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 // reconnect attempts to reestablish a connection.
 func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
-	if conn.IsClosed() {
+	conn.mu.RLock()
+	client, closed := conn.Client, conn.closed
+	conn.mu.RUnlock()
+
+	if closed || client == nil {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
@@ -596,7 +600,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		conn.UserID,
 		conn.Path,
 		conn.Query,
-		conn.Client,
+		client,
 		conn.Token,
 	)
 	if err != nil {
@@ -608,6 +612,9 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	m.mutex.Lock()
 	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = newConn
 	m.mutex.Unlock()
+
+	// Closing the old cluster socket ended its reader, so the replacement needs its own.
+	go m.handleClusterMessages(newConn, client)
 
 	return newConn, nil
 }
@@ -1057,13 +1064,17 @@ func (m *Multiplexer) sendDataMessage(
 	return nil
 }
 
-// cleanupConnection performs cleanup for a connection.
+// cleanupConnection closes conn and removes it from the registry. A replacement may have
+// been registered for the same key since, so the entry is only removed if it still is conn.
 func (m *Multiplexer) cleanupConnection(conn *Connection) {
 	conn.safeClose()
 
-	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+
+	m.mutex.Lock()
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
 }
 
