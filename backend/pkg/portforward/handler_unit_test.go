@@ -52,7 +52,7 @@ func TestGetPortForwards_MissingCluster(t *testing.T) {
 	// No clusterName in mux vars — simulates a request without the route parameter.
 	r := newRequestWithVars(http.MethodGet, "/portforward/list", nil, map[string]string{})
 
-	portforward.GetPortForwards(ch, "", w, r)
+	portforward.GetPortForwards(ch, "", nil, w, r)
 
 	res := w.Result()
 
@@ -74,7 +74,7 @@ func TestGetPortForwards_EmptyList(t *testing.T) {
 		"clusterName": "test-cluster",
 	})
 
-	portforward.GetPortForwards(ch, "test-cluster", w, r)
+	portforward.GetPortForwards(ch, "test-cluster", nil, w, r)
 
 	res := w.Result()
 
@@ -99,7 +99,7 @@ func TestGetPortForwards_ContentTypeHeader(t *testing.T) {
 		"clusterName": "any-cluster",
 	})
 
-	portforward.GetPortForwards(ch, "any-cluster", w, r)
+	portforward.GetPortForwards(ch, "any-cluster", nil, w, r)
 
 	res := w.Result()
 
@@ -119,7 +119,7 @@ func TestGetPortForwardByID_MissingCluster(t *testing.T) {
 	r := newRequestWithVars(http.MethodGet, "/portforward?id=abc", nil, map[string]string{})
 	r.URL = &url.URL{RawQuery: "id=abc"}
 
-	portforward.GetPortForwardByID(ch, "", w, r)
+	portforward.GetPortForwardByID(ch, "", nil, w, r)
 
 	res := w.Result()
 
@@ -142,7 +142,7 @@ func TestGetPortForwardByID_MissingID(t *testing.T) {
 	})
 	r.URL = &url.URL{}
 
-	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
+	portforward.GetPortForwardByID(ch, "test-cluster", nil, w, r)
 
 	res := w.Result()
 
@@ -165,7 +165,7 @@ func TestGetPortForwardByID_NotFound(t *testing.T) {
 	})
 	r.URL = &url.URL{RawQuery: "id=nonexistent"}
 
-	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
+	portforward.GetPortForwardByID(ch, "test-cluster", nil, w, r)
 
 	res := w.Result()
 

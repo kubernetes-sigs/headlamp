@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
@@ -17,6 +19,82 @@ import (
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 )
+
+// TestImpersonationExpired_PastDeadlineRecordsFailedStatus locks in the fix for a gap where
+// install/upgrade/uninstall/rollback ran under Headlamp's own service-account-backed,
+// impersonating client indefinitely: Kubernetes has no token there to re-verify or expire that
+// identity on its own, so nothing else would ever stop such an action from completing under a
+// session that had already ended (see impersonationExpired's doc comment).
+func TestImpersonationExpired_PastDeadlineRecordsFailedStatus(t *testing.T) {
+	h := &Handler{Cache: cache.New[interface{}]()}
+
+	expired := h.impersonationExpired(time.Now().Add(-time.Minute), "install", "test-release")
+
+	assert.True(t, expired)
+
+	statusVal, err := h.Cache.Get(context.Background(), "helm_install_test-release")
+	require.NoError(t, err)
+
+	got := statusVal.(stat)
+	assert.Equal(t, "failed", got.Status)
+	require.NotNil(t, got.Err)
+	assert.Contains(t, *got.Err, "authorization expired")
+}
+
+func TestImpersonationExpired_FutureDeadlineIsNoop(t *testing.T) {
+	h := &Handler{Cache: cache.New[interface{}]()}
+
+	expired := h.impersonationExpired(time.Now().Add(time.Hour), "install", "test-release")
+
+	assert.False(t, expired)
+
+	_, err := h.Cache.Get(context.Background(), "helm_install_test-release")
+	assert.Error(t, err, "no status should be recorded while the deadline has not passed yet")
+}
+
+func TestImpersonationExpired_ZeroTimeIsNoop(t *testing.T) {
+	h := &Handler{Cache: cache.New[interface{}]()}
+
+	expired := h.impersonationExpired(time.Time{}, "install", "test-release")
+
+	assert.False(t, expired, "a zero Time means impersonation does not apply, never a deadline already in the past")
+}
+
+func TestImpersonationExpiryFromRequest(t *testing.T) {
+	plainReq, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+	require.NoError(t, err)
+	assert.True(t, impersonationExpiryFromRequest(plainReq).IsZero(),
+		"a request with no impersonation on its context must report no expiry")
+
+	expiry := time.Now().Add(time.Hour)
+	impersonatedReq := plainReq.WithContext(
+		kubeconfig.ContextWithImpersonation(plainReq.Context(), kubeconfig.Impersonation{Username: "alice", Expiry: expiry}))
+
+	assert.True(t, impersonationExpiryFromRequest(impersonatedReq).Equal(expiry))
+}
+
+// TestUninstallRelease_RefusesExpiredImpersonation proves the check is actually wired into the
+// action, not only unit-tested in isolation: an already-expired identity must stop uninstallRelease
+// before it ever reaches actionConfig.Releases (here backed by an in-memory driver purely to
+// prove it is never touched, not a real cluster).
+func TestUninstallRelease_RefusesExpiredImpersonation(t *testing.T) {
+	h := &Handler{Cache: cache.New[interface{}]()}
+	actionConfig := &action.Configuration{Releases: storage.Init(driver.NewMemory())}
+
+	h.uninstallRelease(
+		UninstallReleaseRequest{Name: "test-release", Namespace: "default"},
+		actionConfig,
+		time.Now().Add(-time.Minute),
+	)
+
+	statusVal, err := h.Cache.Get(context.Background(), "helm_uninstall_test-release")
+	require.NoError(t, err)
+
+	got := statusVal.(stat)
+	assert.Equal(t, "failed", got.Status)
+	require.NotNil(t, got.Err)
+	assert.Contains(t, *got.Err, "authorization expired")
+}
 
 func TestGetActionStatus_NilErr(t *testing.T) {
 	h := &Handler{
