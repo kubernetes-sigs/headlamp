@@ -28,6 +28,7 @@ import ReplicaSet from '../../lib/k8s/replicaSet';
 import StatefulSet from '../../lib/k8s/statefulSet';
 import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { getReadyReplicas, getTotalReplicas } from '../../lib/util';
+import { useNamespaces } from '../../redux/filterSlice';
 import Link from '../common/Link';
 import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -39,15 +40,19 @@ interface WorkloadDict {
 }
 
 export default function Overview() {
-  const [pods] = Pod.useList();
-  const [deployments] = Deployment.useList();
-  const [statefulSets] = StatefulSet.useList();
-  const [daemonSets] = DaemonSet.useList();
-  const [replicaSets] = ReplicaSet.useList();
-  const [jobs] = Job.useList();
-  const [cronJobs] = CronJob.useList();
-  const [jobSets] = JobSet.useList();
-  const [leaderWorkerSets] = LeaderWorkerSet.useList();
+  // Scope every list to the selected namespaces. Without this the charts always
+  // count the whole cluster, ignoring the filter the table below honours, and a
+  // user without cluster-wide list permission gets nothing at all.
+  const namespaces = useNamespaces();
+  const [pods] = Pod.useList({ namespace: namespaces });
+  const [deployments] = Deployment.useList({ namespace: namespaces });
+  const [statefulSets] = StatefulSet.useList({ namespace: namespaces });
+  const [daemonSets] = DaemonSet.useList({ namespace: namespaces });
+  const [replicaSets] = ReplicaSet.useList({ namespace: namespaces });
+  const [jobs] = Job.useList({ namespace: namespaces });
+  const [cronJobs] = CronJob.useList({ namespace: namespaces });
+  const [jobSets] = JobSet.useList({ namespace: namespaces });
+  const [leaderWorkerSets] = LeaderWorkerSet.useList({ namespace: namespaces });
 
   const workloadsData: WorkloadDict = useMemo(
     () => ({
