@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Cluster } from '../../../lib/k8s/cluster';
+
 export function isValidNamespaceFormat(namespace: string) {
   // We allow empty strings just because that's the default value in our case.
   if (!namespace) {
@@ -36,4 +38,35 @@ export function isValidClusterNameFormat(name: string) {
   // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
   const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
   return regex.test(name);
+}
+
+/**
+ * Checks if a name is already used by a cluster, as its current name or as the original name it
+ * has in the kubeconfig. The cluster being renamed can go back to its own original name, so its
+ * original name doesn't count.
+ *
+ * @param name - The name to check.
+ * @param cluster - The current name of the cluster being renamed.
+ * @param clusterConf - The clusters, keyed by their current name.
+ * @returns true if the name is already in use.
+ */
+export function isClusterNameInUse(
+  name: string,
+  cluster: string,
+  clusterConf: { [clusterName: string]: Cluster } | null
+) {
+  if (!clusterConf) {
+    return false;
+  }
+
+  /** These are the display names of the clusters, renamed clusters have their display name as the custom name */
+  const clusterNames = Object.values(clusterConf).map(item => item.name);
+
+  /** The original name of a cluster is the name used in the kubeconfig file. */
+  const originalNames = Object.entries(clusterConf)
+    .filter(([clusterName]) => clusterName !== cluster)
+    .map(([, item]) => item.meta_data?.originalName)
+    .filter(originalName => originalName !== undefined);
+
+  return [...clusterNames, ...originalNames].includes(name);
 }

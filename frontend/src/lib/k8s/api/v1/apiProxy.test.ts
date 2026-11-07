@@ -1102,6 +1102,28 @@ describe('apiProxy', () => {
         expect(response).toEqual(mockResponse);
       });
 
+      it('encodes the kubeconfig names when removing the cluster from the kubeconfig', async () => {
+        const scope = nock(baseApiUrl)
+          .delete(`/cluster/${clusterName}`)
+          .query({
+            removeKubeConfig: 'true',
+            clusterID: '/home/me/.kube/config+prod+west',
+            configPath: '/home/me/.kube/config',
+            originalName: 'prod+west&dev',
+          })
+          .reply(200, mockResponse);
+
+        const response = await apiProxy.deleteCluster(
+          clusterName,
+          true,
+          '/home/me/.kube/config+prod+west',
+          '/home/me/.kube/config',
+          'prod+west&dev'
+        );
+        expect(response).toEqual(mockResponse);
+        expect(scope.isDone()).toBe(true);
+      });
+
       it.each([
         [401, errorResponse401],
         [500, errorResponse500],

@@ -199,7 +199,14 @@ export async function deleteCluster(
   if (clusterID && originalName && removeKubeConfig) {
     // for non dynamic clusters, we need to use the original name as a query parameter to find the actual context in the kubeconfig
     // and remove it from the kubeconfig file.
-    deleteURL = `/cluster/${cluster}?removeKubeConfig=${removeFromKubeConfig}&clusterID=${clusterID}&configPath=${kubeconfigOrigin}&originalName=${originalName}`;
+    // The names come from the kubeconfig and can contain characters like + or &, so encode them.
+    const query = new URLSearchParams({
+      removeKubeConfig: removeFromKubeConfig,
+      clusterID,
+      configPath: kubeconfigOrigin ?? '',
+      originalName,
+    });
+    deleteURL = `/cluster/${cluster}?${query}`;
   } else {
     // for other clusters we can use the standard delete URL.
     deleteURL = `/cluster/${cluster}`;
