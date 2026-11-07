@@ -19,7 +19,7 @@ import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPI
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getBaseWsUrl } from './webSocket';
 
-const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
+export const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
 
 /**
  * WebSocket manager to handle connections across the application.

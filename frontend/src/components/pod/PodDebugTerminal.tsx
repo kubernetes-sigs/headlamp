@@ -189,6 +189,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
   const containerCreatedRef = useRef(false);
   const defaultPodDebugImage = useTypedSelector(state => state.config.defaultPodDebugImage);
   const defaultPodDebugImageRef = useRef(defaultPodDebugImage);
+  const debugContainerNameRef = useRef<string | null>(null);
   const onCloseRef = useRef<() => void>(() => {});
   const isSuccessfulExitRef = useRef<(channel: number, text: string) => boolean>(() => false);
   const isShellNotFoundRef = useRef<(channel: number, text: string) => boolean>(() => false);
@@ -224,10 +225,15 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
 
       if (runningDebugContainer) {
         containerName = runningDebugContainer.name;
+        debugContainerNameRef.current = containerName;
         containerCreatedRef.current = true;
         xtermRef.current?.xterm.writeln(t('translation|Attaching to existing debug container...'));
+      } else if (debugContainerNameRef.current) {
+        // Reconnecting: the terminal already shows the reconnect progress.
+        containerName = debugContainerNameRef.current;
       } else {
         containerName = generateContainerName(item);
+        debugContainerNameRef.current = containerName;
 
         xtermRef.current?.xterm.writeln(t('translation|Creating ephemeral debug container...'));
         if (targetContainer) {
@@ -260,7 +266,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         xtermRef.current?.xterm.writeln(t('translation|Attaching to debug container...'));
       }
 
-      const stream = item.attach(containerName, onDataCallback, {});
+      const stream = item.attach(containerName, onDataCallback, { multiplexed: true });
 
       return {
         stream,

@@ -81,6 +81,41 @@ export interface TerminalStreamOptions {
 }
 
 /**
+ * Calls onStable once socket has stayed open for stableMs, counting from when it
+ * opens, so a handshake that takes longer than stableMs still counts.
+ */
+export function onSocketStable(socket: WebSocket, stableMs: number, onStable: () => void) {
+  const start = () =>
+    setTimeout(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        onStable();
+      }
+    }, stableMs);
+
+  if (socket.readyState === WebSocket.OPEN) {
+    start();
+  } else if (socket.readyState === WebSocket.CONNECTING) {
+    socket.addEventListener('open', start, { once: true });
+  }
+}
+
+/**
+ * Decides what to do after a terminal's connection fails. Until the terminal has
+ * connected once it retries quietly, up to maxStartAttempts times, as a new shell pod
+ * or debug container can take a while to start. A connection that dropped is retried
+ * up to maxAttempts times.
+ */
+export function reconnectDecision(
+  hasConnected: boolean,
+  attempts: number,
+  maxAttempts: number,
+  maxStartAttempts: number
+): 'retry-quietly' | 'retry' | 'give-up' {
+  if (!hasConnected) return attempts < maxStartAttempts ? 'retry-quietly' : 'give-up';
+  return attempts < maxAttempts ? 'retry' : 'give-up';
+}
+
+/**
  * React hook for managing WebSocket-based terminal streams.
  *
  * Sets up an XTerm.js terminal with WebSocket communication, handles I/O channels,
@@ -104,6 +139,8 @@ export function useTerminalStream(options: TerminalStreamOptions) {
   const xtermRef = useRef<XTerminalConnected | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const streamRef = useRef<any | null>(null);
+  const isFirstConnect = useRef(true);
+  const hasSetupTerminal = useRef(false);
   const muiTheme = useTheme();
   const xtermTheme = useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
 
@@ -154,14 +191,16 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       const text = decoder.decode(data);
 
       // Send resize command to server once connection is established.
-      if (!xtermc.connected) {
-        xterm.clear();
-        send(Channel.Resize, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
-        // On server error, don't set it as connected
-        if (channel !== Channel.ServerError) {
-          xtermc.connected = true;
-          console.debug('Terminal is now connected');
+      if (!xtermc.connected && channel !== Channel.ServerError) {
+        if (isFirstConnect.current) {
+          xterm.clear();
+          isFirstConnect.current = false;
+        } else {
+          xterm.writeln('\r\n\x1b[32m[Reconnected!]\x1b[0m');
         }
+        send(Channel.Resize, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
+        xtermc.connected = true;
+        console.debug('Terminal is now connected');
       }
 
       // Use custom error handlers if provided
@@ -279,20 +318,156 @@ export function useTerminalStream(options: TerminalStreamOptions) {
 
     fitAddonRef.current = new FitAddon();
     xtermRef.current.xterm.loadAddon(fitAddonRef.current);
+    isFirstConnect.current = true;
+    hasSetupTerminal.current = false;
 
-    (async function () {
-      const { stream, initialMessage } = await connectStream((items: ArrayBuffer) =>
-        onData(xtermRef.current!, items)
+    let isCancelled = false;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isReconnecting = false;
+    let reconnectAttempts = 0;
+    // The backend keeps a detached terminal session for 30s, so retry at a fixed
+    // interval that keeps attempting throughout that whole window.
+    const reconnectDelay = 3000;
+    const maxReconnectAttempts = 10;
+    // Starting allows 3 minutes, for example to pull the image of a shell pod.
+    const maxStartAttempts = 60;
+    // Why the last connection closed, shown if the terminal gives up.
+    let lastCloseReason = '';
+
+    async function connect() {
+      if (isCancelled) return;
+
+      try {
+        const { stream, initialMessage } = await connectStream((items: ArrayBuffer) => {
+          if (xtermRef.current) {
+            onData(xtermRef.current, items);
+          }
+        });
+
+        if (isCancelled) {
+          if (stream) stream.cancel();
+          return;
+        }
+
+        if (initialMessage && isFirstConnect.current) {
+          xtermRef.current?.xterm.writeln(initialMessage);
+        }
+
+        if (stream) {
+          const originalCancel = stream.cancel;
+          stream.cancel = () => {
+            isCancelled = true;
+            originalCancel.call(stream);
+          };
+        }
+
+        streamRef.current = stream;
+
+        const attachSocketListeners = (socket: WebSocket) => {
+          // Only reset attempts after the socket has stayed open briefly. This avoids
+          // infinite reconnect loops when the server accepts then immediately closes.
+          onSocketStable(socket, 1000, () => {
+            if (!isCancelled) {
+              reconnectAttempts = 0;
+            }
+          });
+          const originalOnClose = socket.onclose;
+          socket.onclose = (event: CloseEvent) => {
+            if (originalOnClose) {
+              originalOnClose.call(socket, event);
+            }
+            // Skip reconnect for a clean, intentional server close, but say why if known,
+            // e.g. because the session was opened in another window.
+            if (event.code === 1000) {
+              if (event.reason) {
+                xtermRef.current?.xterm.writeln(`\r\n\x1b[33m[${event.reason}]\x1b[0m`);
+              }
+              return;
+            }
+            lastCloseReason = event.reason;
+            handleDisconnect();
+          };
+          // The socket may have closed in the window between the await and here.
+          if (socket.readyState === WebSocket.CLOSED) {
+            handleDisconnect();
+          }
+        };
+
+        const initialSocket = stream?.getSocket();
+        if (initialSocket) {
+          attachSocketListeners(initialSocket);
+        } else if (stream) {
+          const pollInterval = setInterval(() => {
+            const asyncSocket = stream.getSocket();
+            if (asyncSocket) {
+              clearInterval(pollInterval);
+              if (!isCancelled) {
+                attachSocketListeners(asyncSocket);
+              }
+            } else if (isCancelled) {
+              clearInterval(pollInterval);
+            }
+          }, 20);
+        }
+
+        if (xtermRef.current) {
+          if (!hasSetupTerminal.current && containerRef) {
+            setupTerminal(containerRef, xtermRef.current.xterm, fitAddonRef.current!);
+            hasSetupTerminal.current = true;
+          } else {
+            fitAddonRef.current?.fit();
+            const xterm = xtermRef.current.xterm;
+            send(Channel.Resize, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to connect terminal stream:', err);
+        handleDisconnect();
+      }
+    }
+
+    function handleDisconnect() {
+      if (isCancelled || isReconnecting) return;
+
+      const decision = reconnectDecision(
+        !isFirstConnect.current,
+        reconnectAttempts,
+        maxReconnectAttempts,
+        maxStartAttempts
       );
 
-      if (initialMessage) {
-        xtermRef.current?.xterm.writeln(initialMessage);
+      if (decision === 'give-up') {
+        if (xtermRef.current) {
+          xtermRef.current.connected = false;
+          const message = isFirstConnect.current
+            ? `Could not open the terminal${lastCloseReason ? `: ${lastCloseReason}` : ''}.`
+            : 'Reconnection failed. Please refresh the page to retry.';
+          xtermRef.current.xterm.writeln(`\r\n\x1b[31m[${message}]\x1b[0m`);
+        }
+        errorHandlers?.onConnectionFailed?.(xtermRef.current!);
+        onClose?.();
+        return;
       }
 
-      streamRef.current = stream;
+      isReconnecting = true;
+      reconnectAttempts++;
 
-      setupTerminal(containerRef, xtermRef.current!.xterm, fitAddonRef.current!);
-    })();
+      if (decision === 'retry') {
+        if (xtermRef.current) {
+          xtermRef.current.connected = false;
+          xtermRef.current.xterm.writeln(
+            `\r\n\x1b[33m[Connection lost. Reconnecting in ${reconnectDelay / 1000}s...]\x1b[0m`
+          );
+        }
+      }
+
+      reconnectTimeout = setTimeout(() => {
+        isReconnecting = false;
+        connect();
+      }, reconnectDelay);
+    }
+
+    connect();
 
     const resizeHandler = () => {
       fitAddonRef.current?.fit();
@@ -301,8 +476,14 @@ export function useTerminalStream(options: TerminalStreamOptions) {
     window.addEventListener('resize', resizeHandler);
 
     return function cleanup() {
-      xtermRef.current?.xterm.dispose();
+      isCancelled = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
       streamRef.current?.cancel();
+      streamRef.current = null;
+      xtermRef.current?.xterm.dispose();
+      xtermRef.current = null;
       window.removeEventListener('resize', resizeHandler);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
