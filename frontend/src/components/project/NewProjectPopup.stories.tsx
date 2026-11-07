@@ -43,6 +43,7 @@ const makeStore = (customCreateProject = {}) => {
           'cluster-b': { name: 'cluster-b' },
         } as any,
         oidcAutoLogin: null,
+        disableTokenLogin: false,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',

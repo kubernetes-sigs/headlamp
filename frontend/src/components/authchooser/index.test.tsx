@@ -23,7 +23,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../lib/themes';
 import { setConfig } from '../../redux/configSlice';
 import store from '../../redux/stores/store';
-import AuthChooser from './index';
+import AuthChooser, { PureAuthChooser } from './index';
 
 vi.mock('../../lib/k8s/api/v1/clusterApi', () => ({
   testAuth: vi.fn(),
@@ -258,5 +258,91 @@ describe('AuthChooser component', () => {
 
     expect(window.location.href).toBe('');
     expect(sessionStorage.getItem('oidc_return_url')).toBeNull();
+  });
+
+  describe('when the login choice is shown (autologin off)', () => {
+    const renderChooser = () =>
+      render(
+        <Provider store={store}>
+          <ThemeProvider theme={theme}>
+            <QueryClientProvider client={queryClient}>
+              <MemoryRouter
+                initialEntries={[
+                  {
+                    pathname: '/auth',
+                    state: { from: { pathname: '/c/test-cluster/workloads' } },
+                  },
+                ]}
+              >
+                <Route path="/auth">
+                  <AuthChooser>
+                    <div>Children Content</div>
+                  </AuthChooser>
+                </Route>
+              </MemoryRouter>
+            </QueryClientProvider>
+          </ThemeProvider>
+        </Provider>
+      );
+
+    const configureOidcCluster = (disableTokenLogin: boolean) =>
+      store.dispatch(
+        setConfig({
+          clusters: {
+            'test-cluster': {
+              name: 'test-cluster',
+              auth_type: 'oidc',
+              meta_data: { auth_type: 'oidc' },
+            } as any,
+          },
+          oidcAutoLogin: false,
+          disableTokenLogin,
+        })
+      );
+
+    it('hides "Use A Token" for an OIDC cluster when token login is disabled', async () => {
+      configureOidcCluster(true);
+
+      renderChooser();
+
+      expect(await screen.findByText('Sign In')).toBeInTheDocument();
+      expect(screen.queryByText('Use A Token')).not.toBeInTheDocument();
+    });
+
+    it('shows "Use A Token" for an OIDC cluster when token login is not disabled', async () => {
+      configureOidcCluster(false);
+
+      renderChooser();
+
+      expect(await screen.findByText('Sign In')).toBeInTheDocument();
+      expect(screen.getByText('Use A Token')).toBeInTheDocument();
+    });
+
+    it('keeps "Use A Token" for a cluster without OIDC even when token login is disabled', () => {
+      render(
+        <Provider store={store}>
+          <ThemeProvider theme={theme}>
+            <MemoryRouter>
+              <PureAuthChooser
+                title="Authentication"
+                testingTitle="Getting auth info"
+                testingAuth={false}
+                error={null}
+                oauthUrl=""
+                clusterAuthType=""
+                clusterName="token-cluster"
+                disableTokenLogin
+                handleOidcAuth={() => {}}
+                handleTokenAuth={() => {}}
+                handleTryAgain={() => {}}
+                handleBackButtonPress={() => {}}
+              />
+            </MemoryRouter>
+          </ThemeProvider>
+        </Provider>
+      );
+
+      expect(screen.getByText('Use A Token')).toBeInTheDocument();
+    });
   });
 });
