@@ -15,7 +15,9 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '../../i18n/config';
 import { TestContext } from '../../test';
 import HpaList from './List';
 
@@ -134,5 +136,26 @@ describe('HpaList', () => {
     expect(getColumn('currentReplicas').getValue(emptyHpa)).toBe(0);
     expect(getColumn('targets').getValue(emptyHpa)).toBe('');
     expect(getColumn('reference').render(emptyHpa)).toBeNull();
+  });
+
+  it('renders the first target and a "N more…" chip with a space before "more"', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TestContext>
+          <HpaList />
+        </TestContext>
+      </I18nextProvider>
+    );
+
+    const threeMetrics = {
+      ...hpa,
+      metrics: () => [{ shortValue: '50%/80%' }, { shortValue: '10/20' }, { shortValue: '1/2' }],
+    };
+    const { getByText } = render(
+      <TestContext>{getColumn('targets').render(threeMetrics)}</TestContext>
+    );
+
+    expect(getByText('50%/80%')).toBeInTheDocument();
+    expect(getByText('2 more…')).toBeInTheDocument();
   });
 });
