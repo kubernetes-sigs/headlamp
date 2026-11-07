@@ -42,6 +42,9 @@ import (
 // it becomes eligible for eviction.
 const clientsetTTL = 10 * time.Minute
 
+// ssarCacheTTL is how long a SelfSubjectAccessReview result is cached.
+const ssarCacheTTL = 30 * time.Second
+
 const unknownVerb = "unknown"
 
 // janitorInterval is how often the background goroutine sweeps the
@@ -59,8 +62,19 @@ type inFlightEntry struct {
 	err    error
 }
 
+type inFlightSSAREntry struct {
+	waitCh  chan struct{}
+	allowed bool
+	err     error
+}
+
 type blockedPrefixEntry struct {
 	blockedAt time.Time
+}
+
+type cachedSSAR struct {
+	allowed    bool
+	insertedAt time.Time
 }
 
 var (
@@ -76,6 +90,11 @@ var (
 
 	// inFlight keeps track of clientsets currently being created to avoid redundant work.
 	inFlight = make(map[string]*inFlightEntry)
+
+	// ssarCache stores recent SelfSubjectAccessReview decisions to reduce API server load.
+	ssarCache = make(map[string]cachedSSAR)
+	inFlightSSAR = make(map[string]*inFlightSSAREntry)
+	ssarMu    sync.Mutex
 
 	// hookMu protects testingInFlightWait and clientsetCreator from concurrent access.
 	hookMu sync.RWMutex
@@ -131,6 +150,20 @@ func evictExpiredClientsets() {
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
 			fmt.Sprintf("janitor: evicted %d expired clientset(s), %d remaining", evicted, remaining))
+	}
+
+	evictExpiredSSARs(now)
+}
+
+// evictExpiredSSARs removes expired SelfSubjectAccessReview results.
+func evictExpiredSSARs(now time.Time) {
+	ssarMu.Lock()
+	defer ssarMu.Unlock()
+
+	for key, cached := range ssarCache {
+		if now.Sub(cached.insertedAt) > ssarCacheTTL {
+			delete(ssarCache, key)
+		}
 	}
 }
 
@@ -205,6 +238,14 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 			fmt.Sprintf("evicted %d clientset(s) for removed clientset cache prefix %s, %d remaining",
 				evicted, redactContextKey(clientsetCachePrefix), remaining))
 	}
+
+	ssarMu.Lock()
+	for key := range ssarCache {
+		if strings.HasPrefix(key, prefix) {
+			delete(ssarCache, key)
+		}
+	}
+	ssarMu.Unlock()
 }
 
 // clientsetCachePrefixFromCacheKey returns the Headlamp context store key prefix
@@ -542,26 +583,111 @@ func IsAllowed(
 		return false, err
 	}
 
+	cacheKey := fmt.Sprintf("%s\x00%s\x00%s/%s/%s/%s/%s/%s/%s",
+		headlampContextKey, token,
+		resourceAttributes.Group, resourceAttributes.Version,
+		resourceAttributes.Resource, resourceAttributes.Subresource,
+		resourceAttributes.Namespace, resourceAttributes.Name, resourceAttributes.Verb)
+
+	if allowed, hit := checkSSARCache(cacheKey); hit {
+		return allowed, nil
+	}
+
+	ssarMu.Lock()
+	// Re-check under lock
+	cached, ok := ssarCache[cacheKey]
+	if ok && time.Since(cached.insertedAt) <= ssarCacheTTL {
+		ssarMu.Unlock()
+		return cached.allowed, true
+	}
+
+	if entry, inProgress := inFlightSSAR[cacheKey]; inProgress {
+		ssarMu.Unlock()
+		<-entry.waitCh
+		return entry.allowed, entry.err
+	}
+
+	entry := &inFlightSSAREntry{
+		waitCh: make(chan struct{}),
+	}
+	inFlightSSAR[cacheKey] = entry
+	ssarMu.Unlock()
+
 	review := &authorizationv1.SelfSubjectAccessReview{
 		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
 			ResourceAttributes: resourceAttributes,
 		},
 	}
 
+	reqStart := time.Now()
 	result, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(
 		r.Context(),
 		review,
 		metav1.CreateOptions{},
 	)
 	if err != nil {
+		finishInFlightSSAR(cacheKey, entry, false, err)
 		return false, err
 	}
 
 	if result == nil {
-		return false, fmt.Errorf("nil SelfSubjectAccessReview result")
+		err := fmt.Errorf("nil SelfSubjectAccessReview result")
+		finishInFlightSSAR(cacheKey, entry, false, err)
+		return false, err
 	}
 
-	return result.Status.Allowed, err
+	updateSSARCache(headlampContextKey, cacheKey, result.Status.Allowed, reqStart)
+
+	finishInFlightSSAR(cacheKey, entry, result.Status.Allowed, nil)
+
+	return result.Status.Allowed, nil
+}
+
+func finishInFlightSSAR(cacheKey string, entry *inFlightSSAREntry, allowed bool, err error) {
+	ssarMu.Lock()
+	defer ssarMu.Unlock()
+
+	entry.allowed = allowed
+	entry.err = err
+	delete(inFlightSSAR, cacheKey)
+	close(entry.waitCh)
+}
+
+func checkSSARCache(cacheKey string) (bool, bool) {
+	ssarMu.Lock()
+	defer ssarMu.Unlock()
+
+	cached, ok := ssarCache[cacheKey]
+	if !ok {
+		return false, false
+	}
+
+	if time.Since(cached.insertedAt) <= ssarCacheTTL {
+		return cached.allowed, true
+	}
+
+	delete(ssarCache, cacheKey)
+
+	return false, false
+}
+
+func updateSSARCache(headlampContextKey, cacheKey string, allowed bool, reqStart time.Time) {
+	ssarMu.Lock()
+	defer ssarMu.Unlock()
+
+	mu.Lock()
+	blockedEntry, blocked := blockedClientsetPrefixes[headlampContextKey]
+	mu.Unlock()
+
+	if blocked && blockedEntry.blockedAt.After(reqStart) {
+		// Context was evicted while the SSAR request was in flight. Do not cache.
+		return
+	}
+
+	ssarCache[cacheKey] = cachedSSAR{
+		allowed:    allowed,
+		insertedAt: time.Now(),
+	}
 }
 
 // ServeFromCacheOrForwardToK8s attempts to serve a Kubernetes resource from cache.
