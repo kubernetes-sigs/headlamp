@@ -552,6 +552,12 @@ func TestSetTokenCookie_ClearsLegacyCookieOnFreshLogin(t *testing.T) {
 
 // TestFilterAuthCookies checks that it removes only Headlamp's own auth cookies, leaving any
 // other cookie a caller attached to the request untouched.
+// TestFilterAuthCookies also locks in a fix for a gap where the RP-initiated-logout ID-token
+// cookie (SetIDTokenCookie, "headlamp-id-token-<cluster>.<n>") was not recognized as one of
+// Headlamp's own session cookies: FilterAuthCookies only matched the "headlamp-auth-" prefix, so
+// a handler forwarding a caller's Cookie header to an operator-configured but otherwise
+// arbitrary external destination (see cmd/headlamp.go's external proxy route) would forward this
+// cookie's raw OIDC ID token verbatim to that destination.
 func TestFilterAuthCookies(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
 	req.Host = localhost
@@ -566,6 +572,10 @@ func TestFilterAuthCookies(t *testing.T) {
 	})
 	req.AddCookie(&http.Cookie{
 		Name: "headlamp-auth-" + auth.SanitizeClusterName("test-cluster") + ".1", Value: "more-token",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-id-token-" + auth.SanitizeClusterName("test-cluster") + ".0", Value: "raw-id-token",
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
 	})
 
