@@ -508,6 +508,7 @@
       "DaemonSet": [Function],
       "Deployment": [Function],
       "DeviceClass": [Function],
+      "DisaggregatedSet": [Function],
       "Endpoint": [Function],
       "EndpointSlice": [Function],
       "Endpoints": [Function],
@@ -585,6 +586,12 @@
       "default": [Function],
     },
     "deviceClass": {
+      "default": [Function],
+    },
+    "disaggregatedSet": {
+      "DISAGGREGATED_SET_NAME_LABEL": "disaggregatedset.x-k8s.io/name",
+      "DISAGGREGATED_SET_ROLE_LABEL": "disaggregatedset.x-k8s.io/role",
+      "DISAGGREGATED_SET_SLICE_LABEL": "disaggregatedset.x-k8s.io/slice",
       "default": [Function],
     },
     "event": {

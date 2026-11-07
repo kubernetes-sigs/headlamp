@@ -25,6 +25,7 @@ const makeDetails = vi.hoisted(
 );
 
 vi.mock('../../../lib/k8s/deployment', () => ({ default: class Deployment {} }));
+vi.mock('../../../lib/k8s/disaggregatedSet', () => ({ default: class DisaggregatedSet {} }));
 vi.mock('../../../lib/k8s/jobSet', () => ({ default: class JobSet {} }));
 vi.mock('../../../lib/k8s/leaderWorkerSet', () => ({ default: class LeaderWorkerSet {} }));
 vi.mock('../../../lib/k8s/replicaSet', () => ({ default: class ReplicaSet {} }));
@@ -107,6 +108,7 @@ const dispatchCases = [
   ['Job', 'Job'],
   ['JobSet', 'Workload'],
   ['LeaderWorkerSet', 'Workload'],
+  ['DisaggregatedSet', 'Workload'],
   ['Service', 'Service'],
   ['CronJob', 'CronJob'],
   ['DaemonSet', 'DaemonSet'],

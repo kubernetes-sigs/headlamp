@@ -40,6 +40,7 @@ import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
+import { DISAGGREGATED_SET_NAME_LABEL } from '../../../lib/k8s/disaggregatedSet';
 import type { default as Event, KubeEvent } from '../../../lib/k8s/event';
 import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -1793,6 +1794,8 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     labelSelector = `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`;
   } else if (resource.kind === 'LeaderWorkerSet') {
     labelSelector = `${LEADER_WORKER_SET_NAME_LABEL}=${resource.metadata.name}`;
+  } else if (resource.kind === 'DisaggregatedSet') {
+    labelSelector = `${DISAGGREGATED_SET_NAME_LABEL}=${resource.metadata.name}`;
   }
 
   const queryData = {

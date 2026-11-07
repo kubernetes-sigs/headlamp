@@ -45,6 +45,7 @@ import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
 import ResourceClaimList from '../../components/device/ResourceClaimList';
 import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
 import ResourceClaimTemplateList from '../../components/device/ResourceClaimTemplateList';
+import DisaggregatedSetList from '../../components/disaggregatedset/List';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -137,6 +138,7 @@ import LocaleSelect from '../../i18n/LocaleSelect/LocaleSelect';
 import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
+import DisaggregatedSet from '../k8s/disaggregatedSet';
 import JobSet from '../k8s/jobSet';
 import LeaderWorkerSet from '../k8s/leaderWorkerSet';
 import ReplicaSet from '../k8s/replicaSet';
@@ -607,6 +609,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'LeaderWorkerSets',
     component: () => <WorkloadDetails workloadKind={LeaderWorkerSet} />,
+  },
+  DisaggregatedSets: {
+    path: '/disaggregatedsets',
+    exact: true,
+    sidebar: 'DisaggregatedSets',
+    name: 'DisaggregatedSets',
+    component: () => <DisaggregatedSetList />,
+  },
+  DisaggregatedSet: {
+    path: '/disaggregatedsets/:namespace/:name',
+    exact: true,
+    sidebar: 'DisaggregatedSets',
+    component: () => <WorkloadDetails workloadKind={DisaggregatedSet} />,
   },
   Deployments: {
     path: '/deployments',
