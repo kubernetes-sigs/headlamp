@@ -17,13 +17,17 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -34,6 +38,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -172,8 +177,7 @@ func TestDialWebSocket(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	//nolint:gosec // Test server uses self-signed TLS certificates
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil)
+	conn, err := m.dialWebSocket(wsURL, insecureTestConfig(server.URL), nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
@@ -206,8 +210,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	token := "my-test-token"
-	//nolint:gosec // Test server uses self-signed TLS certificates
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token)
+	conn, err := m.dialWebSocket(wsURL, insecureTestConfig(server.URL), &token)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 
@@ -223,14 +226,13 @@ func TestDialWebSocket_Errors(t *testing.T) {
 	m := NewMultiplexer(contextStore, false)
 
 	// Test invalid URL
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
-	ws, err := m.dialWebSocket("invalid-url", tlsConfig, "", nil)
+	ws, err := m.dialWebSocket("invalid-url", insecureTestConfig(""), nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
 
 	// Test unreachable URL
-	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil)
+	ws, err = m.dialWebSocket("ws://localhost:12345", insecureTestConfig(""), nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
 }
@@ -263,10 +265,9 @@ func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
 
 	// Convert HTTP URL to WebSocket URL
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
 	// This should fail with a "bad handshake" error and log the response
-	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+	ws, err := m.dialWebSocket(wsURL, insecureTestConfig(""), nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, ws)
@@ -1528,9 +1529,8 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 	conn := createTestConnection("test-cluster", "test-user", "/api/v1/services", "", clientConn)
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
-	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+	ws, err := m.dialWebSocket(wsURL, insecureTestConfig(""), nil)
 	require.NoError(t, err)
 
 	conn.WSConn = ws
@@ -1610,7 +1610,7 @@ func TestHandleClusterMessages(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		m.handleClusterMessages(conn, clientConn)
+		m.handleClusterMessages(conn)
 		close(done)
 	}()
 
@@ -1869,6 +1869,7 @@ var benchWatchEventMsg = []byte(`{
 // BenchmarkSendIfNewResourceVersion measures the allocation overhead of
 // extracting metadata.resourceVersion from a typical Kubernetes watch event.
 // This is the hottest path in the multiplexer.
+
 func BenchmarkSendIfNewResourceVersion(b *testing.B) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	conn := &Connection{
@@ -1938,4 +1939,1262 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+func TestTerminalReconnectAndBuffering(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods/my-pod/exec",
+		Query:     "container=my-container&stdin=true&stdout=true&tty=true",
+		UserID:    "test-user",
+		Type:      "REQUEST",
+	}
+
+	token := "token"
+
+	conn, err := m.getOrCreateConnection(msg, clientConn1, &token)
+	require.NoError(t, err)
+
+	t.Run("Establish initial connection", func(t *testing.T) {
+		assert.NotNil(t, conn)
+		conn.mu.RLock()
+		client := conn.Client
+		state := conn.Status.State
+		conn.mu.RUnlock()
+		assert.Equal(t, clientConn1, client)
+		assert.Equal(t, StateConnected, state)
+	})
+
+	t.Run("Simulate disconnect and buffer", func(t *testing.T) {
+		runSimulateDisconnectAndBufferTest(t, conn)
+	})
+
+	t.Run("Reconnect and flush", func(t *testing.T) {
+		runReconnectAndFlushTest(t, m, conn, msg, token)
+	})
+}
+
+func runSimulateDisconnectAndBufferTest(t *testing.T, conn *Connection) {
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.Status.State = StateClosed
+	conn.mu.Unlock()
+
+	err := conn.WSConn.WriteMessage(websocket.TextMessage, []byte("hello"))
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		conn.mu.RLock()
+		defer conn.mu.RUnlock()
+
+		return len(conn.Buffer) == 1 && string(conn.Buffer[0].Data) == "hello"
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
+func runReconnectAndFlushTest(t *testing.T, m *Multiplexer, conn *Connection, msg Message, token string) {
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	flushed := make(chan []byte, 1)
+
+	go func() {
+		_, data, _ := clientConn2.conn.ReadMessage()
+
+		flushed <- data
+	}()
+
+	conn2, err := m.getOrCreateConnection(msg, clientConn2, &token)
+	require.NoError(t, err)
+	assert.Equal(t, conn, conn2)
+	conn.mu.RLock()
+	client := conn.Client
+	state := conn.Status.State
+	conn.mu.RUnlock()
+	assert.Equal(t, clientConn2, client)
+	assert.Equal(t, StateConnected, state)
+
+	conn.mu.RLock()
+	isBufferNil := conn.Buffer == nil
+	conn.mu.RUnlock()
+	assert.True(t, isBufferNil)
+
+	select {
+	case data := <-flushed:
+		assert.Contains(t, string(data), "hello")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for buffered messages")
+	}
+}
+
+func TestTerminalCloseConnectionWithQuery(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	clusterID := "test-cluster"
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	userID := "test-user"
+
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
+	conn := m.createConnection(clusterID, userID, path, query, clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	// Verify connection exists in registry
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.True(t, exists)
+
+	// Close connection passing the query
+	m.CloseConnection(clusterID, path, userID, query)
+
+	// Verify connection is removed from registry and closed
+	m.mutex.RLock()
+	_, exists = m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, exists)
+	assert.True(t, conn.IsClosed())
+}
+
+func TestDisconnectedTerminalUpstreamClosePreservesBufferAndSendsComplete(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clusterID := "test-cluster"
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	userID := "test-user"
+
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
+
+	// Create terminal connection without an active client (disconnected)
+	conn := m.createConnection(clusterID, userID, path, query, nil, nil)
+	conn.Buffer = []BufferedMessage{{Type: 2, Data: []byte("final output frame")}}
+	conn.BufferBytes = len("final output frame")
+	conn.Status.State = StateClosed
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	// Simulate handleClusterMessages exiting due to upstream K8s connection close while client is disconnected
+	conn.mu.Lock()
+	conn.upstreamClosed = true
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+
+	// Connection should still be cached in m.connections during grace period
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.True(t, exists, "disconnected terminal connection must remain in cache during grace period")
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// Reconnect to the cached terminal connection
+	msg := Message{
+		ClusterID: clusterID,
+		Path:      path,
+		Query:     query,
+		UserID:    userID,
+		Type:      "REQUEST",
+	}
+
+	reconnected, err := m.getOrCreateConnection(msg, clientConn, nil)
+	require.NoError(t, err)
+	assert.Equal(t, conn, reconnected)
+
+	// Verify that buffered messages were flushed, COMPLETE message was sent, and connection cleaned up
+	assert.Eventually(t, func() bool {
+		m.mutex.RLock()
+		_, inCache := m.connections[connKey]
+		m.mutex.RUnlock()
+
+		return !inCache && conn.IsClosed()
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestTerminalSendErrorAfterDetachBuffersFrame(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	failedClient, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	conn := m.createConnection("test-cluster", "test-user", path, "", failedClient, nil)
+
+	// closeClientConnections detached the client after the frame's send began.
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.mu.Unlock()
+
+	m.handleTerminalSendError(conn, failedClient, errors.New("write failed"), websocket.BinaryMessage, []byte("lost?"))
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	require.Len(t, conn.Buffer, 1)
+	assert.Equal(t, []byte("lost?"), conn.Buffer[0].Data)
+}
+
+func TestTerminalReattachRequiresOwnerToken(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	msg := Message{ClusterID: "test-cluster", Path: path, Query: query, UserID: "test-user", Type: "REQUEST"}
+
+	ownerToken := "owner-token"
+	conn := m.createConnection(msg.ClusterID, msg.UserID, path, query, nil, &ownerToken)
+	conn.ownerToken = &ownerToken
+	conn.Buffer = []BufferedMessage{{Type: websocket.BinaryMessage, Data: []byte("secret output")}}
+	conn.BufferBytes = len("secret output")
+	conn.Status.State = StateClosed
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(msg.ClusterID, path, msg.UserID, query)] = conn
+	m.mutex.Unlock()
+
+	otherToken := "other-token"
+
+	for name, token := range map[string]*string{"no token": nil, "other token": &otherToken} {
+		t.Run(name, func(t *testing.T) {
+			clientConn, clientServer := createTestWebSocketConnection()
+			defer clientServer.Close()
+
+			_, err := m.getOrCreateConnection(msg, clientConn, token)
+			require.Error(t, err)
+
+			conn.mu.RLock()
+			defer conn.mu.RUnlock()
+
+			assert.Nil(t, conn.Client)
+			require.Len(t, conn.Buffer, 1)
+			assert.Equal(t, &ownerToken, conn.Token)
+		})
+	}
+
+	t.Run("owner token", func(t *testing.T) {
+		clientConn, clientServer := createTestWebSocketConnection()
+		defer clientServer.Close()
+
+		sameToken := "owner-token"
+
+		reattached, err := m.getOrCreateConnection(msg, clientConn, &sameToken)
+		require.NoError(t, err)
+		assert.Equal(t, conn, reattached)
+
+		conn.mu.RLock()
+		defer conn.mu.RUnlock()
+
+		assert.Equal(t, clientConn, conn.Client)
+		assert.Empty(t, conn.Buffer)
+	})
+}
+
+func TestReconnectKeepsServiceAccountConnectionOwner(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, true)
+	tokenFile := writeTestTokenFile(t)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:     "test-cluster",
+		Cluster:  &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	requestToken := "proxy-token"
+	path := "/api/v1/namespaces/default/pods/test-pod/exec"
+
+	conn, err := m.establishClusterConnection("test-cluster", "test-user", path, "tty=1", clientConn, &requestToken)
+	require.NoError(t, err)
+
+	newConn, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer close(newConn.Done)
+
+	require.NotNil(t, newConn.Token)
+	assert.Equal(t, testServiceAccountToken, *newConn.Token)
+	assert.True(t, newConn.isOwnedBy(&requestToken))
+}
+
+// TestEndedTerminalUpstreamIsNotReconnected checks that a terminal whose
+// upstream stream ended while its client was detached is only kept for its
+// buffered output: the monitor must not ping or reconnect it, which would
+// replace the cached session or leave it in an error state the grace period
+// never cleans up.
+func TestEndedTerminalUpstreamIsNotReconnected(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.heartbeatInterval = 10 * time.Millisecond
+
+	clusterConn, clusterServer := createTestWebSocketConnection()
+	defer clusterServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	query := "container=debugger&stdin=1&stderr=1&stdout=1&tty=1"
+	connKey := m.createConnectionKey("test-cluster", path, "test-user", query)
+
+	conn := m.createConnection("test-cluster", "test-user", path, query, nil, nil)
+	conn.WSConn = clusterConn.conn
+	conn.Buffer = []BufferedMessage{{Type: websocket.BinaryMessage, Data: []byte("final output")}}
+	conn.Status.State = StateClosed
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	// The upstream stream ended, so its socket is closed and pings fail.
+	require.NoError(t, conn.WSConn.Close())
+
+	conn.mu.Lock()
+	conn.upstreamClosed = true
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+
+	go m.monitorConnection(conn)
+
+	t.Cleanup(func() { m.cleanupConnection(conn) })
+
+	// Let several heartbeats pass.
+	time.Sleep(100 * time.Millisecond)
+
+	conn.mu.RLock()
+	state, buffered := conn.Status.State, len(conn.Buffer)
+	conn.mu.RUnlock()
+
+	m.mutex.RLock()
+	cached := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Equal(t, StateClosed, state, "an ended upstream must not be pinged or reconnected")
+	assert.Equal(t, 1, buffered, "the buffered output must be kept for the client")
+	assert.Same(t, conn, cached, "the cached session must not be replaced")
+}
+
+// TestDetachedTerminalExpiresAfterGracePeriod checks that a terminal whose
+// client disconnects is kept for the grace period and then removed and closed.
+func TestDetachedTerminalExpiresAfterGracePeriod(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.terminalGracePeriod = 50 * time.Millisecond
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	connKey := m.createConnectionKey("test-cluster", path, "test-user", "")
+	conn := m.createConnection("test-cluster", "test-user", path, "", clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	m.closeClientConnections(clientConn)
+
+	m.mutex.RLock()
+	_, cached := m.connections[connKey]
+	m.mutex.RUnlock()
+	require.True(t, cached, "a detached terminal must be kept during the grace period")
+	require.False(t, conn.IsClosed())
+
+	assert.Eventually(t, func() bool {
+		m.mutex.RLock()
+		_, cached := m.connections[connKey]
+		m.mutex.RUnlock()
+
+		return !cached && conn.IsClosed()
+	}, 2*time.Second, 10*time.Millisecond, "the terminal must be removed and closed once the grace period expires")
+}
+
+// TestTerminalReattachCancelsGracePeriod checks that a client reattaching
+// during the grace period cancels its deadline, so the resumed session is not
+// closed when the deadline would have expired.
+func TestTerminalReattachCancelsGracePeriod(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	// Long enough that the reattach below happens well before it expires.
+	m.terminalGracePeriod = 500 * time.Millisecond
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	msg := Message{ClusterID: "test-cluster", Path: path, UserID: "test-user", Type: "REQUEST"}
+	connKey := m.createConnectionKey(msg.ClusterID, path, msg.UserID, "")
+	conn := m.createConnection(msg.ClusterID, msg.UserID, path, "", clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	m.closeClientConnections(clientConn)
+
+	newClient, newClientServer := createTestWebSocketConnection()
+	defer newClientServer.Close()
+
+	reattached, err := m.getOrCreateConnection(msg, newClient, nil)
+	require.NoError(t, err)
+	require.Same(t, conn, reattached)
+
+	// Wait past the original deadline.
+	time.Sleep(2 * m.terminalGracePeriod)
+
+	m.mutex.RLock()
+	cached := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Same(t, conn, cached, "the resumed session must stay cached")
+	assert.False(t, conn.IsClosed(), "the old deadline must not close the resumed session")
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	assert.Same(t, newClient, conn.Client)
+}
+
+// TestDetachedTerminalWithFailedHeartbeatExpires checks that a detached
+// terminal whose upstream fails its heartbeat is still cleaned up when the
+// grace period expires, although the failure marked it as errored.
+func TestDetachedTerminalWithFailedHeartbeatExpires(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.heartbeatInterval = 10 * time.Millisecond
+	m.terminalGracePeriod = 100 * time.Millisecond
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	clusterConn, clusterServer := createTestWebSocketConnection()
+	defer clusterServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	connKey := m.createConnectionKey("test-cluster", path, "test-user", "")
+	conn := m.createConnection("test-cluster", "test-user", path, "", clientConn, nil)
+	conn.WSConn = clusterConn.conn
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	go m.monitorConnection(conn)
+
+	m.closeClientConnections(clientConn)
+
+	// The link to the cluster drops, so pings fail and reconnecting fails too.
+	require.NoError(t, conn.WSConn.Close())
+
+	assert.Eventually(t, func() bool {
+		m.mutex.RLock()
+		_, cached := m.connections[connKey]
+		m.mutex.RUnlock()
+
+		return !cached && conn.IsClosed()
+	}, 2*time.Second, 10*time.Millisecond, "the terminal must be removed and closed once the grace period expires")
+}
+
+// TestDetachedTerminalIsNotReconnected checks that a detached terminal whose
+// heartbeat fails is not reconnected even when the cluster is reachable. A
+// reconnect would run a new exec without a reader in place of the session, and
+// that replacement would outlive the grace period.
+func TestDetachedTerminalIsNotReconnected(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+	m.heartbeatInterval = 10 * time.Millisecond
+	m.terminalGracePeriod = 100 * time.Millisecond
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	clusterConn, clusterServer := createTestWebSocketConnection()
+	defer clusterServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	connKey := m.createConnectionKey("test-cluster", path, "test-user", "")
+	conn := m.createConnection("test-cluster", "test-user", path, "", clientConn, nil)
+	conn.WSConn = clusterConn.conn
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	go m.monitorConnection(conn)
+
+	m.closeClientConnections(clientConn)
+
+	// Pings fail, while a reconnect to the cluster would succeed.
+	require.NoError(t, conn.WSConn.Close())
+
+	assert.Eventually(t, func() bool {
+		m.mutex.RLock()
+		_, cached := m.connections[connKey]
+		m.mutex.RUnlock()
+
+		return !cached && conn.IsClosed()
+	}, 2*time.Second, 10*time.Millisecond, "the session must not be replaced, and must end with the grace period")
+}
+
+// TestDialWebSocketNegotiatesChannelProtocolForTerminals checks that exec and
+// attach streams request the Kubernetes channel protocols, which the API
+// server needs to tell stdin, stdout, stderr and resize frames apart, while
+// other streams such as watches request none.
+func TestDialWebSocketNegotiatesChannelProtocolForTerminals(t *testing.T) {
+	requested := make(chan string, 2)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested <- r.Header.Get("Sec-WebSocket-Protocol")
+
+		upgrader := websocket.Upgrader{
+			Subprotocols: []string{"v4.channel.k8s.io"},
+			CheckOrigin:  func(*http.Request) bool { return true },
+		}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		_ = c.Close()
+	}))
+	defer server.Close()
+
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	base := "wss" + strings.TrimPrefix(server.URL, "https")
+
+	attachURL := base + "/api/v1/namespaces/default/pods/p/attach?container=c&stdin=1"
+
+	attach, err := m.dialWebSocket(attachURL, insecureTestConfig(""), nil)
+	require.NoError(t, err)
+
+	defer func() { _ = attach.Close() }()
+
+	assert.Contains(t, <-requested, "v4.channel.k8s.io")
+	assert.Equal(t, "v4.channel.k8s.io", attach.Subprotocol())
+
+	watch, err := m.dialWebSocket(base+"/api/v1/pods?watch=1", insecureTestConfig(""), nil)
+	require.NoError(t, err)
+
+	defer func() { _ = watch.Close() }()
+
+	assert.Empty(t, <-requested)
+}
+
+// TestTerminalInputIsDecodedForTheCluster checks that terminal input the
+// client sends as base64-encoded binary data reaches the cluster as the
+// original bytes, and that a REQUEST without data writes nothing, as an empty
+// frame is not a valid message on a channel stream.
+func TestTerminalInputIsDecodedForTheCluster(t *testing.T) { //nolint:funlen // Cluster and client setup.
+	type frame struct {
+		messageType int
+		data        []byte
+	}
+
+	received := make(chan frame, 4)
+
+	cluster := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		for {
+			messageType, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			received <- frame{messageType, data}
+		}
+	}))
+	defer cluster.Close()
+
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clusterConn, resp, err := newTestDialer().Dial("ws"+strings.TrimPrefix(cluster.URL, "http"), nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	msg := Message{ClusterID: "test-cluster", Path: path, UserID: "test-user", Type: "REQUEST"}
+	conn := m.createConnection(msg.ClusterID, msg.UserID, path, "", clientConn, nil)
+	conn.WSConn = clusterConn
+	conn.Status.State = StateConnected
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(msg.ClusterID, path, msg.UserID, "")] = conn
+	m.mutex.Unlock()
+
+	t.Cleanup(func() { m.cleanupConnection(conn) })
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+
+	// A REQUEST that only (re)attaches carries no data.
+	m.processClientMessage(req, clientConn, msg)
+
+	input := msg
+	input.Data = base64.StdEncoding.EncodeToString([]byte("\x00ls\r"))
+	input.Binary = true
+	m.processClientMessage(req, clientConn, input)
+
+	select {
+	case got := <-received:
+		assert.Equal(t, websocket.BinaryMessage, got.messageType)
+		assert.Equal(t, []byte("\x00ls\r"), got.data, "the first frame must be the decoded input, not an empty frame")
+	case <-time.After(2 * time.Second):
+		t.Fatal("the input never reached the cluster")
+	}
+}
+
+// TestTerminalThroughMultiplexerSurvivesReconnect runs a terminal session the way
+// the node shell and pod debug terminals do: through the multiplexer's client
+// endpoint, with base64-encoded binary input. Output produced after the client
+// drops is buffered and delivered once a new client connection reattaches.
+func TestTerminalThroughMultiplexerSurvivesReconnect(t *testing.T) { //nolint:funlen // Full session lifecycle.
+	// The API server echoes each frame of input back a little later.
+	cluster := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			Subprotocols: []string{"v4.channel.k8s.io"},
+			CheckOrigin:  func(*http.Request) bool { return true },
+		}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil || c.Subprotocol() != "v4.channel.k8s.io" {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		for {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			time.Sleep(100 * time.Millisecond)
+
+			if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
+				return
+			}
+		}
+	}))
+	defer cluster.Close()
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: cluster.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	m := NewMultiplexer(store, false)
+
+	server := httptest.NewServer(http.HandlerFunc(m.HandleClientWebSocket))
+	defer server.Close()
+
+	dialer := websocket.Dialer{Subprotocols: []string{MultiplexerProtocol}}
+	request := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods/test-pod/attach",
+		Query:     "container=c&stdin=1&stdout=1&tty=1",
+		UserID:    "test-user",
+		Type:      "REQUEST",
+	}
+	input := func(text string) Message {
+		msg := request
+		msg.Data = base64.StdEncoding.EncodeToString([]byte(text))
+		msg.Binary = true
+
+		return msg
+	}
+	readOutput := func(client *websocket.Conn) string {
+		require.NoError(t, client.SetReadDeadline(time.Now().Add(5*time.Second)))
+
+		for {
+			var msg Message
+			require.NoError(t, client.ReadJSON(&msg))
+
+			if msg.Binary {
+				data, err := base64.StdEncoding.DecodeString(msg.Data)
+				require.NoError(t, err)
+
+				return string(data)
+			}
+		}
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	first, resp, err := dialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, first.WriteJSON(request))
+	require.NoError(t, first.WriteJSON(input("\x00a")))
+	assert.Equal(t, "\x00a", readOutput(first))
+
+	// The browser drops right after sending more input, so its output arrives
+	// while the session is detached.
+	require.NoError(t, first.WriteJSON(input("\x00b")))
+	require.NoError(t, first.Close())
+	time.Sleep(300 * time.Millisecond)
+
+	second, resp, err := dialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	defer func() { _ = second.Close() }()
+
+	require.NoError(t, second.WriteJSON(request))
+	assert.Equal(t, "\x00b", readOutput(second), "output from while the client was away must be delivered")
+}
+
+// TestDialWebSocketUsesContextCredentials checks that cluster connections carry
+// the context's credentials, as the cluster proxy does, with a token from the
+// request taking precedence over the context's own.
+func TestDialWebSocketUsesContextCredentials(t *testing.T) {
+	type headers struct{ authorization, impersonateUser string }
+
+	seen := make(chan headers, 2)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- headers{r.Header.Get("Authorization"), r.Header.Get("Impersonate-User")}
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		_ = c.Close()
+	}))
+	defer server.Close()
+
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	config := &rest.Config{
+		Host:            server.URL,
+		BearerToken:     "context-token",
+		Impersonate:     rest.ImpersonationConfig{UserName: "alice"},
+		TLSClientConfig: rest.TLSClientConfig{Insecure: true},
+	}
+	wsURL := "wss" + strings.TrimPrefix(server.URL, "https") + "/api/v1/pods?watch=1"
+
+	conn, err := m.dialWebSocket(wsURL, config, nil)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+	assert.Equal(t, headers{"Bearer context-token", "alice"}, <-seen)
+
+	requestToken := "request-token"
+	conn, err = m.dialWebSocket(wsURL, config, &requestToken)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+	assert.Equal(t, headers{"Bearer request-token", "alice"}, <-seen)
+}
+
+// insecureTestConfig returns a REST config for a test server with a self-signed certificate.
+func insecureTestConfig(host string) *rest.Config {
+	return &rest.Config{Host: host, TLSClientConfig: rest.TLSClientConfig{Insecure: true}}
+}
+
+// TestClusterWritesAreSerialized checks that heartbeats and input from clients
+// can write to a cluster connection at the same time. gorilla/websocket allows
+// a single writer and panics on concurrent writes.
+func TestClusterWritesAreSerialized(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.heartbeatInterval = time.Millisecond
+
+	clusterConn, clusterServer := createTestWebSocketConnection()
+	defer clusterServer.Close()
+
+	path := "/api/v1/namespaces/default/pods/test-pod/attach"
+	conn := m.createConnection("test-cluster", "test-user", path, "", nil, nil)
+	conn.WSConn = clusterConn.conn
+
+	go m.monitorConnection(conn)
+
+	t.Cleanup(func() { m.cleanupConnection(conn) })
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for j := 0; j < 20; j++ {
+				_ = m.writeMessageToCluster(conn, []byte("\x00input"))
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
+// newTerminalAPIServer returns an API server for terminal tests. It echoes input
+// back, drops the connection without a close frame on "\x00break", does the same
+// after writing "\x00late output" a little later on "\x00late", and ends the
+// stream normally on "\x00exit".
+func newTerminalAPIServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Tokens are "<user>" or "<user>-<n>", so a refreshed token keeps its user.
+		if r.URL.Path == "/apis/authentication.k8s.io/v1/selfsubjectreviews" {
+			user, _, _ := strings.Cut(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), "-")
+			w.Header().Set("Content-Type", "application/json")
+			//nolint:gosec // The test server answers with JSON it builds itself.
+			_, _ = fmt.Fprintf(w, `{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",`+
+				`"status":{"userInfo":{"username":%q,"uid":%q}}}`, user, "uid-"+user)
+
+			return
+		}
+
+		upgrader := websocket.Upgrader{
+			Subprotocols: []string{"v4.channel.k8s.io"},
+			CheckOrigin:  func(*http.Request) bool { return true },
+		}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		for {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			switch string(data) {
+			case "\x00break":
+				_ = c.UnderlyingConn().Close()
+
+				return
+			case "\x00late":
+				time.Sleep(100 * time.Millisecond)
+
+				_ = c.WriteMessage(websocket.BinaryMessage, []byte("\x00late output"))
+				_ = c.UnderlyingConn().Close()
+
+				return
+			case "\x00exit":
+				_ = c.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+
+				return
+			default:
+				_ = c.WriteMessage(websocket.BinaryMessage, data)
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+// terminalClient opens a client connection to the multiplexer for one attach session.
+type terminalClient struct {
+	t    *testing.T
+	conn *websocket.Conn
+	msg  Message
+}
+
+func newTerminalClient(t *testing.T, multiplexerURL string) *terminalClient {
+	t.Helper()
+
+	return newTerminalClientWithToken(t, multiplexerURL, "")
+}
+
+// newTerminalClientWithToken opens the session as the user the auth cookie token identifies.
+func newTerminalClientWithToken(t *testing.T, multiplexerURL, token string) *terminalClient {
+	t.Helper()
+
+	dialer := websocket.Dialer{Subprotocols: []string{MultiplexerProtocol}}
+
+	var header http.Header
+	if token != "" {
+		header = http.Header{"Cookie": {"headlamp-auth-test-cluster.0=" + token}}
+	}
+
+	conn, resp, err := dialer.Dial(multiplexerURL, header)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	t.Cleanup(func() { _ = conn.Close() })
+
+	client := &terminalClient{t: t, conn: conn, msg: Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods/test-pod/attach",
+		Query:     "container=c&stdin=1&stdout=1&tty=1",
+		UserID:    "test-user",
+		Type:      "REQUEST",
+	}}
+	require.NoError(t, conn.WriteJSON(client.msg))
+
+	return client
+}
+
+func (c *terminalClient) send(text string) {
+	msg := c.msg
+	msg.Data = base64.StdEncoding.EncodeToString([]byte(text))
+	msg.Binary = true
+	require.NoError(c.t, c.conn.WriteJSON(msg))
+}
+
+// next returns the next message other than a status update that only reports progress.
+func (c *terminalClient) next() Message {
+	require.NoError(c.t, c.conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+
+	for {
+		var msg Message
+		require.NoError(c.t, c.conn.ReadJSON(&msg))
+
+		if msg.Type == "STATUS" && !strings.Contains(msg.Data, `"closed"`) {
+			continue
+		}
+
+		return msg
+	}
+}
+
+func newTerminalMultiplexer(t *testing.T) (*Multiplexer, string) {
+	t.Helper()
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: newTerminalAPIServer(t).URL, InsecureSkipTLSVerify: true},
+	}))
+
+	m := NewMultiplexer(store, false)
+	server := httptest.NewServer(http.HandlerFunc(m.HandleClientWebSocket))
+	t.Cleanup(server.Close)
+
+	return m, "ws" + strings.TrimPrefix(server.URL, "http")
+}
+
+// TestTerminalUpstreamBreakIsReportedAsError checks that a terminal whose
+// connection to the API server breaks while attached is reported as an error,
+// which the client retries, while a stream that ends normally is reported as
+// closed, which the client does not retry.
+func TestTerminalUpstreamBreakIsReportedAsError(t *testing.T) {
+	_, url := newTerminalMultiplexer(t)
+
+	broken := newTerminalClient(t, url)
+	broken.send("\x00hi")
+	assert.True(t, broken.next().Binary)
+	broken.send("\x00break")
+	assert.Equal(t, "ERROR", broken.next().Type, "a broken upstream must be retried")
+
+	ended := newTerminalClient(t, url)
+	ended.send("\x00hi")
+	assert.True(t, ended.next().Binary)
+	ended.send("\x00exit")
+
+	msg := ended.next()
+	assert.Equal(t, "STATUS", msg.Type, "a stream that ended normally must not be retried")
+	assert.Contains(t, msg.Data, `"closed"`)
+}
+
+// TestDetachedTerminalUpstreamBreakIsReportedOnReattach checks that when the
+// connection to the API server breaks while the client is away, the client
+// reattaching gets the buffered output and then an error, so it attaches anew.
+func TestDetachedTerminalUpstreamBreakIsReportedOnReattach(t *testing.T) {
+	_, url := newTerminalMultiplexer(t)
+
+	first := newTerminalClient(t, url)
+	first.send("\x00hi")
+	assert.True(t, first.next().Binary)
+	// The output and the break both come after the client has gone.
+	first.send("\x00late")
+	require.NoError(t, first.conn.Close())
+	time.Sleep(300 * time.Millisecond)
+
+	second := newTerminalClient(t, url)
+
+	output := second.next()
+	require.True(t, output.Binary)
+
+	data, err := base64.StdEncoding.DecodeString(output.Data)
+	require.NoError(t, err)
+	assert.Equal(t, "\x00late output", string(data))
+	assert.Equal(t, "ERROR", second.next().Type)
+}
+
+// TestTerminalReattachTakesOverFromOldClient checks that the owner reattaching
+// takes the session over from a client that is still attached, which after a
+// network drop may be dead without the backend knowing yet. The old client is
+// told the session moved, and the new one that it is connected.
+func TestTerminalReattachTakesOverFromOldClient(t *testing.T) {
+	_, url := newTerminalMultiplexer(t)
+
+	first := newTerminalClient(t, url)
+	first.send("\x00hi")
+	assert.True(t, first.next().Binary)
+
+	second := newTerminalClient(t, url)
+
+	moved := first.next()
+	assert.Equal(t, "STATUS", moved.Type, "the old client must be told the session moved")
+	assert.Contains(t, moved.Data, sessionMovedMessage)
+
+	require.NoError(t, second.conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+
+	var status Message
+	require.NoError(t, second.conn.ReadJSON(&status))
+	assert.Equal(t, "STATUS", status.Type)
+	assert.Contains(t, status.Data, `"connected"`)
+
+	second.send("\x00again")
+
+	output := second.next()
+	require.True(t, output.Binary)
+
+	data, err := base64.StdEncoding.DecodeString(output.Data)
+	require.NoError(t, err)
+	assert.Equal(t, "\x00again", string(data))
+}
+
+// TestTerminalCloseRequiresOwner checks that only the owner of a terminal session
+// can close it, as only the owner can reattach to it.
+func TestTerminalCloseRequiresOwner(t *testing.T) {
+	m, url := newTerminalMultiplexer(t)
+
+	owner := newTerminalClientWithToken(t, url, "owner-token")
+	owner.send("\x00hi")
+	assert.True(t, owner.next().Binary)
+
+	connKey := m.createConnectionKey(owner.msg.ClusterID, owner.msg.Path, owner.msg.UserID, owner.msg.Query)
+	cached := func() bool {
+		m.mutex.RLock()
+		defer m.mutex.RUnlock()
+
+		_, ok := m.connections[connKey]
+
+		return ok
+	}
+
+	other := newTerminalClientWithToken(t, url, "other-token")
+	assert.Equal(t, "ERROR", other.next().Type, "another user must not attach")
+
+	closeMsg := other.msg
+	closeMsg.Type = "CLOSE"
+	require.NoError(t, other.conn.WriteJSON(closeMsg))
+	assert.Equal(t, "ERROR", other.next().Type)
+	assert.True(t, cached(), "another user must not close the session")
+
+	require.NoError(t, owner.conn.WriteJSON(closeMsg))
+	assert.Eventually(t, func() bool { return !cached() }, 2*time.Second, 10*time.Millisecond)
+}
+
+// TestTerminalReattachAfterTokenRefresh checks that the owner can still reattach
+// after their token was refreshed, as the API server identifies the new token as
+// the same user, while another user still cannot.
+func TestTerminalReattachAfterTokenRefresh(t *testing.T) {
+	_, url := newTerminalMultiplexer(t)
+
+	owner := newTerminalClientWithToken(t, url, "alice-1")
+	owner.send("\x00hi")
+	assert.True(t, owner.next().Binary)
+	require.NoError(t, owner.conn.Close())
+
+	other := newTerminalClientWithToken(t, url, "bob")
+	assert.Equal(t, "ERROR", other.next().Type, "another user must not attach")
+
+	refreshed := newTerminalClientWithToken(t, url, "alice-2")
+	refreshed.send("\x00again")
+
+	output := refreshed.next()
+	require.True(t, output.Binary, "the owner must be able to reattach with a refreshed token")
+
+	data, err := base64.StdEncoding.DecodeString(output.Data)
+	require.NoError(t, err)
+	assert.Equal(t, "\x00again", string(data))
+}
+
+// TestClientWritesTimeOut checks that a write to a client that stopped reading,
+// e.g. after its network dropped, fails after a while instead of blocking the
+// session for as long as TCP takes to give up.
+func TestClientWritesTimeOut(t *testing.T) { //nolint:funlen // Timeout and close checks.
+	original := clientWriteTimeout
+	clientWriteTimeout = 200 * time.Millisecond
+
+	t.Cleanup(func() { clientWriteTimeout = original })
+
+	stop := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		<-stop // Never read.
+	}))
+
+	defer server.Close()
+	defer close(stop)
+
+	conn, resp, err := newTestDialer().Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Close the socket itself, which unblocks a write still waiting, rather than through
+	// the lock that write holds.
+	defer func() { _ = conn.Close() }()
+
+	client := NewWSConnLock(conn)
+
+	failed := make(chan error, 1)
+
+	go func() {
+		chunk := make([]byte, 64*1024)
+
+		for {
+			if err := client.WriteMessage(websocket.BinaryMessage, chunk); err != nil {
+				failed <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-failed:
+		assert.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a write to a client that stopped reading must not block indefinitely")
+	}
+
+	// Writes cannot recover from a timeout, so the connection must be closed. That
+	// ends its read loop, so the session is cleaned up and the client reconnects.
+	readDone := make(chan error, 1)
+
+	go func() {
+		_, _, err := conn.ReadMessage()
+		readDone <- err
+	}()
+
+	select {
+	case err := <-readDone:
+		assert.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a client whose write timed out must be closed")
+	}
+}
+
+// TestMultiplexerExecCredentialPluginProcess is the exec credential plugin of
+// TestDialWebSocketRetriesAfterExecCredentialRefresh. It prints the token in the
+// file the test names.
+func TestMultiplexerExecCredentialPluginProcess(_ *testing.T) {
+	if os.Getenv("HEADLAMP_MULTIPLEXER_EXEC_CREDENTIAL_HELPER") != "true" {
+		return
+	}
+
+	//nolint:gosec // The test controls the temporary credential path.
+	token, err := os.ReadFile(os.Getenv("HEADLAMP_MULTIPLEXER_EXEC_CREDENTIAL_TOKEN_FILE"))
+	if err != nil {
+		os.Exit(1)
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout,
+		`{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential","status":{"token":%q}}`,
+		strings.TrimSpace(string(token)))
+
+	os.Exit(0)
+}
+
+// TestDialWebSocketRetriesAfterExecCredentialRefresh checks that a dial that the
+// API server rejects with an exec plugin's expired credential is retried with a
+// refreshed one, as the cluster proxy does.
+func TestDialWebSocketRetriesAfterExecCredentialRefresh(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("token-one"), 0o600))
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer token-one" {
+			require.NoError(t, os.WriteFile(tokenFile, []byte("token-two"), 0o600))
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		assert.Equal(t, "Bearer token-two", r.Header.Get("Authorization"))
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		_ = c.Close()
+	}))
+	defer server.Close()
+
+	config := insecureTestConfig(server.URL)
+	config.ExecProvider = &api.ExecConfig{
+		APIVersion:      "client.authentication.k8s.io/v1",
+		Command:         os.Args[0],
+		Args:            []string{"-test.run=TestMultiplexerExecCredentialPluginProcess"},
+		InteractiveMode: api.NeverExecInteractiveMode,
+		Env: []api.ExecEnvVar{
+			{Name: "HEADLAMP_MULTIPLEXER_EXEC_CREDENTIAL_HELPER", Value: "true"},
+			{Name: "HEADLAMP_MULTIPLEXER_EXEC_CREDENTIAL_TOKEN_FILE", Value: tokenFile},
+		},
+	}
+
+	conn, err := NewMultiplexer(kubeconfig.NewContextStore(), false).dialWebSocket(
+		"wss"+strings.TrimPrefix(server.URL, "https")+"/api/v1/pods?watch=1", config, nil)
+	require.NoError(t, err, "the dial must be retried with the refreshed credential")
+	require.NoError(t, conn.Close())
 }
