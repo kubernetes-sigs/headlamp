@@ -1277,7 +1277,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
             {data.isSecret ? (
               <SecretField
                 disableUnderline
-                value={btoa(data.value)}
+                value={Base64.encode(data.value)}
                 sx={{ fontFamily: 'monospace' }}
               />
             ) : (
