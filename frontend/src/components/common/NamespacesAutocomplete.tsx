@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -198,15 +198,22 @@ export function NamespacesAutocomplete() {
   const location = useLocation();
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
-  const cluster = useCluster();
+  const selectedClusters = useSelectedClusters();
+  const clustersKey = selectedClusters.join('+');
+
   const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
+  const [allowedNamespaces, setAllowedNamespaces] = React.useState<string[]>([]);
 
   React.useEffect(() => {
-    const allowedNamespaces = getCombinedAllowedNamespaces(cluster || '');
-    if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
-    }
-  }, [cluster]);
+    const perCluster = selectedClusters.map(c => getCombinedAllowedNamespaces(c));
+    const allowed = uniq(perCluster.flat()).sort((a, b) => a.localeCompare(b));
+    // Only use the allowed namespaces alone when every selected cluster has them
+    // set; otherwise some cluster's namespaces must come from the API.
+    const restrictedEverywhere = perCluster.length > 0 && perCluster.every(l => l.length > 0);
+    setNamespaceNames(restrictedEverywhere ? allowed : []);
+    setAllowedNamespaces(allowed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clustersKey]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
@@ -220,7 +227,11 @@ export function NamespacesAutocomplete() {
       filter={filter}
     />
   ) : (
-    <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />
+    <NamespacesFromClusterAutocomplete
+      onChange={onChange}
+      filter={filter}
+      allowedNamespaces={allowedNamespaces}
+    />
   );
 }
 
@@ -262,16 +273,20 @@ const useDefaultNamespaceFallback = (
   }, [namespacesList, isNamespaceError, currentCluster]);
 };
 
-function NamespacesFromClusterAutocomplete(
-  props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
-) {
+function NamespacesFromClusterAutocomplete({
+  allowedNamespaces,
+  ...props
+}: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'> & { allowedNamespaces: string[] }) {
   const [namespacesList, error] = Namespace.useList();
   const namespaceNames = useMemo(
     () =>
-      uniq(namespacesList?.map(namespace => namespace.metadata.name) ?? [])
+      uniq([
+        ...(namespacesList?.map(namespace => namespace.metadata.name) ?? []),
+        ...allowedNamespaces,
+      ])
         .slice()
         .sort((a, b) => a.localeCompare(b)),
-    [namespacesList]
+    [namespacesList, allowedNamespaces]
   );
 
   useDefaultNamespaceFallback(namespacesList, Boolean(error));
