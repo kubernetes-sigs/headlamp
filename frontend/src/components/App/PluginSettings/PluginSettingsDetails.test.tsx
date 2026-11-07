@@ -15,14 +15,14 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
 import store from '../../../redux/stores/store';
 import { recordHeadlampEvents, TestContext } from '../../../test';
-import PluginSettingsDetails from './PluginSettingsDetails';
+import PluginSettingsDetails, { PluginSettingsDetailsPure } from './PluginSettingsDetails';
 
 const theme = createMuiTheme({ name: 'Light', base: 'light' });
 
@@ -35,6 +35,27 @@ const plugin: PluginInfo = {
   type: 'user',
   homepage: '',
 };
+
+describe('PluginSettingsDetails metadata', () => {
+  it.each(['@headlamp-k8s/my-plugin', 'my-plugin'])(
+    'shows publisher metadata only for scoped plugin names: %s',
+    name => {
+      render(
+        <TestContext>
+          <ThemeProvider theme={theme}>
+            <PluginSettingsDetailsPure plugin={{ ...plugin, name }} onDelete={() => {}} />
+          </ThemeProvider>
+        </TestContext>
+      );
+
+      if (name.startsWith('@')) {
+        expect(screen.getByText('Published by headlamp-k8s')).toBeVisible();
+      } else {
+        expect(screen.queryByText(/Published by/)).not.toBeInTheDocument();
+      }
+    }
+  );
+});
 
 describe('PluginSettingsDetails events', () => {
   it('dispatches PLUGIN_DETAILS_VIEW with the displayed plugin', async () => {

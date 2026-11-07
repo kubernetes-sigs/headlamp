@@ -1489,6 +1489,41 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
 }
 
+func TestHandleMe_SingleStringGroupsClaim(t *testing.T) {
+	t.Parallel()
+
+	expiry := time.Now().Add(time.Hour).Unix()
+	claims := map[string]interface{}{
+		"preferred_username": "alice",
+		"groups":             "dev",
+		"exp":                float64(expiry),
+	}
+
+	token := makeTestToken(t, claims)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		UsernamePaths: "preferred_username",
+		GroupsPaths:   "groups",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Groups []string `json:"groups"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, []string{"dev"}, got.Groups)
+}
+
 func TestHandleMe_ProxyAuth(t *testing.T) {
 	t.Parallel()
 

@@ -126,4 +126,21 @@ describe.each(routeTypes)('%s', (Route, kind, apiName) => {
     expect(route.parentRefs).toEqual([]);
     expect(route.parents).toEqual([]);
   });
+
+  it('returns empty arrays without throwing when spec is undefined', () => {
+    const route = new Route({
+      apiVersion: 'gateway.networking.k8s.io/v1',
+      kind,
+      metadata: {
+        name: 'no-spec-route',
+        namespace: 'default',
+        creationTimestamp: '2026-08-07T00:00:00Z',
+        uid: 'no-spec-route',
+      },
+    } as any);
+
+    expect(route.rules).toEqual([]);
+    expect(route.parentRefs).toEqual([]);
+    expect(route.parents).toEqual([]);
+  });
 });

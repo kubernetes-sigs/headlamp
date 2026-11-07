@@ -169,6 +169,12 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
 
+// oidcRequestTimeout is the maximum time to wait for the identity provider on each request,
+// such as discovery and the token exchange.
+//
+//nolint:gochecknoglobals // allow test override
+var oidcRequestTimeout = 30 * time.Second
+
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
 const (
@@ -473,6 +479,8 @@ func getOIDCLogoutProvider(
 	if config.OidcValidatorIdpIssuerURL != "" {
 		ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 	}
+
+	ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
 	return oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 }
@@ -1374,6 +1382,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 		}
 
+		// ctx is kept in the oauth config and reused by the callback, so the timeout goes on
+		// its HTTP client and not on the context.
+		ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
+
 		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
@@ -1622,6 +1634,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.Handle("/", r)
 	}
 
+	var handler http.Handler = r
+
 	// On dev mode we're loose about where connections come from
 	if config.DevMode {
 		headers := handlers.AllowedHeaders([]string{
@@ -1631,7 +1645,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
 
-		return handlers.CORS(
+		handler = handlers.CORS(
 			headers,
 			methods,
 			handlers.AllowCredentials(),
@@ -1639,7 +1653,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		)(r)
 	}
 
-	return r
+	return securityHeadersMiddleware(handler)
+}
+
+// securityHeadersMiddleware sets security headers to prevent MIME-type sniffing attacks.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // storeOIDCLoginToken stores the token obtained at OIDC login. With token

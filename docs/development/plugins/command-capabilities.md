@@ -271,7 +271,7 @@ inventory, whose plugins must have plugin-manager installation receipts for
 production capabilities.
 
 Packaged apps do not load development-inventory plugins by default. Users must
-explicitly enable **Plugin Development Mode** in **Settings > Plugins**, then
+explicitly enable **Load development plugins** under **Advanced** in **Settings > Plugins**, then
 approve a native Electron warning. Enabling the setting permits plugins from
 the local development directory to load and receive any matching command
 capabilities. Changing the setting revokes existing capabilities and reloads the
