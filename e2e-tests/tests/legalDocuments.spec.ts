@@ -14,47 +14,39 @@
  * limitations under the License.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from '@playwright/test';
 
-test("opens a manifest-declared legal document from version information", async ({
-  page,
-}) => {
-  await page.goto("/settings/general");
-  await expect(
-    page.getByRole("heading", { name: "General Settings" })
-  ).toBeVisible();
-  const assistantDialog = page.getByRole("dialog").filter({
-    has: page.getByRole("heading", { name: "Configure AI Assistant" }),
+test('opens a manifest-declared legal document from version information', async ({ page }) => {
+  await page.goto('/settings/general');
+  await expect(page.getByRole('heading', { name: 'General Settings' })).toBeVisible();
+  const assistantDialog = page.getByRole('dialog').filter({
+    has: page.getByRole('heading', { name: 'Configure AI Assistant' }),
   });
   if (await assistantDialog.isVisible()) {
-    await assistantDialog
-      .getByRole("button", { name: "Dismiss configuration prompt" })
-      .click();
+    await assistantDialog.getByRole('button', { name: 'Dismiss configuration prompt' }).click();
     await expect(assistantDialog).not.toBeVisible();
   }
-  const versionButton = page.getByRole("button", { name: "Version" });
+  const versionButton = page.getByRole('button', { name: 'Version' });
   await expect(versionButton).toBeVisible();
   await page.evaluate(() => {
     window.desktopApi = {
-      getLegalDocuments: async () => [{ id: "license", title: "License" }],
+      getLegalDocuments: async () => [{ id: 'license', title: 'License' }],
       getLegalDocument: async (id: string) => ({
-        success: id === "license",
-        content: id === "license" ? "Headlamp test license text" : undefined,
+        success: id === 'license',
+        content: id === 'license' ? 'Headlamp test license text' : undefined,
       }),
     };
   });
   await expect
-    .poll(() =>
-      page.evaluate(() => typeof window.desktopApi?.getLegalDocuments)
-    )
-    .toBe("function");
+    .poll(() => page.evaluate(() => typeof window.desktopApi?.getLegalDocuments))
+    .toBe('function');
 
   await versionButton.click();
-  await expect(page.getByRole("dialog", { name: /Headlamp/ })).toBeVisible();
-  await page.getByRole("tab", { name: "Legal" }).click();
-  await page.getByRole("button", { name: "License" }).click();
+  await expect(page.getByRole('dialog', { name: /Headlamp/ })).toBeVisible();
+  await page.getByRole('tab', { name: 'Legal' }).click();
+  await page.getByRole('button', { name: 'License' }).click();
 
-  await expect(page.getByRole("dialog", { name: "License" })).toContainText(
-    "Headlamp test license text"
+  await expect(page.getByRole('dialog', { name: 'License' })).toContainText(
+    'Headlamp test license text'
   );
 });
