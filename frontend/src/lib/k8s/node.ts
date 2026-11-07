@@ -21,6 +21,10 @@ import { metrics } from './api/v1/metricsApi';
 import type { ApiError } from './api/v2/ApiError';
 import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi';
 import type { KubeCondition, KubeMetrics } from './cluster';
+
+export interface NodeCondition extends KubeCondition {
+  lastHeartbeatTime: string;
+}
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import { NODE_POOL_LABEL_KEYS } from './nodeConstants';
@@ -37,9 +41,7 @@ export interface KubeNode extends KubeObjectInterface {
      */
     allocatable?: { [key: string]: string };
     capacity?: { [key: string]: string };
-    conditions?: (Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'> & {
-      lastHeartbeatTime: string;
-    })[];
+    conditions?: NodeCondition[];
     nodeInfo?: {
       architecture: string;
       bootID: string;
