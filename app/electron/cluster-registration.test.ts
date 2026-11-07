@@ -812,7 +812,7 @@ describe('cluster registration providers', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       azureRuntime.tools.cli,
       expect.any(Array),
-      expect.any(Object)
+      expect.objectContaining({ windowsHide: true })
     );
     expect(observedArgs.at(-2)).toBe('--file');
     expect(observedArgs.at(-1)).toContain('headlamp-kubeconfig-');

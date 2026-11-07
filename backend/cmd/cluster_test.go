@@ -38,7 +38,7 @@ func TestClusterReq(t *testing.T) {
 	b, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	//nolint:lll
+	//nolint:lll // Long JSON string literal in test assertion
 	assert.JSONEq(t, `{"name":"test-cluster","server":"https://test.server","insecure-skip-tls-verify":true,"certificate-authority-data":"ZHVtbXktY2VydC1kYXRh","meta_data":{"key":"value"}}`, string(b))
 
 	var req2 ClusterReq

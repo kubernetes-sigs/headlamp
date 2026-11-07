@@ -169,6 +169,12 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
 
+// oidcRequestTimeout is the maximum time to wait for the identity provider on each request,
+// such as discovery and the token exchange.
+//
+//nolint:gochecknoglobals // allow test override
+var oidcRequestTimeout = 30 * time.Second
+
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
 const (
@@ -237,7 +243,7 @@ func fileExists(filename string) bool {
 }
 
 func mustReadFile(path string) []byte {
-	data, err := os.ReadFile(path) //nolint:gosec
+	data, err := os.ReadFile(path) //nolint:gosec // Path is validated/trusted configuration file path
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
@@ -459,7 +465,7 @@ func getOIDCLogoutProvider(
 		if ok {
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Insecure mode explicitly requested via config
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
@@ -474,6 +480,8 @@ func getOIDCLogoutProvider(
 	if config.OidcValidatorIdpIssuerURL != "" {
 		ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 	}
+
+	ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
 	return oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 }
@@ -858,7 +866,7 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
-//nolint:gocognit,funlen,gocyclo
+//nolint:gocognit,funlen,gocyclo // Main router setup function wires all endpoints and middleware
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
@@ -1188,7 +1196,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
 		defer cancel()
 
-		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
+		//nolint:gosec // Target URL is validated against allowed proxy URLs whitelist
+		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1210,7 +1219,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		client := http.Client{}
 
-		resp, err := client.Do(proxyReq) //nolint:gosec
+		resp, err := client.Do(proxyReq) //nolint:gosec // Target URL is validated against allowed proxy URLs whitelist
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -1333,7 +1342,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Insecure mode explicitly requested via config
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
@@ -1372,6 +1381,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if config.OidcValidatorIdpIssuerURL != "" {
 			ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 		}
+
+		// ctx is kept in the oauth config and reused by the callback, so the timeout goes on
+		// its HTTP client and not on the context.
+		ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
 		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 		if err != nil {
@@ -1635,6 +1648,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.Handle("/", r)
 	}
 
+	var handler http.Handler = r
+
 	// On dev mode we're loose about where connections come from
 	if config.DevMode {
 		headers := handlers.AllowedHeaders([]string{
@@ -1644,7 +1659,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
 
-		return handlers.CORS(
+		handler = handlers.CORS(
 			headers,
 			methods,
 			handlers.AllowCredentials(),
@@ -1652,7 +1667,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		)(r)
 	}
 
-	return r
+	return securityHeadersMiddleware(handler)
+}
+
+// securityHeadersMiddleware sets security headers to prevent MIME-type sniffing attacks.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func clearRequestAuthorization(r *http.Request) {
@@ -2283,7 +2306,8 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
+//nolint:funlen // Handler orchestrates request forwarding, auth, and telemetry
+func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
@@ -2687,7 +2711,9 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // addCluster adds cluster to store and updates the kubeconfig file.
-func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//
+//nolint:funlen // Handler validates cluster configs, updates store, and manages kubeconfig
+func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 
@@ -3356,7 +3382,9 @@ func (c *HeadlampConfig) drainContextKey(r *http.Request, cluster string) (strin
 }
 
 // handleNodeDrain submits a drain using the caller's cluster credentials.
-func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//
+//nolint:funlen // Handler validates request, resolves client config, and initiates node drain
+func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) {
 	if mux.Vars(r)["clusterName"] != "" {
 		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil || mediaType != "application/json" {
@@ -3562,7 +3590,8 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 Since node drain is an async operation, we need to poll for the status of the drain operation
 This endpoint returns the status of the drain operation.
 */
-func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) { //nolint:funlen
+//nolint:funlen // Handler validates request, queries drain status, and formats response
+func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	ctx := r.Context()
 

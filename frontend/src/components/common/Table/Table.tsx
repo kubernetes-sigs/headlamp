@@ -97,6 +97,8 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    * Message to show when the table is empty
    */
   emptyMessage?: ReactNode;
+  /** Collapse the bottom toolbar when it has no pagination, status, or actions. */
+  hideEmptyBottomToolbar?: boolean;
   /**
    * Error message to show instead of the table
    */
@@ -386,6 +388,7 @@ export default function Table<RowItem extends Record<string, any>>({
   filterFunction,
   errorMessage,
   loading,
+  hideEmptyBottomToolbar = false,
   ...tableProps
 }: TableProps<RowItem>) {
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
@@ -702,7 +705,7 @@ export default function Table<RowItem extends Record<string, any>>({
         minWidth: 'unset',
       },
     },
-    muiTopToolbarProps: {
+    muiTopToolbarProps: tableProps.muiTopToolbarProps ?? {
       sx: {
         height: '3.5rem',
         backgroundColor: undefined,
@@ -912,7 +915,18 @@ export default function Table<RowItem extends Record<string, any>>({
             ))}
           </StyledBody>
         </MuiTable>
-        <MRT_BottomToolbar table={table} />
+        {(!hideEmptyBottomToolbar ||
+          table.options.enablePagination ||
+          table.options.renderBottomToolbarCustomActions ||
+          table.getState().isLoading ||
+          table.getState().isSaving ||
+          table.getState().showProgressBars ||
+          table.getState().showAlertBanner ||
+          table.getState().showToolbarDropZone ||
+          table.getState().grouping?.length ||
+          Object.values(table.getState().rowSelection ?? {}).some(Boolean)) && (
+          <MRT_BottomToolbar table={table} />
+        )}
       </>
     );
   }

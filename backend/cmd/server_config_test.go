@@ -20,8 +20,10 @@ import (
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildHeadlampCFG(t *testing.T) {
@@ -68,6 +70,20 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		headlampCFG := buildHeadlampCFG(conf, store)
 
 		assert.Empty(t, headlampCFG.ProxyURLs)
+	})
+
+	t.Run("trims spaces around proxy urls and drops empty entries", func(t *testing.T) {
+		conf := &config.Config{ProxyURLs: " http://proxy1 , http://proxy2/*,,"}
+
+		headlampCFG := buildHeadlampCFG(conf, store)
+
+		assert.Equal(t, []string{"http://proxy1", "http://proxy2/*"}, headlampCFG.ProxyURLs)
+
+		c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{HeadlampCFG: headlampCFG}}
+
+		allowed, err := c.proxyURLAllowed("http://proxy2/api")
+		require.NoError(t, err)
+		assert.True(t, allowed)
 	})
 }
 

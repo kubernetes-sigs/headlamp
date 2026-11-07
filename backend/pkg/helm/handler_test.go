@@ -28,6 +28,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 // newTestCache returns an in-memory cache usable in tests.
@@ -173,6 +174,31 @@ func TestNewActionConfig(t *testing.T) {
 	cfg, err := NewActionConfig(fakeClientConfig(), "default")
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
+}
+
+func TestNewActionConfigLogger(t *testing.T) {
+	var (
+		loggedMsg    string
+		loggedFields map[string]string
+	)
+
+	oldLogger := logger.SetLogFunc(func(level uint, fields map[string]string, err interface{}, msg string) {
+		loggedMsg = msg
+		loggedFields = fields
+	})
+	defer logger.SetLogFunc(oldLogger)
+
+	cfg, err := NewActionConfig(fakeClientConfig(), "test-namespace")
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Log)
+
+	cfg.Log("release %s created with %d revisions", "my-app", 2)
+	assert.Equal(t, "release my-app created with 2 revisions", loggedMsg)
+	assert.Equal(t, "test-namespace", loggedFields["namespace"])
+
+	cfg.Log("clearing release cache")
+	assert.Equal(t, "clearing release cache", loggedMsg)
 }
 
 func TestSetReleaseStatusKeyIsolation(t *testing.T) {

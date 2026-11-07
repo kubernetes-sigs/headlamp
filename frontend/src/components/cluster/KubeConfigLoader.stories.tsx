@@ -22,7 +22,7 @@ import { PureKubeConfigLoader, PureKubeConfigLoaderProps, Step } from './KubeCon
 /**
  * KubeConfigLoader Stories
  *
- * This component allows users to upload a kubeconfig file to import Kubernetes clusters.
+ * This component allows users to upload kubeconfig files to import Kubernetes clusters.
  * The stories demonstrate all possible states using the presentation (Pure) component.
  */
 
@@ -103,7 +103,7 @@ FileUpload.parameters = {
   docs: {
     description: {
       story:
-        'Initial state showing the file upload area with drag-and-drop support. Users can click "Choose file" button or drag a kubeconfig file directly into the dropzone.',
+        'Initial state showing the file upload area with drag-and-drop support. Users can click "Choose files" or drag multiple kubeconfig files directly into the dropzone.',
     },
   },
 };
@@ -125,6 +125,32 @@ SelectingClusters.parameters = {
         'After a valid kubeconfig file is uploaded, users see a list of available clusters and can select which ones to import.',
     },
   },
+};
+
+export const PartialImportWarning = Template.bind({});
+PartialImportWarning.args = {
+  ...SelectingClusters.args,
+  warnings: [
+    {
+      message: '1 file could not be loaded',
+      details: ['broken.yaml: Invalid kubeconfig structure'],
+    },
+  ],
+};
+
+export const DuplicateEntriesWarning = Template.bind({});
+DuplicateEntriesWarning.args = {
+  ...SelectingClusters.args,
+  warnings: [
+    {
+      message: 'Duplicate kubeconfig entries were skipped (first occurrence wins)',
+      details: [
+        'second.yaml: Cluster "production"',
+        'second.yaml: User "admin"',
+        'second.yaml: Context "production"',
+      ],
+    },
+  ],
 };
 
 /**
@@ -167,7 +193,11 @@ SuccessfulImport.args = {
 export const InvalidYAMLError = Template.bind({});
 InvalidYAMLError.args = {
   step: Step.LoadKubeConfig,
-  error: 'Invalid kubeconfig file: unexpected end of file at line 45',
+  error: 'No valid kubeconfig contexts found in the selected files',
+  errorDetails: [
+    'empty.yaml: Invalid kubeconfig structure',
+    'broken.yaml: unexpected end of file at line 45',
+  ],
   fileContent: { clusters: [], users: [], contexts: [], currentContext: '' },
   selectedClusters: [],
 };
