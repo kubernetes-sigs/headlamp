@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
 import Popover from '@mui/material/Popover';
 import React from 'react';
 import { ResourceTableColumn } from './ResourceTable';
@@ -76,18 +75,19 @@ export default function ColumnsPopup<T>(props: ColumnsPopupProps<T>) {
           const labelId = `column-index-${index}`;
 
           return (
-            <ListItem key={labelId} dense button onClick={() => handleToggleColumn(index)}>
-              <Box>
-                <Checkbox
-                  edge="start"
-                  checked={column.show || column.show === undefined}
-                  tabIndex={-1}
-                  disableRipple
-                  color="default"
-                  inputProps={{ 'aria-labelledby': labelId }}
-                />
-              </Box>
-              <ListItemText id={labelId + '-label'} primary={column.label} />
+            <ListItem key={labelId} dense>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    edge="start"
+                    checked={column.show || column.show === undefined}
+                    onChange={() => handleToggleColumn(index)}
+                    disableRipple
+                    color="default"
+                  />
+                }
+                label={column.label}
+              />
             </ListItem>
           );
         })}
