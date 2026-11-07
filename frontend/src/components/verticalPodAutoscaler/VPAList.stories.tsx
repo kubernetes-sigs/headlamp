@@ -157,3 +157,50 @@ List.parameters = {
     },
   },
 };
+
+// LowConfidence sorts before RecommendationProvided, covers the [0]-index bug
+const multipleConditionsItems = [
+  {
+    ...items[0],
+    metadata: {
+      ...items[0].metadata,
+      name: 'low-confidence-vpa',
+      uid: '9d8e6f1a-2b3c-4d5e-8f90-a1b2c3d4e5f6',
+    },
+    status: {
+      ...items[0].status,
+      conditions: [
+        {
+          lastTransitionTime: '2023-11-23T07:18:48Z',
+          status: 'False',
+          type: 'LowConfidence',
+        },
+        {
+          lastTransitionTime: '2023-11-23T07:18:48Z',
+          status: 'True',
+          type: 'RecommendationProvided',
+        },
+      ],
+    },
+  },
+];
+
+export const MultipleConditions = Template.bind({});
+MultipleConditions.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1`, () =>
+          HttpResponse.json({ resources: [{ name: 'verticalpodautoscalers' }] })
+        ),
+        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1/verticalpodautoscalers`, () =>
+          HttpResponse.json({
+            kind: 'VPAList',
+            metadata: {},
+            items: multipleConditionsItems,
+          })
+        ),
+      ],
+    },
+  },
+};
