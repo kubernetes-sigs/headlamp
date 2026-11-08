@@ -4752,6 +4752,91 @@ func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	assert.Empty(t, receivedProxyAuthToken)
 }
 
+// TestClusterRequestHandlerKeepsAuthorizationProxyTokenHeader checks that a
+// proxy token header named Authorization doesn't remove the token Headlamp
+// forwards in that same header, and that a Bearer prefix on the proxy's
+// token isn't doubled.
+func TestClusterRequestHandlerKeepsAuthorizationProxyTokenHeader(t *testing.T) { //nolint:funlen // API integration.
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "main",
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	tests := []struct {
+		name          string
+		proxyAuth     bool
+		authorization string
+		cookie        string
+		want          string
+	}{
+		{name: "cookie", cookie: "cookie-token", want: "Bearer cookie-token"},
+		{name: "proxy token", proxyAuth: true, authorization: "proxy-token", want: "Bearer proxy-token"},
+		{name: "proxy bearer token", proxyAuth: true, authorization: "Bearer proxy-token", want: "Bearer proxy-token"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeConfigStore,
+					},
+					ProxyAuthEnabled:     tc.proxyAuth,
+					ProxyAuthTokenHeader: "authorization",
+					Cache:                cache.New[interface{}](),
+					TelemetryConfig:      GetDefaultTestTelemetryConfig(),
+					TelemetryHandler:     &telemetry.RequestHandler{},
+				},
+			}
+
+			router := mux.NewRouter()
+			handleClusterAPI(c, router)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+			req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+
+			if tc.authorization != "" {
+				req.Header.Set("Authorization", tc.authorization)
+			}
+
+			if tc.cookie != "" {
+				req.AddCookie(&http.Cookie{
+					Name:     "headlamp-auth-main.0",
+					Value:    tc.cookie,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
+				})
+			}
+
+			receivedAuth = ""
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tc.want, receivedAuth)
+		})
+	}
+}
+
 func TestAllowedHosts(t *testing.T) {
 	hosts := allowedHosts("localhost", 4466)
 
