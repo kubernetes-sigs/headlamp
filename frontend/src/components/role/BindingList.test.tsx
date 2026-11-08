@@ -14,12 +14,28 @@
  * limitations under the License.
  */
 
+import { render } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
 import RoleBinding from '../../lib/k8s/roleBinding';
-import { sortBindingsByKind } from './BindingList';
+import { TestContext } from '../../test';
+import BindingList, { sortBindingsByKind } from './BindingList';
 
 function makeBinding(subjects: { kind: string; name: string }[]) {
   return { subjects } as unknown as RoleBinding;
 }
+
+const { mockListView } = vi.hoisted(() => ({ mockListView: vi.fn() }));
+
+vi.mock('../../lib/k8s/roleBinding', () => ({ default: { useList: vi.fn() } }));
+vi.mock('../../lib/k8s/clusterRoleBinding', () => ({ default: { useList: vi.fn() } }));
+
+vi.mock('../common/Resource/ResourceListView', () => ({
+  default: (props: any) => {
+    mockListView(props);
+    return null;
+  },
+}));
 
 describe('sortBindingsByKind', () => {
   it('sorts bindings by their ServiceAccount subject names', () => {
@@ -50,5 +66,34 @@ describe('sortBindingsByKind', () => {
     const alpha = makeBinding([{ kind: 'User', name: 'alpha' }]);
 
     expect(sortBindingsByKind('User')(alpha, bravo)).toBeLessThan(0);
+  });
+});
+
+describe('RoleBindingList Service Accounts column', () => {
+  beforeEach(() => {
+    mockListView.mockReset();
+    vi.mocked(RoleBinding.useList).mockReturnValue({ items: [], errors: null } as any);
+    vi.mocked(ClusterRoleBinding.useList).mockReturnValue({ items: [], errors: null } as any);
+  });
+
+  it('wires the column to sort by the ServiceAccount subject kind, not the column label', () => {
+    // Regression test for https://github.com/kubernetes-sigs/headlamp/issues/8193.
+    // Exercises the actual column config passed to ResourceListView, so reverting the
+    // "Service Accounts" column back to sortBindingsByKind('Service Accounts') fails here,
+    // unlike a test that only calls sortBindingsByKind directly.
+    render(
+      <TestContext>
+        <BindingList />
+      </TestContext>
+    );
+
+    const columns = mockListView.mock.calls[0][0].columns;
+    const serviceAccountsColumn = columns.find((column: any) => column?.id === 'serviceaccounts');
+
+    const bravo = makeBinding([{ kind: 'ServiceAccount', name: 'bravo' }]);
+    const alpha = makeBinding([{ kind: 'ServiceAccount', name: 'alpha' }]);
+
+    expect(serviceAccountsColumn.sort(alpha, bravo)).toBeLessThan(0);
+    expect(serviceAccountsColumn.sort(bravo, alpha)).toBeGreaterThan(0);
   });
 });
