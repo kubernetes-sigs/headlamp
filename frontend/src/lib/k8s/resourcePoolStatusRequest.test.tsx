@@ -264,6 +264,26 @@ describe('requestPoolStatus', () => {
     expect(mockRemove).toHaveBeenCalledTimes(1);
   });
 
+  it('gives up at the deadline on an answer whose body stalls', async () => {
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockImplementation(
+      (_url: string, { timeout }: { timeout: number }) =>
+        new Promise((_resolve, reject) =>
+          setTimeout(
+            () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+            timeout
+          )
+        )
+    );
+
+    const result = requestPoolStatus(spec, cluster);
+    const rejection = expect(result).rejects.toBeInstanceOf(PoolStatusRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await rejection;
+    expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
   it('does not wait for the removal to answer', async () => {
     mockPost.mockResolvedValue(complete);
     mockRemove.mockReturnValue(new Promise(() => {}));

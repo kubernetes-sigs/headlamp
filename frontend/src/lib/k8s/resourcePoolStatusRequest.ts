@@ -174,9 +174,10 @@ export async function requestPoolStatus(
           cluster
         );
       } catch (err) {
-        throw (err as ApiError).status === REQUEST_TIMED_OUT_STATUS
-          ? new PoolStatusRequestTimeoutError(spec.driver)
-          : err;
+        const timedOut =
+          (err as ApiError).status === REQUEST_TIMED_OUT_STATUS ||
+          (err as Error).name === 'AbortError';
+        throw timedOut ? new PoolStatusRequestTimeoutError(spec.driver) : err;
       }
     }
 
