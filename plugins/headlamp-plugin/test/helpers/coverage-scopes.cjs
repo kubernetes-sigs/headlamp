@@ -15,7 +15,7 @@
  */
 
 module.exports = {
-  cli: ['bin/headlamp-plugin.js', 'bin/typescript.js'],
+  cli: ['bin/headlamp-plugin.js', 'bin/test-config.js', 'bin/typescript.js'],
   configuration: [
     'config/.storybook/HeadlampTheme.js',
     'config/.storybook/main.mjs',
