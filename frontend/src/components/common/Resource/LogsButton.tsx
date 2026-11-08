@@ -384,31 +384,14 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
               const terminalRef = xtermRef.current;
               if (!terminalRef) return current;
 
-              // Only process new logs in chunks for better performance
+              // Only write the logs that are new since the last update
               if (newLogs.length > lastLogLength) {
-                const CHUNK_SIZE = 1000; // Process 1000 lines at a time
-                const startIdx = lastLogLength;
-                const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
+                // Apply severity filter using the ref to avoid effect restart
+                const newEntries = newLogs.slice(lastLogLength);
+                const filtered = filterLogsBySeverity(newEntries, selectedSeveritiesRef.current);
 
-                // Apply severity filter to the new chunk using the ref to avoid effect restart
-                const chunk = newLogs.slice(startIdx, endIdx);
-                const filteredChunk = filterLogsBySeverity(chunk, selectedSeveritiesRef.current);
-                const filteredContent = filteredChunk.join('').replaceAll('\n', '\r\n');
-
-                terminalRef.write(filteredContent);
-                lastLogLength = endIdx;
-
-                // If there are more logs to process, schedule them for the next frame
-                if (endIdx < newLogs.length) {
-                  requestAnimationFrame(() => {
-                    setLogs(current => ({
-                      ...current,
-                      logs: newLogs, // Keep raw logs for downloads
-                      lastLineShown: endIdx - 1,
-                    }));
-                  });
-                  return current;
-                }
+                terminalRef.write(filtered.join('').replaceAll('\n', '\r\n'));
+                lastLogLength = newLogs.length;
               }
 
               return {
