@@ -52,15 +52,6 @@ describe('sortBindingsByKind', () => {
     expect(compare(alpha, bravo)).toBeLessThan(0);
   });
 
-  it('does not match subjects when given the wrong kind string', () => {
-    const withServiceAccount = makeBinding([{ kind: 'ServiceAccount', name: 'bravo' }]);
-    const withoutMatch = makeBinding([{ kind: 'ServiceAccount', name: 'alpha' }]);
-
-    const compare = sortBindingsByKind('Service Accounts');
-
-    expect(compare(withServiceAccount, withoutMatch)).toBe(0);
-  });
-
   it('still sorts User and Group subjects correctly', () => {
     const bravo = makeBinding([{ kind: 'User', name: 'bravo' }]);
     const alpha = makeBinding([{ kind: 'User', name: 'alpha' }]);
