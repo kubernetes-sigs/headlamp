@@ -1757,6 +1757,9 @@ func clearRequestAuthorization(r *http.Request) {
 	r.Header.Del("Cookie")
 }
 
+// clearConfiguredProxyTokenHeader removes the proxy token header, once the
+// token is forwarded in Authorization. When that is the proxy token header
+// itself, it now holds the forwarded token, so it is kept.
 func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
 	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
 	if proxyAuthTokenHeader != "" && !strings.EqualFold(proxyAuthTokenHeader, "Authorization") {
@@ -1770,7 +1773,7 @@ func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
 		return ""
 	}
 
-	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+	return auth.BearerTokenValue(r.Header.Get(c.ProxyAuthTokenHeader))
 }
 
 // Keep the shared user-authentication gate without letting credential
