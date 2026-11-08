@@ -1742,9 +1742,12 @@ func clearRequestAuthorization(r *http.Request) {
 	r.Header.Del("Cookie")
 }
 
+// clearConfiguredProxyTokenHeader removes the proxy token header, once the
+// token is forwarded in Authorization. When that is the proxy token header
+// itself, it now holds the forwarded token, so it is kept.
 func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
 	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
-	if proxyAuthTokenHeader != "" {
+	if proxyAuthTokenHeader != "" && !strings.EqualFold(proxyAuthTokenHeader, "Authorization") {
 		r.Header.Del(proxyAuthTokenHeader)
 	}
 }
@@ -2487,7 +2490,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 			var token string
 
 			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+				token = auth.BearerTokenValue(r.Header.Get(c.ProxyAuthTokenHeader))
 			}
 
 			if token == "" {
