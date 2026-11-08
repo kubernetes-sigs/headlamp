@@ -34,6 +34,7 @@ function testHeadlampPlugin() {
   // Make a package file of headlamp-plugin we can test
   run('npm', ['install']);
   run('npm', ['run', 'test:typescript']);
+  run('npm', ['run', 'test:vitest']);
   run('npm', ['run', 'test:storybook-mocks']);
   run('npm', ['run', 'test:upgrade']);
   run('npm', ['run', 'build']);

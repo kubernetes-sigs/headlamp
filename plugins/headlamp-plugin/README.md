@@ -79,6 +79,16 @@ libraries, so APIs such as `Array.prototype.at()` and iterable DOM collections
 do not need a plugin-specific `lib` override. The JavaScript emit target remains
 ES2017; these type libraries do not provide runtime polyfills.
 
+## Test configuration and options
+
+Configure tests in `package.json` under `headlamp.test`, with generic
+headlamp-plugin SDK CLI overrides. The headlamp-plugin SDK always excludes
+`node_modules` and `.git`.
+
+See [Testing Plugins](../../docs/development/plugins/building.md#testing-plugins)
+for the configuration schema, commands, upgrade behavior, and portability
+guidance.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:

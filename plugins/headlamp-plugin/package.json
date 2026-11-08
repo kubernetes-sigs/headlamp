@@ -15,6 +15,7 @@
     "test:typescript:compatibility": "node test-typescript-compatibility.js",
     "test:storybook-mocks": "vitest run -c config/vite.config.mjs storybookBaseMocks.test.ts",
     "test:upgrade": "node --test test-upgrade.js",
+    "test:vitest": "node --test test-vitest.js",
     "update-dependencies": "node dependencies-sync.js update && npm install && node scripts/copy-package-lock.js",
     "check-dependencies": "node dependencies-sync.js check",
     "copy-package-lock": "node scripts/copy-package-lock.js"
