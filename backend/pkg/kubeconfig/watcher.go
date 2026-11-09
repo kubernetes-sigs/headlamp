@@ -3,6 +3,7 @@ package kubeconfig
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -430,8 +431,10 @@ func credentialPath(ctx *Context, relPath string) (string, bool) {
 
 // credentialFileUnavailable reports whether a credential file the context
 // needs can't be used: it is missing, can't be read, or is empty, as while it
-// is being rewritten. A token file is not needed when the context also has an
-// inline token, which client-go uses when the file can't be read.
+// is being rewritten, or it holds a client certificate or key that doesn't
+// match the other, as between writing one and the other in a rotation. A token
+// file is not needed when the context also has an inline token, which
+// client-go uses when the file can't be read.
 func credentialFileUnavailable(ctx *Context) bool {
 	needed := ctx
 
@@ -448,7 +451,42 @@ func credentialFileUnavailable(ctx *Context) bool {
 		}
 	}
 
-	return false
+	return clientKeyPairMismatched(ctx)
+}
+
+// clientKeyPairMismatched reports whether the context's client certificate and
+// key, at least one of them read from a file, don't form a key pair. Like
+// client-go, it takes inline data over a file.
+func clientKeyPairMismatched(ctx *Context) bool {
+	if ctx.AuthInfo == nil || (ctx.AuthInfo.ClientCertificate == "" && ctx.AuthInfo.ClientKey == "") {
+		return false
+	}
+
+	read := func(data []byte, relPath string) []byte {
+		if len(data) > 0 {
+			return data
+		}
+
+		path, ok := credentialPath(ctx, relPath)
+		if !ok {
+			return nil
+		}
+
+		data, _ = os.ReadFile(filepath.Clean(path))
+
+		return data
+	}
+
+	certPEM := read(ctx.AuthInfo.ClientCertificateData, ctx.AuthInfo.ClientCertificate)
+	keyPEM := read(ctx.AuthInfo.ClientKeyData, ctx.AuthInfo.ClientKey)
+
+	if len(certPEM) == 0 || len(keyPEM) == 0 {
+		return false
+	}
+
+	_, err := tls.X509KeyPair(certPEM, keyPEM)
+
+	return err != nil
 }
 
 // getReferencedCredentialPaths retrieves absolute paths of all external credential/certificate files

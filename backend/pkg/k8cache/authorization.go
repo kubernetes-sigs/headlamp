@@ -90,7 +90,7 @@ var (
 
 	// clientsetCreator is a hook for testing de-duplication.
 	clientsetCreator = func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
-		return k.ClientSetWithToken(token)
+		return k.ClientSetWithOwnTransport(token)
 	}
 )
 
