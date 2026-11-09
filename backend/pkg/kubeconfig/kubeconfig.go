@@ -925,6 +925,7 @@ func (c *Context) AuthType() string {
 type ContextLoadError struct {
 	ContextName string
 	Error       error
+	Context     *Context
 }
 
 // LoadContextsFromFile loads contexts from a kubeconfig file.
@@ -937,6 +938,12 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
 
+	return loadContextsFromFileData(data, kubeConfigPath, source)
+}
+
+// loadContextsFromFileData loads the contexts of the kubeconfig file at
+// kubeConfigPath from its contents, data, as LoadContextsFromFile does.
+func loadContextsFromFileData(data []byte, kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
 	skipProxySetup := source != KubeConfig
 
 	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup, kubeConfigPath)
@@ -1022,9 +1029,11 @@ func loadContextsFromData(
 	for _, rawContext := range rawContexts {
 		context, err := processContext(rawContext, kubeconfig, source, skipProxySetup, kubeConfigPath)
 		if err != nil {
+			failedContext := context.Copy()
 			contextErrors = append(contextErrors, ContextLoadError{
 				ContextName: context.Name,
 				Error:       err,
+				Context:     failedContext,
 			})
 
 			// Do not include any contexts with errors, else they may be
@@ -1106,9 +1115,9 @@ func processContext(
 		errs = append(errs, err)
 	}
 
-	// Eagerly set context.Name so all error paths return a ContextLoadError
-	// with the correct ContextName, even if later steps fail.
-	context.Name = contextName
+	// Preserve naming metadata before validation, because client-go rejects
+	// invalid encoded credentials before it can produce an api.Context.
+	context = rawContextDefinition(contextName, contextMap, source, kubeConfigPath)
 
 	// Extract cluster and user names
 	clusterName, userName, err := extractClusterAndUserNames(contextMap, contextName)
@@ -1126,10 +1135,7 @@ func processContext(
 	singleConfig, err := createAndValidateConfig(contextName, contextMap, cluster, user, kubeconfig)
 	if err != nil {
 		errs = append(errs, err)
-		context = Context{
-			Name:  contextName,
-			Error: err.Error(),
-		}
+		context.Error = err.Error()
 
 		return context, errors.Join(errs...)
 	}
@@ -1139,10 +1145,7 @@ func processContext(
 			ContextName: contextName,
 			Reason:      err.Error(),
 		})
-		context = Context{
-			Name:  contextName,
-			Error: err.Error(),
-		}
+		context.Error = err.Error()
 
 		return context, errors.Join(errs...)
 	}
@@ -1151,14 +1154,72 @@ func processContext(
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
 		errs = append(errs, err)
-		// convertToContext returns Context{} on error, losing the context name.
-		// Restore it so callers always receive a populated ContextLoadError.ContextName.
-		if context.Name == "" {
-			context.Name = contextName
-		}
+		context = failedContextDefinition(contextName, singleConfig, source, kubeConfigPath)
 	}
 
 	return context, errors.Join(errs...)
+}
+
+func rawContextDefinition(contextName string, raw map[interface{}]interface{}, source int, path string) Context {
+	context := Context{
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigPath:        path,
+		KubeConfigContextName: contextName,
+		Source:                source,
+	}
+
+	rawData, ok := raw["context"]
+	if !ok {
+		return context
+	}
+
+	contextData, ok := rawData.(map[interface{}]interface{})
+	if !ok {
+		return context
+	}
+
+	kubeContext := &api.Context{}
+	if extensions, ok := contextData["extensions"].([]interface{}); ok {
+		kubeContext.Extensions = make(map[string]k8sruntime.Object, len(extensions))
+		for _, item := range extensions {
+			extension, ok := item.(map[interface{}]interface{})
+			if !ok {
+				continue
+			}
+
+			name, _ := extension["name"].(string)
+
+			value, ok := extension["extension"]
+			if name == "" || !ok {
+				continue
+			}
+
+			encoded, err := json.Marshal(yamlValueToJSON(value))
+			if err == nil {
+				kubeContext.Extensions[name] = &k8sruntime.Unknown{Raw: encoded}
+			}
+		}
+	}
+
+	context.KubeContext = kubeContext
+
+	return context
+}
+
+// failedContextDefinition preserves the raw definition, especially extensions
+// that determine its store name, so reconciliation counts failed contexts.
+func failedContextDefinition(contextName string, config *api.Config, source int, path string) Context {
+	context := Context{
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigPath:        path,
+		KubeConfigContextName: contextName,
+		Source:                source,
+	}
+	if raw := config.Contexts[contextName]; raw != nil {
+		context.KubeContext = raw.DeepCopy()
+	}
+
+	return context
 }
 
 // resolveKubeconfigPaths makes relative certificate and key paths absolute using

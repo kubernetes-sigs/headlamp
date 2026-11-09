@@ -469,7 +469,7 @@ func portForwardReviewContext(server, token string) *kubeconfig.Context {
 	const name = "shared"
 
 	return &kubeconfig.Context{
-		Name: name, Source: kubeconfig.KubeConfig,
+		Name: name, Source: kubeconfig.DynamicCluster,
 		Cluster:     &api.Cluster{Server: server, InsecureSkipTLSVerify: true},
 		KubeContext: &api.Context{Cluster: name, AuthInfo: name}, AuthInfo: &api.AuthInfo{Token: token},
 	}
