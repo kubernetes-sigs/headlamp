@@ -249,9 +249,19 @@ export function filterSources(
  * - Lower priority versions are marked with isLoaded=false and overriddenBy info
  *
  * @param plugins List of all plugins from all locations
+ * @param blockedPluginNames Names of installed plugins that are not allowed to load, such as
+ *   development plugins while development mode is off. They are never loaded, but a scoped one
+ *   still stops its old unscoped name from loading.
  * @returns Plugins with isLoaded and overriddenBy fields set appropriately
  */
-export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
+export function applyPluginPriority(
+  plugins: PluginInfo[],
+  blockedPluginNames: string[] = []
+): PluginInfo[] {
+  const blockedOfficialNames = new Set(
+    blockedPluginNames.filter(name => isOfficiallyScoped({ name })).map(getPluginBaseName)
+  );
+
   // Group plugins by name, ignoring the official scope
   const pluginsByName = new Map<string, PluginInfo[]>();
 
@@ -265,12 +275,16 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
   const result: PluginInfo[] = [];
 
   // Process each plugin name group
-  pluginsByName.forEach(versions => {
+  pluginsByName.forEach((versions, name) => {
+    const hasBlockedOfficialVersion = blockedOfficialNames.has(name);
+
     if (versions.length === 1) {
-      // Only one version exists, mark it as loaded if enabled
+      // Only one version exists, mark it as loaded if enabled and not blocked by a scoped one
       result.push({
         ...versions[0],
-        isLoaded: versions[0].isEnabled !== false,
+        isLoaded:
+          versions[0].isEnabled !== false &&
+          (isOfficiallyScoped(versions[0]) || !hasBlockedOfficialVersion),
         overriddenBy: undefined,
       });
       return;
@@ -293,7 +307,8 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
     // A name we do not control must not run while the scoped package is installed, even if that
     // package is disabled
     const officialVersions = sortedVersions.filter(isOfficiallyScoped);
-    const candidates = officialVersions.length > 0 ? officialVersions : sortedVersions;
+    const candidates =
+      officialVersions.length > 0 || hasBlockedOfficialVersion ? officialVersions : sortedVersions;
 
     // Find the highest priority enabled version
     let loadedVersion: PluginInfo | null = null;
@@ -525,6 +540,21 @@ export async function fetchAndExecutePlugins(
   // Extract paths for fetching plugin files
   const pluginPaths = pluginMetadataList.map(metadata => metadata.path);
 
+  // Read only the package.json of blocked plugins, never their code, because the folder name does
+  // not show whether a plugin is in the official scope
+  const blockedPluginNamesPromise = Promise.all(
+    discoveredPluginMetadata
+      .filter(metadata => !pluginMetadataList.includes(metadata))
+      .map(metadata =>
+        fetchPluginResource(
+          `${getAppUrl()}${metadata.path}/package.json`,
+          headers,
+          async response => (response.ok ? (await response.json()).name : undefined),
+          remainingStartupTime(deadline)
+        ).catch(() => undefined)
+      )
+  );
+
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
       fetchPluginResource(
@@ -581,8 +611,12 @@ export async function fetchAndExecutePlugins(
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
 
+  const blockedPluginNames = (await blockedPluginNamesPromise).filter(
+    (name): name is string => typeof name === 'string'
+  );
+
   // Apply priority-based loading logic
-  updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages);
+  updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages, blockedPluginNames);
 
   // Notify settings of changes
   onSettingsChange([...updatedSettingsPackages, ...dormantDevelopmentPluginSettings]);

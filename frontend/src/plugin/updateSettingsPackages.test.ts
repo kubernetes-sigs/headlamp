@@ -345,6 +345,45 @@ describe('applyPluginPriority tests', () => {
     expect(user?.overriddenBy).toBeUndefined();
   });
 
+  test('a blocked scoped plugin stops its old unscoped name from loading', () => {
+    // e.g. the scoped copy is a development plugin while development mode is off
+    const result = applyPluginPriority(
+      [makePlugin('app-catalog', 'user')],
+      ['@headlamp-k8s/app-catalog']
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].isLoaded).toBe(false);
+    expect(result[0].overriddenBy).toBeUndefined();
+  });
+
+  test('a blocked scoped plugin keeps every unscoped copy from loading', () => {
+    const result = applyPluginPriority(
+      [makePlugin('app-catalog', 'user'), makePlugin('app-catalog', 'shipped')],
+      ['@headlamp-k8s/app-catalog']
+    );
+
+    expect(result.every(plugin => plugin.isLoaded === false)).toBe(true);
+  });
+
+  test('a blocked plugin does not stop a scoped one from loading', () => {
+    const result = applyPluginPriority(
+      [makePlugin('@headlamp-k8s/app-catalog', 'user')],
+      ['@headlamp-k8s/app-catalog', 'app-catalog']
+    );
+
+    expect(result[0].isLoaded).toBe(true);
+  });
+
+  test('a blocked unscoped or other-scope plugin does not block anything', () => {
+    const result = applyPluginPriority(
+      [makePlugin('app-catalog', 'user')],
+      ['app-catalog', '@someone-else/app-catalog']
+    );
+
+    expect(result[0].isLoaded).toBe(true);
+  });
+
   test('plugins in other scopes are not treated as the same plugin', () => {
     const result = applyPluginPriority([
       makePlugin('app-catalog', 'user'),
