@@ -236,6 +236,9 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	setupKubeConfigStoreWatcher(kubeConfigStore)
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
+	if conf.ProxyAuthEnabled {
+		multiplexer.proxyAuthTokenHeader = strings.TrimSpace(conf.ProxyAuthTokenHeader)
+	}
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
