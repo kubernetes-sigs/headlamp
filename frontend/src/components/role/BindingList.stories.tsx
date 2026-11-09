@@ -34,6 +34,40 @@ export default {
   ],
 } as Meta;
 
+/** A ClusterRole named 'view' (like the built-in one), for the RoleBinding that references it. */
+const VIEW_CLUSTER_ROLE = {
+  apiVersion: 'rbac.authorization.k8s.io/v1',
+  kind: 'ClusterRole',
+  metadata: {
+    name: 'view',
+    uid: 'clusterrole-view-uid',
+    resourceVersion: '110',
+    creationTimestamp: '2023-04-01T10:05:00Z',
+  },
+  rules: [
+    {
+      apiGroups: [''],
+      resources: ['pods', 'pods/log'],
+      verbs: ['get', 'list', 'watch'],
+    },
+    {
+      apiGroups: ['*'],
+      resources: ['*'],
+      verbs: ['get', 'list', 'watch'],
+    },
+  ],
+};
+
+/** Kubernetes' error body when a referenced Role isn't found in the namespace. */
+const ROLE_NOT_FOUND = {
+  kind: 'Status',
+  apiVersion: 'v1',
+  status: 'Failure',
+  message: 'roles.rbac.authorization.k8s.io "view" not found',
+  reason: 'NotFound',
+  code: 404,
+};
+
 const Template: StoryFn = () => (
   <Container maxWidth="xl">
     <BindingList />
@@ -58,6 +92,17 @@ RoleBindings.parameters = {
             items: CLUSTER_ROLE_BINDING_DUMMY_DATA,
             metadata: {},
           })
+        ),
+        // Role reference of 'view-binding': cluster-scoped, found.
+        http.get(`${BASE_URL}/apis/rbac.authorization.k8s.io/v1/clusterroles/view`, () =>
+          HttpResponse.json(VIEW_CLUSTER_ROLE)
+        ),
+        // The same name looked up as a namespaced Role, to show what the
+        // wrong link target would break on: 'view' is not a Role in the
+        // default namespace.
+        http.get(
+          `${BASE_URL}/apis/rbac.authorization.k8s.io/v1/namespaces/default/roles/view`,
+          () => HttpResponse.json(ROLE_NOT_FOUND, { status: 404 })
         ),
       ],
     },
