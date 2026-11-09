@@ -1591,6 +1591,74 @@ func TestWriteMessageToCluster(t *testing.T) {
 	assert.Equal(t, StateError, conn.Status.State)
 }
 
+// TestHeartbeatConcurrentWrite is a regression test for #8109: the heartbeat ping
+// in monitorConnection and client request writes in writeMessageToCluster both wrote
+// to the same cluster WSConn concurrently, which panics with
+// "concurrent write to websocket connection". Both paths now serialize on conn.clusterWriteMu.
+func TestHeartbeatConcurrentWrite(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+
+	require.NoError(t, wsConn.conn.SetWriteDeadline(time.Now().Add(5*time.Second)))
+	defer func() { _ = wsConn.Close() }()
+	defer func() { _ = clientConn.Close() }()
+
+	// Drain the echo server so the concurrency test does not fill its buffers.
+	go func() {
+		for {
+			if _, _, err := wsConn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Lower this connection's heartbeat interval so pings fire frequently
+	// alongside client writes, reproducing the race from #8109 without
+	// mutating shared package state.
+	conn.heartbeatInterval = 1 * time.Millisecond
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		m.monitorConnection(conn)
+	}()
+
+	// Hammer writeMessageToCluster from the client-request path while the heartbeat
+	// goroutine pings the same WSConn. Run under `go test -race` to surface the race.
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			deadline := time.Now().Add(100 * time.Millisecond)
+			for time.Now().Before(deadline) {
+				assert.NoError(t, m.writeMessageToCluster(conn, []byte("x")))
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
+
+	<-done
+}
+
 func TestHandleClusterMessages(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, clientServer := createTestWebSocketConnection()
