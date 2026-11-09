@@ -25,6 +25,7 @@ import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
+import { multiplexedStream } from './multiplexedStream';
 import type { QueryParameters } from './queryParameters';
 
 /**
@@ -304,15 +305,25 @@ export interface StreamArgs {
   additionalProtocols?: string[];
   /** A callback function to execute when the WebSocket connection is established. */
   connectCb?: () => void;
+  /** A callback function to execute when the WebSocket opens. Not called for multiplexed streams. */
+  openCb?: () => void;
   /** Whether to attempt to reconnect the WebSocket connection if it fails. */
   reconnectOnFailure?: boolean;
-  /** A callback function to execute when the WebSocket connection fails. */
-  failCb?: () => void;
+  /**
+   * A callback function to execute when the WebSocket connection fails or closes. It gets
+   * the close event when the socket closed, e.g. code 1000 when the server ended the stream.
+   */
+  failCb?: (event?: CloseEvent) => void;
   tty?: boolean;
   stdin?: boolean;
   stdout?: boolean;
   stderr?: boolean;
   cluster?: string;
+  /**
+   * Whether to stream through the backend's multiplexer, which keeps an exec or attach
+   * session for a grace period when the connection drops (see multiplexedStream).
+   */
+  multiplexed?: boolean;
 }
 
 /**
@@ -327,11 +338,21 @@ export interface StreamArgs {
  * the stream, and `getSocket`, which returns the WebSocket object.
  */
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
+  if (args.multiplexed) {
+    return multiplexedStream(url, cb, args);
+  }
+
   let connection: StreamConnection | null = null;
   let isCancelled = false;
   const { failCb, cluster = '' } = args;
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
-  const { isJson = false, additionalProtocols, connectCb, reconnectOnFailure = !failCb } = args;
+  const {
+    isJson = false,
+    additionalProtocols,
+    connectCb,
+    openCb,
+    reconnectOnFailure = !failCb,
+  } = args;
 
   if (isDebugVerbose('k8s/apiProxy@stream')) {
     console.debug('k8s/apiProxy@stream', { url, args });
@@ -353,7 +374,15 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   async function connect() {
     if (connectCb) connectCb();
     try {
-      connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+      connection = await connectStream(
+        url,
+        cb,
+        onFail,
+        isJson,
+        additionalProtocols,
+        cluster,
+        openCb
+      );
     } catch (error) {
       console.error('Error connecting stream:', error);
       onFail();
@@ -372,9 +401,9 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
     }
   }
 
-  function onFail() {
+  function onFail(event?: CloseEvent) {
     if (!!failCb) {
-      failCb();
+      failCb(event);
     }
 
     if (reconnectOnFailure) {
@@ -389,24 +418,28 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
  *
  * @param path - The path of the WebSocket stream to connect to.
  * @param cb - The function to call with each message received from the stream.
- * @param onFail - The function to call if the stream is closed unexpectedly.
+ * @param onFail - The function to call if the stream is closed unexpectedly, with the close event.
  * @param isJson - Whether the messages should be parsed as JSON.
  * @param additionalProtocols - An optional array of additional WebSocket protocols to use.
+ * @param cluster - The cluster to connect to; defaults to the current cluster.
+ * @param onOpen - An optional function to call when the WebSocket opens.
  *
  * @returns A promise that resolves to an object with a `close` function and a `socket` property.
  */
 export async function connectStream<T>(
   path: string,
   cb: StreamResultsCb<T>,
-  onFail: () => void,
+  onFail: (event?: CloseEvent) => void,
   isJson: boolean,
   additionalProtocols: string[] = [],
-  cluster = ''
+  cluster = '',
+  onOpen?: () => void
 ): Promise<StreamConnection> {
   return connectStreamWithParams(path, cb, onFail, {
     isJson,
     cluster: cluster || getCluster() || '',
     additionalProtocols,
+    onOpen,
   });
 }
 
@@ -420,6 +453,8 @@ interface StreamParams {
   isJson?: boolean;
   /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
+  /** Called when the WebSocket opens. */
+  onOpen?: () => void;
 }
 
 /**
@@ -434,7 +469,7 @@ interface StreamParams {
  *
  * @param path - The path of the WebSocket stream to connect to.
  * @param cb - The function to call with each message received from the stream.
- * @param onFail - The function to call if the stream is closed unexpectedly.
+ * @param onFail - The function to call if the stream is closed unexpectedly, with the close event.
  * @param params - Stream parameters to configure the connection.
  *
  * @returns A promise that resolves to an object with a `close` function and a `socket` property.
@@ -442,10 +477,10 @@ interface StreamParams {
 export async function connectStreamWithParams<T>(
   path: string,
   cb: StreamResultsCb<T>,
-  onFail: () => void,
+  onFail: (event?: CloseEvent) => void,
   params?: StreamParams
 ): Promise<StreamConnection> {
-  const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
+  const { isJson = false, additionalProtocols = [], cluster = '', onOpen } = params || {};
   let isClosing = false;
 
   const userID = getUserIdFromLocalStorage();
@@ -482,6 +517,9 @@ export async function connectStreamWithParams<T>(
     socket.addEventListener('message', onMessage);
     socket.addEventListener('close', onClose);
     socket.addEventListener('error', onError);
+    if (onOpen) {
+      socket.addEventListener('open', onOpen);
+    }
   } catch (error) {
     console.error(error);
   }
@@ -522,7 +560,7 @@ export async function connectStreamWithParams<T>(
     }
 
     console.warn('Socket closed unexpectedly', { path, args });
-    onFail();
+    onFail(args[0]);
   }
 
   function onError(err: any) {

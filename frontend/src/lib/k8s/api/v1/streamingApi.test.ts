@@ -114,6 +114,33 @@ describe('connectStreamWithParams protocols', () => {
     expect(onMessage).toHaveBeenCalledWith({ kind: 'Pod' });
   });
 
+  it('passes the close event to onFail, so callers can tell a normal end', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const listeners: Record<string, EventListener> = {};
+    const socket = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners[type] = listener;
+      }),
+      removeEventListener: vi.fn(),
+      binaryType: '',
+      close: vi.fn(),
+    };
+    vi.stubGlobal(
+      'WebSocket',
+      vi.fn(function () {
+        return socket;
+      })
+    );
+    (findKubeconfigByClusterName as Mock).mockResolvedValue(null);
+    const onFail = vi.fn();
+
+    await connectStreamWithParams('/api/v1/pods', vi.fn(), onFail, { cluster: 'test-cluster' });
+    const closeEvent = new CloseEvent('close', { code: 1000 });
+    listeners.close(closeEvent);
+
+    expect(onFail).toHaveBeenCalledWith(closeEvent);
+  });
+
   it('returns a closable connection when socket construction fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.stubGlobal(
@@ -414,6 +441,20 @@ describe('streamResults, watch updates, limits, errors, and reconnection', () =>
 
     expect(errCb1).toHaveBeenCalledWith(err, expect.any(Function));
     expect(errCb2).toHaveBeenCalledWith(err, expect.any(Function));
+  });
+
+  it('calls openCb when the stream socket opens', async () => {
+    (findKubeconfigByClusterName as Mock).mockResolvedValue(null);
+    const { listeners } = stubSocketWithListeners();
+    const openCb = vi.fn();
+
+    const handle = stream('/api/v1/pods', vi.fn(), { cluster: 'c1', openCb, failCb: vi.fn() });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(openCb).not.toHaveBeenCalled();
+
+    listeners.open(new Event('open'));
+    expect(openCb).toHaveBeenCalledTimes(1);
+    handle.cancel();
   });
 
   it('handles close, error, kubeconfig lookup failure, and reconnect in stream()', async () => {

@@ -16,7 +16,14 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Channel, useTerminalStream } from './useTerminalStream';
+import {
+  Channel,
+  isRetryableStartError,
+  onSocketStable,
+  reconnectDecision,
+  TerminalStreamOptions,
+  useTerminalStream,
+} from './useTerminalStream';
 
 const mockXtermInstances: any[] = [];
 const mockFitAddonInstances: any[] = [];
@@ -70,6 +77,87 @@ function encodeChannel(channel: Channel, text: string): ArrayBuffer {
   return buf.buffer;
 }
 
+/** A socket whose open event the test fires. */
+function fakeSocket(readyState: number) {
+  const listeners: Array<() => void> = [];
+  const socket = {
+    readyState,
+    addEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'open') listeners.push(listener);
+    }),
+    open() {
+      socket.readyState = WebSocket.OPEN;
+      listeners.forEach(listener => listener());
+    },
+  };
+  return socket;
+}
+
+describe('onSocketStable', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('counts from when a slow handshake completes', () => {
+    const socket = fakeSocket(WebSocket.CONNECTING);
+    const onStable = vi.fn();
+    onSocketStable(socket as unknown as WebSocket, 1000, onStable);
+
+    vi.advanceTimersByTime(1500);
+    expect(onStable).not.toHaveBeenCalled();
+
+    socket.open();
+    vi.advanceTimersByTime(999);
+    expect(onStable).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onStable).toHaveBeenCalledOnce();
+  });
+
+  it('counts from now for a socket that is already open', () => {
+    const onStable = vi.fn();
+    onSocketStable(fakeSocket(WebSocket.OPEN) as unknown as WebSocket, 1000, onStable);
+
+    vi.advanceTimersByTime(1000);
+    expect(onStable).toHaveBeenCalledOnce();
+  });
+
+  it('does not count a socket that closes before it is stable', () => {
+    const socket = fakeSocket(WebSocket.OPEN);
+    const onStable = vi.fn();
+    onSocketStable(socket as unknown as WebSocket, 1000, onStable);
+
+    socket.readyState = WebSocket.CLOSED;
+    vi.advanceTimersByTime(1000);
+    expect(onStable).not.toHaveBeenCalled();
+  });
+});
+
+describe('reconnectDecision', () => {
+  it('keeps retrying quietly while the terminal starts, within its own budget', () => {
+    // A new shell pod or debug container can take a while to start.
+    expect(reconnectDecision(false, 0, 10, 60)).toBe('retry-quietly');
+    expect(reconnectDecision(false, 59, 10, 60)).toBe('retry-quietly');
+    expect(reconnectDecision(false, 60, 10, 60)).toBe('give-up');
+  });
+
+  it('retries a dropped connection within the budget, then gives up', () => {
+    expect(reconnectDecision(true, 0, 10, 60)).toBe('retry');
+    expect(reconnectDecision(true, 9, 10, 60)).toBe('retry');
+    expect(reconnectDecision(true, 10, 10, 60)).toBe('give-up');
+  });
+});
+
+describe('isRetryableStartError', () => {
+  it('only retries a request that could not be sent or was throttled', () => {
+    expect(isRetryableStartError({ status: 502 })).toBe(true);
+    expect(isRetryableStartError({ status: 429 })).toBe(true);
+    // Only failures that are clearly transient are retried.
+    expect(isRetryableStartError({ status: 408 })).toBe(false);
+    expect(isRetryableStartError({ status: 504 })).toBe(false);
+    expect(isRetryableStartError({ status: 403 })).toBe(false);
+    expect(isRetryableStartError(new Error('not a request error'))).toBe(false);
+  });
+});
+
 describe('useTerminalStream', () => {
   beforeEach(() => {
     mockXtermInstances.length = 0;
@@ -107,9 +195,11 @@ describe('useTerminalStream', () => {
       readyState: WebSocket.OPEN,
       send: vi.fn(),
     };
+    // The hook wraps the stream's cancel, so keep the original to check it is called.
+    const cancel = vi.fn();
     const streamMock = {
       getSocket: () => socket,
-      cancel: vi.fn(),
+      cancel,
     };
 
     let onDataCb: ((data: ArrayBuffer) => void) | undefined;
@@ -153,17 +243,17 @@ describe('useTerminalStream', () => {
     onDataCb!(encodeChannel(Channel.StdIn, 'ignored'));
     expect(xterm.write).not.toHaveBeenCalled();
 
-    // ServerError does not mark connected = true
-    onDataCb!(encodeChannel(Channel.ServerError, 'err'));
-    expect(result.current.xtermRef.current?.connected).toBe(false);
+    // The session socket is open, so the terminal is connected before any output
+    expect(result.current.xtermRef.current?.connected).toBe(true);
     expect(xterm.clear).toHaveBeenCalledTimes(1);
+    expect(socket.send).toHaveBeenCalled();
+
+    onDataCb!(encodeChannel(Channel.ServerError, 'err'));
     expect(xterm.write).toHaveBeenCalledWith('err');
 
-    // StdOut marks connected = true and writes text
     onDataCb!(encodeChannel(Channel.StdOut, 'hello'));
-    expect(result.current.xtermRef.current?.connected).toBe(true);
     expect(xterm.write).toHaveBeenCalledWith('hello');
-    expect(socket.send).toHaveBeenCalled();
+    expect(xterm.clear).toHaveBeenCalledTimes(1);
 
     // Shell not found triggers onConnectionFailed
     onDataCb!(encodeChannel(Channel.StdErr, 'NO_SHELL'));
@@ -172,7 +262,7 @@ describe('useTerminalStream', () => {
     // Successful exit calls onClose and cancels stream
     onDataCb!(encodeChannel(Channel.StdOut, 'EXIT_OK'));
     expect(onClose).toHaveBeenCalled();
-    expect(streamMock.cancel).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalledTimes(1);
 
     // Custom key event handler: Ctrl+C with selection returns false, without returns true; Ctrl+V returns false
     xterm.getSelection.mockReturnValueOnce('selected');
@@ -213,7 +303,7 @@ describe('useTerminalStream', () => {
 
     unmount();
     expect(xterm.dispose).toHaveBeenCalled();
-    expect(streamMock.cancel).toHaveBeenCalledTimes(2);
+    expect(cancel).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the session when its callbacks change on a rerender', async () => {
@@ -247,5 +337,159 @@ describe('useTerminalStream', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('useTerminalStream reconnection', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockXtermInstances.length = 0;
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function lastXterm() {
+    return mockXtermInstances[mockXtermInstances.length - 1];
+  }
+
+  function startTerminal(connectStream: TerminalStreamOptions['connectStream']) {
+    const onClose = vi.fn();
+    const onConnectionFailed = vi.fn();
+    const { unmount } = renderHook(() =>
+      useTerminalStream({
+        connectStream,
+        containerRef: document.createElement('div'),
+        onClose,
+        errorHandlers: { onConnectionFailed },
+      })
+    );
+    return { onClose, onConnectionFailed, unmount };
+  }
+
+  it('retries a start that can still succeed', async () => {
+    const connectStream = vi
+      .fn()
+      .mockResolvedValueOnce({ stream: null, retry: true })
+      .mockResolvedValue({ stream: null });
+    const terminal = startTerminal(connectStream);
+
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(connectStream).toHaveBeenCalledTimes(2);
+
+    // A start that cannot succeed, e.g. a disabled terminal, is not retried.
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(connectStream).toHaveBeenCalledTimes(2);
+    terminal.unmount();
+  });
+
+  it('retries a connection that drops right after a slow start', async () => {
+    let onData: (data: ArrayBuffer) => void = () => {};
+    const socket = {
+      readyState: WebSocket.OPEN,
+      onclose: null as any,
+      addEventListener: vi.fn(),
+      send: vi.fn(),
+    };
+    const connectStream = vi.fn(async (cb: (data: ArrayBuffer) => void) => {
+      if (connectStream.mock.calls.length <= 11) return { stream: null, retry: true };
+      onData = cb;
+      return { stream: { cancel: vi.fn(), getSocket: () => socket } };
+    });
+    const terminal = startTerminal(connectStream);
+    await act(() => vi.advanceTimersByTimeAsync(11 * 3000));
+    expect(connectStream).toHaveBeenCalledTimes(12);
+
+    // It connects, then drops before the connection counts as stable.
+    act(() => onData(new Uint8Array([1, 104]).buffer));
+    act(() => socket.onclose({ code: 1006, reason: '' }));
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+
+    expect(connectStream).toHaveBeenCalledTimes(13);
+    terminal.unmount();
+  });
+
+  it('sends the terminal size once the session socket opens', async () => {
+    const socket = Object.assign(fakeSocket(WebSocket.CONNECTING), {
+      send: vi.fn(),
+      onclose: null,
+    });
+    const terminal = startTerminal(
+      vi.fn().mockResolvedValue({ stream: { cancel: vi.fn(), getSocket: () => socket } })
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    act(() => socket.open());
+
+    expect(socket.send).toHaveBeenCalledWith(
+      new Uint8Array([4, ...new TextEncoder().encode('{"Width":80,"Height":24}')])
+    );
+    terminal.unmount();
+  });
+
+  it('reconnects to an idle shell once its session socket opens', async () => {
+    let onData: (data: ArrayBuffer) => void = () => {};
+    const first = {
+      readyState: WebSocket.OPEN,
+      onclose: null as any,
+      addEventListener: vi.fn(),
+      send: vi.fn(),
+    };
+    const second = Object.assign(fakeSocket(WebSocket.CONNECTING), {
+      send: vi.fn(),
+      onclose: null,
+    });
+    const connectStream = vi.fn(async (cb: (data: ArrayBuffer) => void) => {
+      onData = cb;
+      const socket = connectStream.mock.calls.length === 1 ? first : second;
+      return { stream: { cancel: vi.fn(), getSocket: () => socket } };
+    });
+    const terminal = startTerminal(connectStream);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    act(() => onData(new Uint8Array([1, 104]).buffer));
+    act(() => first.onclose({ code: 1006, reason: '' }));
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(connectStream).toHaveBeenCalledTimes(2);
+
+    // The reattached shell prints nothing.
+    act(() => second.open());
+
+    expect(lastXterm().writeln).toHaveBeenLastCalledWith(expect.stringContaining('Reconnected!'));
+    terminal.unmount();
+  });
+
+  it('counts an idle shell as connected once its session socket first opens', async () => {
+    const socket = Object.assign(fakeSocket(WebSocket.CONNECTING), {
+      send: vi.fn(),
+      onclose: null as any,
+    });
+    const connectStream = vi
+      .fn()
+      .mockResolvedValue({ stream: { cancel: vi.fn(), getSocket: () => socket } });
+    const terminal = startTerminal(connectStream);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    // The attached shell prints nothing, then the connection drops.
+    act(() => socket.open());
+    act(() => socket.onclose({ code: 1006, reason: '' }));
+
+    expect(lastXterm().writeln).toHaveBeenLastCalledWith(
+      expect.stringContaining('Connection lost')
+    );
+    terminal.unmount();
+  });
+
+  it('keeps the terminal and why it failed once it gives up', async () => {
+    const closed = { readyState: WebSocket.CLOSED, onclose: null, addEventListener: vi.fn() };
+    const terminal = startTerminal(
+      vi.fn().mockResolvedValue({ stream: { cancel: vi.fn(), getSocket: () => closed } })
+    );
+
+    await act(() => vi.advanceTimersByTimeAsync(61 * 3000));
+
+    expect(lastXterm().writeln).toHaveBeenLastCalledWith(
+      expect.stringContaining('Could not open the terminal')
+    );
+    expect(terminal.onConnectionFailed).not.toHaveBeenCalled();
+    expect(terminal.onClose).not.toHaveBeenCalled();
+    terminal.unmount();
   });
 });
