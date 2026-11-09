@@ -275,6 +275,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   lists,
   queryParams,
   watchQueryParams,
+  onReconnect,
 }: {
   /** KubeObject class of the watched resource list */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -286,6 +287,8 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  /** Callback invoked when an active watch connection disconnects and needs to reconnect */
+  onReconnect?: (cluster: string, namespace?: string, latestResourceVersion?: string) => void;
 }) {
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
@@ -305,6 +308,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
     queryParams: !multiplexerEnabled ? queryParams : undefined,
     watchQueryParams: !multiplexerEnabled ? watchQueryParams : undefined,
     enabled: !multiplexerEnabled,
+    onReconnect,
   });
 }
 
@@ -477,6 +481,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   queryParams,
   watchQueryParams,
   enabled = true,
+  onReconnect,
 }: {
   /** KubeObject class of the watched resource list */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -489,8 +494,10 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
   enabled?: boolean;
+  onReconnect?: (cluster: string, namespace?: string, latestResourceVersion?: string) => void;
 }) {
   const client = useQueryClient();
+  const latestResourceVersions = useRef<Record<string, string>>({});
 
   const stableQueryParamsKey = enabled ? JSON.stringify(queryParams) : '__disabled__';
   const stableWatchQueryParamsKey = enabled
@@ -518,6 +525,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         cluster,
         url,
         onMessage(update: KubeListUpdateEvent<K>) {
+          if (update.object?.metadata?.resourceVersion) {
+            const watchKey = `${cluster}:${namespace || ''}`;
+            latestResourceVersions.current[watchKey] = update.object.metadata.resourceVersion;
+          }
+
           const key = kubeObjectListQuery<K>(
             kubeObjectClass,
             endpoint,
@@ -537,6 +549,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             return { ...oldResponse, list: newList };
           });
         },
+        onClose() {
+          if (enabled) {
+            const watchKey = `${cluster}:${namespace || ''}`;
+            onReconnect?.(cluster, namespace, latestResourceVersions.current[watchKey]);
+          }
+        },
       };
     });
   }, [
@@ -547,6 +565,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
     stableQueryParams,
     stableWatchQueryParams,
     client,
+    onReconnect,
   ]);
 
   useWebSockets<KubeListUpdateEvent<K>>({
@@ -836,27 +855,71 @@ export function useKubeObjectList<K extends KubeObject>({
     { cluster: string; namespace?: string; resourceVersion: string }[]
   >([]);
 
+  const disconnectedWatchesRef = useRef<Map<string, string | undefined>>(new Map());
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
+
+  const handleWatchReconnect = useCallback(
+    (cluster: string, namespace?: string, latestResourceVersion?: string) => {
+      const key = `${cluster}:${namespace || ''}`;
+      disconnectedWatchesRef.current.set(key, latestResourceVersion);
+      setReconnectTrigger(prev => prev + 1);
+    },
+    []
+  );
+
+  const prevListRequestInputKeyRef = useRef(listRequestInputKey);
+  const prevIsFetchingRef = useRef(query.isFetching);
+
   useEffect(() => {
+    const inputsChanged = prevListRequestInputKeyRef.current !== listRequestInputKey;
+    const fetchJustCompleted = prevIsFetchingRef.current && !query.isFetching;
+    prevListRequestInputKeyRef.current = listRequestInputKey;
+    prevIsFetchingRef.current = query.isFetching;
+
+    // Capture any watches that requested a reconnect and clear the ref
+    const disconnectedWatches = new Map(disconnectedWatchesRef.current);
+    const hasDisconnected = disconnectedWatches.size > 0;
+    disconnectedWatchesRef.current.clear();
+
     setListsToWatch(currentListsToWatch => {
       const keptListsToWatch = currentListsToWatch.filter(watching =>
         isWatchedListStillRequested(watching, requests)
       );
 
-      if (!shouldWatch) {
-        return keptListsToWatch.length === currentListsToWatch.length
-          ? currentListsToWatch
-          : keptListsToWatch;
+      if (!shouldWatch || !query.data) {
+        return keptListsToWatch.length > 0 ? [] : currentListsToWatch;
       }
 
       const nextListsToWatch = query.data
         .filter(data => data && !data.skipWatch)
-        .map(data => ({
-          cluster: data!.cluster,
-          namespace: data!.namespace,
-          resourceVersion: data!.list.metadata.resourceVersion,
-        }));
+        .map(data => {
+          const key = `${data!.cluster}:${data!.namespace || ''}`;
+          const isDisconnected = disconnectedWatches.has(key);
+          const shouldRefresh = inputsChanged || fetchJustCompleted || isDisconnected;
+
+          // If this watch was already established and hasn't been disconnected or refreshed,
+          // preserve its starting resourceVersion so healthy connections aren't torn down.
+          const existingWatch = shouldRefresh
+            ? undefined
+            : currentListsToWatch.find(
+                watching =>
+                  watching.cluster === data!.cluster &&
+                  (watching.namespace || '') === (data!.namespace || '')
+              );
+
+          const disconnectedRV = disconnectedWatches.get(key);
+          const currentDataRV = data!.list.metadata.resourceVersion;
+          const latestAvailableRV = disconnectedRV || currentDataRV;
+
+          return {
+            cluster: data!.cluster,
+            namespace: data!.namespace,
+            resourceVersion: existingWatch ? existingWatch.resourceVersion : latestAvailableRV,
+          };
+        });
 
       if (
+        !hasDisconnected &&
         nextListsToWatch.length === currentListsToWatch.length &&
         nextListsToWatch.every((nextList, index) => {
           const currentList = currentListsToWatch[index];
@@ -872,7 +935,7 @@ export function useKubeObjectList<K extends KubeObject>({
 
       return nextListsToWatch;
     });
-  }, [query.data, requests, shouldWatch]);
+  }, [query.data, query.isFetching, requests, shouldWatch, listRequestInputKey, reconnectTrigger]);
 
   useWatchKubeObjectLists({
     lists: shouldWatch ? listsToWatch : [],
@@ -880,6 +943,7 @@ export function useKubeObjectList<K extends KubeObject>({
     kubeObjectClass,
     queryParams: perRequestQueryParams,
     watchQueryParams: withoutPaginationParams(perRequestQueryParams),
+    onReconnect: handleWatchReconnect,
   });
 
   const [paginationError, setPaginationError] = useState<ApiError | null>(null);

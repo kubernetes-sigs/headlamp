@@ -636,6 +636,171 @@ describe('WebSocket Multiplexer', () => {
       newServer.close();
     });
 
+    it('should reconnect and resubscribe using the latest resourceVersion from incoming messages', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+
+      // First connection
+      const unsubscribe = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        initialQuery,
+        onMessage
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage; // Skip initial subscription message
+
+      // Incoming watch message arrives from backend updating resourceVersion to 105
+      const updateMessage = {
+        clusterId: clusterName,
+        path,
+        query: initialQuery,
+        data: JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            kind: 'Pod',
+            metadata: { name: 'pod-1', resourceVersion: '105' },
+          },
+        }),
+      };
+      await mockServer.send(JSON.stringify(updateMessage));
+
+      expect(onMessage).toHaveBeenCalledTimes(1);
+
+      // Close the connection to trigger unexpected disconnect
+      mockServer.close();
+
+      expect(WebSocketManager.socketMultiplexer).toBeNull();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      // Reconnect to a new server
+      const newServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+      await WebSocketManager.connect();
+      await newServer.connected;
+
+      // Resubscription message MUST use the updated resourceVersion 105
+      const resubMsg = JSON.parse((await newServer.nextMessage) as string);
+      expect(resubMsg).toEqual({
+        clusterId: clusterName,
+        path,
+        query: 'watch=1&resourceVersion=105',
+        userId,
+        type: 'REQUEST',
+      });
+
+      // Subsequent messages on the reconnected stream are delivered to the listener
+      const newUpdateMessage = {
+        clusterId: clusterName,
+        path,
+        query: 'watch=1&resourceVersion=105',
+        data: JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            kind: 'Pod',
+            metadata: { name: 'pod-1', resourceVersion: '106' },
+          },
+        }),
+      };
+      await newServer.send(JSON.stringify(newUpdateMessage));
+
+      expect(onMessage).toHaveBeenCalledTimes(2);
+
+      // Cleanup
+      unsubscribe();
+      newServer.close();
+    });
+
+    it('should deliver multiple consecutive messages on the same connection as resourceVersion advances and resubscribe with the latest resourceVersion', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+
+      const unsubscribe = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        initialQuery,
+        onMessage
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage; // Skip initial subscription request
+
+      // Message 1 on existing stream (updates RV to 101)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: initialQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { kind: 'Pod', metadata: { name: 'pod-1', resourceVersion: '101' } },
+          }),
+        })
+      );
+      expect(onMessage).toHaveBeenCalledTimes(1);
+
+      // Message 2 on the SAME stream (backend still sends initialQuery, updates RV to 102)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: initialQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { kind: 'Pod', metadata: { name: 'pod-1', resourceVersion: '102' } },
+          }),
+        })
+      );
+      expect(onMessage).toHaveBeenCalledTimes(2);
+
+      // Message 3 on the SAME stream (backend still sends initialQuery, updates RV to 103)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: initialQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { kind: 'Pod', metadata: { name: 'pod-1', resourceVersion: '103' } },
+          }),
+        })
+      );
+      expect(onMessage).toHaveBeenCalledTimes(3);
+
+      // Now close connection to trigger reconnect
+      mockServer.close();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      const newServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+      await WebSocketManager.connect();
+      await newServer.connected;
+
+      // Resubscription must use the latest RV (103)
+      const resubMsg = JSON.parse((await newServer.nextMessage) as string);
+      expect(resubMsg).toEqual({
+        clusterId: clusterName,
+        path,
+        query: 'watch=1&resourceVersion=103',
+        userId,
+        type: 'REQUEST',
+      });
+
+      // Message on the reconnected stream with the new query
+      await newServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: 'watch=1&resourceVersion=103',
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { kind: 'Pod', metadata: { name: 'pod-1', resourceVersion: '104' } },
+          }),
+        })
+      );
+      expect(onMessage).toHaveBeenCalledTimes(4);
+
+      unsubscribe();
+      newServer.close();
+    });
+
     it('should handle WebSocket close event', async () => {
       const path = '/api/v1/pods';
       const query = 'watch=true';

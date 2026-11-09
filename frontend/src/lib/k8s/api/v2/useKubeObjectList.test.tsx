@@ -33,7 +33,8 @@ import * as websocket from './webSocket';
 
 // Mock WebSocket functionality
 const mockUseWebSockets = vi.fn();
-const mockSubscribe = vi.fn().mockImplementation(() => Promise.resolve(() => {}));
+const mockSubscribeCleanup = vi.fn();
+const mockSubscribe = vi.fn().mockImplementation(() => Promise.resolve(mockSubscribeCleanup));
 const mockClusterFetch = vi.mocked(clusterFetch);
 
 vi.mock('./webSocket', () => ({
@@ -168,6 +169,10 @@ const mockClass = class {
   };
 
   constructor(public jsonData: any) {}
+
+  get metadata() {
+    return this.jsonData?.metadata;
+  }
 } as any;
 
 const mockNodeClass = class {
@@ -185,6 +190,10 @@ const mockNodeClass = class {
   };
 
   constructor(public jsonData: any) {}
+
+  get metadata() {
+    return this.jsonData?.metadata;
+  }
 } as any;
 
 function makeListResponse({
@@ -1541,6 +1550,321 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections.length).toBe(1);
     expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
+
+  it('does not recreate WebSocket connections when incoming watch events update resourceVersion', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(initialConnection?.url).toContain('resourceVersion=100');
+
+    // Deliver incoming watch event that updates resourceVersion to 101
+    act(() => {
+      initialConnection?.onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '101'),
+      });
+    });
+
+    // The cache and rendered items reflect the updated pod and resourceVersion
+    await waitFor(() => {
+      expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('101');
+    });
+
+    // But useWebSockets was not called with a new connection URL containing resourceVersion=101
+    const latestCall = spy.mock.calls.at(-1)?.[0];
+    expect(latestCall?.connections[0]?.url).toContain('resourceVersion=100');
+    expect(latestCall?.connections[0]?.url).not.toContain('resourceVersion=101');
+  });
+
+  it('preserves the latest resourceVersion from cache when establishing a new watch on remount', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    const hook1 = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const activeConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(activeConnection?.url).toContain('resourceVersion=100');
+
+    // Receive watch event updating resourceVersion to 105
+    act(() => {
+      activeConnection?.onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '105'),
+      });
+    });
+
+    await waitFor(() => {
+      expect(hook1.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('105');
+    });
+
+    // Unmount the first hook
+    hook1.unmount();
+
+    // Now remount useKubeObjectList with the same QueryClient (simulating view remount / return)
+    spy.mockClear();
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    // The new watch connection must start with resourceVersion=105, not the stale 100
+    const remountConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(remountConnection?.url).toContain('resourceVersion=105');
+  });
+
+  it('reconnects using the latest resourceVersion when an active WebSocket disconnects', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(initialConnection?.url).toContain('resourceVersion=100');
+
+    // Deliver incoming watch event that updates resourceVersion to 105
+    act(() => {
+      initialConnection?.onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '105'),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('105');
+    });
+
+    // Simulate unexpected WebSocket disconnect via onClose callback
+    act(() => {
+      initialConnection?.onClose?.();
+    });
+
+    // Reconnection MUST use the updated resourceVersion 105 from the cache
+    await waitFor(() => {
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=105');
+    });
+  });
+
+  it('reconnects when an idle watch disconnects even if resourceVersion is unchanged', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const callsBeforeDisconnect = spy.mock.calls.length;
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(initialConnection?.url).toContain('resourceVersion=100');
+
+    // Simulate unexpected WebSocket disconnect on an IDLE watch (no events arrived, RV unchanged at 100)
+    act(() => {
+      initialConnection?.onClose?.();
+    });
+
+    // An idle disconnect MUST still trigger reconnection and re-invoke useWebSockets
+    await waitFor(() => {
+      expect(spy.mock.calls.length).toBeGreaterThan(callsBeforeDisconnect);
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=100');
+    });
+  });
+
+  it('reconnects with newest resourceVersion when disconnect occurs immediately after a watch event', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+
+    // Watch event updates RV to 110 and close event fires immediately in the same tick
+    act(() => {
+      initialConnection?.onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '110'),
+      });
+      initialConnection?.onClose?.();
+    });
+
+    await waitFor(() => {
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=110');
+    });
+  });
+
+  it('stops watching when watch is disabled', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    const hook = renderHook(
+      ({ watch }: { watch: boolean }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+          watch,
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: { watch: true },
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    // Disable watch
+    hook.rerender({ watch: false });
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1)?.[0];
+      expect(lastCall?.connections.length === 0).toBe(true);
+    });
+  });
 });
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {
@@ -1711,5 +2035,87 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         )
       ).toBe(true)
     );
+  });
+
+  it('does not re-subscribe when incoming watch events update resourceVersion', async () => {
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'cluster-a', namespaces: ['namespace-a'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        'cluster-a',
+        expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
+        'watch=1&resourceVersion=100',
+        expect.any(Function),
+        expect.any(Function)
+      );
+    });
+
+    const initialSubscribeCalls = mockSubscribe.mock.calls.length;
+    // Extract the onMessage callback passed to WebSocketManager.subscribe
+    const onMessageCallback = mockSubscribe.mock.calls[0][3];
+
+    // Deliver watch event with incremented resourceVersion
+    act(() => {
+      onMessageCallback({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '101'),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('101');
+    });
+
+    // WebSocketManager.subscribe should NOT have been called again with resourceVersion=101
+    expect(mockSubscribe.mock.calls.length).toBe(initialSubscribeCalls);
+    expect(
+      mockSubscribe.mock.calls.some(([, , query]) => query.includes('resourceVersion=101'))
+    ).toBe(false);
+  });
+
+  it('cleans up multiplexer subscription on unmount', async () => {
+    const queryClient = new QueryClient();
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }];
+
+    const hook = renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+
+    hook.unmount();
+
+    expect(mockSubscribeCleanup).toHaveBeenCalled();
   });
 });

@@ -227,4 +227,94 @@ describe('useWebSockets', () => {
       expect(onMessageB).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('notifies onClose listeners and removes socket when connection closes', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=5';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage = vi.fn();
+    const onClose = vi.fn();
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage, onClose }],
+      })
+    );
+
+    await server.connected;
+
+    // Simulate unexpected server close
+    server.close();
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not call onClose when unmounting intentionally', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=6';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage = vi.fn();
+    const onClose = vi.fn();
+
+    const hook = renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage, onClose }],
+      })
+    );
+
+    await server.connected;
+
+    // Unmount intentionally
+    hook.unmount();
+
+    // Allow any asynchronous close events to settle
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('cleans up pending socket reference if it closes during initialization', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=7';
+    const server1 = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage1 = vi.fn();
+    const onClose1 = vi.fn();
+
+    const hook1 = renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessage1, onClose: onClose1 }],
+      })
+    );
+
+    await server1.connected;
+    // Server closes connection immediately
+    server1.close();
+
+    await waitFor(() => {
+      expect(onClose1).toHaveBeenCalledTimes(1);
+    });
+
+    hook1.unmount();
+
+    // Now establish a second connection to the same URL with a fresh server
+    const server2 = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage2 = vi.fn();
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessage2 }],
+      })
+    );
+
+    // The second connection must successfully connect and receive messages
+    await server2.connected;
+    await server2.send(
+      JSON.stringify({ type: 'ADDED', object: { metadata: { name: 'pod-fresh' } } })
+    );
+
+    await waitFor(() => {
+      expect(onMessage2).toHaveBeenCalledTimes(1);
+    });
+
+    server2.close();
+  });
 });
