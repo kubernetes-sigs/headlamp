@@ -359,14 +359,23 @@ async function fetchOpenAPIV3Discovery(
         redirect: 'manual',
       });
 
-      if (!data || typeof data !== 'object' || !data.paths) {
+      if (!data || typeof data.paths !== 'object' || !data.paths || Array.isArray(data.paths)) {
         throw new Error('Malformed OpenAPI v3 discovery response: missing paths map');
+      }
+
+      const discovery = data as OpenAPIV3DiscoveryIndex;
+      const advertisedUrls = new Set<string>();
+      for (const entry of Object.values(discovery.paths)) {
+        if (!entry || typeof entry.serverRelativeURL !== 'string' || !entry.serverRelativeURL) {
+          throw new Error('Malformed OpenAPI v3 discovery response: invalid path entry');
+        }
+        advertisedUrls.add(entry.serverRelativeURL);
       }
 
       // Check both generation and request identity so an older request
       // cannot overwrite cache state established by a newer request.
       if (cache.generation === currentGen && cache.discoveryRequestId === requestId) {
-        cache.discoveryData = data as OpenAPIV3DiscoveryIndex;
+        cache.discoveryData = discovery;
         cache.v3Supported = true;
         // Other absent groups remain negative-cached across discovery refreshes.
         for (const key of cache.missingDiscoveryKeys) {
@@ -375,11 +384,6 @@ async function fetchOpenAPIV3Discovery(
           }
         }
         // Retain only documents still advertised, including their hash identity.
-        const advertisedUrls = new Set(
-          Object.values((data as OpenAPIV3DiscoveryIndex).paths).map(
-            entry => entry.serverRelativeURL
-          )
-        );
         for (const url of cache.documents.keys()) {
           if (!advertisedUrls.has(url)) {
             cache.documents.delete(url);
@@ -387,7 +391,7 @@ async function fetchOpenAPIV3Discovery(
           }
         }
       }
-      return data as OpenAPIV3DiscoveryIndex;
+      return discovery;
     } catch (err) {
       if (cache.generation === currentGen && cache.discoveryRequestId === requestId) {
         if (isEndpointUnsupported(err)) {
@@ -630,8 +634,8 @@ export async function loadResourceSchema(
 
     // If still missing after refresh:
     if (!advertisedEntry) {
-      // Aggregated API servers may publish v2 schemas without advertising v3.
-      return await loadFallback();
+      // Return directly so the v3 catch does not retry a failed v2 request.
+      return loadFallback();
     }
 
     const advertisedUrl = advertisedEntry.serverRelativeURL;
@@ -655,7 +659,7 @@ export async function loadResourceSchema(
         } else if (!refreshedEntry) {
           // A group removed from v3 may still be served by a v2-only API server.
           cache.missingDiscoveryKeys.add(discoveryKey);
-          return await loadFallback();
+          return loadFallback();
         } else {
           // Advertised URL is unchanged and still broken; report failure
           throw docErr;

@@ -376,6 +376,45 @@ describe('schemaLoader', () => {
       );
     });
 
+    it.each(['v3', 'v2'] as const)(
+      'ignores same-kind schemas from another group or version in %s',
+      async format => {
+        const url = mockOpenAPIV3Discovery.paths['apis/apps/v1'].serverRelativeURL;
+        const schemas = {
+          wrongGroup: {
+            'x-kubernetes-group-version-kind': [
+              { group: 'other', version: 'v1', kind: 'Deployment' },
+            ],
+          },
+          wrongVersion: {
+            'x-kubernetes-group-version-kind': [
+              { group: 'apps', version: 'v2', kind: 'Deployment' },
+            ],
+          },
+          ...mockAppsV1Document.components!.schemas!,
+        };
+        vi.mocked(clusterRequest).mockImplementation(async path => {
+          if (path === '/openapi/v3') {
+            if (format === 'v2') throw { status: 404 };
+            return mockOpenAPIV3Discovery;
+          }
+          if (path === '/openapi/v2') return { definitions: schemas };
+          if (path === url) return { components: { schemas } };
+          throw new Error(`Unexpected path: ${path}`);
+        });
+
+        const result = await loadResourceSchema({
+          cluster: 'exact-gvk',
+          apiVersion: 'apps/v1',
+          kind: 'Deployment',
+        });
+        expect(result.sourceFormat).toBe(`openapi/${format}`);
+        expect(result.schema).toBe(
+          mockAppsV1Document.components!.schemas!['io.k8s.api.apps.v1.Deployment']
+        );
+      }
+    );
+
     it('returns schema: null when group/version exists but exact kind is missing', async () => {
       vi.mocked(clusterRequest).mockImplementation(async path => {
         if (path === '/openapi/v3') return mockOpenAPIV3Discovery;
@@ -1293,6 +1332,47 @@ describe('schemaLoader', () => {
           kind: 'Deployment',
         })
       ).rejects.toThrow(/missing paths map/);
+    });
+
+    it('refetches discovery after rejecting an invalid path entry', async () => {
+      const url = mockOpenAPIV3Discovery.paths['apis/apps/v1'].serverRelativeURL;
+      vi.mocked(clusterRequest)
+        .mockResolvedValueOnce({
+          paths: { ...mockOpenAPIV3Discovery.paths, 'api/v1': null },
+        })
+        .mockResolvedValueOnce(mockOpenAPIV3Discovery)
+        .mockResolvedValueOnce(mockAppsV1Document);
+      const params = { cluster: 'malformed-path', apiVersion: 'apps/v1', kind: 'Deployment' };
+
+      await expect(loadResourceSchema(params)).rejects.toThrow(/invalid path entry/);
+      expect((await loadResourceSchema(params)).sourceUrl).toBe(url);
+      expect(vi.mocked(clusterRequest).mock.calls.map(call => call[0])).toEqual([
+        '/openapi/v3',
+        '/openapi/v3',
+        url,
+      ]);
+    });
+
+    it.each([false, true])('does not retry a failed v2 fallback (stale hash: %s)', async stale => {
+      const url = mockOpenAPIV3Discovery.paths['apis/apps/v1'].serverRelativeURL;
+      const failure = { status: 404 };
+      vi.mocked(clusterRequest).mockImplementation(async path => {
+        if (path === '/openapi/v3') {
+          if (stale && vi.mocked(clusterRequest).mock.calls.length === 1) {
+            return mockOpenAPIV3Discovery;
+          }
+          return { paths: {} };
+        }
+        if (path === url || path === '/openapi/v2') throw failure;
+        throw new Error(`Unexpected path: ${path}`);
+      });
+
+      await expect(
+        loadResourceSchema({ cluster: 'failed-v2', apiVersion: 'apps/v1', kind: 'Deployment' })
+      ).rejects.toBe(failure);
+      expect(
+        vi.mocked(clusterRequest).mock.calls.filter(([path]) => path === '/openapi/v2')
+      ).toHaveLength(1);
     });
 
     it('resetSchemaLoaderCache invalidates in-flight responses so they do not repopulate stale cache', async () => {
