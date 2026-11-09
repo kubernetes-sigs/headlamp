@@ -17,7 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"crypto/tls"
+	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -25,16 +26,24 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/transport"
 )
 
 const (
@@ -54,6 +63,8 @@ const (
 	HeartbeatInterval = 30 * time.Second
 	// MaxReconnectBackoff caps the delay between failed reconnect attempts.
 	MaxReconnectBackoff = 10 * time.Minute
+	// TerminalGracePeriod is how long a detached terminal session is kept for its client to reattach.
+	TerminalGracePeriod = 30 * time.Second
 	// HandshakeTimeout is the timeout for the handshake with the client.
 	HandshakeTimeout = 45 * time.Second
 	// CleanupRoutineInterval is the interval at which the multiplexer cleans up unused connections.
@@ -87,6 +98,12 @@ type ConnectionStatus struct {
 	Error string `json:"error,omitempty"`
 	// LastMsg is the last message time of the connection.
 	LastMsg time.Time `json:"lastMsg"`
+}
+
+// BufferedMessage represents a message buffered during client disconnection.
+type BufferedMessage struct {
+	Type int
+	Data []byte
 }
 
 // Connection represents a WebSocket connection to a Kubernetes cluster.
@@ -130,8 +147,35 @@ type Connection struct {
 	usesServiceAccountToken bool
 	// Authentication token.
 	Token *string
+	// ownerToken is the requester's token that opened a terminal session; only a
+	// request presenting the same token may reattach to the session after a disconnect.
+	ownerToken *string
 	// closeOnce is used to ensure the connection is closed only once.
 	closeOnce sync.Once
+	// Buffer for messages when client is disconnected.
+	Buffer []BufferedMessage
+	// BufferBytes is the total size in bytes of the messages in Buffer.
+	BufferBytes int
+	// isFlushing is true when the connection is flushing its buffer during reconnect.
+	isFlushing bool
+	// drained is set while a client that took the session over is sent what was
+	// buffered during the takeover, and closed when that ends. The session stays
+	// reserved for the client until then, and output for it waits, to follow that.
+	drained chan struct{}
+	// attachment changes when a client starts taking the session over, so a write
+	// to the client the cluster reader picked before can tell that it may be stale.
+	attachment atomic.Uint64
+	// cleanupTimer is a timer that cleans up the connection if the client does not reconnect.
+	cleanupTimer *time.Timer
+	// upstreamClosed is true when the backend cluster connection has closed.
+	upstreamClosed bool
+	// upstreamErr is why the cluster connection closed, unless it ended normally.
+	upstreamErr error
+	// ownerIdentity is the user the API server identified ownerToken as, or empty
+	// if it could not tell. It lets the owner reattach after their token changed.
+	ownerIdentity string
+	// ownerIdentityReady is closed once ownerIdentity is looked up, or nil if it is not.
+	ownerIdentityReady chan struct{}
 }
 
 // Message represents a WebSocket message structure.
@@ -162,14 +206,19 @@ type Multiplexer struct {
 	upgrader websocket.Upgrader
 	// kubeConfigStore is the kubeconfig store.
 	kubeConfigStore kubeconfig.ContextStore
+	// proxyAuthTokenHeader is the request header an authenticating proxy passes the
+	// user's token in, or empty if proxy auth is not configured to pass one.
+	proxyAuthTokenHeader string
 	// unsafeUseServiceAccountToken forces in-cluster contexts to use their token file.
 	unsafeUseServiceAccountToken bool
 	// saTokenCache caches service account tokens keyed by file path; refreshed when mtime changes.
 	saTokenCache map[string]saTokenCacheEntry
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
-	// heartbeatInterval is HeartbeatInterval; tests shorten it.
+	// heartbeatInterval is how often cluster connections are pinged.
 	heartbeatInterval time.Duration
+	// terminalGracePeriod is how long a detached terminal session is kept.
+	terminalGracePeriod time.Duration
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -189,6 +238,11 @@ type WSConnLock struct {
 	writeMu sync.Mutex
 }
 
+// clientWriteTimeout bounds each write to a client. A client whose network dropped
+// stops reading without the backend knowing, and a write to it would otherwise block
+// the session until TCP gives up.
+var clientWriteTimeout = 10 * time.Second
+
 // NewWSConnLock creates a new WSConnLock instance that wraps the provided
 // WebSocket connection with thread-safe write operations.
 func NewWSConnLock(conn *websocket.Conn) *WSConnLock {
@@ -204,7 +258,9 @@ func (conn *WSConnLock) WriteJSON(v interface{}) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteJSON(v)
+	_ = conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout))
+
+	return conn.closeOnError(conn.conn.WriteJSON(v))
 }
 
 // ReadJSON reads the next JSON-encoded message from the WebSocket connection
@@ -227,7 +283,21 @@ func (conn *WSConnLock) WriteMessage(messageType int, data []byte) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteMessage(messageType, data)
+	_ = conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout))
+
+	return conn.closeOnError(conn.conn.WriteMessage(messageType, data))
+}
+
+// closeOnError closes the connection after a failed write and returns err. Once a
+// write fails, e.g. because it timed out, none can succeed, so closing ends the read
+// loop: the client's sessions are cleaned up and the client sees the connection close
+// and reconnects. The caller holds writeMu.
+func (conn *WSConnLock) closeOnError(err error) error {
+	if err != nil {
+		_ = conn.conn.Close()
+	}
+
+	return err
 }
 
 // Close safely closes the WebSocket connection.
@@ -248,6 +318,7 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
 		heartbeatInterval:            HeartbeatInterval,
+		terminalGracePeriod:          TerminalGracePeriod,
 		upgrader: websocket.Upgrader{
 			Subprotocols: []string{MultiplexerProtocol},
 			CheckOrigin: func(r *http.Request) bool {
@@ -350,6 +421,17 @@ func (c *Connection) writeStatusLocked() error {
 		return nil
 	}
 
+	statusMsg, err := c.statusMessageLocked()
+	if err != nil {
+		return err
+	}
+
+	return c.Client.WriteJSON(statusMsg)
+}
+
+// statusMessageLocked returns the message that reports the connection's status.
+// The caller must hold c.mu.
+func (c *Connection) statusMessageLocked() (Message, error) {
 	statusData := struct {
 		State string `json:"state"`
 		Error string `json:"error"`
@@ -362,17 +444,15 @@ func (c *Connection) writeStatusLocked() error {
 	if jsonErr != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: c.ClusterID}, jsonErr, "marshaling status message")
 
-		return jsonErr
+		return Message{}, jsonErr
 	}
 
-	statusMsg := Message{
+	return Message{
 		ClusterID: c.ClusterID,
 		Path:      c.Path,
 		Data:      string(jsonData),
 		Type:      "STATUS",
-	}
-
-	return c.Client.WriteJSON(statusMsg)
+	}, nil
 }
 
 // safeClose safely closes the connection and its resources.
@@ -434,20 +514,19 @@ func (m *Multiplexer) dialClusterConnection(
 	}
 
 	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
+	connection.ownerToken = token
+
+	if isTerminalPath(path) && token != nil {
+		connection.startOwnerIdentityLookup(config, *token)
+	}
+
 	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
 		connection.usesServiceAccountToken = true
 	}
 
 	wsURL := createWebSocketURL(config.Host, path, query)
 
-	tlsConfig, err := rest.TLSConfigFor(config)
-	if err != nil {
-		connection.updateStatus(StateError, err)
-
-		return nil, fmt.Errorf("failed to get TLS config: %w", err)
-	}
-
-	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
+	conn, err := m.dialWebSocket(wsURL, config, authToken)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
@@ -475,7 +554,7 @@ func (m *Multiplexer) establishClusterConnection(
 	}
 
 	m.mutex.Lock()
-	connKey := m.createConnectionKey(clusterID, path, userID)
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
 	m.connections[connKey] = connection
 	m.mutex.Unlock()
 
@@ -556,56 +635,68 @@ func (m *Multiplexer) createConnection(
 	}
 }
 
-// dialWebSocket establishes a WebSocket connection.
-func (m *Multiplexer) dialWebSocket(
-	wsURL string,
-	tlsConfig *tls.Config,
-	host string,
-	token *string,
-) (*websocket.Conn, error) {
-	dialer := websocket.Dialer{
+// dialWebSocket opens a WebSocket to the cluster at wsURL. It goes through the same
+// client-go transport wrappers as the cluster proxy, so the connection carries the
+// context's credentials (tokens, exec plugins, auth providers, basic auth,
+// impersonation) and proxy settings. A token from the request takes precedence over
+// the context's own, as it does for the proxy.
+func (m *Multiplexer) dialWebSocket(wsURL string, config *rest.Config, token *string) (*websocket.Conn, error) {
+	transportConfig, err := kubeconfig.TransportConfigFor(config)
+	if err != nil {
+		return nil, fmt.Errorf("getting transport config: %w", err)
+	}
+
+	tlsConfig, err := transport.TLSConfigFor(transportConfig)
+	if err != nil {
+		return nil, fmt.Errorf("getting TLS config: %w", err)
+	}
+
+	proxy := config.Proxy
+	if proxy == nil {
+		proxy = utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
+	}
+
+	dialer := &websocketDialer{dialer: websocket.Dialer{
 		TLSClientConfig:  tlsConfig,
 		HandshakeTimeout: HandshakeTimeout,
+		Proxy:            proxy,
+	}}
+
+	if u, err := url.Parse(wsURL); err == nil && isTerminalPath(u.Path) {
+		dialer.dialer.Subprotocols = terminalSubprotocols
 	}
 
-	headers := http.Header{
-		"Origin": {host},
-	}
-
-	if token != nil {
-		headers.Set("Authorization", "Bearer "+*token)
-	}
-
-	conn, resp, err := dialer.Dial(
-		wsURL,
-		headers,
-	)
+	roundTripper, err := transport.HTTPWrappersForConfig(transportConfig, dialer)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
-		// We only attempt to close the response body if there was an error and resp is not nil.
-		// In the successful case (when err is nil), the resp will actually be nil for WebSocket connections,
-		// so we don't need to close anything.
-		if resp != nil {
-			// Log only serializable fields from the response to avoid JSON marshaling errors
-			logger.Log(
-				logger.LevelError,
-				map[string]string{
-					"status":     resp.Status,
-					"statusCode": fmt.Sprintf("%d", resp.StatusCode),
-				},
-				nil,
-				"WebSocket response",
-			)
+		return nil, fmt.Errorf("setting up cluster credentials: %w", err)
+	}
 
-			defer func() { _ = resp.Body.Close() }()
+	conn, resp, err := dialer.dial(roundTripper, wsURL, config.Host, token)
 
-			if resp.StatusCode == http.StatusGone {
-				return nil, fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, err)
-			}
+	// An exec plugin's credential can expire before the plugin says so. The 401 made
+	// client-go refresh it, so try once more, as the cluster proxy does.
+	if conn == nil && token == nil && config.ExecProvider != nil &&
+		resp != nil && resp.StatusCode == http.StatusUnauthorized {
+		_ = resp.Body.Close()
+		conn, resp, err = dialer.dial(roundTripper, wsURL, config.Host, token)
+	}
+
+	if conn == nil {
+		logDialFailure(err, resp)
+
+		if resp == nil {
+			return nil, fmt.Errorf("dialing WebSocket: %w", err)
 		}
 
-		return nil, fmt.Errorf("dialing WebSocket: %w", err)
+		if resp.StatusCode == http.StatusGone {
+			return nil, fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, err)
+		}
+
+		// The terminals show this error, so tell them apart, e.g. a 403 from a 404.
+		return nil, fmt.Errorf("dialing WebSocket (HTTP %s): %w", resp.Status, err)
 	}
+
+	_ = resp.Body.Close()
 
 	return conn, nil
 }
@@ -614,6 +705,86 @@ func (m *Multiplexer) dialWebSocket(
 // interval, doubled for each consecutive failure and capped at maxInterval.
 func calculateBackoffInterval(consecutiveFailures int, baseInterval, maxInterval time.Duration) time.Duration {
 	return min(baseInterval<<min(consecutiveFailures, 20), maxInterval)
+}
+
+// logDialFailure logs a failed cluster WebSocket dial, with the server's response if
+// there was one, and closes its body.
+func logDialFailure(err error, resp *http.Response) {
+	logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
+
+	if resp == nil {
+		return
+	}
+
+	// Log only serializable fields from the response to avoid JSON marshaling errors
+	logger.Log(
+		logger.LevelError,
+		map[string]string{
+			"status":     resp.Status,
+			"statusCode": fmt.Sprintf("%d", resp.StatusCode),
+		},
+		nil,
+		"WebSocket response",
+	)
+
+	_ = resp.Body.Close()
+}
+
+// websocketDialer is the innermost round tripper of a cluster WebSocket dial: the
+// client-go wrappers around it add the credentials, and it performs the handshake.
+type websocketDialer struct {
+	dialer websocket.Dialer
+	conn   *websocket.Conn
+	err    error
+}
+
+// dial performs one handshake through roundTripper. It returns the connection, or nil
+// with the server's response, if there was one, and why the handshake failed.
+func (d *websocketDialer) dial(
+	roundTripper http.RoundTripper,
+	wsURL, host string,
+	token *string,
+) (*websocket.Conn, *http.Response, error) {
+	d.conn, d.err = nil, nil
+
+	//nolint:gosec // wsURL is built from the configured cluster's server address.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, wsURL, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	req.Header.Set("Origin", host)
+
+	if token != nil {
+		req.Header.Set("Authorization", "Bearer "+*token)
+	}
+
+	resp, err := roundTripper.RoundTrip(req)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return d.conn, resp, d.err
+}
+
+// RoundTrip performs the handshake. When the server answers without upgrading, it
+// returns that response without an error, so client-go's wrappers see it, e.g. the
+// exec plugin authenticator refreshing its credential after a 401.
+func (d *websocketDialer) RoundTrip(req *http.Request) (*http.Response, error) {
+	conn, resp, err := d.dialer.DialContext(req.Context(), req.URL.String(), req.Header)
+	if err != nil {
+		if resp != nil {
+			d.err = err
+
+			return resp, nil
+		}
+
+		return nil, err
+	}
+
+	d.conn = conn
+
+	return resp, nil
 }
 
 // monitorConnection monitors the health of a connection and attempts to reconnect if necessary.
@@ -630,6 +801,14 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-ticker.C:
+			if isTerminalPath(conn.Path) {
+				if pingTerminal(conn) {
+					return
+				}
+
+				continue
+			}
+
 			// A reconnected connection runs its own monitor.
 			if newConn, stop := m.handleHeartbeatTick(conn, &consecutiveFailures, ticker); stop || newConn != nil {
 				return
@@ -654,6 +833,37 @@ func resumeWatchQuery(query, resourceVersion string) string {
 	values.Set("resourceVersion", resourceVersion)
 
 	return values.Encode()
+}
+
+// pingTerminal pings a terminal's cluster connection and reports whether to stop
+// monitoring it.
+func pingTerminal(conn *Connection) bool {
+	conn.mu.RLock()
+	upstreamClosed := conn.upstreamClosed
+	conn.mu.RUnlock()
+
+	// An ended terminal stream is only kept for its buffered output until
+	// the client reattaches or the grace period expires. Reconnecting it
+	// would replace the session and lose that output.
+	if upstreamClosed {
+		return true
+	}
+
+	// WriteControl may run concurrently with the data writes of writeMessageToCluster.
+	if err := conn.WSConn.WriteControl(
+		websocket.PingMessage, nil, time.Now().Add(HeartbeatInterval),
+	); err != nil {
+		// Reconnecting a terminal would start a new exec without a reader in
+		// place of the session. Close it instead, so its reader reports the
+		// break after any output a drain is still writing: to the client, or
+		// on reattach after the client returns. Its status is not written
+		// here, as that would wait for such a drain holding the session's lock.
+		_ = conn.WSConn.Close()
+
+		return true
+	}
+
+	return false
 }
 
 // handleHeartbeatTick processes a single heartbeat tick and reconnects if disconnected.
@@ -715,7 +925,7 @@ func (m *Multiplexer) handleHeartbeatTick(
 	newConn.mu.RUnlock()
 
 	if clientConn != nil {
-		go m.handleClusterMessages(newConn, clientConn)
+		go m.handleClusterMessages(newConn)
 	}
 
 	return newConn, false
@@ -731,9 +941,17 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		_ = conn.WSConn.Close()
 	}
 
+	// A service account connection re-reads its token file, so pass the requester's
+	// token to keep it as the owner of the new connection.
 	conn.mu.RLock()
+
 	client := conn.Client
+
 	token := conn.Token
+	if conn.usesServiceAccountToken {
+		token = conn.ownerToken
+	}
+
 	conn.mu.RUnlock()
 
 	// Take over the stream before reading the cursor: a message the old reader has already
@@ -792,7 +1010,7 @@ func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
 	if m.connections[connKey] != conn || conn.IsClosed() {
 		return false
 	}
@@ -806,7 +1024,22 @@ func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
 
 // HandleClientWebSocket handles incoming WebSocket connections from clients.
 func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Request) {
-	clientConn, err := m.upgrader.Upgrade(w, r, nil)
+	// Under a cluster's path, only that cluster's streams are served, as the path
+	// alone tells apart the auth cookies of clusters whose cookie names are the same.
+	pathCluster := mux.Vars(r)["clusterName"]
+
+	// The OIDC refresh middleware may have renewed the token of the cluster in the
+	// path, setting its cookies on w. The upgrade response has only the headers
+	// passed to Upgrade, so they are passed, as the browser must get the renewed
+	// token: the refresh token it replaced may be used only once. r still has the
+	// old cookies, so the renewed ones are applied to it.
+	var responseHeader http.Header
+	if setCookies := w.Header().Values("Set-Cookie"); len(setCookies) > 0 {
+		responseHeader = http.Header{"Set-Cookie": setCookies}
+		r = withSetCookies(r, setCookies)
+	}
+
+	clientConn, err := m.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "upgrading connection")
 		return
@@ -845,8 +1078,51 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 
+		if pathCluster != "" && msg.ClusterID != pathCluster {
+			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID,
+				fmt.Errorf("cluster %q is not served at this path", msg.ClusterID))
+
+			continue
+		}
+
 		m.processClientMessage(r, lockClientConn, msg)
 	}
+}
+
+// withSetCookies returns a copy of r with the cookies that setCookies set, and
+// without those it deletes.
+func withSetCookies(r *http.Request, setCookies []string) *http.Request {
+	set := (&http.Response{Header: http.Header{"Set-Cookie": setCookies}}).Cookies()
+	updated := r.Clone(r.Context())
+	updated.Header.Del("Cookie")
+
+	for _, cookie := range r.Cookies() {
+		if !slices.ContainsFunc(set, func(c *http.Cookie) bool { return c.Name == cookie.Name }) {
+			updated.AddCookie(cookie)
+		}
+	}
+
+	for _, cookie := range set {
+		if cookie.MaxAge >= 0 {
+			//nolint:gosec // A request cookie has no attributes.
+			updated.AddCookie(&http.Cookie{Name: cookie.Name, Value: cookie.Value})
+		}
+	}
+
+	return updated
+}
+
+// requestToken returns the requester's token for cluster, as the cluster proxy
+// takes it: from the header an authenticating proxy passes it in, if configured,
+// or else from the cluster's auth cookie.
+func (m *Multiplexer) requestToken(r *http.Request, cluster string) (string, error) {
+	if m.proxyAuthTokenHeader != "" {
+		if token := strings.TrimSpace(r.Header.Get(m.proxyAuthTokenHeader)); token != "" {
+			return token, nil
+		}
+	}
+
+	return auth.GetTokenFromCookie(r, cluster)
 }
 
 // processClientMessage processes a single client message that has been verified to be routable.
@@ -855,14 +1131,7 @@ func (m *Multiplexer) processClientMessage(
 	lockClientConn *WSConnLock,
 	msg Message,
 ) {
-	// Check if it's a close message
-	if msg.Type == "CLOSE" {
-		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
-
-		return
-	}
-
-	if msg.Type != "REQUEST" {
+	if msg.Type != "REQUEST" && msg.Type != "CLOSE" {
 		m.sendClientError(
 			lockClientConn,
 			msg.ClusterID,
@@ -875,7 +1144,7 @@ func (m *Multiplexer) processClientMessage(
 		return
 	}
 
-	token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
+	token, err := m.requestToken(r, msg.ClusterID)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: msg.ClusterID}, err, "getting token from cookie")
 		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
@@ -888,17 +1157,81 @@ func (m *Multiplexer) processClientMessage(
 		tokenPtr = &token
 	}
 
+	if msg.Type == "CLOSE" {
+		if !isTerminalPath(msg.Path) {
+			m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
+
+			return
+		}
+
+		// Only the owner may end a terminal session, as only the owner may reattach to it.
+		if !m.closeOwnedTerminal(msg, tokenPtr, lockClientConn) {
+			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID,
+				errors.New("terminal session belongs to a different authenticated session"))
+		}
+
+		return
+	}
+
 	conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr)
+	if errors.Is(err, errInputFromDetachedClient) {
+		// Dropped quietly: a replaced client was told its session moved, and an error
+		// would make it retry, taking the session back.
+		return
+	}
+
 	if err != nil {
 		m.handleConnectionError(lockClientConn, msg, err)
 
 		return
 	}
 
-	if msg.Type == "REQUEST" && conn.Status.State == StateConnected {
-		_ = m.writeMessageToCluster(conn, []byte(msg.Data))
+	// A REQUEST without data only opens or reattaches the connection.
+	if conn.Status.State == StateConnected && msg.Data != "" {
+		m.writeClientInput(lockClientConn, conn, msg)
 	}
 }
+
+// writeClientInput writes the data of a client message to the cluster connection.
+func (m *Multiplexer) writeClientInput(lockClientConn *WSConnLock, conn *Connection, msg Message) {
+	data := []byte(msg.Data)
+
+	// Terminal input is binary, as its first byte selects the channel.
+	if msg.Binary {
+		var err error
+
+		data, err = base64.StdEncoding.DecodeString(msg.Data)
+		if err != nil {
+			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+
+			return
+		}
+	}
+
+	_ = m.writeMessageToCluster(conn, data)
+}
+
+// isTerminalPath reports whether the given connection path represents an interactive
+// terminal session: the exec or attach subresource of a pod,
+// .../api/v1/namespaces/{namespace}/pods/{name}/{exec,attach}. The whole shape is
+// matched, so a watch of a pod named "attach" or of a custom resource whose plural
+// is "exec" stays a watch. Only the end of the path is matched, as a cluster
+// server URL can have a path prefix.
+func isTerminalPath(path string) bool {
+	parts := strings.Split(path, "/")
+	n := len(parts)
+
+	return n >= 7 &&
+		(parts[n-1] == "exec" || parts[n-1] == "attach") &&
+		parts[n-3] == "pods" &&
+		parts[n-5] == "namespaces" &&
+		parts[n-6] == "v1" &&
+		parts[n-7] == "api"
+}
+
+// terminalSubprotocols are the Kubernetes channel protocols requested for exec and
+// attach streams, newest first, matching the frontend's direct terminal streams.
+var terminalSubprotocols = []string{"v4.channel.k8s.io", "v3.channel.k8s.io", "v2.channel.k8s.io", "channel.k8s.io"}
 
 // closeClientConnections closes all connections associated with a specific client.
 func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
@@ -913,22 +1246,37 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 		if isClient {
 			connsToClose = append(connsToClose, conn)
 
-			delete(m.connections, key)
+			isTerm := isTerminalPath(conn.Path)
+			if !isTerm {
+				delete(m.connections, key)
+			}
 		}
 	}
 	m.mutex.Unlock()
 
 	for _, conn := range connsToClose {
+		disconnectedAt := time.Now()
+
+		isTerm := isTerminalPath(conn.Path)
+
 		conn.mu.Lock()
-		if conn.Client == clientConn {
+
+		detached := conn.Client == clientConn
+		if detached {
 			conn.Client = nil
 			conn.Status.State = StateClosed
-			conn.Status.LastMsg = time.Now()
+			conn.Status.LastMsg = disconnectedAt
+
 			conn.Status.Error = ""
+			if isTerm {
+				m.startCleanupTimer(conn)
+			}
 		}
 		conn.mu.Unlock()
 
-		conn.safeClose()
+		if !isTerm && detached {
+			conn.safeClose()
+		}
 	}
 }
 
@@ -956,36 +1304,424 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 	return msg, false, nil
 }
 
+// handleNewConnection establishes a new cluster connection and starts handling its messages.
+func (m *Multiplexer) handleNewConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
+	conn, err := m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+	if err != nil {
+		logger.Log(
+			logger.LevelError,
+			map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
+			err,
+			"establishing cluster connection",
+		)
+
+		return nil, err
+	}
+
+	go m.handleClusterMessages(conn)
+
+	return conn, nil
+}
+
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
 
 	m.mutex.RLock()
 	conn, exists := m.connections[connKey]
 	m.mutex.RUnlock()
 
+	isInput := msg.Data != ""
+
 	if !exists {
-		var err error
-
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
-		if err != nil {
-			logger.Log(
-				logger.LevelError,
-				map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
-				err,
-				"establishing cluster connection",
-			)
-
-			return nil, err
+		// Input never opens a terminal session; it comes from a client whose session ended.
+		if isInput && isTerminalPath(msg.Path) {
+			return nil, errInputFromDetachedClient
 		}
 
-		go m.handleClusterMessages(conn, clientConn)
-	} else if err := m.refreshConnectionToken(conn, token); err != nil {
+		return m.handleNewConnection(msg, clientConn, token)
+	}
+
+	if isTerminalPath(conn.Path) {
+		if !m.ownsTerminal(conn, token) {
+			return nil, errors.New("terminal session belongs to a different authenticated session")
+		}
+
+		if !m.handleTerminalReconnect(conn, clientConn, !isInput) {
+			if isInput {
+				return nil, errInputFromDetachedClient
+			}
+
+			return nil, fmt.Errorf("terminal session could not be reattached (busy or flush failed)")
+		}
+	}
+
+	if err := m.refreshConnectionToken(conn, token); err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// errInputFromDetachedClient is returned for terminal input from a client that is not
+// attached to the session, e.g. one a reattach replaced, which is told so separately.
+var errInputFromDetachedClient = errors.New("terminal input from a client that is not attached")
+
+// sessionMovedMessage is shown in a terminal whose session was taken over by a reattach.
+const sessionMovedMessage = "The terminal session was opened in another window."
+
+// notifySessionMoved tells a client that a reattach replaced that its session moved,
+// with a closed status the terminal shows, so it ends without retrying. It writes
+// through the client's own connection lock only, so a dead client cannot hold up the
+// session's other writes.
+func (m *Multiplexer) notifySessionMoved(conn *Connection, client *WSConnLock) {
+	// Output whose attachment check passed before the takeover is still written to
+	// this client, holding the session's write lock. Let it finish first, as the
+	// terminal ends its stream on this status and would drop that output.
+	conn.writeMu.Lock()
+	conn.writeMu.Unlock() //nolint:staticcheck // Only waits for the writes in flight.
+
+	data, err := json.Marshal(struct {
+		State string `json:"state"`
+		Error string `json:"error"`
+	}{State: string(StateClosed), Error: sessionMovedMessage})
+	if err != nil {
+		return
+	}
+
+	_ = client.WriteJSON(Message{
+		ClusterID: conn.ClusterID,
+		Path:      conn.Path,
+		Query:     conn.Query,
+		UserID:    conn.UserID,
+		Type:      "STATUS",
+		Data:      string(data),
+	})
+}
+
+// closeOwnedTerminal closes the terminal session msg names if a request with token
+// owns it, and reports false if it does not. The session is looked up once, so the
+// one that was checked is the one closed: a session opened under the same key while
+// the owner was checked, e.g. after the checked one ended, belongs to whoever opened
+// it and is left alone. Only client, the client attached to the session, or any of
+// the owner's clients while none is, may close it: a client a takeover replaced,
+// which may close its terminal before it is told the session moved, would otherwise
+// end the session in the window that took it over.
+func (m *Multiplexer) closeOwnedTerminal(msg Message, token *string, client *WSConnLock) bool {
+	m.mutex.RLock()
+	conn, exists := m.connections[m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, msg.Query)]
+	m.mutex.RUnlock()
+
+	if !exists {
+		return true
+	}
+
+	if !m.ownsTerminal(conn, token) {
+		return false
+	}
+
+	// Claim the session, as the grace timer does, so a takeover cannot start while
+	// it closes.
+	conn.mu.Lock()
+	if conn.isFlushing || (conn.Client != nil && conn.Client != client) {
+		conn.mu.Unlock()
+
+		return true
+	}
+
+	conn.isFlushing = true
+	conn.mu.Unlock()
+
+	conn.updateStatus(StateClosed, nil)
+	m.removeConnection(conn)
+
+	return true
+}
+
+// ownsTerminal reports whether a request with token may act on the terminal session
+// conn. It may when token opened the session, or when the API server identifies token
+// as the same user, e.g. after an OIDC token refresh; the session then belongs to the
+// new token.
+func (m *Multiplexer) ownsTerminal(conn *Connection, token *string) bool {
+	if conn.isOwnedBy(token) {
+		return true
+	}
+
+	if conn.ownerIdentityReady != nil {
+		<-conn.ownerIdentityReady
+	}
+
+	conn.mu.RLock()
+	identity := conn.ownerIdentity
+	conn.mu.RUnlock()
+
+	if identity == "" || token == nil {
+		return false
+	}
+
+	clusterContext, err := m.getClusterContextWithFallback(conn.ClusterID, conn.UserID)
+	if err != nil {
+		return false
+	}
+
+	config, err := clusterContext.RESTConfig()
+	if err != nil || tokenIdentity(config, *token) != identity {
+		return false
+	}
+
+	conn.mu.Lock()
+	conn.ownerToken = token
+	conn.mu.Unlock()
+
+	return true
+}
+
+// startOwnerIdentityLookup looks up who the owner of a new terminal session is,
+// alongside the dial rather than delaying every terminal.
+func (c *Connection) startOwnerIdentityLookup(config *rest.Config, token string) {
+	ready := make(chan struct{})
+	c.ownerIdentityReady = ready
+
+	go func() {
+		defer close(ready)
+
+		identity := tokenIdentity(config, token)
+
+		c.mu.Lock()
+		c.ownerIdentity = identity
+		c.mu.Unlock()
+	}()
+}
+
+// tokenIdentity returns the user the API server identifies token as, or "" when it
+// cannot tell, e.g. before Kubernetes 1.28 or when self subject reviews are denied.
+// The token is the only credential sent, so a client certificate or impersonation in
+// the kubeconfig cannot make different tokens look like the same user.
+func tokenIdentity(config *rest.Config, token string) string {
+	reviewConfig := rest.AnonymousClientConfig(config)
+	reviewConfig.BearerToken = token
+	reviewConfig.Timeout = 10 * time.Second
+
+	clientset, err := kubernetes.NewForConfig(reviewConfig)
+	if err != nil {
+		return ""
+	}
+
+	review, err := clientset.AuthenticationV1().SelfSubjectReviews().Create(
+		context.Background(), &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{},
+	)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "reviewing terminal owner token")
+
+		return ""
+	}
+
+	userInfo := review.Status.UserInfo
+	// Every token that fails to authenticate is anonymous, so that is no identity.
+	if userInfo.Username == "" || userInfo.Username == "system:anonymous" {
+		return ""
+	}
+
+	return userInfo.Username + "\x00" + userInfo.UID
+}
+
+// isOwnedBy reports whether requestToken matches the token that opened the terminal session.
+// Without a token on either side there is no principal to tell requesters apart, so any
+// requester can already open a new session with the same credentials.
+func (c *Connection) isOwnedBy(requestToken *string) bool {
+	c.mu.RLock()
+	ownerToken := c.ownerToken
+	c.mu.RUnlock()
+
+	if ownerToken == nil || requestToken == nil {
+		return ownerToken == nil && requestToken == nil
+	}
+
+	return subtle.ConstantTimeCompare([]byte(*ownerToken), []byte(*requestToken)) == 1
+}
+
+// handleTerminalReconnect handles client reconnection to an existing terminal session,
+// flushing any buffered terminal frames and starting a new cleanup timer if the client drops.
+// reattach is whether the request opens or reattaches the session, rather than carrying input.
+// It returns true if the client is attached, or reattached successfully, and false if the
+// session was busy, the flush failed, or the request carries input from another client.
+func (m *Multiplexer) handleTerminalReconnect(conn *Connection, clientConn *WSConnLock, reattach bool) bool {
+	conn.mu.Lock()
+	// Fast path: if the same client is already attached, don't enter flush mode on every
+	// REQUEST. Input only goes to the session from that client, and never takes it over:
+	// a client a reattach replaced may still send input it had queued.
+	attached := conn.Client == clientConn && !conn.isFlushing
+	if attached || !reattach {
+		conn.mu.Unlock()
+		return attached
+	}
+
+	var bufferToFlush []BufferedMessage
+
+	// A takeover reserves the session until its drain ends, even for the client it
+	// replaces. An attached client is replaced, as the owner check passed and after
+	// a network drop the old connection may be dead without the backend knowing yet.
+	alreadyConnected := conn.isFlushing || conn.drained != nil
+
+	var replacedClient *WSConnLock
+
+	if !alreadyConnected {
+		if conn.Client != clientConn {
+			replacedClient = conn.Client
+		}
+
+		conn.isFlushing = true
+		conn.attachment.Add(1)
+
+		if conn.cleanupTimer != nil {
+			conn.cleanupTimer.Stop()
+			conn.cleanupTimer = nil
+		}
+
+		bufferToFlush = conn.Buffer
+		conn.Buffer = nil
+		conn.BufferBytes = 0
+	}
+	conn.mu.Unlock()
+
+	if alreadyConnected {
+		return false
+	}
+
+	// Tell the replaced client the session moved, so it ends without retrying. It may
+	// be dead, so the reattach does not wait for that write.
+	if replacedClient != nil {
+		go m.notifySessionMoved(conn, replacedClient)
+	}
+
+	flushFailed := false
+	// Flush buffered messages to the newly connected client outside the lock
+	for i, bm := range bufferToFlush {
+		if err := m.sendDataMessage(conn, clientConn, bm.Type, bm.Data); err != nil {
+			// Client dropped again during flush: re-buffer remaining messages and allow a future reconnect to retry.
+			flushFailed = true
+
+			remaining := append([]BufferedMessage(nil), bufferToFlush[i:]...)
+			m.handleTerminalFlushFailure(conn, remaining, time.Now())
+
+			break
+		}
+	}
+
+	if !flushFailed {
+		return m.drainBufferedMessages(conn, clientConn)
+	}
+
+	return false
+}
+
+func (m *Multiplexer) handleTerminalFlushFailure(
+	conn *Connection,
+	remaining []BufferedMessage,
+	disconnectedAt time.Time,
+) {
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.isFlushing = false
+	conn.Status.State = StateClosed
+	conn.Status.LastMsg = disconnectedAt
+	conn.Status.Error = ""
+
+	conn.enforceBufferCaps(remaining, true)
+
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+}
+
+// drainBufferedMessages sends the messages buffered while the earlier buffer was
+// flushed, and attaches the client. The client is attached before they are sent, so
+// no more are buffered: output arriving faster than it is sent would otherwise keep
+// the drain, which runs in the client's read loop, and the client's requests waiting.
+// Until these messages and the status are written, the cluster reader's sends to the
+// client wait for drained, and the session stays reserved, so another client cannot
+// take it over.
+// It returns true if the drain was successful and the client attached, or false if it failed.
+func (m *Multiplexer) drainBufferedMessages(conn *Connection, clientConn *WSConnLock) bool {
+	conn.mu.Lock()
+	tail := conn.Buffer
+	conn.Buffer = nil
+	conn.BufferBytes = 0
+	conn.Client = clientConn
+	conn.isFlushing = false
+	drained := make(chan struct{})
+	conn.drained = drained
+	conn.Status.State = StateConnected
+	conn.Status.LastMsg = time.Now()
+	statusMsg, statusErr := conn.statusMessageLocked()
+	sendStatus := statusErr == nil && !conn.closed
+	isUpstreamClosed := conn.upstreamClosed
+	upstreamErr := conn.upstreamErr
+	conn.mu.Unlock()
+
+	// The write lock is taken without the session's lock, as a write to the replaced
+	// client may hold it until the write times out, and other clients disconnecting
+	// need the session's lock meanwhile. Output arriving in the meantime waits for
+	// drained instead of the write lock, so it cannot get ahead of the tail.
+	conn.writeMu.Lock()
+
+	for i, bm := range tail {
+		if err := clientConn.WriteJSON(m.createWrapperMessage(conn, bm.Type, bm.Data)); err != nil {
+			conn.writeMu.Unlock()
+			m.handleTerminalDrainFailure(conn, tail[i:])
+
+			return false
+		}
+	}
+
+	// Tell the client it is attached, as a new connection is told.
+	if sendStatus {
+		_ = clientConn.WriteJSON(statusMsg)
+	}
+	conn.writeMu.Unlock()
+
+	conn.mu.Lock()
+	conn.endDrainLocked()
+	conn.mu.Unlock()
+
+	if isUpstreamClosed {
+		// After a break the client attaches anew; after a normal end it is done.
+		if upstreamErr != nil {
+			m.sendClientError(clientConn, conn.ClusterID, conn.Path, conn.Query, conn.UserID, upstreamErr)
+		} else {
+			_ = m.sendCompleteMessage(conn, clientConn)
+		}
+
+		m.removeConnection(conn)
+	}
+
+	return true
+}
+
+// endDrainLocked releases the session a drain reserved, and the output waiting for
+// it. The caller holds conn.mu.
+func (c *Connection) endDrainLocked() {
+	if c.drained != nil {
+		close(c.drained)
+		c.drained = nil
+	}
+}
+
+// handleTerminalDrainFailure detaches a client a drain could not write to, keeping
+// the messages it did not get ahead of any the cluster reader buffered after them,
+// e.g. after its own send to the client failed and detached it.
+func (m *Multiplexer) handleTerminalDrainFailure(conn *Connection, unsent []BufferedMessage) {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	conn.endDrainLocked()
+	conn.Client = nil
+	conn.Status.State = StateClosed
+	conn.Status.LastMsg = time.Now()
+	conn.Status.Error = ""
+	conn.enforceBufferCaps(unsent, true)
+
+	m.startCleanupTimer(conn)
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {
@@ -1088,7 +1824,13 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 }
 
 // handleClusterMessages handles messages from a cluster connection.
-func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
+func (m *Multiplexer) handleClusterMessages(conn *Connection) {
+	// A terminal is not reconnected, so the end of its stream is handled here. A watch's
+	// read errors are left to monitorConnection, which reconnects it.
+	if isTerminalPath(conn.Path) {
+		defer m.endTerminalStream(conn)
+	}
+
 	var lastResourceVersion string
 
 	for {
@@ -1096,24 +1838,18 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 		case <-conn.Done:
 			return
 		default:
-			if err := m.processClusterMessage(conn, clientConn, &lastResourceVersion); err != nil {
-				if errors.Is(err, errConnectionSuperseded) || errors.Is(err, errWatchExpired) {
-					return
-				}
-
-				var writeErr clientWriteError
-				if errors.As(err, &writeErr) {
-					logger.Log(logger.LevelInfo, map[string]string{
-						logFieldClusterID: conn.ClusterID,
-						"userID":          conn.UserID,
-					}, err, "writing to client connection failed; stopping client pump")
-					m.removeConnection(conn)
+			if err := m.processClusterMessage(conn, &lastResourceVersion); err != nil {
+				if isTerminalPath(conn.Path) {
+					if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+						conn.mu.Lock()
+						conn.upstreamErr = err
+						conn.mu.Unlock()
+					}
 
 					return
 				}
 
-				// Let monitorConnection handle reconnect/backoff on all read errors, including close frames.
-				conn.updateStatus(StateError, err)
+				m.handleWatchReadError(conn, err)
 
 				return
 			}
@@ -1121,10 +1857,133 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 	}
 }
 
+// endTerminalStream handles the end of a terminal's cluster stream, whether it ended
+// or broke.
+func (m *Multiplexer) endTerminalStream(conn *Connection) {
+	conn.mu.Lock()
+	conn.upstreamClosed = true
+
+	// The session was ended, e.g. by its grace timer, which closed this stream.
+	// Keeping it for another grace period would only keep its output alive.
+	if conn.closed {
+		conn.mu.Unlock()
+
+		return
+	}
+
+	// A client still draining is not attached yet, and its drain reports the end.
+	if conn.Client == nil || conn.Status.State == StateClosed || conn.isFlushing {
+		m.startCleanupTimer(conn)
+		conn.mu.Unlock()
+
+		logger.Log(logger.LevelInfo, map[string]string{
+			logFieldClusterID: conn.ClusterID,
+			"Path":            conn.Path,
+		}, nil, "upstream terminal stream ended while client was disconnected; preserving buffered output for grace period")
+
+		return
+	}
+
+	client := conn.Client
+	upstreamErr := conn.upstreamErr
+	drained := conn.drained
+
+	// Claim the session, as the grace timer does, so a takeover cannot start while
+	// it ends: its drain would find it closed and could not tell its client.
+	if drained == nil {
+		conn.isFlushing = true
+	}
+	conn.mu.Unlock()
+
+	// The end, an error or that the session closed, waits for a drain still
+	// writing to the client, so it follows that output, as the client ends the
+	// session when it gets it.
+	if drained != nil {
+		<-drained
+
+		// A takeover that started meanwhile, or a failed drain or send that detached
+		// the client and kept the output it did not get, leaves the end to the drain
+		// of the client attaching, which sees upstreamClosed.
+		conn.mu.Lock()
+		if conn.Client != client || conn.isFlushing || conn.drained != nil {
+			conn.mu.Unlock()
+
+			return
+		}
+
+		conn.isFlushing = true
+		conn.mu.Unlock()
+	}
+
+	// A terminal stream that broke, rather than ended, is reported as an error,
+	// so the client attaches again instead of treating the session as over.
+	if upstreamErr != nil {
+		conn.writeMu.Lock()
+		m.sendClientError(client, conn.ClusterID, conn.Path, conn.Query, conn.UserID, upstreamErr)
+		conn.writeMu.Unlock()
+	}
+
+	m.removeConnection(conn)
+}
+
+// handleWatchReadError handles the error that stopped a watch's reader.
+func (m *Multiplexer) handleWatchReadError(conn *Connection, err error) {
+	if errors.Is(err, errConnectionSuperseded) || errors.Is(err, errWatchExpired) {
+		return
+	}
+
+	var writeErr clientWriteError
+	if errors.As(err, &writeErr) {
+		logger.Log(logger.LevelInfo, map[string]string{
+			logFieldClusterID: conn.ClusterID,
+			"userID":          conn.UserID,
+		}, err, "writing to client connection failed; stopping client pump")
+		m.removeConnection(conn)
+
+		return
+	}
+
+	// Let monitorConnection handle reconnect/backoff on all read errors, including close frames.
+	conn.updateStatus(StateError, err)
+}
+
+func (m *Multiplexer) handleTerminalSendError(conn *Connection,
+	failedClient *WSConnLock, sendErr error, messageType int, message []byte,
+) {
+	disconnectedAt := time.Now()
+
+	conn.mu.Lock()
+
+	if conn.Client != failedClient {
+		// The client was already detached, or another client took the session over:
+		// keep the frame for the next client, or deliver it to the new one.
+		conn.mu.Unlock()
+		m.sendTerminalOutput(conn, messageType, message)
+
+		return
+	}
+
+	conn.Client = nil
+	conn.Status.State = StateClosed
+
+	conn.Status.LastMsg = disconnectedAt
+
+	conn.Status.Error = ""
+
+	conn.enforceBufferCaps([]BufferedMessage{{Type: messageType, Data: message}}, false)
+
+	logger.Log(logger.LevelInfo, map[string]string{
+		logFieldClusterID: conn.ClusterID,
+		"Path":            conn.Path,
+	}, sendErr, "client connection lost; buffering terminal output")
+
+	m.startCleanupTimer(conn)
+	conn.mu.Unlock()
+}
+
 // processClusterMessage processes a single message from the cluster.
 func (m *Multiplexer) processClusterMessage(
 	conn *Connection,
-	clientConn *WSConnLock,
 	lastResourceVersion *string,
 ) error {
 	messageType, message, err := conn.WSConn.ReadMessage()
@@ -1143,6 +2002,20 @@ func (m *Multiplexer) processClusterMessage(
 		return err
 	}
 
+	if isTerminalPath(conn.Path) {
+		m.sendTerminalOutput(conn, messageType, message)
+
+		return nil
+	}
+
+	conn.mu.RLock()
+	currentClient := conn.Client
+	conn.mu.RUnlock()
+
+	if currentClient == nil {
+		return nil
+	}
+
 	conn.forwardMu.Lock()
 	defer conn.forwardMu.Unlock()
 
@@ -1150,9 +2023,9 @@ func (m *Multiplexer) processClusterMessage(
 		return errConnectionSuperseded
 	}
 
-	expired := errors.Is(m.sendIfNewResourceVersion(message, conn, clientConn, lastResourceVersion), errWatchExpired)
+	expired := errors.Is(m.sendIfNewResourceVersion(message, conn, currentClient, lastResourceVersion), errWatchExpired)
 
-	if err := m.sendDataMessage(conn, clientConn, messageType, message); err != nil {
+	if err := m.sendDataMessage(conn, currentClient, messageType, message); err != nil {
 		return err
 	}
 
@@ -1188,6 +2061,74 @@ func (m *Multiplexer) endExpiredWatch(conn *Connection) {
 	}
 
 	m.removeConnection(conn)
+}
+
+// sendTerminalOutput sends a frame of terminal output to the attached client, or
+// buffers it while no client is attached or one is taking the session over.
+func (m *Multiplexer) sendTerminalOutput(conn *Connection, messageType int, message []byte) {
+	// Decide and enqueue under one lock so a reconnect cannot attach and finish
+	// draining between the check and the append, which would strand this frame.
+	conn.mu.Lock()
+	if conn.Client == nil || conn.isFlushing {
+		conn.enforceBufferCaps([]BufferedMessage{{Type: messageType, Data: message}}, false)
+		conn.mu.Unlock()
+
+		return
+	}
+
+	if drained := conn.drained; drained != nil {
+		conn.mu.Unlock()
+
+		// Follow the output the drain is writing to the client.
+		<-drained
+		m.sendTerminalOutput(conn, messageType, message)
+
+		return
+	}
+
+	client := conn.Client
+	attachment := conn.attachment.Load()
+	conn.mu.Unlock()
+
+	m.writeTerminalOutput(conn, client, attachment, messageType, message)
+}
+
+// writeTerminalOutput writes a frame to the client sendTerminalOutput picked for it
+// when the session's attachment was attachment. If a takeover started since, the
+// client may be the one it replaced, which can still accept the write, losing the
+// frame, so the frame is sent again to the client attached or attaching now. The
+// cluster reader reads one frame at a time, so this frame is still the newest. A
+// takeover starting after the check waits for the write lock to write to its client,
+// so the frame reaches the old client first, like output sent before the takeover.
+func (m *Multiplexer) writeTerminalOutput(
+	conn *Connection,
+	client *WSConnLock,
+	attachment uint64,
+	messageType int,
+	message []byte,
+) {
+	dataMsg := m.createWrapperMessage(conn, messageType, message)
+
+	conn.writeMu.Lock()
+	if conn.attachment.Load() != attachment {
+		conn.writeMu.Unlock()
+		m.sendTerminalOutput(conn, messageType, message)
+
+		return
+	}
+
+	err := client.WriteJSON(dataMsg)
+	conn.writeMu.Unlock()
+
+	if err != nil {
+		m.handleTerminalSendError(conn, client, err, messageType, message)
+
+		return
+	}
+
+	conn.mu.Lock()
+	conn.Status.LastMsg = time.Now()
+	conn.mu.Unlock()
 }
 
 // sendIfNewResourceVersion checks the version of a resource from an incoming message
@@ -1339,13 +2280,56 @@ func (m *Multiplexer) sendDataMessage(
 func (m *Multiplexer) removeConnection(conn *Connection) {
 	m.mutex.Lock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
 	if m.connections[connKey] == conn {
 		delete(m.connections, connKey)
 	}
 	m.mutex.Unlock()
 
+	conn.mu.Lock()
+	if conn.cleanupTimer != nil {
+		conn.cleanupTimer.Stop()
+		conn.cleanupTimer = nil
+	}
+	conn.mu.Unlock()
+
 	conn.safeClose()
+}
+
+// startCleanupTimer starts the grace period cleanup timer for a disconnected terminal connection.
+// The caller must hold conn.mu.Lock().
+func (m *Multiplexer) startCleanupTimer(conn *Connection) {
+	if conn.cleanupTimer != nil {
+		conn.cleanupTimer.Stop()
+		conn.cleanupTimer = nil
+	}
+
+	var timer *time.Timer
+
+	timer = time.AfterFunc(m.terminalGracePeriod, func() {
+		conn.mu.Lock()
+		if conn.cleanupTimer != timer {
+			conn.mu.Unlock()
+			return
+		}
+
+		// The state can be an error, e.g. from a failed write to the cluster, so only
+		// whether a client is attached or attaching decides.
+		stillDisconnected := conn.Client == nil && !conn.isFlushing && conn.drained == nil
+		if !stillDisconnected {
+			conn.mu.Unlock()
+			return
+		}
+
+		// Claim the timer slot before cleaning up to reduce races with reconnect.
+		// Prevent a concurrent reconnect from attaching after we've decided to clean up.
+		conn.isFlushing = true
+		conn.cleanupTimer = nil
+		conn.mu.Unlock()
+
+		m.removeConnection(conn)
+	})
+	conn.cleanupTimer = timer
 }
 
 // createWrapperMessage creates a wrapper message for a cluster connection.
@@ -1390,8 +2374,8 @@ func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, 
 }
 
 // CloseConnection closes a specific connection based on its identifier.
-func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
-	connKey := m.createConnectionKey(clusterID, path, userID)
+func (m *Multiplexer) CloseConnection(clusterID, path, userID string, query ...string) {
+	connKey := m.createConnectionKey(clusterID, path, userID, query...)
 
 	m.mutex.Lock()
 
@@ -1408,10 +2392,16 @@ func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
 	conn.safeClose()
 }
 
-// createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
-// Uses string concatenation instead of fmt.Sprintf to avoid allocation overhead
-// on this hot path (called on every WebSocket message routing).
-func (m *Multiplexer) createConnectionKey(clusterID, path, userID string) string {
+func (m *Multiplexer) createConnectionKey(clusterID, path, userID string, query ...string) string {
+	q := ""
+	if len(query) > 0 {
+		q = query[0]
+	}
+
+	if isTerminalPath(path) && q != "" {
+		return clusterID + ":" + path + "?" + q + ":" + userID
+	}
+
 	return clusterID + ":" + path + ":" + userID
 }
 
@@ -1480,4 +2470,42 @@ func (e clientWriteError) Error() string {
 
 func (e clientWriteError) Unwrap() error {
 	return e.err
+}
+
+// enforceBufferCaps enforces the maximum frame count limit (1000) and byte size limit (5MB) on the buffer.
+// It drops the oldest messages if limits are exceeded.
+func (c *Connection) enforceBufferCaps(newMessages []BufferedMessage, prepend bool) {
+	for _, bm := range newMessages {
+		c.BufferBytes += len(bm.Data)
+	}
+
+	if prepend {
+		c.Buffer = append(newMessages, c.Buffer...)
+	} else {
+		c.Buffer = append(c.Buffer, newMessages...)
+	}
+
+	if len(c.Buffer) > 1000 {
+		droppedCount := len(c.Buffer) - 1000
+		for i := 0; i < droppedCount; i++ {
+			c.BufferBytes -= len(c.Buffer[i].Data)
+		}
+
+		// Reslicing keeps the dropped frames in the backing array, so clear them.
+		clear(c.Buffer[:droppedCount])
+		c.Buffer = c.Buffer[droppedCount:]
+	}
+
+	const maxBytes = 5 * 1024 * 1024
+
+	startIndex := 0
+	for startIndex < len(c.Buffer) && c.BufferBytes > maxBytes {
+		c.BufferBytes -= len(c.Buffer[startIndex].Data)
+		startIndex++
+	}
+
+	if startIndex > 0 {
+		clear(c.Buffer[:startIndex])
+		c.Buffer = c.Buffer[startIndex:]
+	}
 }
