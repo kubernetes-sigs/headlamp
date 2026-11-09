@@ -190,3 +190,65 @@ describe('sortBindingsByKind', () => {
     expect(sortBindingsByKind(kind)(alpha, bravo)).toBeLessThan(0);
   });
 });
+
+function getRoleColumn() {
+  const props = mockListView.mock.calls[0][0];
+  return props.columns.find((c: any) => c?.id === 'role');
+}
+
+function makeItem(roleRefKind: string, roleRefName: string, namespace?: string) {
+  return {
+    roleRef: { apiGroup: 'rbac.authorization.k8s.io', kind: roleRefKind, name: roleRefName },
+    getNamespace: () => namespace,
+    cluster: 'test-cluster',
+  };
+}
+
+describe('RoleBinding list role reference link', () => {
+  beforeEach(() => {
+    mockListView.mockReset();
+  });
+
+  it('links a namespaced binding that references a ClusterRole to the ClusterRole page', () => {
+    render(
+      <TestContext>
+        <RoleBindingList />
+      </TestContext>
+    );
+    render(
+      <TestContext>
+        {getRoleColumn().render(makeItem('ClusterRole', 'view', 'default'))}
+      </TestContext>
+    );
+
+    const href = screen.getByRole('link', { name: 'view' }).getAttribute('href') ?? '';
+    expect(href).toContain('/clusterroles/view');
+    expect(href).not.toContain('/roles/default/view');
+  });
+
+  it('links a namespaced binding that references a Role to the Role page in its namespace', () => {
+    render(
+      <TestContext>
+        <RoleBindingList />
+      </TestContext>
+    );
+    render(
+      <TestContext>{getRoleColumn().render(makeItem('Role', 'pod-reader', 'default'))}</TestContext>
+    );
+
+    const href = screen.getByRole('link', { name: 'pod-reader' }).getAttribute('href') ?? '';
+    expect(href).toContain('/roles/default/pod-reader');
+  });
+
+  it('links a ClusterRoleBinding to the ClusterRole page', () => {
+    render(
+      <TestContext>
+        <RoleBindingList />
+      </TestContext>
+    );
+    render(<TestContext>{getRoleColumn().render(makeItem('ClusterRole', 'admin'))}</TestContext>);
+
+    const href = screen.getByRole('link', { name: 'admin' }).getAttribute('href') ?? '';
+    expect(href).toContain('/clusterroles/admin');
+  });
+});
