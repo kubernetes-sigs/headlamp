@@ -63,6 +63,14 @@ function makePod() {
   };
 }
 
+function podWithPorts() {
+  const ports = [
+    { name: '123-abc', containerPort: 8080 },
+    { name: 'http', containerPort: 8080 },
+  ];
+  return { ...makePod(), spec: { containers: [{ name: 'app', ports }] } };
+}
+
 function renderPortForward() {
   return render(
     <TestContext>
@@ -75,7 +83,46 @@ describe('PortForward stop handler', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    mockUsePodList.mockImplementation(() => [[], null]);
     mockListPortForward.mockResolvedValue([runningPortForward]);
+  });
+
+  it.each([
+    ['a digit-prefixed named port', '123-abc'],
+    ['a named port', 'http'],
+    ['a numeric string port', '8080'],
+  ])('resolves %s to the container port number', async (_, containerPort) => {
+    mockUsePodList.mockImplementation(() => [[podWithPorts()] as never[], null]);
+    mockListPortForward.mockResolvedValue([{ ...runningPortForward, targetPort: '8080' }]);
+
+    render(
+      <TestContext>
+        <PortForward containerPort={containerPort} resource={makePod() as any} />
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Stop port forward/i)).toBeInTheDocument();
+    });
+  });
+
+  it.each([
+    ['a named port missing from the pod', [podWithPorts()], 'missing'],
+    ['a named port with no pods yet', [], 'http'],
+  ])('does not match a running forward for %s', async (_, pods, containerPort) => {
+    mockUsePodList.mockImplementation(() => [pods as never[], null]);
+
+    render(
+      <TestContext>
+        <PortForward containerPort={containerPort} resource={makePod() as any} />
+      </TestContext>
+    );
+
+    await waitFor(() => expect(mockListPortForward).toHaveBeenCalled());
+    await act(async () => {});
+
+    expect(screen.getByLabelText(/Start port forward/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Stop port forward/i)).not.toBeInTheDocument();
   });
 
   it('loads service pods from the resource cluster', () => {

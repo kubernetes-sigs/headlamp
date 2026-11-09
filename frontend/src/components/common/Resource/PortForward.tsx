@@ -188,7 +188,7 @@ function PortForwardContent(props: PortForwardProps) {
   }, [resource]);
 
   const numericContainerPort =
-    typeof containerPort === 'string' && isNaN(parseInt(containerPort))
+    typeof containerPort === 'string' && !/^\d+$/.test(containerPort)
       ? !pods || pods.length === 0
         ? 0
         : getPortNumberFromPortName(pods[0].spec.containers, containerPort)
