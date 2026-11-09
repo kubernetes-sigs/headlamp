@@ -2,7 +2,14 @@ package kubeconfig_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/transport"
 )
 
 //nolint:funlen // Integration test function covering file watcher events across multiple kubeconfigs.
@@ -821,6 +829,38 @@ func TestLoadAndWatchFilesRemovesContextsOfKubeConfigDeletedBeforeWatching(t *te
 	}, 3*time.Second, 50*time.Millisecond, "the deleted kubeconfig's context should be removed")
 }
 
+// TestRESTConfigKeepsClientCertificateFiles checks that RESTConfig leaves the
+// client certificate and key as files. Long-lived clients built from it, such
+// as the cache informers, rely on client-go reloading the files when they are
+// rotated.
+func TestRESTConfigKeepsClientCertificateFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	certPath := filepath.Join(tempDir, "client.crt")
+	keyPath := filepath.Join(tempDir, "client.key")
+	writeClientCertificate(t, certPath, keyPath, "user-1")
+
+	config := clientcmdapi.NewConfig()
+	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{Server: "https://127.0.0.1:6443"}
+	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{ClientCertificate: certPath, ClientKey: keyPath}
+	config.Contexts["test-context"] = &clientcmdapi.Context{Cluster: "test-cluster", AuthInfo: "test-user"}
+
+	kubeConfigPath := filepath.Join(tempDir, "kubeconfig")
+	require.NoError(t, clientcmd.WriteToFile(*config, kubeConfigPath))
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	kContext, err := store.GetContext("test-context")
+	require.NoError(t, err)
+
+	restConf, err := kContext.RESTConfig()
+	require.NoError(t, err)
+	require.Equal(t, certPath, restConf.CertFile)
+	require.Equal(t, keyPath, restConf.KeyFile)
+	require.Empty(t, restConf.CertData)
+	require.Empty(t, restConf.KeyData)
+}
+
 // writeKubeConfigForServer writes a kubeconfig with one context, test-context,
 // for the given TLS server and user.
 func writeKubeConfigForServer(t *testing.T, server *httptest.Server, user *clientcmdapi.AuthInfo) string {
@@ -853,6 +893,33 @@ func proxyThroughContext(t *testing.T, store kubeconfig.ContextStore) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }
 
+// writeClientCertificate writes a self-signed client certificate for
+// commonName and its key.
+func writeClientCertificate(t *testing.T, certPath, keyPath, commonName string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: commonName},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0o600))
+	require.NoError(t, os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600))
+}
+
 // TestCredentialReloadSendsRotatedToken checks that once the watcher reloads
 // the contexts after a token file changes, the proxy sends the new token.
 func TestCredentialReloadSendsRotatedToken(t *testing.T) {
@@ -880,6 +947,178 @@ func TestCredentialReloadSendsRotatedToken(t *testing.T) {
 
 	proxyThroughContext(t, store)
 	require.Equal(t, "Bearer token-2", <-seen)
+}
+
+// TestCredentialReloadPresentsRotatedClientCertificate checks that once the
+// watcher reloads the contexts after the client certificate and key change,
+// the proxy presents the new certificate.
+func TestCredentialReloadPresentsRotatedClientCertificate(t *testing.T) {
+	seen := make(chan string, 10)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.TLS.PeerCertificates[0].Subject.CommonName
+	}))
+	server.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	certPath := filepath.Join(t.TempDir(), "client.crt")
+	keyPath := filepath.Join(t.TempDir(), "client.key")
+	writeClientCertificate(t, certPath, keyPath, "user-1")
+
+	kubeConfigPath := writeKubeConfigForServer(t, server,
+		&clientcmdapi.AuthInfo{ClientCertificate: certPath, ClientKey: keyPath})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "user-1", <-seen)
+
+	writeClientCertificate(t, certPath, keyPath, "user-2")
+
+	// The watcher reloads the contexts like this when the files change.
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "user-2", <-seen)
+}
+
+// TestCredentialReloadClientSetPresentsRotatedClientCertificate checks that a
+// clientset kept per context, created again once the watcher reloads the
+// context after its client certificate and key change, presents the new
+// certificate rather than reusing the old clientset's connections.
+func TestCredentialReloadClientSetPresentsRotatedClientCertificate(t *testing.T) {
+	seen := make(chan string, 10)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.TLS.PeerCertificates[0].Subject.CommonName
+	}))
+	server.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	certPath := filepath.Join(t.TempDir(), "client.crt")
+	keyPath := filepath.Join(t.TempDir(), "client.key")
+	writeClientCertificate(t, certPath, keyPath, "user-1")
+
+	kubeConfigPath := writeKubeConfigForServer(t, server,
+		&clientcmdapi.AuthInfo{ClientCertificate: certPath, ClientKey: keyPath})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	request := func() string {
+		kContext, err := store.GetContext("test-context")
+		require.NoError(t, err)
+
+		clientset, err := kContext.ClientSetWithOwnTransport("")
+		require.NoError(t, err)
+
+		_, err = clientset.Discovery().RESTClient().Get().AbsPath("/version").DoRaw(context.Background())
+		require.NoError(t, err)
+
+		return <-seen
+	}
+
+	require.Equal(t, "user-1", request())
+
+	writeClientCertificate(t, certPath, keyPath, "user-2")
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	require.Equal(t, "user-2", request())
+}
+
+// TestCredentialReloadKeepsProxyWhenCertificateRotatesBeforeKey checks that a
+// reload between writing a rotated certificate and its key still leaves a
+// working proxy, which presents the new certificate once the key is written.
+func TestCredentialReloadKeepsProxyWhenCertificateRotatesBeforeKey(t *testing.T) {
+	seen := make(chan string, 100)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.TLS.PeerCertificates[0].Subject.CommonName
+	}))
+	server.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	certPath := filepath.Join(t.TempDir(), "client.crt")
+	keyPath := filepath.Join(t.TempDir(), "client.key")
+	writeClientCertificate(t, certPath, keyPath, "user-1")
+
+	newCertPath := filepath.Join(t.TempDir(), "client.crt")
+	newKeyPath := filepath.Join(t.TempDir(), "client.key")
+	writeClientCertificate(t, newCertPath, newKeyPath, "user-2")
+
+	kubeConfigPath := writeKubeConfigForServer(t, server,
+		&clientcmdapi.AuthInfo{ClientCertificate: certPath, ClientKey: keyPath})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	proxyThroughContext(t, store)
+	require.Equal(t, "user-1", <-seen)
+
+	// The watcher reloads on the certificate write, before the key is written.
+	require.NoError(t, os.Rename(newCertPath, certPath))
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+	require.NoError(t, os.Rename(newKeyPath, keyPath))
+
+	kContext, err := store.GetContext("test-context")
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/namespaces", nil)
+		require.NoError(t, kContext.ProxyRequest(rr, req))
+
+		return rr.Code == http.StatusOK && <-seen == "user-2"
+	}, 10*time.Second, 200*time.Millisecond)
+}
+
+// TestProxyPresentsRotatedClientCertificateWithoutReload checks that a proxy
+// keeps client-go's reloading of rotated client certificate files when its
+// context is not reloaded: a dynamic cluster, which the watcher does not
+// reload, or a kubeconfig context whose reload did not happen, for example
+// because the watcher failed to start.
+func TestProxyPresentsRotatedClientCertificateWithoutReload(t *testing.T) {
+	// client-go reads this when the proxy's transport is created, and that
+	// transport's reloader keeps polling the files after the test. Keep the
+	// interval long enough not to flood the test output.
+	refresh := transport.CertCallbackRefreshDuration
+	transport.CertCallbackRefreshDuration = time.Second
+
+	t.Cleanup(func() { transport.CertCallbackRefreshDuration = refresh })
+
+	for name, source := range map[string]int{"dynamic": kubeconfig.DynamicCluster, "kubeconfig": kubeconfig.KubeConfig} {
+		t.Run(name, func(t *testing.T) {
+			seen := make(chan string, 100)
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seen <- r.TLS.PeerCertificates[0].Subject.CommonName
+			}))
+			server.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+			server.StartTLS()
+			t.Cleanup(server.Close)
+
+			certPath := filepath.Join(t.TempDir(), "client.crt")
+			keyPath := filepath.Join(t.TempDir(), "client.key")
+			writeClientCertificate(t, certPath, keyPath, "user-1")
+
+			kubeConfigPath := writeKubeConfigForServer(t, server,
+				&clientcmdapi.AuthInfo{ClientCertificate: certPath, ClientKey: keyPath})
+
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, source, nil))
+
+			proxyThroughContext(t, store)
+			require.Equal(t, "user-1", <-seen)
+
+			writeClientCertificate(t, certPath, keyPath, "user-2")
+
+			require.Eventually(t, func() bool {
+				proxyThroughContext(t, store)
+
+				return <-seen == "user-2"
+			}, 10*time.Second, 200*time.Millisecond)
+		})
+	}
 }
 
 // reloadCounter counts the contexts the store stores, so a test can check
