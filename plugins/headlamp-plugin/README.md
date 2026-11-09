@@ -136,7 +136,7 @@ matrix (Node 24/npm 11) with:
 ```bash
 npm run build
 npm pack
-npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.14.0.tgz
+npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.15.0-alpha.1.tgz
 ```
 
 Use the tarball filename produced by `npm pack` for the current version. The matrix
@@ -213,7 +213,7 @@ custom Storybook configuration and your Node installation are not migrated.
 After publication, upgrade to a specific prerelease with:
 
 ```bash
-npx @kinvolk/headlamp-plugin@0.15.0-alpha.0 upgrade --headlamp-plugin-version=0.15.0-alpha.0 your-plugin-folder
+npx @kinvolk/headlamp-plugin@0.15.0-alpha.1 upgrade --headlamp-plugin-version=0.15.0-alpha.1 your-plugin-folder
 ```
 
 Or explicitly opt in to whichever prerelease is currently tagged `alpha`:
