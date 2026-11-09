@@ -30,7 +30,12 @@ import { apply } from '../../lib/k8s/api/v1/apply';
 import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
 import { KubePod } from '../../lib/k8s/pod';
-import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
+import {
+  Channel,
+  isRetryableStartError,
+  useTerminalStream,
+  XTerminalConnected,
+} from '../../lib/k8s/useTerminalStream';
 import store from '../../redux/stores/store';
 
 interface NodeShellTerminalProps {
@@ -107,44 +112,66 @@ function uniqueString() {
 }
 
 /**
+ * Returns the namespace node shell pods are created in on a cluster, from its settings.
+ * The node shell action checks the user's permissions in it.
+ *
+ * @param cluster - Cluster to create the pod on
+ * @returns The namespace
+ */
+export function nodeShellNamespace(cluster: string | null) {
+  const config = cluster === null ? undefined : loadClusterSettings(cluster).nodeShellTerminal;
+  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
+  return config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
+}
+
+/**
  * Creates the node debugger pod and opens an attach stream to it.
  *
  * @param item - Node to open a shell on
  * @param cluster - Cluster the node belongs to, already resolved by the caller
+ * @param pod - Name and namespace of the debugger pod, kept across reconnects to reattach to the
+ *              same pod even if the namespace setting changes meanwhile
+ * @param podCreated - Whether an earlier attempt created the pod or is creating it. It is then
+ *                     only attached to, not applied again: applying an existing pod falls back to
+ *                     an update, which a user who may create and attach to pods may not be allowed
+ *                     to do. Attaching before the pod is ready fails and is retried.
  * @param onExec - Stream results callback
  * @param onError - Error handler callback, called with the pod creation failure message when the
  *                  thrown value carries one, and with undefined otherwise so the caller can supply a
  *                  translated fallback
- * @returns Object with the stream if successful, empty object on error
+ * @returns Object with the stream if successful, or whether creating the pod can be retried
  */
-async function shell(
+export async function shell(
   item: Node,
   cluster: string,
+  pod: { name: string; namespace: string },
+  podCreated: boolean,
   onExec: StreamResultsCb,
   onError: (message?: string) => void
 ) {
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
-  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
   const defaultImage = store.getState().config.defaultNodeShellImage;
   const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
-  const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
-  const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
-  const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
-  try {
-    await apply(kubePod, cluster);
-  } catch (e) {
-    console.error('Error:DebugNode: creating pod', e);
-    onError(e instanceof Error ? e.message : undefined);
-    return {};
+  if (!podCreated) {
+    const kubePod = shellPod(pod.name, pod.namespace, item.getName(), linuxImage);
+    try {
+      await apply(kubePod, cluster);
+    } catch (e) {
+      console.error('Error:DebugNode: creating pod', e);
+      onError(e instanceof Error ? e.message : undefined);
+      return { retry: isRetryableStartError(e) };
+    }
   }
   const tty = true;
   const stdin = true;
   const stdout = true;
   const stderr = true;
-  const url = `/api/v1/namespaces/${namespace}/pods/${podName}/attach?container=debugger&stdin=${
-    stdin ? 1 : 0
-  }&stderr=${stderr ? 1 : 0}&stdout=${stdout ? 1 : 0}&tty=${tty ? 1 : 0}`;
+  const url = `/api/v1/namespaces/${pod.namespace}/pods/${
+    pod.name
+  }/attach?container=debugger&stdin=${stdin ? 1 : 0}&stderr=${stderr ? 1 : 0}&stdout=${
+    stdout ? 1 : 0
+  }&tty=${tty ? 1 : 0}`;
   const additionalProtocols = [
     'v4.channel.k8s.io',
     'v3.channel.k8s.io',
@@ -152,7 +179,13 @@ async function shell(
     'channel.k8s.io',
   ];
   return {
-    stream: stream(url, onExec, { cluster, additionalProtocols, isJson: false }),
+    stream: stream(url, onExec, {
+      cluster,
+      additionalProtocols,
+      isJson: false,
+      reconnectOnFailure: false,
+      multiplexed: true,
+    }),
   };
 }
 
@@ -161,13 +194,20 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const podRef = useRef<{ name: string; namespace: string } | null>(null);
+  // Set once an attempt starts creating the pod, and cleared if that fails.
+  const podCreatedRef = useRef(false);
+  // The last failure to create the pod that was reported, so retries stay quiet.
+  const reportedErrorRef = useRef('');
   const { t } = useTranslation(['translation']);
   const { enqueueSnackbar } = useSnackbar();
 
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
     connectStream: async onDataCallback => {
-      const cluster = getCluster();
+      // The node's cluster, not the current page's: the terminal stays open, and
+      // reconnects, while the user goes elsewhere.
+      const cluster = item.cluster || getCluster();
       if (!cluster) {
         const message = t('translation|No cluster selected');
         enqueueSnackbar(message, { variant: 'error' });
@@ -177,16 +217,39 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
         };
       }
 
-      xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, cluster, onDataCallback, (errorMessage?: string) => {
-        const message = errorMessage || t('translation|Failed to create node shell pod');
-        enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
-          variant: 'error',
-        });
-        xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
-      });
+      if (!podRef.current) {
+        podRef.current = {
+          name: `node-debugger-${item.getName()}-${uniqueString()}`,
+          namespace: nodeShellNamespace(cluster),
+        };
+        xtermRef.current?.xterm.writeln('Trying to open a shell');
+      }
+
+      const podCreated = podCreatedRef.current;
+      podCreatedRef.current = true;
+      const { stream, retry } = await shell(
+        item,
+        cluster,
+        podRef.current,
+        podCreated,
+        onDataCallback,
+        (errorMessage?: string) => {
+          const message = errorMessage || t('translation|Failed to create node shell pod');
+          if (message === reportedErrorRef.current) return;
+          reportedErrorRef.current = message;
+          enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
+            variant: 'error',
+          });
+          xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
+        }
+      );
+      // shell returns no stream only when creating the pod failed.
+      if (!stream && !podCreated) {
+        podCreatedRef.current = false;
+      }
       return {
         stream,
+        retry,
       };
     },
     onClose: wrappedOnClose,

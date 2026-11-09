@@ -15,15 +15,14 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_NODE_SHELL_NAMESPACE, loadClusterSettings } from '../../helpers/clusterSettings';
+import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
-import store from '../../redux/stores/store';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
-import { NodeShellTerminal } from './NodeShellTerminal';
+import { nodeShellNamespace, NodeShellTerminal } from './NodeShellTerminal';
 
 interface NodeShellTerminalProps {
   item: Node | null;
@@ -37,17 +36,6 @@ function isNodeTerminalEnabled(cluster: string | null) {
   return clusterSettings.nodeShellTerminal?.isEnabled ?? true;
 }
 
-function nodeTerminalNamespace(cluster: string | null) {
-  if (cluster === null) {
-    return DEFAULT_NODE_SHELL_NAMESPACE;
-  }
-  const clusterSettings = loadClusterSettings(cluster);
-  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
-  return (
-    clusterSettings.nodeShellTerminal?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE
-  );
-}
-
 export function NodeShellAction(props: NodeShellTerminalProps) {
   const { item } = props;
   const { t } = useTranslation(['glossary']);
@@ -58,7 +46,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   function isLinux(item: Node | null): boolean {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
-  const namespace = nodeTerminalNamespace(cluster);
+  const namespace = nodeShellNamespace(cluster);
   const activityId = 'node-shell-' + item.metadata.uid;
 
   if (!isNodeTerminalEnabled(cluster)) {
