@@ -49,8 +49,23 @@ export const WebSocketManager = {
   /** Map of active WebSocket subscriptions with their details */
   activeSubscriptions: new Map<string, { clusterId: string; path: string; query: string }>(),
 
+  /** Map to track aliases when subscription query updates its resourceVersion */
+  keyAliases: new Map<string, string>(),
+
   /** Map to track pending unsubscribe operations for debouncing */
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
+
+  /**
+   * Updates the resourceVersion parameter in a query string, preserving all other parameters.
+   */
+  updateQueryResourceVersion(query: string, resourceVersion: string): string {
+    const params = new URLSearchParams(query);
+    if (!params.has('resourceVersion')) {
+      return query;
+    }
+    params.set('resourceVersion', resourceVersion);
+    return params.toString();
+  },
 
   /**
    * Creates a unique key for identifying WebSocket subscriptions
@@ -151,7 +166,11 @@ export const WebSocketManager = {
    * @param socket - WebSocket connection to subscribe to
    */
   resubscribeAll(socket: WebSocket): void {
-    this.activeSubscriptions.forEach(({ clusterId, path, query }) => {
+    this.activeSubscriptions.forEach(({ clusterId, path, query }, canonicalKey) => {
+      const resubKey = this.createKey(clusterId, path, query);
+      if (resubKey !== canonicalKey) {
+        this.keyAliases.set(resubKey, canonicalKey);
+      }
       const userId = getUserIdFromLocalStorage();
       const requestMsg: WebSocketMessage = {
         clusterId,
@@ -243,55 +262,66 @@ export const WebSocketManager = {
     onMessage: (data: any) => void,
     onError?: (err: Error) => void
   ): void {
+    const canonicalKey = this.keyAliases.get(key) || key;
+
     // Clear any pending unsubscribe for this key
-    const pendingTimeout = this.pendingUnsubscribes.get(key);
+    const pendingTimeout = this.pendingUnsubscribes.get(canonicalKey);
     if (pendingTimeout) {
       clearTimeout(pendingTimeout);
-      this.pendingUnsubscribes.delete(key);
+      this.pendingUnsubscribes.delete(canonicalKey);
     }
 
     // Remove the listener
-    const listeners = this.listeners.get(key);
+    const listeners = this.listeners.get(canonicalKey);
     if (listeners) {
       listeners.delete(onMessage);
       if (listeners.size === 0) {
-        this.listeners.delete(key);
+        this.listeners.delete(canonicalKey);
 
         // Delay unsubscription to handle rapid re-subscriptions
         // This prevents unnecessary WebSocket churn when a component quickly unmounts and remounts
         // For example: during route changes or component updates in React's strict mode
         const timeout = setTimeout(() => {
           // Only unsubscribe if there are still no listeners
-          if (!this.listeners.has(key)) {
-            this.activeSubscriptions.delete(key);
-            this.completedPaths.delete(key);
+          if (!this.listeners.has(canonicalKey)) {
+            const sub = this.activeSubscriptions.get(canonicalKey);
+            const closeQuery = sub?.query || query;
+            this.activeSubscriptions.delete(canonicalKey);
+            this.completedPaths.delete(canonicalKey);
+
+            // Clean up any alias mappings pointing to this subscription key
+            for (const [alias, target] of this.keyAliases.entries()) {
+              if (target === canonicalKey || alias === canonicalKey) {
+                this.keyAliases.delete(alias);
+              }
+            }
 
             if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
               const userId = getUserIdFromLocalStorage();
               const closeMsg: WebSocketMessage = {
                 clusterId,
                 path,
-                query,
+                query: closeQuery,
                 userId: userId || '',
                 type: 'CLOSE',
               };
               this.socketMultiplexer.send(JSON.stringify(closeMsg));
             }
           }
-          this.pendingUnsubscribes.delete(key);
+          this.pendingUnsubscribes.delete(canonicalKey);
         }, 100); // 100ms debounce
 
-        this.pendingUnsubscribes.set(key, timeout);
+        this.pendingUnsubscribes.set(canonicalKey, timeout);
       }
     }
 
     // Remove the error listener
     if (onError) {
-      const errListeners = this.errorListeners.get(key);
+      const errListeners = this.errorListeners.get(canonicalKey);
       if (errListeners) {
         errListeners.delete(onError);
         if (errListeners.size === 0) {
-          this.errorListeners.delete(key);
+          this.errorListeners.delete(canonicalKey);
         }
       }
     }
@@ -322,7 +352,8 @@ export const WebSocketManager = {
         return;
       }
 
-      const key = this.createKey(data.clusterId, data.path, data.query || '');
+      const incomingKey = this.createKey(data.clusterId, data.path, data.query || '');
+      const key = this.keyAliases.get(incomingKey) || incomingKey;
 
       // Handle COMPLETE messages
       if (data.type === 'COMPLETE') {
@@ -397,6 +428,23 @@ export const WebSocketManager = {
               listener(update);
             } catch (err) {
               console.error('Failed to process WebSocket message:', err);
+            }
+          }
+        }
+
+        // When a watch message updates resourceVersion, update activeSubscription
+        // so that if a reconnect occurs, resubscribeAll uses the latest resourceVersion.
+        if (update.object?.metadata?.resourceVersion) {
+          const newRV = update.object.metadata.resourceVersion;
+          const sub = this.activeSubscriptions.get(key);
+          if (sub && sub.query) {
+            const updatedQuery = this.updateQueryResourceVersion(sub.query, newRV);
+            if (updatedQuery !== sub.query) {
+              sub.query = updatedQuery;
+              const resubKey = this.createKey(sub.clusterId, sub.path, updatedQuery);
+              if (resubKey !== key) {
+                this.keyAliases.set(resubKey, key);
+              }
             }
           }
         }
