@@ -553,6 +553,15 @@ function AllocatedResourcesSection(props: { node: Node; pods: KubePod[] | null }
         podMemoryLimits = Math.max(podMemoryLimits, initMemLimit);
       });
 
+      // Overhead applies to the effective pod total, after accounting for init
+      // containers. Kubernetes adds it to limits only when that limit is nonzero.
+      const overheadCpu = units.parseCpu(pod.spec.overhead?.cpu || '0');
+      const overheadMemory = units.parseRam(pod.spec.overhead?.memory || '0');
+      podCpuRequests += overheadCpu;
+      podMemoryRequests += overheadMemory;
+      if (podCpuLimits > 0) podCpuLimits += overheadCpu;
+      if (podMemoryLimits > 0) podMemoryLimits += overheadMemory;
+
       reqCpu += podCpuRequests;
       limCpu += podCpuLimits;
       reqMem += podMemoryRequests;
