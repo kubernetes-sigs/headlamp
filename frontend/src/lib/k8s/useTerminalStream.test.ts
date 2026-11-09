@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Channel, useTerminalStream } from './useTerminalStream';
 
@@ -214,5 +214,38 @@ describe('useTerminalStream', () => {
     unmount();
     expect(xterm.dispose).toHaveBeenCalled();
     expect(streamMock.cancel).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the session when its callbacks change on a rerender', async () => {
+    vi.useFakeTimers();
+    try {
+      const containerRef = document.createElement('div');
+      const cancel = vi.fn();
+      const stream = { cancel, getSocket: () => null };
+      const first = vi.fn().mockResolvedValue({ stream });
+      const { rerender, unmount } = renderHook(
+        ({ connectStream }) =>
+          useTerminalStream({
+            connectStream,
+            containerRef,
+            onClose: () => {},
+            errorHandlers: { isSuccessfulExit: () => false },
+          }),
+        { initialProps: { connectStream: first } }
+      );
+      await act(() => vi.advanceTimersByTimeAsync(0));
+
+      // Callers that define their callbacks inline pass new ones on every render.
+      const second = vi.fn().mockResolvedValue({ stream });
+      rerender({ connectStream: second });
+      await act(() => vi.advanceTimersByTimeAsync(0));
+
+      expect(first).toHaveBeenCalledOnce();
+      expect(second).not.toHaveBeenCalled();
+      expect(cancel).not.toHaveBeenCalled();
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
