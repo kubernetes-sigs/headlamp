@@ -2181,6 +2181,27 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 		applyRequestTokenToContext(r, clusterName, context)
 	}
 
+	// if no token present in in-cluster mode, return error
+	if c.UseInCluster && !unsafeUseServiceAccountToken {
+		bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+		if bearerToken == "" {
+			c.handleError(
+				w, ctx, span,
+				errors.New("no authentication token provided"),
+				"failed to get token",
+				http.StatusUnauthorized,
+			)
+
+			return
+		}
+
+		// Use request-only credentials in safe in-cluster mode to prevent
+		// fallback to backend client certificates, keys, or token files.
+		context.AuthInfo = &api.AuthInfo{
+			Token: bearerToken,
+		}
+	}
+
 	handler(context.ClientConfig(), w, r)
 }
 
@@ -2208,15 +2229,18 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
-		c.handleError(
-			w, ctx, span,
-			errors.New("no authentication token provided"),
-			"failed to get token",
-			http.StatusUnauthorized,
-		)
+	if c.UseInCluster && !unsafeUseServiceAccountToken {
+		bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+		if bearerToken == "" {
+			c.handleError(
+				w, ctx, span,
+				errors.New("no authentication token provided"),
+				"failed to get token",
+				http.StatusUnauthorized,
+			)
 
-		return
+			return
+		}
 	}
 
 	logger.Log(
