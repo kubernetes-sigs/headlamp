@@ -91,15 +91,11 @@ export interface TerminalStreamOptions {
  * @returns Terminal refs and send function for stdin
  */
 export function useTerminalStream(options: TerminalStreamOptions) {
-  const {
-    connectStream,
-    containerRef,
-    enabled = true,
-    onClose,
-    errorHandlers,
-    detectOS = false,
-    xtermOptions = {},
-  } = options;
+  const { containerRef, enabled = true, detectOS = false, xtermOptions = {} } = options;
+  // Callers may pass new callbacks on every render. Use the latest ones without
+  // restarting the terminal, which would end its session.
+  const callbacks = useRef(options);
+  callbacks.current = options;
 
   const xtermRef = useRef<XTerminalConnected | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -165,6 +161,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       }
 
       // Use custom error handlers if provided
+      const { errorHandlers, onClose } = callbacks.current;
       if (errorHandlers?.isSuccessfulExit?.(channel, text)) {
         onClose?.();
         streamRef.current?.cancel();
@@ -178,7 +175,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
 
       xterm.write(text);
     },
-    [errorHandlers, onClose, send]
+    [send]
   );
 
   /**
@@ -281,8 +278,8 @@ export function useTerminalStream(options: TerminalStreamOptions) {
     xtermRef.current.xterm.loadAddon(fitAddonRef.current);
 
     (async function () {
-      const { stream, initialMessage } = await connectStream((items: ArrayBuffer) =>
-        onData(xtermRef.current!, items)
+      const { stream, initialMessage } = await callbacks.current.connectStream(
+        (items: ArrayBuffer) => onData(xtermRef.current!, items)
       );
 
       if (initialMessage) {
@@ -306,7 +303,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       window.removeEventListener('resize', resizeHandler);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, enabled, send, onData, setupTerminal, connectStream]);
+  }, [containerRef, enabled, send, onData, setupTerminal]);
 
   return {
     xtermRef,
