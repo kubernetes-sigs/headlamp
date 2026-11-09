@@ -1498,17 +1498,16 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 }
 
 // LoadContextsFromAPIConfig loads contexts from the given api.Config.
-func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Context, []error) {
+func LoadContextsFromAPIConfig(config *api.Config, source int, skipProxySetup bool) ([]Context, []error) {
 	contexts := []Context{}
 	errors := []error{}
 
 	for contextName := range config.Contexts {
-		context, err := convertToContext(contextName, config, 0, skipProxySetup)
+		context, err := convertToContext(contextName, config, source, skipProxySetup)
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
-
 		contexts = append(contexts, context)
 	}
 
