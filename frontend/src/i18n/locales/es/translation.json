@@ -842,6 +842,7 @@
   "Targets": "Objetivos",
   "more…": "más…",
   "Default": "Por defecto",
+  "(default host)": "",
   "Host": "Host",
   "Completions": "",
   "Number of successfully finished pods required.": "",

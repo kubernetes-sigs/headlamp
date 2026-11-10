@@ -828,6 +828,7 @@
   "Targets": "目標",
   "more…": "更多…",
   "Default": "預設",
+  "(default host)": "",
   "Host": "主機",
   "Completions": "",
   "Number of successfully finished pods required.": "",

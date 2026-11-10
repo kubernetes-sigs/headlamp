@@ -16,7 +16,9 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
+import { I18nextProvider } from 'react-i18next';
 import { vi } from 'vitest';
+import i18n from '../../i18n/config';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import IngressDetails from './Details';
@@ -164,6 +166,37 @@ describe('IngressDetails', () => {
         expect.stringContaining('example.com'),
       ])
     );
+  });
+
+  it('does not crash on TLS entries without hosts or secretName', () => {
+    // Both fields are optional in networking.k8s.io/v1, for example a TLS
+    // entry that only names a secret uses the controller's default host.
+    const partialTLSIngress: any = {
+      ...fakeIngress,
+      spec: {
+        ...fakeIngress.spec,
+        tls: [{ secretName: 'default-cert' }, { hosts: ['example.com'] }, {}],
+      },
+    };
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TestContext routerMap={{ namespace: 'default', name: 'test-ingress' }}>
+          <IngressDetails />
+        </TestContext>
+      </I18nextProvider>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const extraInfo = props.extraInfo(partialTLSIngress);
+    const tlsField = extraInfo.find((f: any) => f.name.includes('TLS'));
+
+    // A secret without hosts keeps the "secret › hosts" shape, so it can't be
+    // misread as belonging to the next entry's hosts.
+    expect((tlsField.value as any)?.props?.labels).toEqual([
+      'default-cert › (default host)',
+      'example.com',
+    ]);
   });
 
   it('provides rules section for ingress resources', () => {

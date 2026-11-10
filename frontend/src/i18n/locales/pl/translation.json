@@ -849,6 +849,7 @@
   "Targets": "Miejsca docelowe",
   "more…": "więcej...",
   "Default": "Wartość domyślna",
+  "(default host)": "",
   "Host": "Host",
   "Completions": "",
   "Number of successfully finished pods required.": "",

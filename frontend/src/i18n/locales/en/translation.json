@@ -835,6 +835,7 @@
   "Targets": "Targets",
   "more…": "more…",
   "Default": "Default",
+  "(default host)": "(default host)",
   "Host": "Host",
   "Completions": "Completions",
   "Number of successfully finished pods required.": "Number of successfully finished pods required.",

@@ -835,6 +835,7 @@
   "Targets": "டார்கெட்கள்",
   "more…": "மேலும்...",
   "Default": "டிஃபால்ட்",
+  "(default host)": "",
   "Host": "ஹோஸ்ட்",
   "Completions": "",
   "Number of successfully finished pods required.": "",

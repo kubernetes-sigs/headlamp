@@ -828,6 +828,7 @@
   "Targets": "대상",
   "more…": "더 보기…",
   "Default": "기본값",
+  "(default host)": "",
   "Host": "호스트",
   "Completions": "",
   "Number of successfully finished pods required.": "",

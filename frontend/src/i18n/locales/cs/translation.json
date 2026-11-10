@@ -849,6 +849,7 @@
   "Targets": "Cíle",
   "more…": "více…",
   "Default": "Výchozí",
+  "(default host)": "",
   "Host": "Hostitel",
   "Completions": "",
   "Number of successfully finished pods required.": "",

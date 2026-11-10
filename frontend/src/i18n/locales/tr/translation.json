@@ -835,6 +835,7 @@
   "Targets": "Hedefler",
   "more…": "diğer…",
   "Default": "Varsayılan",
+  "(default host)": "",
   "Host": "Ana bilgisayar",
   "Completions": "",
   "Number of successfully finished pods required.": "",
