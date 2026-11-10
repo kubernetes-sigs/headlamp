@@ -198,6 +198,8 @@ func (c *Config) validateAppName() error {
 	return nil
 }
 
+// validateOIDC rejects OIDC flags outside in-cluster mode, cookie mode and cluster
+// discovery, and checks that the OIDC CA file, if set, contains a PEM certificate.
 func (c *Config) validateOIDC() error {
 	if !c.InCluster && !c.OidcUseCookie && !c.discoveryEnabled() &&
 		(c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
@@ -754,6 +756,7 @@ func GetDefaultKubeConfigPath() (string, error) {
 	return filepath.Join(homeDirectory, ".kube", "config"), nil
 }
 
+// loadDiscoverySettings reads the flags of every built-in discovery source into DiscoverySources.
 func (c *Config) loadDiscoverySettings(k *koanf.Koanf) {
 	c.DiscoverySources = make(map[string]clusterdiscovery.Settings)
 
@@ -770,6 +773,7 @@ func (c *Config) loadDiscoverySettings(k *koanf.Koanf) {
 	}
 }
 
+// discoveryEnabled reports whether any discovery source is enabled.
 func (c *Config) discoveryEnabled() bool {
 	for _, settings := range c.DiscoverySources {
 		if settings.Enabled {
@@ -780,6 +784,8 @@ func (c *Config) discoveryEnabled() bool {
 	return false
 }
 
+// validateDiscoverySources checks the OIDC settings, namespaces and label selector of
+// every enabled discovery source.
 func (c *Config) validateDiscoverySources() error {
 	for id, settings := range c.DiscoverySources {
 		if !settings.Enabled {
@@ -805,6 +811,8 @@ func (c *Config) validateDiscoverySources() error {
 	return nil
 }
 
+// addClusterDiscoveryFlags registers the flags of every built-in discovery source. It
+// keeps the removed provider-file flag, so that using it is reported as unsupported.
 func addClusterDiscoveryFlags(f *flag.FlagSet) {
 	for _, source := range clusterdiscovery.BuiltinSources().Sources() {
 		d := source.Descriptor()

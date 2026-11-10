@@ -109,6 +109,8 @@ func requestedResource(u *url.URL) (apiResourceRequest, bool) {
 	return parseAPIResourceRequest(path)
 }
 
+// requestKey encodes the connection, API path, normalized query and Accept header of a
+// request as a cache key.
 func requestKey(u *url.URL, contextID, accept string) (string, error) {
 	path, ok := apiRequestPath(u)
 	if !ok {
@@ -135,6 +137,8 @@ func GenerateRequestKey(r *http.Request, contextID string) (string, error) {
 	return requestKey(r.URL, contextID, r.Header.Get("Accept"))
 }
 
+// parseCacheKey decodes a key created by requestKey. It reports false for a key without
+// a connection or path.
 func parseCacheKey(key string) (CacheKey, bool) {
 	var parsed CacheKey
 

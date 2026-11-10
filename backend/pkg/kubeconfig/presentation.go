@@ -18,10 +18,13 @@ package kubeconfig
 
 // ConnectionPresentation contains public labels, separate from the connection identity.
 type ConnectionPresentation struct {
-	DisplayName string            `json:"displayName"`
-	Fields      map[string]string `json:"fields"`
+	// DisplayName is the human-readable name of the connection.
+	DisplayName string `json:"displayName"`
+	// Fields holds the public text values shown for the connection, by field key.
+	Fields map[string]string `json:"fields"`
 }
 
+// Copy returns a deep copy of p, or nil if p is nil.
 func (p *ConnectionPresentation) Copy() *ConnectionPresentation {
 	if p == nil {
 		return nil

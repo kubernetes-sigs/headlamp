@@ -45,7 +45,10 @@ var (
 
 const clusterNameLabel = "cluster.x-k8s.io/cluster-name"
 
+// clusterAPISource discovers Cluster API workload clusters from Clusters and their
+// kubeconfig Secrets.
 type clusterAPISource struct {
+	// clientForConfig creates the client for a discovery root. Tests replace it.
 	clientForConfig func(*rest.Config) (dynamic.Interface, error)
 }
 
@@ -58,6 +61,7 @@ func NewClusterAPISource() Source {
 	}
 }
 
+// Descriptor identifies the source and the fields shown for its connections.
 func (*clusterAPISource) Descriptor() Descriptor {
 	return Descriptor{
 		ID: "cluster_api", DisplayName: "Cluster API", Resource: clusterAPIResource,
@@ -72,6 +76,8 @@ func (*clusterAPISource) Descriptor() Descriptor {
 	}
 }
 
+// Watches watches the Clusters matching the selector, and the Secrets that carry a
+// Cluster API cluster name label.
 func (s *clusterAPISource) Watches(config *rest.Config, namespace, selector string) ([]ResourceWatch, error) {
 	client, err := s.clientForConfig(config)
 	if err != nil {
@@ -101,6 +107,8 @@ func (s *clusterAPISource) Watches(config *rest.Config, namespace, selector stri
 	}, nil
 }
 
+// OwnersForChange maps a Cluster to itself and a "<cluster>-kubeconfig" Secret to its
+// Cluster. Other Secrets have no owner.
 func (*clusterAPISource) OwnersForChange(resource schema.GroupVersionResource, obj interface{}) []types.NamespacedName {
 	owners := objectOwner(obj)
 	if resource == secretResource {
@@ -114,6 +122,9 @@ func (*clusterAPISource) OwnersForChange(resource schema.GroupVersionResource, o
 	return owners
 }
 
+// Build returns the connection of a Cluster from its kubeconfig Secret, or none while
+// either of them is missing. Only the endpoint, TLS settings and namespace of the
+// selected kubeconfig context are used.
 func (*clusterAPISource) Build(
 	root string,
 	owner types.NamespacedName,
@@ -166,6 +177,8 @@ func (*clusterAPISource) Build(
 	}, nil
 }
 
+// clusterAPIMetadata returns the public metadata that identifies a Cluster and its
+// kubeconfig Secret.
 func clusterAPIMetadata(root string, owner types.NamespacedName, secretName string) (json.RawMessage, error) {
 	return json.Marshal(
 		map[string]interface{}{
@@ -183,6 +196,8 @@ func clusterAPIMetadata(root string, owner types.NamespacedName, secretName stri
 	)
 }
 
+// selectedKubeconfigContext returns the current context of config, or its only context
+// when no current context is set.
 func selectedKubeconfigContext(config *api.Config) (*api.Context, error) {
 	if config.CurrentContext != "" {
 		selected := config.Contexts[config.CurrentContext]
@@ -206,6 +221,8 @@ func selectedKubeconfigContext(config *api.Config) (*api.Context, error) {
 	return nil, errors.New("workload kubeconfig context is nil")
 }
 
+// clusterAPIKubeconfig parses the kubeconfig of a Cluster API Secret after checking that
+// its name, type, cluster name label and value key match the Cluster.
 func clusterAPIKubeconfig(owner types.NamespacedName, secretName string, obj interface{}) (*api.Config, error) {
 	secret := &corev1.Secret{}
 

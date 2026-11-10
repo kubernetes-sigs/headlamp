@@ -36,21 +36,31 @@ import (
 
 // Descriptor identifies a source without coupling the engine to its resource types.
 type Descriptor struct {
-	ID          string
+	// ID is the stable source identifier used in flags, settings and connection metadata.
+	ID string
+	// DisplayName is the untranslated name shown for the source.
 	DisplayName string
-	Resource    schema.GroupVersionResource
+	// Resource is the owner resource. Each of its objects produces connections.
+	Resource schema.GroupVersionResource
 	// ContextSource preserves existing source values. New sources use DiscoveredCluster.
 	ContextSource int
-	View          SourceView
+	// View describes how clients present the connections of the source.
+	View SourceView
 }
 
 // Settings selects a registered source and scopes its resource watches.
 type Settings struct {
-	Enabled               bool
-	Namespaces            string
-	LabelSelector         string
+	// Enabled turns discovery from the source on.
+	Enabled bool
+	// Namespaces lists the watched namespaces, separated by commas. Empty watches each
+	// root's default namespace and "*" watches all namespaces.
+	Namespaces string
+	// LabelSelector filters the owner resources.
+	LabelSelector string
+	// RootReconcileInterval is how often roots are reconciled. Zero uses the default.
 	RootReconcileInterval time.Duration
-	NoCRDCacheTTL         time.Duration
+	// NoCRDCacheTTL is how long a root without the owner CRD is skipped. Zero uses the default.
+	NoCRDCacheTTL time.Duration
 }
 
 // FlagPrefix keeps standard flags consistent with the public source ID.
@@ -59,43 +69,64 @@ func (d Descriptor) FlagPrefix() string { return strings.ReplaceAll(d.ID, "_", "
 // Source describes resource watches and converts their cached objects to kubeconfigs.
 // Build must not return cluster credentials; the engine supplies user OIDC authentication.
 type Source interface {
+	// Descriptor returns the identity and presentation of the source.
 	Descriptor() Descriptor
+	// Watches creates the informers for one namespace of a root without starting them.
+	// The selector applies to the owner resource.
 	Watches(config *rest.Config, namespace, selector string) ([]ResourceWatch, error)
+	// OwnersForChange maps a changed object of a watched resource to the owners to rebuild.
 	OwnersForChange(resource schema.GroupVersionResource, obj interface{}) []types.NamespacedName
+	// Build returns the connections of one owner from the cached objects. Connections the
+	// owner no longer returns are removed, and an error removes all of them.
 	Build(root string, owner types.NamespacedName, snapshot Snapshot) ([]GeneratedKubeconfig, error)
 }
 
 // InformerFactory is the lifecycle shared by typed and dynamic informer factories.
 type InformerFactory interface {
+	// Start starts the informers of the factory, which run until stopCh is closed.
 	Start(stopCh <-chan struct{})
+	// Shutdown waits for the started informers to stop.
 	Shutdown()
 }
 
 // ResourceWatch pairs a resource cache with the factory that owns it.
 type ResourceWatch struct {
+	// Resource is the watched resource.
 	Resource schema.GroupVersionResource
-	Factory  InformerFactory
+	// Factory starts and stops Informer.
+	Factory InformerFactory
+	// Informer caches the objects of Resource.
 	Informer cache.SharedIndexInformer
 }
 
 // Snapshot gives adapters access to the current resource caches within one namespace watch.
 type Snapshot interface {
+	// Get returns the cached object of a watched resource by namespace and name, and
+	// whether it exists.
 	Get(resource schema.GroupVersionResource, owner types.NamespacedName) (interface{}, bool)
 }
 
 // GeneratedKubeconfig is one stable connection produced by a source owner.
 type GeneratedKubeconfig struct {
-	Key          string
-	Name         string
-	ClusterID    string
-	Config       *api.Config
-	Metadata     map[string]json.RawMessage
+	// Key identifies the connection among those of its owner and stays stable across updates.
+	Key string
+	// Name is the context name, which is the connection key in Headlamp.
+	Name string
+	// ClusterID is the stable public ID of the connection.
+	ClusterID string
+	// Config holds exactly one context and its cluster. Credentials in it are ignored.
+	Config *api.Config
+	// Metadata is credential-free JSON, returned to clients under each of its keys.
+	Metadata map[string]json.RawMessage
+	// Presentation optionally sets the display name and adds public fields.
 	Presentation *kubeconfig.ConnectionPresentation
 }
 
 // Registry contains the sources linked into this Headlamp binary.
 type Registry struct{ sources []Source }
 
+// Register adds a source. It rejects a nil source, an incomplete descriptor and an ID
+// that is already registered.
 func (r *Registry) Register(source Source) error {
 	if source == nil {
 		return errors.New("discovery source is required")
@@ -117,6 +148,7 @@ func (r *Registry) Register(source Source) error {
 	return nil
 }
 
+// Sources returns a copy of the registered sources in registration order.
 func (r *Registry) Sources() []Source { return append([]Source(nil), r.sources...) }
 
 // ConfigForCluster builds a credential-free kubeconfig for a source connection.
@@ -206,6 +238,8 @@ func (r *Runner) loadGenerated(
 	return context, nil
 }
 
+// Get returns the cached object of a watched resource by namespace and name, and whether
+// it exists. It implements Snapshot for source adapters.
 func (w rootWatch) Get(resource schema.GroupVersionResource, owner types.NamespacedName) (interface{}, bool) {
 	for _, watch := range w.resources {
 		if watch.Resource == resource {
@@ -217,6 +251,7 @@ func (w rootWatch) Get(resource schema.GroupVersionResource, owner types.Namespa
 	return nil, false
 }
 
+// hasSynced reports whether every informer of the watch has synchronized its cache.
 func (w rootWatch) hasSynced() bool {
 	for _, watch := range w.resources {
 		if !watch.Informer.HasSynced() {
@@ -227,6 +262,8 @@ func (w rootWatch) hasSynced() bool {
 	return true
 }
 
+// objectOwner returns the namespace and name of obj, unwrapping deletion tombstones.
+// It returns nil for a value that is not a Kubernetes object.
 func objectOwner(obj interface{}) []types.NamespacedName {
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		return objectOwner(tombstone.Obj)
@@ -244,6 +281,9 @@ func objectOwner(obj interface{}) []types.NamespacedName {
 	return []types.NamespacedName{{Namespace: meta.GetNamespace(), Name: meta.GetName()}}
 }
 
+// generatedOIDCConfig rebuilds the kubeconfig of a source with only the supported
+// connection fields and the global OIDC settings as its user. Credentials the source
+// left in the kubeconfig are dropped.
 func generatedOIDCConfig(g GeneratedKubeconfig, oidc *kubeconfig.OidcConfig) (*api.Config, error) {
 	if g.Key == "" || g.Name == "" || g.ClusterID == "" || g.Config == nil || len(g.Config.Contexts) != 1 {
 		return nil, errors.New("generated connection must identify exactly one context")
@@ -289,6 +329,8 @@ func generatedOIDCConfig(g GeneratedKubeconfig, oidc *kubeconfig.OidcConfig) (*a
 	return config, nil
 }
 
+// generatedPresentation completes the presentation of a source. The display name
+// defaults to the owner name, and the owner namespace and discovery root are added as fields.
 func generatedPresentation(
 	root string, owner types.NamespacedName, g GeneratedKubeconfig,
 ) *kubeconfig.ConnectionPresentation {

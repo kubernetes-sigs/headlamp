@@ -736,6 +736,8 @@ func validateServiceAccountNamespace(data []byte) (string, error) {
 	return namespace, nil
 }
 
+// startClusterDiscovery starts the enabled discovery sources. In-cluster, the pod's
+// service account and namespace serve as the discovery root.
 func startClusterDiscovery(ctx context.Context, config *HeadlampConfig) error {
 	enabled := false
 	for _, settings := range config.DiscoverySources {
@@ -3728,6 +3730,8 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
+// clusterMetadata returns the public metadata of a context that clients receive with the
+// cluster: its source, origin, discovery metadata and presentation.
 func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
 	metadata := map[string]interface{}{
 		"source":     context.SourceStr(),
@@ -3758,6 +3762,8 @@ func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
 	return metadata
 }
 
+// startDiscoverySources starts a runner for every enabled built-in source. Outside a
+// cluster, the contexts in the store serve as discovery roots.
 func startDiscoverySources(ctx context.Context, config *HeadlampConfig, defaults clusterdiscovery.Options) error {
 	for _, source := range clusterdiscovery.BuiltinSources().Sources() {
 		entry := config.DiscoverySources[source.Descriptor().ID]

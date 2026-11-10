@@ -45,12 +45,16 @@ import (
 
 const responseTTL = 10 * time.Minute
 
+// resourceScope identifies the objects that one shared watch covers: a resource within a
+// connection, narrowed by namespace and selectors.
 type resourceScope struct {
 	Context                   string
 	Resource                  schema.GroupVersionResource
 	Namespace, Labels, Fields string
 }
 
+// resourceWatcher is the shared watch of one scope. It invalidates the cached responses
+// of the scope when an object changes or the watch is interrupted.
 type resourceWatcher struct {
 	scope         resourceScope
 	cache         cache.Cache[string]
@@ -77,6 +81,8 @@ type CacheRead struct {
 	generation uint64
 }
 
+// scopeForKey derives the watch scope of a cache key. It reports false for a key that
+// does not address a resource collection or object, such as one for a subresource.
 func scopeForKey(key string) (resourceScope, bool) {
 	parsed, ok := parseCacheKey(key)
 	if !ok {
@@ -162,6 +168,8 @@ func BeginCacheRead(c cache.Cache[string], key string, k *kubeconfig.Context, to
 	return &CacheRead{watcher: current, key: key, generation: current.generation}
 }
 
+// watcherConfig returns the client config for a shared watch. It keeps the credential
+// stored in the context when there is one, and uses the requesting user's token otherwise.
 func watcherConfig(k *kubeconfig.Context, token string) (*rest.Config, error) {
 	if k == nil {
 		return nil, errors.New("cache context is required")
@@ -188,6 +196,8 @@ func watcherConfig(k *kubeconfig.Context, token string) (*rest.Config, error) {
 	return config, nil
 }
 
+// validLocked reports whether r still belongs to the registered watch, and that watch is
+// synchronized and on the same generation. The caller holds watcherMu.
 func (r *CacheRead) validLocked() bool {
 	return r != nil && resourceWatchers[r.watcher.scope] == r.watcher &&
 		r.watcher.ready && r.generation == r.watcher.generation
@@ -253,6 +263,9 @@ func (r *CacheRead) Store(response *ResponseCapture) error {
 	return r.watcher.cache.SetWithTTL(context.Background(), r.key, encoded, responseTTL)
 }
 
+// run keeps the watch going until ctx is cancelled or the watcher is replaced, retrying
+// with a backoff of up to thirty seconds. Each interruption invalidates the cached
+// responses of the scope.
 func (w *resourceWatcher) run(ctx context.Context, config *rest.Config) {
 	defer close(w.done)
 	defer func() {
@@ -308,6 +321,8 @@ func (w *resourceWatcher) run(ctx context.Context, config *rest.Config) {
 	}
 }
 
+// watch lists the scope to learn where to start, then watches it until the stream ends.
+// The watcher becomes ready once the stream is open.
 func (w *resourceWatcher) watch(ctx context.Context, client metadata.Interface) error {
 	resource := client.Resource(w.scope.Resource).Namespace(w.scope.Namespace)
 	// The list only supplies the snapshot resourceVersion to start watching from.
@@ -350,6 +365,8 @@ func (w *resourceWatcher) watch(ctx context.Context, client metadata.Interface) 
 	return w.consume(ctx, stream)
 }
 
+// consume invalidates the cached responses affected by each changed object until the
+// stream closes or fails, or ctx is cancelled.
 func (w *resourceWatcher) consume(ctx context.Context, stream watch.Interface) error {
 	for {
 		select {
@@ -380,6 +397,8 @@ func (w *resourceWatcher) consume(ctx context.Context, stream watch.Interface) e
 	}
 }
 
+// stopIfIdle retires the watcher if no request has used it for responseTTL, and reports
+// whether it did.
 func (w *resourceWatcher) stopIfIdle(now time.Time) bool {
 	watcherMu.Lock()
 	defer watcherMu.Unlock()
@@ -406,6 +425,8 @@ func retireLocked(w *resourceWatcher) {
 	delete(resourceWatchers, w.scope)
 }
 
+// invalidateWatchLocked marks w as not ready, rejects the reads of its earlier generations
+// and purges the responses stored for its scope. The caller holds watcherMu.
 func invalidateWatchLocked(w *resourceWatcher) {
 	wasReady := w.ready
 	w.ready = false
@@ -418,6 +439,7 @@ func invalidateWatchLocked(w *resourceWatcher) {
 	}
 }
 
+// purgeMatching deletes the cached entries whose keys satisfy matches.
 func purgeMatching(c cache.Cache[string], matches func(string) bool) {
 	if c == nil {
 		return

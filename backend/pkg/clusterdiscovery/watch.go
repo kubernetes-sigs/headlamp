@@ -32,6 +32,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// newRootState creates the watches of a root for each of its namespaces without starting
+// them. It cancels the root and reports false if any watch cannot be created.
 func (r *Runner) newRootState(
 	ctx context.Context,
 	rootID, serverURL, fingerprint string,
@@ -53,6 +55,9 @@ func (r *Runner) newRootState(
 	return state, true
 }
 
+// newRootWatch creates the source's watches for one namespace and attaches the engine's
+// event handlers to them. It reports false if the source fails, does not watch its owner
+// resource, or returns an informer that cannot take the handlers.
 func (r *Runner) newRootWatch(state *rootState, namespace string, config *rest.Config) (rootWatch, bool) {
 	selector := ""
 	if r.labelSelector != nil {
@@ -94,6 +99,9 @@ func (r *Runner) newRootWatch(state *rootState, namespace string, config *rest.C
 	return watch, true
 }
 
+// handleChange rebuilds the owners affected by a changed object, or prunes an owner that
+// was deleted. Events are ignored until the watch has synchronized and once the root is
+// no longer current.
 func (r *Runner) handleChange(
 	state *rootState,
 	watch rootWatch,
@@ -118,12 +126,16 @@ func (r *Runner) handleChange(
 	}
 }
 
+// reconcileObject reconciles the owner that obj itself represents.
 func (r *Runner) reconcileObject(state *rootState, watch rootWatch, obj interface{}) {
 	for _, owner := range objectOwner(obj) {
 		r.reconcileOwner(state, watch, owner)
 	}
 }
 
+// reconcileOwner publishes the connections the source builds for one owner and removes
+// those it no longer returns. An owner that is missing or excluded by the label
+// selector, or whose build fails, loses all of its connections.
 func (r *Runner) reconcileOwner(state *rootState, watch rootWatch, owner types.NamespacedName) {
 	key := makeOwnerKey(state.rootID, owner.Namespace+"/"+owner.Name)
 	obj, exists := watch.Get(r.source.Descriptor().Resource, owner)
@@ -181,6 +193,7 @@ func (r *Runner) reconcileOwner(state *rootState, watch rootWatch, owner types.N
 	r.removeContexts(r.recordSyncedOwner(state, key, names))
 }
 
+// handleOwnerDelete removes the connections of the owner that a deleted object represents.
 func (r *Runner) handleOwnerDelete(state *rootState, obj interface{}) {
 	r.mutationMu.Lock()
 	defer r.mutationMu.Unlock()
@@ -190,10 +203,13 @@ func (r *Runner) handleOwnerDelete(state *rootState, obj interface{}) {
 	}
 }
 
+// ownerMatchesSelector reports whether an owner passes the configured label selector.
 func (r *Runner) ownerMatchesSelector(obj metav1.Object) bool {
 	return r.labelSelector == nil || r.labelSelector.Matches(labels.Set(obj.GetLabels()))
 }
 
+// ownerKeysFromRootWatch returns the keys of the cached owners that pass the label
+// selector, each mapped to its namespace.
 func (r *Runner) ownerKeysFromRootWatch(rootID string, watch rootWatch) map[string]string {
 	seen := map[string]string{}
 
@@ -209,6 +225,7 @@ func (r *Runner) ownerKeysFromRootWatch(rootID string, watch rootWatch) map[stri
 	return seen
 }
 
+// isNoCRDError reports whether a watch error means that the API server does not serve resource.
 func isNoCRDError(err error, resource schema.GroupVersionResource) bool {
 	if err == nil {
 		return false
@@ -236,6 +253,9 @@ func isNoCRDError(err error, resource schema.GroupVersionResource) bool {
 	return strings.Contains(err.Error(), resource.Resource)
 }
 
+// addResourceHandlers routes the events of one watched resource to handleChange. Watch
+// errors of the owner resource go to the root, and those of other resources are logged.
+// It fails for an informer that has stopped or has already started.
 func (r *Runner) addResourceHandlers(state *rootState, watch rootWatch, resource ResourceWatch) error {
 	gvr := resource.Resource
 

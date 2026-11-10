@@ -211,6 +211,7 @@ func loadOidcCACert(oidcCAFile string) string {
 	return string(caFileContents)
 }
 
+// splitOIDCScopes splits a comma-separated list of scopes and drops the empty entries.
 func splitOIDCScopes(scopes string) []string {
 	result := []string{}
 
@@ -296,8 +297,11 @@ func loadAdminSettings(path string) (json.RawMessage, error) {
 	return data, nil
 }
 
+// resolvedClusterContextKey is the request context key of a resolvedClusterContext.
 type resolvedClusterContextKey struct{}
 
+// resolvedClusterContext is the context store key and connection already resolved for a
+// request, so that later handlers use the same connection.
 type resolvedClusterContext struct {
 	key     string
 	context *kubeconfig.Context
@@ -404,6 +408,9 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 	serveCachedResource(c, next, w, r, span, key, kContext)
 }
 
+// serveCachedResource forwards the request while the shared watch of its resource is not
+// synchronized. Otherwise it serves the cached response, or forwards the request and
+// stores the response.
 func serveCachedResource(c *HeadlampConfig, next http.Handler, w http.ResponseWriter,
 	r *http.Request, span trace.Span, key string, kContext *kubeconfig.Context,
 ) {

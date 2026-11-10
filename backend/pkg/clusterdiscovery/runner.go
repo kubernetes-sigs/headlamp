@@ -477,6 +477,8 @@ func (r *Runner) completeRootWatchSyncFromCache(state *rootState, watch rootWatc
 	}
 }
 
+// syncAllNamespaceOwnersLocked replaces the owners tracked for a root with those seen in
+// an all-namespaces cache. It returns the context names of the owners that disappeared.
 func (r *Runner) syncAllNamespaceOwnersLocked(
 	rootID string,
 	previous map[string]string,
@@ -496,6 +498,9 @@ func (r *Runner) syncAllNamespaceOwnersLocked(
 	return contextNames
 }
 
+// syncNamedNamespaceOwnersLocked updates the owners tracked for a root from the cache of
+// one namespace. It returns the context names of the owners that are gone from that
+// namespace, and of those in namespaces the root no longer watches.
 func (r *Runner) syncNamedNamespaceOwnersLocked(
 	state *rootState,
 	namespace string,

@@ -18,19 +18,28 @@ package clusterdiscovery
 
 // SourceColumn describes a public presentation field and its label.
 type SourceColumn struct {
-	Key   string `json:"key"`
+	// Key selects the value from the presentation fields of a connection.
+	Key string `json:"key"`
+	// Label is the untranslated header of the field.
 	Label string `json:"label"`
 }
 
 // SourceView describes a source without requiring source-specific frontend code.
 type SourceView struct {
-	ID            string         `json:"id"`
-	Label         string         `json:"label"`
-	NameLabel     string         `json:"nameLabel"`
-	Columns       []SourceColumn `json:"columns,omitempty"`
-	DetailFields  []SourceColumn `json:"detailFields,omitempty"`
-	SummaryFields []string       `json:"summaryFields,omitempty"`
-	Configured    bool           `json:"configured,omitempty"`
+	// ID is the source ID, which each connection of the source carries.
+	ID string `json:"id"`
+	// Label is the untranslated name of the source, shown as its tab title.
+	Label string `json:"label"`
+	// NameLabel is the untranslated header of the name column on the source's tab.
+	NameLabel string `json:"nameLabel"`
+	// Columns are added to the source's tab and to the connection details.
+	Columns []SourceColumn `json:"columns,omitempty"`
+	// DetailFields are shown only in the connection details.
+	DetailFields []SourceColumn `json:"detailFields,omitempty"`
+	// SummaryFields are the keys of the fields shown after the source name in cluster selectors.
+	SummaryFields []string `json:"summaryFields,omitempty"`
+	// Configured marks an enabled discovery source, which keeps its tab without connections.
+	Configured bool `json:"configured,omitempty"`
 }
 
 // ClientSourceViews includes enabled discovery sources even when they have no connections.

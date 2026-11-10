@@ -48,10 +48,13 @@ var clusterProfileResource = schema.GroupVersionResource{
 	Resource: "clusterprofiles",
 }
 
+// clusterProfileSource discovers clusters from Cluster Inventory API ClusterProfiles.
 type clusterProfileSource struct {
+	// clientForConfig creates the client for a discovery root. Tests replace it.
 	clientForConfig func(*rest.Config) (ciaclient.Interface, error)
 }
 
+// NewClusterProfileSource discovers one connection for each access provider of a ClusterProfile.
 func NewClusterProfileSource() Source {
 	return &clusterProfileSource{
 		clientForConfig: func(config *rest.Config) (ciaclient.Interface, error) {
@@ -60,6 +63,7 @@ func NewClusterProfileSource() Source {
 	}
 }
 
+// Descriptor identifies the source and the fields shown for its connections.
 func (*clusterProfileSource) Descriptor() Descriptor {
 	return Descriptor{
 		ID:          "cluster_inventory",
@@ -72,6 +76,7 @@ func (*clusterProfileSource) Descriptor() Descriptor {
 	}
 }
 
+// Watches watches the ClusterProfiles matching the selector.
 func (s *clusterProfileSource) Watches(config *rest.Config, namespace, selector string) ([]ResourceWatch, error) {
 	client, err := s.clientForConfig(config)
 	if err != nil {
@@ -98,10 +103,13 @@ func (s *clusterProfileSource) Watches(config *rest.Config, namespace, selector 
 	}, nil
 }
 
+// OwnersForChange maps a ClusterProfile to itself.
 func (*clusterProfileSource) OwnersForChange(_ schema.GroupVersionResource, obj interface{}) []types.NamespacedName {
 	return objectOwner(obj)
 }
 
+// Build returns one connection for each access provider of a ClusterProfile. A provider
+// with an unusable endpoint is logged and skipped.
 func (*clusterProfileSource) Build(
 	root string,
 	owner types.NamespacedName,
@@ -149,6 +157,8 @@ func (*clusterProfileSource) Build(
 	return outputs, nil
 }
 
+// clusterInventoryMetadataFromProfile returns the public metadata of a ClusterProfile:
+// its identity, conditions, Kubernetes version and properties.
 func clusterInventoryMetadataFromProfile(
 	profileKey string,
 	cp *apisv1alpha1.ClusterProfile,
@@ -182,17 +192,22 @@ func clusterInventoryMetadataFromProfile(
 	return metadata
 }
 
+// contextNameFromProfileKey returns the context name of one access provider. The hash
+// keeps names distinct for keys and provider names that are equal once made DNS friendly.
 func contextNameFromProfileKey(profileKey, providerName string) string {
 	return clusterInventoryContextPrefix + kubeconfig.MakeDNSFriendly(profileKey) + "--" +
 		profileKeyHashSuffix(profileKey+"\x00"+providerName) + "-" + kubeconfig.MakeDNSFriendly(providerName)
 }
 
+// profileKeyHashSuffix returns a short, stable hash of profileKey.
 func profileKeyHashSuffix(profileKey string) string {
 	sum := sha256.Sum256([]byte(profileKey))
 
 	return hex.EncodeToString(sum[:6])
 }
 
+// clusterProfileConnection builds the connection of one access provider from its endpoint
+// and TLS settings.
 func clusterProfileConnection(
 	provider *apisv1alpha1.AccessProvider,
 	key string,
