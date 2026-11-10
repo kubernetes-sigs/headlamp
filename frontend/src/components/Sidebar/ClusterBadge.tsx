@@ -23,6 +23,7 @@ import React from 'react';
 export interface ClusterBadgeProps {
   /** Cluster display name */
   name: string;
+  /** Text shown under the name, such as the source of the cluster */
   secondary?: string;
   /** Accent color for the circular icon background */
   accentColor?: string;

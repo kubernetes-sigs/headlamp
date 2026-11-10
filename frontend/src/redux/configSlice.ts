@@ -20,6 +20,10 @@ import type { ClusterSourceView } from '../helpers/clusterPresentation';
 import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
+  /**
+   * Definitions of the cluster sources known to the backend, used to group and label
+   * clusters. Empty for a backend that does not send them.
+   */
   clusterSources?: ClusterSourceView[];
   /**
    * Clusters is a map of cluster names to cluster objects.

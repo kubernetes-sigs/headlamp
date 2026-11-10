@@ -166,7 +166,9 @@ function ClusterStatus({
 }
 
 export interface ClusterTableProps {
+  /** The source whose tab the table is on. Omitted on the All tab. */
   source?: ClusterSourceView;
+  /** Source definitions from the backend config, used to label the source of a cluster. */
   sourceViews?: ClusterSourceView[];
   /** Some clusters have custom names. */
   customNameClusters: ReturnType<typeof getCustomClusterNames>;

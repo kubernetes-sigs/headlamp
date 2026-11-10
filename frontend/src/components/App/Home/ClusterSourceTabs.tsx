@@ -28,12 +28,20 @@ import { TabPanel } from '../../common/Tabs';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 
 export interface ClusterSourceTabsProps {
+  /** The connections to count and to find sources in. */
   clusters: Cluster[];
+  /** Whether the connections are still loading. The saved tab is kept in the meantime. */
   loading?: boolean;
+  /** Source definitions from the backend config. */
   sources: ClusterSourceView[];
+  /** Renders the selected tab. Receives the tab's source, or nothing for the All tab. */
   children: (source?: ClusterSourceView) => ReactNode;
 }
 
+/**
+ * Tabs for the home page: All, followed by one tab per cluster source. The selected tab
+ * is saved in local storage.
+ */
 export default function ClusterSourceTabs({
   clusters,
   sources,

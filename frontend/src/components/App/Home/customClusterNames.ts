@@ -17,7 +17,12 @@
 import { getClusterDisplayName } from '../../../helpers/clusterPresentation';
 import { useClustersConf } from '../../../lib/k8s';
 
-/** Sort by display name while preserving connection keys and source objects. */
+/**
+ * Sorts clusters by display name while preserving connection keys and source objects.
+ *
+ * @param clusters - The clusters configuration, or null while it is loading.
+ * @returns The clusters sorted by display name, then by connection key. Empty while loading.
+ */
 export function getCustomClusterNames(clusters: ReturnType<typeof useClustersConf>) {
   return Object.values(clusters || {}).sort(
     (a, b) =>

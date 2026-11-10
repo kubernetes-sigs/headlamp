@@ -46,6 +46,7 @@ import ClusterBadge from '../Sidebar/ClusterBadge';
 
 function ClusterListItem(props: {
   cluster: Cluster;
+  /** Name and source summary to show for the cluster. */
   label: ClusterLabel;
   onClick: () => void;
   selected?: boolean;

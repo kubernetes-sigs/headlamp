@@ -42,6 +42,7 @@ const ToggleButton = styled(MuiToggledButton)({
 interface ClusterButtonProps extends React.PropsWithChildren<{}> {
   /** The cluster to display this button for. */
   cluster: Cluster;
+  /** Text shown on the button. Defaults to the connection key of the cluster. */
   label?: string;
   /** Callback for when the button is clicked. */
   onClick?: (...args: any[]) => void;
@@ -65,6 +66,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
 });
 
 export interface RecentClustersProps {
+  /** Source definitions from the backend config, used to label the source of a cluster. */
   sourceViews?: ClusterSourceView[];
   /** The clusters available. So if there's a record of recent clusters, it'll try to use
    * them only if they exist, otherwise it'll just use the first 3 of the ones passed here.

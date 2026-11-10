@@ -21,8 +21,10 @@ import type { ConfigState } from '../redux/configSlice';
 import { useTypedSelector } from '../redux/hooks';
 import { createClusterPresentation, EMPTY_SOURCE_VIEWS } from './clusterPresentation';
 
+/** The part of the store that connection labels are computed from. */
 type PresentationState = { config?: Partial<ConfigState> };
 
+/** Selects all connections in the store, merged by connection key. */
 const selectConnections = createSelector(
   [
     (state: PresentationState) => state.config?.allClusters,
@@ -32,7 +34,18 @@ const selectConnections = createSelector(
   (all, server, stateless) => Object.values({ ...all, ...server, ...stateless })
 );
 
-// Shared across consumers, including row menus; unrelated settings do not rebuild the index.
+/**
+ * Selects the connections, their source definitions and the label lookup built from
+ * them. Shared across consumers, including row menus; unrelated settings do not rebuild
+ * the index.
+ *
+ * @param state - The store state.
+ * @param language - The active language, so that labels are rebuilt when it changes.
+ * @param instance - The i18next instance that translates source labels. Without it they
+ * stay untranslated.
+ * @returns The connections as `clusters`, the source definitions as `sources`, and
+ * `getLabel`, which returns the label of a connection or of a connection key.
+ */
 export const selectClusterPresentation = createSelector(
   [
     selectConnections,
@@ -47,7 +60,12 @@ export const selectClusterPresentation = createSelector(
   })
 );
 
-/** Resolve labels without changing keys used by routes, plugins or persisted settings. */
+/**
+ * Resolves labels without changing keys used by routes, plugins or persisted settings.
+ *
+ * @returns The connections as `clusters`, the source definitions as `sources`, and
+ * `getLabel`, which returns the label of a connection or of a connection key.
+ */
 export function useClusterPresentation() {
   const { i18n: instance, ready } = useTranslation();
   const language = instance?.resolvedLanguage || instance?.language || 'en';

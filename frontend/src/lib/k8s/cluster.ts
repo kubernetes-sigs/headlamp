@@ -59,7 +59,9 @@ export function getAllowedNamespaces(cluster: string | null = getCluster()): str
 export interface Cluster {
   /** Connection key used for routes, authentication and persisted settings. */
   name: string;
+  /** Metadata the backend sends with the connection, such as its source and origin. */
   meta_data?: {
+    /** Human-readable name and fields to show for the connection. */
     presentation?: ConnectionPresentation;
     [key: string]: any;
   };

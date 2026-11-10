@@ -10,8 +10,8 @@ contexts. It is disabled by default. Enabling it requires Headlamp's global
 OIDC configuration, including a client ID, issuer URL, and non-empty scopes.
 See the [installation configuration](../installation/in-cluster/index.md#cluster-inventory).
 
-Discovery runs through the [shared source engine](./cluster-discovery.md), alongside
-[Cluster API discovery](./cluster-api.md).
+Discovery runs through the [shared source engine](./cluster-discovery-architecture.md),
+alongside [Cluster API discovery](./cluster-api-discovery.md).
 
 ## Discovery and user access
 

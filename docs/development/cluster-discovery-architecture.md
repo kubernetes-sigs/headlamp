@@ -1,8 +1,8 @@
 ---
-title: Cluster discovery sources
+title: Cluster discovery architecture
 ---
 
-# Cluster discovery sources
+# Cluster discovery architecture
 
 Headlamp operators can discover connections from Cluster Inventory API ClusterProfiles
 and Cluster API workload Clusters. Both sources produce in-memory kubeconfigs and

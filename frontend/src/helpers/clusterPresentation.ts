@@ -16,36 +16,82 @@
 
 import type { Cluster } from '../lib/k8s/cluster';
 
+/**
+ * Describes one cluster source, such as kubeconfig files or a discovery source, so that
+ * its tab, columns and details are rendered without source-specific code. The backend
+ * sends these definitions as `clusterSources` in `/config`.
+ */
 export interface ClusterSourceView {
+  /** Source ID, matched against the `meta_data.source` of each connection. */
   id: string;
+  /** Untranslated name of the source, shown as its tab title. */
   label: string;
+  /** Untranslated header of the name column on the source's tab, for example `Context`. */
   nameLabel: string;
+  /**
+   * Columns added to the source's tab and to the connection details. `key` selects the
+   * value from `meta_data.presentation.fields` and `label` is the untranslated header.
+   */
   columns?: { key: string; label: string }[];
+  /** Fields shown only in the connection details, in the same shape as `columns`. */
   detailFields?: { key: string; label: string }[];
+  /** Keys of the presentation fields shown after the source label in cluster selectors. */
   summaryFields?: string[];
+  /** Whether this is an enabled discovery source, which keeps its tab without connections. */
   configured?: boolean;
 }
 
+/** Human-readable labels of a connection, separate from its connection key. */
 export interface ConnectionPresentation {
+  /** Name shown for the connection unless the user gave it a custom name. */
   displayName: string;
+  /**
+   * Public text values by field key, such as `namespace`, `root` for the management
+   * context, and the column keys of the connection's source. The backend never puts
+   * credentials here.
+   */
   fields: Record<string, string>;
 }
 
+/** The label of one connection, as resolved by {@link createClusterPresentation}. */
 export interface ClusterLabel {
+  /** Display name of the connection. */
   name: string;
+  /**
+   * Line shown with the name: the source label and summary fields, followed by the
+   * disambiguator. Empty for a connection without presentation data and a unique name.
+   */
   secondary: string;
+  /**
+   * What tells the connection apart when another one has the same name and summary: its
+   * management context, followed by its connection key if that is shared too. Empty for
+   * a unique label.
+   */
   disambiguator: string;
+  /** `name` and `secondary` joined into one line. */
   text: string;
 }
 
+/** Shared empty list, so that defaults keep the same reference between renders. */
 export const EMPTY_SOURCE_VIEWS: ClusterSourceView[] = [];
 
+/**
+ * Checks whether a discovery source is enabled on the backend.
+ *
+ * @param sources - Source definitions from the backend config.
+ * @returns True if at least one source is configured.
+ */
 export function hasConfiguredClusterSources(sources: ClusterSourceView[] = EMPTY_SOURCE_VIEWS) {
   return sources.some(source => source.configured);
 }
 
+/** Translates a label, like the `t` function of i18next. */
 type TranslateLabel = (label: string) => string;
 
+/**
+ * Labels the backend sends untranslated. Each one is passed to `t` as a string literal,
+ * so that the i18n extraction finds it.
+ */
 const labelTranslations = new Map<string, (t: TranslateLabel) => string>([
   ['Kubeconfig', t => t('Kubeconfig')],
   ['In-cluster', t => t('In-cluster')],
@@ -65,10 +111,18 @@ const labelTranslations = new Map<string, (t: TranslateLabel) => string>([
   ['Name', t => t('Name')],
 ]);
 
+/**
+ * Translates a label sent by the backend, such as a source name or a column header.
+ *
+ * @param label - The untranslated label.
+ * @param t - The translation function to use.
+ * @returns The translation, or the result of `t` for a label that is not listed here.
+ */
 export function translateClusterLabel(label: string, t: TranslateLabel): string {
   return labelTranslations.get(label)?.(t) ?? t(label);
 }
 
+/** Source labels by source ID, for servers that do not send source definitions. */
 const legacyLabels: Record<string, string> = {
   kubeconfig: 'Kubeconfig',
   incluster: 'In-cluster',
@@ -78,6 +132,13 @@ const legacyLabels: Record<string, string> = {
   unknown: 'Unknown',
 };
 
+/**
+ * Gets the name to show for a connection.
+ *
+ * @param cluster - The connection.
+ * @returns The custom name if the user set one, otherwise the display name from the
+ * backend, otherwise the connection key.
+ */
 export function getClusterDisplayName(cluster: Cluster): string {
   return (
     cluster.meta_data?.extensions?.headlamp_info?.customName ||
@@ -86,10 +147,24 @@ export function getClusterDisplayName(cluster: Cluster): string {
   );
 }
 
+/**
+ * Gets the ID of the source a connection comes from.
+ *
+ * @param cluster - The connection.
+ * @returns The source ID, or `unknown` if the backend did not send one.
+ */
 export function getClusterSource(cluster: Cluster): string {
   return cluster.meta_data?.source || 'unknown';
 }
 
+/**
+ * Gets the untranslated name of the source a connection comes from.
+ *
+ * @param cluster - The connection.
+ * @param sources - Source definitions from the backend config.
+ * @returns The label of the connection's source definition, otherwise a label derived
+ * from the connection itself.
+ */
 export function getClusterSourceLabel(cluster: Cluster, sources: ClusterSourceView[] = []): string {
   return resolveSourceLabel(
     cluster,
@@ -97,6 +172,15 @@ export function getClusterSourceLabel(cluster: Cluster, sources: ClusterSourceVi
   );
 }
 
+/**
+ * Resolves the untranslated source label of a connection.
+ *
+ * @param cluster - The connection.
+ * @param view - The source definition of the connection, if the backend sent one.
+ * @returns The first one available of: the label of the definition, the label sent with
+ * the connection, the built-in label for the source ID, and the source ID itself.
+ * Cluster Inventory connections skip the label sent with the connection.
+ */
 function resolveSourceLabel(cluster: Cluster, view?: ClusterSourceView): string {
   const source = getClusterSource(cluster);
   return (
@@ -107,12 +191,27 @@ function resolveSourceLabel(cluster: Cluster, view?: ClusterSourceView): string 
   );
 }
 
+/**
+ * Gets a presentation field of a connection.
+ *
+ * @param cluster - The connection.
+ * @param key - The field key, such as a column key of the connection's source.
+ * @returns The field value, or an empty string if it is missing or not a string.
+ */
 export function getClusterField(cluster: Cluster, key: string): string {
   const value = cluster.meta_data?.presentation?.fields?.[key];
   return typeof value === 'string' ? value : '';
 }
 
-/** Source definitions with no connections stay visible when discovery is configured. */
+/**
+ * Gets the sources to offer as tabs. Source definitions with no connections stay visible
+ * when discovery is configured.
+ *
+ * @param clusters - The connections to look for sources in.
+ * @param sources - Source definitions from the backend config.
+ * @returns The definitions that are configured or have connections, followed by a
+ * generated definition for each source that is only named by a connection.
+ */
 export function getClusterSourceViews(
   clusters: Cluster[],
   sources: ClusterSourceView[]
@@ -127,6 +226,14 @@ export function getClusterSourceViews(
   return views;
 }
 
+/**
+ * Builds the text a connection is matched against when searching.
+ *
+ * @param cluster - The connection.
+ * @param sources - Source definitions from the backend config.
+ * @returns The connection key, display name, untranslated source label and presentation
+ * field values, separated by spaces.
+ */
 export function getClusterSearchText(cluster: Cluster, sources: ClusterSourceView[] = []): string {
   return [
     cluster.name,
@@ -136,7 +243,16 @@ export function getClusterSearchText(cluster: Cluster, sources: ClusterSourceVie
   ].join(' ');
 }
 
-/** Index duplicate groups once, keeping individual label lookups independent of list size. */
+/**
+ * Creates a lookup for the labels of connections. Duplicate groups are indexed once,
+ * keeping individual label lookups independent of list size.
+ *
+ * @param clusters - All connections, which are compared to find identical labels.
+ * @param sources - Source definitions from the backend config.
+ * @param translate - Translates source labels. Leaves them untranslated by default.
+ * @returns An object whose `getLabel` returns the label of a connection, given the
+ * connection or its key. A key that is not among `clusters` is labelled with the key.
+ */
 export function createClusterPresentation(
   clusters: Cluster[],
   sources: ClusterSourceView[] = EMPTY_SOURCE_VIEWS,
@@ -144,6 +260,7 @@ export function createClusterPresentation(
 ) {
   const sourceByID = new Map(sources.map(source => [source.id, source]));
   const groups = new Map<string, { count: number; roots: Map<string, number> }>();
+  // The parts of a label that do not depend on the other connections.
   const entryFor = (cluster: Cluster) => {
     const name = getClusterDisplayName(cluster);
     const view = sourceByID.get(getClusterSource(cluster));
@@ -170,6 +287,7 @@ export function createClusterPresentation(
     group.roots.set(root, (group.roots.get(root) || 0) + 1);
     groups.set(base, group);
   }
+  // Adds the management context, then the connection key, while the label is still shared.
   const labelFor = ({
     cluster,
     name,

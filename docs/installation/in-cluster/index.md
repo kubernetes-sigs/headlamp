@@ -91,7 +91,7 @@ namespace for connection and TLS information. It uses each signed-in user's OIDC
 identity, without using credentials in that Secret for workload access.
 The management identity needs `get`, `list`, and `watch` on `clusters` in
 `cluster.x-k8s.io` and core `secrets` in the selected namespaces.
-See [Cluster API discovery](../../development/cluster-api.md) for the Secret
+See [Cluster API discovery](../../development/cluster-api-discovery.md) for the Secret
 contract and supported settings.
 
 ## Using simple yaml
