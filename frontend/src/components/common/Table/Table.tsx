@@ -529,8 +529,10 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const mergedColumnVisibility = useMemo(
     () => ({
+      // A change callback keeps local visibility at its initial value, so the caller's map
+      // is the complete value and local visibility only stands in while it is absent.
       ...(tableProps.onColumnVisibilityChange
-        ? { ...columnVisibility, ...tableProps.state?.columnVisibility }
+        ? tableProps.state?.columnVisibility ?? columnVisibility
         : { ...tableProps.state?.columnVisibility, ...columnVisibility }),
       ...responsiveHidden,
     }),

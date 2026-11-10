@@ -288,6 +288,34 @@ describe('Table toolbar and selection props', () => {
     expect(tableMocks.options.state.columnVisibility.detail).toBe(true);
   });
 
+  it('treats caller visibility as the complete map with a change callback', () => {
+    const props = {
+      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      data: [{ selected: false }],
+      initialState: { columnVisibility: { detail: false } },
+      onColumnVisibilityChange: vi.fn(),
+    };
+    const { rerender } = renderTable({
+      ...props,
+      state: { columnVisibility: { detail: false } },
+    });
+    expect(tableMocks.options.state.columnVisibility).toEqual({ detail: false });
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} state={{ columnVisibility: {} }} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility).toEqual({});
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility).toEqual({ detail: false });
+  });
+
   it('hides the top toolbar when disabled', () => {
     renderTable({ enableTopToolbar: false });
 
