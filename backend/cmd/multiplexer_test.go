@@ -2141,14 +2141,7 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 
 	attempts := make(chan time.Time, 20)
 
-	server := createToggleableTestServer(&serverFail, &upgrades, func(tm time.Time) {
-		if serverFail.Load() {
-			select {
-			case attempts <- tm:
-			default:
-			}
-		}
-	})
+	server := createFailingAttemptServer(&serverFail, &upgrades, attempts)
 	defer server.Close()
 
 	clientConn, clientServer := createTestWebSocketConnection()
@@ -2161,10 +2154,12 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 		backoffEvents <- backoffEvent{attempt: attempt, delay: delay}
 	}
 
-	// Break connection and make subsequent reconnect attempts fail
-	serverFail.Store(true)
+	readerDone := make(chan struct{})
 
-	_ = conn.WSConn.Close()
+	go func() {
+		m.handleClusterMessages(conn, clientConn)
+		close(readerDone)
+	}()
 
 	done := make(chan struct{})
 
@@ -2172,6 +2167,18 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 		m.monitorConnection(conn)
 		close(done)
 	}()
+
+	// Break connection and make subsequent reconnect attempts fail
+	serverFail.Store(true)
+
+	_ = conn.WSConn.Close()
+
+	// Verify the reader exits cleanly upon read failure without aborting the monitor
+	select {
+	case <-readerDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reader to exit after connection break")
+	}
 
 	expectedDelays := []time.Duration{
 		20 * time.Millisecond,
@@ -2189,6 +2196,21 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 	assertBackoffSequence(t, backoffEvents, expectedDelays...)
 
 	cleanUpTestConnection(t, done, conn)
+}
+
+func createFailingAttemptServer(
+	serverFail *atomic.Bool,
+	upgrades *atomic.Int32,
+	attempts chan<- time.Time,
+) *httptest.Server {
+	return createToggleableTestServer(serverFail, upgrades, func(tm time.Time) {
+		if serverFail.Load() {
+			select {
+			case attempts <- tm:
+			default:
+			}
+		}
+	})
 }
 
 func createToggleableTestServer(
@@ -2494,4 +2516,290 @@ func TestMonitorConnection_ResetBackoffOnSuccess(t *testing.T) {
 	assertBackoffEvent(t, tracker.secondBackoff, 0, 20*time.Millisecond)
 
 	cleanUpTestConnection(t, done, conn, activeConn)
+}
+
+func TestMonitorConnection_ReconnectRestartsMessageReader(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 200*time.Millisecond)
+
+	srvWs1 := awaitServerSocket(t, serverSockets, "first server socket upgrade")
+
+	go m.handleClusterMessages(conn, clientConn)
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	verifyClusterMessageForwarded(t, srvWs1, clientConn, "1")
+
+	_ = srvWs1.Close()
+
+	srvWs2 := awaitServerSocket(t, serverSockets, "second server socket upgrade after reconnect")
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	var activeConn *Connection
+
+	require.Eventually(t, func() bool {
+		m.mutex.RLock()
+		defer m.mutex.RUnlock()
+
+		c := m.connections[connKey]
+		if c != nil && c != conn {
+			activeConn = c
+
+			return true
+		}
+
+		return false
+	}, 2*time.Second, 5*time.Millisecond)
+
+	verifyClusterMessageForwarded(t, srvWs2, clientConn, "2")
+
+	cleanUpTestConnection(t, done, conn, activeConn)
+
+	_ = srvWs2.Close()
+}
+
+func awaitServerSocket(t *testing.T, ch <-chan *websocket.Conn, desc string) *websocket.Conn {
+	t.Helper()
+
+	select {
+	case ws := <-ch:
+		return ws
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s", desc)
+
+		return nil
+	}
+}
+
+func verifyClusterMessageForwarded(
+	t *testing.T,
+	srvWs *websocket.Conn,
+	clientConn *WSConnLock,
+	resourceVersion string,
+) {
+	t.Helper()
+
+	testMsg := []byte(fmt.Sprintf(`{"metadata":{"resourceVersion":"%s"},"kind":"Pod","apiVersion":"v1"}`, resourceVersion))
+	require.NoError(t, srvWs.WriteMessage(websocket.TextMessage, testMsg))
+
+	var clientMsg Message
+	require.NoError(t, clientConn.ReadJSON(&clientMsg))
+	assert.Equal(t, "/api/v1/pods", clientMsg.Path)
+}
+
+func createCapturingUpgradeServer(
+	serverFail *atomic.Bool,
+	upgrades *atomic.Int32,
+) (*httptest.Server, <-chan *websocket.Conn) {
+	serverSockets := make(chan *websocket.Conn, 5)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serverFail.Load() {
+			http.Error(w, "server error", http.StatusInternalServerError)
+
+			return
+		}
+
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		upgrades.Add(1)
+
+		serverSockets <- ws
+	}))
+
+	return server, serverSockets
+}
+
+func TestHandleClusterMessages_StateClosedNotOverwrittenByStateError(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	conn.WSConn = wsConn.conn
+
+	conn.mu.Lock()
+	conn.Status.State = StateClosed
+	conn.mu.Unlock()
+
+	_ = wsConn.Close()
+
+	m.handleClusterMessages(conn, clientConn)
+
+	conn.mu.RLock()
+	finalState := conn.Status.State
+	conn.mu.RUnlock()
+
+	assert.Equal(t, StateClosed, finalState,
+		"handleClusterMessages defer must not overwrite StateClosed with StateError")
+}
+
+func TestUpdateStatusIfNotClosed_DeterministicOrderings(t *testing.T) {
+	// Ordering 1: Close runs first, then updateStatusIfNotClosed
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	conn1 := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn1)
+
+	conn1.updateStatus(StateClosed, nil)
+	conn1.safeClose()
+
+	updated1 := conn1.updateStatusIfNotClosed(StateError, nil)
+	assert.False(t, updated1, "updateStatusIfNotClosed must reject update after close")
+
+	conn1.mu.RLock()
+	state1 := conn1.Status.State
+	conn1.mu.RUnlock()
+
+	assert.Equal(t, StateClosed, state1)
+
+	// Ordering 2: updateStatusIfNotClosed runs first, then Close
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	conn2 := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn2)
+
+	updated2 := conn2.updateStatusIfNotClosed(StateError, nil)
+	assert.True(t, updated2, "updateStatusIfNotClosed must succeed on open connection")
+
+	conn2.mu.RLock()
+	state2 := conn2.Status.State
+	conn2.mu.RUnlock()
+
+	assert.Equal(t, StateError, state2)
+
+	conn2.updateStatus(StateClosed, nil)
+	conn2.safeClose()
+
+	conn2.mu.RLock()
+	finalState2 := conn2.Status.State
+	conn2.mu.RUnlock()
+
+	assert.Equal(t, StateClosed, finalState2)
+}
+
+func TestUpdateStatusIfNotClosed_ConcurrentWithClose(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		clientConn, clientServer := createTestWebSocketConnection()
+
+		conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+		start := make(chan struct{})
+
+		var wg sync.WaitGroup
+
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			conn.updateStatus(StateClosed, nil)
+			conn.safeClose()
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			_ = conn.updateStatusIfNotClosed(StateError, nil)
+		}()
+
+		close(start)
+		wg.Wait()
+
+		conn.mu.RLock()
+		finalState := conn.Status.State
+		conn.mu.RUnlock()
+
+		assert.Equal(t, StateClosed, finalState, "StateClosed must never be overwritten by StateError")
+		clientServer.Close()
+	}
+}
+
+func TestUpdateStatusIfNotClosed_RejectsWhenClosed(t *testing.T) {
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	conn.mu.Lock()
+	conn.Status.State = StateClosed
+	conn.mu.Unlock()
+
+	errTest := fmt.Errorf("test error")
+
+	updated := conn.updateStatusIfNotClosed(StateError, errTest)
+	assert.False(t, updated, "updateStatusIfNotClosed must return false when in StateClosed")
+
+	conn.mu.RLock()
+	assert.Equal(t, StateClosed, conn.Status.State)
+	conn.mu.RUnlock()
+
+	conn.mu.Lock()
+	conn.Status.State = StateConnected
+	conn.closed = true
+	conn.mu.Unlock()
+
+	updated = conn.updateStatusIfNotClosed(StateConnecting, nil)
+	assert.False(t, updated, "updateStatusIfNotClosed must return false when conn.closed is true")
+
+	conn.mu.RLock()
+	assert.Equal(t, StateConnected, conn.Status.State)
+	conn.mu.RUnlock()
+}
+
+func TestReconnect_ClosedConnectionDoesNotLeak(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+
+	conn.mu.Lock()
+	conn.closed = true
+	conn.mu.Unlock()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	newConn, err := m.reconnect(conn)
+	assert.Error(t, err)
+	assert.Nil(t, newConn)
+
+	m.mutex.RLock()
+	assert.Nil(t, m.connections[connKey], "connection must not be registered in map")
+	m.mutex.RUnlock()
 }
