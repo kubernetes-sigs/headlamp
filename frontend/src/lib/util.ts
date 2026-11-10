@@ -58,6 +58,10 @@ export interface TimeAgoOptions {
  * @returns A short, human-readable duration string.
  */
 function shortHumanDuration(durationMs: number): string {
+  if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+    return '<invalid>';
+  }
+
   const seconds = Math.trunc(durationMs / 1000);
   if (seconds < -1) {
     return '<invalid>';
@@ -106,6 +110,10 @@ function shortHumanDuration(durationMs: number): string {
  * @returns The formatted duration.
  */
 function humanDuration(durationMs: number): string {
+  if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+    return '<invalid>';
+  }
+
   const seconds = Math.trunc(durationMs / 1000);
   if (seconds < -1) {
     return '<invalid>';
@@ -171,6 +179,10 @@ function humanDuration(durationMs: number): string {
  */
 export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
   const fromDate = new Date(date);
+  if (Number.isNaN(fromDate.getTime())) {
+    return '<invalid>';
+  }
+
   let now = new Date();
 
   if (import.meta.env.UNDER_TEST) {
