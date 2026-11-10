@@ -202,7 +202,7 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 		namespace = *req.Namespace
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, namespace)
+	actionConfig, err := NewActionConfig(clientConfig, namespace, time.Time{})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "list_releases"},
 			err, "creating action config")
@@ -292,7 +292,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace, time.Time{})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetRelease},
 			err, "creating action config")
@@ -372,7 +372,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace, time.Time{})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory},
 			err, "creating action config")
@@ -452,7 +452,9 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace, impersonationExpiry)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease},
 			err, "creating action config")
@@ -480,8 +482,6 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 		return
 	}
-
-	impersonationExpiry := impersonationExpiryFromRequest(r)
 
 	go func(h *Handler) {
 		h.uninstallRelease(req, actionConfig, impersonationExpiry)
@@ -558,7 +558,9 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace, impersonationExpiry)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "rollback_release"},
 			err, "creating action config")
@@ -585,8 +587,6 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 		return
 	}
-
-	impersonationExpiry := impersonationExpiryFromRequest(r)
 
 	go func(h *Handler) {
 		h.rollbackRelease(req, actionConfig, impersonationExpiry)
@@ -698,7 +698,9 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace, impersonationExpiry)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "install_release"},
 			err, "creating action config")
@@ -714,8 +716,6 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 		return
 	}
-
-	impersonationExpiry := impersonationExpiryFromRequest(r)
 
 	go func(h *Handler) {
 		h.installRelease(req, actionConfig, impersonationExpiry)
@@ -913,7 +913,9 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	impersonationExpiry := impersonationExpiryFromRequest(r)
+
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace, impersonationExpiry)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "upgrade_release"},
 			err, "creating action config")
@@ -936,8 +938,6 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		handleError(w, req.Name, err, "setting status", http.StatusInternalServerError)
 		return
 	}
-
-	impersonationExpiry := impersonationExpiryFromRequest(r)
 
 	go func(h *Handler) {
 		h.upgradeRelease(req, actionConfig, impersonationExpiry)

@@ -555,7 +555,7 @@ func TestVerifyUserTimesOut(t *testing.T) {
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { close(done) })
 
-	actionConfig, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+	actionConfig, err := NewActionConfig(clientConfigFor(srv.URL), "default", time.Time{})
 	require.NoError(t, err)
 
 	start := time.Now()
