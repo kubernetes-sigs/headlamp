@@ -1557,8 +1557,13 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			rawIDToken = rawUserToken
 		}
 
-		if err := config.Cache.Set(context.Background(),
-			fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
+		if err := auth.CacheInitialRefreshToken(
+			context.Background(),
+			config.Cache,
+			rawUserToken,
+			oauth2Token.RefreshToken,
+			time.Duration(config.SessionTTL)*time.Second,
+		); err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
 			http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
 
@@ -2444,6 +2449,8 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
 		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleSetToken))).Methods("POST")
+	router.Handle("/clusters/{clusterName}/clear-refresh-token",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleClearRefreshToken))).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
@@ -2451,6 +2458,43 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	}
 
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
+}
+
+// handleClearRefreshToken deletes the cached OIDC refresh token of the auth token in the cluster cookie.
+// It lives under /clusters/{clusterName}, the cookie path, because the browser does not send that
+// cookie to the logout or clear-token routes. It does not clear the cookie itself.
+func (c *HeadlampConfig) handleClearRefreshToken(w http.ResponseWriter, r *http.Request) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	cluster := mux.Vars(r)["clusterName"]
+
+	token, err := auth.GetTokenFromCookie(r, cluster)
+	if err != nil {
+		http.Error(w, "Invalid cluster name", http.StatusBadRequest)
+		return
+	}
+
+	// With token broadcast, sibling clusters hold the same auth token and so share this cache
+	// entry. Deleting it on one cluster's logout would break the others' next refresh, so
+	// leave it to expire with its TTL instead.
+	if c.OidcUseTokenBroadcast {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if err := auth.DeleteCachedRefreshToken(r.Context(), c.Cache, token); err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+			err, "failed to delete cached refresh token")
+		http.Error(w, "Failed to delete cached refresh token", http.StatusInternalServerError)
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {
