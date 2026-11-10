@@ -590,6 +590,204 @@ describe('useWatchKubeObjectLists', () => {
 
     expect(onReconnect).toHaveBeenCalledWith('default', 'ns-cached', '350');
   });
+
+  it('reconnects using the refetched cache resourceVersion when idle watch disconnects after watch events', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+
+    const cacheKey = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+    queryClient.setQueryData(cacheKey, {
+      list: {
+        metadata: { resourceVersion: '100' },
+        items: [],
+      },
+    });
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
+          endpoint,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+
+    // Watch receives event with resourceVersion 105
+    connection.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-1', namespace: 'a', resourceVersion: '105' } },
+    });
+
+    // REST refetch updates cache to 200
+    queryClient.setQueryData(cacheKey, {
+      list: {
+        metadata: { resourceVersion: '200' },
+        items: [],
+      },
+    });
+
+    // Watch disconnects (idle disconnect)
+    connection.onClose?.();
+
+    // Reconnect must use 200, NOT 105
+    expect(onReconnect).toHaveBeenCalledWith('default', 'a', '200');
+  });
+
+  it('reconnects using newer watch event resourceVersion arriving after a refetch', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+
+    const cacheKey = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+    queryClient.setQueryData(cacheKey, {
+      list: {
+        metadata: { resourceVersion: '100' },
+        items: [],
+      },
+    });
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
+          endpoint,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+
+    // Watch receives event with resourceVersion 105
+    connection.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-1', namespace: 'a', resourceVersion: '105' } },
+    });
+
+    // REST refetch updates cache to 200
+    queryClient.setQueryData(cacheKey, {
+      list: {
+        metadata: { resourceVersion: '200' },
+        items: [],
+      },
+    });
+
+    // Watch receives newer event 205 after refetch
+    connection.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-1', namespace: 'a', resourceVersion: '205' } },
+    });
+
+    // Watch disconnects
+    connection.onClose?.();
+
+    // Reconnect must use 205 (not 200)
+    expect(onReconnect).toHaveBeenCalledWith('default', 'a', '205');
+  });
+
+  it('maintains independent cursors across multiple namespaces during refetches and events', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+
+    const cacheKeyA = kubeObjectListQuery(mockClass, endpoint, 'ns-a', 'default', {}).queryKey;
+    const cacheKeyB = kubeObjectListQuery(mockClass, endpoint, 'ns-b', 'default', {}).queryKey;
+
+    queryClient.setQueryData(cacheKeyA, {
+      list: { metadata: { resourceVersion: '100' }, items: [] },
+    });
+    queryClient.setQueryData(cacheKeyB, {
+      list: { metadata: { resourceVersion: '200' }, items: [] },
+    });
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [
+            { cluster: 'default', resourceVersion: '100', namespace: 'ns-a' },
+            { cluster: 'default', resourceVersion: '200', namespace: 'ns-b' },
+          ],
+          endpoint,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connectionA = useWebSocketSpy.mock.calls[0][0].connections[0];
+    const connectionB = useWebSocketSpy.mock.calls[0][0].connections[1];
+
+    // ns-a receives watch event 105
+    connectionA.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-a', namespace: 'ns-a', resourceVersion: '105' } },
+    });
+
+    // ns-a refetches to 300
+    queryClient.setQueryData(cacheKeyA, {
+      list: { metadata: { resourceVersion: '300' }, items: [] },
+    });
+
+    // ns-b receives watch event 210 without refetch
+    connectionB.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-b', namespace: 'ns-b', resourceVersion: '210' } },
+    });
+
+    connectionA.onClose?.();
+    expect(onReconnect).toHaveBeenCalledWith('default', 'ns-a', '300');
+
+    connectionB.onClose?.();
+    expect(onReconnect).toHaveBeenCalledWith('default', 'ns-b', '210');
+  });
+
+  it('handles missing resourceVersion gracefully without crashing or reconnecting with invalid string', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '', namespace: 'ns-empty' }],
+          endpoint,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+    connection.onClose?.();
+
+    expect(onReconnect).toHaveBeenCalledWith('default', 'ns-empty', '');
+  });
 });
 
 describe('useKubeObjectList', () => {
@@ -1952,6 +2150,84 @@ describe('useKubeObjectList', () => {
     await waitFor(() => {
       const latestCall = spy.mock.calls.at(-1)?.[0];
       expect(latestCall?.connections[0]?.url).toContain('resourceVersion=110');
+    });
+  });
+
+  it('reconnects with refetched resourceVersion when refetch occurred after watch events', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(initialConnection?.url).toContain('resourceVersion=100');
+
+    // Deliver watch event 105
+    act(() => {
+      initialConnection?.onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '105'),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('105');
+    });
+
+    // Mock next fetch returning resourceVersion 200
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '200')],
+            resourceVersion: '200',
+          })
+        ),
+    } as Response);
+
+    // Refetch the list query
+    await act(async () => {
+      await queryClient.refetchQueries();
+    });
+
+    await waitFor(() => {
+      expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('200');
+    });
+
+    // Watch disconnects (idle disconnect)
+    act(() => {
+      const activeCall = spy.mock.calls.at(-1)?.[0];
+      activeCall?.connections[0]?.onClose?.();
+    });
+
+    // Reconnection must use 200, NOT 105
+    await waitFor(() => {
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=200');
     });
   });
 
