@@ -37,11 +37,16 @@ things the app loads in dev mode have to exist first:
 
 ```bash
 # from the repository root
+npm ci
 npm run frontend:install
-npm run frontend:build   # -> frontend/build/index.html
-npm run backend:build    # -> backend/headlamp-server
 npm run app:install
+npm run app:prepare      # -> frontend/build/index.html and .plugins/
+npm run backend:build    # -> backend/headlamp-server
 ```
+
+`backendToken.spec.ts` loads the bundled Plugin Catalog from
+`.plugins/plugin-catalog`, which `app:prepare` downloads from the app build
+manifest.
 
 `app/build/main.js`, the Electron entry point, is built automatically by the
 `pretest-app` script, so there is no separate step for it.
@@ -50,7 +55,7 @@ Then install the test dependencies:
 
 ```bash
 cd app/e2e-tests
-npm install
+npm ci
 ```
 
 ## Running the tests
