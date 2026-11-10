@@ -320,7 +320,7 @@ func getUrlScheme(r *http.Request) string {
 	urlScheme := r.URL.Scheme
 	if urlScheme == "" {
 		// check proxy headers first
-		fwdProto := r.Header.Get("X-Forwarded-Proto")
+		fwdProto := auth.GetForwardedProto(r)
 
 		switch {
 		case fwdProto != "":

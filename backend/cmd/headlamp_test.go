@@ -2820,6 +2820,48 @@ func TestGetOidcCallbackURL(t *testing.T) {
 			expectedResult: "https://example.com/oidc-callback",
 		},
 		{
+			name: "Request with X-Forwarded-Proto multi-hop https, http",
+			request: &http.Request{
+				URL:    &url.URL{},
+				Host:   "example.com",
+				Header: http.Header{"X-Forwarded-Proto": []string{"https, http"}},
+			},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""},
+				},
+			},
+			expectedResult: "https://example.com/oidc-callback",
+		},
+		{
+			name: "Request with X-Forwarded-Proto uppercase HTTPS",
+			request: &http.Request{
+				URL:    &url.URL{},
+				Host:   "example.com",
+				Header: http.Header{"X-Forwarded-Proto": []string{"HTTPS"}},
+			},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""},
+				},
+			},
+			expectedResult: "https://example.com/oidc-callback",
+		},
+		{
+			name: "Request with invalid X-Forwarded-Proto falls back to default scheme",
+			request: &http.Request{
+				URL:    &url.URL{},
+				Host:   "example.com",
+				Header: http.Header{"X-Forwarded-Proto": []string{"javascript"}},
+			},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""},
+				},
+			},
+			expectedResult: "http://example.com/oidc-callback",
+		},
+		{
 			name: "Localhost request",
 			request: &http.Request{
 				URL:  &url.URL{},
