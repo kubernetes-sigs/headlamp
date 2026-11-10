@@ -93,6 +93,7 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.listeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
+    WebSocketManager.failedStreams.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
     WebSocketManager.pendingUnsubscribes.clear();
   });
@@ -967,6 +968,91 @@ describe('WebSocket Multiplexer', () => {
         expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
         expect(errorCallback.mock.calls[0][0].message).toBe('dedicated error message');
         expect(onMessage).not.toHaveBeenCalled();
+      });
+    });
+
+    it('allows a fresh watch request after a stream fails with an ERROR', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      const errorCallback = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, errorCallback);
+      await mockServer.connected;
+      const firstRequest = await mockServer.nextMessage;
+      expect(JSON.parse(firstRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Backend fails to establish watch and sends ERROR
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({ error: 'failed to establish watch' }),
+          type: 'ERROR',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+      });
+
+      // Subsequent subscription after failure must send a fresh REQUEST rather than skipping it
+      const onMessage2 = vi.fn();
+      const errorCallback2 = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage2, errorCallback2);
+
+      const secondRequest = await mockServer.nextMessage;
+      expect(JSON.parse(secondRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+    });
+
+    it('re-subscribes previously failed streams when the multiplexer reconnects', async () => {
+      const path = '/api/v1/services';
+      const query = 'watch=true';
+
+      const errorCallback = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, errorCallback);
+      await mockServer.connected;
+      const firstRequest = await mockServer.nextMessage;
+      expect(JSON.parse(firstRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Backend sends ERROR for this stream
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({ error: 'temporarily unavailable' }),
+          type: 'ERROR',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+      });
+
+      // Now the multiplexer socket reconnects and calls resubscribeAll
+      const mockWs = { send: vi.fn() } as any;
+      WebSocketManager.resubscribeAll(mockWs);
+
+      // It must attempt to revive the subscription
+      expect(mockWs.send).toHaveBeenCalledTimes(1);
+      const sentMsg = JSON.parse(mockWs.send.mock.calls[0][0]);
+      expect(sentMsg).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
       });
     });
 

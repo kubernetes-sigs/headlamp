@@ -49,6 +49,9 @@ export const WebSocketManager = {
   /** Map of active WebSocket subscriptions with their details */
   activeSubscriptions: new Map<string, { clusterId: string; path: string; query: string }>(),
 
+  /** Set of subscription keys whose backend stream failed with an ERROR */
+  failedStreams: new Set<string>(),
+
   /** Map to track aliases when subscription query updates its resourceVersion */
   keyAliases: new Map<string, string>(),
 
@@ -183,6 +186,7 @@ export const WebSocketManager = {
    * @param socket - WebSocket connection to subscribe to
    */
   resubscribeAll(socket: WebSocket): void {
+    this.failedStreams.clear();
     this.activeSubscriptions.forEach(({ clusterId, path, query }, canonicalKey) => {
       const resubKey = this.createKey(clusterId, path, query);
       if (resubKey !== canonicalKey) {
@@ -225,10 +229,12 @@ export const WebSocketManager = {
       this.pendingUnsubscribes.delete(key);
     }
 
-    const isAlreadyActive = this.activeSubscriptions.has(key);
+    const isFailed = this.failedStreams.has(key);
+    const isAlreadyActive = this.activeSubscriptions.has(key) && !isFailed;
 
     // Track active subscription details if not already active
     if (!isAlreadyActive) {
+      this.failedStreams.delete(key);
       this.activeSubscriptions.set(key, { clusterId, path, query });
     }
 
@@ -319,6 +325,7 @@ export const WebSocketManager = {
             const sub = this.activeSubscriptions.get(canonicalKey);
             const closeQuery = sub?.query || query;
             this.activeSubscriptions.delete(canonicalKey);
+            this.failedStreams.delete(canonicalKey);
             this.completedPaths.delete(canonicalKey);
 
             // Clean up any alias mappings pointing to this subscription key
@@ -395,6 +402,7 @@ export const WebSocketManager = {
 
       // Handle ERROR messages from backend
       if (data.type === 'ERROR') {
+        this.failedStreams.add(key);
         let errorMessage = 'Unknown error';
         try {
           const parsedData = data.data ? JSON.parse(data.data) : {};
@@ -451,6 +459,8 @@ export const WebSocketManager = {
         return;
       }
 
+      this.failedStreams.delete(key);
+
       // Notify listeners if update is valid
       if (update && typeof update === 'object') {
         const listeners = this.listeners.get(key);
@@ -466,7 +476,7 @@ export const WebSocketManager = {
 
         // When a watch message updates resourceVersion, update activeSubscription
         // so that if a reconnect occurs, resubscribeAll uses the latest resourceVersion.
-        if (update.object?.metadata?.resourceVersion) {
+        if (update.type !== 'ERROR' && update.object?.metadata?.resourceVersion) {
           const newRV = update.object.metadata.resourceVersion;
           const sub = this.activeSubscriptions.get(key);
           if (sub && sub.query) {
