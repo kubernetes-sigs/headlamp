@@ -44,6 +44,34 @@ export interface KubeVolume {
   [volumeName: string]: any;
 }
 
+export interface PodResourceClaim {
+  name: string;
+  resourceClaimName?: string;
+  resourceClaimTemplateName?: string;
+}
+
+export interface PodResourceClaimStatus {
+  name: string;
+  resourceClaimName?: string;
+}
+
+export interface PodExtendedResourceClaimStatus {
+  resourceClaimName: string;
+  requestMappings: {
+    containerName: string;
+    resourceName: string;
+    requestName: string;
+  }[];
+}
+
+export interface PodClaimReference {
+  source: 'claim' | 'template' | 'extendedResource';
+  podClaimName?: string;
+  claimName?: string;
+  templateName?: string;
+  containers: string[];
+}
+
 export interface KubePodSpec {
   containers: KubeContainer[];
   nodeName: string;
@@ -64,6 +92,14 @@ export interface KubePodSpec {
   terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
+  /**
+   * The scheduling group this Pod belongs to. Set only when the GenericWorkload
+   * feature gate is enabled on the cluster.
+   */
+  schedulingGroup?: {
+    podGroupName: string;
+  };
+  resourceClaims?: PodResourceClaim[];
 }
 
 export interface KubePod extends KubeObjectInterface {
@@ -82,6 +118,8 @@ export interface KubePod extends KubeObjectInterface {
     reason?: string;
     nominatedNodeName?: string;
     startTime: Time;
+    resourceClaimStatuses?: PodResourceClaimStatus[];
+    extendedResourceClaimStatus?: PodExtendedResourceClaimStatus;
     [other: string]: any;
   };
 }
@@ -153,14 +191,58 @@ class Pod extends KubeObject<KubePod> {
     return this.jsonData.status;
   }
 
+  get resourceClaims(): PodClaimReference[] {
+    const containers = [...(this.spec?.initContainers ?? []), ...(this.spec?.containers ?? [])];
+    const containersUsing = (claim: string) =>
+      containers
+        .filter(container => container.resources?.claims?.some(used => used.name === claim))
+        .map(container => container.name);
+
+    const references: PodClaimReference[] = (this.spec?.resourceClaims ?? []).map(claim => {
+      if (claim.resourceClaimName) {
+        return {
+          source: 'claim',
+          podClaimName: claim.name,
+          claimName: claim.resourceClaimName,
+          containers: containersUsing(claim.name),
+        };
+      }
+      return {
+        source: 'template',
+        podClaimName: claim.name,
+        claimName: this.status?.resourceClaimStatuses?.find(status => status.name === claim.name)
+          ?.resourceClaimName,
+        templateName: claim.resourceClaimTemplateName,
+        containers: containersUsing(claim.name),
+      };
+    });
+
+    const extended = this.status?.extendedResourceClaimStatus;
+    if (extended?.resourceClaimName) {
+      references.push({
+        source: 'extendedResource',
+        claimName: extended.resourceClaimName,
+        containers: [
+          ...new Set((extended.requestMappings ?? []).map(mapping => mapping.containerName)),
+        ],
+      });
+    }
+    return references;
+  }
+
   evict() {
     const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction`;
-    return post(url, {
-      metadata: {
-        name: this.getName(),
-        namespace: this.getNamespace(),
+    return post(
+      url,
+      {
+        metadata: {
+          name: this.getName(),
+          namespace: this.getNamespace(),
+        },
       },
-    });
+      true,
+      { cluster: this._clusterName }
+    );
   }
 
   getLogs(...args: Parameters<oldGetLogs | newGetLogs>): () => void {
@@ -321,12 +403,16 @@ class Pod extends KubeObject<KubePod> {
    * @param containerName - The name of the ephemeral container to add
    * @param image - The container image to use
    * @param command - Optional command to run in the container (defaults to ['sh'])
+   * @param targetContainerName - Optional name of the container to target.
+   *   When set, the ephemeral container shares the target's namespaces (PID, IPC, etc.).
+   *   If undefined, no targeting is applied.
    * @returns Promise that resolves when the ephemeral container is added
    */
   async addEphemeralContainer(
     containerName: string,
     image: string,
-    command: string[] = ['sh']
+    command: string[] = ['sh'],
+    targetContainerName?: string
   ): Promise<void> {
     const ephemeralContainer: KubeContainer = {
       name: containerName,
@@ -336,6 +422,7 @@ class Pod extends KubeObject<KubePod> {
       stdinOnce: true,
       command,
       imagePullPolicy: 'IfNotPresent',
+      ...(targetContainerName ? { targetContainerName } : {}),
     };
 
     // Get current ephemeral containers

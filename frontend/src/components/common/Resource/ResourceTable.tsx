@@ -22,6 +22,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { TableCellProps } from '@mui/material/TableCell';
 import {
+  MRT_Cell,
   MRT_FilterFns,
   MRT_Row,
   MRT_SortingFn,
@@ -56,6 +57,7 @@ import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
 import { getA8RMetadata } from './A8RInfo';
+import CopyableCell from './CopyableCell';
 import DeleteButton from './DeleteButton';
 import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
@@ -102,6 +104,7 @@ export type ResourceTableColumn<RowItem> = {
       datum: keyof RowItem;
       render?: never;
       getValue?: never;
+      copyable?: never;
     }
   | {
       datum?: never;
@@ -109,12 +112,19 @@ export type ResourceTableColumn<RowItem> = {
       render?: (item: RowItem) => ReactNode;
       /** Plain value for filtering and sorting. This is going to be displayed unless render property is defined */
       getValue: (item: RowItem) => string | number | null | undefined;
+      /**
+       * If true, adds a copy-to-clipboard button that appears on hover.
+       * The value from getValue() will be copied when clicked.
+       * @default false
+       */
+      copyable?: boolean;
     }
   | {
       datum?: never;
       render?: never;
       /** @deprecated please use getValue and render (optional, if you need custom renderer) */
       getter: (item: RowItem) => any;
+      copyable?: never;
     }
 );
 
@@ -129,6 +139,9 @@ const DEFAULT_SORT_COLUMN_ID = 'age';
  * Maximum length for generated table IDs to avoid overly long localStorage keys.
  */
 const MAX_TABLE_ID_LENGTH = 50;
+
+/** What a table asked to list from no cluster shows, kept stable across renders. */
+const NOTHING_LISTED = { items: [], errors: null };
 
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
@@ -157,6 +170,11 @@ export interface ResourceTableProps<RowItem> {
   data: Array<RowItem> | null;
   /** Filter out rows from the table */
   filterFunction?: (item: RowItem) => boolean;
+  /**
+   * Structured search: return a boolean to decide the row outright (skipping fuzzy matching),
+   * or undefined to fall back to the default search.
+   */
+  searchFilter?: (item: RowItem, search: string) => boolean | undefined;
   /** Display an error message. Table will be hidden even if data is present */
   errorMessage?: string | null;
   /** Display an errors */
@@ -169,6 +187,12 @@ export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjec
   extends Omit<ResourceTableProps<InstanceType<KubeClass>>, 'data'> {
   resourceClass: KubeClass;
   namespaces?: string[];
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried. An empty list queries no cluster and shows an empty table.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceTable<KubeClass extends KubeObjectClass>(
@@ -188,11 +212,13 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, ...otherProps } = props;
+  const { resourceClass, id, clusters, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
-  const { items, errors } = resourceClass.useList({
+  const listed = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
+    clusters,
   });
+  const { items, errors } = clusters?.length === 0 ? NOTHING_LISTED : listed;
 
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
@@ -312,6 +338,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     noProcessing = false,
     hideColumns = [],
     filterFunction,
+    searchFilter,
     errorMessage,
     reflectInURL,
     data,
@@ -438,9 +465,33 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
           } else {
             mrtColumn.accessorFn = (item: RowItem) => item[column.datum];
           }
-          if ('render' in column) {
+          if ('render' in column && 'getValue' in column) {
+            const renderFn = column.render;
+            if (column.copyable) {
+              mrtColumn.Cell = ({
+                row,
+                cell,
+              }: {
+                row: MRT_Row<RowItem>;
+                cell: MRT_Cell<RowItem>;
+              }) => {
+                const value = String(cell.getValue<string | number | null | undefined>() ?? '');
+                return (
+                  <CopyableCell value={value}>{renderFn?.(row.original) ?? null}</CopyableCell>
+                );
+              };
+            } else {
+              mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
+                renderFn?.(row.original) ?? null;
+            }
+          } else if ('render' in column) {
             mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
               column.render?.(row.original) ?? null;
+          } else if (column.copyable && 'getValue' in column) {
+            mrtColumn.Cell = ({ cell }: { cell: MRT_Cell<RowItem> }) => {
+              const value = String(cell.getValue<string | number | null | undefined>() ?? '');
+              return <CopyableCell value={value}>{value}</CopyableCell>;
+            };
           }
           if (sort && typeof sort === 'function') {
             mrtColumn.sortingFn = sortingFn(sort);
@@ -464,6 +515,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'age',
               header: t('translation|Age'),
               gridTemplate: 'min-content',
+              responsivePriority: 1,
               accessorFn: (item: RowItem) => -new Date(item.metadata.creationTimestamp).getTime(),
               enableColumnFilter: false,
               muiTableBodyCellProps: {
@@ -484,6 +536,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'labels',
               header: t('translation|Labels'),
               gridTemplate: 'min-content',
+              responsivePriority: -2,
               accessorFn: (item: RowItem) =>
                 item.metadata.labels
                   ? Object.entries(item.metadata.labels)
@@ -496,6 +549,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'namespace',
               header: t('glossary|Namespace'),
               gridTemplate: 'auto',
+              responsivePriority: -2,
               accessorFn: (item: RowItem) => item.getNamespace() ?? '-',
               filterVariant: 'multi-select',
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
@@ -518,6 +572,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'cluster',
               header: t('glossary|Cluster'),
               gridTemplate: 'min-content',
+              responsivePriority: -1,
               Cell: ({ row }: { row: MRT_Row<RowItem> }) => (
                 <Box sx={{ whiteSpace: 'nowrap' }}>{row.original.cluster}</Box>
               ),
@@ -531,6 +586,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               accessorFn: (resource: RowItem) => String(resource?.kind),
               filterVariant: 'multi-select',
               gridTemplate: 'min-content',
+              responsivePriority: -1,
             };
           default:
             throw new Error(`Unknown column: ${col}`);
@@ -681,12 +737,18 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   const filterFunc = filterFunction ?? defaultFilterFunc;
 
+  // Faceted values build a unique-value map per column across the full dataset.
+  // On large clusters this is the dominant cause of OOM crashes, so we disable it once the
+  // dataset exceeds a threshold. Table then fills the select filters from a bounded walk of
+  // the dropdown columns alone, which keeps those filters usable without the full map.
+  const enableFacetedValues = (data?.length ?? 0) <= 500;
+
   return (
     <>
       <ClusterGroupErrorMessage errors={errors} />
       <Table<RowItem>
         enableFullScreenToggle={false}
-        enableFacetedValues
+        enableFacetedValues={enableFacetedValues}
         enableRowSelection={wrappedEnableRowSelection}
         renderRowSelectionToolbar={renderRowSelectionToolbar}
         errorMessage={errorMessage}
@@ -706,6 +768,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         renderRowActionMenuItems={renderRowActionMenuItems}
         filterFns={{
           kubeObjectSearch: (row, id, filterValue) => {
+            const searchFilterResult = searchFilter?.(row.original, filterValue);
+            if (searchFilterResult !== undefined) {
+              return searchFilterResult;
+            }
             const customFilterResult = filterFunc(row.original, filterValue);
             const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
             return customFilterResult || fuzzyColumnsResult;

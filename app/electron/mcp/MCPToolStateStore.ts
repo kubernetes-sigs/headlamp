@@ -17,6 +17,7 @@
 import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
 import { type BrowserWindow, dialog } from 'electron';
 import * as fs from 'fs';
+import { mcpDebugLog } from './debug';
 
 /**
  * State of a single MCP tool.
@@ -484,7 +485,7 @@ export class MCPToolStateStore {
    */
   initConfigFromClientTools(clientTools: DynamicStructuredTool[]): void {
     if (!clientTools || clientTools.length === 0) {
-      console.log('No tools available for configuration initialization');
+      mcpDebugLog('No tools available for configuration initialization');
       // Clear the config if no tools are available
       this.replaceConfig({});
       return;
@@ -506,11 +507,11 @@ export class MCPToolStateStore {
 
       // Extract schema from the tool (LangChain tools use .schema property)
       const toolSchema = tool.schema || (tool as any).inputSchema || null;
-      console.log(
-        `Processing tool: ${toolName}, has inputSchema: ${!!toolSchema}, description: "${
-          tool.description
-        }"`
-      );
+      mcpDebugLog('Processing MCP tool for configuration initialization:', {
+        toolName,
+        hasInputSchema: !!toolSchema,
+        description: tool.description,
+      });
 
       if (!toolsByServer[serverName]) {
         toolsByServer[serverName] = [];
@@ -523,7 +524,9 @@ export class MCPToolStateStore {
       });
     }
 
-    console.log('Tools grouped by server:', Object.keys(toolsByServer));
+    mcpDebugLog('MCP tools grouped by server for configuration initialization:', {
+      serverNames: Object.keys(toolsByServer),
+    });
 
     // Replace the entire configuration with current tools
     this.replaceToolsConfig(toolsByServer);

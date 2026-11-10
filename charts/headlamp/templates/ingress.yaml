@@ -44,8 +44,10 @@ spec:
             backend:
               service:
                 {{- $svc := dict }}
-                {{- if and .backend .backend.service }}
-                  {{- $svc = .backend.service }}
+                {{- with .backend }}
+                  {{- with .service }}
+                    {{- $svc = . }}
+                  {{- end }}
                 {{- end }}
                 {{- if $svc.name }}
                 name: {{ tpl $svc.name $ | trim | quote }}

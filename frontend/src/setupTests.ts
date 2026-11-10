@@ -16,7 +16,11 @@
 
 /// <reference types="@testing-library/jest-dom" />
 import '@testing-library/jest-dom/vitest';
+import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
+
+// xterm initializes canvas APIs during module setup, so install the canvas mock
+// here once for the entire Vitest environment instead of per test file.
 
 // nock v14 uses @mswjs/interceptors, which calls `new Request(url, init)` internally when
 // intercepting a fetch. In jsdom v24+, globalThis.Request wraps undici's native Request,
@@ -85,7 +89,7 @@ if (globalThis.window) {
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
-  return {
+  const api = {
     getItem: (key: string) => store[key] || null,
     setItem: (key: string, value: string) => {
       store[key] = value.toString();
@@ -97,6 +101,30 @@ const localStorageMock = (() => {
       store = {};
     },
   };
+  // Like a real Storage, property access (e.g. `localStorage.foo = 'bar'`) reads and writes the
+  // same items as getItem/setItem, so clear() also removes values written as properties.
+  return new Proxy(api, {
+    get(target, prop, receiver) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.get(target, prop, receiver);
+      }
+      return store[prop];
+    },
+    set(target, prop, value, receiver) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.set(target, prop, value, receiver);
+      }
+      store[prop] = String(value);
+      return true;
+    },
+    deleteProperty(target, prop) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.deleteProperty(target, prop);
+      }
+      delete store[prop];
+      return true;
+    },
+  });
 })();
 
 if (globalThis.window) {

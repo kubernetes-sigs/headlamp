@@ -22,6 +22,8 @@ import { Base64 } from 'js-base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
+import { canLogoutFromProvider } from './k8s/clusterAuthType';
+import { encodeClusterPath, redirectToOIDCLogout } from './oidcLogout';
 import { queryClient } from './queryClient';
 
 /**
@@ -87,7 +89,10 @@ export function hasToken(cluster: string) {
  */
 async function setCookieToken(cluster: string, token: string | null) {
   try {
-    const response = await backendFetch(`/clusters/${cluster}/set-token`, {
+    const endpoint = token
+      ? `/clusters/${encodeURIComponent(cluster)}/set-token`
+      : `/encoded-clusters/${encodeClusterPath(cluster)}/clear-token`;
+    const response = await backendFetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,23 +138,64 @@ export function setToken(cluster: string, token: string | null) {
 
 /**
  * Logs out the user by clearing the authentication token for the specified cluster.
+ * For OIDC clusters, redirects to the IdP logout endpoint to properly end the session.
  *
  * @param cluster - The name of the cluster to log out from.
+ * @param skipRedirect - If true, skip the OIDC logout redirect (caller handles navigation).
+ * @returns {Promise<void>}
  * @throws {Error} When logout request fails
  */
-export async function logout(cluster: string) {
-  return setToken(cluster, null).then(() => {
+export async function logout(cluster: string, skipRedirect = false): Promise<void> {
+  // For OIDC auth, redirect to the backend OIDC logout endpoint which will
+  // redirect to the IdP's end_session_endpoint to properly terminate the session.
+  if (canLogoutFromProvider(cluster)) {
+    // Clear local state first
     queryClient.removeQueries({ queryKey: ['auth'], exact: false });
     queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
-  });
+
+    // Clear the cluster auth cookie before redirecting (cookie path is cluster-scoped).
+    try {
+      await setToken(cluster, null);
+    } catch (error) {
+      if (skipRedirect) {
+        throw error;
+      }
+    }
+
+    if (skipRedirect) {
+      return;
+    }
+
+    await redirectToOIDCLogout(cluster);
+    return;
+  }
+
+  await setToken(cluster, null);
+  queryClient.removeQueries({ queryKey: ['auth'], exact: false });
+  queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
 }
 
 /**
  * Deletes all stored authentication tokens
  *
- * @returns {void}
+ * @returns {Promise<void[]>}
  */
-export function deleteTokens() {
+export async function deleteTokens(): Promise<void[]> {
   const clusters = Object.keys(store.getState().config.allClusters ?? {});
-  return Promise.all(clusters.map(cluster => logout(cluster)));
+
+  const oidcClusterToRedirect = clusters.find(canLogoutFromProvider);
+  const results = await Promise.allSettled(clusters.map(cluster => logout(cluster, true)));
+
+  if (oidcClusterToRedirect) {
+    await redirectToOIDCLogout(oidcClusterToRedirect);
+  }
+
+  const failures = results.flatMap((result, index) =>
+    result.status === 'rejected' && clusters[index] !== oidcClusterToRedirect ? [result.reason] : []
+  );
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Failed to clear one or more cluster tokens');
+  }
+
+  return results.map(() => undefined);
 }

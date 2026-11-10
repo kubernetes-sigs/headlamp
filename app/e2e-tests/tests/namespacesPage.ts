@@ -21,8 +21,8 @@ export class NamespacesPage {
 
   async navigateToNamespaces() {
     await this.page.waitForLoadState('load');
-    await this.page.waitForSelector('span:has-text("Cluster")');
-    await this.page.getByText('Cluster', { exact: true }).click();
+    // Namespaces is a top-level sidebar entry. It used to be nested under a
+    // "Cluster" group, which no longer exists.
     await this.page.waitForSelector('span:has-text("Namespaces")');
     await this.page.click('span:has-text("Namespaces")');
     await this.page.waitForLoadState('load');
@@ -68,8 +68,9 @@ export class NamespacesPage {
     await expect(page.getByRole('textbox', { name: 'yaml Code' })).toBeVisible();
     await page.fill('textarea[aria-label="yaml Code"]', yaml);
 
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeVisible();
-    await page.getByRole('button', { name: 'Apply' }).click();
+    // exact: true, otherwise this also matches the "Create / Apply" button.
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
 
     await page.waitForSelector(`a:has-text("${name}")`);
     await expect(page.locator(`a:has-text("${name}")`)).toBeVisible();
@@ -83,20 +84,17 @@ export class NamespacesPage {
     await page.waitForSelector(`text=${name}`);
     await page.click(`a:has-text("${name}")`);
 
-    await page.waitForSelector('button[aria-label="Delete"]');
-    await page.click('button[aria-label="Delete"]');
+    const drawer = page.getByRole('complementary', { name: `Namespace ${name}`, exact: true });
+    await drawer.getByRole('button', { name: 'Delete', exact: true }).click();
 
     await page.waitForLoadState('load');
 
-    await page.waitForSelector('button:has-text("Yes")');
+    const dialog = page.getByRole('dialog', { name: 'Delete item', exact: true });
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
-    await page.waitForLoadState('load');
-
-    await page.click('button:has-text("Yes")');
-
-    await page.waitForSelector('h1:has-text("Namespaces")');
-    await page.waitForSelector('td:has-text("Terminating")');
-
-    await expect(page.locator(`a:has-text("${name}")`)).toBeHidden();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('link', { name, exact: true })).toBeHidden();
+    await drawer.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(drawer).toBeHidden();
   }
 }

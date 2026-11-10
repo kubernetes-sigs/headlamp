@@ -100,7 +100,7 @@ describe('shortcutsSlice', () => {
       expect(DEFAULT_SHORTCUTS.GLOBAL_SEARCH.key).toBe('/');
       expect(DEFAULT_SHORTCUTS.GLOBAL_SEARCH.defaultKey).toBe('/');
       expect(DEFAULT_SHORTCUTS.GLOBAL_SEARCH.category).toBe('search');
-      expect(DEFAULT_SHORTCUTS.GLOBAL_SEARCH.name).toBe('Global Search');
+      expect(DEFAULT_SHORTCUTS.GLOBAL_SEARCH.labelKey).toBe('Global Search');
     });
 
     it('should have CLUSTER_CHOOSER shortcut with correct defaults', () => {
@@ -124,12 +124,17 @@ describe('shortcutsSlice', () => {
     it('should have all shortcuts with required properties', () => {
       Object.values(DEFAULT_SHORTCUTS).forEach(shortcut => {
         expect(shortcut.id).toBeDefined();
-        expect(shortcut.name).toBeDefined();
-        expect(shortcut.description).toBeDefined();
+        expect(shortcut.labelKey).toBeDefined();
+        expect(shortcut.descriptionKey).toBeDefined();
         expect(shortcut.key).toBeDefined();
         expect(shortcut.defaultKey).toBeDefined();
         expect(shortcut.category).toBeDefined();
       });
+    });
+
+    it('has unique keys across shortcuts', () => {
+      const keys = Object.values(DEFAULT_SHORTCUTS).map(shortcut => shortcut.key.toLowerCase());
+      expect(new Set(keys).size).toBe(keys.length);
     });
   });
 });

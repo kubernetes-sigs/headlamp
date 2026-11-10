@@ -3,6 +3,24 @@
     <div
       aria-label="Plugin Settings Test Page"
     >
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+        tabindex="0"
+        type="button"
+      >
+        <span
+          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        />
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          style="padding-top: 3px;"
+        >
+          Back
+        </p>
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </button>
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -18,7 +36,7 @@
               <h1
                 class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
-                Plugins
+                Plugin Settings
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
@@ -30,24 +48,37 @@
           class="MuiBox-root css-1txv3mw"
         >
           <div
-            aria-atomic="true"
-            aria-live="polite"
-            class="MuiBox-root css-ty8jgw"
-            role="status"
+            class="MuiBox-root css-1fg81o4"
           >
-            No data to be shown.
+            <h2
+              class="MuiTypography-root MuiTypography-h4 css-1wbghzm-MuiTypography-root"
+            >
+              Installed Plugins
+            </h2>
           </div>
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+            class="MuiBox-root css-8atqhb"
           >
             <div
-              class="MuiBox-root css-19midj6"
+              aria-atomic="true"
+              aria-live="polite"
+              class="MuiBox-root css-ty8jgw"
+              role="status"
             >
-              <p
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+              No data to be shown.
+            </div>
+            <div
+              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+            >
+              <div
+                class="MuiBox-root css-19midj6"
               >
-                No data to be shown.
-              </p>
+                <p
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                >
+                  No data to be shown.
+                </p>
+              </div>
             </div>
           </div>
         </div>

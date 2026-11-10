@@ -1,15 +1,20 @@
 package kubeconfig
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +50,51 @@ func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	return rt.base.RoundTrip(newReq)
 }
 
+// execCredentialRetryRoundTripper retries safe requests once after client-go
+// refreshes an exec credential in response to a 401. client-go refreshes the
+// credential before returning the 401, but only uses it on the next request.
+type execCredentialRetryRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (rt *execCredentialRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Authorization") != "" || !isSafeRetryRequest(req) {
+		return rt.base.RoundTrip(req)
+	}
+
+	firstReq := req.Clone(req.Context())
+
+	resp, err := rt.base.RoundTrip(firstReq)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized {
+		return resp, err
+	}
+
+	if resp.Body != nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+
+	retryReq := req.Clone(req.Context())
+	// The exec transport adds Authorization to the original request. Remove it
+	// so the retry uses the credential client-go refreshed after the first 401.
+	retryReq.Header.Del("Authorization")
+
+	return rt.base.RoundTrip(retryReq)
+}
+
+func isSafeRetryRequest(req *http.Request) bool {
+	if req.Body != nil && req.Body != http.NoBody {
+		return false
+	}
+
+	switch req.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
+}
+
 // buildUserAgent creates a User-Agent string for Headlamp.
 func buildUserAgent() string {
 	return fmt.Sprintf("%s %s (%s/%s)", AppName, Version, runtime.GOOS, runtime.GOARCH)
@@ -73,6 +123,8 @@ type Context struct {
 	Error       string                 `json:"error"`
 	// KubeConfigPath is the file path for the kubeconfig file.
 	KubeConfigPath string `json:"kubeConfigPath"`
+	// KubeConfigContextName is the original on-disk context key, before display-name changes.
+	KubeConfigContextName string `json:"-"`
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
 	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
@@ -119,17 +171,18 @@ func (c *Context) Copy() *Context {
 	}
 
 	return &Context{
-		Name:             c.Name,
-		KubeContext:      kubeContext,
-		Cluster:          cluster,
-		AuthInfo:         authInfo,
-		Source:           c.Source,
-		OidcConf:         oidcConf,
-		Internal:         c.Internal,
-		Error:            c.Error,
-		KubeConfigPath:   c.KubeConfigPath,
-		ClusterID:        c.ClusterID,
-		ClusterInventory: c.ClusterInventory.DeepCopy(),
+		Name:                  c.Name,
+		KubeContext:           kubeContext,
+		Cluster:               cluster,
+		AuthInfo:              authInfo,
+		Source:                c.Source,
+		OidcConf:              oidcConf,
+		Internal:              c.Internal,
+		Error:                 c.Error,
+		KubeConfigPath:        c.KubeConfigPath,
+		KubeConfigContextName: c.KubeConfigContextName,
+		ClusterID:             c.ClusterID,
+		ClusterInventory:      c.ClusterInventory.DeepCopy(),
 	}
 }
 
@@ -237,7 +290,7 @@ type Base64Error struct {
 
 // Error returns a string representation of the error.
 func (e Base64Error) Error() string {
-	var messages []string //nolint:prealloc
+	var messages []string //nolint:prealloc // Small slice allocated only on error formatting
 
 	for _, err := range e.Errors {
 		messages = append(messages, err.Error())
@@ -353,7 +406,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec
+		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA certificate file path is loaded from kubeconfig
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -436,10 +489,41 @@ func (c *Context) SetupProxy() error {
 
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
+	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
+	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
+	if c.AuthType() == "oidc" {
+		// Log at most once per proxy to avoid flooding the logs on repeated 401s.
+		var warnOnce sync.Once
+
+		proxy.ModifyResponse = func(resp *http.Response) error {
+			authHeader := ""
+			if resp.Request != nil {
+				authHeader = resp.Request.Header.Get("Authorization")
+			}
+
+			if resp.StatusCode == http.StatusUnauthorized && strings.HasPrefix(authHeader, "Bearer ") {
+				warnOnce.Do(func() {
+					logger.Log(logger.LevelWarn, map[string]string{"context": c.Name}, nil,
+						"API server rejected the forwarded bearer token (401); the token may be "+
+							"expired/invalid, or the API server may not trust the same OIDC issuer "+
+							"and client-id as Headlamp")
+				})
+			}
+
+			return nil
+		}
+	}
+
 	restConf, err := c.RESTConfig()
 	if err == nil {
 		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
+			// Static bearer/basic auth takes precedence over exec in client-go.
+			if restConf.ExecProvider != nil &&
+				restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
+				roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
+			}
+
 			// Wrap the round tripper to add Headlamp User-Agent
 			proxy.Transport = &userAgentRoundTripper{
 				base:      roundTripper,
@@ -476,14 +560,14 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
-	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
+	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec // Kubeconfig file path is provided via configuration
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
 
 	skipProxySetup := source != KubeConfig
 
-	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
+	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup, kubeConfigPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error loading contexts from file: %w", err)
 	}
@@ -510,7 +594,9 @@ func LoadContextsFromBase64String(kubeConfig string, source int) ([]Context, []C
 
 	skipProxySetup := source != KubeConfig
 
-	return loadContextsFromData(kubeConfigByte, source, skipProxySetup)
+	// Base64 kubeconfigs have no filesystem origin, so relative certificate
+	// and key paths cannot be resolved against a parent directory.
+	return loadContextsFromData(kubeConfigByte, source, skipProxySetup, "")
 }
 
 // LoadContextsFromMultipleFiles loads contexts from the given kubeconfig files.
@@ -535,8 +621,15 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 
 // loadContextsFromData loads contexts from a kubeconfig data.
 // It unmarshals the kubeconfig data, extracts the contexts, and processes each context.
+// kubeConfigPath is the filesystem path of the source kubeconfig when known; an empty
+// string means the data has no filesystem origin (for example base64 payloads).
 // It returns valid contexts, contextLoadErrors and any errors that occurred during the process.
-func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Context, []ContextLoadError, error) {
+func loadContextsFromData(
+	data []byte,
+	source int,
+	skipProxySetup bool,
+	kubeConfigPath string,
+) ([]Context, []ContextLoadError, error) {
 	var contexts []Context
 
 	var contextErrors []ContextLoadError
@@ -555,7 +648,7 @@ func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Conte
 
 	// Process each context
 	for _, rawContext := range rawContexts {
-		context, err := ProcessContext(rawContext, kubeconfig, source, skipProxySetup)
+		context, err := processContext(rawContext, kubeconfig, source, skipProxySetup, kubeConfigPath)
 		if err != nil {
 			contextErrors = append(contextErrors, ContextLoadError{
 				ContextName: context.Name,
@@ -602,11 +695,28 @@ func GetContextsFromKubeconfig(kubeconfig map[string]interface{}) ([]interface{}
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
 // It can be KubeConfig, DynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
+// Relative certificate and key paths are left unresolved because no filesystem
+// origin is available through this entry point.
 func ProcessContext(
 	rawContext interface{},
 	kubeconfig map[string]interface{},
 	source int,
 	skipProxySetup bool,
+) (Context, error) {
+	return processContext(rawContext, kubeconfig, source, skipProxySetup, "")
+}
+
+// processContext processes a context from the kubeconfig.
+// kubeConfigPath is the source kubeconfig file path when known. Relative PKI
+// paths (certificate-authority, client-certificate, client-key, tokenFile, and
+// path-based exec commands) are resolved against that file's directory, matching
+// kubectl / client-go LoadFromFile behavior. See issue #2413.
+func processContext(
+	rawContext interface{},
+	kubeconfig map[string]interface{},
+	source int,
+	skipProxySetup bool,
+	kubeConfigPath string,
 ) (Context, error) {
 	var errs []error
 
@@ -645,6 +755,19 @@ func ProcessContext(
 		return context, errors.Join(errs...)
 	}
 
+	if err := resolveKubeconfigPaths(singleConfig, kubeConfigPath); err != nil {
+		errs = append(errs, ContextError{
+			ContextName: contextName,
+			Reason:      err.Error(),
+		})
+		context = Context{
+			Name:  contextName,
+			Error: err.Error(),
+		}
+
+		return context, errors.Join(errs...)
+	}
+
 	// Convert the config to a context
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
@@ -657,6 +780,44 @@ func ProcessContext(
 	}
 
 	return context, errors.Join(errs...)
+}
+
+// resolveKubeconfigPaths makes relative certificate and key paths absolute using
+// the directory of the source kubeconfig file, matching client-go's
+// LoadFromFile + ResolveLocalPaths behavior. kubeConfigPath may be empty when
+// the config has no filesystem origin (for example base64 payloads); in that
+// case paths are left unchanged.
+func resolveKubeconfigPaths(config *api.Config, kubeConfigPath string) error {
+	if config == nil || kubeConfigPath == "" {
+		return nil
+	}
+
+	absPath, err := filepath.Abs(kubeConfigPath)
+	if err != nil {
+		return fmt.Errorf("could not determine absolute path of kubeconfig %q: %w", kubeConfigPath, err)
+	}
+
+	// ResolveLocalPaths resolves each relative path against filepath.Dir of
+	// that stanza's LocationOfOrigin and skips stanzas where it is empty.
+	// clientcmd.Load (used above) never sets LocationOfOrigin, so assign the
+	// source kubeconfig path here first — matching LoadFromFile.
+	for _, cluster := range config.Clusters {
+		cluster.LocationOfOrigin = absPath
+	}
+
+	for _, authInfo := range config.AuthInfos {
+		authInfo.LocationOfOrigin = absPath
+	}
+
+	for _, ctx := range config.Contexts {
+		ctx.LocationOfOrigin = absPath
+	}
+
+	if err := clientcmd.ResolveLocalPaths(config); err != nil {
+		return fmt.Errorf("resolving relative paths in kubeconfig %q: %w", absPath, err)
+	}
+
+	return nil
 }
 
 // extractContextInfo extracts the context information from the raw context.
@@ -971,21 +1132,19 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
-	// Make contextName DNS friendly.
-	contextName = MakeDNSFriendly(contextName)
-
 	newContext := Context{
-		Name:        contextName,
-		KubeContext: context,
-		Cluster:     cluster,
-		AuthInfo:    authInfo,
-		Source:      source,
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigContextName: contextName,
+		KubeContext:           context,
+		Cluster:               cluster,
+		AuthInfo:              authInfo,
+		Source:                source,
 	}
 
 	if !skipProxySetup {
 		err := newContext.SetupProxy()
 		if err != nil {
-			return Context{}, ContextError{ContextName: contextName, Reason: fmt.Sprintf("couldn't setup proxy: %v", err)}
+			return Context{}, ContextError{ContextName: newContext.Name, Reason: fmt.Sprintf("couldn't setup proxy: %v", err)}
 		}
 	}
 
@@ -1007,20 +1166,19 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		// Note: nil authInfo is valid as authInfo can be provided by token.
 		authInfo := config.AuthInfos[context.AuthInfo]
 
-		// Make contextName DNS friendly.
-		contextName = MakeDNSFriendly(contextName)
-
 		context := Context{
-			Name:        contextName,
-			KubeContext: context,
-			Cluster:     cluster,
-			AuthInfo:    authInfo,
+			Name:                  MakeDNSFriendly(contextName),
+			KubeConfigPath:        context.LocationOfOrigin,
+			KubeConfigContextName: contextName,
+			KubeContext:           context,
+			Cluster:               cluster,
+			AuthInfo:              authInfo,
 		}
 
 		if !skipProxySetup {
 			err := context.SetupProxy()
 			if err != nil {
-				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", contextName, err))
+				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", context.Name, err))
 				continue
 			}
 		}
@@ -1053,6 +1211,61 @@ func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTo
 	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 }
 
+// deriveInClusterNameTimeout bounds the kubeadm-config lookup so it cannot block startup indefinitely.
+const deriveInClusterNameTimeout = 2 * time.Second
+
+// deriveInClusterName reads the cluster name from the kube-system/kubeadm-config
+// ConfigMap, which kubeadm and KiND populate at creation time. It returns an error
+// when the ConfigMap, the ClusterConfiguration key, or the clusterName field is missing
+// (or when clusterName is kubeadm's default "kubernetes").
+func deriveInClusterName(ctx context.Context, clientset kubernetes.Interface) (string, error) {
+	cm, err := clientset.CoreV1().ConfigMaps("kube-system").Get(ctx, "kubeadm-config", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	clusterConfiguration, ok := cm.Data["ClusterConfiguration"]
+	if !ok {
+		return "", errors.New("kubeadm-config ConfigMap has no ClusterConfiguration entry")
+	}
+
+	var parsed struct {
+		ClusterName string `yaml:"clusterName"`
+	}
+
+	if err := yaml.Unmarshal([]byte(clusterConfiguration), &parsed); err != nil {
+		return "", fmt.Errorf("parsing kubeadm ClusterConfiguration: %w", err)
+	}
+
+	name := strings.TrimSpace(parsed.ClusterName)
+	if name == "" || strings.EqualFold(name, "kubernetes") {
+		return "", errors.New("kubeadm ClusterConfiguration clusterName is empty or default (kubernetes)")
+	}
+
+	return name, nil
+}
+
+func deriveInClusterContextName(clusterConfig *rest.Config) string {
+	clientset, err := kubernetes.NewForConfig(clusterConfig)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "deriving in-cluster context name: creating clientset")
+
+		return ""
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), deriveInClusterNameTimeout)
+	defer cancel()
+
+	name, err := deriveInClusterName(ctx, clientset)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "deriving in-cluster context name from kubeadm-config")
+
+		return ""
+	}
+
+	return name
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1067,6 +1280,10 @@ func GetInClusterContext(
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(contextName) == "" {
+		contextName = deriveInClusterContextName(clusterConfig)
 	}
 
 	return newInClusterContextFromConfig(
@@ -1159,16 +1376,21 @@ func AllowAllKubeContext(_ Context) bool {
 // whose names are in the given comma-separated string.
 // For example, if pass the "a,b" for blackKubeContextNameStr,
 // the contexts named "a" and "b" will be skipped.
+// A context matches by its name in the kubeconfig or by its DNS-friendly name.
 func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
 	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
 	blackKubeContextNameMap := map[string]bool{}
 
 	for _, blackKubeContextName := range blackKubeContextNameList {
-		blackKubeContextNameMap[blackKubeContextName] = true
+		name := strings.TrimSpace(blackKubeContextName)
+		if name != "" {
+			blackKubeContextNameMap[name] = true
+		}
 	}
 
 	return func(kubeContext Context) bool {
-		return blackKubeContextNameMap[kubeContext.Name]
+		return blackKubeContextNameMap[kubeContext.Name] ||
+			blackKubeContextNameMap[kubeContext.KubeConfigContextName]
 	}
 }
 

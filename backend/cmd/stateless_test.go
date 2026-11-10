@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-//nolint:funlen
+//nolint:funlen // Table-driven test with multiple cluster configurations
 func TestStatelessClustersKubeConfig(t *testing.T) {
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 					Cache: cache,
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 			for _, clusterReq := range tc.clusters {
 				r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/parseKubeConfig", clusterReq)
@@ -128,7 +128,7 @@ func TestParseKubeConfigInvalidJSONReturnsBadRequest(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	token := uuid.New().String()
 	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", token))
@@ -222,7 +222,7 @@ func TestParseKubeConfigRequiresKubeconfigs(t *testing.T) {
 					Cache: cache,
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 			resp, err := getResponseFromRestrictedEndpoint(handler, "POST", "/parseKubeConfig", tc.body)
 			require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestParseKubeConfigValidClusterReturnedWhenBatchContainsInvalidEntry(t *tes
 			Cache: cache,
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 
 	body := map[string]interface{}{
 		"kubeconfigs": []string{validKubeConfig, "not-valid-base64-!!!"},
@@ -272,7 +272,7 @@ func TestParseKubeConfigValidClusterReturnedWhenBatchContainsInvalidEntry(t *tes
 	assert.Greater(t, len(config.Clusters), 0, "expected valid clusters to be returned despite the invalid entry")
 }
 
-//nolint:funlen
+//nolint:funlen // Test covers setup, request dispatch, and response assertions
 func TestStatelessClusterApiRequest(t *testing.T) {
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
@@ -306,13 +306,14 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 					TelemetryHandler: &telemetry.RequestHandler{},
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
 			headers := map[string]string{
 				"KUBECONFIG":         kubeConfig,
 				"X-HEADLAMP-USER-ID": tc.userID,
 			}
 			requestPath := fmt.Sprintf("/clusters/%s/version/", tc.name)
-			req, err := http.NewRequest("GET", requestPath, nil) //nolint:noctx
+			//nolint:noctx // Test HTTP request does not require context cancellation
+			req, err := http.NewRequest("GET", requestPath, nil)
 			require.NoError(t, err)
 
 			// Add headers to the request

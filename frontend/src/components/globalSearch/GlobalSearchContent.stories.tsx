@@ -38,6 +38,15 @@ const phonyPods = generateK8sResourceList(
   { instantiateAs: Pod }
 );
 
+const kubeSystemPods = phonyPods.map((pod, i) => ({
+  ...pod.jsonData,
+  metadata: {
+    ...pod.jsonData.metadata,
+    name: i === 0 ? 'coredns' : pod.jsonData.metadata.name,
+    namespace: 'kube-system',
+  },
+}));
+
 const sampleCluster: Cluster = {
   name: 'sample-cluster',
   auth_type: '',
@@ -128,6 +137,10 @@ const meta: Meta<typeof GlobalSearchContent> = {
           http.get(`${sampleClusterApiBase}/apis/jobset.x-k8s.io/v1alpha2/jobsets`, () =>
             HttpResponse.json(makeKubeList('jobset.x-k8s.io/v1alpha2', 'JobSet'))
           ),
+          http.get(
+            `${sampleClusterApiBase}/apis/leaderworkerset.x-k8s.io/v1/leaderworkersets`,
+            () => HttpResponse.json(makeKubeList('leaderworkerset.x-k8s.io/v1', 'LeaderWorkerSet'))
+          ),
         ],
       },
     },
@@ -201,5 +214,38 @@ export const LoadingResources: Story = {
 export const FoundSomeResults: Story = {
   args: {
     defaultValue: 'pod',
+  },
+};
+
+export const BareNamespaceQuery: Story = {
+  args: {
+    defaultValue: 'kube-system',
+  },
+  parameters: {
+    msw: {
+      handlers: {
+        pod: [
+          http.get(`${sampleClusterApiBase}/api/v1/pods`, () =>
+            HttpResponse.json(makeKubeList('v1', 'Pod', kubeSystemPods))
+          ),
+        ],
+      },
+    },
+  },
+};
+export const CombinedNamespaceQuery: Story = {
+  args: {
+    defaultValue: 'coredns kube-system',
+  },
+  parameters: {
+    msw: {
+      handlers: {
+        pod: [
+          http.get(`${sampleClusterApiBase}/api/v1/pods`, () =>
+            HttpResponse.json(makeKubeList('v1', 'Pod', kubeSystemPods))
+          ),
+        ],
+      },
+    },
   },
 };

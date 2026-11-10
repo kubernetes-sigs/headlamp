@@ -6,13 +6,13 @@ This guide documents the usage of Gateway API manifests for testing and developm
 
 | File                                                                                         | Description                               |
 | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| [`gatewayclass.yaml`](../../frontend/src/components/gateway/manifests/gatewayclass.yaml)     | Defines the GatewayClass used by Gateway. |
-| [`gateway.yaml`](../../frontend/src/components/gateway/manifests/gateway.yaml)               | Configures the Gateway resource.          |
-| [`httproute.yaml`](../../frontend/src/components/gateway/manifests/httproute.yaml)           | Configures HTTP route rules.              |
-| [`grpcroute.yaml`](../../frontend/src/components/gateway/manifests/grpcroute.yaml)           | Configures gRPC route rules.              |
-| [`referencegrant.yaml`](../../frontend/src/components/gateway/manifests/referencegrant.yaml) | Grants cross-namespace access.            |
-| [`backendtls.yaml`](../../frontend/src/components/gateway/manifests/backendtls.yaml)         | Configures TLS for backends.              |
-| [`backendtraffic.yaml`](../../frontend/src/components/gateway/manifests/backendtraffic.yaml) | Configures traffic policies to backends.  |
+| [`gatewayclass.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/gatewayclass.yaml)     | Defines the GatewayClass used by Gateway. |
+| [`gateway.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/gateway.yaml)               | Configures the Gateway resource.          |
+| [`httproute.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/httproute.yaml)           | Configures HTTP route rules.              |
+| [`grpcroute.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/grpcroute.yaml)           | Configures gRPC route rules.              |
+| [`referencegrant.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/referencegrant.yaml) | Grants cross-namespace access.            |
+| [`backendtls.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/backendtls.yaml)         | Configures TLS for backends.              |
+| [`backendtraffic.yaml`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/components/gateway/manifests/backendtraffic.yaml) | Configures traffic policies to backends.  |
 
 > These files are located in:  
 > `frontend/src/components/gateway/manifests/`

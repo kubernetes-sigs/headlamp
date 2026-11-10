@@ -15,16 +15,18 @@ import (
 // never fully buffered, so an upstream that returns an arbitrarily large
 // response cannot exhaust server memory.
 func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error {
+	setResponseSecurityHeaders(w)
+
 	cli := &http.Client{Timeout: 10 * time.Second}
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	resp, err := cli.Do(req) //nolint:gosec
+	resp, err := cli.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed HTTP GET: %w", err)
 	}
@@ -36,6 +38,12 @@ func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error
 	}
 
 	return nil
+}
+
+func setResponseSecurityHeaders(w http.ResponseWriter) {
+	// Service-controlled documents must not inherit Headlamp's authenticated origin.
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 
 func streamResponseBody(body io.Reader, w http.ResponseWriter, statusCode int, contentType string) error {

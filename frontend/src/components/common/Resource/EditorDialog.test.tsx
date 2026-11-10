@@ -15,37 +15,28 @@
  */
 
 import Button from '@mui/material/Button';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
+import store from '../../../redux/stores/store';
 import { TestContext } from '../../../test';
-import EditorDialog from './EditorDialog';
+import { ActivitiesRenderer, Activity } from '../../activity/Activity';
+import EditorDialog, { EditorDialogProps, ViewDialog } from './EditorDialog';
 
-const { mockSetModelMarkers, mockGetModel, mockTextarea, mockEditorInstance, mockOnChangeRef } =
-  vi.hoisted(() => {
-    const textarea = document.createElement('textarea');
-    return {
-      mockSetModelMarkers: vi.fn(),
-      mockGetModel: vi.fn(() => ({})),
-      mockTextarea: textarea,
-      mockEditorInstance: {
-        getDomNode: () => ({
-          querySelector: (selector: string) => {
-            if (selector === 'textarea') {
-              return textarea;
-            }
-            return null;
-          },
-        }),
-        getScrollTop: vi.fn(() => 123),
-        getPosition: vi.fn(() => ({ lineNumber: 5, column: 10 })),
-        setScrollTop: vi.fn(),
-        setPosition: vi.fn(),
-      },
-      mockOnChangeRef: { current: undefined as ((value: string | undefined) => void) | undefined },
-    };
-  });
-
-vi.mock('js-yaml', () => {
+const {
+  mockApply,
+  mockClusterAction,
+  mockDispatchCreateEvent,
+  mockGetCluster,
+  mockLoadAll,
+  mockSetModelMarkers,
+  mockGetModel,
+  mockTextarea,
+  mockEditorInstance,
+  mockOnChangeRef,
+  MockYAMLException,
+  capturedAction,
+} = vi.hoisted(() => {
+  const textarea = document.createElement('textarea');
   class YAMLException extends Error {
     reason: string;
     mark: any;
@@ -56,18 +47,65 @@ vi.mock('js-yaml', () => {
       this.mark = mark;
     }
   }
-
   return {
-    YAMLException,
-    dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
-    loadAll: vi.fn((value: string) => {
-      if (value.includes('invalid')) {
-        throw new YAMLException('Invalid YAML', { line: 2, column: 5 });
-      }
-      return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
+    mockApply: vi.fn(),
+    mockClusterAction: vi.fn((action: () => Promise<void>) => {
+      capturedAction.current = action;
+      return { type: 'clusterAction/test' };
     }),
+    mockDispatchCreateEvent: vi.fn(),
+    mockGetCluster: vi.fn(() => 'url-cluster'),
+    mockLoadAll: vi.fn(),
+    mockSetModelMarkers: vi.fn(),
+    mockGetModel: vi.fn(() => ({})),
+    mockTextarea: textarea,
+    mockEditorInstance: {
+      getDomNode: () => ({
+        querySelector: (selector: string) => {
+          if (selector === 'textarea') {
+            return textarea;
+          }
+          return null;
+        },
+        closest: () => null,
+      }),
+      getScrollTop: vi.fn(() => 123),
+      getPosition: vi.fn(() => ({ lineNumber: 5, column: 10 })),
+      setScrollTop: vi.fn(),
+      setPosition: vi.fn(),
+      addCommand: vi.fn(),
+    },
+    mockOnChangeRef: { current: undefined as ((value: string | undefined) => void) | undefined },
+    MockYAMLException: YAMLException,
+    capturedAction: { current: undefined as (() => Promise<void>) | undefined },
   };
 });
+
+vi.mock('js-yaml', () => {
+  return {
+    YAMLException: MockYAMLException,
+    dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
+    loadAll: mockLoadAll,
+  };
+});
+
+vi.mock('../../../lib/cluster', () => ({
+  getCluster: mockGetCluster,
+}));
+
+vi.mock('../../../lib/k8s/api/v1/apply', () => ({
+  apply: mockApply,
+}));
+
+vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/clusterActionSlice')>()),
+  clusterAction: mockClusterAction,
+}));
+
+vi.mock('../../../redux/headlampEventSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/headlampEventSlice')>()),
+  useEventCallback: () => mockDispatchCreateEvent,
+}));
 
 vi.mock('@monaco-editor/react', () => {
   return {
@@ -78,7 +116,11 @@ vi.mock('@monaco-editor/react', () => {
       React.useEffect(() => {
         onMount?.(
           { ...mockEditorInstance, getModel: mockGetModel },
-          { editor: { setModelMarkers: mockSetModelMarkers }, MarkerSeverity: { Error: 8 } }
+          {
+            editor: { setModelMarkers: mockSetModelMarkers },
+            MarkerSeverity: { Error: 8 },
+            KeyCode: { Escape: 9 },
+          }
         );
       }, [onMount]);
 
@@ -88,12 +130,19 @@ vi.mock('@monaco-editor/react', () => {
         </div>
       );
     },
-    DiffEditor: () => null,
+    DiffEditor: ({ modified, original }: any) => (
+      <div data-testid="mock-diff-editor">
+        {original}
+        {modified}
+      </div>
+    ),
   };
 });
 
 vi.mock('./DocsViewer', () => ({
-  default: () => null,
+  default: ({ docSpecs }: any) => (
+    <div data-testid="mock-docs-viewer">{JSON.stringify(docSpecs)}</div>
+  ),
 }));
 
 vi.mock('../ConfirmButton', () => ({
@@ -103,17 +152,20 @@ vi.mock('../ConfirmButton', () => ({
     disabled,
     'aria-label': ariaLabel,
     'aria-controls': ariaControls,
+    confirmDescription,
   }: {
     children: React.ReactNode;
     onConfirm: () => void;
     disabled?: boolean;
     'aria-label'?: string;
     'aria-controls'?: string;
+    confirmDescription?: string;
   }) => (
     <Button
       aria-label={ariaLabel}
       disabled={disabled}
       aria-controls={ariaControls}
+      data-confirm-description={confirmDescription}
       onClick={() => {
         if (!disabled) {
           onConfirm();
@@ -129,6 +181,14 @@ describe('EditorDialog', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.setItem('useSimpleEditor', 'true');
+    capturedAction.current = undefined;
+    mockApply.mockResolvedValue({});
+    mockLoadAll.mockImplementation((value: string) => {
+      if (value.includes('invalid')) {
+        throw new MockYAMLException('Invalid YAML', { line: 2, column: 5 });
+      }
+      return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
+    });
     mockTextarea.id = '';
     // jsdom doesn't implement requestAnimationFrame; run callbacks
     // synchronously so the scroll/cursor restore is deterministic in tests.
@@ -144,8 +204,8 @@ describe('EditorDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  function renderEditorDialog() {
-    render(
+  function renderEditorDialog(props: Partial<EditorDialogProps> = {}) {
+    return render(
       <TestContext>
         <EditorDialog
           open
@@ -153,6 +213,7 @@ describe('EditorDialog', () => {
           noDialog
           item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
           onClose={vi.fn()}
+          {...props}
         />
       </TestContext>
     );
@@ -173,6 +234,267 @@ describe('EditorDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /undo/i }));
 
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
+  });
+
+  it('shows a warning and preserves user edits when the resource is modified externally', async () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+
+    // Simulate user making an edit
+    fireEvent.change(editor, { target: { value: 'user-edited-content' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // Re-render with updated resourceVersion simulating an external modification
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={{
+              apiVersion: 'v1',
+              kind: 'ConfigMap',
+              metadata: { name: 'my-config', resourceVersion: '2' },
+            }}
+            onClose={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
+          />
+        </TestContext>
+      );
+    });
+
+    // Warning banner should be visible — assert on the specific warning text so the test fails
+    // if a different alert (e.g. a YAML parse or apply error) is rendered instead.
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This resource was modified while you were editing. Your changes may conflict with the latest version.'
+      )
+    ).toBeInTheDocument();
+
+    // User's edit must be preserved — not overwritten with the new server content
+    expect(screen.getByRole('textbox', { name: /code$/i })).toHaveValue('user-edited-content');
+  });
+
+  it('syncs to the new server content without warning when the resource changes and the user has no edits', () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+      data: { key1: 'value1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i }) as HTMLTextAreaElement;
+    expect(editor.value).toContain('value1');
+
+    // Re-render with a newer resourceVersion and changed content, with no user edits.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={{
+              apiVersion: 'v1',
+              kind: 'ConfigMap',
+              metadata: { name: 'my-config', resourceVersion: '2' },
+              data: { key1: 'updated-value' },
+            }}
+            onClose={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
+          />
+        </TestContext>
+      );
+    });
+
+    // No warning, because there were no unsaved edits to conflict with.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    // Editor synced to the new server content.
+    const updatedEditor = screen.getByRole('textbox', { name: /code$/i }) as HTMLTextAreaElement;
+    expect(updatedEditor.value).toContain('updated-value');
+    expect(updatedEditor.value).not.toContain('value1');
+  });
+
+  it('calls onBaselineAccepted with the latest server version when Undo discards a conflicting edit', () => {
+    const onBaselineAccepted = vi.fn();
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
+          onBaselineAccepted={onBaselineAccepted}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: 'user-edited-content' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const externallyModifiedItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '2' },
+    };
+
+    // Re-render with updated resourceVersion simulating an external modification.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={externallyModifiedItem}
+            onClose={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
+            onBaselineAccepted={onBaselineAccepted}
+          />
+        </TestContext>
+      );
+    });
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // Not yet — the user's edits are still being preserved, nothing has been accepted.
+    expect(onBaselineAccepted).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+    // Undo discards the user's edit in favour of the latest server version — the
+    // save-baseline owner must rebase onto that same version, not the stale one it
+    // launched with, so a subsequent edit + save doesn't replay the external change.
+    expect(onBaselineAccepted).toHaveBeenCalledTimes(1);
+    expect(onBaselineAccepted).toHaveBeenCalledWith(externallyModifiedItem);
+
+    // A second Undo click (e.g. on a fresh unrelated edit) must not re-fire it.
+    fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+      target: { value: 'another-edit' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+    expect(onBaselineAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onBaselineAccepted when Undo discards a plain edit with no external conflict', () => {
+    const onBaselineAccepted = vi.fn();
+    renderEditorDialog({ onSave: vi.fn<(...args: any[]) => void>(), onBaselineAccepted });
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: 'just my own edit, no conflict involved' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+    expect(onBaselineAccepted).not.toHaveBeenCalled();
+  });
+
+  it('clears the warning when the server-side change matches what the user already typed', () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+      data: { key1: 'value1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn<(...args: any[]) => void>()}
+        />
+      </TestContext>
+    );
+
+    const newItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '2' },
+      data: { key1: 'value1', key2: 'value2' },
+    };
+
+    // The user happens to type exactly the content the server will push next.
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: JSON.stringify(newItem) } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // Re-render under a new resourceVersion, with the same content the user already has.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={newItem}
+            onClose={vi.fn()}
+            onSave={vi.fn<(...args: any[]) => void>()}
+          />
+        </TestContext>
+      );
+    });
+
+    // No warning: once the baseline is rebased onto the latest version, the user's
+    // content no longer differs from it, so there's nothing left to protect.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('cancels pending validation when undo restores the original content', () => {
@@ -252,6 +574,16 @@ describe('EditorDialog', () => {
 
     const saveApplyButton = screen.getByRole('button', { name: /save & apply/i });
     expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
+
+    const closeButton = screen.getByRole('button', { name: /^close$/i });
+    expect(closeButton).toHaveAttribute('aria-controls', textareaId);
+  });
+
+  it('configures the dialog content to scroll with a minimum height', () => {
+    renderEditorDialog();
+
+    const dialogContent = document.querySelector('.MuiDialogContent-root');
+    expect(dialogContent).toHaveStyle({ minHeight: '400px', overflowY: 'auto' });
   });
 
   it('correctly sets textarea ID and aria-controls attributes when using Monaco editor onMount', () => {
@@ -274,6 +606,11 @@ describe('EditorDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: /save & apply/i })).toHaveAttribute(
+      'aria-controls',
+      textareaId
+    );
+
+    expect(screen.getByRole('button', { name: /^close$/i })).toHaveAttribute(
       'aria-controls',
       textareaId
     );
@@ -315,5 +652,560 @@ describe('EditorDialog', () => {
 
     expect(mockEditorInstance.setScrollTop).not.toHaveBeenCalled();
     expect(mockEditorInstance.setPosition).not.toHaveBeenCalled();
+  });
+
+  it('registers an Escape command with the correct precondition to exit the Monaco editor', () => {
+    localStorage.setItem('useSimpleEditor', 'false');
+
+    renderEditorDialog();
+
+    expect(mockEditorInstance.addCommand).toHaveBeenCalledWith(
+      9, // KeyCode.Escape from the mock
+      expect.any(Function),
+      '!suggestWidgetVisible && !findWidgetVisible && !renameInputVisible && !parameterHintsVisible && !inSnippetMode && !editorHasMultipleSelections'
+    );
+  });
+
+  it('renders loading, empty, and closed states', () => {
+    const { rerender } = renderEditorDialog({ item: null });
+    expect(screen.getByRole('progressbar', { name: /loading editor/i })).toBeInTheDocument();
+
+    rerender(
+      <TestContext>
+        <EditorDialog open keepMounted noDialog item={{}} onClose={vi.fn()} />
+      </TestContext>
+    );
+    expect(screen.getByRole('textbox', { name: /code/i })).toHaveValue(
+      '# Enter your YAML or JSON here'
+    );
+
+    rerender(
+      <TestContext>
+        <EditorDialog open={false} item={{}} onClose={vi.fn()} />
+      </TestContext>
+    );
+    expect(screen.queryByRole('textbox', { name: /code/i })).not.toBeInTheDocument();
+  });
+
+  it('renders a read-only view without edit tabs or actions', () => {
+    render(
+      <TestContext>
+        <ViewDialog
+          open
+          keepMounted
+          noDialog
+          item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+          onClose={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('textbox', { name: /code/i })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /dry run/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save & apply/i })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      'object',
+      '{"kind":"Pod","metadata":{"name":"pod-1"}}',
+      [{ kind: 'Pod', metadata: { name: 'pod-1' } }],
+    ],
+    ['array', '[{"kind":"Pod"},{"kind":"Service"}]', [{ kind: 'Pod' }, { kind: 'Service' }]],
+  ])('saves a JSON %s through a custom callback', (_type, value, expected) => {
+    const onSave = vi.fn();
+    const onEditorChanged = vi.fn();
+    renderEditorDialog({ onSave, onEditorChanged, saveLabel: 'Apply Object' });
+
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Object' }));
+
+    expect(onEditorChanged).toHaveBeenCalledWith(value);
+    expect(onSave).toHaveBeenCalledWith(expected);
+  });
+
+  it('renders optional content and initializes documentation and diff tabs', () => {
+    renderEditorDialog({
+      actions: [<Button key="action">Extra action</Button>],
+      toolbarActions: [<Button key="toolbar">Toolbar action</Button>],
+      formContent: <div>Form content</div>,
+    });
+
+    expect(screen.getByRole('button', { name: 'Extra action' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Toolbar action' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Form' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documentation' }));
+    expect(screen.getByTestId('mock-docs-viewer')).toHaveTextContent('node-1');
+
+    expect(screen.queryByTestId('mock-diff-editor')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Review Changes' }));
+    expect(screen.getByTestId('mock-diff-editor')).toBeInTheDocument();
+  });
+
+  it('initializes documentation and diff tabs without form content', () => {
+    renderEditorDialog();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documentation' }));
+    expect(screen.getByTestId('mock-docs-viewer')).toHaveTextContent('node-1');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Review Changes' }));
+    expect(screen.getByTestId('mock-diff-editor')).toBeInTheDocument();
+  });
+
+  it('renders string input and an external error', () => {
+    renderEditorDialog({
+      item: 'kind: Pod',
+      errorMessage: 'External error',
+      title: 'Custom title',
+    });
+
+    expect(screen.getByRole('textbox', { name: /code/i })).toHaveValue('"kind: Pod"');
+    expect(screen.getByText('External error')).toBeInTheDocument();
+  });
+
+  it('toggles managed fields in the editor', () => {
+    renderEditorDialog({
+      allowToHideManagedFields: true,
+      item: {
+        apiVersion: 'v1',
+        kind: 'Node',
+        metadata: {
+          name: 'node-1',
+          managedFields: [{ manager: 'test' }],
+        },
+      },
+    });
+
+    const editor = screen.getByRole('textbox', { name: /code/i });
+    expect(editor).not.toHaveValue(expect.stringContaining('managedFields'));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Hide Managed Fields' }));
+    expect((editor as HTMLTextAreaElement).value).toContain('managedFields');
+  });
+
+  it.each([
+    ['the URL cluster', {}, 'url-cluster'],
+    [
+      'the item cluster',
+      { item: { kind: 'Node', metadata: { name: 'node-1' }, cluster: 'item-cluster' } },
+      'item-cluster',
+    ],
+    ['the explicit cluster', { cluster: 'explicit-cluster' }, 'explicit-cluster'],
+  ])('runs a dry run against %s', async (_description, props, expectedCluster) => {
+    renderEditorDialog(props);
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /dry run/i }));
+
+    expect(mockClusterAction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        startMessage: expect.stringContaining('Running dry run'),
+        successMessage: expect.stringContaining('Dry run passed'),
+      })
+    );
+
+    await act(async () => capturedAction.current?.());
+    expect(mockApply).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Node' }),
+      expectedCluster,
+      { dryRun: true }
+    );
+  });
+
+  it('applies valid YAML and records the create event', async () => {
+    const onClose = vi.fn();
+    renderEditorDialog({ onClose });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    expect(mockDispatchCreateEvent).toHaveBeenCalledWith({ status: 'confirmed' });
+    await act(async () => capturedAction.current?.());
+    expect(mockApply).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Node' }),
+      'url-cluster',
+      undefined
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('uses fallback resource labels and an empty cluster for dry runs', async () => {
+    mockLoadAll.mockReturnValueOnce([
+      { apiVersion: 'v1', kind: 'Node', metadata: {} },
+      { apiVersion: 'v1', metadata: {} },
+    ]);
+    mockGetCluster.mockReturnValueOnce('');
+    renderEditorDialog();
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'unnamed resources' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /dry run/i }));
+
+    expect(mockClusterAction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ startMessage: expect.stringContaining('Node,resource') })
+    );
+    await act(async () => capturedAction.current?.());
+    expect(mockApply).toHaveBeenCalledWith(expect.any(Object), '', { dryRun: true });
+  });
+
+  it('shows an apply error and reopens the dialog', async () => {
+    const setOpen = vi.fn();
+    mockApply.mockRejectedValueOnce(new Error('API unavailable'));
+    renderEditorDialog({ setOpen });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    await act(async () => {
+      await expect(capturedAction.current?.()).rejects.toThrow('Failed to create Node node-1.');
+    });
+    expect(screen.getByText('API unavailable')).toBeInTheDocument();
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('reports individual failures when applying multiple resources', async () => {
+    mockLoadAll.mockReturnValueOnce([
+      { apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } },
+      { apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-2' } },
+    ]);
+    mockApply.mockRejectedValueOnce({}).mockResolvedValueOnce({});
+    renderEditorDialog();
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'multiple resources' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    await act(async () => {
+      await expect(capturedAction.current?.()).rejects.toThrow(
+        'Failed to create Node node-1 in v1.'
+      );
+    });
+    expect(screen.getByText('Failed to create Node node-1 in v1.')).toBeInTheDocument();
+  });
+
+  describe('close confirmation', () => {
+    const confirmText =
+      'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?';
+
+    function makeEdit() {
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: 'user-edited-content' },
+      });
+    }
+
+    // The title-bar X is also an accessible "Close" button, so scope footer
+    // queries to the action bar.
+    function getFooterCloseButton() {
+      const actionBar = document.querySelector('.MuiDialogActions-root') as HTMLElement;
+      return within(actionBar).getByRole('button', { name: /^close$/i });
+    }
+
+    it('closes immediately from the Close button when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes without confirmation once a server update matches the edits', () => {
+      const onClose = vi.fn();
+      const onSave = vi.fn<(...args: any[]) => void>();
+      const initialItem = {
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'my-config', resourceVersion: '1' },
+        data: { key1: 'value1' },
+      };
+      const newItem = {
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'my-config', resourceVersion: '2' },
+        data: { key1: 'value1', key2: 'value2' },
+      };
+      const renderWith = (item: typeof initialItem) => (
+        <TestContext>
+          <EditorDialog open item={item} onClose={onClose} onSave={onSave} />
+        </TestContext>
+      );
+
+      const { rerender } = render(renderWith(initialItem));
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: JSON.stringify(newItem) },
+      });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      // The baseline is rebased onto content identical to the editor's, so
+      // nothing is unsaved any more even though no re-render follows.
+      act(() => {
+        rerender(renderWith(newItem));
+      });
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for confirmation from the Close button and closes on confirm', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the editor open with its edits when the confirmation is cancelled', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(getFooterCloseButton());
+      fireEvent.click(screen.getByTestId('cancel-button'));
+
+      act(() => {
+        vi.advanceTimersByTime(1000); // let the confirm dialog's exit transition finish
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /code$/i })).toHaveValue('user-edited-content');
+    });
+
+    it('guards the Escape key when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes on Escape without confirmation when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('guards backdrop clicks when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(document.querySelector('.MuiBackdrop-root') as HTMLElement);
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('guards the title-bar close button when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      const titleBar = document.querySelector('.MuiDialogTitle-root') as HTMLElement;
+      fireEvent.click(within(titleBar).getByRole('button', { name: /^close$/i }));
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes without confirmation again after Undo restores the original content', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+      fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('activity close guard', () => {
+    const confirmText =
+      'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?';
+
+    afterEach(() => {
+      Activity.reset();
+    });
+
+    function launchEditorActivity(onClose: () => void, minimized = false) {
+      Activity.launch({
+        id: 'edit-activity',
+        title: 'Edit: node-1',
+        location: 'full',
+        minimized,
+        content: (
+          <EditorDialog
+            open
+            noDialog
+            item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+            onClose={onClose}
+          />
+        ),
+      });
+
+      return render(
+        <TestContext>
+          <ActivitiesRenderer />
+        </TestContext>
+      );
+    }
+
+    it('guards the activity title-bar X when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: 'user-edited-content' },
+      });
+
+      fireEvent.click(screen.getByTitle('Close'));
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('registers a close guard without activating an initially minimized editor', () => {
+      const onClose = vi.fn();
+      Activity.launch({ id: 'other', title: 'Other', location: 'full', content: 'Other' });
+      const rendered = launchEditorActivity(onClose, true);
+
+      expect(store.getState().activity.activities['edit-activity'].onCloseRequest).toBeDefined();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i, hidden: true }), {
+        target: { value: 'user-edited-content' },
+      });
+      act(() => Activity.requestClose('edit-activity'));
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      const cancel = screen.getByTestId('cancel-button');
+      fireEvent.pointerDown(cancel);
+      fireEvent.click(cancel);
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+      act(() => rendered.unmount());
+      expect(store.getState().activity.activities['edit-activity'].onCloseRequest).toBeUndefined();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+    });
+
+    it('closes the activity immediately from the X when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      fireEvent.click(screen.getByTitle('Close'));
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a minimized editor minimized when the confirmation is cancelled', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+      Activity.launch({ id: 'other', title: 'Other', location: 'full', content: 'Other' });
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i, hidden: true }), {
+        target: { value: 'user-edited-content' },
+      });
+      act(() => {
+        Activity.update('edit-activity', { minimized: true });
+      });
+      expect(store.getState().activity.history).toEqual(['other']);
+
+      act(() => {
+        Activity.requestClose('edit-activity');
+      });
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+
+      const cancel = screen.getByTestId('cancel-button');
+      fireEvent.pointerDown(cancel);
+      fireEvent.click(cancel);
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(store.getState().activity.activities['edit-activity'].minimized).toBe(true);
+      expect(store.getState().activity.history).toEqual(['other']);
+    });
+
+    it('re-registers the guard when the same activity ID is closed and relaunched', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      // Mirrors EditButton: close and relaunch under the same ID in one batch,
+      // so the editor is reused rather than remounted.
+      act(() => {
+        Activity.close('edit-activity');
+        Activity.launch({
+          id: 'edit-activity',
+          title: 'Edit: node-1',
+          location: 'full',
+          content: (
+            <EditorDialog
+              open
+              noDialog
+              item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+              onClose={onClose}
+            />
+          ),
+        });
+      });
+      expect(store.getState().activity.activities['edit-activity'].onCloseRequest).toBeDefined();
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i, hidden: true }), {
+        target: { value: 'user-edited-content' },
+      });
+      act(() => {
+        Activity.requestClose('edit-activity');
+      });
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  it('disables form actions when validation fails and opens the upload dialog', () => {
+    renderEditorDialog({ formContent: <div>Form content</div>, formInvalid: true });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+
+    expect(screen.getByRole('button', { name: /dry run/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /save & apply/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /upload file\/url/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

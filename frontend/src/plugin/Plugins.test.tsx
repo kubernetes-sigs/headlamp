@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { render, waitFor } from '@testing-library/react';
 import React from 'react';
+import reducers from '../redux/reducers/reducers';
 import { TestContext } from '../test';
 import Plugins from './Plugins';
 
@@ -43,15 +45,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('Plugins', () => {
   test('shows an error snackbar when plugin loading fails', async () => {
     mockFetchAndExecutePlugins.mockRejectedValue(new Error('fetch failed'));
+    const store = configureStore({ reducer: reducers });
 
     render(
-      <TestContext>
+      <TestContext store={store}>
         <Plugins />
       </TestContext>
     );
@@ -62,6 +66,7 @@ describe('Plugins', () => {
         expect.objectContaining({ variant: 'error' })
       );
     });
+    expect(store.getState().plugins.loaded).toBe(true);
   });
 
   test('does not show error snackbar when plugin loading succeeds', async () => {

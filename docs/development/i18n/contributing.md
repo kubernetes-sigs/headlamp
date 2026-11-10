@@ -276,4 +276,4 @@ TODO: not implemented. There's no working addons that let you set a language eas
 
 See `frontend/src/components/common/Resource/EditorDialog.tsx`
 
-Note, that Monaco editor does not support pt, ta and other languages.
+Note, that Monaco editor does not support pt-PT, pt-BR, ta and other languages.

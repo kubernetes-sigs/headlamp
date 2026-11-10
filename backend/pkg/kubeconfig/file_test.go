@@ -215,7 +215,8 @@ func TestRemoveContextFromFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, data)
 
-	err = os.WriteFile("./test_data/config_copy", data, 0o600) //nolint:gosec
+	//nolint:gosec // Fixed test fixture path; not external input.
+	err = os.WriteFile("./test_data/config_copy", data, 0o600)
 	require.NoError(t, err)
 
 	// remove context from kubeconfig file
@@ -237,4 +238,30 @@ func TestRemoveContextFromFile(t *testing.T) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		require.NoError(t, err)
 	}
+}
+
+func TestRemoveContextFromFile_NonExistentContext(t *testing.T) {
+	data, err := os.ReadFile("./test_data/kubeconfig1")
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	//nolint:gosec // Fixed test fixture path; not external input.
+	err = os.WriteFile("./test_data/config_copy_nonexistent", data, 0o600)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove("./test_data/config_copy_nonexistent"))
+
+		if err := os.Remove("./test_data/config_copy_nonexistent.lock"); err != nil && !errors.Is(err, os.ErrNotExist) {
+			require.NoError(t, err)
+		}
+	})
+
+	err = kubeconfig.RemoveContextFromFile("non-existent-context", "./test_data/config_copy_nonexistent")
+	require.ErrorContains(t, err, "context not found in kubeconfig")
+}
+
+func TestRemoveContextFromFile_EmptyPath(t *testing.T) {
+	err := kubeconfig.RemoveContextFromFile("some-context", "")
+	require.ErrorContains(t, err, "kubeconfig path is empty")
 }

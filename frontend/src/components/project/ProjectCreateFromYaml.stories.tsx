@@ -45,11 +45,13 @@ const makeStore = () => {
         defaultPodDebugImage: '',
         defaultNodeShellImage: '',
         defaultNodeShellNamespace: '',
+        oidcAutoLogin: null,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
           sidebarSortAlphabetically: false,
           useEvict: true,
+          expandLargeGraph: false,
         },
       },
       projects: {

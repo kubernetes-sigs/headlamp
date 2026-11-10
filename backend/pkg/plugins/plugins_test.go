@@ -77,7 +77,7 @@ func TestWatch(t *testing.T) {
 	// create a sentinel file before starting the watcher
 	// so we can wait for its creation event to ensure the watcher is setup
 	sentinelFile := filepath.Join(dirName, "sentinel-"+uuid.NewString())
-	sf, err := os.Create(sentinelFile) //nolint:gosec
+	sf, err := os.Create(sentinelFile) //nolint:gosec // Test helper creating mock sentinel file for directory watcher.
 	require.NoError(t, err)
 
 	require.NoError(t, sf.Close())
@@ -91,7 +91,7 @@ func TestWatch(t *testing.T) {
 
 	// create a new file in the new directory
 	fileName := filepath.Join(dirName, uuid.NewString())
-	f, err := os.Create(fileName) //nolint:gosec
+	f, err := os.Create(fileName) //nolint:gosec // Test helper creating mock file for watcher event testing.
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())
@@ -110,7 +110,7 @@ func TestWatch(t *testing.T) {
 	t.Log("Got create folder event in the directory")
 
 	subFileName := filepath.Join(subDirName, uuid.NewString())
-	subf, err := os.Create(subFileName) //nolint:gosec
+	subf, err := os.Create(subFileName) //nolint:gosec // Test helper creating mock subdirectory file.
 	require.NoError(t, err)
 
 	require.NoError(t, subf.Close())
@@ -135,7 +135,8 @@ func TestWatch(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
+//nolint:funlen // Subtest scenarios verify plugin catalog directory operations.
+func TestGeneratePluginPaths(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// create a new directory in tempDir
@@ -152,13 +153,13 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := filepath.Join(subDir, "main.js")
-		pf, err := os.Create(pluginPath) //nolint:gosec
+		pf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock plugin main.js file.
 		require.NoError(t, err)
 
 		require.NoError(t, pf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
-		ppf, err := os.Create(packageJSONPath) //nolint:gosec
+		ppf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper creating mock package.json file.
 		require.NoError(t, err)
 
 		require.NoError(t, ppf.Close())
@@ -188,13 +189,13 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := filepath.Join(subDir, "main.js")
-		spf, err := os.Create(pluginPath) //nolint:gosec
+		spf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock static plugin file.
 		require.NoError(t, err)
 
 		require.NoError(t, spf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
-		sppf, err := os.Create(packageJSONPath) //nolint:gosec
+		sppf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper creating mock static plugin package.json.
 		require.NoError(t, err)
 
 		require.NoError(t, sppf.Close())
@@ -224,7 +225,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create random file in the sub directory
 		fileName := filepath.Join(subDir, uuid.NewString())
-		rf, err := os.Create(fileName) //nolint:gosec
+		rf, err := os.Create(fileName) //nolint:gosec // Test helper creating mock file for invalid path test.
 		require.NoError(t, err)
 
 		require.NoError(t, rf.Close())
@@ -250,14 +251,14 @@ func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 
 	// create main.js
 	mainJsPath := filepath.Join(pluginDir, "main.js")
-	mjf, err := os.Create(mainJsPath) //nolint:gosec
+	mjf, err := os.Create(mainJsPath) //nolint:gosec // Test helper initializing mock plugin main.js.
 	require.NoError(t, err)
 
 	require.NoError(t, mjf.Close())
 
 	// create package.json
 	packageJSONPath := filepath.Join(pluginDir, "package.json")
-	pjf, err := os.Create(packageJSONPath) //nolint:gosec
+	pjf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper initializing mock plugin package.json.
 	require.NoError(t, err)
 
 	require.NoError(t, pjf.Close())
@@ -276,7 +277,7 @@ const (
 	testDevPluginName = "dev-plugin-1"
 )
 
-func TestListPlugins(t *testing.T) { //nolint:funlen
+func TestListPlugins(t *testing.T) { //nolint:funlen // Long test function checking plugin discovery logs and manifests.
 	// Capture log output via logger.SetLogFunc.
 	var logEntries []logEntry
 
@@ -365,7 +366,8 @@ func TestListPlugins(t *testing.T) { //nolint:funlen
 	assert.True(t, foundFallback, "should fall back to folder name when package.json is invalid")
 }
 
-func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
+//nolint:funlen // Long test function verifying filesystem watcher events for plugins.
+func TestHandlePluginEvents(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// create a new directory in tempDir
@@ -382,13 +384,13 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 
 	// create main.js and package.json in the sub directory
 	pluginPath := filepath.Join(pluginDirPath, "main.js")
-	pf, err := os.Create(pluginPath) //nolint:gosec
+	pf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock main.js for event testing.
 	require.NoError(t, err)
 
 	require.NoError(t, pf.Close())
 
 	packageJSONPath := filepath.Join(pluginDirPath, "package.json")
-	ppf, err := os.Create(packageJSONPath) //nolint:gosec
+	ppf, err := os.Create(packageJSONPath) //nolint:gosec // Test helper creating mock package.json for event testing.
 	require.NoError(t, err)
 
 	require.NoError(t, ppf.Close())
@@ -477,6 +479,37 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.NoError(t, err)
 }
 
+func TestGeneratePluginPathsPreservesInventorySource(t *testing.T) {
+	rootDir := t.TempDir()
+	userPluginDir := filepath.Join(rootDir, "user-plugins")
+	developmentPluginDir := filepath.Join(rootDir, "plugins")
+
+	for _, pluginDir := range []string{userPluginDir, developmentPluginDir} {
+		pluginPath := filepath.Join(pluginDir, "shared-plugin")
+		require.NoError(t, os.MkdirAll(pluginPath, 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(pluginPath, "main.js"), nil, 0o600))
+	}
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(userPluginDir, "shared-plugin", "package.json"),
+		[]byte(`{"name":"shared-plugin"}`),
+		0o600,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(developmentPluginDir, "shared-plugin", "package.json"),
+		[]byte(`{"name":"shared-plugin","isManagedByHeadlampPlugin":true}`),
+		0o600,
+	))
+
+	pluginList, err := plugins.GeneratePluginPaths("", userPluginDir, developmentPluginDir)
+	require.NoError(t, err)
+	require.Len(t, pluginList, 2)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[0].Type)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[0].Source)
+	require.Equal(t, plugins.PluginTypeUser, pluginList[1].Type)
+	require.Equal(t, plugins.PluginTypeDevelopment, pluginList[1].Source)
+}
+
 func TestHandlePluginReload(t *testing.T) {
 	// create cache
 	ch := cache.New[interface{}]()
@@ -544,7 +577,7 @@ func TestPopulatePluginsCache(t *testing.T) {
 
 // TestDelete checks the Delete function.
 //
-//nolint:funlen
+//nolint:funlen // Long test function verifying plugin deletion across multiple directories.
 func TestDelete(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "testdelete")
 	require.NoError(t, err)
@@ -580,6 +613,30 @@ func TestDelete(t *testing.T) {
 	err = os.Mkdir(sharedPluginDev, 0o750)
 	require.NoError(t, err)
 
+	// Catalog-installed plugin that still lives only under development
+	// plugins/ (GeneratePluginPaths reports these as type=user).
+	migratedCatalogPlugin := filepath.Join(devPluginDir, "headlamp_kubescape")
+	err = os.Mkdir(migratedCatalogPlugin, 0o750)
+	require.NoError(t, err)
+
+	packageJSON := []byte(`{"name":"kubescape","isManagedByHeadlampPlugin":true}`)
+	err = os.WriteFile(filepath.Join(migratedCatalogPlugin, "package.json"), packageJSON, 0o600)
+	require.NoError(t, err)
+
+	// Non-catalog development plugin: type=user must not delete this.
+	plainDevPlugin := filepath.Join(devPluginDir, "plain-dev-plugin")
+	err = os.Mkdir(plainDevPlugin, 0o750)
+	require.NoError(t, err)
+
+	// Catalog plugin sitting outside the development directory: the type=user
+	// fallback must not follow a traversal path to it.
+	outsidePlugin := filepath.Join(tempDir, "outside-plugin")
+	err = os.Mkdir(outsidePlugin, 0o750)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(outsidePlugin, "package.json"), packageJSON, 0o600)
+	require.NoError(t, err)
+
 	// Test cases
 	tests := []struct {
 		name          string
@@ -589,6 +646,10 @@ func TestDelete(t *testing.T) {
 		pluginType    string
 		expectErr     bool
 		errContains   string
+		// deletedFrom is "user" or "development" when expectErr is false.
+		deletedFrom string
+		// mustExist is a path that has to survive a failed delete.
+		mustExist string
 	}{
 		{
 			name:          "Delete user plugin (no type specified)",
@@ -597,6 +658,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "user-plugin-1",
 			pluginType:    "",
 			expectErr:     false,
+			deletedFrom:   "user",
 		},
 		{
 			name:          "Delete dev plugin (no type specified)",
@@ -605,6 +667,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "dev-plugin-1",
 			pluginType:    "",
 			expectErr:     false,
+			deletedFrom:   "development",
 		},
 		{
 			name:          "Delete user plugin with type=user",
@@ -613,6 +676,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "shared-plugin",
 			pluginType:    "user",
 			expectErr:     false,
+			deletedFrom:   "user",
 		},
 		{
 			name:          "Delete dev plugin with type=development",
@@ -621,6 +685,40 @@ func TestDelete(t *testing.T) {
 			pluginName:    "shared-plugin",
 			pluginType:    "development",
 			expectErr:     false,
+			deletedFrom:   "development",
+		},
+		{
+			// Catalog plugins may still live under plugins/ while listed as
+			// type=user (pre-user-plugins migration). Delete must find them.
+			name:          "Delete migrated catalog plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "headlamp_kubescape",
+			pluginType:    "user",
+			expectErr:     false,
+			deletedFrom:   "development",
+		},
+		{
+			name:          "Do not delete plain development plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "plain-dev-plugin",
+			pluginType:    "user",
+			expectErr:     true,
+			errContains:   "not found in user-plugins or development directory",
+			mustExist:     plainDevPlugin,
+		},
+		{
+			// The catalog check must reject names escaping plugins/ instead of
+			// reading a package.json outside it.
+			name:          "Do not follow traversal path in catalog check",
+			userPluginDir: "",
+			devPluginDir:  devPluginDir,
+			pluginName:    "../outside-plugin",
+			pluginType:    "user",
+			expectErr:     true,
+			errContains:   "not found in user-plugins or development directory",
+			mustExist:     outsidePlugin,
 		},
 		{
 			name:          "Invalid plugin type",
@@ -638,7 +736,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "non-existent",
 			pluginType:    "user",
 			expectErr:     true,
-			errContains:   "not found in user-plugins directory",
+			errContains:   "not found in user-plugins or development directory",
 		},
 		{
 			name:          "Non-existent plugin with type=development",
@@ -677,18 +775,28 @@ func TestDelete(t *testing.T) {
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
-			} else {
-				assert.NoError(t, err, "Delete should not return an error")
-				// check if the plugin was deleted from the correct directory
-				if tt.pluginType == "user" || (tt.pluginType == "" && tt.pluginName == "user-plugin-1") {
-					userPath := filepath.Join(tt.userPluginDir, tt.pluginName)
-					_, userErr := os.Stat(userPath)
-					assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
-				} else if tt.pluginType == "development" || (tt.pluginType == "" && tt.pluginName == "dev-plugin-1") {
-					devPath := filepath.Join(tt.devPluginDir, tt.pluginName)
-					_, devErr := os.Stat(devPath)
-					assert.True(t, os.IsNotExist(devErr), "Dev plugin should be deleted")
+
+				if tt.mustExist != "" {
+					_, statErr := os.Stat(tt.mustExist)
+					assert.NoError(t, statErr, "%s should not be deleted", tt.mustExist)
 				}
+
+				return
+			}
+
+			assert.NoError(t, err, "Delete should not return an error")
+
+			switch tt.deletedFrom {
+			case "user":
+				userPath := filepath.Join(tt.userPluginDir, tt.pluginName)
+				_, userErr := os.Stat(userPath)
+				assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
+			case "development":
+				devPath := filepath.Join(tt.devPluginDir, tt.pluginName)
+				_, devErr := os.Stat(devPath)
+				assert.True(t, os.IsNotExist(devErr), "Plugin should be deleted from development dir")
+			default:
+				t.Fatalf("deletedFrom must be set for success cases, got %q", tt.deletedFrom)
 			}
 		})
 	}

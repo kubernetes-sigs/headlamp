@@ -96,6 +96,8 @@ config:
     usePKCE: false
     # -- Enable using OIDC cookie for authentication outside of cluster
     useCookie: false
+    # -- Enable automatic redirect to the OIDC provider
+    autoLogin: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
@@ -170,6 +172,8 @@ config:
     #     mountPath: /access-plugins/kubeconfig-secretreader
     # -- Kubernetes label selector used to filter experimental/alpha ClusterProfile resources.
     labelSelector: "!headlamp.dev/ignore"
+    # -- Namespaces watched for experimental/alpha ClusterProfile resources. Empty uses the Headlamp pod namespace for in-cluster roots and the kubeconfig context namespace for kubeconfig roots; ["*"] watches all and requires equivalent cluster-wide RBAC permissions.
+    namespaces: []
     # -- Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default.
     rootReconcileInterval: ""
     # -- Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default.

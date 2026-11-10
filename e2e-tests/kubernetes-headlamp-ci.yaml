@@ -60,6 +60,87 @@ data:
       user:
     current-context: test
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+rules:
+- apiGroups:
+  - multicluster.x-k8s.io
+  resources:
+  - clusterprofiles
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: headlamp-cluster-inventory
+subjects:
+- kind: ServiceAccount
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headlamp-cluster-inventory-provider
+  namespace: kube-system
+data:
+  config.json: |
+    {
+      "providers": [
+        {
+          "name": "headlamp-e2e-token",
+          "execConfig": {
+            "apiVersion": "client.authentication.k8s.io/v1",
+            "command": "/etc/cluster-inventory/credential-plugin.sh",
+            "provideClusterInfo": true,
+            "interactiveMode": "Never"
+          }
+        }
+      ]
+    }
+  credential-plugin.sh: |
+    #!/bin/sh
+    set -eu
+
+    token="$(cat /var/run/secrets/cluster-inventory-spoke/token)"
+    printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential","status":{"token":"%s"}}\n' "$token"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: headlamp-cluster-inventory-spoke
+  namespace: kube-system
+type: Opaque
+stringData:
+  token: "${INVENTORY_SPOKE_TOKEN}"
+---
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ClusterProfile
+metadata:
+  name: inventory-test2
+  namespace: kube-system
+spec:
+  displayName: inventory-test2
+  clusterManager:
+    name: headlamp-e2e
+---
 # Source: headlamp/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -81,6 +162,7 @@ spec:
         app.kubernetes.io/name: headlamp
         app.kubernetes.io/instance: headlamp
     spec:
+      serviceAccountName: headlamp-cluster-inventory
       initContainers:
       - command:
         - /bin/sh
@@ -103,6 +185,13 @@ spec:
         imagePullPolicy: Never
         args:
         - "-enable-dynamic-clusters"
+        - "-in-cluster"
+        - "-in-cluster-context-name=main"
+        - "-enable-cluster-inventory"
+        - "-cluster-inventory-provider-file=/etc/cluster-inventory/config.json"
+        - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
+        - "-cluster-inventory-root-reconcile-interval=2s"
+        - "-cluster-inventory-no-crd-cache-ttl=2s"
         - "-plugins-dir=/build/plugins"
         env:
         - name: KUBECONFIG
@@ -116,6 +205,12 @@ spec:
           name: headlamp-plugins
         - mountPath: "/home/headlamp/.config/Headlamp/kubeconfigs"
           name: kubeconfig
+        - mountPath: /etc/cluster-inventory
+          name: cluster-inventory-provider
+          readOnly: true
+        - mountPath: /var/run/secrets/cluster-inventory-spoke
+          name: cluster-inventory-spoke
+          readOnly: true
       nodeSelector:
         'kubernetes.io/os': linux
       volumes:
@@ -128,6 +223,23 @@ spec:
           items:
           - key: config
             path: config
+      - name: cluster-inventory-provider
+        configMap:
+          name: headlamp-cluster-inventory-provider
+          items:
+          - key: config.json
+            path: config.json
+            mode: 0444
+          - key: credential-plugin.sh
+            path: credential-plugin.sh
+            mode: 0555
+      - name: cluster-inventory-spoke
+        secret:
+          secretName: headlamp-cluster-inventory-spoke
+          items:
+          - key: token
+            path: token
+            mode: 0444
 ---
 kind: Secret
 apiVersion: v1

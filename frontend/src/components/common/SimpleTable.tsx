@@ -405,7 +405,6 @@ export default function SimpleTable(props: SimpleTableProps) {
                 [theme.breakpoints.down('sm')]: {
                   padding: '15px 24px 15px 16px',
                 },
-                overflow: 'hidden',
                 width: '100%',
                 wordWrap: 'break-word',
               },

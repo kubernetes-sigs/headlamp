@@ -129,7 +129,7 @@ kubectl create secret generic headlamp-basic-auth \
 - **Basic authentication only controls access to the UI**. Headlamp will still require Kubernetes authentication (token or kubeconfig) after the UI loads.
 - **Authorization within the UI is controlled entirely by Kubernetes RBAC**. The username/password does not determine what resources users can view or modify.
 - This approach is intended for simple access control and is **not a replacement for full identity management solutions**.
-- For environments requiring per-user identity, auditing, or single sign-on, [OIDC-based authentication](../oidc/) is recommended instead.
+- For environments requiring per-user identity, auditing, or single sign-on, [OIDC-based authentication](./oidc.md) is recommended instead.
 
 ---
 

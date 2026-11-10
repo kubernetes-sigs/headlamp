@@ -28,7 +28,6 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -67,7 +66,7 @@ func SetTokenFromCookie(r *http.Request, clusterName string) {
 // the incoming request carries an OIDC token that is about to expire and, if
 // so, refreshes it transparently using the configured OIDC provider.
 //
-//nolint:funlen
+//nolint:funlen // Middleware handles token inspection, refresh lifecycle, cookie mutation, and telemetry
 func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,8 +91,6 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 					attribute.String("api.route", oidcMiddlewareRoute),
 					attribute.String("status", status))
 			}()
-
-			config.incrementRequestCounter(ctx)
 
 			if config.shouldSkipOIDCRefresh(w, r, span, &status, next) {
 				return
@@ -153,18 +150,6 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 
 			next.ServeHTTP(w, r)
 		})
-	}
-}
-
-// incrementRequestCounter increments the OIDC middleware request counter metric
-// if metrics are configured.
-func (c *OIDCTokenRefreshConfig) incrementRequestCounter(ctx context.Context) {
-	if c.Metrics != nil {
-		c.Metrics.RequestCounter.Add(ctx, 1,
-			metric.WithAttributes(
-				attribute.String("api.route", oidcMiddlewareRoute),
-				attribute.String("status", "start"),
-			))
 	}
 }
 
@@ -231,7 +216,7 @@ func (c *OIDCTokenRefreshConfig) handleGetContextError(
 	span trace.Span, ctx context.Context, status *string, next http.Handler,
 ) bool {
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+		logger.Log(logger.LevelError, map[string]string{clusterLogField: cluster},
 			err, "failed to get context")
 
 		c.TelemetryHandler.RecordError(span, err, "Failed to get context")

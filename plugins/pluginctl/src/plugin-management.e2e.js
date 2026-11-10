@@ -20,7 +20,7 @@ const { execSync } = require('child_process');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const envPaths = require('env-paths');
+const os = require('os');
 
 // Helper function to run CLI commands and return the output
 function runCommand(command) {
@@ -28,67 +28,69 @@ function runCommand(command) {
     return execSync(command, { encoding: 'utf8' });
   } catch (error) {
     console.error(`Error running command "${command}":`, error);
-    process.exit(1);
+    throw error;
   }
 }
 
-// Helper function to get the default plugins directory
-function defaultPluginsDir() {
-  const paths = envPaths('Headlamp', { suffix: '' });
-  const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
-  return path.join(configDir, 'plugins');
+// Create temporary directory for tests
+const tempPluginsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins-test-'));
+
+try {
+  const pluginctlBin = path.join(__dirname, '../bin/pluginctl.js');
+  const baseCmd = `node "${pluginctlBin}"`;
+  const folderOpt = `--folderName "${tempPluginsDir}"`;
+
+  // List plugins initially
+  let output = runCommand(`${baseCmd} list --json ${folderOpt}`);
+  console.log('Initial list output:', output);
+  let plugins = JSON.parse(output);
+  console.log('Initial plugins:', plugins);
+
+  // Ensure the plugin is not installed
+  const pluginName = '@headlamp-k8s/flux';
+  let pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
+  assert.strictEqual(pluginExists, false, 'Plugin should not be initially installed');
+
+  // Install the plugin
+  const pluginURL = 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux';
+  output = runCommand(`${baseCmd} install ${pluginURL} ${folderOpt}`);
+  console.log('Install output:', output);
+
+  // List plugins to verify installation
+  output = runCommand(`${baseCmd} list --json ${folderOpt}`);
+  plugins = JSON.parse(output);
+  console.log('Plugins after install:', plugins);
+  pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
+  assert.strictEqual(pluginExists, true, 'Plugin should be installed');
+
+  // Update the plugin (folder is a positional arg for this command)
+  output = runCommand(`${baseCmd} update "${pluginName}" "${tempPluginsDir}"`);
+  console.log('Update output:', output);
+
+  // List plugins to verify update
+  output = runCommand(`${baseCmd} list --json ${folderOpt}`);
+  plugins = JSON.parse(output);
+  console.log('Plugins after update:', plugins);
+  pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
+  assert.strictEqual(pluginExists, true, 'Plugin should still be installed after update');
+
+  // Uninstall the plugin
+  output = runCommand(`${baseCmd} uninstall "${pluginName}" ${folderOpt}`);
+  console.log('Uninstall output:', output);
+
+  // List plugins to verify uninstallation
+  output = runCommand(`${baseCmd} list --json ${folderOpt}`);
+  console.log('Initial list output:', output);
+  plugins = JSON.parse(output);
+  console.log('Plugins after uninstall:', plugins);
+  pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
+  assert.strictEqual(pluginExists, false, 'Plugin should be uninstalled');
+
+  console.log('All tests passed successfully.');
+} catch (error) {
+  console.error('Test failed with error:', error);
+  throw error;
+} finally {
+  // Clean up the temp dir
+  fs.rmSync(tempPluginsDir, { recursive: true, force: true });
 }
-
-// create default plugins directory if it doesn't exist
-const pluginsDir = defaultPluginsDir();
-if (!fs.existsSync(pluginsDir)) {
-  fs.mkdirSync(pluginsDir, { recursive: true });
-}
-
-// List plugins initially
-let output = runCommand('node ../bin/pluginctl.js list --json');
-console.log('Initial list output:', output);
-let plugins = JSON.parse(output);
-console.log('Initial plugins:', plugins);
-
-// Ensure the plugin is not installed
-const pluginName = '@headlamp-k8s/flux';
-let pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
-assert.strictEqual(pluginExists, false, 'Plugin should not be initially installed');
-
-// Install the plugin
-const pluginURL = 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux';
-output = runCommand(`node ../bin/pluginctl.js install ${pluginURL}`);
-console.log('Install output:', output);
-
-// List plugins to verify installation
-output = runCommand('node ../bin/pluginctl.js list --json');
-plugins = JSON.parse(output);
-console.log('Plugins after install:', plugins);
-pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
-assert.strictEqual(pluginExists, true, 'Plugin should be installed');
-
-// Update the plugin
-output = runCommand(`node ../bin/pluginctl.js update ${pluginName}`);
-console.log('Update output:', output);
-
-// List plugins to verify update
-output = runCommand('node ../bin/pluginctl.js list --json');
-plugins = JSON.parse(output);
-console.log('Plugins after update:', plugins);
-pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
-assert.strictEqual(pluginExists, true, 'Plugin should still be installed after update');
-
-// Uninstall the plugin
-output = runCommand(`node ../bin/pluginctl.js uninstall ${pluginName}`);
-console.log('Uninstall output:', output);
-
-// List plugins to verify uninstallation
-output = runCommand('node ../bin/pluginctl.js list --json');
-console.log('Initial list output:', output);
-plugins = JSON.parse(output);
-console.log('Plugins after uninstall:', plugins);
-pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
-assert.strictEqual(pluginExists, false, 'Plugin should be uninstalled');
-
-console.log('All tests passed successfully.');

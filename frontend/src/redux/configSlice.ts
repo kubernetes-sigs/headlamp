@@ -88,8 +88,13 @@ export interface ConfigState {
     timezone: string;
     sidebarSortAlphabetically: boolean;
     useEvict: boolean;
+    expandLargeGraph: boolean;
     [key: string]: any;
   };
+  /**
+   * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
+   */
+  oidcAutoLogin: boolean | null;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
@@ -151,6 +156,9 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.useEvict)) {
       sanitizedSettings.useEvict = parsedSettings.useEvict;
     }
+    if (isBoolean(parsedSettings.expandLargeGraph)) {
+      sanitizedSettings.expandLargeGraph = parsedSettings.expandLargeGraph;
+    }
 
     return sanitizedSettings;
   } catch {
@@ -169,11 +177,13 @@ export const initialState: ConfigState = {
   defaultPodDebugImage: '',
   defaultNodeShellImage: '',
   defaultNodeShellNamespace: '',
+  oidcAutoLogin: null,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
+    expandLargeGraph: storedSettings.expandLargeGraph ?? false,
     useEvict: storedSettings.useEvict ?? true,
   },
 };
@@ -199,9 +209,14 @@ const configSlice = createSlice({
         defaultLightTheme?: string;
         defaultDarkTheme?: string;
         forceTheme?: string;
+        oidcAutoLogin?: boolean;
       }>
     ) {
       state.clusters = action.payload.clusters;
+
+      if (action.payload.oidcAutoLogin !== undefined) {
+        state.oidcAutoLogin = action.payload.oidcAutoLogin;
+      }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
       }

@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
-import { registerKubeObjectGlance, registerMapSource } from '@kinvolk/headlamp-plugin/lib';
+import {
+  registerKubeObjectGlance,
+  registerMapSource,
+  registerResourceRelationProvider,
+} from '@kinvolk/headlamp-plugin/lib';
 import { KubeObject } from '@kinvolk/headlamp-plugin/lib/K8s/cluster';
 import { useMemo } from 'react';
+
+class MyResource extends KubeObject {
+  static apiVersion = 'example.headlamp.dev/v1';
+  static apiName = 'myresources';
+  static isNamespaced = true;
+  static kind = 'MyResourceKind';
+}
 
 // Example custom details component for our resource
 function MyResourceDetails({ node }: { node: any }) {
@@ -92,6 +103,7 @@ registerMapSource({
     return useMemo(() => {
       // Hardcoded kubernetes object as an example
       const myResource = {
+        apiVersion: 'example.headlamp.dev/v1',
         kind: 'MyResourceKind',
         metadata: {
           uid: '1234',
@@ -105,7 +117,7 @@ registerMapSource({
         nodes: [
           {
             id: myResource.metadata.uid, // ID should be unique
-            kubeObject: new KubeObject(myResource),
+            kubeObject: new MyResource(myResource),
             icon: <img src="https://headlamp.dev/img/favicon.png" alt="MyResourceKind icon" />,
             // Add custom details component to show our own view when the node is selected
             detailsComponent: MyResourceDetails,
@@ -113,5 +125,22 @@ registerMapSource({
         ],
       };
     }, []);
+  },
+});
+
+// Example: Register a custom resource relation for the Resource Map.
+// This creates an edge between nodes from the "my-source" graph source
+// and Deployment nodes.
+registerResourceRelationProvider({
+  id: 'customizing-map.custom-relation',
+  fromSource: 'my-source',
+  toSource: 'apps/Deployment',
+  label: 'Depends On',
+  predicate: (from, to) => {
+    // predicate receives GraphNode objects; access the underlying K8s object via kubeObject.
+    return (
+      from.kubeObject?.jsonData.metadata.name === 'my-test-resource' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-deployment'
+    );
   },
 });

@@ -17,6 +17,9 @@
 import type { PlaywrightTestConfig } from '@playwright/test';
 import { devices } from '@playwright/test';
 
+const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim();
+const pomeriumDexHost = process.env.HEADLAMP_POMERIUM_DEX_HOST;
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
@@ -28,6 +31,7 @@ import { devices } from '@playwright/test';
  */
 const config: PlaywrightTestConfig = {
   testDir: './tests',
+  testIgnore: ['**/*.test.*', '**/baseURL.spec.ts'],
   /* Maximum time one test can run for. */
   timeout: 30 * 1000,
   expect: {
@@ -54,6 +58,8 @@ const config: PlaywrightTestConfig = {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.HEADLAMP_TEST_URL || 'http://localhost:3000',
 
+    ignoreHTTPSErrors: process.env.HEADLAMP_POMERIUM_E2E === 'true',
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
@@ -64,6 +70,16 @@ const config: PlaywrightTestConfig = {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        channel: pomeriumDexHost && !chromiumExecutablePath ? 'chrome' : undefined,
+        launchOptions:
+          chromiumExecutablePath || pomeriumDexHost
+            ? {
+                ...(chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : {}),
+                ...(pomeriumDexHost
+                  ? { args: [`--host-resolver-rules=MAP ${pomeriumDexHost} 127.0.0.1`] }
+                  : {}),
+              }
+            : undefined,
       },
     },
 

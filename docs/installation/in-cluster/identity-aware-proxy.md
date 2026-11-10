@@ -3,7 +3,10 @@ title: Accessing using Identity-Aware Proxies
 sidebar_label: Identity-Aware Proxy
 ---
 
-Headlamp can be placed behind an identity-aware proxy (IAP) such as [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) or Google Cloud IAP. When configured, Headlamp will trust the user information provided by the proxy via HTTP headers and seamlessly bypass the internal login screen. When identity aware proxy is enabled, the proxy should be trustable. This means that the proxy should be deployed in a way that it is not exposed to the public internet and that it is not possible for an attacker to impersonate the proxy. The proxy should also be configured to inject the correct headers into the request to Headlamp. Backend does not maintain any persistent session, it relies on the headers injected. 
+You can put Headlamp behind an identity-aware proxy (IAP) such as [Pomerium](https://www.pomerium.com/), [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/), or Google Cloud IAP. Headlamp then trusts the user information in the proxy headers and bypasses its login screen.
+
+The proxy must inject the correct headers and must be the only network path to Headlamp. Headlamp does not maintain a separate proxy-authentication session. It reads the headers in each request.
+
 **Important:** the trusted proxy or ingress must strip, reject, or overwrite any incoming client-supplied identity headers before forwarding the request to Headlamp. This includes the default `X-Forwarded-*` headers as well as any custom headers configured with `-proxy-auth-username-header`, `-proxy-auth-group-header`, `-proxy-auth-email-header`, or `-proxy-auth-token-header`. Otherwise, a client could spoof these headers and impersonate another user if Headlamp is reachable without that protection at the edge.
 
 ## Configuration
@@ -12,7 +15,7 @@ To enable identity-aware proxy authentication, set the following argument or env
 
 - `-proxy-auth=true` or env var `HEADLAMP_CONFIG_PROXY_AUTH=true`
 
-By default, Headlamp expects the proxy to pass the authenticated username in the `X-Forwarded-User` header. If a valid username is found, Headlamp backend establishes a session for that user based on the token passed in. UI treats the request as authenticated based on trusted headers and bypasses the login screen. 
+By default, Headlamp expects the proxy to pass the authenticated username in the `X-Forwarded-User` header. When Headlamp finds a valid username, the UI treats the request as authenticated and bypasses the login screen.
 
 You can customize the headers Headlamp looks for using the following flags:
 
@@ -21,17 +24,21 @@ You can customize the headers Headlamp looks for using the following flags:
 - `-proxy-auth-email-header`: Header name for the user's email (default: `X-Forwarded-Email`)
 - `-proxy-auth-token-header`: Header name for the user's token (default: `X-Forwarded-Id-Token`)
 
-### Kubernetes API Server Authentication
+### Kubernetes API server authentication
 
-When using an identity-aware proxy for the Headlamp UI, Headlamp still needs a way to authenticate with the Kubernetes API Server on behalf of the user. 
+The proxy handles user identification for the UI, but Headlamp still needs credentials for the Kubernetes API server. If all proxy-authenticated users can share one Kubernetes identity, enable `config.unsafeUseServiceAccountToken` in the Helm values. Headlamp then uses its pod's service account for every user. Bind that account to the smallest suitable role.
 
-By default, Headlamp will use its own in-cluster Service Account (or provided kubeconfig) to talk to the API Server. The proxy handles user identification for the UI, but Headlamp handles Kubernetes authorization.
+If users need separate Kubernetes permissions, configure the proxy to provide a token that the Kubernetes API server accepts. Do not enable the shared service account option in that mode.
 
-If you instead want Headlamp to forward the proxy's authentication token directly to the Kubernetes API Server (for example, if your proxy issues valid Kubernetes OIDC `id_token`s), you can specify the header containing the raw token value:
+To forward the proxy token instead, specify the header that contains the raw token:
 
- - `-proxy-auth-token-header`: Header name containing the raw token only (default: `X-Forwarded-Id-Token`). Do not include the `Bearer ` prefix in the header value. If set, Headlamp will extract the token and send it as `Authorization: Bearer <token>` for requests to the Kubernetes API Server.
+- `-proxy-auth-token-header`: Header name containing the raw token only (default: `X-Forwarded-Id-Token`). Do not include the `Bearer ` prefix in the header value. If set, Headlamp will extract the token and send it as `Authorization: Bearer <token>` for requests to the Kubernetes API server.
 
-## Example: Traefik and oauth2-proxy Middleware
+## Examples
+
+The following examples show how to configure identity-aware proxy authentication with Traefik and oauth2-proxy, followed by Pomerium.
+
+### Example: Traefik and oauth2-proxy Middleware
 
 A common pattern in Kubernetes is to use an Ingress Controller like Traefik alongside `oauth2-proxy` as an authentication middleware (ForwardAuth).
 
@@ -43,15 +50,15 @@ In this setup:
 5. Traefik forwards the original request, along with the injected user headers, to Headlamp.
 6. Headlamp reads `X-Forwarded-User`, logs the user in, and serves the UI.
 
-### 1. Deploy OAuth2Proxy via Helm
+#### 1. Deploy OAuth2Proxy via Helm
 
-#### Add the Helm repo:
+##### Add the Helm repo:
 ```bash
 helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests
 helm repo update
 ```
 
-#### Prepare your `values.yaml`
+##### Prepare your `values.yaml`
 
 Below is an example configuration you can start with. Be sure to replace placeholders like `<Client-ID>`, `<Client-Secret>`, `<Tenant-ID>`, etc.
 
@@ -106,7 +113,7 @@ extraArgs:
   whitelist-domain: ".example.com"
 ```
 
-#### Deploy OAuth2Proxy:
+##### Deploy OAuth2Proxy:
 ```bash
 helm install my-release oauth2-proxy/oauth2-proxy -f values.yaml
 ```
@@ -117,7 +124,7 @@ kubectl get pods
 ```
 
 ---
-### 2. Configure Traefik ForwardAuth
+#### 2. Configure Traefik ForwardAuth
 
 Create a Traefik `Middleware` and `Ingress` that points to your `oauth2-proxy` service, ensuring it forwards the authentication headers:
 
@@ -196,7 +203,7 @@ spec:
         pathType: Prefix
 ```
 
-### 3. Configure Headlamp Ingress and Deployment
+#### 3. Configure Headlamp Ingress and Deployment
 
 Attach the middleware to your Headlamp `IngressRoute` and ensure the Headlamp deployment has `-proxy-auth=true` enabled:
 
@@ -224,7 +231,7 @@ spec:
               number: 80
 ```
 
-### 4. Deploy Headlamp with the `proxy-auth` flag enabled:
+#### 4. Deploy Headlamp with the `proxy-auth` flag enabled:
 
 ```yaml
 # Headlamp Helm Values (values.yaml)
@@ -232,3 +239,70 @@ config:
   extraArgs:
     - "-proxy-auth=true"
 ```
+
+### Example: Pomerium
+
+This example uses [Pomerium Core for Kubernetes](https://www.pomerium.com/docs/deploy/k8s/quickstart) as the ingress controller. Pomerium forwards the authenticated user's email to Headlamp. Headlamp uses its service account for read-only Kubernetes access.
+
+#### 1. Configure the identity header
+
+Add a JWT claim header to the global Pomerium resource. Keep the other settings from your existing Pomerium configuration.
+
+```yaml
+apiVersion: ingress.pomerium.io/v1
+kind: Pomerium
+metadata:
+  name: global
+spec:
+  jwtClaimHeaders:
+    X-Pomerium-Claim-Email: email
+  # Keep your existing secrets, certificate, and identity provider settings.
+```
+
+The route-level `pass_identity_headers` setting in the next step forwards this header. Pomerium replaces inbound `X-Pomerium-*` headers with the authenticated user's values.
+
+#### 2. Configure Headlamp
+
+Create a Helm values file. Replace the host, TLS secret, and authorization policy for your environment.
+
+```yaml
+config:
+  inCluster: true
+  unsafeUseServiceAccountToken: true
+  extraArgs:
+    - -proxy-auth=true
+    - -proxy-auth-username-header=X-Pomerium-Claim-Email
+    - -proxy-auth-email-header=X-Pomerium-Claim-Email
+
+clusterRoleBinding:
+  # Replace "view" with a custom ClusterRole if Headlamp needs other permissions.
+  clusterRoleName: view
+
+ingress:
+  enabled: true
+  ingressClassName: pomerium
+  annotations:
+    ingress.pomerium.io/allow_any_authenticated_user: "true"
+    ingress.pomerium.io/pass_identity_headers: "true"
+  hosts:
+    - host: headlamp.example.com
+      paths:
+        - path: /
+          type: Prefix
+  tls:
+    - secretName: headlamp-tls
+      hosts:
+        - headlamp.example.com
+```
+
+Before enabling proxy authentication, apply a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) that selects the Headlamp pods and allows inbound traffic only from the Pomerium proxy pods. Your cluster's CNI must enforce NetworkPolicy. A `ClusterIP` Service alone does not block other pods from reaching Headlamp, forging the unsigned identity header, and using its shared service account permissions.
+
+Install or update Headlamp with the values file:
+
+```bash
+helm upgrade --install headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --values values.yaml
+```
+
+Verify that access through Pomerium succeeds and that other pods cannot reach Headlamp through either its Service or pod IP. Use a narrower [Pomerium policy](https://www.pomerium.com/docs/reference/routes/policy) when only specific users or groups should reach Headlamp.

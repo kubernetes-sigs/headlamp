@@ -17,9 +17,11 @@
 /**
  * Tests for the CONNECT_ON_CLUSTER_LINK feature.
  *
- * Run with: PLAYWRIGHT_TEST_MODE=app npx playwright test clusterAutoConnect.spec.ts
+ * Run with: npm run test-app -- clusterAutoConnect.spec.ts
+ * (a direct `npx playwright test` invocation skips the pretest-app hook that
+ * builds app/build/main.js, so it can run against stale Electron output)
  *
- * Requires: PLAYWRIGHT_TEST_MODE=app, minikube, and kubectl on PATH.
+ * Requires: minikube and kubectl on PATH.
  *
  * beforeAll starts a dedicated minikube profile and exports its cert-based
  * kubeconfig to a standalone file, then launches Electron with KUBECONFIG
@@ -34,7 +36,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -56,7 +58,17 @@ function shell(cmd: string): string {
   return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] }).trim();
 }
 
+// `minikube delete` clears current-context in the user's kubeconfig, which
+// leaves kubectl unusable afterwards. Remember it so teardown can put it back.
+let previousContext = '';
+
 function setupExecCluster(): void {
+  try {
+    previousContext = shell('kubectl config current-context');
+  } catch {
+    /* no current context set; nothing to restore */
+  }
+
   // Start (or reconnect to) the dedicated minikube profile.
   // minikube automatically adds the context to the kubeconfig in ORIGINAL_KUBECONFIG.
   shell(`minikube start --profile ${CLUSTER_NAME}`);
@@ -72,7 +84,7 @@ function setupExecCluster(): void {
   // Use the kubeconfig that minikube already wrote (cert-based auth, proven to work).
   // Export it to a standalone file so the test doesn't inherit unrelated contexts.
   const exported = shell(`kubectl --context ${CLUSTER_NAME} config view --minify --raw --flatten`);
-  fs.writeFileSync(MERGED_KUBECONFIG, exported);
+  fs.writeFileSync(MERGED_KUBECONFIG, exported, { mode: 0o600 });
 }
 function teardownExecCluster(): void {
   // Stop and delete the minikube profile (also removes its kubeconfig entries).
@@ -88,47 +100,52 @@ function teardownExecCluster(): void {
       /* ignore */
     }
   }
-}
 
-if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
-  test.beforeAll(async () => {
-    test.setTimeout(3 * 60 * 1000); // cluster creation takes ~60s
-    setupExecCluster();
-
-    // Launch Electron with the merged kubeconfig so it sees the new cluster.
-    electronApp = await _electron.launch({
-      cwd: appPath,
-      executablePath: electronPath,
-      args: ['.'],
-      env: {
-        ...process.env,
-        NODE_ENV: 'development',
-        ELECTRON_DEV: 'true',
-        KUBECONFIG: MERGED_KUBECONFIG,
-      },
-    });
-    electronPage = await electronApp.firstWindow();
-    await electronPage.waitForLoadState('load');
-    // The app uses file:// with hash routing: file:///...index.html#/
-    // Capture the base file URL (without hash) for navigation.
-    const rawUrl = electronPage.url();
-    if (rawUrl.startsWith('file://')) {
-      appBaseUrl = rawUrl.split('#')[0]; // e.g., file:///path/to/index.html
-    } else if (rawUrl.startsWith('http')) {
-      const u = new URL(rawUrl);
-      appBaseUrl = `${u.protocol}//${u.host}`;
+  // Restore the context `minikube delete` cleared.
+  if (previousContext) {
+    try {
+      execFileSync('kubectl', ['config', 'use-context', previousContext], {
+        stdio: ['pipe', 'pipe', 'inherit'],
+      });
+    } catch {
+      /* ignore */
     }
-  });
-
-  test.afterAll(async () => {
-    await electronApp?.close();
-    teardownExecCluster();
-  });
+  }
 }
 
-function getPage(browserPage: Page): Page {
-  return process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
-}
+test.beforeAll(async () => {
+  test.setTimeout(3 * 60 * 1000); // cluster creation takes ~60s
+  setupExecCluster();
+
+  // Launch Electron with the merged kubeconfig so it sees the new cluster.
+  electronApp = await _electron.launch({
+    cwd: appPath,
+    executablePath: electronPath,
+    args: ['.'],
+    env: {
+      ...process.env,
+      NODE_ENV: 'development',
+      ELECTRON_DEV: 'true',
+      KUBECONFIG: MERGED_KUBECONFIG,
+    },
+  });
+  electronPage = await electronApp.firstWindow();
+  await electronPage.waitForLoadState('load');
+  // The app uses file:// with hash routing: file:///...index.html#/
+  // Capture the base file URL (without hash) for navigation.
+  const rawUrl = electronPage.url();
+  if (rawUrl.startsWith('file://')) {
+    appBaseUrl = rawUrl.split('#')[0]; // e.g., file:///path/to/index.html
+  } else if (rawUrl.startsWith('http')) {
+    const u = new URL(rawUrl);
+    appBaseUrl = `${u.protocol}//${u.host}`;
+  }
+});
+
+test.afterAll(async () => {
+  await electronApp?.close();
+  teardownExecCluster();
+});
 
 async function goToHomeClean(page: Page) {
   // Clear storage first while the page is still in its current state.
@@ -158,15 +175,8 @@ async function goToHomeClean(page: Page) {
 }
 
 test.describe('cluster auto-connect via link click (app)', () => {
-  test.beforeEach(() => {
-    // These tests require the Electron app mode and the minikube cluster above.
-    test.skip(
-      process.env.PLAYWRIGHT_TEST_MODE !== 'app',
-      'Requires PLAYWRIGHT_TEST_MODE=app and minikube on PATH'
-    );
-  });
-  test('clicking a cluster link writes it to sessionStorage', async ({ page: browserPage }) => {
-    const page = getPage(browserPage);
+  test('clicking a cluster link writes it to sessionStorage', async () => {
+    const page = electronPage;
     await goToHomeClean(page);
 
     // No session connects before the click.
@@ -188,10 +198,8 @@ test.describe('cluster auto-connect via link click (app)', () => {
     expect(JSON.parse(after!)).toContain(CLUSTER_NAME);
   });
 
-  test('cluster is not Active before click, becomes Active after click (exec plugin runs)', async ({
-    page: browserPage,
-  }) => {
-    const page = getPage(browserPage);
+  test('cluster is not Active before click, becomes Active after click (exec plugin runs)', async () => {
+    const page = electronPage;
     await goToHomeClean(page);
 
     const clusterRow = () =>

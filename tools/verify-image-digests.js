@@ -1,142 +1,116 @@
 #!/usr/bin/env node
 
-const usage = `
-Usage: node tools/verify-image-digests.js [--help]
-
-Checks Dockerfile and Dockerfile.plugins for FROM or ARG lines pinned with @sha256,
-and verifies that the digest matches the top-level multi-arch manifest list
-digest from 'docker buildx imagetools inspect'. This prevents accidentally
-pinning an x64-only digest, which would break builds for other architectures
-such as arm64.
-`;
+const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
 
 const files = ["Dockerfile", "Dockerfile.plugins"];
+const indexTypes = new Set([
+  "application/vnd.oci.image.index.v1+json",
+  "application/vnd.docker.distribution.manifest.list.v2+json",
+]);
+const digestPattern = /^sha256:[a-f0-9]{64}$/;
+const usage = `Usage: node tools/verify-image-digests.js [--update | --help]
 
-const fs = require("fs");
-const { execSync } = require("child_process");
+Verify that pinned FROM/ARG image digests are multi-platform indexes containing
+linux/amd64 and linux/arm64. A tag moving does not invalidate an existing pin.
 
-if (process.argv.includes("--help")) {
-  console.log(usage);
-  process.exit(0);
-}
+--update resolves the existing tags and refreshes only their digests after all
+resolved indexes pass validation. Requires Docker Buildx and registry access.
+`;
 
-/**
- * Extract image references with digests from a Dockerfile.
- * 
- * @param {string} filePath - Path to the Dockerfile.
- * @returns {Array<{ line: string, ref: string, lineNumber: number }>} 
- *   Array of objects, each containing:
- *     - line: The full matched line from the Dockerfile.
- *     - ref: The image reference with digest (e.g., "nginx:1.25@sha256:...").
- *     - lineNumber: The 1-based line number in the file where the match was found.
- */
-function extractImages(filePath) {
-  const content = fs.readFileSync(filePath, "utf-8");
-  const results = [];
-
-  // Match FROM lines (with optional --platform and optional AS)
-  const fromRegex = /FROM\s+(?:--platform=\$\{[^\}]+\}\s+)?([^\s@]+(?::[^\s@]+)?@sha256:[a-f0-9]{64})/gi;
-  for (const m of content.matchAll(fromRegex)) {
-    results.push({
-      line: m[0],
-      ref: m[1],
-      lineNumber: content.substring(0, m.index).split("\n").length
-    });
-  }
-
-  // Match ARG assignments with digest
-  const argRegex = /ARG\s+[A-Z0-9_]+\s*=\s*([^\s@]+(?::[^\s@]+)?@sha256:[a-f0-9]{64})/gi;
-  for (const m of content.matchAll(argRegex)) {
-    results.push({
-      line: m[0],
-      ref: m[1],
-      lineNumber: content.substring(0, m.index).split("\n").length
-    });
-  }
-
-  return results;
-}
-
-/**
- * Gets the top-level multi-arch manifest digest for a given image tag.
- * 
- * @param {string} imageTag - The image tag (e.g., "nginx:1.25").
- * @returns {string} The top-level digest (sha256:...)
- */
-function getTopLevelDigest(imageTag) {
-  const output = execSync(`docker buildx imagetools inspect ${imageTag}`, { encoding: "utf-8" });
-  const digestLine = output.split("\n").find(line => line.includes("Digest:"));
-  return digestLine.split(": ")[1].trim();
-}
-
-/**
- * Checks a Dockerfile for image digest correctness.
- *
- * For each image reference pinned with a digest, verifies that the digest
- * matches the top-level multi-arch manifest digest from
- * 'docker buildx imagetools inspect'. If a mismatch is found, an error
- * object is added to the errors array.
- *
- * @param {string} filePath
- *   Path to the Dockerfile to check.
- * @param {Array<{
- *   file: string,
- *   line: string,
- *   lineNumber: number,
- *   image: string,
- *   pinned: string,
- *   correct: string
- * }>} errors
- *   Array to collect error objects for any mismatched digests.
- */
-function checkFile(filePath, errors, oks) {
-  const images = extractImages(filePath);
-
-  for (const { line, ref, lineNumber } of images) {
-    const [imageTag, expectedDigest] = ref.split("@");
-    console.log(`Verifying ${filePath}@${lineNumber}: ${imageTag}@${expectedDigest}`);
-    const topDigest = getTopLevelDigest(imageTag);
-
-    if (expectedDigest === topDigest) {
-      oks.push(`OK: ${line}`);
-    } else {
-      errors.push({
-        file: filePath,
-        line,
-        lineNumber,
-        image: imageTag,
-        pinned: expectedDigest,
-        correct: topDigest,
+function extractImages(content) {
+  const images = [];
+  const instruction = /^\s*(?:FROM\s+(?:--platform=\S+\s+)?|ARG\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*)([^\s@]+)@(sha256:[a-f0-9]{64})(?=\s|$)/i;
+  let offset = 0;
+  for (const [index, line] of content.split("\n").entries()) {
+    const match = instruction.exec(line);
+    if (match) {
+      images.push({
+        image: match[1],
+        digest: match[2],
+        lineNumber: index + 1,
+        start: offset + match.index + match[0].length - match[2].length,
       });
+    } else if (/^\s*(?:FROM|ARG)\s+/i.test(line) && /@sha256:/i.test(line)) {
+      throw new Error(`Malformed pinned image on line ${index + 1}: ${line}`);
+    }
+    offset += line.length + 1;
+  }
+  return images;
+}
+
+function inspectImage(reference) {
+  return JSON.parse(execFileSync("docker", [
+    "buildx", "imagetools", "inspect", reference, "--format", "{{json .Manifest}}",
+  ], { encoding: "utf8", timeout: 120000 }));
+}
+
+function validateIndex(reference, manifest) {
+  if (!manifest || !indexTypes.has(manifest.mediaType) || !Array.isArray(manifest.manifests)) {
+    throw new Error(`${reference}: expected a multi-platform image index, not an architecture-specific manifest`);
+  }
+  if (!digestPattern.test(manifest.digest)) {
+    throw new Error(`${reference}: missing or invalid resolved SHA-256 digest`);
+  }
+  for (const architecture of ["amd64", "arm64"]) {
+    if (!manifest.manifests.some(item =>
+      item.platform?.os === "linux" && item.platform.architecture === architecture)) {
+      throw new Error(`${reference}: missing linux/${architecture}`);
     }
   }
 }
 
-function main() {
-  let errors = [];
-  let oks = [];
-  for (const file of files) {
-    if (fs.existsSync(file)) {
-      checkFile(file, errors, oks);
-    } else {
-      console.warn(`Skipping ${file}, not found`);
+function processFiles({ update = false, directory = ".", inspect = inspectImage, log = console.log } = {}) {
+  const { join } = require("node:path");
+  const snapshots = files.map(file => {
+    const path = join(directory, file);
+    const content = fs.readFileSync(path, "utf8");
+    const images = extractImages(content);
+    if (images.length === 0) throw new Error(`${file}: no pinned images found`);
+    return { file, path, content, images };
+  });
+  const cache = new Map();
+  const changes = [];
+  for (const snapshot of snapshots) {
+    let updated = snapshot.content;
+    for (const image of [...snapshot.images].reverse()) {
+      const reference = update ? image.image : `${image.image}@${image.digest}`;
+      if (!cache.has(reference)) {
+        const manifest = inspect(reference);
+        validateIndex(reference, manifest);
+        cache.set(reference, manifest.digest);
+      }
+      const digest = cache.get(reference);
+      if (!update && digest !== image.digest) {
+        throw new Error(`${reference}: registry returned a different digest (${digest})`);
+      }
+      if (update && digest !== image.digest) {
+        updated = updated.slice(0, image.start) + digest +
+          updated.slice(image.start + image.digest.length);
+        changes.push(`${snapshot.file}:${image.lineNumber}: ${image.image}@${digest}`);
+      }
     }
+    snapshot.updated = updated;
   }
+  // Resolve and validate every image before changing either Dockerfile.
+  if (update) for (const snapshot of snapshots) {
+    if (snapshot.updated !== snapshot.content) fs.writeFileSync(snapshot.path, snapshot.updated);
+  }
+  for (const change of changes) log(`Updated ${change}`);
+  log(update ? `Updated ${changes.length} image pin(s).` : "All pinned images support linux/amd64 and linux/arm64.");
+  return changes;
+}
 
-  if (errors.length > 0) {
-    // Tell the user what to do to fix the errors
-    console.error("\nDigest check failed. Some digests are not top level digests but are arch specific ones:\n");
-    for (const e of errors) {
-      console.error(`Incorrect ${e.file}@${e.lineNumber}: ${e.line}`);
-      console.error(`Suggested fix ${e.file}@${e.lineNumber}\n  ${e.image}@${e.correct}\n`);
-    }
-    process.exit(1);
-  } else {
-    for (const ok of oks) {
-      console.log(ok);
-    }
-    console.log("All digests are correct top level digests and not arch specific digests.");
+if (require.main === module) {
+  try {
+    const args = process.argv.slice(2);
+    if (args.some(arg => !["--update", "--help"].includes(arg))) throw new Error(usage);
+    if (args.includes("--help")) console.log(usage);
+    else processFiles({ update: args.includes("--update") });
+  } catch (error) {
+    console.error(`Image digest check failed: ${error.message}`);
+    process.exitCode = 1;
   }
 }
 
-main();
+module.exports = { extractImages, processFiles };

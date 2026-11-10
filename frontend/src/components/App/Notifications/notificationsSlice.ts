@@ -189,15 +189,44 @@ function storeNotifications(
  * @returns An array of NotificationIface objects from localStorage.
  */
 export function loadNotifications(): NotificationIface[] {
-  const localStorageItem = localStorage.getItem('notifications');
-  const notifications = JSON.parse(localStorageItem || '[]');
+  let localStorageItem: string | null = null;
+  try {
+    localStorageItem = localStorage.getItem('notifications');
+  } catch (e) {
+    // Storage access can be disabled/restricted (e.g. blocked cookies/storage),
+    // in which case getItem itself throws. Treat that as "no notifications".
+    console.warn('Failed to read notifications from localStorage, returning empty array:', e);
+    return [];
+  }
+
+  let notifications: unknown;
+  try {
+    notifications = JSON.parse(localStorageItem || '[]');
+  } catch (e) {
+    // Corrupt/invalid JSON in localStorage must not crash the app on boot:
+    // loadNotifications() runs as the slice initialState, before any error
+    // boundary mounts. Treat unparseable data as "no notifications".
+    console.warn('Failed to parse notifications from localStorage, returning empty array:', e);
+    return [];
+  }
 
   // getting an error here .map is not a function here some times, so we return [] to handle this
   if (!Array.isArray(notifications)) {
     return [];
   }
 
-  return notifications.map((n: any) => Notification.fromJSON(n).toJSON());
+  return notifications
+    .filter(
+      (n: any) =>
+        n !== null &&
+        typeof n === 'object' &&
+        !Array.isArray(n) &&
+        typeof n.id === 'string' &&
+        // A non-string message would make Notification.prepareMessage() throw;
+        // null/undefined are fine as the constructor defaults them to ''.
+        (n.message === null || n.message === undefined || typeof n.message === 'string')
+    )
+    .map((n: any) => Notification.fromJSON(n).toJSON());
 }
 
 function mergeNotifications(

@@ -59,8 +59,10 @@ type ActivityLocation =
   | 'full'
   | 'split-left'
   | 'split-right'
+  | 'split-right-wide'
   | 'split-top'
   | 'split-bottom'
+  | 'window-medium'
   | 'window';
 
 /** Independent screen or a page rendered on top of the app */
@@ -86,6 +88,24 @@ export interface Activity {
   temporary?: boolean;
   /** Cluster of the launched activity */
   cluster?: string;
+  /**
+   * Optional tag identifying the kind of activity. `'details'` marks a
+   * resource-details drawer so that navigation-driven minimize and the
+   * skip of click-outside close only apply to that flow, not to unrelated
+   * temporary or split-right activities launched by plugins.
+   */
+  kind?: 'details';
+  /**
+   * Optional close interceptor. When set, user-initiated close actions
+   * (the title-bar X, the taskbar close buttons, Close All and clicking
+   * outside a temporary activity) call this
+   * instead of closing the activity directly, so the content can e.g. ask
+   * for confirmation about unsaved changes. The handler is then responsible
+   * for eventually calling Activity.close(id) itself. Programmatic
+   * Activity.close() calls are unaffected, and temporary activities are
+   * still replaced without calling this when another activity launches.
+   */
+  onCloseRequest?: () => void;
 }
 
 export const Activity = {
@@ -96,6 +116,18 @@ export const Activity = {
   /** Closes activity */
   close(id: string) {
     store.dispatch(activitySlice.actions.close(id));
+  },
+  /**
+   * Closes the activity unless it has an onCloseRequest handler, in which
+   * case the handler is called and decides whether/when to close.
+   */
+  requestClose(id: string) {
+    const activity = store.getState().activity.activities[id];
+    if (activity?.onCloseRequest) {
+      activity.onCloseRequest();
+    } else {
+      Activity.close(id);
+    }
   },
   /** Update existing activity with a partial changes */
   update(id: string, diff: Partial<Activity>) {
@@ -184,6 +216,14 @@ export function SingleActivityRenderer({
       height: '100%',
       gridColumn: '2 / 4',
     },
+    'split-right-wide': {
+      position: 'absolute',
+      right: 0,
+      width: 'max(50%, 1024px)',
+      maxWidth: '100%',
+      height: '100%',
+      gridColumn: '2 / 4',
+    },
     'split-left': {
       position: 'absolute',
       width: '50%',
@@ -209,6 +249,20 @@ export function SingleActivityRenderer({
       position: 'absolute',
       width: '50%',
       height: '70%',
+      gridColumn: '2 / 4',
+      border: '1px solid',
+      borderTop: '1px solid',
+      borderBottom: '1px solid',
+      borderRadius: '10px',
+    },
+    'window-medium': {
+      position: 'fixed',
+      top: '72px',
+      right: '8px',
+      bottom: '8px',
+      left: '8px',
+      width: 'auto',
+      height: 'auto',
       gridColumn: '2 / 4',
       border: '1px solid',
       borderTop: '1px solid',
@@ -244,10 +298,12 @@ export function SingleActivityRenderer({
       const rows = 5;
       const gapPx = 20;
       const box = container.getBoundingClientRect();
-      const x = (box.width / cols) * (index % 3) + gapPx;
-      const y = (box.height / rows) * Math.floor(index / 3) + gapPx;
-      const width = box.width / cols - gapPx * (cols - 2);
-      const height = box.height / rows - gapPx * (rows - 2);
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      const width = (box.width - gapPx * (cols + 1)) / cols;
+      const height = Math.min(172, (box.height - gapPx * (rows + 1)) / rows);
+      const x = gapPx + col * (width + gapPx);
+      const y = gapPx + row * (height + gapPx);
 
       oldTranslation = activity.style.transform ?? '';
       oldHeight = activity.style.height;
@@ -299,6 +355,11 @@ export function SingleActivityRenderer({
     !!selectedResource && isDetailDrawerEnabled && !isDetailsDrawerSmallScreen;
 
   useEffect(() => {
+    // Details drawers use the navigation-driven minimize flow instead of
+    // click-outside close, so a sidebar click doesn't destroy them and the
+    // user always gets a taskbar entry regardless of the drawer position.
+    const isDetailsActivity = activity.kind === 'details';
+
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
       const isClickInside = activityElementRef.current?.contains(target);
@@ -311,18 +372,18 @@ export function SingleActivityRenderer({
         !isClickInside &&
         !isDetailsDrawerOpen
       ) {
-        Activity.close(id);
+        Activity.requestClose(id);
       }
     }
 
-    if (activity.temporary && !minimized && !isOverview) {
+    if (activity.temporary && !minimized && !isOverview && !isDetailsActivity) {
       document.addEventListener('mousedown', handleClickOutside);
 
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [activity.temporary, minimized, isOverview, id, location, isDetailsDrawerOpen]);
+  }, [activity.temporary, activity.kind, minimized, isOverview, id, location, isDetailsDrawerOpen]);
 
   return (
     <ActivityContext.Provider value={activity}>
@@ -342,7 +403,9 @@ export function SingleActivityRenderer({
               e.stopPropagation();
               e.preventDefault();
             }
-            Activity.update(id, { temporary: false });
+            // Keep the current minimized state: pointer events from portaled
+            // content (e.g. a confirmation dialog) must not refocus a hidden activity.
+            Activity.update(id, { temporary: false, minimized });
             onClick(e);
           }}
           sx={theme => ({
@@ -391,16 +454,29 @@ export function SingleActivityRenderer({
           {isOverview && (
             <Box
               sx={{
-                fontSize: '18px',
+                fontSize: '1rem',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 1,
-                gap: 1,
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                justifyContent: 'flex-start',
+                padding: 2,
+                gap: 1.5,
                 height: '100%',
               }}
             >
-              <Box sx={{ width: '48px', height: '48px', flexShrink: 0 }}>{icon}</Box> {title}
+              <Box sx={{ width: '48px', height: '48px', flexShrink: 0 }}>{icon}</Box>
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  overflowWrap: 'anywhere',
+                  lineHeight: 1.4,
+                }}
+                title={typeof title === 'string' ? title : undefined}
+              >
+                {title}
+              </Box>
             </Box>
           )}
           <>
@@ -428,15 +504,17 @@ export function SingleActivityRenderer({
             >
               {!hideTitleInHeader && (
                 <>
-                  <Box sx={{ width: '18px', height: '18px' }}>{icon}</Box>
+                  <Box sx={{ width: '18px', height: '18px', flexShrink: 0 }}>{icon}</Box>
                   <Typography
                     color="textSecondary"
                     fontSize={14}
                     sx={{
-                      maxWidth: 'calc(45% - 60px)',
+                      maxWidth: { xs: '100px', sm: '160px', md: 'calc(45% - 60px)' },
+                      minWidth: 0,
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
                       overflow: 'hidden',
+                      flexShrink: 1,
                     }}
                     title={typeof title === 'string' ? title : undefined}
                   >
@@ -455,10 +533,25 @@ export function SingleActivityRenderer({
                     gap: 0.25,
                     paddingX: 0.5,
                     color: theme.palette.text.secondary,
+                    maxWidth: { xs: '100px', sm: '160px', md: 'none' },
+                    minWidth: 0,
                   })}
                 >
-                  <Icon icon="mdi:hexagon-multiple-outline" />
-                  {cluster}
+                  <Icon icon="mdi:hexagon-multiple-outline" style={{ flexShrink: 0 }} />
+                  <Box
+                    component="span"
+                    sx={{
+                      display: 'block',
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={cluster}
+                  >
+                    {cluster}
+                  </Box>
                 </Box>
               )}
               {!isOverview && (
@@ -677,7 +770,11 @@ export function SingleActivityRenderer({
                   >
                     <Icon icon="mdi:minimize" />
                   </IconButton>
-                  <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
+                  <IconButton
+                    onClick={() => Activity.requestClose(id)}
+                    size="small"
+                    title={t('Close')}
+                  >
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </>
@@ -987,9 +1084,11 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const location = useLocation();
   const locationRef = useRef(location.pathname);
 
-  // Minimize activities that block the main content on route change.
-  // Activities in 'split-right' location are kept visible since they
-  // allow the user to see most of the main content.
+  // Route-change minimize: give resource-details drawers a taskbar entry
+  // instead of letting them silently vanish. Applies to any drawer position
+  // (right/left/bottom) for consistency. Unrelated activities that block
+  // the main content still minimize as before; ordinary right-side plugin
+  // activities are left visible.
   useEffect(() => {
     activities.forEach(activity => {
       // If we were triggered just because of the activities changing but the
@@ -998,7 +1097,10 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
         return;
       }
 
-      if (activity.location !== 'split-right' && !activity.minimized) {
+      const isDetails = activity.kind === 'details';
+      const blocksMainContent =
+        activity.location !== 'split-right' && activity.location !== 'split-right-wide';
+      if ((isDetails || blocksMainContent) && !activity.minimized) {
         Activity.update(activity.id, { minimized: true });
       }
     });
@@ -1090,7 +1192,9 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
             variant="contained"
             startIcon={<Icon icon="mdi:close-box-multiple-outline" />}
             onClick={() => {
-              Activity.reset();
+              // Not Activity.reset(): each activity's close guard must get a
+              // chance to intercept, e.g. to confirm discarding unsaved edits.
+              activities.forEach(it => Activity.requestClose(it.id));
               setIsOverview(false);
             }}
             sx={{
@@ -1133,9 +1237,9 @@ export const ActivityBar = React.memo(function ({
         paddingLeft: 1,
         zIndex: 10,
         position: 'relative',
-        alignItems: 'center',
+        alignItems: 'stretch',
         display: 'flex',
-        minHeight: '56px',
+        minHeight: { xs: '88px', sm: '76px', md: '64px' },
         overflowX: 'auto',
         scrollbarWidth: 'thin',
       })}
@@ -1153,17 +1257,19 @@ export const ActivityBar = React.memo(function ({
             borderTop: 0,
             borderColor: lastElement === it.id ? theme.palette.divider : 'transparent',
             background: lastElement === it.id ? theme.palette.background.default : 'transparent',
+            flexShrink: 0,
           })}
         >
           <Button
             sx={theme => ({
               height: '100%',
-              padding: '0px 5px 0 10px',
-              lineHeight: 1,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              minHeight: { xs: '80px', sm: '68px', md: '56px' },
+              minWidth: { xs: '180px', sm: '220px', md: '260px' },
+              maxWidth: { xs: '180px', sm: '220px', md: '260px' },
+              padding: '8px 8px 8px 10px',
+              lineHeight: 1.25,
               justifyContent: 'start',
+              alignItems: 'stretch',
               color: theme.palette.text.primary,
             })}
             onClick={() => {
@@ -1172,13 +1278,10 @@ export const ActivityBar = React.memo(function ({
             }}
             onMouseDown={e => {
               if (e.button === 1) {
-                Activity.close(it.id);
+                Activity.requestClose(it.id);
               }
             }}
           >
-            <Box sx={{ width: '22px', height: '22px', flexShrink: 0, marginRight: 1 }}>
-              {it.icon}
-            </Box>
             <Box
               sx={{
                 marginRight: 'auto',
@@ -1186,19 +1289,51 @@ export const ActivityBar = React.memo(function ({
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 gap: 0.5,
-                overflow: 'hidden',
+                minWidth: 0,
+                flex: 1,
               }}
             >
               {it.cluster && (
-                <Box sx={theme => ({ color: theme.palette.text.secondary })}>{it.cluster}</Box>
+                <Box
+                  sx={theme => ({
+                    color: theme.palette.text.secondary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    width: '100%',
+                    minWidth: 0,
+                  })}
+                >
+                  <Box sx={{ width: '22px', height: '22px', flexShrink: 0 }}>{it.icon}</Box>
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={it.cluster}
+                  >
+                    {it.cluster}
+                  </Box>
+                </Box>
+              )}
+              {!it.cluster && (
+                <Box sx={{ width: '22px', height: '22px', flexShrink: 0 }}>{it.icon}</Box>
               )}
               <Box
                 sx={{
-                  whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitBoxOrient: 'vertical',
+                  WebkitLineClamp: 2,
                   fontStyle: it.temporary ? 'italic' : undefined,
+                  overflowWrap: 'anywhere',
+                  width: '100%',
+                  lineHeight: 1.3,
                 }}
+                title={typeof it.title === 'string' ? it.title : undefined}
               >
                 {it.title ?? 'Something'}
               </Box>
@@ -1209,7 +1344,7 @@ export const ActivityBar = React.memo(function ({
             onClick={e => {
               e.preventDefault();
               e.stopPropagation();
-              Activity.close(it.id);
+              Activity.requestClose(it.id);
             }}
             sx={{ width: '42px', height: '100%', borderRadius: 1, flexShrink: 0 }}
             aria-label={t('Close')}

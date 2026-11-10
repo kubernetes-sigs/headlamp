@@ -142,6 +142,7 @@ config:
 | config.clusterInventory.accessProvidersConfig | object | `{}` | Experimental/alpha Cluster Inventory access providers config. Required when Cluster Inventory is enabled |
 | config.clusterInventory.plugins | list | `[]` | Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries |
 | config.clusterInventory.labelSelector | string | `"!headlamp.dev/ignore"` | Kubernetes label selector used to filter experimental/alpha ClusterProfile resources |
+| config.clusterInventory.namespaces | list | `[]` | Namespaces watched for experimental/alpha ClusterProfile resources. Empty uses the Headlamp pod namespace for in-cluster roots and the kubeconfig context namespace for kubeconfig roots; `["*"]` watches all and requires equivalent cluster-wide RBAC permissions |
 | config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
 | config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
@@ -163,6 +164,7 @@ volume or volume mount.
 | config.oidc.scopes | string | `""` | OIDC scopes to be used |
 | config.oidc.usePKCE | bool | `false` | Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow |
 | config.oidc.useCookie | bool | `false` | Enable using OIDC cookie for authentication outside of cluster |
+| config.oidc.autoLogin | bool | `false` | Enable automatic redirect to the OIDC provider |
 | config.oidc.secret.create | bool | `true` | Create OIDC secret using provided values |
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |
@@ -179,6 +181,7 @@ config:
     clientSecret: "your-client-secret"
     issuerURL: "https://your-issuer"
     scopes: "openid profile email"
+    autoLogin: true
     meUserInfoURL: "https://headlamp.example.com/oauth2/userinfo"
 ```
 

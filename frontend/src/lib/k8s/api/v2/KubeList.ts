@@ -23,6 +23,10 @@ export interface KubeList<T extends KubeObjectInterface> {
   items: T[];
   metadata: {
     resourceVersion: string;
+    /** Continuation token — present when more results exist beyond this page. */
+    continue?: string;
+    /** Approximate count of remaining items beyond this page. */
+    remainingItemCount?: number;
   };
 }
 
@@ -85,6 +89,7 @@ export const KubeList = {
     return {
       ...list,
       metadata: {
+        ...list.metadata,
         resourceVersion: update.object.metadata.resourceVersion!,
       },
       items: newItems,

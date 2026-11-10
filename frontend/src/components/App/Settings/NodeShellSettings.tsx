@@ -73,7 +73,9 @@ export default function NodeShellSettings(props: SettingsProps) {
       <NameValueTable
         rows={[
           {
-            name: <Typography id={nodeShellLabelID}>Enable Node Shell</Typography>,
+            name: (
+              <Typography id={nodeShellLabelID}>{t('translation|Enable Node Shell')}</Typography>
+            ),
             value: (
               <Switch
                 inputProps={{ 'aria-labelledby': nodeShellLabelID }}

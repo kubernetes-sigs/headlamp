@@ -178,7 +178,7 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
   ).concat(makeExtraRows(resource) || []);
 
   return (
-    <Box>
+    <Box sx={{ mt: 4 }}>
       <NameValueTable rows={mainRows} />
     </Box>
   );

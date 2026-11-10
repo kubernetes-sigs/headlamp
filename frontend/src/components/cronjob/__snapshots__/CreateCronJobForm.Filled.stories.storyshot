@@ -95,6 +95,7 @@
                         aria-autocomplete="list"
                         aria-expanded="false"
                         aria-invalid="false"
+                        aria-label="Namespace"
                         autocapitalize="none"
                         autocomplete="off"
                         class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
@@ -303,6 +304,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Schedule
+                     *
                   </span>
                   <button
                     aria-label="Cron expression, e.g. "*/5 * * * *"."
@@ -327,6 +329,7 @@
                       aria-label="Schedule"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
+                      required=""
                       type="text"
                       value="0 2 * * *"
                     />
@@ -786,7 +789,7 @@
                           for=":mock-test-id:"
                           id=":mock-test-id:"
                         >
-                          Name
+                          Name *
                         </label>
                         <div
                           class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
@@ -807,7 +810,7 @@
                               class="css-sl37lx-MuiNotchedOutlined-root"
                             >
                               <span>
-                                Name
+                                Name *
                               </span>
                             </legend>
                           </fieldset>

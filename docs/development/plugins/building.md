@@ -117,7 +117,7 @@ When deploying Headlamp with plugins, it is easier to use a container image with
 
 Some plugins already have a published container image. For Headlamp's official plugins, see this [list](https://github.com/orgs/headlamp-k8s/packages?tab=packages&q=headlamp-plugin).
 
-You can thus deploy Headlamp with an init container, such as the [Flux UI plugin image](ghcr.io/headlamp-k8s/headlamp-plugin-flux:v0.3.0):
+You can thus deploy Headlamp with an init container, such as the Flux UI plugin image (`ghcr.io/headlamp-k8s/headlamp-plugin-flux:v0.3.0`):
 
 ```yaml
 apiVersion: apps/v1

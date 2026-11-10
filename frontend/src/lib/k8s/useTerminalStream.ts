@@ -17,13 +17,9 @@
 import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
- fix-xterm-font
-import { useCallback, useEffect, useRef } from 'react';
-import { XTERM_DEFAULT_OPTIONS } from '../xterm/options';
-
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { getXtermTheme } from '../../components/common/xtermTheme';
- main
+import { XTERM_DEFAULT_OPTIONS } from '../xterm/options';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -268,12 +264,9 @@ export function useTerminalStream(options: TerminalStreamOptions) {
 
     const defaultOptions = {
       ...XTERM_DEFAULT_OPTIONS,
+      rows: 30,
       windowsMode: isWindows,
- fix-xterm-font
-
-      allowProposedApi: true,
       theme: xtermTheme,
- main
     };
 
     xtermRef.current = {

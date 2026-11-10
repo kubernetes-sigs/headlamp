@@ -34,6 +34,7 @@ import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { ClusterDialog } from '../cluster/Chooser';
 import { DialogTitle } from '../common/Dialog';
 import HeadlampLink from '../common/Link';
+import PasswordForm from '../common/PasswordForm';
 
 export default function AuthToken() {
   const history = useHistory();
@@ -117,9 +118,8 @@ export function PureAuthToken({
 }: PureAuthTokenProps) {
   const { t } = useTranslation();
   const cluster = getCluster();
-  const focusedRef = React.useCallback((node: HTMLDivElement) => {
+  const inputRef = React.useCallback((node: HTMLInputElement | null) => {
     if (node !== null) {
-      // node.setAttribute('tabindex', '-1');
       node.focus();
     }
   }, []);
@@ -136,18 +136,20 @@ export function PureAuthToken({
           <DialogContentText>
             <Trans t={t}>Please paste your authentication token.</Trans>
           </DialogContentText>
-          <TextField
-            margin="dense"
-            id="token"
-            label={t('ID token')}
-            type="password"
-            size="small"
-            variant="outlined"
-            value={token}
-            onChange={onChangeToken}
-            fullWidth
-            ref={focusedRef}
-          />
+          <PasswordForm>
+            <TextField
+              margin="dense"
+              id="token"
+              label={t('ID token')}
+              type="password"
+              size="small"
+              variant="outlined"
+              value={token}
+              onChange={onChangeToken}
+              fullWidth
+              inputRef={inputRef}
+            />
+          </PasswordForm>
         </DialogContent>
         <DialogActions>
           <Box ml={2}>

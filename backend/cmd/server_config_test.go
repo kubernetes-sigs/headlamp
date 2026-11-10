@@ -20,8 +20,10 @@ import (
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildHeadlampCFG(t *testing.T) {
@@ -29,24 +31,29 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 	t.Run("maps basic fields and splits proxy urls", func(t *testing.T) {
 		conf := &config.Config{
-			Port:                   4444,
-			InCluster:              true,
-			InClusterContextName:   "test-incluster",
-			InsecureSsl:            true,
-			PluginsDir:             "/plugins",
-			UserPluginsDir:         "/user-plugins",
-			AllowKubeconfigChanges: true,
-			WatchPluginsChanges:    false,
-			BaseURL:                "/headlamp",
-			ProxyURLs:              "http://proxy1,http://proxy2",
+			AppName:                    "Branded Headlamp",
+			Port:                       4444,
+			InCluster:                  true,
+			InClusterContextName:       "test-incluster",
+			InsecureSsl:                true,
+			KubeConfigDir:              "/kubeconfigs",
+			PluginsDir:                 "/plugins",
+			UserPluginsDir:             "/user-plugins",
+			AllowKubeconfigChanges:     true,
+			WatchPluginsChanges:        false,
+			BaseURL:                    "/headlamp",
+			ProxyURLs:                  "http://proxy1,http://proxy2",
+			ClusterInventoryNamespaces: "team-a,team-b",
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
 
+		assert.Equal(t, "Branded Headlamp", headlampCFG.AppName)
 		assert.Equal(t, uint(4444), headlampCFG.Port)
 		assert.True(t, headlampCFG.UseInCluster)
 		assert.Equal(t, "test-incluster", headlampCFG.InClusterContextName)
 		assert.True(t, headlampCFG.Insecure)
+		assert.Equal(t, "/kubeconfigs", headlampCFG.KubeConfigDir)
 		assert.Equal(t, "/plugins", headlampCFG.PluginDir)
 		assert.Equal(t, "/user-plugins", headlampCFG.UserPluginDir)
 		assert.True(t, headlampCFG.AllowKubeconfigChanges)
@@ -54,6 +61,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Equal(t, "/headlamp", headlampCFG.BaseURL)
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
+		assert.Equal(t, "team-a,team-b", headlampCFG.ClusterInventoryNamespaces)
 	})
 
 	t.Run("empty proxy urls yields empty slice", func(t *testing.T) {
@@ -62,5 +70,19 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		headlampCFG := buildHeadlampCFG(conf, store)
 
 		assert.Empty(t, headlampCFG.ProxyURLs)
+	})
+
+	t.Run("trims spaces around proxy urls and drops empty entries", func(t *testing.T) {
+		conf := &config.Config{ProxyURLs: " http://proxy1 , http://proxy2/*,,"}
+
+		headlampCFG := buildHeadlampCFG(conf, store)
+
+		assert.Equal(t, []string{"http://proxy1", "http://proxy2/*"}, headlampCFG.ProxyURLs)
+
+		c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{HeadlampCFG: headlampCFG}}
+
+		allowed, err := c.proxyURLAllowed("http://proxy2/api")
+		require.NoError(t, err)
+		assert.True(t, allowed)
 	})
 }

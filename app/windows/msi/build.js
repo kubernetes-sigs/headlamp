@@ -3,6 +3,7 @@ const { MSICreator } = require('electron-wix-msi');
 const fs = require('fs');
 const path = require('path');
 const info = require('../../package.json');
+const { expandMsiArtifactName } = require('./artifact-name');
 
 // Detect the architecture from the dist directory
 // electron-builder creates win-unpacked for x64 and win-arm64-unpacked for arm64
@@ -93,6 +94,7 @@ const APP_UUIDS = {
 const APP_UUID = APP_UUIDS[ARCH];
 
 const nameOptions = {
+  name: info.name,
   productName: info.productName,
   version: info.version,
   os: 'win',
@@ -100,11 +102,7 @@ const nameOptions = {
 };
 
 // Generate the exe name from electron-builder's artifactName
-let installerName = info.build.artifactName.split('.')[0];
-Object.entries(nameOptions).forEach(([key, value]) => {
-  installerName = installerName.replace(`\${${key}}`, value);
-});
-installerName += '.msi';
+const installerName = expandMsiArtifactName(info.build.artifactName, nameOptions);
 
 // For reference: https://github.com/felixrieseberg/electron-wix-msi#configuration
 const msiOptions = {

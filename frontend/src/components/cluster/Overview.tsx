@@ -51,26 +51,37 @@ export default function Overview() {
   const { t } = useTranslation(['translation']);
   // The overview only needs periodic snapshots for aggregate charts. Avoid long-lived
   // watches here because large clusters can stream enough events to exhaust the tab.
-  const [pods] = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const podsQuery = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const [pods] = podsQuery;
   const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
-  const noMetrics = metricsError?.status === 404;
   const noPermissions = metricsError?.status === 403;
+  const noMetrics = metricsError !== null && !noPermissions;
 
   // Process the default charts through any registered processors
   const defaultCharts: OverviewChart[] = [
     {
       id: 'cpu',
       component: () => (
-        <CpuCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        <CpuCircularChart
+          items={nodes}
+          itemsMetrics={nodeMetrics}
+          noMetrics={noMetrics}
+          metricsError={metricsError}
+        />
       ),
     },
     {
       id: 'memory',
       component: () => (
-        <MemoryCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        <MemoryCircularChart
+          items={nodes}
+          itemsMetrics={nodeMetrics}
+          noMetrics={noMetrics}
+          metricsError={metricsError}
+        />
       ),
     },
     {
@@ -79,7 +90,9 @@ export default function Overview() {
     },
     {
       id: 'nodes',
-      component: () => <NodesStatusCircleChart items={nodes} />,
+      component: () => (
+        <NodesStatusCircleChart items={nodes} pods={pods} podsLoaded={podsQuery.isSuccess} />
+      ),
     },
   ];
   const charts = chartProcessors.reduce(
@@ -130,19 +143,22 @@ function EventsSection() {
     refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS,
   });
 
-  const warningActionFilterFunc = (event: Event, search?: string) => {
-    if (!filterFunc(event, search)) {
-      return false;
-    }
+  const warningActionFilterFunc = React.useCallback(
+    (event: Event, search?: string) => {
+      if (!filterFunc(event, search)) {
+        return false;
+      }
 
-    if (isWarningEventSwitchChecked) {
-      return event.jsonData.type === 'Warning';
-    }
+      if (isWarningEventSwitchChecked) {
+        return event.jsonData.type === 'Warning';
+      }
 
-    // Return true because if we reach this point, it means we're only filtering by
-    // the default filterFunc (and its result was 'true').
-    return true;
-  };
+      // Return true because if we reach this point, it means we're only filtering by
+      // the default filterFunc (and its result was 'true').
+      return true;
+    },
+    [filterFunc, isWarningEventSwitchChecked]
+  );
 
   const numWarnings = React.useMemo(
     () => events?.filter(e => e.type === 'Warning').length ?? '?',

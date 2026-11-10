@@ -55,6 +55,8 @@ const (
 	CleanupRoutineInterval = 5 * time.Minute
 	// SecureWebSocketScheme is the secure WebSocket scheme.
 	SecureWebSocketScheme = "wss"
+	// MultiplexerProtocol is the public subprotocol selected for client connections.
+	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
 )
 
 // ConnectionState represents the current state of a connection.
@@ -214,6 +216,7 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
 		upgrader: websocket.Upgrader{
+			Subprotocols: []string{MultiplexerProtocol},
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
@@ -224,7 +227,7 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 // readServiceAccountToken reads the service account token from path, caching the value
 // per path and refreshing it when the file's mtime changes (e.g. kubelet token rotation).
 func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
-	stat, err := os.Stat(path) //nolint:gosec
+	stat, err := os.Stat(path) //nolint:gosec // Service account token file path from cluster config
 	if err != nil {
 		return "", fmt.Errorf("stat service account token file: %w", err)
 	}
@@ -237,7 +240,7 @@ func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
 		return entry.token, nil
 	}
 
-	tokenBytes, err := os.ReadFile(path) //nolint:gosec
+	tokenBytes, err := os.ReadFile(path) //nolint:gosec // Service account token file path from cluster config
 	if err != nil {
 		return "", fmt.Errorf("reading service account token file: %w", err)
 	}

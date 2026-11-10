@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import 'vitest-canvas-mock';
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from '@storybook/react';
 import { act, render as testingLibraryRender, waitFor } from '@testing-library/react';
 import { getWorker } from 'msw-storybook-addon';
@@ -106,29 +105,25 @@ function replaceUseId(node: any) {
   const attributesToReplace = [
     'id',
     'for',
+    'name',
     'aria-describedby',
     'aria-labelledby',
     'aria-controls',
- fix-xterm-font
-    'clip-path',
-
     'aria-activedescendant',
     'aria-owns',
- main
   ];
   if (node.nodeType === Node.ELEMENT_NODE) {
-    Array.from(node.attributes).forEach((attr: any) => {
+    for (const attr of node.attributes) {
       if (attributesToReplace.includes(attr.name)) {
         if (attr.value.includes(':')) {
           // Handle React useId generated IDs
           node.setAttribute(attr.name, ':mock-test-id:');
-        } else if (attr.value.includes('recharts')) {
-          // Handle recharts generated IDs and references like url(#recharts71-clip)
-          const newValue = attr.value.replace(/recharts\d+(-clip)?/g, 'recharts-id');
-          node.setAttribute(attr.name, newValue);
+        } else if (attr.name === 'id' && attr.value.includes('recharts')) {
+          // Handle recharts generated IDs
+          node.setAttribute(attr.name, 'recharts-id');
         }
       }
-    });
+    }
 
     if (node.className && typeof node.className === 'string') {
       // Replace dynamic xterm owner classes with a fixed value
@@ -138,12 +133,13 @@ function replaceUseId(node: any) {
       );
     }
 
-    if (node.tagName && node.tagName.toUpperCase() === 'STYLE') {
-      const html = node.innerHTML;
-      if (html) {
-        node.innerHTML = html
-          .replace(/xterm-dom-renderer-owner-\d+/g, 'xterm-dom-renderer-owner')
-          .replace(/blink_(underline|bar|block)_\d+/g, 'blink_$1');
+    if (node.tagName === 'STYLE' && typeof node.textContent === 'string') {
+      const normalizedTextContent = node.textContent
+        .replace(/xterm-dom-renderer-owner-\d+/g, 'xterm-dom-renderer-owner')
+        .replace(/blink_(underline|bar|block)_\d+/g, 'blink_$1');
+
+      if (normalizedTextContent !== node.textContent) {
+        node.textContent = normalizedTextContent;
       }
     }
   }
@@ -187,90 +183,99 @@ describe('Storybook Tests', () => {
       stories.forEach(({ name, story }) => {
         if (story.parameters?.storyshots?.disable) return;
 
-        test(name, async () => {
-          // Keep track of sent requests to wait for the to finish
-          let requestsSent = 0;
-          let requestsEnded = 0;
-          const worker = getWorker();
-          function onStart() {
-            requestsSent++;
-          }
-          function onEnd() {
-            requestsEnded++;
-          }
-          worker.events.on('request:start', onStart);
-          worker.events.on('request:end', onEnd);
-
-          const unhandledRequests: Array<string> = [];
-
-          function onUnhandledRequest(e: { request: Request }) {
-            unhandledRequests.push(e.request.url);
-          }
-          worker.events.on('request:unhandled', onUnhandledRequest);
-
-          act(() => {
-            previewAnnotations.queryClient.clear();
-          });
-          await act(async () => {
-            await story.run();
-          });
-
-          // There are a bunch of waterfall requests in the stories
-          // So to make sure all requests are sent we need to skip over some ticks
-          const tickSkipCount = 10;
-          for (let i = 0; i < tickSkipCount; i++) {
-            // Advance timers enough for stuff to appear
-            // but not too much that things like notifications/toasts are hidden
-            act(() => vi.advanceTimersByTime(100));
-            await act(() => new Promise(res => process.nextTick(res)));
-          }
-
-          // And now we make sure all the requests that have been sent have ended
-          await waitFor(() => {
-            if (requestsSent !== requestsEnded) {
-              throw new Error('waiting');
+        test(
+          name,
+          async () => {
+            // Keep track of sent requests to wait for the to finish
+            let requestsSent = 0;
+            let requestsEnded = 0;
+            const worker = getWorker();
+            function onStart() {
+              requestsSent++;
             }
-          });
-
-          expect(
-            unhandledRequests,
-            'MSW: intercepted a request without a matching request handler. Please create a request handler for it'
-          ).toEqual([]);
-
-          await waitFor(() => {
-            if (previewAnnotations.queryClient.isFetching()) {
-              const pendingQueries = previewAnnotations.queryClient
-                .getQueryCache()
-                .findAll({ fetchStatus: 'fetching' });
-
-              throw new Error(
-                'The react-query is still fetching following queries:\n' +
-                  pendingQueries
-                    .map((it, i) => String(i + 1) + ': ' + JSON.stringify(it.queryKey))
-                    .join('\n')
-              );
+            function onEnd() {
+              requestsEnded++;
             }
-          });
+            worker.events.on('request:start', onStart);
+            worker.events.on('request:end', onEnd);
 
-          // Cleanup listeners
-          worker.events.removeListener('request:start', onStart);
-          worker.events.removeListener('request:end', onEnd);
-          worker.events.removeListener('request:unhandled', onUnhandledRequest);
+            const unhandledRequests: Array<string> = [];
 
-          // Put snapshot next to the story
-          const snapshotPath = path.join(
-            storyDir,
-            options.snapshotsDirName,
-            `${componentName}.${name}${options.snapshotExtension}`
-          );
+            function onUnhandledRequest(e: { request: Request }) {
+              unhandledRequests.push(e.request.url);
+            }
+            worker.events.on('request:unhandled', onUnhandledRequest);
 
-          // Get rid of random id's in the ouput
-          replaceUseId(document);
+            act(() => {
+              previewAnnotations.queryClient.clear();
+            });
+            await act(async () => {
+              await story.run();
+            });
+            if (story.parameters?.storyshots?.waitForDynamicImports) {
+              await act(async () => {
+                await vi.dynamicImportSettled();
+              });
+            }
 
-          document.body.removeAttribute('style');
+            // There are a bunch of waterfall requests in the stories
+            // So to make sure all requests are sent we need to skip over some ticks
+            const tickSkipCount = 10;
+            for (let i = 0; i < tickSkipCount; i++) {
+              // Advance timers enough for stuff to appear
+              // but not too much that things like notifications/toasts are hidden
+              act(() => vi.advanceTimersByTime(100));
+              await act(() => new Promise(res => process.nextTick(res)));
+            }
 
-          await expect(document.body).toMatchFileSnapshot(snapshotPath);
-        });
+            // And now we make sure all the requests that have been sent have ended
+            await waitFor(() => {
+              if (requestsSent !== requestsEnded) {
+                throw new Error('waiting');
+              }
+            });
+
+            expect(
+              unhandledRequests,
+              'MSW: intercepted a request without a matching request handler. Please create a request handler for it'
+            ).toEqual([]);
+
+            await waitFor(() => {
+              if (previewAnnotations.queryClient.isFetching()) {
+                const pendingQueries = previewAnnotations.queryClient
+                  .getQueryCache()
+                  .findAll({ fetchStatus: 'fetching' });
+
+                throw new Error(
+                  'The react-query is still fetching following queries:\n' +
+                    pendingQueries
+                      .map((it, i) => String(i + 1) + ': ' + JSON.stringify(it.queryKey))
+                      .join('\n')
+                );
+              }
+            });
+
+            // Cleanup listeners
+            worker.events.removeListener('request:start', onStart);
+            worker.events.removeListener('request:end', onEnd);
+            worker.events.removeListener('request:unhandled', onUnhandledRequest);
+
+            // Put snapshot next to the story
+            const snapshotPath = path.join(
+              storyDir,
+              options.snapshotsDirName,
+              `${componentName}.${name}${options.snapshotExtension}`
+            );
+
+            // Get rid of random id's in the ouput
+            replaceUseId(document);
+
+            document.body.removeAttribute('style');
+
+            await expect(document.body).toMatchFileSnapshot(snapshotPath);
+          },
+          story.parameters?.storyshots?.timeout
+        );
       });
     });
   });

@@ -89,7 +89,6 @@ class Service extends KubeObject<KubeService> {
       ports: [
         {
           name: '',
-          nodePort: 30000,
           port: 80,
           protocol: 'TCP',
           targetPort: 80,
@@ -110,14 +109,31 @@ class Service extends KubeObject<KubeService> {
     return this.jsonData.status;
   }
 
+  /**
+   * Returns the external addresses of this Service, following the EXTERNAL-IP
+   * column of `kubectl get service`:
+   * - ExternalName: the external name
+   * - LoadBalancer with no ingress and no externalIPs yet: '<pending>'
+   * - otherwise: the load balancer ingress addresses plus spec.externalIPs
+   */
   getExternalAddresses() {
-    return _.uniq(
+    if (this.spec?.type === 'ExternalName') {
+      return this.spec.externalName || '';
+    }
+
+    const addresses = _.uniq(
       (
         this.status?.loadBalancer?.ingress?.map(
           (ingress: KubeLoadBalancerIngress) => ingress.hostname || ingress.ip
         ) || []
-      ).concat(this.spec.externalIPs || [])
-    ).join(', ');
+      ).concat(this.spec?.externalIPs || [])
+    );
+
+    if (addresses.length === 0 && this.spec?.type === 'LoadBalancer') {
+      return '<pending>';
+    }
+
+    return addresses.join(', ');
   }
 
   getPorts() {

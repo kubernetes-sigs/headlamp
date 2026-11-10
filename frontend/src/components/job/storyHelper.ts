@@ -119,3 +119,27 @@ export const JOB_RUNNING: KubeObjectInterface = {
     startTime: '2023-07-28T08:00:00Z',
   },
 };
+
+/** A Job that has been suspended. */
+export const JOB_SUSPENDED: KubeObjectInterface = {
+  ...JOB_RUNNING,
+  metadata: {
+    ...JOB_RUNNING.metadata,
+    uid: 'job-suspended-uid',
+  },
+  spec: {
+    ...JOB_RUNNING.spec,
+    suspend: true,
+  },
+  status: {
+    conditions: [
+      {
+        lastProbeTime: '2023-07-28T08:01:00Z',
+        lastTransitionTime: '2023-07-28T08:01:00Z',
+        status: 'True',
+        type: 'Suspended',
+      },
+    ],
+    startTime: '2023-07-28T08:00:00Z',
+  },
+};

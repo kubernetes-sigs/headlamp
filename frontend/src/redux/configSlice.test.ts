@@ -50,6 +50,14 @@ describe('configSlice', () => {
     expect(nextState.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should handle setConfig with oidcAutoLogin', () => {
+    const clusters: ConfigState['clusters'] = {
+      'cluster-1': { name: 'cluster-1' } as Cluster,
+    };
+    const nextState = configReducer(initialState, setConfig({ clusters, oidcAutoLogin: true }));
+    expect(nextState.oidcAutoLogin).toBe(true);
+  });
+
   it('should handle setConfig with defaultPodDebugImage', () => {
     const clusters: ConfigState['clusters'] = {
       'cluster-1': { name: 'cluster-1' } as Cluster,
@@ -190,6 +198,18 @@ describe('configSlice', () => {
       const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
       expect(storedSettings.tableRowsPerPageOptions).toEqual(defaultTableRowsPerPageOptions);
       expect(storedSettings.timezone).toEqual(initialState.settings.timezone);
+    });
+
+    it('should handle setAppSettings with expandLargeGraph and update localStorage', () => {
+      const settings: Partial<ConfigState['settings']> = {
+        expandLargeGraph: true,
+      };
+      const nextState = configReducer(initialState, setAppSettings(settings));
+
+      expect(nextState.settings.expandLargeGraph).toBe(true);
+
+      const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+      expect(storedSettings.expandLargeGraph).toBe(true);
     });
   });
 

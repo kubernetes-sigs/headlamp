@@ -14,7 +14,7 @@ See [platforms](../platforms.md) to find out which browsers, OS and flavors of K
 
 These are the required dependencies to get started. Other dependencies are pulled in by the golang or node package managers (see frontend/package.json, app/package.json, backend/go.mod and Dockerfile).
 
-- [Node.js](https://nodejs.org/en/download/) >= 22.0.0 (LTS recommended). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
+- [Node.js](https://nodejs.org/en/download/) >= 22.12.0 (LTS recommended). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
 - [npm](https://www.npmjs.com/) (>= 11.0.0)
 - [Go](https://go.dev/doc/install) (>= 1.25.9)
 - [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md)).
@@ -46,6 +46,26 @@ and
 ```bash
 npm run frontend:build
 ```
+
+## Container image digests
+
+`npm run image:verify-image-digests` checks the pinned image itself for a
+multi-platform index supporting Linux amd64 and arm64. An upstream tag moving
+does not invalidate an existing pin.
+
+`npm run image:update-image-digests` resolves the existing tags in `Dockerfile`
+and `Dockerfile.plugins`, validates their indexes, and updates only the digests.
+Both commands require Docker Buildx and registry access.
+
+The existing weekly Docker Dependabot job groups image updates into PRs,
+including digest-only changes when a tag has not changed. Dependabot is the
+single periodic updater; use the manual command above only when needed.
+
+Container CI validates pins when Dockerfile digest lines change. The **Test image
+digest tooling** workflow runs offline unit tests only when the digest tool,
+its tests, or that workflow changes. Neither requires unchanged pins to follow a
+moving upstream tag, and there is no separate scheduled updater or bot-token
+requirement for digest maintenance.
 
 ## Run the code
 
@@ -79,6 +99,10 @@ Example:
 ```bash
 npm run backend:start -- --log-level warn
 ```
+
+### Backend telemetry
+
+Headlamp supports OpenTelemetry tracing and Prometheus metrics on the backend. See the [Telemetry guide](./telemetry.md) for how to enable and use them locally or in-cluster.
 
 ## Generate API documentation
 

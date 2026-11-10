@@ -18,9 +18,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { TestContext } from '../../../test';
 import PortForward, { PORT_FORWARD_STOP_STATUS, PORT_FORWARDS_STORAGE_KEY } from './PortForward';
 
-const { mockListPortForward, mockStopOrDeletePortForward } = vi.hoisted(() => ({
+const { mockListPortForward, mockStopOrDeletePortForward, mockUsePodList } = vi.hoisted(() => ({
   mockListPortForward: vi.fn(),
   mockStopOrDeletePortForward: vi.fn(),
+  mockUsePodList: vi.fn<(options: unknown) => [never[], null]>(() => [[], null]),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -36,7 +37,7 @@ vi.mock('../../../lib/k8s/api/v1/portForward', () => ({
   stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
 }));
 vi.mock('../../../lib/k8s/pod', () => ({
-  default: { useList: () => [[], null] },
+  default: { useList: (options: any) => mockUsePodList(options) },
 }));
 vi.mock('../../portforward/PortForwardStartDialog', () => ({ default: () => null }));
 
@@ -75,6 +76,27 @@ describe('PortForward stop handler', () => {
     localStorage.clear();
     vi.clearAllMocks();
     mockListPortForward.mockResolvedValue([runningPortForward]);
+  });
+
+  it('loads service pods from the resource cluster', () => {
+    const service = {
+      kind: 'Service',
+      cluster: 'project-cluster',
+      metadata: { name: 'my-service', namespace: 'default' },
+      jsonData: { spec: { selector: { app: 'my-service' } } },
+    };
+
+    render(
+      <TestContext>
+        <PortForward containerPort={80} resource={service as any} />
+      </TestContext>
+    );
+
+    expect(mockUsePodList).toHaveBeenCalledWith({
+      namespace: 'default',
+      labelSelector: 'app=my-service',
+      cluster: 'project-cluster',
+    });
   });
 
   it('shows Stop button when a port forward is running', async () => {

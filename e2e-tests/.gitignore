@@ -1,7 +1,9 @@
 node_modules/
+/.env
 /test-results/
 /playwright-report/
 /playwright/.cache/
+/pomerium/generated/
 /test-results/
 /playwright-report/
 /blob-report/

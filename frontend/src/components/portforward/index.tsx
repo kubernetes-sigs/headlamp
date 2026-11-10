@@ -35,6 +35,7 @@ import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import {
+  PORT_FORWARD_RECONNECTING_STATUS,
   PORT_FORWARD_RUNNING_STATUS,
   PORT_FORWARD_STOP_STATUS,
   PORT_FORWARDS_STORAGE_KEY,
@@ -58,15 +59,14 @@ export default function PortForwardingList() {
   const portForwardInActionRef = React.useRef(portForwardInAction);
   const { enqueueSnackbar } = useSnackbar();
   const cluster = getCluster();
-  const { t, i18n } = useTranslation(['translation', 'glossary']);
+  const { t } = useTranslation(['translation', 'glossary']);
   const optionsTranslated = React.useMemo(
     () => ({
       [PortForwardAction.Start]: t('translation|Start'),
       [PortForwardAction.Stop]: t('translation|Stop'),
       [PortForwardAction.Delete]: t('translation|Delete'),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [i18n.language]
+    [t]
   );
   const options = Object.keys(optionsTranslated) as (keyof typeof optionsTranslated)[];
 
@@ -242,7 +242,10 @@ export default function PortForwardingList() {
       if (portforward.error) {
         return option === PortForwardAction.Delete;
       }
-      if (portforward.status === PORT_FORWARD_RUNNING_STATUS) {
+      if (
+        portforward.status === PORT_FORWARD_RUNNING_STATUS ||
+        portforward.status === PORT_FORWARD_RECONNECTING_STATUS
+      ) {
         return option !== PortForwardAction.Start;
       } else if (portforward.status === PORT_FORWARD_STOP_STATUS) {
         return option !== PortForwardAction.Stop;
@@ -283,6 +286,9 @@ export default function PortForwardingList() {
     const error = portforward.error;
     if (error) {
       return <StatusLabel status="error">{t('translation|Error')}</StatusLabel>;
+    }
+    if (portforward.status === PORT_FORWARD_RECONNECTING_STATUS) {
+      return <StatusLabel status="warning">{t('translation|Reconnecting')}</StatusLabel>;
     }
     return (
       <StatusLabel status={portforward.status === PORT_FORWARD_RUNNING_STATUS ? 'success' : ''}>

@@ -15,7 +15,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
@@ -80,6 +80,12 @@ export interface QueryListResponse<DataType, ItemType, ErrorType>
    */
   clusterResults?: Record<string, QueryListResponse<DataType, ItemType, ErrorType>>;
   errors: ApiError[] | null;
+  /** True when at least one cluster/namespace has more items available via pagination. */
+  hasMore?: boolean;
+  /** Approximate total count of items not yet fetched across all results. */
+  remainingItemCount?: number;
+  /** Fetch and append the next page of results. Only present when hasMore is true. */
+  loadMore?: () => Promise<void>;
 }
 
 export const kubeObjectQueryKey = ({
@@ -105,6 +111,7 @@ export function useKubeObject<K extends KubeObject>({
   name,
   cluster = getCluster() ?? '',
   queryParams,
+  initialData,
 }: {
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -115,6 +122,12 @@ export function useKubeObject<K extends KubeObject>({
   /** Cluster name */
   cluster?: string;
   queryParams?: QueryParameters;
+  /**
+   * Seed data to use before the query resolves. Must be reference-stable across
+   * renders (memoize it or capture it once) — an object rebuilt on every render
+   * will cause repeated re-renders.
+   */
+  initialData?: K;
 }): [K | null, ApiError | null] & QueryResponse<K, ApiError> {
   type Instance = K;
   const { endpoint, error: endpointError } = useEndpoints(
@@ -139,6 +152,7 @@ export function useKubeObject<K extends KubeObject>({
   );
 
   const client = useQueryClient();
+  const [seededInitialData, setSeededInitialData] = useState<K | null>(null);
   const query = useQuery<Instance | null, ApiError>({
     enabled: !!endpoint,
     placeholderData: null,
@@ -157,15 +171,30 @@ export function useKubeObject<K extends KubeObject>({
     },
   });
 
-  const data: Instance | null = query.error ? null : query.data ?? null;
+  useLayoutEffect(() => {
+    if (!endpoint || !initialData) {
+      return;
+    }
+
+    client.setQueryData(queryKey, initialData);
+    setSeededInitialData(initialData);
+  }, [client, endpoint, initialData, queryKey]);
+
+  const queryData: Instance | null = query.error ? null : query.data ?? null;
+  const data = initialData && seededInitialData !== initialData ? initialData : queryData;
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
       if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+        // Rebuild with the cluster this hook was asked for, the same as the
+        // initial fetch above. Without it the object falls back to getCluster(),
+        // which reads the URL — wrong whenever the caller passed an explicit
+        // cluster (details panels on the resource map) or the URL holds several
+        // (`/c/a+b` resolves to just the first).
+        client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
       }
     },
-    [client, queryKey, kubeObjectClass]
+    [client, queryKey, kubeObjectClass, cluster]
   );
 
   const connectionsRequests = useMemo(() => {

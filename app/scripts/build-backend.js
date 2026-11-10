@@ -13,6 +13,7 @@ const { execSync } = require('child_process');
  * Known mappings:
  * - x64 -> amd64
  * - armv7l -> arm
+ * - ia32 -> 386
  * - arm64 -> (passthrough; already valid for GOARCH)
  *
  * Unknown values are passed through unchanged so existing/custom workflows do not
@@ -25,12 +26,19 @@ function mapElectronArchToGoArch(electronArch) {
   const archMap = {
     x64: 'amd64',
     armv7l: 'arm',
+    ia32: '386',
   };
 
   return archMap[electronArch] || electronArch;
 }
 
+exports.mapElectronArchToGoArch = mapElectronArchToGoArch;
+
 exports.default = async context => {
+  const startedAt = Date.now();
+  console.log(
+    `[build-timing] Electron backend hook started at ${new Date(startedAt).toISOString()}`
+  );
   const arch = mapElectronArchToGoArch(context.arch);
 
   let osName = '';
@@ -53,4 +61,9 @@ exports.default = async context => {
     },
     cwd: '..',
   });
+  console.log(
+    `[build-timing] Electron backend hook completed in ${((Date.now() - startedAt) / 1000).toFixed(
+      3
+    )}s`
+  );
 };

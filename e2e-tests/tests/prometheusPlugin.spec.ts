@@ -57,8 +57,7 @@ test('prometheus plugin has settings', async ({ page }) => {
   // the section header renders the plugin name as a heading.
   await expect(
     page
-      .locator('h2, h3')
-      .filter({ hasText: /prometheus/i })
+      .getByRole('heading', { name: /prometheus/i })
       .first()
   ).toBeVisible();
 

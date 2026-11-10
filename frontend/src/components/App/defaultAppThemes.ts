@@ -42,6 +42,7 @@ export const darkTheme: AppTheme = {
   base: 'dark',
   primary: '#ffffff',
   secondary: '#1b1a19',
+  secondaryContrastText: '#faf9f8',
   text: {
     primary: '#faf9f8',
   },
@@ -98,6 +99,7 @@ export const lightsOutTheme: AppTheme = {
   base: 'dark',
   primary: '#1f6feb',
   secondary: '#212830',
+  secondaryContrastText: '#f0f6fc',
   text: {
     primary: '#f0f6fc',
   },

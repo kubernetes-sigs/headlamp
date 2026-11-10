@@ -15,9 +15,15 @@
  */
 
 import { createTheme } from '@mui/material/styles';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import ThemeProviderNexti18n from './ThemeProviderNexti18n';
+
+const mockI18n = vi.hoisted(() => ({
+  language: undefined as string | undefined,
+  on: vi.fn(),
+  off: vi.fn(),
+}));
 
 vi.mock('react-i18next', async () => {
   const actual = await vi.importActual<typeof import('react-i18next')>('react-i18next');
@@ -25,17 +31,22 @@ vi.mock('react-i18next', async () => {
   return {
     ...actual,
     useTranslation: () => ({
-      i18n: {
-        language: undefined,
-        on: vi.fn(),
-        off: vi.fn(),
-      },
+      i18n: mockI18n,
       ready: true,
     }),
   };
 });
 
 describe('ThemeProviderNexti18n', () => {
+  beforeEach(() => {
+    mockI18n.language = undefined;
+    mockI18n.on.mockReset();
+    mockI18n.off.mockReset();
+    document.documentElement.lang = '';
+    document.documentElement.dir = '';
+    document.body.dir = '';
+  });
+
   it('renders children when i18n language is undefined', () => {
     render(
       <ThemeProviderNexti18n theme={createTheme()}>
@@ -44,5 +55,39 @@ describe('ThemeProviderNexti18n', () => {
     );
 
     expect(screen.getByText('content')).toBeInTheDocument();
+  });
+
+  it('applies the initial language and direction', () => {
+    mockI18n.language = 'ar';
+
+    render(
+      <ThemeProviderNexti18n theme={createTheme()}>
+        <div>content</div>
+      </ThemeProviderNexti18n>
+    );
+
+    expect(document.documentElement).toHaveAttribute('lang', 'ar');
+    expect(document.documentElement).toHaveAttribute('dir', 'rtl');
+    expect(document.body).toHaveAttribute('dir', 'rtl');
+  });
+
+  it('updates the document for language changes and removes its listener', () => {
+    const { unmount } = render(
+      <ThemeProviderNexti18n theme={createTheme()}>
+        <div>content</div>
+      </ThemeProviderNexti18n>
+    );
+    const languageChanged = mockI18n.on.mock.calls.find(
+      ([eventName]) => eventName === 'languageChanged'
+    )?.[1];
+
+    act(() => languageChanged('unknown'));
+
+    expect(document.documentElement).toHaveAttribute('lang', 'unknown');
+    expect(document.documentElement).toHaveAttribute('dir', 'ltr');
+    expect(document.body).toHaveAttribute('dir', 'ltr');
+
+    unmount();
+    expect(mockI18n.off).toHaveBeenCalledWith('languageChanged', languageChanged);
   });
 });

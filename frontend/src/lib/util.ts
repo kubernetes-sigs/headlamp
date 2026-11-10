@@ -266,14 +266,14 @@ export function getPercentStr(value: number, total: number) {
 }
 
 export function getReadyReplicas(item: Workload) {
-  return item.status.readyReplicas || item.status.numberReady || 0;
+  return item.status?.readyReplicas || item.status?.numberReady || 0;
 }
 
 export function getTotalReplicas(item: Workload) {
   return (
     item.spec.replicas ||
-    item.status.currentNumberScheduled ||
-    item.status.desiredNumberScheduled ||
+    item.status?.desiredNumberScheduled ||
+    item.status?.currentNumberScheduled ||
     0
   );
 }
@@ -323,12 +323,26 @@ export function useFilterFunc<
 >(matchCriteria?: string[]) {
   const filter = useTypedSelector(state => state.filter);
 
-  return (item: T, search?: string) => {
-    if (item?.metadata) {
-      return filterResource(item as KubeObjectInterface | KubeEvent, filter, search, matchCriteria);
-    }
-    return filterGeneric<T>(item, search, matchCriteria);
-  };
+  // Callers pass the criteria as an inline array, so the memo keys on their content.
+  const criteriaKey = matchCriteria && JSON.stringify(matchCriteria);
+
+  // Tables memoize their rows on this function, so a new identity per render would throw away
+  // everything derived from those rows, filter dropdown options included.
+  return React.useMemo(
+    () => (item: T, search?: string) => {
+      if (item?.metadata) {
+        return filterResource(
+          item as KubeObjectInterface | KubeEvent,
+          filter,
+          search,
+          matchCriteria
+        );
+      }
+      return filterGeneric<T>(item, search, matchCriteria);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filter, criteriaKey]
+  );
 }
 
 export function useErrorState(dependentSetter?: (...args: any) => void) {
@@ -527,7 +541,7 @@ export function normalizeUnit(resourceType: string, quantity: string) {
     case 'cpu':
       normalizedQuantity = quantity?.endsWith('m')
         ? `${Number(quantity.substring(0, quantity.length - 1)) / 1000}`
-        : `${quantity}`;
+        : `${(quantity ?? '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
       if (normalizedQuantity === '1') {
         normalizedQuantity = normalizedQuantity + ' ' + 'core';
       } else {
@@ -583,7 +597,7 @@ export function normalizeUnit(resourceType: string, quantity: string) {
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
         const k = 1000;
         const dm = 2;
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const i = Math.max(0, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k)));
         normalizedQuantity = parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
       }
       break;

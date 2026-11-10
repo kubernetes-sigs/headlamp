@@ -16,6 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { baseMocks } from '../../../.storybook/baseMocks';
 import { API_BASE, TestContext, TestContextProps } from '../../test';
 import CustomResourceDefinitionDetails from './Details';
 import CustomResourceDefinitionList from './List';
@@ -34,6 +35,7 @@ export default {
   parameters: {
     msw: {
       handlers: {
+        base: null,
         storyBase: [
           http.get(
             `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`,
@@ -61,6 +63,7 @@ export default {
               items: mockCRList,
             })
           ),
+          ...baseMocks,
         ],
       },
     },

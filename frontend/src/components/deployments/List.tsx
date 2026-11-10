@@ -21,6 +21,7 @@ import Deployment from '../../lib/k8s/deployment';
 import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { sortByPods } from './sortByPods';
 
 export default function DeploymentsList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -29,18 +30,6 @@ export default function DeploymentsList() {
     const { replicas, availableReplicas } = deployment.status;
 
     return `${availableReplicas || 0}/${replicas || 0}`;
-  }
-
-  function sortByPods(d1: Deployment, d2: Deployment) {
-    const { replicas: r1, availableReplicas: avail1 } = d1.status;
-    const { replicas: r2, availableReplicas: avail2 } = d2.status;
-
-    const availSorted = avail1 - avail2;
-    if (availSorted === 0) {
-      return r1 - r2;
-    }
-
-    return availSorted;
   }
 
   function renderConditions(deployment: Deployment) {
@@ -94,7 +83,7 @@ export default function DeploymentsList() {
           id: 'pods',
           label: t('Pods'),
           disableFiltering: true,
-          getValue: deployment => deployment.status.availableReplicas,
+          getValue: deployment => deployment.status.availableReplicas ?? 0,
           render: deployment => renderPods(deployment),
           sort: sortByPods,
           gridTemplate: 'min-content',

@@ -65,9 +65,28 @@ export default function ActionButton({
   iconProps,
   buttonStyle = 'action',
 }: ActionButtonProps) {
+  const preventDisabledActivation = (event: React.SyntheticEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const isDisabled = !!iconButtonProps?.disabled;
+
   if (buttonStyle === 'menu') {
     return (
-      <MenuItem onClick={onClick}>
+      <MenuItem
+        disabled={isDisabled}
+        onClick={isDisabled ? preventDisabledActivation : onClick}
+        onKeyDown={
+          isDisabled
+            ? event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  preventDisabledActivation(event);
+                }
+              }
+            : undefined
+        }
+      >
         <ListItemIcon>
           <Icon icon={icon} color={color} width={width} {...iconProps} />
         </ListItemIcon>
@@ -75,17 +94,40 @@ export default function ActionButton({
       </MenuItem>
     );
   }
+  const buttonLabel = iconButtonProps?.['aria-label'] ?? description;
+  const button = (
+    <IconButton
+      aria-label={buttonLabel}
+      onClick={onClick}
+      edge={edge}
+      size="medium"
+      {...iconButtonProps}
+    >
+      <Icon icon={icon} color={color} width={width} {...iconProps} />
+    </IconButton>
+  );
+
   return (
     <Tooltip title={longDescription || description}>
-      <IconButton
-        aria-label={description}
-        onClick={onClick}
-        edge={edge}
-        size="medium"
-        {...iconButtonProps}
-      >
-        <Icon icon={icon} color={color} width={width} {...iconProps} />
-      </IconButton>
+      {isDisabled ? (
+        <span
+          role="button"
+          aria-label={buttonLabel}
+          aria-disabled="true"
+          tabIndex={0}
+          onClick={preventDisabledActivation}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              preventDisabledActivation(event);
+            }
+          }}
+          style={{ display: 'inline-flex' }}
+        >
+          {React.cloneElement(button, { 'aria-hidden': true, tabIndex: -1 })}
+        </span>
+      ) : (
+        button
+      )}
     </Tooltip>
   );
 }

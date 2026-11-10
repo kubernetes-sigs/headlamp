@@ -95,6 +95,7 @@
                         aria-autocomplete="list"
                         aria-expanded="false"
                         aria-invalid="false"
+                        aria-label="Namespace"
                         autocapitalize="none"
                         autocomplete="off"
                         class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
@@ -670,7 +671,7 @@
                           for=":mock-test-id:"
                           id=":mock-test-id:"
                         >
-                          Name
+                          Name *
                         </label>
                         <div
                           class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
@@ -691,7 +692,7 @@
                               class="css-sl37lx-MuiNotchedOutlined-root"
                             >
                               <span>
-                                Name
+                                Name *
                               </span>
                             </legend>
                           </fieldset>

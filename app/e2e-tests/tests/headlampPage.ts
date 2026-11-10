@@ -15,37 +15,38 @@
  */
 
 /// <reference types="node" />
+import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
 export class HeadlampPage {
   constructor(private page: Page) {}
 
+  async a11y() {
+    // Legacy mode runs axe.run() directly on this page instead of the default
+    // runPartial/finishRun flow, which needs to open a blank page via
+    // context.newPage(). Electron's CDP implementation does not support
+    // Target.createTarget, so that call fails with
+    // "Protocol error (Target.createTarget): Not supported" when this page
+    // belongs to an Electron BrowserWindow (PLAYWRIGHT_TEST_MODE=app). Only
+    // enable it there: legacy mode disables cross-origin iframe scanning, a
+    // coverage loss this page (a plain browser tab) doesn't need to take.
+    const axeBuilder = new AxeBuilder({ page: this.page });
+    if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
+      axeBuilder.setLegacyMode(true);
+    }
+    const accessibilityResults = await axeBuilder.analyze();
+    const violations = accessibilityResults.violations.filter(
+      v => v.impact === 'critical' || v.impact === 'serious'
+    );
+    const summary = violations.map(v => `[${v.id}] (${v.impact}): ${v.help}`).join('\n');
+    expect(
+      violations,
+      `Found ${violations.length} critical/serious accessibility violations:\n${summary}`
+    ).toEqual([]);
+  }
+
   async authenticate() {
-    // If we are running in cluster, we need to authenticate
-    if (process.env.PLAYWRIGHT_TEST_MODE === 'app' || process.env.PLAYWRIGHT_TEST_MODE === 'web') {
-      await this.startFromMainPage();
-      return;
-    }
-
-    // Go to the authentication page
-    const url = process.env.HEADLAMP_TEST_URL;
-    await this.page.goto(url || '/');
-    await this.page.waitForSelector('h1:has-text("Authentication")');
-
-    // Check to see if already authenticated
-    if (await this.page.isVisible('button:has-text("Authenticate")')) {
-      const token = process.env.HEADLAMP_TOKEN || '';
-      this.hasToken(token);
-
-      // Fill in the token
-      await this.page.locator('#token').fill(token);
-
-      // Click on the "Authenticate" button and wait for navigation
-      await Promise.all([
-        this.page.waitForNavigation(),
-        this.page.click('button:has-text("Authenticate")'),
-      ]);
-    }
+    await this.startFromMainPage();
   }
 
   async hasURLContaining(pattern: RegExp) {
@@ -54,10 +55,6 @@ export class HeadlampPage {
 
   async hasTitleContaining(pattern: RegExp) {
     await expect(this.page).toHaveTitle(pattern);
-  }
-
-  async hasToken(token: string) {
-    expect(token).not.toBe('');
   }
 
   async hasNetworkTab() {
@@ -85,11 +82,6 @@ export class HeadlampPage {
   async startFromMainPage() {
     await this.page.waitForLoadState('load');
 
-    // note: backend must be running with connected frontend for web mode
-    if (process.env.PLAYWRIGHT_TEST_MODE === 'web') {
-      await this.page.goto('localhost:3000');
-    }
-
     await this.page.waitForTimeout(5000);
     const currentURL = this.page.url();
 
@@ -110,11 +102,13 @@ export class HeadlampPage {
 
   async logout() {
     // Click on the account button to open the user menu
-    await this.page.click('button[aria-label="Account of current user"]');
+    await this.page.click('button[aria-controls="primary-user-menu"]');
 
     // Wait for the logout option to be visible and click on it
-    await this.page.waitForSelector('a.MuiMenuItem-root:has-text("Log out")');
-    await this.page.click('a.MuiMenuItem-root:has-text("Log out")');
+    // Use .first() instead of a text match to avoid locale-dependent failures on non-English runs
+    const logoutMenuItem = this.page.locator('#primary-user-menu').getByRole('menuitem').first();
+    await logoutMenuItem.waitFor({ state: 'visible' });
+    await logoutMenuItem.click();
     await this.page.waitForLoadState('load');
 
     // Expects the URL to contain c/main/token

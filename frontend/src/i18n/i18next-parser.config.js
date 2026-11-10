@@ -15,8 +15,8 @@
  */
 
 import fs from 'fs';
+import { fileURLToPath } from 'node:url';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import sharedConfig from './i18nextSharedConfig.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

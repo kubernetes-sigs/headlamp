@@ -15,6 +15,9 @@
  */
 
 import { expect, test } from '@playwright/test';
+import { execSync } from 'child_process';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
@@ -23,6 +26,21 @@ import { HeadlampPage } from './headlampPage';
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
+
+// Renaming a cluster persists a headlamp_info customName extension into the
+// kubeconfig. Run against a throwaway copy so the developer's real kubeconfig
+// is never modified and the suite stays repeatable.
+const ISOLATED_KUBECONFIG = path.join(os.tmpdir(), `headlamp-e2e-rename-${process.pid}.kubeconfig`);
+
+function writeIsolatedKubeconfig(context: string, target: string): void {
+  fs.writeFileSync(
+    target,
+    execSync(`kubectl --context ${context} config view --minify --raw --flatten`, {
+      encoding: 'utf8',
+    }),
+    { mode: 0o600 }
+  );
+}
 let electronApp;
 let electronPage: Page;
 
@@ -43,7 +61,7 @@ async function navigateToSettings(page: Page) {
 
 async function verifyClusterName(page: Page, expectedName: string) {
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.locator('a[href="#/settings/cluster"]').click();
+  await page.locator('a[href$="#/settings/cluster"]').click();
   // Check the cluster name in the cluster selector combobox
   await expect(page.locator(`input[placeholder="${expectedName}"]`)).toBeVisible();
 }
@@ -55,14 +73,17 @@ async function renameCluster(
   confirm: boolean = true
 ) {
   await page.fill(`input[placeholder="${fromName}"]`, toName);
-  await page.getByRole('button', { name: 'Apply' }).click();
-  await page.getByRole('button', { name: confirm ? 'Yes' : 'No' }).click();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Change name', exact: true });
+  await dialog.getByRole('button', { name: confirm ? 'Yes' : 'No', exact: true }).click();
   await page.waitForLoadState('load');
-  await page.locator(`a[href="#/c/${toName}/"]`).click();
+  await page.getByRole('link', { name: toName, exact: true }).click();
 }
 
 // Setup
 test.beforeAll(async () => {
+  writeIsolatedKubeconfig(TEST_CONFIG.originalName, ISOLATED_KUBECONFIG);
+
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
@@ -71,39 +92,43 @@ test.beforeAll(async () => {
       ...process.env,
       NODE_ENV: 'development',
       ELECTRON_DEV: 'true',
+      KUBECONFIG: ISOLATED_KUBECONFIG,
     },
   });
 
   electronPage = await electronApp.firstWindow();
 });
 
-test.beforeEach(async ({ page }) => {
-  page.close();
+// The app holds a single-instance lock, so it must be closed or the next spec
+// file's launch is denied the lock and quits immediately.
+test.afterAll(async () => {
+  await electronApp?.close();
+  fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
 });
 
 // Tests
 test.describe('Cluster rename functionality', () => {
-  test.beforeEach(() => {
-    test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'These tests only run in app mode');
-  });
-
-  test('should rename cluster and verify changes', async ({ page: browserPage }) => {
-    const page = process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
+  test('should rename cluster and verify changes', async () => {
+    const page = electronPage;
     const headlampPage = new HeadlampPage(page);
     await headlampPage.authenticate();
+
+    await headlampPage.a11y();
 
     await navigateToSettings(page);
     await expect(page.locator('h2')).toContainText('Cluster Settings');
 
     // Test invalid inputs
     await page.fill('input[placeholder="minikube"]', TEST_CONFIG.invalidName);
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
 
     await page.fill('input[placeholder="minikube"]', '');
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
 
     // Test successful rename
     await renameCluster(page, TEST_CONFIG.originalName, TEST_CONFIG.newName);
     await verifyClusterName(page, TEST_CONFIG.newName);
+    // No need to rename back: the rename is written to ISOLATED_KUBECONFIG,
+    // which is discarded in afterAll.
   });
 });

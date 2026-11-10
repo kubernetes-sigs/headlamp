@@ -43,8 +43,12 @@ export const supportedLanguages: {
     label: 'Русский',
     dir: 'ltr',
   },
-  pt: {
-    label: 'Português',
+  'pt-PT': {
+    label: 'Português (Portugal)',
+    dir: 'ltr',
+  },
+  'pt-BR': {
+    label: 'Português (Brasil)',
     dir: 'ltr',
   },
   de: {
@@ -95,6 +99,34 @@ export const supportedLanguages: {
     label: 'עברית',
     dir: 'rtl',
   },
+  cs: {
+    label: 'Čeština',
+    dir: 'ltr',
+  },
+  hu: {
+    label: 'Magyar',
+    dir: 'ltr',
+  },
+  id: {
+    label: 'Bahasa Indonesia',
+    dir: 'ltr',
+  },
+  nl: {
+    label: 'Nederlands',
+    dir: 'ltr',
+  },
+  pl: {
+    label: 'Polski',
+    dir: 'ltr',
+  },
+  sv: {
+    label: 'Svenska',
+    dir: 'ltr',
+  },
+  tr: {
+    label: 'Türkçe',
+    dir: 'ltr',
+  },
 };
 
 export const isRTL = (lang: string) => supportedLanguages[lang]?.dir === 'rtl';
@@ -127,7 +159,8 @@ i18next
     debug: import.meta.env.DEV && !import.meta.env.UNDER_TEST,
     ns: sharedConfig.namespaces,
     defaultNS: sharedConfig.defaultNamespace,
-    fallbackLng: 'en',
+    // Keeps the previously stored region-less "pt" preference on Portuguese.
+    fallbackLng: { pt: ['pt-PT', 'en'], default: ['en'] },
     contextSeparator: sharedConfig.contextSeparator,
     supportedLngs: Object.keys(supportedLanguages),
     // nonExplicitSupportedLngs: true,

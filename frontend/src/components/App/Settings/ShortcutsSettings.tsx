@@ -149,7 +149,7 @@ function ShortcutEditor({
           />
           {conflict && (
             <Typography variant="caption" color="error">
-              {t('Conflicts with: {{name}}', { name: conflict })}
+              {t('Conflicts with: {{name}}', { name: t(conflict) })}
             </Typography>
           )}
         </Box>
@@ -232,7 +232,7 @@ export function ShortcutsList() {
       const lowerNewKey = newKey.toLowerCase();
       for (const id in shortcuts) {
         if (id !== currentId && shortcuts[id].key.toLowerCase() === lowerNewKey) {
-          return shortcuts[id].name;
+          return shortcuts[id].labelKey;
         }
       }
       return undefined;
@@ -278,10 +278,10 @@ export function ShortcutsList() {
       name: (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
-            {shortcut.name}
+            {t(shortcut.labelKey)}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-            {shortcut.description}
+            {t(shortcut.descriptionKey)}
           </Typography>
         </Box>
       ),

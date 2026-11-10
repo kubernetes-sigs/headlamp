@@ -37,10 +37,12 @@ const defaultOauthPopupProps = {
   title: '',
 };
 
+const OAUTH_POPUP_TIMEOUT_MS = 5 * 60 * 1000;
+
 const OauthPopup: React.FC<OauthPopupProps> = props => {
   const externalWindowRef = React.useRef<Window | null>(null);
   const storageListenerRef = React.useRef<(() => void) | null>(null);
-  const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
+  const popupTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cleanupPopup = React.useCallback(
     (closeWindow = false) => {
@@ -51,13 +53,9 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
         storageListenerRef.current = null;
       }
 
-      if (popupWindow && beforeUnloadListenerRef.current) {
-        try {
-          popupWindow.removeEventListener('beforeunload', beforeUnloadListenerRef.current);
-        } catch (e) {
-          console.error('Error occurred while removing beforeunload event listener', e);
-        }
-        beforeUnloadListenerRef.current = null;
+      if (popupTimeoutRef.current !== null) {
+        clearTimeout(popupTimeoutRef.current);
+        popupTimeoutRef.current = null;
       }
 
       if (closeWindow && popupWindow) {
@@ -87,6 +85,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
     const windowFeatures = `toolbar=0,scrollbars=1,status=1,resizable=0,location=1,menuBar=0,width=${width},height=${height},top=${top},left=${left}`;
 
     cleanupPopup(true);
+    localStorage.removeItem(AUTH_STATUS_KEY);
     externalWindowRef.current = window.open(url, title, windowFeatures);
 
     const storageListener = () => {
@@ -106,22 +105,16 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
     storageListenerRef.current = storageListener;
     window.addEventListener('storage', storageListener);
 
-    if (externalWindowRef.current) {
-      try {
-        const beforeUnloadListener = () => {
-          cleanupPopup();
-          externalWindowRef.current = null;
-          if (!!props.onClose) {
-            props.onClose();
-          }
-        };
-
-        externalWindowRef.current.addEventListener('beforeunload', beforeUnloadListener, false);
-        beforeUnloadListenerRef.current = beforeUnloadListener;
-      } catch (e) {
-        console.error('Error occurred while adding beforeunload event listener');
-      }
+    if (!externalWindowRef.current) {
+      cleanupPopup();
+      props.onClose?.();
+      return;
     }
+
+    popupTimeoutRef.current = setTimeout(() => {
+      cleanupPopup(true);
+      props.onClose?.();
+    }, OAUTH_POPUP_TIMEOUT_MS);
   };
 
   return <props.button onClick={createPopup}>{props.children}</props.button>;

@@ -23,7 +23,11 @@ func RequestHandler(
 ) {
 	clusterName, namespace, name, requestURI := parseInfoFromRequest(r)
 
-	defer disableResponseCaching(w)
+	// Must run before anything writes to w: changing the header map after
+	// WriteHeader or Write has no effect.
+	disableResponseCaching(w)
+	setResponseSecurityHeaders(w)
+
 	// Get the context
 	ctx, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {

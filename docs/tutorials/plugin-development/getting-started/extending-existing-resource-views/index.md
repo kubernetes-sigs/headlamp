@@ -108,8 +108,7 @@ registerResourceTableColumnsProcessor(function addContainerImagesColumn({ id, co
 
 ![Screenshot of the Pods list view with the custom Container Images column added, highlighted in a red box on the right side of the table](./pods-list-column.png)
 
-> **Important:** This column appears in Headlamp's **own** built-in Pods page — not the custom `MyPodsPage` you built in Tutorial 6. You are injecting into Headlamp's view.
-
+> **Important:** This column appears in Headlamp's **own** built-in Pods page — you are injecting into Headlamp's view, **not** the custom `MyPodsPage` you built in Tutorial 6. That separation depends on the two tables having different IDs. A `resourceClass`-backed table given no explicit `id` derives one as `headlamp-<pluralName>`, and `pluralName` defaults to the class's `apiName` — so `MyPod` (whose `apiName` must be `'pods'` to reach the real endpoint) would land on `headlamp-pods` too. That is why Tutorial 6 gave the table an explicit `id="my-plugin-pods"`: without it, this processor would push its column onto your own page, where `pod.spec` is undefined and reading `pod.spec.containers` would throw.
 
 ---
 
@@ -744,6 +743,8 @@ registerResourceTableColumnsProcessor(function myProcessor({ id, columns }) {
 ```
 
 **Common table IDs:** `headlamp-pods`, `headlamp-deployments`, `headlamp-nodes`, `headlamp-namespaces`, `headlamp-services`
+
+**Naming your own tables:** Give every table you create an explicit `id` with your plugin's prefix (e.g. `id="my-plugin-pods"`). If you use `resourceClass` and omit `id`, Headlamp derives `headlamp-<pluralName>`, which can collide with a built-in table. If you pass `data={items}` instead, processors receive an empty `id` unless you set one — still use an explicit plugin-scoped `id` so your table stays identifiable and safe if you change how it loads data.
 
 ### registerDetailsViewHeaderAction
 

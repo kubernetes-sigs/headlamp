@@ -14,15 +14,22 @@
  * limitations under the License.
  */
 
+import { renderHook } from '@testing-library/react';
+import React from 'react';
+import { Provider } from 'react-redux';
+import store from '../redux/stores/store';
 import {
   combineClusterListErrors,
   compareUnits,
   flattenClusterListItems,
   formatDuration,
   getPercentStr,
+  getReadyReplicas,
+  getTotalReplicas,
   isValidTimezone,
   normalizeUnit,
   timeAgo,
+  useFilterFunc,
 } from './util';
 
 const SECOND = 1000;
@@ -84,6 +91,30 @@ describe('getPercentStr', () => {
     expect(getPercentStr(1, 8)).toBe('12.5 %');
     expect(getPercentStr(2, 3)).toBe('66.7 %');
     expect(getPercentStr(1, 3)).toBe('33.3 %');
+  });
+});
+
+describe('getReadyReplicas / getTotalReplicas', () => {
+  it('reads ready and total replicas from the workload', () => {
+    const deployment = { spec: { replicas: 3 }, status: { readyReplicas: 2 } } as any;
+    expect(getReadyReplicas(deployment)).toBe(2);
+    expect(getTotalReplicas(deployment)).toBe(3);
+  });
+
+  it('returns 0 for a workload with no status yet', () => {
+    const jobSet = { kind: 'JobSet', spec: { replicatedJobs: [] } } as any;
+    expect(getReadyReplicas(jobSet)).toBe(0);
+    expect(getTotalReplicas(jobSet)).toBe(0);
+  });
+
+  it('counts every node a DaemonSet should run on, not only the scheduled ones', () => {
+    const daemonSet = {
+      kind: 'DaemonSet',
+      spec: {},
+      status: { desiredNumberScheduled: 3, currentNumberScheduled: 2, numberReady: 2 },
+    } as any;
+    expect(getReadyReplicas(daemonSet)).toBe(2);
+    expect(getTotalReplicas(daemonSet)).toBe(3);
   });
 });
 
@@ -332,6 +363,27 @@ describe('normalizeUnit', () => {
     });
   });
 
+  describe('memory — sub-1-byte values (regression for #6628)', () => {
+    it('formats a milli-suffixed quantity as Bytes, not "undefined"', () => {
+      expect(normalizeUnit('memory', '500m')).toBe('0.5 Bytes');
+    });
+
+    it('formats a plain fractional quantity as Bytes', () => {
+      expect(normalizeUnit('memory', '0.5')).toBe('0.5 Bytes');
+    });
+
+    it('never emits the literal string "undefined" for tiny quantities', () => {
+      expect(normalizeUnit('memory', '1m')).not.toContain('undefined');
+      expect(normalizeUnit('memory', '1u')).not.toContain('undefined');
+      expect(normalizeUnit('memory', '1n')).not.toContain('undefined');
+    });
+
+    it('handles negative quantities gracefully instead of "NaN undefined"', () => {
+      expect(normalizeUnit('memory', '-1')).toBe('-1 Bytes');
+      expect(normalizeUnit('memory', '-1Gi')).toBe('-1.07 GB');
+    });
+  });
+
   describe('cpu', () => {
     it('converts millicores', () => {
       expect(normalizeUnit('cpu', '500m')).toBe('0.5 cores');
@@ -343,6 +395,14 @@ describe('normalizeUnit', () => {
 
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
+    });
+
+    it('shows singular core from decimal', () => {
+      expect(normalizeUnit('cpu', '1.0')).toBe('1 core');
+    });
+
+    it('shows plural cores from decimal', () => {
+      expect(normalizeUnit('cpu', '2.0')).toBe('2 cores');
     });
   });
 });
@@ -416,5 +476,57 @@ describe('compareUnits', () => {
     expect(compareUnits('abc', '1')).toBe(false);
     expect(compareUnits('1', 'abc')).toBe(false);
     expect(compareUnits('', '')).toBe(false);
+  });
+});
+
+describe('useFilterFunc', () => {
+  // The file is plain TypeScript, so the provider is built without JSX.
+  const withStore = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(Provider as React.ComponentType<any>, { store }, children);
+
+  it('keeps the same function across renders', () => {
+    const { result, rerender } = renderHook(() => useFilterFunc(), { wrapper: withStore });
+    const first = result.current;
+
+    rerender();
+
+    // Tables memoize their rows on this function, a new identity would discard them.
+    expect(result.current).toBe(first);
+  });
+
+  it('keeps the same function when the criteria arrive as a new array each render', () => {
+    // Every caller passes an inline literal, so identity alone would never hold.
+    const { result, rerender } = renderHook(() => useFilterFunc(['.jsonData.kind']), {
+      wrapper: withStore,
+    });
+    const first = result.current;
+
+    rerender();
+
+    expect(result.current).toBe(first);
+  });
+
+  it('tells apart criteria a plain separator join would conflate', () => {
+    const { result, rerender } = renderHook(({ criteria }) => useFilterFunc(criteria), {
+      initialProps: { criteria: ['a', 'b'] },
+      wrapper: withStore,
+    });
+    const first = result.current;
+
+    rerender({ criteria: ['a\u0000b'] });
+
+    expect(result.current).not.toBe(first);
+  });
+
+  it('returns a new function when the match criteria change', () => {
+    const { result, rerender } = renderHook(({ criteria }) => useFilterFunc(criteria), {
+      initialProps: { criteria: ['a'] },
+      wrapper: withStore,
+    });
+    const first = result.current;
+
+    rerender({ criteria: ['b'] });
+
+    expect(result.current).not.toBe(first);
   });
 });

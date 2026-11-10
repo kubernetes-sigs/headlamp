@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - github.com/pomerium/ingress-controller/config/default?ref=v0.33.1
+images:
+  - name: pomerium/ingress-controller
+    newTag: v0.33.1

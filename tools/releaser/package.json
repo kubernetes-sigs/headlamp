@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "tsc && node --test \"dist/**/*.test.js\"",
     "start": "tsc && node dist/index.js"
   },
   "dependencies": {

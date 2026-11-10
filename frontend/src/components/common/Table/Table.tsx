@@ -26,31 +26,22 @@ import { visuallyHidden } from '@mui/utils';
 import {
   MRT_BottomToolbar,
   MRT_Cell,
+  MRT_Column,
   MRT_ColumnDef as MaterialTableColumn,
   MRT_Header,
-  MRT_Localization,
   MRT_TableBodyCell,
   MRT_TableHeadCell,
   MRT_TableInstance,
   MRT_TableOptions as MaterialTableOptions,
+  MRT_ToggleDensePaddingButton,
+  MRT_ToggleFiltersButton,
+  MRT_ToggleFullScreenButton,
+  MRT_ToggleGlobalFilterButton,
   MRT_TopToolbar,
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
-import { MRT_Localization_AR } from 'material-react-table/locales/ar';
-import { MRT_Localization_DE } from 'material-react-table/locales/de';
-import { MRT_Localization_EN } from 'material-react-table/locales/en';
-import { MRT_Localization_ES } from 'material-react-table/locales/es';
-import { MRT_Localization_FR } from 'material-react-table/locales/fr';
-import { MRT_Localization_HE } from 'material-react-table/locales/he';
-import { MRT_Localization_IT } from 'material-react-table/locales/it';
-import { MRT_Localization_JA } from 'material-react-table/locales/ja';
-import { MRT_Localization_KO } from 'material-react-table/locales/ko';
-import { MRT_Localization_PT } from 'material-react-table/locales/pt';
-import { MRT_Localization_RU } from 'material-react-table/locales/ru';
-import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
-import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
-import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
@@ -59,6 +50,8 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
+import { ColumnVisibilityButton } from './ColumnVisibilityButton';
+import { getTableLocalization } from './tableLocalization';
 
 /**
  * Column definition
@@ -81,6 +74,13 @@ export type TableColumn<RowItem extends Record<string, any>, Value = any> = Mate
    * "min-content"
    */
   gridTemplate?: string | number;
+  /**
+   * Relative importance for the responsive layout. When space is limited, columns
+   * with a lower priority are hidden first; the first column is never hidden.
+   * Columns without an explicit priority default to `0`.
+   * @default 0
+   */
+  responsivePriority?: number;
 };
 
 /**
@@ -97,6 +97,8 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    * Message to show when the table is empty
    */
   emptyMessage?: ReactNode;
+  /** Collapse the bottom toolbar when it has no pagination, status, or actions. */
+  hideEmptyBottomToolbar?: boolean;
   /**
    * Error message to show instead of the table
    */
@@ -157,22 +159,6 @@ function usePageURLState(
   return [zeroIndexPage, setZeroIndexPage];
 }
 
-const tableLocalizationMap: Partial<Record<string, MRT_Localization>> = {
-  ar: MRT_Localization_AR,
-  de: MRT_Localization_DE,
-  en: MRT_Localization_EN,
-  es: MRT_Localization_ES,
-  fr: MRT_Localization_FR,
-  he: MRT_Localization_HE,
-  it: MRT_Localization_IT,
-  ja: MRT_Localization_JA,
-  pt: MRT_Localization_PT,
-  ko: MRT_Localization_KO,
-  ru: MRT_Localization_RU,
-  zh: MRT_Localization_ZH_HANS,
-  'zh-TW': MRT_Localization_ZH_HANT,
-};
-
 const StyledHeadRow = styled('tr')(({ theme }) => ({
   display: 'contents',
   background: theme.palette.background.muted,
@@ -184,6 +170,210 @@ const StyledRow = styled('tr')(({ theme }) => ({
   },
 }));
 const StyledBody = styled('tbody')({ display: 'contents' });
+
+/**
+ * Approximate minimum width (px) used to decide whether a column still fits.
+ */
+const DEFAULT_MIN_COLUMN_WIDTH = 100;
+
+/**
+ * Upper bound for the options of a single select filter. MRT renders one unvirtualized menu
+ * item per option, so a high-cardinality column (Node on a large cluster) is served its most
+ * common values. This bounds what the menu has to render, it does not make a thousand items
+ * cheap to open.
+ */
+const MAX_FILTER_OPTIONS = 1000;
+
+/** Served when a column has no options to offer, which is what MRT reads as "no dropdown". */
+const NO_FACETED_VALUES = new Map<any, number>();
+
+/**
+ * The maps MAX_FILTER_OPTIONS truncated, so the dropdown can say that it lists only part of
+ * the values. Marked by identity rather than remembered per column, so a column definition
+ * that changes at runtime cannot leave a stale verdict behind.
+ */
+const truncatedFacetedValues = new WeakSet<Map<any, number>>();
+
+/**
+ * Faceted values per row model and column. MRT rebuilds its column array on every render
+ * (prepareColumns is not memoized), and TanStack binds one closure per column object along
+ * with a freshly spread column definition, so neither can hold or validate a cache across
+ * renders. The row model is the one identity that lives exactly as long as the values it
+ * yields: TanStack freezes row.getUniqueValues per row and column for the model's lifetime,
+ * so recomputing any sooner could not even observe a changed accessor.
+ */
+type FacetedEntry = {
+  /** Every value the rows carry, independent of what the column is filtered by. */
+  values: Map<any, number>;
+  /** The shortened view of those values, kept per filter it was built for. */
+  view?: Map<any, number>;
+  viewFor?: string;
+};
+
+const facetedValuesByRows = new WeakMap<object, Map<string, FacetedEntry>>();
+
+/**
+ * The options a column offers: all of its values, or the most common ones plus whatever is
+ * filtered for once there are more than MRT can render. The walk behind `entry.values` does
+ * not depend on the filter, so only this last step is redone when the filter moves, and the
+ * shortened map keeps its identity meanwhile, which is what MRT memoizes its dropdown on.
+ */
+function facetedView(entry: FacetedEntry, column: { getFilterValue: () => unknown }) {
+  if (entry.values.size <= MAX_FILTER_OPTIONS) {
+    return entry.values;
+  }
+  const viewFor = filterSignature(column);
+  if (entry.view && entry.viewFor === viewFor) {
+    return entry.view;
+  }
+  // MRT renders one unvirtualized menu item per option, so keep the most common values,
+  // which are the ones worth offering as a filter. What is filtered for right now comes
+  // along whatever its count, because MRT reads the label of a selected value back from
+  // these options and would render it blank once the value is gone.
+  const byCount = [...entry.values].sort(([, a], [, b]) => b - a);
+  const active = new Set(activeFilterValues(column));
+  // Selected values come first, but they are capped too: the limit exists to bound what
+  // MRT renders, and it cannot be raised by selecting more.
+  const kept = byCount.filter(([value]) => active.has(value)).slice(0, MAX_FILTER_OPTIONS);
+  for (const candidate of byCount) {
+    if (kept.length >= MAX_FILTER_OPTIONS) {
+      break;
+    }
+    if (!active.has(candidate[0])) {
+      kept.push(candidate);
+    }
+  }
+  entry.view = new Map(kept);
+  entry.viewFor = viewFor;
+  truncatedFacetedValues.add(entry.view);
+  return entry.view;
+}
+
+/** Whether a column's options were truncated by MAX_FILTER_OPTIONS. */
+function isTruncated<RowItem extends Record<string, any>>(column: MRT_Column<RowItem>) {
+  return truncatedFacetedValues.has(column.getFacetedUniqueValues());
+}
+
+/** A stable key for the values a column is filtered by, to tell one walk's basis from another. */
+function filterSignature(column: { getFilterValue: () => unknown }) {
+  return JSON.stringify(activeFilterValues(column).map(String).sort());
+}
+
+/** The values a column is filtered by right now, one for select, several for multi-select. */
+function activeFilterValues(column: { getFilterValue: () => unknown }) {
+  const value = column.getFilterValue();
+  if (Array.isArray(value)) {
+    return value.filter(entry => entry !== null && entry !== undefined && entry !== '');
+  }
+  return value === null || value === undefined || value === '' ? [] : [value];
+}
+
+/**
+ * Select-filter dropdowns get their options from MRT's faceted values, but callers turn
+ * faceting off above a dataset threshold (TanStack's default builds a unique-value map for
+ * every column), which left those dropdowns empty on large lists. This walks the dropdown
+ * columns only, and only while their options are on screen, since MRT reads faceted values
+ * on every header render. It relies on two undocumented MRT behaviors, pinned in
+ * Table.facetedFilterOptions.test.tsx: caller options win over MRT's own
+ * `enableFacetedValues ? ... : undefined`, and the dropdown reads faceted values regardless
+ * of that flag.
+ */
+const getDropdownFacetedUniqueValues: NonNullable<
+  MaterialTableOptions<Record<string, any>>['getFacetedUniqueValues']
+> = (table, columnId) => {
+  // TanStack types the option's table without MRT's additions; at runtime it is the
+  // MRT instance.
+  const mrtTable = table as unknown as MRT_TableInstance<Record<string, any>>;
+  return () => {
+    const column = table.getColumn(columnId);
+    const columnDef = column?.columnDef as TableColumn<Record<string, any>> | undefined;
+    const filterVariant = columnDef?.filterVariant;
+    if (
+      !column ||
+      (filterVariant !== 'select' &&
+        filterVariant !== 'multi-select' &&
+        filterVariant !== 'autocomplete') ||
+      // Caller options win in MRT, which then also drops the value counts these feed.
+      columnDef?.filterSelectOptions
+    ) {
+      return NO_FACETED_VALUES;
+    }
+    // Faceting on: the column's faceted row model. Faceting off: TanStack falls back to
+    // the pre-filtered rows (post-filterFunction), so the options are a superset of what
+    // the table shows and the counts MRT renders next to them are dataset-wide. Narrowing
+    // them would need the per-column faceted row models the guard turned off.
+    const { flatRows } = column.getFacetedRowModel();
+    const cachedColumns = facetedValuesByRows.get(flatRows);
+    const cached = cachedColumns?.get(columnId);
+    if (cached) {
+      return facetedView(cached, column);
+    }
+    // Nobody can see the options while the filter UI is hidden and no filter is active,
+    // so do not walk the rows for them. Showing the UI re-renders the headers and lands
+    // here again with the walk allowed. From there every data update walks again, which
+    // measured around 8 ms per dropdown column per 10k rows.
+    // Only the subheader mode ties the filter UI to showColumnFilters. The popover and custom
+    // modes render it on their own terms, and the popover's open state lives inside MRT's
+    // filter label, which asks for these values on every header render either way, so there is
+    // nothing here to gate on. The cap and the per-row-model cache bound that idle cost.
+    const optionsAreVisible =
+      mrtTable.getState().showColumnFilters ||
+      (mrtTable.options.columnFilterDisplayMode ?? 'subheader') !== 'subheader' ||
+      column.getIsFiltered();
+    if (!optionsAreVisible) {
+      return NO_FACETED_VALUES;
+    }
+    const values = new Map<any, number>();
+    // MRT sorts the options with localeCompare, so anything but a string throws during
+    // the header render. Such a column keeps the empty dropdown it had before.
+    let sortable = true;
+    for (const row of flatRows) {
+      for (const value of row.getUniqueValues(columnId) ?? []) {
+        // MRT drops these before rendering the options, so they must not count either.
+        if (value === null || value === undefined) {
+          continue;
+        }
+        if (typeof value !== 'string') {
+          sortable = false;
+          break;
+        }
+        values.set(value, (values.get(value) ?? 0) + 1);
+      }
+      if (!sortable) {
+        break;
+      }
+    }
+    const entry: FacetedEntry = { values: sortable ? values : NO_FACETED_VALUES };
+    const perColumn = cachedColumns ?? new Map();
+    perColumn.set(columnId, entry);
+    facetedValuesByRows.set(flatRows, perColumn);
+    return facetedView(entry, column);
+  };
+};
+
+/**
+ * Tracks the current width of an element using a ResizeObserver.
+ * Returns 0 until the element has been measured.
+ */
+function useContainerWidth(ref: React.RefObject<HTMLElement | null>) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    setWidth(element.clientWidth);
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
 
 /**
  * Table component based on the Material React Table
@@ -198,6 +388,7 @@ export default function Table<RowItem extends Record<string, any>>({
   filterFunction,
   errorMessage,
   loading,
+  hideEmptyBottomToolbar = false,
   ...tableProps
 }: TableProps<RowItem>) {
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
@@ -234,6 +425,17 @@ export default function Table<RowItem extends Record<string, any>>({
 
   // State for shift+click range selection
   const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<number | null>(null);
+
+  // Measure the available width so we can hide columns that don't fit instead of
+  // crushing them or falling back to a horizontal scrollbar (kubernetes-sigs/headlamp#1232).
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const containerWidth = useContainerWidth(tableContainerRef);
+
+  // Controlled column visibility so responsive hiding, caller-provided visibility
+  // and MRT's own visibility changes all stay in sync.
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
+    tableProps.initialState?.columnVisibility ?? {}
+  );
 
   // Provide defaults for the columns
   const tableColumns: TableColumn<RowItem>[] = useMemo(
@@ -273,15 +475,133 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
+  // Decide which columns to hide based on the available width. Columns are hidden by
+  // ascending `responsivePriority` (least important first), then right-to-left among
+  // equal priority. The first column is never hidden. When everything fits, nothing
+  // is hidden and the table renders as usual.
+  const responsiveHidden = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    if (!containerWidth) {
+      return result;
+    }
+
+    const callerVisibility = tableProps.state?.columnVisibility;
+    const dataCols = tableColumns.filter(col => callerVisibility?.[col.id ?? ''] !== false);
+
+    let reserved = 0;
+    if (tableProps.enableRowSelection) {
+      reserved += 44; // selection checkbox column
+    }
+    if (tableProps.enableRowActions) {
+      reserved += 52; // row actions column
+    }
+
+    const available = containerWidth - reserved;
+    let total = dataCols.length * DEFAULT_MIN_COLUMN_WIDTH;
+    if (total <= available) {
+      return result;
+    }
+
+    // Columns we're allowed to hide, ordered by what to drop first.
+    dataCols
+      .map((col, index) => ({ col, index }))
+      .filter(({ index }) => index !== 0)
+      .sort((a, b) => {
+        const priorityDiff = (a.col.responsivePriority ?? 0) - (b.col.responsivePriority ?? 0);
+        return priorityDiff !== 0 ? priorityDiff : b.index - a.index;
+      })
+      .forEach(({ col }) => {
+        if (total <= available) {
+          return;
+        }
+        // MRT visibility semantics: `false` means the column is hidden.
+        result[col.id ?? ''] = false;
+        total -= DEFAULT_MIN_COLUMN_WIDTH;
+      });
+    return result;
+  }, [
+    containerWidth,
+    tableColumns,
+    tableProps.state?.columnVisibility,
+    tableProps.enableRowSelection,
+    tableProps.enableRowActions,
+  ]);
+
+  const mergedColumnVisibility = useMemo(
+    () => ({
+      ...(tableProps.state?.columnVisibility ?? {}),
+      ...columnVisibility,
+      ...responsiveHidden,
+    }),
+    [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
+  );
+
+  // With faceting on, MRT installs TanStack's own implementation for every column, so ours
+  // is only needed to fill the gap it leaves behind when faceting is off.
+  const ownFacetedValues = !tableProps.enableFacetedValues && !tableProps.getFacetedUniqueValues;
+
   const table = useMaterialReactTable({
     ...tableProps,
     columns: tableColumns ?? [],
     data: tableData,
+    // The key has to be absent, not undefined: MRT applies caller options over its own
+    // wiring, so an undefined value would drop TanStack's default and its faceting contract.
+    // The implementation only reads generic column metadata, so the erased row type is safe.
+    ...(ownFacetedValues
+      ? {
+          getFacetedUniqueValues:
+            getDropdownFacetedUniqueValues as MaterialTableOptions<RowItem>['getFacetedUniqueValues'],
+        }
+      : {}),
+    // Say so when the dropdown lists only part of the values. MRT renders this text field
+    // for every filter variant, so all three dropdowns carry the note in the same place.
+    muiFilterTextFieldProps: args => {
+      const callerProps =
+        (typeof tableProps.muiFilterTextFieldProps === 'function'
+          ? tableProps.muiFilterTextFieldProps(args)
+          : tableProps.muiFilterTextFieldProps) ?? {};
+      // Only the implementation above marks a map as truncated.
+      if (!ownFacetedValues || !isTruncated(args.column)) {
+        return callerProps;
+      }
+      // That spot already carries MRT's filter-mode label where modes are enabled, and saying
+      // which mode is active beats saying that the list is shortened. MRT decides that from
+      // the table-level flag, with the column able to opt out only. A caller-provided
+      // helperText keeps precedence too, as it did before the note existed.
+      const columnDef = args.column.columnDef as TableColumn<RowItem>;
+      const filterModeOptions =
+        columnDef.columnFilterModeOptions ?? tableProps.columnFilterModeOptions;
+      const showsFilterMode =
+        tableProps.enableColumnFilterModes &&
+        columnDef.enableColumnFilterModes !== false &&
+        (filterModeOptions === undefined || !!filterModeOptions?.length);
+      if (showsFilterMode || callerProps.helperText !== undefined) {
+        return callerProps;
+      }
+      const callerSx = callerProps.FormHelperTextProps?.sx;
+      return {
+        ...callerProps,
+        // MRT keeps its helper text on one line, which this note is too long for in a column
+        // that starts at 120px, so it may wrap here.
+        FormHelperTextProps: {
+          ...callerProps.FormHelperTextProps,
+          // An sx can be an object, a callback or an array of those, so the caller's goes on
+          // top as another entry rather than being spread into this one.
+          sx: [
+            { fontSize: '0.75rem', lineHeight: '1rem', whiteSpace: 'normal' },
+            ...(Array.isArray(callerSx) ? callerSx : [callerSx]),
+          ],
+        },
+        helperText: t('Showing {{max}} values, some less common ones are not listed', {
+          max: MAX_FILTER_OPTIONS,
+        }),
+      };
+    },
     enablePagination: tableData.length > rowsPerPageOptions[0],
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
     enableColumnActions: false,
-    localization: tableLocalizationMap[i18n.language],
+    localization: getTableLocalization(i18n.resolvedLanguage || i18n.language),
     autoResetAll: false,
     icons: {
       ...tableProps.icons,
@@ -297,16 +617,42 @@ export default function Table<RowItem extends Record<string, any>>({
       }
     },
     onGlobalFilterChange: setGlobalFilter,
-    renderToolbarInternalActions: props => {
+    onColumnVisibilityChange: setColumnVisibility,
+    renderToolbarInternalActions: ({ table: tbl }) => {
       const isSomeRowsSelected =
-        tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
-      if (isSomeRowsSelected) {
-        const renderRowSelectionToolbar = tableProps.renderRowSelectionToolbar;
-        if (renderRowSelectionToolbar !== undefined) {
-          return renderRowSelectionToolbar(props);
-        }
+        tableProps.enableRowSelection && tbl.getSelectedRowModel().rows.length !== 0;
+      if (isSomeRowsSelected && tableProps.renderRowSelectionToolbar) {
+        return tableProps.renderRowSelectionToolbar({ table: tbl });
       }
-      return null;
+
+      const {
+        enableFilters = true,
+        enableGlobalFilter = true,
+        enableColumnFilters = true,
+        enableHiding = true,
+        enableColumnOrdering,
+        enableColumnPinning,
+        enableDensityToggle,
+        enableFullScreenToggle,
+        columnFilterDisplayMode,
+        initialState: initState,
+      } = tbl.options;
+
+      return (
+        <>
+          {enableFilters && enableGlobalFilter && !initState?.showGlobalFilter && (
+            <MRT_ToggleGlobalFilterButton table={tbl} />
+          )}
+          {enableFilters && enableColumnFilters && columnFilterDisplayMode !== 'popover' && (
+            <MRT_ToggleFiltersButton table={tbl} />
+          )}
+          {(enableHiding || enableColumnOrdering || enableColumnPinning) && (
+            <ColumnVisibilityButton table={tbl} />
+          )}
+          {enableDensityToggle && <MRT_ToggleDensePaddingButton table={tbl} />}
+          {enableFullScreenToggle && <MRT_ToggleFullScreenButton table={tbl} />}
+        </>
+      );
     },
     initialState: useMemo(
       () => ({
@@ -320,6 +666,7 @@ export default function Table<RowItem extends Record<string, any>>({
       () => ({
         ...(tableProps.state ?? {}),
         columnOrder,
+        columnVisibility: mergedColumnVisibility,
         pagination: {
           pageIndex: page - 1,
           pageSize: pageSize,
@@ -327,7 +674,7 @@ export default function Table<RowItem extends Record<string, any>>({
         globalFilter,
         ...(globalFilter ? { showGlobalFilter: true } : {}),
       }),
-      [tableProps.state, columnOrder, page, pageSize, globalFilter]
+      [tableProps.state, columnOrder, mergedColumnVisibility, page, pageSize, globalFilter]
     ),
     positionActionsColumn: 'last',
     layoutMode: 'grid',
@@ -358,7 +705,7 @@ export default function Table<RowItem extends Record<string, any>>({
         minWidth: 'unset',
       },
     },
-    muiTopToolbarProps: {
+    muiTopToolbarProps: tableProps.muiTopToolbarProps ?? {
       sx: {
         height: '3.5rem',
         backgroundColor: undefined,
@@ -425,9 +772,7 @@ export default function Table<RowItem extends Record<string, any>>({
     let preGridTemplateColumns = tableProps.columns
       .filter((it, i) => {
         const id = it.id ?? String(i);
-        const isHidden =
-          table.getState().columnVisibility?.[id] === false ||
-          tableProps.state?.columnVisibility?.[id] === false;
+        const isHidden = mergedColumnVisibility?.[id] === false;
         return !isHidden;
       })
       .map(it => {
@@ -445,12 +790,9 @@ export default function Table<RowItem extends Record<string, any>>({
     }
 
     return preGridTemplateColumns;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tableProps.columns,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    table.getState()?.columnVisibility,
-    tableProps.state?.columnVisibility,
+    mergedColumnVisibility,
     tableProps.enableRowActions,
     tableProps.enableRowSelection,
   ]);
@@ -460,7 +802,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
   // Handle shift+click range selection
   const handleRowClick = (e: React.MouseEvent, clickedIndex: number) => {
-    if (!table || !table.getRowModel) {
+    if (!table || !table.getRowModel || tableProps.enableRowSelection === false) {
       return;
     }
 
@@ -531,7 +873,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
     content = (
       <>
-        <MRT_TopToolbar table={table} />
+        {(tableProps.enableTopToolbar ?? true) && <MRT_TopToolbar table={table} />}
         <MuiTable
           sx={{
             display: 'grid',
@@ -573,18 +915,29 @@ export default function Table<RowItem extends Record<string, any>>({
             ))}
           </StyledBody>
         </MuiTable>
-        <MRT_BottomToolbar table={table} />
+        {(!hideEmptyBottomToolbar ||
+          table.options.enablePagination ||
+          table.options.renderBottomToolbarCustomActions ||
+          table.getState().isLoading ||
+          table.getState().isSaving ||
+          table.getState().showProgressBars ||
+          table.getState().showAlertBanner ||
+          table.getState().showToolbarDropZone ||
+          table.getState().grouping?.length ||
+          Object.values(table.getState().rowSelection ?? {}).some(Boolean)) && (
+          <MRT_BottomToolbar table={table} />
+        )}
       </>
     );
   }
 
   return (
-    <>
+    <Box ref={tableContainerRef} sx={{ width: '100%' }}>
       <Box role="status" aria-live="polite" aria-atomic="true" sx={visuallyHidden}>
         {announcedStatus}
       </Box>
       {content}
-    </>
+    </Box>
   );
 }
 

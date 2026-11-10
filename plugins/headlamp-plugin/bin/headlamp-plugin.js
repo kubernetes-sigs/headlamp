@@ -29,17 +29,41 @@ const child_process = require('child_process');
 const validate = require('validate-npm-package-name');
 const yargs = require('yargs/yargs');
 const headlampPluginPkg = require('../package.json');
+const { getNativeTypeScriptCommand, getUpgradeOverrides } = require('./typescript');
 const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl');
 const { table } = require('table');
 const tar = require('tar');
-
-// On Windows, use the .cmd shim so execFileSync can run it without a shell.
-const binExt = process.platform === 'win32' ? '.cmd' : '';
 
 // ES imports
 const viteCopyPluginPromise = import('vite-plugin-static-copy');
 const viteConfigPromise = import('../config/vite.config.mjs');
 const vitePromise = import('vite');
+
+// On Windows, npm-installed CLIs are `.cmd` shims that Node can't spawn directly.
+// We append this suffix when looking them up on disk.
+const binExt = process.platform === 'win32' ? '.cmd' : '';
+
+/**
+ * Adapt a `(file, args)` pair for spawning on the current platform.
+ *
+ * On Windows, `.cmd`/`.bat` shims can't be spawned directly by Node, so we route them
+ * through `cmd.exe /d /s /c`, as recommended by
+ * https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows.
+ * This avoids `shell: true`, which is deprecated with an `args` array (DEP0190).
+ *
+ * Spread the result into `spawnSync` / `execFileSync`:
+ *
+ *     child_process.execFileSync(...viaCmd('npm' + binExt, ['view', spec, '--json']), opts)
+ *
+ * @param {string} file
+ * @param {string[]} args
+ * @returns {[string, string[]]}
+ */
+function viaCmd(file, args) {
+  return process.platform === 'win32'
+    ? ['cmd.exe', ['/d', '/s', '/c', file, ...args]]
+    : [file, args];
+}
 
 /**
  * Creates a new plugin folder.
@@ -101,7 +125,7 @@ function create(name, link, noInstall) {
   // This can be used to make testing locally easier.
   if (link) {
     console.log('Linking @kinvolk/headlamp-plugin');
-    child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+    child_process.spawnSync(...viaCmd('npm' + binExt, ['link', '@kinvolk/headlamp-plugin']), {
       cwd: dstFolder,
     });
   }
@@ -118,29 +142,29 @@ function create(name, link, noInstall) {
     let useNpmCi = false;
     try {
       const npmJsPkgResponse = child_process.execFileSync(
-        'npm' + binExt,
-        ['view', `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`, 'dist', '--json'],
+        ...viaCmd('npm' + binExt, [
+          'view',
+          `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`,
+          'dist',
+          '--json',
+        ]),
         { encoding: 'utf8' }
       );
       const npmJsPkg = JSON.parse(npmJsPkgResponse);
       const npmJsIntegrity = npmJsPkg.integrity;
 
-      // Now replace integrity in the package-lock.json to match npmjs registry integrity.
+      // Now set integrity in the package-lock.json to match npmjs registry integrity.
+      // The template has none for @kinvolk/headlamp-plugin, since it's made from a
+      // local "npm pack" whose integrity never matches the published package.
       // "node_modules/@kinvolk/headlamp-plugin": {
       //   "version": "0.13.0-alpha.13",
       //   "resolved": "...",
       //   "integrity": "sha512-..."
-      const packageLockContent = fs.readFileSync(packageLockPath, 'utf8');
-      const integrityPattern = new RegExp(
-        `("node_modules/@kinvolk/headlamp-plugin": \\{[\\s\\S]*?"integrity": ")[^"]+(")`,
-        'g'
-      );
-      const packageLockContentNew = packageLockContent.replace(
-        integrityPattern,
-        `$1${npmJsIntegrity}$2`
-      );
-      if (packageLockContent !== packageLockContentNew) {
-        fs.writeFileSync(packageLockPath, packageLockContentNew);
+      const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
+      const headlampPluginLock = packageLock.packages?.['node_modules/@kinvolk/headlamp-plugin'];
+      if (headlampPluginLock && headlampPluginLock.integrity !== npmJsIntegrity) {
+        headlampPluginLock.integrity = npmJsIntegrity;
+        fs.writeFileSync(packageLockPath, JSON.stringify(packageLock, null, 2) + '\n');
       }
 
       useNpmCi = true;
@@ -177,7 +201,7 @@ function create(name, link, noInstall) {
     if (link) {
       // Seems to require linking again with npm 7+
       console.log('Linking @kinvolk/headlamp-plugin');
-      child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+      child_process.spawnSync(...viaCmd('npm' + binExt, ['link', '@kinvolk/headlamp-plugin']), {
         cwd: dstFolder,
       });
     }
@@ -587,6 +611,11 @@ async function start() {
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const pluginName = packageJson.name || path.basename(process.cwd());
 
+  console.warn(
+    'Headlamp Desktop: enable Plugin Development Mode in Settings > Plugins ' +
+      'to load this plugin in a packaged app.'
+  );
+
   const config = (await viteConfigPromise).default;
   const vite = await vitePromise;
 
@@ -639,9 +668,10 @@ async function start() {
  * @param scriptName {string} - name of the script to run.
  * @param cmdLine {string} - command line to run.
  * @param env {object} - environment variables to run the command with.
+ * @param {(projectDirectory: string) => { file: string, args: string[] } | undefined} [resolveCommand]
  * @returns {0 | 1} - Exit code, where 0 is success, 1 is failure.
  */
-function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
+function runScriptOnPackages(packageFolder, scriptName, cmdLine, env, resolveCommand) {
   if (!fs.existsSync(packageFolder)) {
     console.error(`"${packageFolder}" does not exist. Not ${scriptName}-ing.`);
     return 1;
@@ -678,55 +708,62 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
       console.log(`Finished npm install.`);
     }
 
-    // See if the cmd is in the:
-    // - package/node_modules/.bin
-    // - package/../node_modules/.bin
-    // - the npx node_modules/.bin
-    // If not, just use the original cmdLine and hope for the best :)
-    let cmdLineToUse = cmdLine;
-    const scriptCmd = cmdLine.split(' ')[0];
-    const scriptCmdRest = cmdLine.split(' ').slice(1).join(' ');
-
-    const nodeModulesBinCmd = path.join('node_modules', '.bin', scriptCmd + binExt);
-    const upNodeModulesBinCmd = path.join('../', nodeModulesBinCmd);
-
-    // When run as npx, find it in the node_modules npx uses
-    const headlampPluginBin = fs.realpathSync(process.argv[1]);
-    const npxBinCmd = path.join(
-      path.dirname(headlampPluginBin),
-      '..',
-      '..',
-      '..',
-      '..',
-      nodeModulesBinCmd
-    );
-
-    if (fs.existsSync(nodeModulesBinCmd)) {
-      cmdLineToUse = nodeModulesBinCmd + ' ' + scriptCmdRest;
-    } else if (fs.existsSync(upNodeModulesBinCmd)) {
-      cmdLineToUse = upNodeModulesBinCmd + ' ' + scriptCmdRest;
-    } else if (fs.existsSync(npxBinCmd)) {
-      cmdLineToUse = npxBinCmd + ' ' + scriptCmdRest;
-    } else {
-      console.warn(
-        `"${scriptCmd}" not found in "${resolve(nodeModulesBinCmd)}" or "${resolve(
-          upNodeModulesBinCmd
-        )}" or "${resolve(npxBinCmd)}".`
-      );
-    }
-
-    console.log(`"${folder}": ${scriptName}-ing, :${cmdLineToUse}:...`);
-
-    const [cmd, ...args] = cmdLineToUse.split(' ');
-
     try {
-      child_process.execFileSync(cmd, args, {
+      const command = resolveCommand?.(process.cwd());
+      /** @type {[string, string[]]} */
+      let execution;
+      if (command) {
+        execution = [command.file, command.args];
+      } else {
+        // See if the cmd is in the:
+        // - package/node_modules/.bin
+        // - package/../node_modules/.bin
+        // - the npx node_modules/.bin
+        // If not, just use the original cmdLine and hope for the best :)
+        let cmdLineToUse = cmdLine;
+        const scriptCmd = cmdLine.split(' ')[0];
+        const scriptCmdRest = cmdLine.split(' ').slice(1).join(' ');
+
+        const nodeModulesBinCmd = path.join('node_modules', '.bin', scriptCmd + binExt);
+        const upNodeModulesBinCmd = path.join('../', nodeModulesBinCmd);
+
+        // When run as npx, find it in the node_modules npx uses
+        const headlampPluginBin = fs.realpathSync(process.argv[1]);
+        const npxBinCmd = path.join(
+          path.dirname(headlampPluginBin),
+          '..',
+          '..',
+          '..',
+          '..',
+          nodeModulesBinCmd
+        );
+
+        if (fs.existsSync(nodeModulesBinCmd)) {
+          cmdLineToUse = nodeModulesBinCmd + ' ' + scriptCmdRest;
+        } else if (fs.existsSync(upNodeModulesBinCmd)) {
+          cmdLineToUse = upNodeModulesBinCmd + ' ' + scriptCmdRest;
+        } else if (fs.existsSync(npxBinCmd)) {
+          cmdLineToUse = npxBinCmd + ' ' + scriptCmdRest;
+        } else {
+          console.warn(
+            `"${scriptCmd}" not found in "${resolve(nodeModulesBinCmd)}" or "${resolve(
+              upNodeModulesBinCmd
+            )}" or "${resolve(npxBinCmd)}".`
+          );
+        }
+
+        const [cmd, ...args] = cmdLineToUse.split(' ');
+        execution = viaCmd(cmd, args);
+      }
+
+      console.log(`"${folder}": ${scriptName}-ing, :${execution[0]} ${execution[1].join(' ')}:...`);
+      child_process.execFileSync(...execution, {
         stdio: 'inherit',
         encoding: 'utf8',
         env: { ...process.env, ...(env || {}) },
       });
     } catch (e) {
-      console.error(`Problem running ${scriptName} inside of "${folder}"\r\n`);
+      console.error(`Problem running ${scriptName} inside of "${folder}"\r\n`, e.message);
       process.chdir(oldCwd);
       return runOnPackageReturn.issue;
     }
@@ -791,9 +828,100 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
       );
       return 1; // failed
     }
+    return 0;
   }
 
   return exitCode > 0 ? 1 : 0;
+}
+
+/**
+ * Brotli-compress all compressible files in a directory, writing <file>.br
+ * sidecars alongside each asset. Stale sidecars for ineligible files are
+ * removed so the server cannot serve mismatched bytes on incremental builds.
+ * Uses only Node.js built-ins (no extra dependencies).
+ *
+ * @param {string} dir - directory to walk (typically the plugin dist/ folder)
+ */
+async function brotliCompressDist(dir) {
+  const zlib = require('zlib');
+  const COMPRESSIBLE = new Set([
+    '.js',
+    '.mjs',
+    '.cjs',
+    '.css',
+    '.json',
+    '.map',
+    '.svg',
+    '.txt',
+    '.xml',
+    '.wasm',
+  ]);
+
+  function* walk(d) {
+    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, entry.name);
+      if (entry.isDirectory()) yield* walk(full);
+      else if (entry.isFile()) yield full;
+    }
+  }
+
+  if (!fs.existsSync(dir)) return;
+
+  for (const file of walk(dir)) {
+    if (file.endsWith('.br')) {
+      const original = file.slice(0, -3);
+      if (!fs.existsSync(original)) {
+        // Remove orphan sidecar so stale bytes are never served.
+        try {
+          fs.unlinkSync(file);
+        } catch (e) {
+          if (e.code !== 'ENOENT') throw e;
+        }
+      }
+      continue;
+    }
+
+    if (file.endsWith('.gz')) continue;
+
+    const sidecar = file + '.br';
+    const ext = path.extname(file).toLowerCase();
+
+    if (!COMPRESSIBLE.has(ext)) {
+      // Remove any stale sidecar so the server cannot serve mismatched bytes.
+      try {
+        fs.unlinkSync(sidecar);
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+      continue;
+    }
+
+    const data = fs.readFileSync(file);
+    const br = zlib.brotliCompressSync(data, {
+      params: {
+        [zlib.constants.BROTLI_PARAM_QUALITY]: 11,
+        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: data.length,
+      },
+    });
+
+    // Keep sidecars only when beneficial, except for dist/main.js.
+    //
+    // We always emit main.js.br so plugin bundles have a predictable
+    // precompressed entrypoint: backend/plugin loading paths and CI packaging
+    // checks expect this sidecar to exist even for very small bundles where
+    // brotli might not reduce size.
+    const shouldKeep = br.length < data.length || path.basename(file) === 'main.js';
+
+    if (shouldKeep) {
+      fs.writeFileSync(sidecar, br);
+    } else {
+      try {
+        fs.unlinkSync(sidecar);
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+    }
+  }
 }
 
 /**
@@ -814,6 +942,8 @@ async function build(packageFolder) {
     if (!fs.existsSync(path.join(folder, 'package.json'))) {
       return false;
     }
+
+    const distDir = path.resolve(folder, 'dist');
 
     process.chdir(folder);
 
@@ -848,6 +978,10 @@ async function build(packageFolder) {
 
       // Copy extra dist files after successful build
       await copyExtraDistFiles('.');
+
+      // Brotli-compress all compressible files in dist/ so the Headlamp backend
+      // can serve .br sidecars without on-the-fly compression.
+      await brotliCompressDist(distDir);
 
       console.log(`Finished building "${folder}" for production.`);
     } catch (e) {
@@ -1068,6 +1202,8 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
 
     // Update these scripts keys to match the template.
     replaceNestedKeys('scripts', ['tsc', 'storybook', 'test', 'storybook-build', 'i18n']);
+
+    templatePackageJson.overrides = getUpgradeOverrides(packageJson, templatePackageJson.overrides);
 
     // replace top level keys
     const checkKeys = ['eslintConfig', 'prettier', 'overrides'];
@@ -1319,7 +1455,7 @@ function lint(packageFolder, fix) {
  */
 function tsc(packageFolder) {
   const script = 'tsc --noEmit';
-  return runScriptOnPackages(packageFolder, 'tsc', script, {});
+  return runScriptOnPackages(packageFolder, 'tsc', script, {}, getNativeTypeScriptCommand);
 }
 
 /**
@@ -1329,23 +1465,8 @@ function tsc(packageFolder) {
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
 function storybook(packageFolder) {
-  try {
-    child_process.execSync(
-      './node_modules/.bin/storybook dev -p 6007 -c node_modules/@kinvolk/headlamp-plugin/config/.storybook',
-      {
-        stdio: 'inherit',
-        cwd: packageFolder,
-        encoding: 'utf8',
-      }
-    );
-  } catch (e) {
-    console.error(
-      `Problem running storybook dev inside of "${packageFolder}" abs: "${resolve(packageFolder)}"`
-    );
-    return 1;
-  }
-
-  return 0;
+  const script = `storybook dev -p 6007 -c node_modules/@kinvolk/headlamp-plugin/config/.storybook`;
+  return runScriptOnPackages(packageFolder, 'storybook dev', script, {});
 }
 
 /**
@@ -1474,13 +1595,15 @@ function setupI18n(packageFolder) {
       console.log(`🔍 Extracting translatable strings from source code...`);
       const i18nextPath = path.join(__dirname, '..', 'node_modules', '.bin', 'i18next' + binExt);
       const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
-      const { execFileSync } = require('child_process');
 
       try {
-        execFileSync(i18nextPath, ['src/**/*.{ts,tsx,js,jsx}', '-c', bundledConfigPath], {
-          stdio: 'inherit',
-          cwd: process.cwd(),
-        });
+        child_process.execFileSync(
+          ...viaCmd(i18nextPath, ['src/**/*.{ts,tsx,js,jsx}', '-c', bundledConfigPath]),
+          {
+            stdio: 'inherit',
+            cwd: process.cwd(),
+          }
+        );
         console.log(`📝 Successfully extracted translatable strings`);
       } catch (error) {
         console.warn(`⚠️ Warning: Failed to run i18next-parser: ${error.message}`);
@@ -1683,14 +1806,17 @@ function extractI18n(packageFolder, newLocale) {
 
     console.log(`🔍 Extracting translatable strings from ${packageJson.name || packageFolder}...`);
 
-    // Run i18next-parser using npx for better reliability
-    const { execFileSync } = require('child_process');
-
     // Use npx to run i18next from the headlamp-plugin package
     const headlampPluginPath = path.join(__dirname, '..');
-    execFileSync(
-      'npx' + binExt,
-      ['--prefix', headlampPluginPath, 'i18next', 'src/**/*.{ts,tsx,js,jsx}', '-c', configToUse],
+    child_process.execFileSync(
+      ...viaCmd('npx' + binExt, [
+        '--prefix',
+        headlampPluginPath,
+        'i18next',
+        'src/**/*.{ts,tsx,js,jsx}',
+        '-c',
+        configToUse,
+      ]),
       {
         stdio: 'inherit',
         cwd: packageFolder,

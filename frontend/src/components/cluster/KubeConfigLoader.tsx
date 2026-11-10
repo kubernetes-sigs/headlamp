@@ -15,6 +15,8 @@
  */
 
 import { InlineIcon } from '@iconify/react';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -52,7 +54,7 @@ interface Cluster {
 interface User {
   name: string;
   user: {
-    token: string;
+    token?: string;
     [key: string]: any;
   };
 }
@@ -60,8 +62,70 @@ interface User {
 interface kubeconfig {
   clusters: Cluster[];
   users: User[];
-  contexts: { name: string; context: { cluster: string; user: string } }[];
+  contexts: { name: string; context: { cluster: string; user?: string } }[];
   currentContext: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isKubeconfig(
+  value: unknown
+): value is Pick<kubeconfig, 'clusters' | 'contexts'> & { users?: User[] | null } {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.clusters) &&
+    value.clusters.length > 0 &&
+    value.clusters.every(
+      entry =>
+        isRecord(entry) &&
+        typeof entry.name === 'string' &&
+        entry.name.length > 0 &&
+        isRecord(entry.cluster) &&
+        typeof entry.cluster.server === 'string' &&
+        entry.cluster.server.length > 0
+    ) &&
+    (value.users === undefined ||
+      value.users === null ||
+      (Array.isArray(value.users) &&
+        value.users.every(
+          entry =>
+            isRecord(entry) &&
+            typeof entry.name === 'string' &&
+            entry.name.length > 0 &&
+            isRecord(entry.user) &&
+            (entry.user.token === undefined || typeof entry.user.token === 'string')
+        ))) &&
+    Array.isArray(value.contexts) &&
+    value.contexts.length > 0 &&
+    value.contexts.every(
+      entry =>
+        isRecord(entry) &&
+        typeof entry.name === 'string' &&
+        entry.name.length > 0 &&
+        isRecord(entry.context) &&
+        typeof entry.context.cluster === 'string' &&
+        entry.context.cluster.length > 0 &&
+        (entry.context.user === undefined || typeof entry.context.user === 'string')
+    )
+  );
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onabort = () => reject(new Error('File reading was aborted'));
+    reader.onload = () => {
+      if (!(reader.result instanceof ArrayBuffer)) {
+        reject(new Error('Expected file contents as an ArrayBuffer'));
+        return;
+      }
+      resolve(new TextDecoder().decode(reader.result));
+    };
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 function configWithSelectedClusters(config: kubeconfig, selectedClusters: string[]): kubeconfig {
@@ -72,33 +136,51 @@ function configWithSelectedClusters(config: kubeconfig, selectedClusters: string
     currentContext: '',
   };
 
-  // We use a map to avoid duplicates since many contexts can point to the same cluster/user.
-  const clusters: { [key: string]: Cluster } = {};
-  const users: { [key: string]: User } = {};
+  const contextDefinitions = new Map(config.contexts.map(context => [context.name, context]));
+  const clusterDefinitions = new Map(config.clusters.map(cluster => [cluster.name, cluster]));
+  const userDefinitions = new Map(config.users.map(user => [user.name, user]));
+  const clusters = new Map<string, Cluster>();
+  const users = new Map<string, User>();
+  let anonymousUser: User | undefined;
 
   selectedClusters.forEach(clusterName => {
-    const context = config.contexts.find(c => c.name === clusterName);
+    const context = contextDefinitions.get(clusterName);
     if (!context) {
       return;
     }
 
-    const cluster = config.clusters.find(c => c.name === context.context.cluster);
+    const cluster = clusterDefinitions.get(context.context.cluster);
     if (!cluster) {
       return;
     }
-    clusters[cluster.name] = cluster;
+    clusters.set(cluster.name, cluster);
 
-    // Optionally add the user.
-    const user = config.users?.find(c => c.name === context.context.user);
-    if (!!user) {
-      users[user.name] = user;
+    let selectedContext = context;
+    let user = userDefinitions.get(context.context.user ?? '');
+    // The backend parser requires a named user even for anonymous contexts.
+    if (!context.context.user) {
+      if (!anonymousUser) {
+        let name = 'headlamp-anonymous';
+        for (let suffix = 1; userDefinitions.has(name); suffix++) {
+          name = `headlamp-anonymous-${suffix}`;
+        }
+        anonymousUser = { name, user: {} };
+      }
+      user = anonymousUser;
+      selectedContext = {
+        ...context,
+        context: { ...context.context, user: anonymousUser.name },
+      };
+    }
+    if (user) {
+      users.set(user.name, user);
     }
 
-    newConfig.contexts.push(context);
+    newConfig.contexts.push(selectedContext);
   });
 
-  newConfig.clusters = Object.values(clusters);
-  newConfig.users = Object.values(users);
+  newConfig.clusters = [...clusters.values()];
+  newConfig.users = [...users.values()];
 
   return newConfig;
 }
@@ -116,11 +198,39 @@ export enum Step {
   Success,
 }
 
+interface ImportMessageProps {
+  message: string;
+  details?: string[];
+}
+
+function ImportMessage({ message, details }: ImportMessageProps) {
+  return (
+    <Box>
+      {details?.length ? (
+        <AlertTitle>{message}</AlertTitle>
+      ) : (
+        <Typography variant="body2">{message}</Typography>
+      )}
+      {!!details?.length && (
+        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+          {details.map((detail, index) => (
+            <li key={index}>{detail}</li>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 export interface PureKubeConfigLoaderProps {
   /** The current step in the loading process */
   step: Step;
   /** Error message to display */
   error?: string;
+  /** Per-file details for a failed import */
+  errorDetails?: string[];
+  /** Non-blocking warnings about the imported files */
+  warnings?: ImportMessageProps[];
   /** The parsed kubeconfig file content */
   fileContent: kubeconfig;
   /** List of selected cluster names */
@@ -143,6 +253,8 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
   const {
     step,
     error,
+    errorDetails,
+    warnings = [],
     fileContent,
     selectedClusters,
     onDrop,
@@ -153,10 +265,11 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
     onCancel,
   } = props;
   const { t } = useTranslation(['translation']);
+  const selectedClusterNames = new Set(selectedClusters);
 
-  const { getRootProps, getInputProps, open } = useDropzone({
+  const { getRootProps, getInputProps } = useDropzone({
     onDrop: (acceptedFiles: File[]) => onDrop(acceptedFiles),
-    multiple: false,
+    multiple: true,
   });
 
   function renderSwitch() {
@@ -168,15 +281,14 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
               <FormControl>
                 <input {...getInputProps()} />
                 <Tooltip
-                  title={t('translation|Drag & drop or choose kubeconfig file here')}
+                  title={t('translation|Drag & drop or choose kubeconfig files here')}
                   placement="top"
                 >
                   <Button
                     variant="contained"
-                    onClick={() => open}
                     startIcon={<InlineIcon icon="mdi:upload" width={32} />}
                   >
-                    {t('translation|Choose file')}
+                    {t('translation|Choose files')}
                   </Button>
                 </Tooltip>
               </FormControl>
@@ -231,7 +343,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
                               name={context.name}
                               onChange={onCheckboxChange}
                               color="primary"
-                              checked={selectedClusters.includes(context.name)}
+                              checked={selectedClusterNames.has(context.name)}
                             />
                           }
                           label={context.name}
@@ -310,19 +422,17 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
     >
       <DialogTitle>{t('translation|Load from KubeConfig')}</DialogTitle>
       {error && error !== '' ? (
-        <Box
-          style={{
-            backgroundColor: '#f44336',
-            color: 'white',
-            textAlign: 'center',
-            padding: '12px',
-            marginBottom: '16px',
-            borderRadius: '4px',
-          }}
-        >
-          {error}
-        </Box>
+        <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
+          <ImportMessage message={error} details={errorDetails} />
+        </Alert>
       ) : null}
+      {warnings.length > 0 && (step === Step.LoadKubeConfig || step === Step.SelectClusters) && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {warnings.map((warning, index) => (
+            <ImportMessage key={index} {...warning} />
+          ))}
+        </Alert>
+      )}
       <Box>{renderSwitch()}</Box>
     </ClusterDialog>
   );
@@ -332,6 +442,8 @@ function KubeConfigLoader() {
   const history = useHistory();
   const [state, setState] = useState(Step.LoadKubeConfig);
   const [error, setError] = React.useState('');
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<ImportMessageProps[]>([]);
   const [fileContent, setFileContent] = useState<kubeconfig>({
     clusters: [],
     users: [],
@@ -400,31 +512,110 @@ function KubeConfigLoader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const onDrop = (acceptedFiles: File[]) => {
+  const onDrop = async (acceptedFiles: File[]) => {
     setError('');
-    const reader = new FileReader();
-    reader.onerror = () => setError(t("translation|Couldn't read kubeconfig file"));
-    reader.onload = () => {
-      try {
-        const data = new TextDecoder().decode(reader.result as ArrayBuffer);
-        const doc = yaml.load(data) as kubeconfig;
-        if (!doc.clusters) {
-          throw new Error(t('translation|No clusters found!'));
-        }
-        if (!doc.contexts) {
-          throw new Error(t('translation|No contexts found!'));
-        }
-        setFileContent(doc);
-      } catch (err) {
-        setError(
-          t(`translation|Invalid kubeconfig file: {{ errorMessage }}`, {
-            errorMessage: (err as Error).message,
-          })
-        );
-        return;
-      }
+    setErrorDetails([]);
+    setWarnings([]);
+    if (acceptedFiles.length === 0) {
+      setError(t('translation|No kubeconfig files selected'));
+      return;
+    }
+
+    const mergedConfig: kubeconfig = {
+      clusters: [],
+      users: [],
+      contexts: [],
+      currentContext: '',
     };
-    reader.readAsArrayBuffer(acceptedFiles[0]);
+    const failures: string[] = [];
+    const duplicates: string[] = [];
+    const seenClusterNames = new Set<string>();
+    const seenUserNames = new Set<string>();
+    const seenContextNames = new Set<string>();
+
+    function mergeEntries<T extends { name: string }>(
+      entries: T[],
+      mergedEntries: T[],
+      seenNames: Set<string>,
+      fileName: string,
+      entryType: string
+    ) {
+      for (const entry of entries) {
+        if (seenNames.has(entry.name)) {
+          duplicates.push(`${fileName}: ${entryType} "${entry.name}"`);
+        } else {
+          seenNames.add(entry.name);
+          mergedEntries.push(entry);
+        }
+      }
+    }
+
+    for (const file of acceptedFiles) {
+      try {
+        const doc: unknown = yaml.load(await readFileAsText(file));
+        if (!isKubeconfig(doc)) {
+          throw new Error(t('translation|Invalid kubeconfig structure'));
+        }
+        const clusterNames = new Set(doc.clusters.map(cluster => cluster.name));
+        if (doc.contexts.some(context => !clusterNames.has(context.context.cluster))) {
+          throw new Error(t('translation|Kubeconfig contexts reference missing clusters'));
+        }
+        const userNames = new Set((doc.users ?? []).map(user => user.name));
+        if (doc.contexts.some(({ context }) => context.user && !userNames.has(context.user))) {
+          throw new Error(t('translation|Kubeconfig contexts reference missing users'));
+        }
+        mergeEntries(
+          doc.clusters,
+          mergedConfig.clusters,
+          seenClusterNames,
+          file.name,
+          t('translation|Cluster')
+        );
+        mergeEntries(
+          doc.users ?? [],
+          mergedConfig.users,
+          seenUserNames,
+          file.name,
+          t('translation|User')
+        );
+        mergeEntries(
+          doc.contexts,
+          mergedConfig.contexts,
+          seenContextNames,
+          file.name,
+          t('translation|Context')
+        );
+      } catch (err) {
+        console.error('Error loading kubeconfig file:', file.name, err);
+        failures.push(
+          `${file.name}: ${
+            err instanceof Error ? err.message : t("translation|Couldn't read kubeconfig file")
+          }`
+        );
+      }
+    }
+
+    if (mergedConfig.contexts.length === 0) {
+      setError(t('translation|No valid kubeconfig contexts found in the selected files'));
+      setErrorDetails(failures);
+      return;
+    }
+
+    const importWarnings: ImportMessageProps[] = [];
+    if (failures.length > 0) {
+      importWarnings.push({
+        message: t('translation|{{ count }} file could not be loaded', { count: failures.length }),
+        details: failures,
+      });
+    }
+    if (duplicates.length > 0) {
+      importWarnings.push({
+        message: t('translation|Duplicate kubeconfig entries were skipped (first occurrence wins)'),
+        details: duplicates,
+      });
+    }
+    setWarnings(importWarnings);
+    setFileContent(mergedConfig);
   };
 
   function handleCheckboxChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -443,13 +634,22 @@ function KubeConfigLoader() {
     <PureKubeConfigLoader
       step={state}
       error={error}
+      errorDetails={errorDetails}
+      warnings={warnings}
       fileContent={fileContent}
       selectedClusters={selectedClusters}
       onDrop={onDrop}
       onCheckboxChange={handleCheckboxChange}
-      onNext={() => setState(Step.ValidateKubeConfig)}
+      onNext={() => {
+        setError('');
+        setErrorDetails([]);
+        setWarnings([]);
+        setState(Step.ValidateKubeConfig);
+      }}
       onBack={() => {
         setError('');
+        setErrorDetails([]);
+        setWarnings([]);
         setState(Step.LoadKubeConfig);
       }}
       onFinish={() => history.replace('/')}

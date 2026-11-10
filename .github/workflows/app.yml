@@ -8,6 +8,7 @@ on:
     - '.github/**'
     - 'app/**'
     - 'backend/**'
+    - 'tools/run-backend.js'
   push:
     branches:
       - main
@@ -19,9 +20,14 @@ on:
     - '.github/**'
     - 'app/**'
     - 'backend/**'
+    - 'tools/run-backend.js'
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-linux:
@@ -30,16 +36,24 @@ jobs:
       matrix:
         node-version: [22.x]
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
     - name: Run tests
       run: make app-test
+    - name: Verify OAuth callback coverage
+      run: npm --prefix app run test:oauth-coverage
     - name: Run tsc type checker
       run: make app-tsc
     - name: Run app-i18n-check
@@ -47,8 +61,37 @@ jobs:
     - name: App linux
       run: |
         make app-linux
+        make backend
+    - name: Install desktop e2e dependencies
+      run: |
+        cd app/e2e-tests
+        npm ci
+        npx playwright install --with-deps chromium
+    - name: Test desktop privileged bridges
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts tests/clusterRegistration.spec.ts
+    - name: Test production frontend runtime
+      run: xvfb-run --auto-servernum npm run app:test:e2e:frontend-build
+    - name: Test desktop OAuth callbacks
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/oauthProvider.spec.ts tests/protocolScheme.spec.ts
+    - name: Test external backend token
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/externalBackendToken.spec.ts
     - name: Verify Linux build
       run: npm run app:verify-build-linux
+    - name: Start Minikube
+      uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+    - name: Verify Minikube
+      run: |
+        minikube status
+        kubectl config use-context minikube
+        kubectl get nodes
+    - name: Run app e2e tests
+      env:
+        HEADLAMP_APP_E2E_CONTEXT: minikube
+      run: |
+        make backend
+        npm --prefix app/e2e-tests ci
+        npm --prefix app/e2e-tests exec -- playwright install --with-deps chromium
+          xvfb-run npm run app:test:e2e -- backendToken.spec.ts
   build-windows:
     strategy:
       matrix:
@@ -61,16 +104,22 @@ jobs:
             node-version: 22.x
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
     - name: Dependencies
-      uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
+      uses: crazy-max/ghaction-chocolatey@dfdcf5bba9c0a16358a21c13a06ec5c89024b3ac # v4.1.0
       with:
         args: install make
     - name: Run tests
@@ -78,7 +127,14 @@ jobs:
     - name: Run tsc type checker
       run: make app-tsc
     - name: App Windows ${{ matrix.arch }}
-      run: make app-build && cd app && npm run package -- --win --${{ matrix.arch }}
+      run: make app-win-${{ matrix.arch }}
+    - name: Install desktop e2e dependencies
+      run: npm --prefix app/e2e-tests ci
+    - name: Test external backend token
+      run: npm run app:test:e2e -- tests/externalBackendToken.spec.ts
+    - name: Test desktop cluster registration
+      if: matrix.arch == 'x64'
+      run: npm run app:test:e2e -- tests/clusterRegistration.spec.ts
     - name: Verify Windows build
       shell: pwsh
       run: npm run app:verify-build-windows
@@ -88,14 +144,20 @@ jobs:
       matrix:
         node-version: [22.x]
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
     - name: Dependencies
       run: brew install make
     - name: Run tests

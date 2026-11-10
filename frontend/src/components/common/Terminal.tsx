@@ -15,19 +15,25 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isElectron } from '../../helpers/isElectron';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
 import { XTERM_DEFAULT_OPTIONS } from '../../lib/xterm/options';
@@ -75,9 +81,17 @@ export default function Terminal(props: TerminalProps) {
     available: getAvailableShells(),
     currentIdx: 0,
   });
+  const [contextMenu, setContextMenu] = React.useState<{
+    mouseX: number;
+    mouseY: number;
+    hasSelection: boolean;
+    canPaste: boolean;
+  } | null>(null);
   const { t } = useTranslation(['translation', 'glossary']);
   const muiTheme = useTheme();
   const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
+  const isDesktopApp = isElectron();
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -299,11 +313,7 @@ export default function Terminal(props: TerminalProps) {
           ...XTERM_DEFAULT_OPTIONS,
           rows: 30,
           windowsMode: isWindows,
-fix-xterm-font
-
-          allowProposedApi: true,
           theme: xtermTheme,
- main
         }),
         connected: false,
         reconnectOnEnter: false,
@@ -389,6 +399,53 @@ fix-xterm-font
     setContainer(event.target.value);
   }
 
+  function canPasteIntoTerminal() {
+    const socket = execOrAttachRef.current?.getSocket();
+
+    return !!socket && socket.readyState === 1;
+  }
+
+  const handleContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    const hasSelection = !!xtermRef.current?.xterm.getSelection();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      hasSelection,
+      canPaste: canPasteIntoTerminal(),
+    });
+  };
+
+  const handleContextMenuClose = () => {
+    setContextMenu(null);
+  };
+
+  const handleCopy = async () => {
+    if (xtermRef.current) {
+      const selection = xtermRef.current.xterm.getSelection();
+      if (selection) {
+        try {
+          await navigator.clipboard.writeText(selection);
+        } catch (err) {
+          console.error('Failed to copy text: ', err);
+        }
+      }
+    }
+    handleContextMenuClose();
+  };
+
+  const handlePaste = async () => {
+    if (xtermRef.current && canPasteIntoTerminal()) {
+      try {
+        const text = await navigator.clipboard.readText();
+        xtermRef.current.xterm.paste(text);
+      } catch (err) {
+        console.error('Failed to paste text: ', err);
+      }
+    }
+    handleContextMenuClose();
+  };
+
   function isSuccessfulExitError(channel: number, text: string): boolean {
     // Linux container Error
     if (channel === 3) {
@@ -439,6 +496,9 @@ fix-xterm-font
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
+        ...(isMobile && {
+          padding: 0,
+        }),
         '& .xterm ': {
           height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
           '& .xterm-viewport': {
@@ -449,12 +509,12 @@ fix-xterm-font
           overflow: 'hidden',
           width: '100%',
           '& .terminal.xterm': {
-            padding: theme.spacing(1),
+            padding: isMobile ? 0 : theme.spacing(1),
           },
         },
       })}
     >
-      <Box>
+      <Box sx={isMobile ? { px: 1, pt: 1 } : undefined}>
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">
             {t('glossary|Container')}
@@ -511,8 +571,38 @@ fix-xterm-font
         <div
           id="xterm-container"
           ref={x => setTerminalContainerRef(x)}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+          onContextMenu={isDesktopApp ? handleContextMenu : undefined}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column-reverse',
+          }}
         />
+        {isDesktopApp && (
+          <Menu
+            open={contextMenu !== null}
+            onClose={handleContextMenuClose}
+            anchorReference="anchorPosition"
+            anchorPosition={
+              contextMenu !== null
+                ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+                : undefined
+            }
+          >
+            <MenuItem onClick={handleCopy} disabled={!contextMenu?.hasSelection}>
+              <ListItemIcon>
+                <Icon icon="mdi:content-copy" />
+              </ListItemIcon>
+              <ListItemText>{t('translation|Copy')}</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={handlePaste} disabled={!contextMenu?.canPaste}>
+              <ListItemIcon>
+                <Icon icon="mdi:content-paste" />
+              </ListItemIcon>
+              <ListItemText>{t('translation|Paste')}</ListItemText>
+            </MenuItem>
+          </Menu>
+        )}
       </Box>
     </DialogContent>
   );

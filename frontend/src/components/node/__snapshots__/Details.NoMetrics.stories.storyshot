@@ -2,152 +2,146 @@
   <div>
     <div />
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-bsyb48-MuiGrid-root"
+      class="MuiBox-root css-1x8tw9a"
     >
-      <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+        tabindex="0"
+        type="button"
       >
-        <div
-          class="MuiBox-root css-p0cik4"
+        <span
+          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        />
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          style="padding-top: 3px;"
         >
-          <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
-            tabindex="0"
-            type="button"
-          >
-            <span
-              class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
-            />
-            <p
-              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              style="padding-top: 3px;"
-            >
-              Back
-            </p>
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
-          </button>
-        </div>
-      </div>
+          Back
+        </p>
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </button>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
       >
         <div
-          class="MuiBox-root css-p0cik4"
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
         >
           <div
-            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            class="MuiBox-root css-70qvj9"
+          >
+            <h1
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+            >
+              Node: node
+            </h1>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            >
+              <button
+                aria-label="Copy to clipboard"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
           >
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <div
-                class="MuiBox-root css-70qvj9"
+              <button
+                aria-label="Cordon"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
               >
-                <h1
-                  class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
-                >
-                  Node: node
-                </h1>
-                <div
-                  class="MuiBox-root css-ldp2l3"
-                >
-                  <button
-                    aria-label="Copy to clipboard"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
-              </div>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
             </div>
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <div
-                class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
+              <button
+                aria-label="Drain"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
               >
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Cordon"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Drain"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              </button>
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            />
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            />
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            />
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <button
+                aria-label="Edit"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              </button>
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <button
+                aria-label="Delete"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Edit"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Delete"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                  <div />
-                </div>
-              </div>
+              </button>
+              <div />
             </div>
           </div>
         </div>
       </div>
+    </div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-bsyb48-MuiGrid-root"
+    >
       <div
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
       >
@@ -246,7 +240,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -276,12 +272,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0.0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 4 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -289,12 +288,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#e0e0e0"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -364,7 +362,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -394,12 +394,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0.0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 7.62939453125 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -407,12 +410,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#e0e0e0"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -482,7 +484,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -512,12 +516,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0.0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 110 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -525,12 +532,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#e0e0e0"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -600,7 +606,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -626,12 +634,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="19.5 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="used: 10000000000 (20%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     0,1,
     103.18117412019933,45.90733456802854
@@ -639,23 +650,25 @@
             A 33.800000000000004,33.800000000000004,0,
             0,0,
             61,27.199999999999996 Z"
-                                      fill="#000"
-                                      name="used"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#000"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="19.5 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 103.18117412019933,45.90733456802854
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 41200000000 (80%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 103.18117412019933,45.90733456802854
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99999999999999,16.199999999999996
@@ -663,12 +676,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             92.82418940318611,49.61312295534296 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#e0e0e0"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -697,7 +709,7 @@
                 </div>
               </div>
               <div
-                class="MuiBox-root css-0"
+                class="MuiBox-root css-h5fkc8"
               >
                 <dl
                   class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
@@ -880,17 +892,27 @@
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
+                          ephemeral-storage: 50000000Ki
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-1Gi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-2Mi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
                           memory: 8000000Ki
                         </p>
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
                           pods: 110
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          ephemeral-storage: 50000000Ki
                         </p>
                       </div>
                     </div>
@@ -917,17 +939,27 @@
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
+                          ephemeral-storage: 50000000Ki
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-1Gi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-2Mi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
                           memory: 8000000Ki
                         </p>
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
                           pods: 110
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          ephemeral-storage: 50000000Ki
                         </p>
                       </div>
                     </div>
@@ -1322,7 +1354,7 @@
                 tabindex="0"
               >
                 <table
-                  class="MuiTable-root css-r7i92b-MuiTable-root"
+                  class="MuiTable-root css-1f5u0uu-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -1539,24 +1571,28 @@
               class="MuiBox-root css-1txv3mw"
             >
               <div
-                aria-atomic="true"
-                aria-live="polite"
-                class="MuiBox-root css-ty8jgw"
-                role="status"
-              >
-                No data to be shown.
-              </div>
-              <div
-                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+                class="MuiBox-root css-8atqhb"
               >
                 <div
-                  class="MuiBox-root css-19midj6"
+                  aria-atomic="true"
+                  aria-live="polite"
+                  class="MuiBox-root css-ty8jgw"
+                  role="status"
                 >
-                  <p
-                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  No data to be shown.
+                </div>
+                <div
+                  class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+                >
+                  <div
+                    class="MuiBox-root css-19midj6"
                   >
-                    No data to be shown.
-                  </p>
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                    >
+                      No data to be shown.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

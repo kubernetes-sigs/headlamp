@@ -240,12 +240,8 @@ async function pushFiles(release, files) {
 }
 
 async function main() {
-  let login;
-
   if (!process.env.GITHUB_TOKEN) {
-    console.error(
-      'GITHUB_TOKEN not set! Make sure you have set a GITHUB_TOKEN environment variable with to a personal access token.'
-    );
+    console.error('GITHUB_TOKEN not set! Provide a token with access to this repository.');
     process.exit(1);
   }
 
@@ -255,14 +251,17 @@ async function main() {
   }
 
   try {
-    const { data } = await client.rest.users.getAuthenticated();
-    login = data.login;
+    await client.request('GET /repos/{owner}/{repo}', { owner, repo });
   } catch (e) {
     console.error(`Error authenticating: ${e}`);
     process.exit(1);
   }
 
-  console.log(`Logged in as ${login}`);
+  console.log(
+    process.env.GITHUB_ACTOR
+      ? `Authenticated to ${owner}/${repo} as ${process.env.GITHUB_ACTOR}`
+      : `Authenticated to ${owner}/${repo}`
+  );
 
   const release = await getRelease(args.releaseName);
 

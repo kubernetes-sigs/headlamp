@@ -21,9 +21,9 @@ import { KubeObject } from './KubeObject';
 /**
  * GatewayClass is cluster-scoped resource defined by the infrastructure provider. This resource represents a class of Gateways that can be instantiated.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayClass} Gateway API reference for GatewayClass
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#gatewayclass} Gateway API reference for GatewayClass
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/gatewayclass/} Gateway API definition for GatewayClass
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/gatewayclass/} Gateway API definition for GatewayClass
  */
 export interface KubeGatewayClass extends KubeObjectInterface {
   spec: {

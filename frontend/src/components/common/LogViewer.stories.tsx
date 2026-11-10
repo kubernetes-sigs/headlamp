@@ -19,6 +19,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { Meta, StoryFn } from '@storybook/react';
+import { SnackbarProvider } from 'notistack';
 import { useCallback, useEffect, useState } from 'react';
 import { action } from 'storybook/actions';
 import { getTestDate } from '../../helpers/testHelpers';
@@ -27,6 +28,13 @@ import { LogViewer, LogViewerProps } from './LogViewer';
 export default {
   title: 'LogViewer',
   component: LogViewer,
+  decorators: [
+    Story => (
+      <SnackbarProvider>
+        <Story />
+      </SnackbarProvider>
+    ),
+  ],
   argTypes: {
     onClose: { action: 'closed' },
   },

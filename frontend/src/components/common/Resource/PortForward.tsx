@@ -58,6 +58,7 @@ type PortForwardProps = PortForwardKubeObjectProps | PortForwardLegacyProps;
 export const PORT_FORWARDS_STORAGE_KEY = 'portforwards';
 export const PORT_FORWARD_STOP_STATUS = 'Stopped';
 export const PORT_FORWARD_RUNNING_STATUS = 'Running';
+export const PORT_FORWARD_RECONNECTING_STATUS = 'Reconnecting';
 export const DOCKER_DESKTOP_MIN_PORT = 30000;
 export const DOCKER_DESKTOP_MAX_PORT = 32000;
 
@@ -173,6 +174,7 @@ function PortForwardContent(props: PortForwardProps) {
   const [pods, podsFetchError] = Pod.useList({
     namespace,
     labelSelector: getPodsSelectorFilter(service),
+    cluster: resource?.cluster,
   });
 
   const cluster = React.useMemo(() => {
@@ -470,6 +472,29 @@ function PortForwardContent(props: PortForwardProps) {
                 description={t('translation|Delete port forward')}
                 color="primary"
                 icon="mdi:delete-outline"
+                iconButtonProps={{
+                  size: 'small',
+                  color: 'primary',
+                  disabled: loading,
+                }}
+                width={'25'}
+              />
+            </Box>
+          ) : portForward.status === PORT_FORWARD_RECONNECTING_STATUS ? (
+            <Box display={'flex'} alignItems="center" gap={1}>
+              <CircularProgress size={16} />
+              <Typography
+                style={{
+                  color: grey[500],
+                }}
+              >
+                {t('translation|Reconnecting...')}
+              </Typography>
+              <ActionButton
+                onClick={portForwardStopHandler}
+                description={t('translation|Stop port forward')}
+                color="primary"
+                icon="mdi:stop-circle-outline"
                 iconButtonProps={{
                   size: 'small',
                   color: 'primary',

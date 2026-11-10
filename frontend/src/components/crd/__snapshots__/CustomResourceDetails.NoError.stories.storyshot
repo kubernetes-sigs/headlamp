@@ -58,6 +58,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </div>
               </div>
@@ -113,7 +119,7 @@
               class="MuiBox-root css-1txv3mw"
             >
               <div
-                class="MuiBox-root css-0"
+                class="MuiBox-root css-h5fkc8"
               >
                 <dl
                   class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"

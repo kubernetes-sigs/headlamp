@@ -31,7 +31,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -42,6 +42,7 @@ import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
 import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
@@ -63,6 +64,7 @@ import { setTheme, useAppThemes } from '../App/themeSlice';
 import { LightTooltip } from '../common/Tooltip';
 import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
+import { rememberThemeChoiceIfEnabled } from '../Sidebar/ThemeToggleButton/ThemeToggleButton';
 import { Delayed } from './Delayed';
 import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
@@ -80,6 +82,7 @@ interface SearchResult {
   icon?: JSX.Element;
   subLabel?: string;
   namespace?: string;
+  kind?: string;
   k8sLabels?: string[];
   onClick: () => void;
   labelMatch?: FuseResultMatch;
@@ -108,6 +111,7 @@ const classes: KubeObjectClass[] = [
   ServiceAccount,
   Node,
   JobSet,
+  LeaderWorkerSet,
 ];
 
 /**
@@ -150,6 +154,7 @@ function makeKubeObjectResults(
             <LazyKubeIcon kind={item.kind} width="24px" height="24px" />
           </Suspense>
         ),
+        kind: item.kind,
         namespace: item.metadata.namespace,
         subLabel: item.metadata.namespace ? `${item.kind} • ${item.metadata.namespace}` : item.kind,
         onClick: () => onClick(item),
@@ -182,6 +187,9 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
+  const drawerLocation = useTypedSelector(
+    state => state?.drawerMode?.detailsDrawerLocation ?? 'split-right'
+  );
 
   const [recent, bump] = useRecent('search-recent-items');
 
@@ -196,19 +204,25 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     const knownNamespaces = new Set<string>(
       [
         ...namespaceItems.map(n => n.metadata.name),
-        ...selectedClusters.flatMap(c => loadClusterSettings(c)?.allowedNamespaces ?? []),
+        ...selectedClusters.flatMap(c => getCombinedAllowedNamespaces(c)),
       ].filter(Boolean)
     );
 
     const options: SearchResult[] = [];
+    const addedOptionIds = new Set<string>();
 
     const addOption = (namespaceValue: string) => {
-      if (!namespaceValue) {
+      if (!namespaceValue || /\s/.test(namespaceValue)) {
         return;
       }
+      const id = `set-namespace-${namespaceValue}`;
+      if (addedOptionIds.has(id)) {
+        return;
+      }
+      addedOptionIds.add(id);
 
       options.push({
-        id: `set-namespace-${namespaceValue}`,
+        id,
         subLabel: t('translation|Current Namespace'),
         label: t('translation|Set namespace: {{namespace}}', { namespace: namespaceValue }),
         icon: (
@@ -250,10 +264,11 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         if (drawerEnabled) {
           Activity.launch({
             id: item.metadata.uid,
+            kind: 'details',
             content: <KubeObjectDetails resource={item} />,
             hideTitleInHeader: true,
             cluster: item.cluster,
-            location: 'split-right',
+            location: drawerLocation,
             title: item.kind + ': ' + item.metadata.name,
             icon: <KubeIcon kind={item.kind} width="100%" height="100%" />,
           });
@@ -262,7 +277,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resources, isMap, location.search]
+    [resources, isMap, location.search, drawerLocation]
   );
 
   // Cluster items
@@ -323,16 +338,26 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   // Themes
   const appThemes = useAppThemes();
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
   const themeActions = useMemo(() => {
+    // A theme forced by configuration can't be changed, so don't offer to switch.
+    if (forceTheme) {
+      return [];
+    }
     return appThemes.map(theme => ({
       id: 'switch-theme-' + theme.name,
       subLabel: 'Theme',
       icon: <ThemePreview theme={theme} size={32} />,
       label: theme.name,
-      onClick: () => dispatch(setTheme(theme.name)),
+      onClick: () => {
+        rememberThemeChoiceIfEnabled(theme);
+        dispatch(setTheme(theme.name));
+      },
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appThemes]);
+  }, [appThemes, forceTheme]);
+
+  const [, setAdvancedSearchQueryKey] = useLocalStorageState(ADVANCED_SEARCH_QUERY_KEY, '');
 
   // Advanced Search
   const advancedSearchSuggestion = useMemo(() => {
@@ -344,7 +369,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       label: `Search "${query}" with Advanced Search`,
       onClick: () => {
         // Set the search query in localStorage for the Advanced Search
-        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name === "${query}"`);
+        setAdvancedSearchQueryKey(() => `metadata.name === "${query}"`);
 
         const params = new URLSearchParams(history.location.search);
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());
@@ -395,6 +420,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
           'label',
           'k8sLabels',
           'namespace',
+          'kind',
           // We also want to search by subLabel sometimes
           // For example 'default namespace' (there are a lot of objects with 'default' name)
           // But it shouldn't be main field so it has half the weight (1/2)
@@ -407,37 +433,62 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   );
 
   const results: SearchResult[] = useMemo(() => {
-    if (!query) return [];
-    return fuse
-      .search(
-        {
-          // Construct logical query https://www.fusejs.io/api/query.html
-          // Improves search for space separated terms
-          $and: query
-            .split(' ')
-            .filter(Boolean)
-            .map(it => ({
-              $or: [
-                { label: it },
-                // Only search labels if there's an "=" character in the query
-                it.includes('=') ? { k8sLabels: it } : undefined,
-                { subLabel: it },
-                { namespace: it },
-              ].filter(Boolean) as Expression[],
-            })),
-        },
-        { limit: 100 }
-      )
-      .map(
-        ({ item, matches }) =>
-          ({
-            ...item,
-            labelMatch: matches?.find(it => it.key === 'label'),
-            subLabelMatch: matches?.find(it => it.key === 'subLabel'),
-            k8sLabelsMatch: matches?.find(it => it.key === 'k8sLabels'),
-            namespaceMatch: matches?.find(it => it.key === 'namespace'),
-          } satisfies SearchResult)
-      );
+    if (!query.trim()) return [];
+    return (
+      fuse
+        .search(
+          {
+            // Construct logical query https://www.fusejs.io/api/query.html
+            // Improves search for space separated terms
+            $and: (() => {
+              const terms = query.split(' ').filter(Boolean);
+              return terms.map(it => ({
+                $or: [
+                  { label: it },
+                  it.includes('=') ? { k8sLabels: it } : undefined,
+                  { kind: it },
+                  { subLabel: it },
+                  // Only match on namespace when combined with another term
+                  // (e.g. "coredns kube-system"). Bare single-term matches that
+                  // only hit via subLabel or namespace are filtered out below,
+                  // since subLabel embeds the namespace as display text (e.g.
+                  // "Pod • kube-system") which would otherwise flood every
+                  // resource in a namespace.
+                  terms.length > 1 ? { namespace: it } : undefined,
+                ].filter(Boolean) as Expression[],
+              }));
+            })(),
+          },
+          { limit: 100 }
+        )
+
+        // For a bare single-term query on a namespaced resource, drop
+        // results that only matched via subLabel or namespace — that's
+        // namespace text leaking through (e.g. "Pod • kube-system" contains
+        // "kube-system"), which would otherwise flood every resource in a
+        // namespace. Non-namespaced entries (Theme, Settings, Cluster, Page)
+        // never hit this path, since they have no namespace field and rely
+        // on subLabel as their only searchable text.
+        .filter(({ item, matches }) => {
+          const terms = query.split(' ').filter(Boolean);
+          if (terms.length > 1) return true;
+          if (!item.namespace) return true;
+          return (
+            matches?.some(m => m.key === 'label' || m.key === 'kind' || m.key === 'k8sLabels') ??
+            false
+          );
+        })
+        .map(
+          ({ item, matches }) =>
+            ({
+              ...item,
+              labelMatch: matches?.find(it => it.key === 'label'),
+              subLabelMatch: matches?.find(it => it.key === 'subLabel'),
+              k8sLabelsMatch: matches?.find(it => it.key === 'k8sLabels'),
+              namespaceMatch: matches?.find(it => it.key === 'namespace'),
+            } satisfies SearchResult)
+        )
+    );
   }, [query, fuse]);
 
   const recentItems = useMemo(() => {

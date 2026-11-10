@@ -50,13 +50,14 @@ func main() {
 		return
 	}
 
-	conf, err := config.Parse(os.Args)
+	conf, err := config.ParseWithAppNameDefault(os.Args, kubeconfig.AppName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
 		os.Exit(1)
 	}
 
 	logger.Init(conf.LogLevel)
+	kubeconfig.AppName = conf.AppName
 
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
@@ -81,9 +82,11 @@ func main() {
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
+		AppName:                conf.AppName,
 		UseInCluster:           conf.InCluster,
 		InClusterContextName:   conf.InClusterContextName,
 		KubeConfigPath:         conf.KubeConfigPath,
+		KubeConfigDir:          conf.KubeConfigDir,
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
@@ -101,14 +104,21 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
 		ProxyURLs: func() []string {
-			if conf.ProxyURLs == "" {
-				return []string{}
+			proxyURLs := []string{}
+
+			// Trim the spaces around each entry, because a pattern like
+			// " https://b.com" never matches, and drop empty entries.
+			for _, proxyURL := range strings.Split(conf.ProxyURLs, ",") {
+				if proxyURL = strings.TrimSpace(proxyURL); proxyURL != "" {
+					proxyURLs = append(proxyURLs, proxyURL)
+				}
 			}
 
-			return strings.Split(conf.ProxyURLs, ",")
+			return proxyURLs
 		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
+		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,
 		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
 		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
 		TLSCertPath:                           conf.TLSCertPath,
@@ -118,6 +128,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		NodeShellImage:                        conf.NodeShellImage,
 		NodeShellNamespace:                    conf.NodeShellNamespace,
 		OidcUseCookie:                         conf.OidcUseCookie,
+		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
 		DefaultLightTheme:                     conf.DefaultLightTheme,
 		DefaultDarkTheme:                      conf.DefaultDarkTheme,
 		ForceTheme:                            conf.ForceTheme,
@@ -186,7 +197,7 @@ func loadOidcCACert(oidcCAFile string) string {
 		return ""
 	}
 
-	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec // CA file path is provided via CLI configuration
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 		os.Exit(1)
@@ -204,6 +215,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
+		OidcAutoLogin:             conf.OidcAutoLogin,
 		OidcClientID:              conf.OidcClientID,
 		OidcValidatorClientID:     conf.OidcValidatorClientID,
 		OidcClientSecret:          conf.OidcClientSecret,
@@ -212,6 +224,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
 		OidcScopes:                strings.Split(conf.OidcScopes, ","),
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
+		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
 		MeUsernamePaths:           conf.MeUsernamePath,
@@ -259,7 +272,7 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 		return nil, nil, "", nil, err
 	}
 
-	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 		return nil, nil, "", nil, err

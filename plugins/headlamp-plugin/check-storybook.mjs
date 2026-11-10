@@ -80,6 +80,7 @@ function checkStorybook(pluginDir, exit) {
     const storybook = spawn('npm', ['run', 'storybook'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
+      detached: process.platform !== 'win32',
     });
 
     let hasError = false;

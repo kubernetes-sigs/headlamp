@@ -1,10 +1,13 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { isValidVersion } from './version.js';
 
 export function getRepoRoot(): string {
   try {
-    const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
+    const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      encoding: 'utf-8',
+    }).trim();
     return gitRoot;
   } catch (error) {
     console.error('Error: Not in a git repository');
@@ -26,13 +29,26 @@ export function getCurrentVersion(): string {
 }
 
 export function commitVersionChange(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   const repoRoot = getRepoRoot();
   const packageJsonPath = path.join(repoRoot, 'app', 'package.json');
   const packageLockJsonPath = path.join(repoRoot, 'app', 'package-lock.json');
+  const chartYamlPath = path.join(repoRoot, 'charts', 'headlamp', 'Chart.yaml');
+  const expectedTemplatesPath = path.join(repoRoot, 'charts', 'headlamp', 'tests', 'expected_templates');
 
   try {
-    execSync(`git add "${packageJsonPath}" "${packageLockJsonPath}"`);
-    execSync(`git commit --signoff -m "app: Bump version to ${version}"`);
+    execFileSync(
+      'git',
+      ['add', packageJsonPath, packageLockJsonPath, chartYamlPath, expectedTemplatesPath],
+      { stdio: 'inherit' }
+    );
+    execFileSync('git', ['commit', '--signoff', '-m', `releaser: bump version to ${version}`], {
+      stdio: 'inherit',
+    });
   } catch (error) {
     console.error('Error: Failed to commit version change');
     console.error(error);
@@ -40,19 +56,56 @@ export function commitVersionChange(version: string): void {
   }
 }
 
-export function createReleaseTag(version: string): void {
+export function createReleaseTag(version: string, sign = true): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   try {
-    execSync(`git tag -a v${version} -m "Release ${version}"`);
+    execFileSync('git', ['tag', sign ? '-s' : '-a', `v${version}`, '-m', `Release ${version}`], {
+      stdio: 'inherit',
+    });
   } catch (error) {
     console.error(`Error: Failed to create tag v${version}`);
-    console.error(error);
+    if (sign) {
+      console.error(
+        'Signing requires a GPG or SSH signing key configured for git (user.signingkey, ' +
+          'and gpg.format=ssh for SSH keys). See ' +
+          'https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key'
+      );
+    }
     process.exit(1);
   }
 }
 
-export function pushTag(version: string): void {
+/**
+ * Returns whether the local release tag is an annotated tag carrying a GPG,
+ * SSH, or X.509 signature. Lightweight and unsigned annotated tags return false.
+ */
+export function isReleaseTagSigned(version: string): boolean {
+  const ref = `refs/tags/v${version}`;
   try {
-    execSync(`git push origin v${version}`);
+    const output = execFileSync(
+      'git',
+      ['for-each-ref', '--format=%(objecttype)%00%(contents:signature)', ref],
+      { encoding: 'utf-8' }
+    );
+    const [objectType, signature = ''] = output.split('\0');
+    return objectType === 'tag' && signature.trim() !== '';
+  } catch {
+    return false;
+  }
+}
+
+export function pushTag(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
+  try {
+    execFileSync('git', ['push', 'origin', `v${version}`], { stdio: 'inherit' });
   } catch (error) {
     console.error(`Error: Failed to push tag v${version} to origin`);
     console.error(error);
@@ -62,7 +115,7 @@ export function pushTag(version: string): void {
 
 export function branchExists(branchName: string): boolean {
   try {
-    execSync(`git rev-parse --verify ${branchName}`, { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--verify', branchName], { stdio: 'ignore' });
     return true;
   } catch (error) {
     return false;
@@ -71,7 +124,7 @@ export function branchExists(branchName: string): boolean {
 
 export function createAndCheckoutBranch(branchName: string): void {
   try {
-    execSync(`git checkout -b ${branchName}`);
+    execFileSync('git', ['checkout', '-b', branchName], { stdio: 'inherit' });
   } catch (error) {
     console.error(`Error: Failed to create and checkout branch ${branchName}`);
     console.error(error);
@@ -81,7 +134,9 @@ export function createAndCheckoutBranch(branchName: string): void {
 
 export function getCurrentBranch(): string {
   try {
-    return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      encoding: 'utf-8',
+    }).trim();
   } catch (error) {
     console.error('Error: Failed to get current branch');
     console.error(error);
