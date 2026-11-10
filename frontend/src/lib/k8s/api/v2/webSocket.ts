@@ -80,6 +80,7 @@ const closeListeners = new Map<string, Array<(event?: CloseEvent) => void>>();
 const errorListeners = new Map<string, Array<(error: any) => void>>();
 const intentionalCloses = new WeakSet<WebSocket>();
 const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const handshakeFailureCounts = new Map<string, number>();
 
 /**
  * Create new WebSocket connection to the backend
@@ -98,6 +99,7 @@ export async function openWebSocket<T>(
     onMessage,
     onError,
     onClose,
+    onOpen,
     onHandshakeFailure,
   }: {
     /**
@@ -124,6 +126,10 @@ export async function openWebSocket<T>(
      * Close callback
      */
     onClose?: (event?: CloseEvent) => void;
+    /**
+     * Open callback invoked when connection successfully opens
+     */
+    onOpen?: () => void;
     /**
      * Handshake failure callback invoked when connection closes before open event
      */
@@ -158,6 +164,7 @@ export async function openWebSocket<T>(
   let hasOpened = false;
   socket.addEventListener('open', () => {
     hasOpened = true;
+    onOpen?.();
   });
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
@@ -253,12 +260,35 @@ export function useWebSockets<T>({
       sockets.set(connectionKey, pendingSocket);
 
       const scheduleRetry = () => {
+        if (sockets.get(connectionKey) === pendingSocket) {
+          sockets.delete(connectionKey);
+        }
         if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
           return;
         }
         if (retryTimers.has(connectionKey)) {
           return;
         }
+        const count = (handshakeFailureCounts.get(connectionKey) ?? 0) + 1;
+        handshakeFailureCounts.set(connectionKey, count);
+
+        // If handshake fails repeatedly, notify close listeners so higher-level hooks
+        // can detect the failure and recover (e.g. relist or refresh credentials)
+        if (count >= 3) {
+          handshakeFailureCounts.delete(connectionKey);
+          const callbacks = closeListeners.get(connectionKey) ?? (onClose ? [onClose] : []);
+          callbacks.forEach(callback => {
+            try {
+              callback(
+                new CloseEvent('close', { code: 1002, reason: 'Handshake failed repeatedly' })
+              );
+            } catch (err) {
+              console.error('WebSocket close listener error:', err);
+            }
+          });
+          return;
+        }
+
         const timer = setTimeout(() => {
           retryTimers.delete(connectionKey);
           if ((listeners.get(connectionKey)?.length ?? 0) > 0 && !sockets.has(connectionKey)) {
@@ -275,7 +305,15 @@ export function useWebSockets<T>({
         onMessage,
         onError,
         onClose,
-        onHandshakeFailure: scheduleRetry,
+        onOpen: () => {
+          handshakeFailureCounts.delete(connectionKey);
+        },
+        onHandshakeFailure: () => {
+          if (sockets.get(connectionKey) === pendingSocket) {
+            sockets.delete(connectionKey);
+          }
+          scheduleRetry();
+        },
       })
         .then(socket => {
           // A newer connection replaced this pending one while it was opening.
@@ -290,7 +328,9 @@ export function useWebSockets<T>({
             if (sockets.get(connectionKey) === pendingSocket) {
               sockets.delete(connectionKey);
             }
-            scheduleRetry();
+            if (!retryTimers.has(connectionKey)) {
+              scheduleRetry();
+            }
             return;
           }
 
@@ -367,6 +407,7 @@ export function useWebSockets<T>({
           }
           errorListeners.delete(connectionKey);
           closeListeners.delete(connectionKey);
+          handshakeFailureCounts.delete(connectionKey);
         }
       };
     }
@@ -412,4 +453,5 @@ export function resetWebSocketsForTesting(): void {
   listeners.clear();
   closeListeners.clear();
   errorListeners.clear();
+  handshakeFailureCounts.clear();
 }
