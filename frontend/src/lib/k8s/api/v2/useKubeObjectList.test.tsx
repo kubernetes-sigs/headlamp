@@ -460,6 +460,136 @@ describe('useWatchKubeObjectLists', () => {
     );
     expect(mockSubscribe).not.toHaveBeenCalled();
   });
+
+  it('reconnects using the starting resourceVersion when idle watch disconnects without watch events', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+    connection.onClose?.();
+
+    expect(onReconnect).toHaveBeenCalledWith('default', 'a', '100');
+  });
+
+  it('reconnects using the latest watch event resourceVersion after updates arrive', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+    connection.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-1', namespace: 'a', resourceVersion: '105' } },
+    });
+
+    connection.onClose?.();
+
+    expect(onReconnect).toHaveBeenCalledWith('default', 'a', '105');
+  });
+
+  it('maintains separate cursors across multiple namespaces', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [
+            { cluster: 'default', resourceVersion: '100', namespace: 'ns-a' },
+            { cluster: 'default', resourceVersion: '200', namespace: 'ns-b' },
+          ],
+          endpoint: { version: 'v1', resource: 'pods' },
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connectionA = useWebSocketSpy.mock.calls[0][0].connections[0];
+    const connectionB = useWebSocketSpy.mock.calls[0][0].connections[1];
+
+    connectionA.onMessage({
+      type: 'MODIFIED',
+      object: { metadata: { name: 'pod-a', namespace: 'ns-a', resourceVersion: '108' } },
+    });
+
+    connectionA.onClose?.();
+    expect(onReconnect).toHaveBeenCalledWith('default', 'ns-a', '108');
+
+    connectionB.onClose?.();
+    expect(onReconnect).toHaveBeenCalledWith('default', 'ns-b', '200');
+  });
+
+  it('falls back to cached React Query metadata.resourceVersion when idle watch disconnects and resourceVersion was missing', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+
+    const cacheKey = kubeObjectListQuery(mockClass, endpoint, 'ns-cached', 'default', {}).queryKey;
+    queryClient.setQueryData(cacheKey, {
+      list: {
+        metadata: { resourceVersion: '350' },
+        items: [],
+      },
+    });
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '', namespace: 'ns-cached' }],
+          endpoint,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+    connection.onClose?.();
+
+    expect(onReconnect).toHaveBeenCalledWith('default', 'ns-cached', '350');
+  });
 });
 
 describe('useKubeObjectList', () => {

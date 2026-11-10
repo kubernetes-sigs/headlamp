@@ -366,12 +366,17 @@ describe('WebSocket Multiplexer', () => {
       });
 
       // Verify no CLOSE message was sent
-      try {
-        const msg = JSON.parse((await mockServer.nextMessage) as string);
-        expect(msg.type).not.toBe('CLOSE');
-      } catch (e) {
-        // No message is also acceptable
-      }
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const closeMessages = mockServer.messages
+        .map(raw => {
+          try {
+            return JSON.parse(raw as string);
+          } catch {
+            return null;
+          }
+        })
+        .filter(msg => msg?.type === 'CLOSE');
+      expect(closeMessages).toHaveLength(0);
     });
   });
 
@@ -1020,6 +1025,119 @@ describe('WebSocket Multiplexer', () => {
       );
 
       expect(onMessage).not.toHaveBeenCalled();
+    });
+
+    it('reuses canonical subscription when second subscriber joins with different resourceVersion without sending duplicate REQUEST', async () => {
+      const path = '/api/v1/pods';
+      const queryA = 'watch=1&resourceVersion=10';
+      const queryB = 'resourceVersion=20&watch=1';
+      const onMessageA = vi.fn();
+      const onMessageB = vi.fn();
+
+      const cleanupA = await WebSocketManager.subscribe(clusterName, path, queryA, onMessageA);
+      await mockServer.connected;
+
+      const firstRequest = JSON.parse((await mockServer.nextMessage) as string);
+      expect(firstRequest.type).toBe('REQUEST');
+      expect(firstRequest.path).toBe(path);
+
+      // Second subscriber joins with different query order and different resourceVersion
+      const cleanupB = await WebSocketManager.subscribe(clusterName, path, queryB, onMessageB);
+
+      // Give event loop time to ensure no second REQUEST message was sent
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(mockServer.messages).toHaveLength(1);
+
+      // Send update event matching canonical stream
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: queryA,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: {
+              kind: 'Pod',
+              metadata: { name: 'pod-1', resourceVersion: '25' },
+            },
+          }),
+        })
+      );
+
+      expect(onMessageA).toHaveBeenCalledTimes(1);
+      expect(onMessageB).toHaveBeenCalledTimes(1);
+
+      // Unsubscribe first subscriber
+      cleanupA();
+
+      // Send second update
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: queryA,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: {
+              kind: 'Pod',
+              metadata: { name: 'pod-1', resourceVersion: '26' },
+            },
+          }),
+        })
+      );
+
+      // Only onMessageB receives the second update
+      expect(onMessageA).toHaveBeenCalledTimes(1);
+      expect(onMessageB).toHaveBeenCalledTimes(2);
+
+      // Clean up second subscriber
+      cleanupB();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const closeMessages = mockServer.messages
+        .map(raw => {
+          try {
+            return JSON.parse(raw as string);
+          } catch {
+            return null;
+          }
+        })
+        .filter(msg => msg?.type === 'CLOSE');
+      expect(closeMessages.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('keeps keyAliases bounded and does not add aliases on consecutive watch events', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=100';
+
+      const cleanup = await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const initialAliasesSize = WebSocketManager.keyAliases.size;
+
+      // Simulate 10 consecutive watch events updating resourceVersion
+      for (let i = 1; i <= 10; i++) {
+        await mockServer.send(
+          JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            data: JSON.stringify({
+              type: 'MODIFIED',
+              object: {
+                kind: 'Pod',
+                metadata: { name: `pod-${i}`, resourceVersion: `${100 + i}` },
+              },
+            }),
+          })
+        );
+      }
+
+      expect(onMessage).toHaveBeenCalledTimes(10);
+      // Key aliases should not grow with each watch message
+      expect(WebSocketManager.keyAliases.size).toBe(initialAliasesSize);
+
+      cleanup();
     });
   });
 });
