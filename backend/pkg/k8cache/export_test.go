@@ -69,6 +69,7 @@ func ResetClientsetCache() {
 
 	clientsetCache = make(map[string]*CachedClientSet)
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
+	maxClientsets = defaultMaxClientsets
 }
 
 // SeedClientsetCache populates the clientset cache with dummy entries for testing.
@@ -194,4 +195,85 @@ func ExportedClientsetPrefixBlocked(prefix string) bool {
 	_, blocked := blockedClientsetPrefixes[prefix]
 
 	return blocked
+}
+
+// SetMaxClientsetsForTesting sets maxClientsets and returns a restore function.
+func SetMaxClientsetsForTesting(limit int) func() {
+	mu.Lock()
+	old := maxClientsets
+	maxClientsets = limit
+	mu.Unlock()
+
+	return func() {
+		mu.Lock()
+		maxClientsets = old
+		mu.Unlock()
+	}
+}
+
+// HasCachedClientset reports whether a key is currently in clientsetCache.
+func HasCachedClientset(headlampContextKey, token string) bool {
+	cacheKey := headlampContextKey + "\x00" + token
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	_, found := clientsetCache[cacheKey]
+
+	return found
+}
+
+// ExportedEvictClientsetIfMatch exposes evictClientsetIfMatch for testing.
+func ExportedEvictClientsetIfMatch(headlampContextKey, token string, cs *kubernetes.Clientset) {
+	evictClientsetIfMatch(headlampContextKey, token, cs)
+}
+
+// SeedClientsetCacheWithClientset populates the cache with a specific clientset for testing.
+func SeedClientsetCacheWithClientset(key string, cs *kubernetes.Clientset, lastUsed time.Time) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	clientsetCache[key] = &CachedClientSet{
+		clientset: cs,
+		lastUsed:  lastUsed,
+	}
+}
+
+// GetCachedClientsetForTesting returns the clientset pointer stored in clientsetCache, or nil.
+func GetCachedClientsetForTesting(headlampContextKey, token string) *kubernetes.Clientset {
+	cacheKey := headlampContextKey + "\x00" + token
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if entry, found := clientsetCache[cacheKey]; found {
+		return entry.clientset
+	}
+
+	return nil
+}
+
+// SetTestingBeforeFinishInFlight sets a hook called before finishInFlightClientset and returns a restore function.
+func SetTestingBeforeFinishInFlight(fn func(cacheKey string)) func() {
+	hookMu.Lock()
+	original := testingBeforeFinishInFlight
+	testingBeforeFinishInFlight = fn
+	hookMu.Unlock()
+
+	return func() {
+		hookMu.Lock()
+		testingBeforeFinishInFlight = original
+		hookMu.Unlock()
+	}
+}
+
+// FinishInFlightClientsetForTesting completes an in-flight entry registered via SeedInFlightClientsetKey.
+func FinishInFlightClientsetForTesting(cacheKey string, cs *kubernetes.Clientset, err error) {
+	mu.Lock()
+	entry, ok := inFlight[cacheKey]
+	mu.Unlock()
+
+	if ok {
+		finishInFlightClientset(cacheKey, entry, cs, err)
+	}
 }
