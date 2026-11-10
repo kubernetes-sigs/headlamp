@@ -79,6 +79,7 @@ const listeners = new Map<string, Array<(update: any) => void>>();
 const closeListeners = new Map<string, Array<(event?: CloseEvent) => void>>();
 const errorListeners = new Map<string, Array<(error: any) => void>>();
 const intentionalCloses = new WeakSet<WebSocket>();
+const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * Create new WebSocket connection to the backend
@@ -97,6 +98,7 @@ export async function openWebSocket<T>(
     onMessage,
     onError,
     onClose,
+    onHandshakeFailure,
   }: {
     /**
      * Any additional protocols to include in WebSocket connection
@@ -122,6 +124,10 @@ export async function openWebSocket<T>(
      * Close callback
      */
     onClose?: (event?: CloseEvent) => void;
+    /**
+     * Handshake failure callback invoked when connection closes before open event
+     */
+    onHandshakeFailure?: () => void;
   }
 ) {
   const connectionKey = cluster + url;
@@ -184,6 +190,7 @@ export async function openWebSocket<T>(
       return;
     }
     if (!hasOpened) {
+      onHandshakeFailure?.();
       return;
     }
     const callbacks = closeListeners.get(connectionKey) ?? (onClose ? [onClose] : []);
@@ -228,7 +235,86 @@ export function useWebSockets<T>({
     if (!enabled) return;
 
     /** Open a connection to websocket */
-    function connect({ cluster, url, onMessage, onError, onClose }: WebSocketConnectionRequest<T>) {
+    function startConnection(endpoint: WebSocketConnectionRequest<T>) {
+      const { cluster, url, onMessage, onError, onClose } = endpoint;
+      const connectionKey = cluster + url;
+
+      if (sockets.has(connectionKey)) {
+        return;
+      }
+
+      const existingTimer = retryTimers.get(connectionKey);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+        retryTimers.delete(connectionKey);
+      }
+
+      const pendingSocket = Symbol('pendingWebSocket');
+      sockets.set(connectionKey, pendingSocket);
+
+      const scheduleRetry = () => {
+        if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
+          return;
+        }
+        if (retryTimers.has(connectionKey)) {
+          return;
+        }
+        const timer = setTimeout(() => {
+          retryTimers.delete(connectionKey);
+          if ((listeners.get(connectionKey)?.length ?? 0) > 0 && !sockets.has(connectionKey)) {
+            startConnection(endpoint);
+          }
+        }, 5000);
+        retryTimers.set(connectionKey, timer);
+      };
+
+      openWebSocket(url, {
+        protocols,
+        type,
+        cluster,
+        onMessage,
+        onError,
+        onClose,
+        onHandshakeFailure: scheduleRetry,
+      })
+        .then(socket => {
+          // A newer connection replaced this pending one while it was opening.
+          if (sockets.get(connectionKey) !== pendingSocket) {
+            intentionalCloses.add(socket);
+            socket.close();
+            return;
+          }
+
+          // The socket closed or is closing before registration completed.
+          if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+            if (sockets.get(connectionKey) === pendingSocket) {
+              sockets.delete(connectionKey);
+            }
+            scheduleRetry();
+            return;
+          }
+
+          // All listeners unsubscribed while the socket was opening.
+          if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
+            intentionalCloses.add(socket);
+            socket.close();
+            sockets.delete(connectionKey);
+            return;
+          }
+
+          sockets.set(connectionKey, socket);
+        })
+        .catch(err => {
+          if (sockets.get(connectionKey) === pendingSocket) {
+            sockets.delete(connectionKey);
+          }
+          console.error(err);
+          scheduleRetry();
+        });
+    }
+
+    function connect(endpoint: WebSocketConnectionRequest<T>) {
+      const { cluster, url, onMessage, onError, onClose } = endpoint;
       const connectionKey = cluster + url;
 
       // Always register the current listener, even when reusing an existing socket.
@@ -240,44 +326,8 @@ export function useWebSockets<T>({
         closeListeners.set(connectionKey, [...(closeListeners.get(connectionKey) ?? []), onClose]);
       }
 
-      if (!sockets.has(connectionKey)) {
-        // Mark socket as pending, so we don't open more than one
-        const pendingSocket = Symbol('pendingWebSocket');
-        sockets.set(connectionKey, pendingSocket);
-
-        openWebSocket(url, { protocols, type, cluster, onMessage, onError, onClose })
-          .then(socket => {
-            // A newer connection replaced this pending one while it was opening.
-            if (sockets.get(connectionKey) !== pendingSocket) {
-              intentionalCloses.add(socket);
-              socket.close();
-              return;
-            }
-
-            // The socket closed or is closing before registration completed.
-            if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-              if (sockets.get(connectionKey) === pendingSocket) {
-                sockets.delete(connectionKey);
-              }
-              return;
-            }
-
-            // All listeners unsubscribed while the socket was opening.
-            if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
-              intentionalCloses.add(socket);
-              socket.close();
-              sockets.delete(connectionKey);
-              return;
-            }
-
-            sockets.set(connectionKey, socket);
-          })
-          .catch(err => {
-            if (sockets.get(connectionKey) === pendingSocket) {
-              sockets.delete(connectionKey);
-            }
-            console.error(err);
-          });
+      if (!sockets.has(connectionKey) && !retryTimers.has(connectionKey)) {
+        startConnection(endpoint);
       }
 
       return () => {
@@ -302,6 +352,11 @@ export function useWebSockets<T>({
         // No one is listening to the connection
         // so we can close it
         if (newListeners.length === 0) {
+          const timer = retryTimers.get(connectionKey);
+          if (timer) {
+            clearTimeout(timer);
+            retryTimers.delete(connectionKey);
+          }
           const maybeExisting = sockets.get(connectionKey);
           if (maybeExisting) {
             if (typeof maybeExisting !== 'symbol') {
@@ -316,10 +371,45 @@ export function useWebSockets<T>({
       };
     }
 
+    const handleOnline = () => {
+      connections.forEach(endpoint => {
+        const connectionKey = endpoint.cluster + endpoint.url;
+        if ((listeners.get(connectionKey)?.length ?? 0) > 0 && !sockets.has(connectionKey)) {
+          const timer = retryTimers.get(connectionKey);
+          if (timer) {
+            clearTimeout(timer);
+            retryTimers.delete(connectionKey);
+          }
+          startConnection(endpoint);
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+    }
+
     const disconnectCallbacks = connections.map(endpoint => connect(endpoint));
 
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline);
+      }
       disconnectCallbacks.forEach(fn => fn());
     };
   }, [enabled, type, connections, protocols]);
+}
+
+/**
+ * Resets all internal WebSocket state. Intended for unit tests.
+ */
+export function resetWebSocketsForTesting(): void {
+  for (const timer of retryTimers.values()) {
+    clearTimeout(timer);
+  }
+  retryTimers.clear();
+  sockets.clear();
+  listeners.clear();
+  closeListeners.clear();
+  errorListeners.clear();
 }

@@ -68,14 +68,31 @@ export const WebSocketManager = {
   },
 
   /**
-   * Creates a unique key for identifying WebSocket subscriptions
+   * Normalizes a query string by removing the resourceVersion parameter
+   * and sorting parameters to produce a stable canonical query string.
+   */
+  getCanonicalQuery(query: string): string {
+    if (!query) {
+      return '';
+    }
+    const params = new URLSearchParams(query);
+    params.delete('resourceVersion');
+    params.sort();
+    return params.toString();
+  },
+
+  /**
+   * Creates a unique canonical key for identifying WebSocket subscriptions.
+   * Query parameters affecting watch semantics (labelSelector, fieldSelector, etc.)
+   * are preserved, while the stream cursor (resourceVersion) is omitted.
    * @param clusterId - Cluster identifier
    * @param path - API resource path
    * @param query - Query parameters
-   * @returns Unique subscription key
+   * @returns Canonical subscription key
    */
   createKey(clusterId: string, path: string, query: string): string {
-    return `${clusterId}:${path}:${query}`;
+    const canonicalQuery = this.getCanonicalQuery(query);
+    return `${clusterId}:${path}:${canonicalQuery}`;
   },
 
   /**
@@ -201,8 +218,19 @@ export const WebSocketManager = {
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
 
-    // Add to active subscriptions
-    this.activeSubscriptions.set(key, { clusterId, path, query });
+    // Clear any pending unsubscribe for this key
+    const pendingTimeout = this.pendingUnsubscribes.get(key);
+    if (pendingTimeout) {
+      clearTimeout(pendingTimeout);
+      this.pendingUnsubscribes.delete(key);
+    }
+
+    const isAlreadyActive = this.activeSubscriptions.has(key);
+
+    // Track active subscription details if not already active
+    if (!isAlreadyActive) {
+      this.activeSubscriptions.set(key, { clusterId, path, query });
+    }
 
     // Add message listener
     const listeners = this.listeners.get(key) || new Set();
@@ -216,17 +244,21 @@ export const WebSocketManager = {
       this.errorListeners.set(key, errListeners);
     }
 
-    // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    // Only establish connection and send REQUEST if this stream wasn't already active
+    if (!isAlreadyActive) {
+      const socket = await this.connect();
+      const userId = getUserIdFromLocalStorage();
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
+    } else if (this.socketMultiplexer?.readyState !== WebSocket.OPEN) {
+      await this.connect();
+    }
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
@@ -441,10 +473,6 @@ export const WebSocketManager = {
             const updatedQuery = this.updateQueryResourceVersion(sub.query, newRV);
             if (updatedQuery !== sub.query) {
               sub.query = updatedQuery;
-              const resubKey = this.createKey(sub.clusterId, sub.path, updatedQuery);
-              if (resubKey !== key) {
-                this.keyAliases.set(resubKey, key);
-              }
             }
           }
         }

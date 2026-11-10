@@ -515,6 +515,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
     if (!enabled || !endpoint) return [];
 
     return lists.map(({ cluster, namespace, resourceVersion }) => {
+      const watchKey = `${cluster}:${namespace || ''}`;
+      if (resourceVersion && !latestResourceVersions.current[watchKey]) {
+        latestResourceVersions.current[watchKey] = resourceVersion;
+      }
+
       const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
         ...stableWatchQueryParams,
         watch: 1,
@@ -526,7 +531,6 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         url,
         onMessage(update: KubeListUpdateEvent<K>) {
           if (update.object?.metadata?.resourceVersion) {
-            const watchKey = `${cluster}:${namespace || ''}`;
             latestResourceVersions.current[watchKey] = update.object.metadata.resourceVersion;
           }
 
@@ -551,8 +555,22 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         },
         onClose() {
           if (enabled) {
-            const watchKey = `${cluster}:${namespace || ''}`;
-            onReconnect?.(cluster, namespace, latestResourceVersions.current[watchKey]);
+            let rv = latestResourceVersions.current[watchKey];
+            if (!rv) {
+              const key = kubeObjectListQuery<K>(
+                kubeObjectClass,
+                endpoint,
+                namespace,
+                cluster,
+                stableQueryParams ?? {}
+              ).queryKey;
+              const cached = client.getQueryData<ListResponse<any>>(key);
+              rv = cached?.list?.metadata?.resourceVersion || resourceVersion;
+              if (rv) {
+                latestResourceVersions.current[watchKey] = rv;
+              }
+            }
+            onReconnect?.(cluster, namespace, rv);
           }
         },
       };
