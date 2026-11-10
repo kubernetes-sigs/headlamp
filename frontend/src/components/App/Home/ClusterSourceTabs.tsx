@@ -48,9 +48,12 @@ export default function ClusterSourceTabs({
   const value = source?.id || '';
   const panels = [undefined, ...views];
   const activeIndex = source ? views.indexOf(source) + 1 : 0;
+  const advertised = sources.some(view => view.id === selected);
   useEffect(() => {
-    if (!loading && selected && !source) setSelected('');
-  }, [selected, source, loading, setSelected]);
+    // An advertised source can still gain connections after /config, such as Plugin
+    // connections restored from IndexedDB, so only forget sources the backend dropped.
+    if (!loading && selected && !source && !advertised) setSelected('');
+  }, [selected, source, advertised, loading, setSelected]);
   return (
     <>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>

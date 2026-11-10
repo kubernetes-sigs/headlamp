@@ -111,3 +111,17 @@ it('keeps the saved tab while the initial config is loading', () => {
   rendered.rerender(view());
   expect(screen.getByRole('tab', { name: 'Fleet (0)' })).toHaveAttribute('aria-selected', 'true');
 });
+it('keeps a saved advertised tab until its connections arrive', () => {
+  const advertised = [...sources, { id: 'dynamic_cluster', label: 'Plugin', nameLabel: 'Name' }];
+  localStorage.setItem('home-cluster-source', JSON.stringify('dynamic_cluster'));
+  const rendered = render(view(advertised));
+  expect(screen.getByRole('tab', { name: 'All (3)' })).toHaveAttribute('aria-selected', 'true');
+  expect(JSON.parse(localStorage.getItem('home-cluster-source')!)).toBe('dynamic_cluster');
+  rendered.rerender(
+    view(advertised, [
+      ...clusters,
+      { name: 'stateless', auth_type: '', meta_data: { source: 'dynamic_cluster' } },
+    ])
+  );
+  expect(screen.getByRole('tab', { name: 'Plugin (1)' })).toHaveAttribute('aria-selected', 'true');
+});
