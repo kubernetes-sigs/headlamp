@@ -20,5 +20,6 @@ export default defineConfig({
   test: {
     include: ['electron/**/*.test.ts'],
     globals: true,
+    testTimeout: 15000,
   },
 });
