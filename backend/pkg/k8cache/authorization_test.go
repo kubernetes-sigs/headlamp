@@ -98,7 +98,9 @@ func TestGetClientSet(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cs, err := k8cache.GetClientSet(tc.headlampContextKey, tc.mockK.Context, tc.token)
+			cache := k8cache.NewClientsetCache()
+
+			cs, err := cache.GetClientSet(tc.headlampContextKey, tc.mockK.Context, tc.token)
 			if tc.clientSet != nil { // It is difficult to compare the expected clientset with
 				// the returned clientSet as it return nested-struct inside the clientset which
 				// returns only memory references. To check whether the clientset was correct or
@@ -297,7 +299,8 @@ func TestIsAllowed(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			isAllowed, _ := k8cache.IsAllowed("kind-headlamp-admin", tc.mockK.Context, r)
+			cache := k8cache.NewClientsetCache()
+			isAllowed, _ := cache.IsAllowed("kind-headlamp-admin", tc.mockK.Context, r)
 			assert.Equal(t, tc.isAllowed, isAllowed)
 		})
 	}
