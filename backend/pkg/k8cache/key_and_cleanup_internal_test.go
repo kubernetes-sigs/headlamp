@@ -50,11 +50,12 @@ func TestK8CacheKeyAndCleanupEdgeCases(t *testing.T) {
 
 func TestK8CacheAuthAndCaptureEdgeCases(t *testing.T) {
 	t.Run("GetClientSet and IsAllowed error on nil context", func(t *testing.T) {
-		_, err := GetClientSet("c1", nil, "")
+		authCache := NewClientsetCache()
+		_, err := GetClientSet(authCache, "c1", nil, "")
 		require.Error(t, err)
 
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/c1/api/v1/pods", nil)
-		_, err = IsAllowed("c1", nil, req)
+		_, err = IsAllowed(authCache, "c1", nil, req)
 		require.Error(t, err)
 	})
 

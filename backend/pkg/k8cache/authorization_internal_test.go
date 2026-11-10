@@ -16,8 +16,11 @@ package k8cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -169,13 +172,8 @@ func runResourceAttributesTests(t *testing.T, tests []resourceAttributesTestCase
 }
 
 func TestAuthorizationPrefixPruningAndEviction(t *testing.T) {
-	t.Cleanup(func() {
-		ResetForTesting()
-	})
-
 	t.Run("evict_empty_prefix_noop", func(t *testing.T) {
-		ResetForTesting()
-		EvictClientsetsForCluster("")
+		NewClientsetCache().EvictClientsetsForCluster("")
 	})
 
 	t.Run("clientset_prefix_from_cache_key_without_nul", func(t *testing.T) {
@@ -183,58 +181,264 @@ func TestAuthorizationPrefixPruningAndEviction(t *testing.T) {
 	})
 
 	t.Run("has_activity_and_prune_blocked_prefixes", func(t *testing.T) {
-		ResetForTesting()
-		mu.Lock()
+		cache := NewClientsetCache()
 		now := time.Now()
-		clientsetCache["active\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
-			key: "active\x00tok",
-			cs:  &CachedClientSet{clientset: &kubernetes.Clientset{}, lastUsed: now},
-		})
-		inFlight["inflight\x00tok"] = &inFlightEntry{waitCh: make(chan struct{})}
-		blockedClientsetPrefixes["active"] = blockedPrefixEntry{blockedAt: now.Add(-2 * clientsetTTL)}
-		blockedClientsetPrefixes["inflight"] = blockedPrefixEntry{blockedAt: now.Add(-2 * clientsetTTL)}
-		blockedClientsetPrefixes["stale"] = blockedPrefixEntry{blockedAt: now.Add(-2 * clientsetTTL)}
+		cache.SeedClientset("active\x00tok", now)
+		cache.SeedInFlight("inflight\x00tok")
+		cache.SeedBlockedPrefix("active", now.Add(-2*clientsetTTL))
+		cache.SeedBlockedPrefix("inflight", now.Add(-2*clientsetTTL))
+		cache.SeedBlockedPrefix("stale", now.Add(-2*clientsetTTL))
 
-		assert.True(t, hasClientsetActivityForPrefix("active"))
-		assert.True(t, hasClientsetActivityForPrefix("inflight"))
-		assert.False(t, hasClientsetActivityForPrefix("stale"))
+		cache.EvictExpired(now)
 
-		pruneBlockedClientsetPrefixesLocked(now)
-
-		_, hasActive := blockedClientsetPrefixes["active"]
-		_, hasInFlight := blockedClientsetPrefixes["inflight"]
-		_, hasStale := blockedClientsetPrefixes["stale"]
-
-		assert.True(t, hasActive)
-		assert.True(t, hasInFlight)
-		assert.False(t, hasStale)
-		mu.Unlock()
+		assert.True(t, cache.IsPrefixBlocked("active"))
+		assert.True(t, cache.IsPrefixBlocked("inflight"))
+		assert.False(t, cache.IsPrefixBlocked("stale"))
 	})
 
 	t.Run("clear_blocked_prefixes_for_active_contexts", func(t *testing.T) {
-		ResetForTesting()
-		mu.Lock()
-		blockedClientsetPrefixes["ctx-a"] = blockedPrefixEntry{blockedAt: time.Now()}
-		blockedClientsetPrefixes["ctx-b"] = blockedPrefixEntry{blockedAt: time.Now()}
-		mu.Unlock()
+		cache := NewClientsetCache()
+		cache.SeedBlockedPrefix("ctx-a\x00rev1", time.Now())
+		cache.SeedBlockedPrefix("ctx-b\x00rev1", time.Now())
 
-		clearBlockedClientsetPrefixesForActiveContexts([]string{"ctx-a\x00rev1"})
+		cache.ClearBlockedClientsetPrefixesForActiveContexts([]string{"ctx-a\x00rev1"})
 
-		mu.Lock()
-		_, hasA := blockedClientsetPrefixes["ctx-a"]
-		_, hasB := blockedClientsetPrefixes["ctx-b"]
-		mu.Unlock()
-		assert.False(t, hasA)
-		assert.True(t, hasB)
+		assert.False(t, cache.IsPrefixBlocked("ctx-a\x00rev1"))
+		assert.True(t, cache.IsPrefixBlocked("ctx-b\x00rev1"))
+	})
+
+	t.Run("activity_in_another_shard_preserves_block", func(t *testing.T) {
+		cache := NewClientsetCache()
+		blockedPrefix := "removed-context"
+		activeRevision := blockedPrefix + "\x00revision-0"
+		otherRevision := activeRevision
+
+		for i := 1; cache.shardForPrefix(otherRevision) == cache.shardForPrefix(activeRevision); i++ {
+			otherRevision = fmt.Sprintf("%s\x00revision-%d", blockedPrefix, i)
+		}
+
+		now := time.Now()
+		cache.SeedBlockedPrefix(blockedPrefix, now.Add(-2*clientsetTTL))
+		cache.SeedInFlight(activeRevision + "\x00token")
+
+		cache.EvictExpired(now)
+
+		assert.True(t, cache.IsPrefixBlocked(activeRevision))
+		assert.True(t, cache.IsPrefixBlocked(otherRevision),
+			"active work in one revision shard must keep the shared prefix blocked in every shard")
 	})
 }
 
-func TestCreateAndCacheClientSetErrors(t *testing.T) {
-	ResetForTesting()
-	t.Cleanup(func() {
-		ResetForTesting()
-	})
+func differentRevisionShard(t *testing.T, contextKey string, k *kubeconfig.Context, excluded int) int {
+	t.Helper()
 
+	for i := 1; ; i++ {
+		otherContext := k.Copy()
+		otherContext.Cluster.Server = fmt.Sprintf("https://example-%d.test", i)
+		revision, err := ContextCacheKey(contextKey, otherContext)
+		require.NoError(t, err)
+
+		shard := int(hashPrefix(revision) % numShards)
+		if shard != excluded {
+			return shard
+		}
+	}
+}
+
+func differentRevisionContext(
+	t *testing.T,
+	contextKey string,
+	k *kubeconfig.Context,
+	excluded int,
+) (*kubeconfig.Context, string) {
+	t.Helper()
+
+	for i := 1; ; i++ {
+		otherContext := k.Copy()
+		otherContext.Name = fmt.Sprintf("%s-other-%d", contextKey, i)
+		otherContext.Cluster.Server = fmt.Sprintf("https://%s-%d.test", contextKey, i)
+
+		revision, err := ContextCacheKey(contextKey, otherContext)
+		require.NoError(t, err)
+
+		if int(hashPrefix(revision)%numShards) != excluded {
+			return otherContext, revision
+		}
+	}
+}
+
+//nolint:funlen // The interleaving requires explicit setup, synchronization, and cleanup.
+func TestClientsetRegistrationDoesNotBlockOtherShards(t *testing.T) {
+	const contextKey = "registration"
+
+	firstContext := &kubeconfig.Context{
+		Name:        "first",
+		Cluster:     &api.Cluster{Server: "https://registration-first.test"},
+		AuthInfo:    &api.AuthInfo{},
+		KubeContext: &api.Context{Cluster: contextKey},
+	}
+	firstRevision, err := ContextCacheKey(contextKey, firstContext)
+	require.NoError(t, err)
+
+	firstShard := int(hashPrefix(firstRevision) % numShards)
+	secondContext, secondRevision := differentRevisionContext(t, contextKey, firstContext, firstShard)
+	secondShard := int(hashPrefix(secondRevision) % numShards)
+	require.NotEqual(t, firstShard, secondShard)
+
+	enteredRegistration := make(chan struct{})
+	continueFirstRegistration := make(chan struct{})
+	secondCreated := make(chan struct{})
+
+	var registrationCount atomic.Int32
+
+	var creatorOnce sync.Once
+
+	cache := NewClientsetCache(
+		WithRegistrationHook(func() {
+			if registrationCount.Add(1) == 1 {
+				close(enteredRegistration)
+				<-continueFirstRegistration
+			}
+		}),
+		WithClientsetCreator(func(k *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
+			if k.Name == secondContext.Name {
+				creatorOnce.Do(func() { close(secondCreated) })
+			}
+
+			return &kubernetes.Clientset{}, nil
+		}),
+	)
+	cache.SeedBlockedPrefix(contextKey, time.Now())
+
+	firstDone := make(chan error, 1)
+
+	go func() {
+		_, getErr := cache.GetClientSet(contextKey, firstContext, "token")
+		firstDone <- getErr
+	}()
+
+	<-enteredRegistration
+	close(continueFirstRegistration)
+
+	secondDone := make(chan error, 1)
+
+	go func() {
+		_, getErr := cache.GetClientSet(contextKey, secondContext, "token")
+		secondDone <- getErr
+	}()
+
+	select {
+	case <-secondCreated:
+	case <-time.After(time.Second):
+		t.Fatal("a registration blocked by one shard stalled an unrelated shard")
+	}
+
+	require.NoError(t, <-firstDone)
+	require.NoError(t, <-secondDone)
+}
+
+func TestClearBlockedPrefixesWaitsForReadersBeforeDeleting(t *testing.T) {
+	cache := NewClientsetCache()
+	cache.SeedBlockedPrefix("removed", time.Now())
+
+	cache.blockedMu.RLock()
+
+	started := make(chan struct{})
+	cleared := make(chan struct{})
+
+	go func() {
+		close(started)
+		cache.ClearBlockedClientsetPrefixesForActiveContexts([]string{"removed\x00revision"})
+		close(cleared)
+	}()
+
+	<-started
+
+	select {
+	case <-cleared:
+		cache.blockedMu.RUnlock()
+		t.Fatal("blocked-prefix deletion completed while a read lock was held")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cache.blockedMu.RUnlock()
+
+	select {
+	case <-cleared:
+	case <-time.After(time.Second):
+		t.Fatal("blocked-prefix deletion did not resume after readers released")
+	}
+
+	require.False(t, cache.IsPrefixBlocked("removed\x00revision"))
+}
+
+//nolint:funlen // Controlled interleaving needs explicit lifecycle steps.
+func TestLateRegistrationDuringPruningCannotRecacheRemovedRevision(t *testing.T) {
+	const contextKey = "removed-context"
+
+	k := &kubeconfig.Context{
+		Name:        contextKey,
+		Cluster:     &api.Cluster{Server: "https://example.test"},
+		AuthInfo:    &api.AuthInfo{},
+		KubeContext: &api.Context{Cluster: contextKey},
+	}
+	revision, err := ContextCacheKey(contextKey, k)
+	require.NoError(t, err)
+
+	targetShard := int(hashPrefix(revision) % numShards)
+	otherShard := differentRevisionShard(t, contextKey, k, targetShard)
+	require.NotEqual(t, targetShard, otherShard, "regression must exercise distinct revision shards")
+
+	scanned := make(chan struct{})
+	continuePruning := make(chan struct{})
+	creatorStarted := make(chan struct{})
+	finishCreation := make(chan struct{})
+	cache := NewClientsetCache(
+		WithClientsetCreator(func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
+			close(creatorStarted)
+			<-finishCreation
+
+			return &kubernetes.Clientset{}, nil
+		}),
+		WithPruneShardHook(func(shard int) {
+			if shard != targetShard {
+				return
+			}
+
+			close(scanned)
+			<-continuePruning
+		}),
+	)
+	cache.SeedBlockedPrefix(contextKey, time.Now().Add(-2*clientsetTTL))
+
+	pruned := make(chan struct{})
+
+	go func() {
+		cache.EvictExpired()
+		close(pruned)
+	}()
+
+	<-scanned
+
+	created := make(chan error, 1)
+
+	go func() {
+		_, getErr := cache.GetClientSet(contextKey, k, "token")
+		created <- getErr
+	}()
+
+	<-creatorStarted
+	close(continuePruning)
+	<-pruned
+	require.True(t, cache.IsPrefixBlocked(contextKey),
+		"pruning must revalidate all revision shards before removing a shared prefix block")
+
+	close(finishCreation)
+	require.NoError(t, <-created)
+	require.Zero(t, cache.Len(), "an in-flight registration that raced pruning must retain the removal barrier")
+}
+
+func TestCreateAndCacheClientSetErrors(t *testing.T) {
 	k := &kubeconfig.Context{
 		Name:        "c",
 		Cluster:     &api.Cluster{Server: "https://example.test"},
@@ -242,68 +446,49 @@ func TestCreateAndCacheClientSetErrors(t *testing.T) {
 		KubeContext: &api.Context{Cluster: "c"},
 	}
 
-	origCreator := clientsetCreator
-
-	t.Cleanup(func() {
-		hookMu.Lock()
-		clientsetCreator = origCreator
-		hookMu.Unlock()
-	})
-
-	hookMu.Lock()
-	clientsetCreator = func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
+	cache := NewClientsetCache(WithClientsetCreator(func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
 		return nil, errors.New("creator boom")
-	}
-	hookMu.Unlock()
+	}))
 
-	_, err := createAndCacheClientSet(k, "tok", "c\x00rev\x00tok", nil)
+	_, err := cache.GetClientSet("c", k, "tok")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "creator boom")
 
 	existingCS := &kubernetes.Clientset{}
 
-	hookMu.Lock()
-	clientsetCreator = func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
-		mu.Lock()
-		clientsetCache["c\x00rev\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
-			key: "c\x00rev\x00tok",
-			cs:  &CachedClientSet{clientset: existingCS, lastUsed: time.Now(), context: k},
-		})
-		mu.Unlock()
-
+	cache = NewClientsetCache(WithClientsetCreator(func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
 		return &kubernetes.Clientset{}, nil
-	}
-	hookMu.Unlock()
+	}))
+	connection, err := ContextCacheKey("c", k)
+	require.NoError(t, err)
+	cache.SeedClientset(connection+"\x00tok", time.Now(), existingCS)
 
-	got, err := createAndCacheClientSet(k, "tok", "c\x00rev\x00tok", nil)
+	got, err := cache.GetClientSet("c", k, "tok")
 	require.NoError(t, err)
 	assert.Same(t, existingCS, got)
 }
 
 func TestGetCachedAndGetClientSetErrors(t *testing.T) {
-	ResetForTesting()
-	t.Cleanup(func() {
-		ResetForTesting()
-	})
-
-	mu.Lock()
-	clientsetCache["ctx\x00rev\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
-		key: "ctx\x00rev\x00tok",
-		cs: &CachedClientSet{
-			clientset: &kubernetes.Clientset{},
-			lastUsed:  time.Now().Add(-2 * clientsetTTL),
+	cache := NewClientsetCache(WithTTL(time.Minute), WithClientsetCreator(
+		func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
+			return &kubernetes.Clientset{}, nil
 		},
-	})
-	mu.Unlock()
+	))
+	k := &kubeconfig.Context{
+		Cluster:     &api.Cluster{Server: "https://example.test"},
+		AuthInfo:    &api.AuthInfo{},
+		KubeContext: &api.Context{Cluster: "ctx"},
+	}
+	connection, err := ContextCacheKey("ctx", k)
+	require.NoError(t, err)
+	cache.SeedClientset(connection+"\x00tok", time.Now().Add(-2*time.Minute))
+	cache.EvictExpired()
+	assert.Equal(t, 0, cache.Len())
 
-	cs, ok := getCachedClientSet("ctx\x00rev\x00tok", nil)
-	assert.False(t, ok)
-	assert.Nil(t, cs)
-
-	_, err := GetClientSet("", nil, "tok")
+	_, err = cache.GetClientSet("", nil, "tok")
 	require.Error(t, err)
 
-	_, err = GetClientSet("ctx", nil, "tok")
+	_, err = cache.GetClientSet("ctx", nil, "tok")
 	require.Error(t, err)
 }
 
@@ -342,9 +527,7 @@ func TestGetResourceAttributesErrorsAndParseAPIPath(t *testing.T) {
 }
 
 func TestIsAllowed_WithFakeAPIServer(t *testing.T) {
-	t.Cleanup(func() {
-		ResetForTesting()
-	})
+	cache := NewClientsetCache()
 
 	var (
 		allowed    bool
@@ -371,50 +554,34 @@ func TestIsAllowed_WithFakeAPIServer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	k := fakeSSARContext(srv.URL)
+	k := &kubeconfig.Context{
+		Name:        "fake-cluster",
+		ClusterID:   "fake-cluster",
+		Cluster:     &api.Cluster{Server: srv.URL},
+		AuthInfo:    &api.AuthInfo{Token: "tok"},
+		KubeContext: &api.Context{Cluster: "fake-cluster"},
+	}
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/fake-cluster/api/v1/pods", nil)
 	req = mux.SetURLVars(req, map[string]string{"api": "api/v1/pods"})
 
 	allowed = true
 	statusCode = http.StatusOK
-	ok, err := IsAllowed("fake-cluster", k, req)
+	ok, err := IsAllowed(cache, "fake-cluster", k, req)
 	require.NoError(t, err)
 	assert.True(t, ok)
 
 	allowed = false
-
-	ResetForTesting()
-
-	ok, err = IsAllowed("fake-cluster", k, req)
+	ok, err = IsAllowed(cache, "fake-cluster", k, req)
 	require.NoError(t, err)
 	assert.False(t, ok)
 
 	statusCode = http.StatusInternalServerError
-
-	ResetForTesting()
-
-	ok, err = IsAllowed("fake-cluster", k, req)
+	ok, err = IsAllowed(cache, "fake-cluster", k, req)
 	require.Error(t, err)
 	assert.False(t, ok)
 
-	requireIsAllowedRejectsInvalidRequest(t, k)
-}
-
-func fakeSSARContext(serverURL string) *kubeconfig.Context {
-	return &kubeconfig.Context{
-		Name:        "fake-cluster",
-		ClusterID:   "fake-cluster",
-		Cluster:     &api.Cluster{Server: serverURL},
-		AuthInfo:    &api.AuthInfo{Token: "tok"},
-		KubeContext: &api.Context{Cluster: "fake-cluster"},
-	}
-}
-
-func requireIsAllowedRejectsInvalidRequest(t *testing.T, k *kubeconfig.Context) {
-	t.Helper()
-
 	badReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/fake-cluster/invalid", nil)
-	_, err := IsAllowed("fake-cluster", k, badReq)
+	_, err = IsAllowed(cache, "fake-cluster", k, badReq)
 	require.Error(t, err)
 }

@@ -103,7 +103,9 @@ func TestGetClientSet(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cs, err := k8cache.GetClientSet(tc.headlampContextKey, tc.mockK.Context, tc.token)
+			cache := k8cache.NewClientsetCache()
+
+			cs, err := cache.GetClientSet(tc.headlampContextKey, tc.mockK.Context, tc.token)
 			if tc.clientSet != nil { // It is difficult to compare the expected clientset with
 				// the returned clientSet as it return nested-struct inside the clientset which
 				// returns only memory references. To check whether the clientset was correct or
@@ -306,7 +308,8 @@ func TestIsAllowed(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			isAllowed, _ := k8cache.IsAllowed("kind-headlamp-admin", tc.mockK.Context, r)
+			cache := k8cache.NewClientsetCache()
+			isAllowed, _ := cache.IsAllowed("kind-headlamp-admin", tc.mockK.Context, r)
 			assert.Equal(t, tc.isAllowed, isAllowed)
 		})
 	}
@@ -334,7 +337,7 @@ func testIsAllowedWithServer(
 	req = mux.SetURLVars(req, map[string]string{"api": "api/v1/namespaces/default/pods"})
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	return k8cache.IsAllowed("test-cluster", ctx, req)
+	return k8cache.IsAllowedForTesting("test-cluster", ctx, req)
 }
 
 func TestIsAllowed_EvictsOnUnauthorized(t *testing.T) {
@@ -453,7 +456,7 @@ func TestIsAllowed_DelayedUnauthorizedDoesNotEvictNewerClientset(t *testing.T) {
 	resCh := make(chan result, 1)
 
 	go func() {
-		allowed, err := k8cache.IsAllowed("test-cluster", ctx, req)
+		allowed, err := k8cache.IsAllowedForTesting("test-cluster", ctx, req)
 		resCh <- result{allowed: allowed, err: err}
 	}()
 
@@ -520,11 +523,11 @@ func TestClientsetCache_MaxCapacityEviction(t *testing.T) {
 	}
 
 	// Add 3 tokens to reach capacity.
-	_, err := k8cache.GetClientSet("test-cluster", ctx, "token-1")
+	_, err := k8cache.GetClientSetForTesting("test-cluster", ctx, "token-1")
 	assert.NoError(t, err)
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-2")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-2")
 	assert.NoError(t, err)
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-3")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-3")
 	assert.NoError(t, err)
 
 	assert.Equal(t, 3, k8cache.ClientsetCacheLen())
@@ -541,11 +544,11 @@ func TestClientsetCache_MaxCapacityEviction(t *testing.T) {
 	k8cache.SeedClientsetCache(contextCacheKey+"\x00token-3", now.Add(-1*time.Minute))
 
 	// Refresh token-1, making token-2 the least recently used entry.
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-1")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-1")
 	assert.NoError(t, err)
 
 	// Adding a 4th token should evict the least recently used token (token-2), not token-1.
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-4")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-4")
 	assert.NoError(t, err)
 
 	assert.Equal(t, 3, k8cache.ClientsetCacheLen(), "cache size should remain bounded by maxClientsets")
@@ -560,21 +563,21 @@ func TestClientsetCache_SetMaxClientsets(t *testing.T) {
 	t.Cleanup(k8cache.ResetClientsetCache)
 
 	// Verify default capacity is DefaultMaxClientsets (256).
-	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsets())
+	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsetsForTesting())
 
 	// Setting limit <= 0 should return error and leave limit unchanged.
-	err := k8cache.SetMaxClientsets(0)
+	err := k8cache.SetMaxClientsetsForTestingGlobal(0)
 	assert.Error(t, err)
-	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsets())
+	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsetsForTesting())
 
-	err = k8cache.SetMaxClientsets(-1)
+	err = k8cache.SetMaxClientsetsForTestingGlobal(-1)
 	assert.Error(t, err)
-	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsets())
+	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsetsForTesting())
 
 	// Valid limit update.
-	err = k8cache.SetMaxClientsets(10)
+	err = k8cache.SetMaxClientsetsForTestingGlobal(10)
 	assert.NoError(t, err)
-	assert.Equal(t, 10, k8cache.MaxClientsets())
+	assert.Equal(t, 10, k8cache.MaxClientsetsForTesting())
 
 	// Reducing limit below current cache size evicts oldest entries.
 	now := time.Now()
@@ -583,9 +586,9 @@ func TestClientsetCache_SetMaxClientsets(t *testing.T) {
 	k8cache.SeedClientsetCache("test-cluster\x00token-3", now.Add(-1*time.Minute))
 	assert.Equal(t, 3, k8cache.ClientsetCacheLen())
 
-	err = k8cache.SetMaxClientsets(2)
+	err = k8cache.SetMaxClientsetsForTestingGlobal(2)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, k8cache.MaxClientsets())
+	assert.Equal(t, 2, k8cache.MaxClientsetsForTesting())
 	assert.Equal(t, 2, k8cache.ClientsetCacheLen())
 	assert.False(
 		t,
@@ -601,11 +604,11 @@ func TestClientsetCache_ExplicitDefaultOverridesEnv(t *testing.T) {
 	t.Cleanup(k8cache.ResetClientsetCache)
 
 	t.Setenv("HEADLAMP_MAX_CLIENTSETS", "1024")
-	assert.Equal(t, 1024, k8cache.MaxClientsets())
+	assert.Equal(t, 1024, k8cache.MaxClientsetsForTesting())
 
-	err := k8cache.SetMaxClientsets(k8cache.DefaultMaxClientsets)
+	err := k8cache.SetMaxClientsetsForTestingGlobal(k8cache.DefaultMaxClientsets)
 	assert.NoError(t, err)
-	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsets())
+	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.MaxClientsetsForTesting())
 
 	restoreCreator := k8cache.SetClientsetCreator(
 		func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
@@ -629,13 +632,13 @@ func TestClientsetCache_ExplicitDefaultOverridesEnv(t *testing.T) {
 		AuthInfo:    &api.AuthInfo{Token: "new-token"},
 		KubeContext: &api.Context{Cluster: "test-cluster"},
 	}
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "new-token")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "new-token")
 	assert.NoError(t, err)
 	assert.Equal(t, k8cache.DefaultMaxClientsets, k8cache.ClientsetCacheLen())
 }
 
 func TestClientsetCache_SetMaxClientsetsLRUEviction(t *testing.T) {
-	origLimit := k8cache.MaxClientsets()
+	origLimit := k8cache.MaxClientsetsForTesting()
 
 	k8cache.ResetClientsetCache()
 	k8cache.ResetInFlight()
@@ -643,10 +646,10 @@ func TestClientsetCache_SetMaxClientsetsLRUEviction(t *testing.T) {
 		k8cache.ResetClientsetCache()
 		k8cache.ResetInFlight()
 
-		_ = k8cache.SetMaxClientsets(origLimit)
+		_ = k8cache.SetMaxClientsetsForTestingGlobal(origLimit)
 	})
 
-	_ = k8cache.SetMaxClientsets(5)
+	_ = k8cache.SetMaxClientsetsForTestingGlobal(5)
 
 	restoreCreator := k8cache.SetClientsetCreator(
 		func(_ *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
@@ -662,13 +665,13 @@ func TestClientsetCache_SetMaxClientsetsLRUEviction(t *testing.T) {
 		KubeContext: &api.Context{Cluster: "test-cluster"},
 	}
 
-	_, err := k8cache.GetClientSet("test-cluster", ctx, "token-1")
+	_, err := k8cache.GetClientSetForTesting("test-cluster", ctx, "token-1")
 	assert.NoError(t, err)
 
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-2")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-2")
 	assert.NoError(t, err)
 
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-3")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-3")
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -679,14 +682,14 @@ func TestClientsetCache_SetMaxClientsetsLRUEviction(t *testing.T) {
 	k8cache.SeedClientsetCache(contextCacheKey+"\x00token-3", now.Add(-1*time.Minute))
 
 	// Re-access token-1 through the real cache-hit path, updating its lastUsed to now.
-	cs, err := k8cache.GetClientSet("test-cluster", ctx, "token-1")
+	cs, err := k8cache.GetClientSetForTesting("test-cluster", ctx, "token-1")
 	assert.NoError(t, err)
 	assert.NotNil(t, cs)
 
 	// Reducing limit to 2 should evict least-recently-used token-2, not token-1.
-	err = k8cache.SetMaxClientsets(2)
+	err = k8cache.SetMaxClientsetsForTestingGlobal(2)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, k8cache.MaxClientsets())
+	assert.Equal(t, 2, k8cache.MaxClientsetsForTesting())
 	assert.Equal(t, 2, k8cache.ClientsetCacheLen())
 	assert.True(t, k8cache.HasCachedClientset("test-cluster", "token-1"),
 		"recently accessed token-1 should remain cached")
@@ -737,7 +740,7 @@ func TestClientsetCache_CapacityEvictionSkipsInFlight(t *testing.T) {
 
 	// Creating token-newest should trigger eviction.
 	// Since token-oldest is in-flight, it must NOT be evicted. Instead, token-newer should be evicted.
-	_, err = k8cache.GetClientSet("test-cluster", ctx, "token-newest")
+	_, err = k8cache.GetClientSetForTesting("test-cluster", ctx, "token-newest")
 	assert.NoError(t, err)
 
 	assert.Equal(t, 2, k8cache.ClientsetCacheLen())
@@ -779,7 +782,7 @@ func TestClientsetCache_AllEntriesInFlightDoesNotExceedCapacity(t *testing.T) {
 	}
 
 	// Adding a 3rd token when all existing cached entries are in-flight should NOT exceed capacity.
-	cs, err := k8cache.GetClientSet("test-cluster", ctx, "token-3")
+	cs, err := k8cache.GetClientSetForTesting("test-cluster", ctx, "token-3")
 	assert.NoError(t, err)
 	assert.NotNil(t, cs)
 
@@ -792,7 +795,7 @@ func TestClientsetCache_AllEntriesInFlightDoesNotExceedCapacity(t *testing.T) {
 }
 
 func TestClientsetCache_InFlightTrimmingOnCompletion(t *testing.T) {
-	origLimit := k8cache.MaxClientsets()
+	origLimit := k8cache.MaxClientsetsForTesting()
 
 	k8cache.ResetClientsetCache()
 	k8cache.ResetInFlight()
@@ -800,10 +803,10 @@ func TestClientsetCache_InFlightTrimmingOnCompletion(t *testing.T) {
 		k8cache.ResetClientsetCache()
 		k8cache.ResetInFlight()
 
-		_ = k8cache.SetMaxClientsets(origLimit)
+		_ = k8cache.SetMaxClientsetsForTestingGlobal(origLimit)
 	})
 
-	_ = k8cache.SetMaxClientsets(5)
+	_ = k8cache.SetMaxClientsetsForTestingGlobal(5)
 
 	token1Cached := make(chan struct{})
 	token2Cached := make(chan struct{})
@@ -830,7 +833,7 @@ func TestClientsetCache_InFlightTrimmingOnCompletion(t *testing.T) {
 	assert.True(t, k8cache.HasCachedClientset("test-cluster", "token-2"))
 
 	// Reduce capacity to 1 while both creations are in flight.
-	err := k8cache.SetMaxClientsets(1)
+	err := k8cache.SetMaxClientsetsForTestingGlobal(1)
 	assert.NoError(t, err)
 
 	// Both entries must be preserved while in-flight.
@@ -859,7 +862,7 @@ func TestClientsetCache_InFlightTrimmingOnCompletion(t *testing.T) {
 }
 
 func TestClientsetCache_InFlightTrimmingOnFailedCreation(t *testing.T) {
-	origLimit := k8cache.MaxClientsets()
+	origLimit := k8cache.MaxClientsetsForTesting()
 
 	k8cache.ResetClientsetCache()
 	k8cache.ResetInFlight()
@@ -867,10 +870,10 @@ func TestClientsetCache_InFlightTrimmingOnFailedCreation(t *testing.T) {
 		k8cache.ResetClientsetCache()
 		k8cache.ResetInFlight()
 
-		_ = k8cache.SetMaxClientsets(origLimit)
+		_ = k8cache.SetMaxClientsetsForTestingGlobal(origLimit)
 	})
 
-	_ = k8cache.SetMaxClientsets(1)
+	_ = k8cache.SetMaxClientsetsForTestingGlobal(1)
 
 	now := time.Now()
 	k8cache.SeedClientsetCache("test-cluster\x00token-old", now.Add(-5*time.Minute))
@@ -906,7 +909,7 @@ func startInFlightGetClientSet(
 	go func() {
 		defer wg.Done()
 
-		cs, err := k8cache.GetClientSet("test-cluster", ctx, token)
+		cs, err := k8cache.GetClientSetForTesting("test-cluster", ctx, token)
 		assert.NoError(t, err)
 		assert.NotNil(t, cs)
 	}()

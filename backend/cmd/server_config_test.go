@@ -17,15 +17,18 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -161,7 +164,7 @@ func TestCreateHeadlampConfig_ConfiguresCacheMaxClientsets(t *testing.T) {
 
 	headlampConfig := createHeadlampConfig(conf)
 	assert.NotNil(t, headlampConfig)
-	assert.Equal(t, 128, k8cache.MaxClientsets())
+	assert.Equal(t, 128, headlampConfig.ClientsetCache.MaxClientsetsForTesting())
 }
 
 func TestCreateHeadlampConfig_CacheMaxClientsetsPrecedence(t *testing.T) {
@@ -175,7 +178,7 @@ func TestCreateHeadlampConfig_CacheMaxClientsetsPrecedence(t *testing.T) {
 
 		headlampConfig := createHeadlampConfig(conf)
 		assert.NotNil(t, headlampConfig)
-		assert.Equal(t, 1024, k8cache.MaxClientsets())
+		assert.Equal(t, 1024, headlampConfig.ClientsetCache.MaxClientsetsForTesting())
 	})
 
 	t.Run("explicit --cache-max-clientsets=256 overrides HEADLAMP_MAX_CLIENTSETS", func(t *testing.T) {
@@ -188,6 +191,31 @@ func TestCreateHeadlampConfig_CacheMaxClientsetsPrecedence(t *testing.T) {
 
 		headlampConfig := createHeadlampConfig(conf)
 		assert.NotNil(t, headlampConfig)
-		assert.Equal(t, 256, k8cache.MaxClientsets())
+		assert.Equal(t, 256, headlampConfig.ClientsetCache.MaxClientsetsForTesting())
 	})
+}
+
+func TestCreateHeadlampConfig_InitializesClientsetCache(t *testing.T) {
+	conf := &config.Config{}
+	cfg := createHeadlampConfig(conf)
+
+	assert.NotNil(t, cfg.ClientsetCache, "createHeadlampConfig must initialize ClientsetCache")
+}
+
+func TestCreateHeadlampHandler_DefaultsNilClientsetCache(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+			TelemetryHandler: &telemetry.RequestHandler{},
+			Cache:            cache.New[interface{}](),
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	_ = createHeadlampHandler(ctx, cfg)
+
+	assert.NotNil(t, cfg.ClientsetCache, "createHeadlampHandler must initialize nil ClientsetCache")
 }

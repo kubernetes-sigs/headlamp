@@ -32,12 +32,12 @@ import (
 )
 
 func resetSSARCache() {
-	ssarMu.Lock()
-	ssarCache = make(map[string]*ssarCacheEntry)
-	ssarCacheOrder = list.New()
-	ssarInFlight = make(map[string]*ssarInFlightEntry)
-	ssarWorkerCount = 0
-	ssarMu.Unlock()
+	defaultClientsetCache.ssarMu.Lock()
+	defaultClientsetCache.ssarCache = make(map[string]*ssarCacheEntry)
+	defaultClientsetCache.ssarCacheOrder = list.New()
+	defaultClientsetCache.ssarInFlight = make(map[string]*ssarInFlightEntry)
+	defaultClientsetCache.ssarWorkerCount = 0
+	defaultClientsetCache.ssarMu.Unlock()
 }
 
 var buildSSARCacheKeyTests = []struct {
@@ -130,21 +130,21 @@ func TestSSARCacheExpiry(t *testing.T) {
 	key := "ctx\x00token\x00/pods/list/default"
 
 	// Store with a very short expiry by directly manipulating the entry.
-	ssarMu.Lock()
-	ssarCache[key] = &ssarCacheEntry{
+	defaultClientsetCache.ssarMu.Lock()
+	defaultClientsetCache.ssarCache[key] = &ssarCacheEntry{
 		allowed:   true,
 		expiresAt: time.Now().Add(-1 * time.Second), // already expired
 	}
-	ssarMu.Unlock()
+	defaultClientsetCache.ssarMu.Unlock()
 
 	_, found := getSSARCacheResult(key)
 	assert.False(t, found, "expired entry should not be returned")
 
-	ssarMu.RLock()
+	defaultClientsetCache.ssarMu.RLock()
 
-	_, exists := ssarCache[key]
+	_, exists := defaultClientsetCache.ssarCache[key]
 
-	ssarMu.RUnlock()
+	defaultClientsetCache.ssarMu.RUnlock()
 	assert.False(t, exists, "expired entry should be removed on lookup")
 }
 
@@ -159,9 +159,9 @@ func TestSSARCacheEvictionForPrefix(t *testing.T) {
 	// Evict cluster-a.
 	evictSSARCacheForPrefix("cluster-a")
 
-	ssarMu.RLock()
-	assert.Equal(t, 1, len(ssarCache), "only cluster-b entry should remain")
-	ssarMu.RUnlock()
+	defaultClientsetCache.ssarMu.RLock()
+	assert.Equal(t, 1, len(defaultClientsetCache.ssarCache), "only cluster-b entry should remain")
+	defaultClientsetCache.ssarMu.RUnlock()
 
 	// cluster-b entry still valid.
 	allowed, found := getSSARCacheResult("cluster-b\x00tok\x00/pods/list/default")
@@ -175,24 +175,24 @@ func TestSSARCacheJanitorSweep(t *testing.T) {
 	now := time.Now()
 
 	// One expired, one still valid.
-	ssarMu.Lock()
-	ssarCache["expired\x00tok\x00/pods/list/"] = &ssarCacheEntry{
+	defaultClientsetCache.ssarMu.Lock()
+	defaultClientsetCache.ssarCache["expired\x00tok\x00/pods/list/"] = &ssarCacheEntry{
 		allowed:   true,
 		expiresAt: now.Add(-10 * time.Second),
 	}
-	ssarCache["valid\x00tok\x00/pods/list/"] = &ssarCacheEntry{
+	defaultClientsetCache.ssarCache["valid\x00tok\x00/pods/list/"] = &ssarCacheEntry{
 		allowed:   true,
 		expiresAt: now.Add(30 * time.Second),
 	}
-	ssarMu.Unlock()
+	defaultClientsetCache.ssarMu.Unlock()
 
 	evictExpiredSSARResults(now)
 
-	ssarMu.RLock()
-	assert.Equal(t, 1, len(ssarCache))
-	_, exists := ssarCache["valid\x00tok\x00/pods/list/"]
+	defaultClientsetCache.ssarMu.RLock()
+	assert.Equal(t, 1, len(defaultClientsetCache.ssarCache))
+	_, exists := defaultClientsetCache.ssarCache["valid\x00tok\x00/pods/list/"]
 	assert.True(t, exists)
-	ssarMu.RUnlock()
+	defaultClientsetCache.ssarMu.RUnlock()
 }
 
 func TestSSARCacheDifferentTokensSameResource(t *testing.T) {
@@ -254,11 +254,11 @@ func TestSSAROnlyConnectionsAreDiscoveredForCleanup(t *testing.T) {
 	)
 	require.True(t, leader)
 
-	keys := collectCachedContextKeys(nil)
+	keys := collectCachedContextKeys(nil, defaultClientsetCache)
 	assert.Contains(t, keys, contextKey)
 	assert.Contains(t, keys, "other\x00revision")
 
-	cleanupRemovedContext(nil, contextKey)
+	cleanupRemovedContext(nil, defaultClientsetCache, contextKey)
 
 	_, found := getSSARCacheResult(key)
 	assert.False(t, found)
@@ -288,15 +288,15 @@ func TestSSARCacheCapacityIsBounded(t *testing.T) {
 
 	storeSSARCacheResult("newest", true)
 
-	ssarMu.RLock()
+	defaultClientsetCache.ssarMu.RLock()
 
-	size := len(ssarCache)
+	size := len(defaultClientsetCache.ssarCache)
 
-	_, oldestFound := ssarCache["key-0"]
+	_, oldestFound := defaultClientsetCache.ssarCache["key-0"]
 
-	_, newestFound := ssarCache["newest"]
+	_, newestFound := defaultClientsetCache.ssarCache["newest"]
 
-	ssarMu.RUnlock()
+	defaultClientsetCache.ssarMu.RUnlock()
 
 	assert.Equal(t, ssarCacheMaxEntries, size)
 	assert.False(t, oldestFound)
@@ -333,20 +333,20 @@ func TestSSARWorkerAdmissionIsBounded(t *testing.T) {
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	}
 
-	ssarMu.RLock()
+	defaultClientsetCache.ssarMu.RLock()
 
-	workers := ssarWorkerCount
+	workers := defaultClientsetCache.ssarWorkerCount
 
-	ssarMu.RUnlock()
+	defaultClientsetCache.ssarMu.RUnlock()
 	assert.Equal(t, ssarMaxInFlight, workers)
 
 	close(release)
 	require.Eventually(t, func() bool {
-		ssarMu.RLock()
+		defaultClientsetCache.ssarMu.RLock()
 
-		workers := ssarWorkerCount
+		workers := defaultClientsetCache.ssarWorkerCount
 
-		ssarMu.RUnlock()
+		defaultClientsetCache.ssarMu.RUnlock()
 
 		return workers == 0
 	}, time.Second, time.Millisecond)
@@ -518,13 +518,13 @@ func TestSSARCacheDeadlineDetachesStalledClientAcquisition(t *testing.T) {
 	require.NotSame(t, entry, retry)
 	finishSSARRequest(key, retry, false, err)
 
-	ssarMu.RLock()
+	defaultClientsetCache.ssarMu.RLock()
 
-	_, cached := ssarCache[key]
+	_, cached := defaultClientsetCache.ssarCache[key]
 
-	_, attached := ssarInFlight[key]
+	_, attached := defaultClientsetCache.ssarInFlight[key]
 
-	ssarMu.RUnlock()
+	defaultClientsetCache.ssarMu.RUnlock()
 
 	assert.False(t, cached, "late client acquisition must not cache a result")
 	assert.False(t, attached, "late client acquisition must not reattach the entry")
@@ -550,11 +550,11 @@ func requireSSARRequestDetached(t *testing.T, key string) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
-		ssarMu.RLock()
+		defaultClientsetCache.ssarMu.RLock()
 
-		_, attached := ssarInFlight[key]
+		_, attached := defaultClientsetCache.ssarInFlight[key]
 
-		ssarMu.RUnlock()
+		defaultClientsetCache.ssarMu.RUnlock()
 
 		return !attached
 	}, time.Second, time.Millisecond)
@@ -565,21 +565,16 @@ func holdSSARClientCreation(t *testing.T) (<-chan struct{}, chan<- struct{}) {
 
 	creatorStarted := make(chan struct{})
 	creatorRelease := make(chan struct{})
-	originalCreator := clientsetCreator
-
-	hookMu.Lock()
-	clientsetCreator = func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
+	originalCreator := defaultClientsetCache.creator
+	defaultClientsetCache.creator = func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
 		close(creatorStarted)
 		<-creatorRelease
 
 		return nil, errors.New("client creation released")
 	}
-	hookMu.Unlock()
 
 	t.Cleanup(func() {
-		hookMu.Lock()
-		clientsetCreator = originalCreator
-		hookMu.Unlock()
+		defaultClientsetCache.creator = originalCreator
 	})
 
 	return creatorStarted, creatorRelease

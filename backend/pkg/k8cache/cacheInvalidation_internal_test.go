@@ -166,6 +166,78 @@ func storePod(t *testing.T, read *CacheRead) {
 	require.NoError(t, read.Store(response))
 }
 
+func TestBeginCacheReadDoesNotWaitOnUnrelatedClientsetShard(t *testing.T) {
+	a, c, _, key := newWatchFixture(t, "/api/v1/pods")
+	authCache := NewClientsetCache()
+
+	unrelatedPrefix := "unrelated-context"
+	for authCache.shardForPrefix(unrelatedPrefix) == authCache.shardForPrefix("connection") {
+		unrelatedPrefix += "x"
+	}
+
+	shard := authCache.shardForPrefix(unrelatedPrefix)
+	shard.mu.Lock()
+
+	result := make(chan *CacheRead, 1)
+	go func() {
+		result <- BeginCacheRead(c, key, a.connection(), "token", authCache)
+	}()
+
+	select {
+	case read := <-result:
+		require.NotNil(t, read)
+	case <-time.After(time.Second):
+		shard.mu.Unlock()
+		t.Fatal("BeginCacheRead waited on an unrelated clientset shard")
+	}
+
+	shard.mu.Unlock()
+}
+
+func TestBlockedPrefixReadsProceedWhileRegistrationWaitsForShard(t *testing.T) {
+	a, c, _, key := newWatchFixture(t, "/api/v1/pods")
+	registrationPaused := make(chan struct{})
+	continueRegistration := make(chan struct{})
+	authCache := NewClientsetCache(WithRegistrationHook(func() {
+		close(registrationPaused)
+		<-continueRegistration
+	}))
+	authCache.SeedBlockedPrefix("connection", time.Now())
+
+	context := a.connection()
+	revision, err := ContextCacheKey("connection", context)
+	require.NoError(t, err)
+
+	shard := authCache.shardForPrefix(revision)
+
+	registered := make(chan error, 1)
+
+	go func() {
+		_, getErr := authCache.GetClientSet("connection", context, "token")
+		registered <- getErr
+	}()
+
+	<-registrationPaused
+	shard.mu.Lock()
+	close(continueRegistration)
+
+	read := make(chan *CacheRead, 1)
+	go func() {
+		read <- BeginCacheRead(c, key, context, "token", authCache)
+	}()
+
+	select {
+	case blocked := <-read:
+		require.Nil(t, blocked)
+	case <-time.After(time.Second):
+		shard.mu.Unlock()
+		t.Fatal("blocked-prefix read waited for a shard writer behind cache-wide exclusive lock")
+	}
+
+	shard.mu.Unlock()
+	require.NoError(t, <-registered)
+}
+
 func TestSharedWatchUsesRequestCredentialAndFencesLateResponses(t *testing.T) {
 	a, c, request, key := newWatchFixture(t, "/api/v1/namespaces/team/pods?labelSelector=app%3Dweb")
 	read := readyRead(t, c, key, a.connection(), "user-a")
@@ -226,11 +298,17 @@ func TestWatchDisconnectAndCredentialRecovery(t *testing.T) {
 	served, err = replacement.Load(httptest.NewRecorder(), request)
 	require.NoError(t, err)
 	require.True(t, served)
-	SyncWatchers(c, nil)
+
+	authCache := NewClientsetCache()
+	SyncWatchers(c, authCache, nil)
 	storePod(t, replacement)
 	_, err = c.Get(t.Context(), key)
 	require.Error(t, err)
-	require.Nil(t, BeginCacheRead(c, key, a.connection(), "new-token"), "removed connections cannot restart a watch")
+	require.Nil(
+		t,
+		BeginCacheRead(c, key, a.connection(), "new-token", authCache),
+		"removed connections cannot restart a watch",
+	)
 }
 
 func TestUnwatchableResourceDoesNotBecomeCacheable(t *testing.T) {
@@ -294,7 +372,7 @@ func TestInactiveConnectionCancelsInitialList(t *testing.T) {
 			}
 
 			if reason == "removal" {
-				SyncWatchers(c, nil)
+				SyncWatchers(c, nil, nil)
 			} else {
 				require.True(t, read.watcher.stopIfIdle(time.Now().Add(responseTTL)))
 			}
