@@ -91,6 +91,31 @@ func SanitizeClusterName(cluster string) string {
 	return sanitized
 }
 
+// GetForwardedProto extracts and normalizes the client protocol from the X-Forwarded-Proto header.
+// If multiple comma-separated protocols are present (e.g. from multi-tier reverse proxies),
+// the first (client-facing) protocol is returned in lowercase. Only "http" and "https" are recognized.
+func GetForwardedProto(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if proto == "" {
+		return ""
+	}
+
+	if before, _, found := strings.Cut(proto, ","); found {
+		proto = before
+	}
+
+	proto = strings.ToLower(strings.TrimSpace(proto))
+	if proto == "http" || proto == "https" {
+		return proto
+	}
+
+	return ""
+}
+
 // IsSecureContext determines if we should use secure cookies.
 func IsSecureContext(r *http.Request) bool {
 	// Check if request came over HTTPS
@@ -99,7 +124,7 @@ func IsSecureContext(r *http.Request) bool {
 	}
 
 	// Check X-Forwarded-Proto header (for reverse proxies)
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto == "https" {
+	if GetForwardedProto(r) == "https" {
 		return true
 	}
 
