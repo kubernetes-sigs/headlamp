@@ -93,7 +93,7 @@ func TestStartPortForward_ImpersonationUsesServiceAccountCredential(t *testing.T
 
 	err := startPortForward(
 		kContext.WithImpersonation(impersonation), cache.New[interface{}](), p, "", "test-cluster", "test-cluster",
-		impersonation.Expiry, impersonation.Username,
+		impersonation.Expiry, impersonation.Username, impersonation.Groups,
 	)
 
 	require.Error(t, err)
@@ -609,7 +609,7 @@ func TestExtendImpersonationExpiryForID_ExtendsMatchingIdentity(t *testing.T) {
 	registerLivePortForward(pf)
 
 	laterExpiry := originalExpiry.Add(time.Hour)
-	ExtendImpersonationExpiryForID("cluster", "pf-extend", "alice@example.com", laterExpiry)
+	ExtendImpersonationExpiryForID("cluster", "pf-extend", "alice@example.com", nil, laterExpiry)
 
 	assert.True(t, pf.impersonationExpiry.Equal(laterExpiry),
 		"a re-verification by the same identity must extend the running port-forward's expiry")
@@ -628,7 +628,7 @@ func TestExtendImpersonationExpiryForID_IgnoresDifferentIdentity(t *testing.T) {
 
 	// A different, unrelated caller re-verifying their own identity must never extend the
 	// privilege window of a port-forward it does not own.
-	ExtendImpersonationExpiryForID("cluster", "pf-other-identity", "mallory@example.com", time.Now().Add(time.Hour))
+	ExtendImpersonationExpiryForID("cluster", "pf-other-identity", "mallory@example.com", nil, time.Now().Add(time.Hour))
 
 	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry))
 }
@@ -644,7 +644,7 @@ func TestExtendImpersonationExpiryForID_NeverShortens(t *testing.T) {
 	}
 	registerLivePortForward(pf)
 
-	ExtendImpersonationExpiryForID("cluster", "pf-no-shorten", "alice@example.com", time.Now().Add(time.Minute))
+	ExtendImpersonationExpiryForID("cluster", "pf-no-shorten", "alice@example.com", nil, time.Now().Add(time.Minute))
 
 	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry),
 		"an earlier expiry (e.g. from a stale or clock-skewed token) must never shorten it")
@@ -668,7 +668,7 @@ func TestExtendImpersonationExpiryForCluster_ExtendsAllMatchingInCluster(t *test
 	registerLivePortForward(pf2)
 
 	laterExpiry := originalExpiry.Add(time.Hour)
-	ExtendImpersonationExpiryForCluster("cluster", "alice@example.com", laterExpiry)
+	ExtendImpersonationExpiryForCluster("cluster", "alice@example.com", nil, laterExpiry)
 
 	assert.True(t, pf1.impersonationExpiry.Equal(laterExpiry))
 	assert.True(t, pf2.impersonationExpiry.Equal(laterExpiry))
@@ -694,7 +694,7 @@ func TestExtendImpersonationExpiryForCluster_DoesNotMatchClusterNamePrefix(t *te
 	registerLivePortForward(prodPF)
 	registerLivePortForward(productionPF)
 
-	ExtendImpersonationExpiryForCluster("prod", "alice@example.com", originalExpiry.Add(time.Hour))
+	ExtendImpersonationExpiryForCluster("prod", "alice@example.com", nil, originalExpiry.Add(time.Hour))
 
 	assert.True(t, prodPF.impersonationExpiry.After(originalExpiry), "the actually-targeted cluster must be extended")
 	assert.True(t, productionPF.impersonationExpiry.Equal(originalExpiry),
@@ -719,11 +719,94 @@ func TestExtendImpersonationExpiryForID_DoesNotMatchIDPrefix(t *testing.T) {
 	registerLivePortForward(shortIDPF)
 	registerLivePortForward(longIDPF)
 
-	ExtendImpersonationExpiryForID("cluster", "pf-1", "alice@example.com", originalExpiry.Add(time.Hour))
+	ExtendImpersonationExpiryForID("cluster", "pf-1", "alice@example.com", nil, originalExpiry.Add(time.Hour))
 
 	assert.True(t, shortIDPF.impersonationExpiry.After(originalExpiry))
 	assert.True(t, longIDPF.impersonationExpiry.Equal(originalExpiry),
 		"an ID that is a textual prefix of another port-forward's ID must not extend that other one")
+}
+
+// TestExtendImpersonationExpiryForID_RefusesShrunkGroupMembership locks in a fix for a gap
+// where only the username was compared before extending: a refreshed token for the same user
+// but with a group removed (e.g. an admin revoking them from a privileged group) still extended
+// impersonationExpiry, even though pf.rConf's own Impersonate.Groups -- the actual
+// authorization a reconnect or ongoing monitor call carries -- is fixed at start and never
+// updated to the smaller set. That let the port-forward keep running under the original,
+// now-stale, broader groups for longer than the new, smaller membership's own token would ever
+// have allowed.
+func TestExtendImpersonationExpiryForID_RefusesShrunkGroupMembership(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	pf := &portForward{
+		ID: "pf-shrunk-groups", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+		impersonatedGroups: []string{"dev", "ops"},
+	}
+	registerLivePortForward(pf)
+
+	// Same username, but "ops" has been revoked since the port-forward started.
+	ExtendImpersonationExpiryForID(
+		"cluster", "pf-shrunk-groups", "alice@example.com", []string{"dev"}, originalExpiry.Add(time.Hour))
+
+	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry),
+		"a re-verification with a smaller group membership than the one the port-forward actually "+
+			"runs under (pf.rConf's groups, fixed at start) must not extend its expiry")
+}
+
+// TestExtendImpersonationExpiryForID_IgnoresGroupReordering is the companion check: group
+// membership is a set, not a sequence, so a refreshed token listing the same groups in a
+// different order (or with a duplicate) must still be treated as the same identity.
+func TestExtendImpersonationExpiryForID_IgnoresGroupReordering(t *testing.T) {
+	originalExpiry := time.Now().Add(time.Minute)
+	pf := &portForward{
+		ID: "pf-reordered-groups", cacheKey: "cluster", mu: &sync.Mutex{},
+		impersonationExpiry: originalExpiry, impersonatedUsername: "alice@example.com",
+		impersonatedGroups: []string{"dev", "ops"},
+	}
+	registerLivePortForward(pf)
+
+	laterExpiry := originalExpiry.Add(time.Hour)
+	ExtendImpersonationExpiryForID(
+		"cluster", "pf-reordered-groups", "alice@example.com", []string{"ops", "dev", "dev"}, laterExpiry)
+
+	assert.True(t, pf.impersonationExpiry.Equal(laterExpiry),
+		"the same group membership, merely reordered or with a duplicate, must still extend the expiry")
+}
+
+// TestHandlePortForwardSuccess_ReregistersAfterFailedThenRecoveredReconnect locks in a fix for
+// a gap where a reconnect attempt whose readiness check failed (handlePortForwardError) was
+// deregistered from livePortForwards via portforwardstore's STOPPED handling, and never
+// re-registered if a later retry of the same reconnect then succeeded (handlePortForwardSuccess
+// used to only ever set status, never touch the registry). The recovered port-forward kept
+// running, correctly marked RUNNING in the cache, but GetPortForwards/GetPortForwardByID's
+// expiry extension could no longer reach it at all: polling status for an actively-refreshing
+// session silently stopped renewing it, so it still expired at its original deadline.
+func TestHandlePortForwardSuccess_ReregistersAfterFailedThenRecoveredReconnect(t *testing.T) {
+	c := cache.New[interface{}]()
+	logParams := map[string]string{"id": "pf-recovers"}
+
+	pf := &portForward{
+		ID: "pf-recovers", cacheKey: "cluster", mu: &sync.Mutex{}, closeChan: make(chan struct{}),
+		Status:               RUNNING,
+		impersonationExpiry:  time.Now().Add(time.Minute),
+		impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	// Simulates a reconnect attempt's readiness check failing.
+	require.Error(t, handlePortForwardError(c, pf, logParams, "readiness probe failed"))
+
+	laterExpiry := pf.impersonationExpiry.Add(time.Hour)
+	ExtendImpersonationExpiryForID("cluster", "pf-recovers", "alice@example.com", nil, laterExpiry)
+	assert.False(t, pf.impersonationExpiry.Equal(laterExpiry),
+		"a port-forward deregistered by a failed readiness check must not be reachable for extension")
+
+	// Simulates that same reconnect's retry succeeding afterward.
+	handlePortForwardSuccess(c, pf, logParams)
+
+	ExtendImpersonationExpiryForID("cluster", "pf-recovers", "alice@example.com", nil, laterExpiry)
+	assert.True(t, pf.impersonationExpiry.Equal(laterExpiry),
+		"a port-forward that recovered via a successful reconnect retry must be re-registered, "+
+			"so status polling can extend its expiry again")
 }
 
 // TestPortForwardImpersonationExpiry_ConcurrentReadWriteIsRaceFree locks in a fix for a data
@@ -755,7 +838,7 @@ func TestPortForwardImpersonationExpiry_ConcurrentReadWriteIsRaceFree(t *testing
 
 		for i := range 200 {
 			ExtendImpersonationExpiryForID("cluster", "pf-race", "alice@example.com",
-				time.Now().Add(time.Duration(i+1)*time.Minute))
+				nil, time.Now().Add(time.Duration(i+1)*time.Minute))
 		}
 	}()
 
@@ -778,7 +861,7 @@ func TestPortforwardstore_DeregistersStoppedPortForward(t *testing.T) {
 
 	originalExpiry := pf.impersonationExpiry
 
-	ExtendImpersonationExpiryForID("cluster", "pf-stop", "alice@example.com", time.Now().Add(time.Hour))
+	ExtendImpersonationExpiryForID("cluster", "pf-stop", "alice@example.com", nil, time.Now().Add(time.Hour))
 
 	assert.True(t, pf.impersonationExpiry.Equal(originalExpiry),
 		"a stopped port-forward must be deregistered, so a later extension call must not reach it")

@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -47,11 +49,23 @@ type Handler struct {
 	Cache cache.Cache[interface{}]
 }
 
-func NewActionConfig(clientConfig clientcmd.ClientConfig, namespace string) (*action.Configuration, error) {
+// NewActionConfig builds the Configuration an install/upgrade/uninstall/rollback/list/get
+// action runs against. impersonationExpiry, when non-zero, bounds every Kubernetes API call the
+// action's clients make to that absolute deadline (see restConfigGetter.ToRESTConfig): without
+// it, a single impersonationExpired() check made once before Run() only catches an identity
+// already expired at that instant, not one that expires while Run() -- a single call for
+// install/upgrade/uninstall/rollback, which can run long enough for a verified token's lifetime
+// to pass during it -- is still in flight, letting it keep mutating the cluster under
+// Headlamp's own ServiceAccount past the point the user's session authorized it for. Pass the
+// zero Time for read-only actions (list/get/history), which need no such bound.
+func NewActionConfig(
+	clientConfig clientcmd.ClientConfig, namespace string, impersonationExpiry time.Time,
+) (*action.Configuration, error) {
 	actionConfig := new(action.Configuration)
 	restConfGetter := &restConfigGetter{
-		clientConfig: clientConfig,
-		namespace:    namespace,
+		clientConfig:        clientConfig,
+		namespace:           namespace,
+		impersonationExpiry: impersonationExpiry,
 	}
 	logger := func(format string, a ...interface{}) {
 		logger.Log(logger.LevelInfo, map[string]string{"namespace": namespace},
@@ -82,10 +96,66 @@ func NewHandlerWithSettings(cache cache.Cache[interface{}], settings *cli.EnvSet
 type restConfigGetter struct {
 	clientConfig clientcmd.ClientConfig
 	namespace    string
+	// impersonationExpiry, when non-zero, is enforced on every REST call made through the
+	// config this returns (see deadlineEnforcingRoundTripper).
+	impersonationExpiry time.Time
 }
 
 func (r *restConfigGetter) ToRESTConfig() (*rest.Config, error) {
-	return r.clientConfig.ClientConfig()
+	config, err := r.clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if !r.impersonationExpiry.IsZero() {
+		deadline := r.impersonationExpiry
+
+		config.WrapTransport = func(base http.RoundTripper) http.RoundTripper {
+			return &deadlineEnforcingRoundTripper{base: base, deadline: deadline}
+		}
+	}
+
+	return config, nil
+}
+
+// deadlineEnforcingRoundTripper bounds every request through it to an absolute wall-clock
+// deadline. rest.Config's own Timeout field cannot do this: it is a fixed per-request duration
+// set once when the config is built, so a call that happens to start late (for example after a
+// slow chart download earlier in the same action) would still run for that config's full
+// original duration from whenever it starts, potentially well past deadline. Recomputing
+// time.Until(deadline) for each request instead enforces what a deadline actually is: an
+// absolute cutoff, independent of how many calls an action makes or when any one of them begins.
+type deadlineEnforcingRoundTripper struct {
+	base     http.RoundTripper
+	deadline time.Time
+}
+
+func (rt *deadlineEnforcingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithDeadline(req.Context(), rt.deadline)
+
+	resp, err := rt.base.RoundTrip(req.WithContext(ctx))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	// cancel is tied to the response body's own Close, not called here: the caller (client-go)
+	// reads resp.Body after RoundTrip returns, and cancelling ctx immediately would fail that
+	// read even on a fully successful response. The deadline's own timer still fires and aborts
+	// an in-flight read if it is reached first.
+	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: cancel}
+
+	return resp, nil
+}
+
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *cancelOnCloseBody) Close() error {
+	defer b.cancel()
+	return b.ReadCloser.Close()
 }
 
 func (r *restConfigGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {

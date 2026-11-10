@@ -19,6 +19,7 @@ package portforward
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -63,30 +64,51 @@ func registerLivePortForward(pf *portForward) {
 	livePortForwards.Store(livePortForwardKey(cluster, pf.ID), pf)
 }
 
+// sameGroupSet reports whether a and b contain the same group membership, ignoring order and
+// duplicates: group membership is a set, not a sequence, and a refreshed token's claims are not
+// guaranteed to repeat the same order (or dedupe identically) as the token it replaces, even for
+// the identical identity. This mirrors cmd/multiplexer.go's own sameGroups, which solves the
+// identical problem for WebSocket connection identity binding; it is duplicated rather than
+// shared because pkg/portforward cannot import the main package.
+func sameGroupSet(a, b []string) bool {
+	sortedA := slices.Clone(a)
+	sortedB := slices.Clone(b)
+
+	slices.Sort(sortedA)
+	slices.Sort(sortedB)
+
+	return slices.Equal(slices.Compact(sortedA), slices.Compact(sortedB))
+}
+
 // extendPortForwardExpiry extends pf's impersonationExpiry to newExpiry under pf.mu, but only
 // when newExpiry is later than its current expiry (so this can only extend, never shorten),
 // pf was started under impersonation in the first place (impersonationExpiry.IsZero()
-// otherwise, meaning this field does not apply to it at all), and username matches the identity
-// pf was started under (so one identity's re-verification can never extend a different
-// identity's port-forward).
-func extendPortForwardExpiry(pf *portForward, username string, newExpiry time.Time) {
+// otherwise, meaning this field does not apply to it at all), and both username AND group
+// membership match the identity pf was started under. Username alone is not enough: pf.rConf's
+// own Impersonate.Groups -- the actual authorization a reconnect or ongoing monitor call
+// carries -- is fixed at start and never updated, so a later re-verification for the same
+// username but a group membership that has since shrunk must not extend this port-forward's
+// expiry, or it would keep running under those now-stale, over-broad groups for longer than
+// that smaller membership's own token would ever have allowed.
+func extendPortForwardExpiry(pf *portForward, username string, groups []string, newExpiry time.Time) {
 	if pf.mu != nil {
 		pf.mu.Lock()
 		defer pf.mu.Unlock()
 	}
 
-	sameIdentity := !pf.impersonationExpiry.IsZero() && pf.impersonatedUsername == username
+	sameIdentity := !pf.impersonationExpiry.IsZero() &&
+		pf.impersonatedUsername == username && sameGroupSet(pf.impersonatedGroups, groups)
 	if sameIdentity && newExpiry.After(pf.impersonationExpiry) {
 		pf.impersonationExpiry = newExpiry
 	}
 }
 
 // ExtendImpersonationExpiryForID extends the impersonation expiry of the single live
-// port-forward identified by cluster and id, when its impersonated identity is username. GET
-// .../portforward (by ID) calls this with the identity it just re-verified for this request, so
-// an actively-refreshing browser session keeps its port-forward alive past the lifetime of any
-// one verified ID token.
-func ExtendImpersonationExpiryForID(cluster, id, username string, newExpiry time.Time) {
+// port-forward identified by cluster and id, when its impersonated identity is username/groups.
+// GET .../portforward (by ID) calls this with the identity it just re-verified for this
+// request, so an actively-refreshing browser session keeps its port-forward alive past the
+// lifetime of any one verified ID token.
+func ExtendImpersonationExpiryForID(cluster, id, username string, groups []string, newExpiry time.Time) {
 	if username == "" || newExpiry.IsZero() {
 		return
 	}
@@ -101,13 +123,14 @@ func ExtendImpersonationExpiryForID(cluster, id, username string, newExpiry time
 		return
 	}
 
-	extendPortForwardExpiry(pf, username, newExpiry)
+	extendPortForwardExpiry(pf, username, groups, newExpiry)
 }
 
 // ExtendImpersonationExpiryForCluster extends the impersonation expiry of every live
-// port-forward in cluster whose impersonated identity is username. GET .../portforward/list
-// calls this the same way ExtendImpersonationExpiryForID does for a single ID.
-func ExtendImpersonationExpiryForCluster(cluster, username string, newExpiry time.Time) {
+// port-forward in cluster whose impersonated identity is username/groups. GET
+// .../portforward/list calls this the same way ExtendImpersonationExpiryForID does for a
+// single ID.
+func ExtendImpersonationExpiryForCluster(cluster, username string, groups []string, newExpiry time.Time) {
 	if username == "" || newExpiry.IsZero() {
 		return
 	}
@@ -125,7 +148,7 @@ func ExtendImpersonationExpiryForCluster(cluster, username string, newExpiry tim
 			return true
 		}
 
-		extendPortForwardExpiry(pf, username, newExpiry)
+		extendPortForwardExpiry(pf, username, groups, newExpiry)
 
 		return true
 	})

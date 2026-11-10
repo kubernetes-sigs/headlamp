@@ -110,12 +110,19 @@ type portForward struct {
 	// use to re-verify or expire the identity, so this package is the only thing that can stop a
 	// service-backed port-forward from outliving the user's real session on its own.
 	impersonationExpiry time.Time
-	// impersonatedUsername is the verified identity's username that impersonationExpiry
-	// belongs to (empty when this port-forward was not started under impersonation). The
-	// Extend* functions in store.go compare it against a later request's freshly-verified
-	// identity before extending impersonationExpiry, so one identity's re-verification can
-	// never extend the privilege window of a port-forward started under a different one.
+	// impersonatedUsername and impersonatedGroups are the verified identity's username and
+	// group membership that impersonationExpiry belongs to (both empty when this port-forward
+	// was not started under impersonation). The Extend* functions in store.go compare both
+	// against a later request's freshly-verified identity before extending impersonationExpiry:
+	// username alone is not enough, since rConf's own Impersonate.Groups -- the actual
+	// authorization a reconnect or ongoing monitor call carries -- is fixed at start and never
+	// updated. A later re-verification for the same username but a group membership that has
+	// since shrunk (e.g. an admin revoking the user from a privileged group) must not extend
+	// this port-forward's expiry: doing so would let it keep running under rConf's original,
+	// now-stale groups for longer than that smaller membership's own token would ever have
+	// allowed, exactly the kind of leftover privilege this field exists to prevent.
 	impersonatedUsername string
+	impersonatedGroups   []string
 }
 
 // impersonationExpirySnapshot returns pf.impersonationExpiry under pf.mu (nil-safe, matching
@@ -264,13 +271,17 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 
 	var impersonatedUsername string
 
+	var impersonatedGroups []string
+
 	if impersonation != nil {
 		impersonationExpiry = impersonation.Expiry
 		impersonatedUsername = impersonation.Username
+		impersonatedGroups = impersonation.Groups
 	}
 
 	err = startPortForward(
-		kContext, cache, p, token, contextKey, requestClusterName, impersonationExpiry, impersonatedUsername)
+		kContext, cache, p, token, contextKey, requestClusterName,
+		impersonationExpiry, impersonatedUsername, impersonatedGroups)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -753,6 +764,17 @@ func handlePortForwardSuccess(
 ) {
 	pfSnapshot := pfDetails.setStatusAndSnapshot(RUNNING, "")
 	portforwardstore(cache, pfSnapshot)
+
+	// A reconnect that failed its readiness check earlier (handlePortForwardError, called from
+	// handlePortForwardReadiness on the attempt this one supersedes) deregisters pfDetails from
+	// livePortForwards via portforwardstore's own STOPPED handling. If that attempt's retry
+	// loop then succeeds here, pfDetails is never re-registered anywhere else: re-asserting it
+	// on every successful readiness -- not only the very first one, from startPortForward --
+	// restores it, so GetPortForwards/GetPortForwardByID's expiry extension can still reach a
+	// port-forward that recovered from a transient reconnect failure. Idempotent when already
+	// registered (the common case), so this is always safe to call.
+	registerLivePortForward(pfDetails)
+
 	logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
 }
 
@@ -879,7 +901,7 @@ func runAndMonitorPortForward(
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
 	p portForwardRequest, token string, clusterName string, requestClusterName string,
-	impersonationExpiry time.Time, impersonatedUsername string,
+	impersonationExpiry time.Time, impersonatedUsername string, impersonatedGroups []string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -925,6 +947,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		rConf:                rConf,
 		impersonationExpiry:  impersonationExpiry,
 		impersonatedUsername: impersonatedUsername,
+		impersonatedGroups:   impersonatedGroups,
 	}
 
 	registerLivePortForward(pfDetails)
@@ -1021,7 +1044,7 @@ func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
 	}
 
 	if impersonation != nil {
-		ExtendImpersonationExpiryForCluster(contextKey, impersonation.Username, impersonation.Expiry)
+		ExtendImpersonationExpiryForCluster(contextKey, impersonation.Username, impersonation.Groups, impersonation.Expiry)
 	}
 
 	ports := getPortForwardList(cache, contextKey)
@@ -1060,7 +1083,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 	}
 
 	if impersonation != nil {
-		ExtendImpersonationExpiryForID(contextKey, id, impersonation.Username, impersonation.Expiry)
+		ExtendImpersonationExpiryForID(contextKey, id, impersonation.Username, impersonation.Groups, impersonation.Expiry)
 	}
 
 	p, err := getPortForwardByID(cache, contextKey, id)
