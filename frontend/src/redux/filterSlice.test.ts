@@ -116,5 +116,16 @@ describe('filterSlice', () => {
       const item = makeItem({ namespace: 'default', labels: { app: 'nginx' } });
       expect(filterResource(item, filter, 'nginx')).toBe(true);
     });
+
+    it('handles non-string label values safely without crashing', () => {
+      const item = makeItem({
+        namespace: 'default',
+        labels: { release: 1, enabled: true, skipped: null },
+      });
+      expect(() => filterResource(item, filter, '1')).not.toThrow();
+      expect(filterResource(item, filter, '1')).toBe(true);
+      expect(filterResource(item, filter, 'true')).toBe(true);
+      expect(filterResource(item, filter, 'null')).toBe(false);
+    });
   });
 });
