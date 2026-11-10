@@ -53,6 +53,24 @@ type OIDCTokenRefreshConfig struct {
 // refresh middleware for telemetry. It is also the span/operation name.
 const oidcMiddlewareRoute = "OIDCTokenRefreshMiddleware"
 
+// isClearRefreshTokenRoute reports whether the request is the best-effort
+// logout cleanup route, POST /clusters/{cluster}/clear-refresh-token
+// (handleClearRefreshToken). The OIDC refresh middleware must not run on it: a
+// refresh there could rotate the cached refresh token between the client's
+// cookie being read and the cleanup handler deleting the entry for that
+// cookie's (pre-rotation) token, leaving the newly-rotated entry behind
+// uncleaned. The match is exact so Kubernetes requests that merely end in
+// "/clear-refresh-token", such as a Secret with that name, are still refreshed.
+func isClearRefreshTokenRoute(r *http.Request, baseURL string) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+
+	parts := strings.Split(strings.TrimPrefix(StripBaseURL(r.URL.Path, baseURL), "/"), "/")
+
+	return len(parts) == 3 && parts[0] == "clusters" && parts[1] != "" && parts[2] == "clear-refresh-token"
+}
+
 // SetTokenFromCookie retrieves a token from the request cookie and sets
 // it as the Authorization header.
 func SetTokenFromCookie(r *http.Request, clusterName string) {
@@ -187,8 +205,9 @@ func (c *OIDCTokenRefreshConfig) shouldSkipOIDCRefresh(
 ) bool {
 	// Use URL.Path rather than URL.String() so query parameters do not affect
 	// whether this is a cluster request.
-	if !strings.HasPrefix(StripBaseURL(r.URL.Path, c.BaseURL), "/clusters/") {
-		c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
+	if !strings.HasPrefix(StripBaseURL(r.URL.Path, c.BaseURL), "/clusters/") ||
+		isClearRefreshTokenRoute(r, c.BaseURL) {
+		c.TelemetryHandler.RecordEvent(span, "Not a cluster request or is the cleanup route, skipping OIDC refresh")
 
 		*status = "skipped"
 

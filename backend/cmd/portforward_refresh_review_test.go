@@ -71,7 +71,7 @@ func TestPortForwardValidatesAuthorizationBeforeRefresh(t *testing.T) {
 	oldToken := "e30." + base64.RawURLEncoding.EncodeToString(expiry) + ".signature"
 	require.True(t, auth.IsTokenAboutToExpire(oldToken))
 	cached := (&oauth2.Token{RefreshToken: "refresh"}).WithExtra(map[string]interface{}{"id_token": oldToken})
-	require.NoError(t, auth.CacheRefreshedToken(cached, "id_token", oldToken, "refresh", sessions))
+	require.NoError(t, auth.CacheRefreshedToken(cached, "id_token", oldToken, "refresh", sessions, time.Hour))
 	config := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
 			UseInCluster: true, KubeConfigStore: store, KubeConfigDir: t.TempDir(), SessionTTL: 3600,
