@@ -264,6 +264,21 @@ describe('ResourceTable Column Visibility', () => {
     }
   });
 
+  it('passes sortDescFirst to the table columns', () => {
+    renderTable({
+      id: 'sort-desc-first-table',
+      columns: [
+        { id: 'usage', label: 'Usage', getValue: () => '1', sortDescFirst: true },
+        { id: 'name', label: 'Name', getValue: (item: any) => item.metadata.name },
+      ],
+      data: mockData,
+    });
+
+    const columns = lastTablePropsHolder.current.columns;
+    expect(columns.find((column: any) => column.id === 'usage').sortDescFirst).toBe(true);
+    expect(columns.find((column: any) => column.id === 'name').sortDescFirst).toBeUndefined();
+  });
+
   it('uses searchFilter boolean result directly in kubeObjectSearch to bypass fuzzy matching', () => {
     const columns = [
       {
