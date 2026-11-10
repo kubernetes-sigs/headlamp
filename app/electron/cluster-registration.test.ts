@@ -210,6 +210,89 @@ describe('cluster registration providers', () => {
     ).toThrow("External tool 'cli' escapes packaged resources");
   });
 
+  it('registers after Go removal writes all named collections as null', async () => {
+    const destination = process.env.KUBECONFIG as string;
+    // client-go output after Headlamp removes the last context.
+    fs.writeFileSync(
+      destination,
+      'apiVersion: v1\nclusters: null\ncontexts: null\ncurrent-context: removed\nkind: Config\nusers: null\n'
+    );
+    const generated = kubeconfig('https://shared.example');
+
+    await mergeKubeconfigTransaction(generated, [destination]);
+
+    expect(yaml.parse(fs.readFileSync(destination, 'utf8'))).toEqual({
+      ...yaml.parse(generated),
+      kind: 'Config',
+    });
+  });
+
+  it.each(['clusters', 'contexts', 'users'] as const)(
+    'merges an existing null %s collection',
+    key => {
+      const existing = { apiVersion: 'v1', clusters: [], contexts: [], users: [], [key]: null };
+      const generated = kubeconfig('https://shared.example');
+
+      expect(mergeKubeconfig(yaml.stringify(existing), generated)).toEqual(yaml.parse(generated));
+    }
+  );
+
+  it.each(['clusters', 'contexts', 'users'] as const)(
+    'accepts null %s in a secondary KUBECONFIG file without changing it',
+    async key => {
+      const destination = process.env.KUBECONFIG as string;
+      const secondary = path.join(directory, 'secondary');
+      const original = `# preserved file\n${key}: null\n`;
+      fs.writeFileSync(destination, 'apiVersion: v1\n');
+      fs.writeFileSync(secondary, original);
+      const generated = kubeconfig('https://shared.example');
+
+      await mergeKubeconfigTransaction(generated, [destination, secondary]);
+
+      expect(yaml.parse(fs.readFileSync(destination, 'utf8'))).toEqual(yaml.parse(generated));
+      expect(fs.readFileSync(secondary, 'utf8')).toBe(original);
+    }
+  );
+
+  it.each(['clusters', 'contexts', 'users'] as const)(
+    'still rejects malformed %s collections',
+    key => {
+      for (const invalid of ['scalar', false, {}, [null], [{}]]) {
+        expect(() => mergeKubeconfig(yaml.stringify({ [key]: invalid }), '')).toThrow(
+          `Invalid ${key} in kubeconfig`
+        );
+      }
+    }
+  );
+
+  it('preserves existing bytes when a merge with null collections still has a collision', async () => {
+    const destination = process.env.KUBECONFIG as string;
+    const secondary = path.join(directory, 'secondary');
+    const original = '# empty destination\nclusters: null\ncontexts: null\nusers: null\n';
+    const preserved = kubeconfig('https://preserved.example');
+    fs.writeFileSync(destination, original);
+    fs.writeFileSync(secondary, preserved);
+
+    await expect(
+      mergeKubeconfigTransaction(kubeconfig('https://shared.example'), [destination, secondary])
+    ).rejects.toThrow("Cluster 'shared' already uses a different API server");
+
+    expect(fs.readFileSync(destination, 'utf8')).toBe(original);
+    expect(fs.readFileSync(secondary, 'utf8')).toBe(preserved);
+    expect(fs.readdirSync(directory).sort()).toEqual(['config', 'secondary']);
+  });
+
+  it.each([
+    ['clusters', "Generated kubeconfig cluster 'shared' has no API server"],
+    ['contexts', "Generated kubeconfig context 'shared' has no cluster"],
+    ['users', "Generated kubeconfig user 'shared' is missing"],
+  ] as const)('still rejects generated credentials with null %s', (key, message) => {
+    const generated = yaml.parse(kubeconfig('https://shared.example'));
+    generated[key] = null;
+
+    expect(() => validateGeneratedKubeconfig(yaml.stringify(generated))).toThrow(message);
+  });
+
   it('updates credentials when a same-name cluster still targets the same API server', () => {
     const merged = mergeKubeconfig(
       kubeconfig('https://shared.example', 'old-token'),

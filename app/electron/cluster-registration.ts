@@ -446,7 +446,7 @@ function getNamedEntries<T extends NamedKubeConfigEntry>(
   key: 'clusters' | 'contexts' | 'users'
 ): T[] {
   const entries = config[key];
-  if (entries === undefined) {
+  if (entries === undefined || entries === null) {
     const empty: T[] = [];
     config[key] = empty;
     return empty;
