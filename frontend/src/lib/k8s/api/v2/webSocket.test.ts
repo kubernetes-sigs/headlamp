@@ -228,6 +228,59 @@ describe('useWebSockets', () => {
     });
   });
 
+  it('does not tear down healthy sockets when connections array reference changes with unchanged connection', async () => {
+    const urlA = 'api/v1/namespaces/ns-a/pods?watch=1&resourceVersion=stable-a';
+    const urlB = 'api/v1/namespaces/ns-b/pods?watch=1&resourceVersion=stable-b';
+    const serverA = new WS(`${BASE_WS_URL}${urlA}`);
+    const serverB = new WS(`${BASE_WS_URL}${urlB}`);
+    const onMessageA = vi.fn();
+    const onMessageB = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ conns }) =>
+        useWebSockets({
+          connections: conns,
+        }),
+      {
+        initialProps: {
+          conns: [
+            { cluster: '', url: urlA, onMessage: onMessageA },
+            { cluster: '', url: urlB, onMessage: onMessageB },
+          ],
+        },
+      }
+    );
+
+    await serverA.connected;
+    await serverB.connected;
+
+    // Sibling urlA changes to urlA2 (reconnecting), while urlB remains identical
+    serverA.close();
+    const urlA2 = 'api/v1/namespaces/ns-a2/pods?watch=1&resourceVersion=reconnected-a';
+    const serverA2 = new WS(`${BASE_WS_URL}${urlA2}`);
+
+    rerender({
+      conns: [
+        { cluster: '', url: urlA2, onMessage: onMessageA },
+        { cluster: '', url: urlB, onMessage: onMessageB },
+      ],
+    });
+
+    await serverA2.connected;
+
+    // serverB must NOT have closed and should continue receiving messages
+    await serverB.send(JSON.stringify({ type: 'ADDED', object: { metadata: { name: 'pod-b' } } }));
+    await waitFor(() => {
+      expect(onMessageB).toHaveBeenCalledWith({
+        type: 'ADDED',
+        object: { metadata: { name: 'pod-b' } },
+      });
+    });
+
+    serverA2.close();
+    serverB.close();
+  });
+
   it('notifies onClose listeners and removes socket when connection closes', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=5';
     const server = new WS(`${BASE_WS_URL}${url}`);
