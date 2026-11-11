@@ -609,6 +609,13 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	if status, err := h.checkChartRef(req.Chart); err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart}, err, "validating chart for install")
+		http.Error(w, err.Error(), status)
+
+		return
+	}
+
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "install_release"},
@@ -802,6 +809,11 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	err = req.Validate()
 	if err != nil {
 		handleError(w, req.Name, err, "validating request for upgrade release", http.StatusBadRequest)
+		return
+	}
+
+	if status, err := h.checkChartRef(req.Chart); err != nil {
+		handleError(w, req.Name, err, "validating chart for upgrade release", status)
 		return
 	}
 

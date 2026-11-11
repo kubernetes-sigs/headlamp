@@ -80,6 +80,19 @@ fall back to the pod's service account or forward that credential to an external
 context. Legacy unscoped routes remain available for existing callers, but
 cookie-only browser clients should use the cluster-scoped routes.
 
+## Helm chart sources
+
+Helm install (`POST /clusters/<cluster>/helm/release/install`) and
+upgrade (`PUT /clusters/<cluster>/helm/releases/upgrade`) requests
+accept only a `chart` of the form
+`<repository>/<chart>`, where `<repository>` is a Helm repository
+registered with the backend through the repository routes. Other values
+are rejected with `400`: `http(s)` and `oci://` URLs, absolute and
+relative paths, and references that also exist as a path on the
+backend's filesystem. This keeps the backend from fetching URLs or
+reading files chosen by the client. Clients that installed charts from a
+direct URL must add the repository first and install from it.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
