@@ -25,6 +25,7 @@ import {
 import { AppLogoProps, AppLogoType } from './AppLogo';
 import { darkTheme } from './defaultAppThemes';
 import themeReducer, {
+  applyAdminTheme,
   applyBackendThemeConfig,
   applySystemTheme,
   ensureValidThemeName,
@@ -289,6 +290,44 @@ describe('themeSlice', () => {
       const actual = themeReducer(fallback, reapplyThemePreferences({}));
 
       expect(actual.name).toEqual('Lights Out');
+    });
+  });
+
+  describe('applyAdminTheme', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      delete (localStorage as any).headlampThemePreference;
+    });
+
+    it('should update state.name with the admin theme', () => {
+      const state = { ...initialState, name: 'light' };
+      const actual = themeReducer(state, applyAdminTheme('corporate'));
+      expect(actual.name).toEqual('corporate');
+    });
+
+    it('should not persist the admin theme to localStorage', () => {
+      const state = { ...initialState, name: 'light' };
+      themeReducer(state, applyAdminTheme('corporate'));
+      expect(localStorage.getItem('headlampThemePreference')).toBeNull();
+    });
+
+    it('should preserve an existing localStorage preference', () => {
+      localStorage.setItem('headlampThemePreference', 'dark');
+      const state = { ...initialState, name: 'light' };
+      themeReducer(state, applyAdminTheme('corporate'));
+      expect(localStorage.getItem('headlampThemePreference')).toEqual('dark');
+    });
+
+    it('should no-op when given undefined', () => {
+      const state = { ...initialState, name: 'light' };
+      const actual = themeReducer(state, applyAdminTheme(undefined));
+      expect(actual.name).toEqual('light');
+    });
+
+    it('should no-op when the theme matches the current state', () => {
+      const state = { ...initialState, name: 'corporate' };
+      const actual = themeReducer(state, applyAdminTheme('corporate'));
+      expect(actual.name).toEqual('corporate');
     });
   });
 });

@@ -30,6 +30,7 @@ import PodGroup from '../../lib/k8s/podGroup';
 import { useIsResourceServed } from '../../lib/k8s/resourceAvailability';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
+import { selectEffectiveSettings } from '../../settings/useAdminSettings';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
 import ClusterBadge from './ClusterBadge';
 
@@ -60,7 +61,7 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
 
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
-  const settings = useTypedSelector(state => state.config.settings);
+  const settings = useTypedSelector(selectEffectiveSettings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);

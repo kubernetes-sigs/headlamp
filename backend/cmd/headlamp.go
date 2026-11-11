@@ -196,16 +196,17 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                  []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
-	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
-	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
-	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
-	DefaultLightTheme         string    `json:"defaultLightTheme,omitempty"`
-	DefaultDarkTheme          string    `json:"defaultDarkTheme,omitempty"`
-	ForceTheme                string    `json:"forceTheme,omitempty"`
-	OidcAutoLogin             bool      `json:"oidcAutoLogin"`
+	Clusters                  []Cluster       `json:"clusters"`
+	IsDynamicClusterEnabled   bool            `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges    bool            `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage      string          `json:"defaultPodDebugImage"`
+	DefaultNodeShellImage     string          `json:"defaultNodeShellImage"`
+	DefaultNodeShellNamespace string          `json:"defaultNodeShellNamespace"`
+	DefaultLightTheme         string          `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme          string          `json:"defaultDarkTheme,omitempty"`
+	ForceTheme                string          `json:"forceTheme,omitempty"`
+	OidcAutoLogin             bool            `json:"oidcAutoLogin"`
+	AdminSettings             json.RawMessage `json:"adminSettings,omitempty"`
 }
 
 type OauthConfig struct {
@@ -2715,7 +2716,7 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{
+	cc := clientConfig{
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
@@ -2728,7 +2729,11 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		OidcAutoLogin:             c.OidcAutoLogin,
 	}
 
-	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
+	if c.AdminSettings != nil {
+		cc.AdminSettings = c.AdminSettings
+	}
+
+	if err := json.NewEncoder(w).Encode(&cc); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
 	}
 }

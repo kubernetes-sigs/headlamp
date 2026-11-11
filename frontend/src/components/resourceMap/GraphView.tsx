@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next';
 import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
 import { useTypedSelector } from '../../redux/hooks';
+import { selectEffectiveSettings } from '../../settings/useAdminSettings';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { MAP_PERFORMANCE_FEATURES_ENABLED } from './config';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
@@ -175,7 +176,9 @@ function GraphViewContent({
   // Performance stats visibility
   const [showPerformanceStats, setShowPerformanceStats] = useState(false);
   // Expand by Default
-  const expandLargeGraph = useTypedSelector(state => state.config.settings.expandLargeGraph);
+  const expandLargeGraph = useTypedSelector(
+    state => selectEffectiveSettings(state).expandLargeGraph
+  );
 
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();

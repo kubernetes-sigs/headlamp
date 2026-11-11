@@ -20,6 +20,7 @@ import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
+import { selectEffectiveSettings } from '../settings/useAdminSettings';
 import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
 import type { ApiError } from './k8s/api/v2/ApiError';
 import type { KubeMetrics } from './k8s/cluster';
@@ -255,7 +256,7 @@ export function localeDate(date: DateParam) {
     locale = 'en-US';
     return new Date(date).toISOString();
   } else {
-    const tz = store.getState().config.settings.timezone;
+    const tz = selectEffectiveSettings(store.getState()).timezone;
     if (tz && isValidTimezone(tz)) {
       options.timeZone = tz;
     }

@@ -181,6 +181,7 @@
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "Les conteneurs de débogage éphémères ne peuvent pas être supprimés via l'API Kubernetes. Ils restent dans la spécification du pod même après la fermeture du terminal. Pour les supprimer, il faut recréer le pod.",
   "Debug Image": "Image de débogage",
   "The default image is used for creating ephemeral debug containers.": "L'image par défaut est utilisée pour créer les conteneurs de débogage éphémères.",
+  "Set by your administrator": "",
   "General Settings": "Paramètres généraux",
   "Version": "Version",
   "Language": "Langue",

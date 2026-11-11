@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -84,5 +86,43 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		allowed, err := c.proxyURLAllowed("http://proxy2/api")
 		require.NoError(t, err)
 		assert.True(t, allowed)
+	})
+}
+
+func TestLoadAdminSettings(t *testing.T) {
+	writeSettings := func(t *testing.T, contents string) string {
+		t.Helper()
+
+		path := filepath.Join(t.TempDir(), "settings.json")
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+
+		return path
+	}
+
+	t.Run("no path yields no settings", func(t *testing.T) {
+		settings, err := loadAdminSettings("")
+
+		require.NoError(t, err)
+		assert.Nil(t, settings)
+	})
+
+	t.Run("valid json is passed through verbatim", func(t *testing.T) {
+		contents := `{"settings":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`
+		settings, err := loadAdminSettings(writeSettings(t, contents))
+
+		require.NoError(t, err)
+		assert.JSONEq(t, contents, string(settings))
+	})
+
+	t.Run("missing file is an error", func(t *testing.T) {
+		_, err := loadAdminSettings(filepath.Join(t.TempDir(), "absent.json"))
+
+		require.ErrorContains(t, err, "reading settings file")
+	})
+
+	t.Run("invalid json is an error", func(t *testing.T) {
+		_, err := loadAdminSettings(writeSettings(t, "{not json"))
+
+		require.ErrorContains(t, err, "not valid JSON")
 	})
 }

@@ -535,6 +535,46 @@ func TestGetConfigIncludesOidcAutoLogin(t *testing.T) {
 	assert.True(t, config.OidcAutoLogin)
 }
 
+func TestGetConfigIncludesAdminSettings(t *testing.T) {
+	adminSettings := json.RawMessage(`{"settings":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`)
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			AdminSettings: adminSettings,
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	recorder := httptest.NewRecorder()
+
+	c.getConfig(recorder, req)
+
+	var config clientConfig
+
+	err := json.Unmarshal(recorder.Body.Bytes(), &config)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(adminSettings), string(config.AdminSettings))
+}
+
+func TestGetConfigOmitsAdminSettingsWhenUnset(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	recorder := httptest.NewRecorder()
+
+	c.getConfig(recorder, req)
+
+	assert.NotContains(t, recorder.Body.String(), "adminSettings")
+}
+
 //nolint:gocognit,funlen // Integration test executes full dynamic cluster lifecycle
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {

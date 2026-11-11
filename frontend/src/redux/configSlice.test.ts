@@ -197,7 +197,8 @@ describe('configSlice', () => {
 
       const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
       expect(storedSettings.tableRowsPerPageOptions).toEqual(defaultTableRowsPerPageOptions);
-      expect(storedSettings.timezone).toEqual(initialState.settings.timezone);
+      expect(storedSettings).not.toHaveProperty('timezone');
+      expect(nextState.userSettings).toEqual(settings);
     });
 
     it('should handle setAppSettings with expandLargeGraph and update localStorage', () => {
