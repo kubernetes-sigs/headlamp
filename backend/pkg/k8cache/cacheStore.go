@@ -87,6 +87,7 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 		decompressedBody, err := io.ReadAll(io.LimitReader(reader, 50*1024*1024+1))
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to decompress body")
+
 			return "", fmt.Errorf("failed to decompress body: %w", err)
 		}
 
