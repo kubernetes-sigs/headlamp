@@ -65,9 +65,12 @@ export const activitySlice = createSlice({
       }
 
       // Keep explicit medium windows floating; all other activities retain the existing behavior.
+      // Redux reducers can also run in non-browser environments (e.g. during tests).
+      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : undefined;
       if (
-        window.innerWidth < 600 ||
-        (window.innerWidth < 1280 && action.payload.location !== 'window-medium')
+        viewportWidth !== undefined &&
+        (viewportWidth < 600 ||
+          (viewportWidth < 1280 && action.payload.location !== 'window-medium'))
       ) {
         state.activities[action.payload.id] = {
           ...state.activities[action.payload.id],
