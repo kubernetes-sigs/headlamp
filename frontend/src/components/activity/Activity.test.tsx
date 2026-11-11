@@ -136,6 +136,23 @@ describe('activitySlice', () => {
 
       expect(nextState.activities['1'].location).toBe('full');
     });
+
+    it('handles non-browser environments where window is undefined', () => {
+      const originalWindow = globalThis.window;
+      try {
+        (globalThis as any).window = undefined;
+        const mediumActivity = { ...newActivity, location: 'window-medium' as const };
+        let nextState: ActivityState | undefined;
+        expect(() => {
+          nextState = reducer(initialState, launchActivity(mediumActivity));
+          vi.advanceTimersByTime(200);
+        }).not.toThrow();
+
+        expect(nextState?.activities['1'].location).toBe('window-medium');
+      } finally {
+        (globalThis as any).window = originalWindow;
+      }
+    });
   });
 
   describe('close', () => {
@@ -195,6 +212,22 @@ describe('activitySlice', () => {
       const nextState = reducer(emptyState, update({ id: 'ghost', title: 'Ghost' }));
       expect(nextState.activities['ghost']).toBeUndefined();
       expect(nextState.history).toEqual([]);
+    });
+
+    it('handles non-browser environments where window is undefined', () => {
+      const originalWindow = globalThis.window;
+      try {
+        (globalThis as any).window = undefined;
+        let nextState: ActivityState | undefined;
+        expect(() => {
+          nextState = reducer(stateWithActivity, update({ id: '1', title: 'Updated title' }));
+          vi.advanceTimersByTime(200);
+        }).not.toThrow();
+
+        expect(nextState?.activities['1'].title).toBe('Updated title');
+      } finally {
+        (globalThis as any).window = originalWindow;
+      }
     });
   });
 });
