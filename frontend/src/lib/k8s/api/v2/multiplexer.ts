@@ -229,12 +229,16 @@ export const WebSocketManager = {
       this.pendingUnsubscribes.delete(key);
     }
 
-    const isFailed = this.failedStreams.has(key);
-    const isAlreadyActive = this.activeSubscriptions.has(key) && !isFailed;
+    const canonicalKey = this.keyAliases.get(key) || key;
+    const isFailed = this.failedStreams.has(key) || this.failedStreams.has(canonicalKey);
+    const isAlreadyActive =
+      (this.activeSubscriptions.has(key) || this.activeSubscriptions.has(canonicalKey)) &&
+      !isFailed;
 
     // Track active subscription details if not already active
     if (!isAlreadyActive) {
       this.failedStreams.delete(key);
+      this.failedStreams.delete(canonicalKey);
       this.activeSubscriptions.set(key, { clusterId, path, query });
     }
 
@@ -403,6 +407,9 @@ export const WebSocketManager = {
       // Handle ERROR messages from backend
       if (data.type === 'ERROR') {
         this.failedStreams.add(key);
+        if (incomingKey !== key) {
+          this.failedStreams.add(incomingKey);
+        }
         let errorMessage = 'Unknown error';
         try {
           const parsedData = data.data ? JSON.parse(data.data) : {};
@@ -459,7 +466,19 @@ export const WebSocketManager = {
         return;
       }
 
-      this.failedStreams.delete(key);
+      const isErrorEvent = update && typeof update === 'object' && update.type === 'ERROR';
+
+      if (isErrorEvent) {
+        this.failedStreams.add(key);
+        if (incomingKey !== key) {
+          this.failedStreams.add(incomingKey);
+        }
+      } else {
+        this.failedStreams.delete(key);
+        if (incomingKey !== key) {
+          this.failedStreams.delete(incomingKey);
+        }
+      }
 
       // Notify listeners if update is valid
       if (update && typeof update === 'object') {

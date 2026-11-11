@@ -1013,6 +1013,258 @@ describe('WebSocket Multiplexer', () => {
       });
     });
 
+    it('allows a fresh watch request after receiving a nested Kubernetes ERROR event (410)', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=100';
+
+      const key = WebSocketManager.createKey(clusterName, path, query);
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      const firstRequest = await mockServer.nextMessage;
+      expect(JSON.parse(firstRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Backend delivers a nested Kubernetes ERROR (e.g. 410 Gone / expired resourceVersion)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({
+            type: 'ERROR',
+            object: {
+              kind: 'Status',
+              status: 'Failure',
+              message: 'too old resource version: 100 (200)',
+              code: 410,
+              reason: 'Expired',
+            },
+          }),
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'ERROR',
+            object: expect.objectContaining({ code: 410 }),
+          })
+        );
+      });
+
+      expect(WebSocketManager.failedStreams.has(key)).toBe(true);
+
+      // Re-subscribing to this stream must send a fresh REQUEST rather than skipping it
+      const onMessage2 = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage2);
+
+      const secondRequest = await mockServer.nextMessage;
+      expect(JSON.parse(secondRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Subsequent valid event clears the failed stream marker
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { kind: 'Pod', metadata: { name: 'pod-1', resourceVersion: '201' } },
+          }),
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessage2).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'ADDED',
+          })
+        );
+      });
+
+      expect(WebSocketManager.failedStreams.has(key)).toBe(false);
+    });
+
+    it('tracks failed streams across aliased query variants when receiving a nested Kubernetes ERROR', async () => {
+      const path = '/api/v1/pods';
+      const queryA = 'watch=1&labelSelector=app%3Dweb&resourceVersion=10';
+      const queryB = 'labelSelector=app%3Dweb&watch=1&resourceVersion=20';
+
+      const keyA = WebSocketManager.createKey(clusterName, path, queryA);
+      const keyB = WebSocketManager.createKey(clusterName, path, queryB);
+      expect(keyA).toBe(keyB);
+      const canonicalKey = keyA;
+
+      const onMessageA = vi.fn();
+      const onMessageB = vi.fn();
+
+      const cleanupA = await WebSocketManager.subscribe(clusterName, path, queryA, onMessageA);
+      await mockServer.connected;
+      const initialRequest = await mockServer.nextMessage;
+      expect(JSON.parse(initialRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Second subscriber joins with queryB (alias ordering)
+      const cleanupB = await WebSocketManager.subscribe(clusterName, path, queryB, onMessageB);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(mockServer.messages).toHaveLength(1);
+
+      // Backend delivers a nested Kubernetes ERROR referencing queryB
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: queryB,
+          data: JSON.stringify({
+            type: 'ERROR',
+            object: {
+              kind: 'Status',
+              status: 'Failure',
+              message: 'too old resource version: 20 (30)',
+              code: 410,
+              reason: 'Expired',
+            },
+          }),
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessageA).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'ERROR',
+            object: expect.objectContaining({ code: 410 }),
+          })
+        );
+        expect(onMessageB).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'ERROR',
+            object: expect.objectContaining({ code: 410 }),
+          })
+        );
+      });
+
+      // Verify failedStreams tracks the canonical key
+      expect(WebSocketManager.failedStreams.has(canonicalKey)).toBe(true);
+
+      // Re-subscribing with queryA must send a fresh REQUEST because stream is marked failed
+      const onMessageFresh = vi.fn();
+      const cleanupFresh = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        queryA,
+        onMessageFresh
+      );
+      const replacementRequest = await mockServer.nextMessage;
+      expect(JSON.parse(replacementRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Subsequent valid event clears failedStreams
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: queryA,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { kind: 'Pod', metadata: { name: 'pod-fresh', resourceVersion: '31' } },
+          }),
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessageFresh).toHaveBeenCalledWith(expect.objectContaining({ type: 'ADDED' }));
+      });
+
+      expect(WebSocketManager.failedStreams.has(canonicalKey)).toBe(false);
+
+      cleanupA();
+      cleanupB();
+      cleanupFresh();
+    });
+
+    it('marks stream as failed upon nested 403 Forbidden ERROR and preserves error handling without request loops', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+
+      const key = WebSocketManager.createKey(clusterName, path, query);
+      const cleanup = await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      const initialRequest = await mockServer.nextMessage;
+      expect(JSON.parse(initialRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Backend delivers a nested 403 Forbidden ERROR (non-410)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({
+            type: 'ERROR',
+            object: {
+              kind: 'Status',
+              status: 'Failure',
+              message: 'pods is forbidden: User cannot list resource pods',
+              code: 403,
+              reason: 'Forbidden',
+            },
+          }),
+        })
+      );
+
+      // Verify error handling semantics are preserved (onMessage receives the error)
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'ERROR',
+            object: expect.objectContaining({
+              code: 403,
+              reason: 'Forbidden',
+            }),
+          })
+        );
+      });
+
+      // Verify the multiplexer marks the stream as failed
+      expect(WebSocketManager.failedStreams.has(key)).toBe(true);
+
+      // Verify no unsolicited replacement requests are emitted (no infinite loop)
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(mockServer.messages).toHaveLength(1);
+
+      // Verify replacement behavior: re-subscribing explicitly sends a single fresh REQUEST
+      const onMessage2 = vi.fn();
+      const cleanup2 = await WebSocketManager.subscribe(clusterName, path, query, onMessage2);
+      const secondRequest = await mockServer.nextMessage;
+      expect(JSON.parse(secondRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Failed stream marker is cleared on replacement
+      expect(WebSocketManager.failedStreams.has(key)).toBe(false);
+
+      cleanup();
+      cleanup2();
+    });
+
     it('re-subscribes previously failed streams when the multiplexer reconnects', async () => {
       const path = '/api/v1/services';
       const query = 'watch=true';

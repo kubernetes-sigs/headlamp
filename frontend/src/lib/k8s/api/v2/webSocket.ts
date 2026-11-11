@@ -81,6 +81,7 @@ const errorListeners = new Map<string, Array<(error: any) => void>>();
 const intentionalCloses = new WeakSet<WebSocket>();
 const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const handshakeFailureCounts = new Map<string, number>();
+const pendingCloseTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * Create new WebSocket connection to the backend
@@ -357,6 +358,12 @@ export function useWebSockets<T>({
       const { cluster, url, onMessage, onError, onClose } = endpoint;
       const connectionKey = cluster + url;
 
+      const existingCloseTimer = pendingCloseTimers.get(connectionKey);
+      if (existingCloseTimer) {
+        clearTimeout(existingCloseTimer);
+        pendingCloseTimers.delete(connectionKey);
+      }
+
       // Always register the current listener, even when reusing an existing socket.
       listeners.set(connectionKey, [...(listeners.get(connectionKey) ?? []), onMessage]);
       if (onError) {
@@ -392,22 +399,32 @@ export function useWebSockets<T>({
         // No one is listening to the connection
         // so we can close it
         if (newListeners.length === 0) {
-          const timer = retryTimers.get(connectionKey);
-          if (timer) {
-            clearTimeout(timer);
-            retryTimers.delete(connectionKey);
+          const existingCloseTimer = pendingCloseTimers.get(connectionKey);
+          if (existingCloseTimer) {
+            clearTimeout(existingCloseTimer);
           }
-          const maybeExisting = sockets.get(connectionKey);
-          if (maybeExisting) {
-            if (typeof maybeExisting !== 'symbol') {
-              intentionalCloses.add(maybeExisting);
-              maybeExisting.close();
+          const timer = setTimeout(() => {
+            pendingCloseTimers.delete(connectionKey);
+            if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
+              const retryTimer = retryTimers.get(connectionKey);
+              if (retryTimer) {
+                clearTimeout(retryTimer);
+                retryTimers.delete(connectionKey);
+              }
+              const maybeExisting = sockets.get(connectionKey);
+              if (maybeExisting) {
+                if (typeof maybeExisting !== 'symbol') {
+                  intentionalCloses.add(maybeExisting);
+                  maybeExisting.close();
+                }
+                sockets.delete(connectionKey);
+              }
+              errorListeners.delete(connectionKey);
+              closeListeners.delete(connectionKey);
+              handshakeFailureCounts.delete(connectionKey);
             }
-            sockets.delete(connectionKey);
-          }
-          errorListeners.delete(connectionKey);
-          closeListeners.delete(connectionKey);
-          handshakeFailureCounts.delete(connectionKey);
+          }, 0);
+          pendingCloseTimers.set(connectionKey, timer);
         }
       };
     }
@@ -449,6 +466,10 @@ export function resetWebSocketsForTesting(): void {
     clearTimeout(timer);
   }
   retryTimers.clear();
+  for (const timer of pendingCloseTimers.values()) {
+    clearTimeout(timer);
+  }
+  pendingCloseTimers.clear();
   sockets.clear();
   listeners.clear();
   closeListeners.clear();
