@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/rest"
@@ -451,16 +453,16 @@ func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*r
 }
 
 func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*kubeconfig.Context, error) {
-	// Try to get config for stateful cluster first.
-	clusterContext, err := m.getClusterContext(clusterID)
-	if err != nil {
-		// If not found, try with the combined key for stateless clusters.
-		combinedKey := fmt.Sprintf("%s%s", clusterID, userID)
+	// A cluster the user uploaded is stored under its stateless context key, and is
+	// used over a shared cluster of the same name, as the cluster proxy does, which
+	// the frontend sends the user's other requests for the cluster to.
+	clusterContext, err := m.getClusterContext(statelessContextKey(clusterID, userID))
+	if userID != "" && errors.Is(err, cache.ErrNotFound) {
+		clusterContext, err = m.getClusterContext(clusterID)
+	}
 
-		clusterContext, err = m.getClusterContext(combinedKey)
-		if err != nil {
-			return nil, fmt.Errorf("getting cluster config: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("getting cluster config: %w", err)
 	}
 
 	return clusterContext, nil

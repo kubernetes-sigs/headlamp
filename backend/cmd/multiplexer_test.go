@@ -126,6 +126,48 @@ func TestGetClusterConfigWithFallback(t *testing.T) {
 	assert.Nil(t, config)
 }
 
+// TestGetClusterContextWithFallbackPrefersUploadedCluster checks that a cluster a
+// user uploaded, which is stored under its stateless context key, is found, and is
+// used over a shared cluster of the same name, as the cluster proxy does, since the
+// frontend sends the user's other requests for that cluster there.
+func TestGetClusterContextWithFallbackPrefersUploadedCluster(t *testing.T) {
+	const (
+		shared   = "https://shared.example.com"
+		uploaded = "https://uploaded.example.com"
+	)
+
+	userKey := statelessContextKey("prod", "user")
+	both := map[string]string{"prod": shared, userKey: uploaded}
+
+	tests := []struct {
+		name    string
+		servers map[string]string
+		userID  string
+		want    string
+	}{
+		{"uploaded only", map[string]string{userKey: uploaded}, "user", uploaded},
+		{"shared only", map[string]string{"prod": shared}, "user", shared},
+		{"both", both, "user", uploaded},
+		{"both, another user", both, "other", shared},
+		{"no user", map[string]string{"prod": shared}, "", shared},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			for key, server := range tt.servers {
+				require.NoError(t, store.AddContextWithKeyAndTTL(&kubeconfig.Context{
+					Cluster: &api.Cluster{Server: server},
+				}, key, time.Minute))
+			}
+
+			found, err := NewMultiplexer(store, false).getClusterContextWithFallback("prod", tt.userID)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, found.Cluster.Server)
+		})
+	}
+}
+
 func TestCreateConnection(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, _ := createTestWebSocketConnection()
