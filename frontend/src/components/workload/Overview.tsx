@@ -39,15 +39,37 @@ interface WorkloadDict {
 }
 
 export default function Overview() {
-  const [pods] = Pod.useList();
-  const [deployments] = Deployment.useList();
-  const [statefulSets] = StatefulSet.useList();
-  const [daemonSets] = DaemonSet.useList();
-  const [replicaSets] = ReplicaSet.useList();
-  const [jobs] = Job.useList();
-  const [cronJobs] = CronJob.useList();
-  const [jobSets] = JobSet.useList();
-  const [leaderWorkerSets] = LeaderWorkerSet.useList();
+  const podsList = Pod.useList();
+  const [pods] = podsList;
+  const deploymentsList = Deployment.useList();
+  const [deployments] = deploymentsList;
+  const statefulSetsList = StatefulSet.useList();
+  const [statefulSets] = statefulSetsList;
+  const daemonSetsList = DaemonSet.useList();
+  const [daemonSets] = daemonSetsList;
+  const replicaSetsList = ReplicaSet.useList();
+  const [replicaSets] = replicaSetsList;
+  const jobsList = Job.useList();
+  const [jobs] = jobsList;
+  const cronJobsList = CronJob.useList();
+  const [cronJobs] = cronJobsList;
+  const jobSetsList = JobSet.useList();
+  const [jobSets] = jobSetsList;
+  const leaderWorkerSetsList = LeaderWorkerSet.useList();
+  const [leaderWorkerSets] = leaderWorkerSetsList;
+  const lists = [
+    podsList,
+    deploymentsList,
+    statefulSetsList,
+    daemonSetsList,
+    replicaSetsList,
+    jobsList,
+    cronJobsList,
+    jobSetsList,
+    leaderWorkerSetsList,
+  ];
+  const watchErrors = lists.flatMap(result => result.watchErrors ?? []);
+  const errors = lists.flatMap(result => result.errors ?? []);
 
   const workloadsData: WorkloadDict = useMemo(
     () => ({
@@ -181,6 +203,8 @@ export default function Overview() {
       </SectionBox>
       <ResourceListView
         title={t('Workloads')}
+        errors={errors}
+        watchErrors={watchErrors}
         reflectInURL
         columns={[
           'kind',

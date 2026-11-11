@@ -1083,7 +1083,7 @@ export default function Table<RowItem extends Record<string, any>>({
   };
 
   const emptyMsg = emptyMessage || t('No data to be shown.');
-  const isEmpty = !tableProps.data?.length && !loading;
+  const isEmpty = !errorMessage && !tableProps.data?.length && !loading;
   const noSearchResults = !errorMessage && !loading && !isEmpty && rows.length === 0;
   const statusMsg = isEmpty ? emptyMsg : noSearchResults ? t('No results found') : '';
 

@@ -27,6 +27,7 @@ import type { ProjectDefinition } from '../../redux/projectsSlice';
 import AllowedNamespacesSelectorGate, {
   AllowedNamespacesSelectorProvider,
 } from '../App/AllowedNamespacesSelectorGate';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
 import Table, { TableColumn } from '../common/Table/Table';
@@ -37,20 +38,25 @@ import { useProjectItems } from './useProjectResources';
 
 export { groupNamespacesIntoProjects } from './projectGrouping';
 
-const useProjects = (): ProjectDefinition[] => {
+const useProjects = () => {
   const clusterConf = useClustersConf();
   const clusters = Object.values(clusterConf ?? {});
   const projectGrouping = useTypedSelector(state => state.projects.projectGrouping);
 
-  const { items: namespaces } = Namespace.useList({
+  const {
+    items: namespaces,
+    errors,
+    watchErrors,
+  } = Namespace.useList({
     clusters: clusters.map(c => c.name),
     labelSelector: PROJECT_ID_LABEL,
   });
 
-  return useMemo(
+  const projects = useMemo(
     () => groupNamespacesIntoProjects(namespaces ?? [], projectGrouping),
     [namespaces, projectGrouping]
   );
+  return { projects, errors, watchErrors };
 };
 
 export const useProject = (name: string) => {
@@ -97,7 +103,7 @@ function ProjectListContent() {
   const [showCreate, setShowCreate] = useState(false);
   const pluginApiResources = useTypedSelector(state => state.projects.apiResources);
 
-  const projects = useProjects();
+  const { projects, errors, watchErrors } = useProjects();
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PROJECT_LIST_VIEW);
 
   useEffect(() => {
@@ -192,6 +198,7 @@ function ProjectListContent() {
     return (
       <>
         {showCreate && <NewProjectPopup open={showCreate} onClose={() => setShowCreate(false)} />}
+        <ClusterGroupErrorMessage errors={errors} watchErrors={watchErrors} />
         <Box
           display="flex"
           flexDirection="column"
@@ -225,6 +232,7 @@ function ProjectListContent() {
   return (
     <>
       {showCreate && <NewProjectPopup open={showCreate} onClose={() => setShowCreate(false)} />}
+      <ClusterGroupErrorMessage errors={errors} watchErrors={watchErrors} />
       <Box display="flex" justifyContent="flex-end" mb={2} mt={2}>
         <Button
           variant="contained"

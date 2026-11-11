@@ -26,6 +26,7 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
+import { notifyTokenRefreshed } from '../../../queryClient';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
@@ -283,6 +284,10 @@ export async function clusterRequest(
     error.status = aborted ? 408 : 502;
 
     return Promise.reject(error);
+  }
+
+  if (cluster && response.headers.get('X-Headlamp-Auth-Changed') === '1') {
+    notifyTokenRefreshed(cluster);
   }
 
   // The backend signals through this header that it wants a reload.

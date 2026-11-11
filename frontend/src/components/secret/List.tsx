@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import Secret from '../../lib/k8s/secret';
 import { useNamespaces } from '../../redux/filterSlice';
 import { CreateResourceButton } from '../common';
+import { hasListSnapshot } from '../common/Resource/hasListSnapshot';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { loadHideHelm, storeHideHelm } from './hideHelmSecrets';
 
@@ -27,11 +28,13 @@ export default function SecretList() {
   const { t } = useTranslation(['glossary', 'translation']);
   const [hideHelm, setHideHelm] = React.useState<boolean>(loadHideHelm);
 
-  const [secrets, error] = Secret.useList({
+  const query = Secret.useList({
     namespace: useNamespaces(),
     refetchInterval: 60_000,
     asTable: true,
   });
+  const { items: secrets, error, errors, watchErrors } = query;
+  const hasSnapshot = hasListSnapshot(query);
 
   const filteredSecrets = React.useMemo(() => {
     if (!secrets) {
@@ -45,7 +48,9 @@ export default function SecretList() {
       id="headlamp-secrets"
       title={t('Secrets')}
       data={filteredSecrets}
-      errorMessage={Secret.getErrorMessage(error)}
+      errorMessage={!hasSnapshot ? Secret.getErrorMessage(error) : undefined}
+      errors={hasSnapshot ? errors : undefined}
+      watchErrors={watchErrors}
       headerProps={{
         noNamespaceFilter: false,
         titleSideActions: [

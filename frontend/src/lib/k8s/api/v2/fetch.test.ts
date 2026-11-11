@@ -72,6 +72,37 @@ describe('clusterFetch', () => {
     expect(responseBody).toEqual(mockResponse);
   });
 
+  it('signals a successful OIDC refresh before returning the response', async () => {
+    const credentialChange = vi.fn();
+    window.addEventListener('headlamp-credentials-changed', credentialChange);
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .reply(200, mockResponse, { 'X-Headlamp-Auth-Changed': '1' });
+
+    await clusterFetch(testUrl, { cluster: clusterName });
+
+    expect(credentialChange).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { cluster: clusterName } })
+    );
+    window.removeEventListener('headlamp-credentials-changed', credentialChange);
+  });
+
+  it('signals a successful OIDC refresh even when the upstream request fails', async () => {
+    const credentialChange = vi.fn();
+    window.addEventListener('headlamp-credentials-changed', credentialChange);
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .reply(401, { message: 'expired upstream token' }, { 'X-Headlamp-Auth-Changed': '1' });
+
+    await expect(clusterFetch(testUrl, { cluster: clusterName })).rejects.toThrow(
+      'expired upstream token'
+    );
+    expect(credentialChange).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { cluster: clusterName } })
+    );
+    window.removeEventListener('headlamp-credentials-changed', credentialChange);
+  });
+
   it('does not add backend credentials to non-cluster requests', async () => {
     let backendTokenHeader: string | string[] | undefined;
     nock(BASE_HTTP_URL)

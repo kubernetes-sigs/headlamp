@@ -31,7 +31,7 @@ export interface KubeList<T extends KubeObjectInterface> {
 }
 
 export interface KubeListUpdateEvent<T extends KubeObjectInterface> {
-  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
+  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'BOOKMARK' | 'ERROR';
   object: T;
 }
 
@@ -53,11 +53,11 @@ export const KubeList = {
     itemClass: ObjectClass,
     cluster: string
   ): KubeList<KubeObject<ObjectInterface>> {
-    // Skip if the update's resource version is older than or equal to what we have
+    // Ignore a replay with the same opaque resource-version token.
     if (
       list.metadata.resourceVersion &&
       update.object.metadata.resourceVersion &&
-      parseInt(update.object.metadata.resourceVersion) <= parseInt(list.metadata.resourceVersion)
+      update.object.metadata.resourceVersion === list.metadata.resourceVersion
     ) {
       return list;
     }
@@ -78,6 +78,8 @@ export const KubeList = {
         if (index !== -1) {
           newItems.splice(index, 1);
         }
+        break;
+      case 'BOOKMARK':
         break;
       case 'ERROR':
         console.error('Error in update', update);

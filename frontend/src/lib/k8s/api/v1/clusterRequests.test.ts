@@ -107,6 +107,28 @@ describe('clusterRequest transports', () => {
     expect([...headers.keys()].filter(name => name === 'x-headlamp_backend-token')).toHaveLength(1);
   });
 
+  it.each([200, 403])('signals refreshed credentials for v1 status %s responses', async status => {
+    const credentialChange = vi.fn();
+    window.addEventListener('headlamp-credentials-changed', credentialChange);
+    (fetch as Mock).mockResolvedValue(
+      new Response(JSON.stringify({ message: status === 200 ? 'ok' : 'Denied' }), {
+        status,
+        headers: { 'X-Headlamp-Auth-Changed': '1' },
+      })
+    );
+
+    const request = clusterRequest('/api/v1/pods', { cluster: 'desktop-cluster' });
+    if (status === 200) {
+      await request;
+    } else {
+      await expect(request).rejects.toBeDefined();
+    }
+    expect(credentialChange).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { cluster: 'desktop-cluster' } })
+    );
+    window.removeEventListener('headlamp-credentials-changed', credentialChange);
+  });
+
   it('preserves the backend token when Backstage headers are added', async () => {
     vi.mocked(isBackstage).mockReturnValue(true);
     vi.mocked(addBackstageAuthHeaders).mockImplementation(headers => {

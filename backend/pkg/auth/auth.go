@@ -841,6 +841,7 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 
 	// The current request must use the renewed credential, not only the next browser request.
 	params.Request.Header.Set("Authorization", "Bearer "+newTokenString)
+	params.Writer.Header().Set(authChangeHeader, "1")
 
 	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
 }

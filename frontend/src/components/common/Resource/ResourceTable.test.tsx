@@ -20,6 +20,7 @@ import { act, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { createMuiTheme } from '../../../lib/themes';
 import reducers from '../../../redux/reducers/reducers';
 import { TestContext } from '../../../test';
@@ -143,6 +144,56 @@ describe('ResourceTable Column Visibility', () => {
     expect(lastTablePropsHolder.current.state.columnVisibility).toEqual({
       namespace: false,
     });
+  });
+
+  it('shows a watch warning while still passing loaded rows to the table', () => {
+    const warning = new ApiError('Kubernetes watch disconnected', { cluster: 'test-cluster' });
+    const view = renderTable({ columns: [], data: mockData, watchErrors: [warning] });
+    expect(view.getByRole('alert')).toHaveTextContent(warning.message);
+    expect(lastTablePropsHolder.current.data).toEqual(mockData);
+    expect(lastTablePropsHolder.current.errorMessage).toBeUndefined();
+  });
+
+  it.each([false, true])(
+    'retains the resource watch warning alongside caller warnings (provided=%s)',
+    provided => {
+      const resourceWarning = new ApiError('Resource watch stopped', { cluster: 'test-cluster' });
+      const callerWarning = new ApiError('Related resource watch stopped', {
+        cluster: 'test-cluster',
+      });
+      const listed = { items: mockData, errors: null, watchErrors: [resourceWarning] };
+      const resourceClass = {
+        className: 'Pod',
+        pluralName: 'pods',
+        useList: () => listed,
+      };
+      const view = renderTable({
+        resourceClass,
+        columns: [],
+        watchErrors: provided ? [callerWarning] : undefined,
+      });
+
+      expect(view.getByText(resourceWarning.message)).toBeInTheDocument();
+      if (provided) expect(view.getByText(callerWarning.message)).toBeInTheDocument();
+      expect(lastTablePropsHolder.current.data).toEqual(mockData);
+      expect(listed.watchErrors).toEqual([resourceWarning]);
+    }
+  );
+
+  it('deduplicates a watch warning shared by the resource hook and caller', () => {
+    const stopped = new ApiError('Resource watch stopped', { cluster: 'test-cluster' });
+    const related = new ApiError('Related watch stopped', { cluster: 'test-cluster' });
+    const listed = { items: mockData, errors: null, watchErrors: [stopped] };
+    const resourceClass = {
+      pluralName: 'pods',
+      className: 'Pod',
+      useList: () => listed,
+    };
+    const view = renderTable({ resourceClass, columns: [], watchErrors: [related, stopped] });
+    expect(view.getAllByText(stopped.message)).toHaveLength(1);
+    expect(view.getByText(related.message)).toBeVisible();
+    expect(lastTablePropsHolder.current.data).toEqual(mockData);
+    expect(listed.watchErrors).toEqual([stopped]);
   });
 
   it('loads and applies persisted settings from localStorage', async () => {

@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import type { QueryResponse } from '../../lib/k8s/api/v2/hooks';
 import CustomResourceDefinition from '../../lib/k8s/crd';
 import { TestContext } from '../../test';
-import { CustomResourceListTable } from './CustomResourceList';
+import CustomResourceList, { CustomResourceListTable } from './CustomResourceList';
 import { mockCRD } from './storyHelper';
 
 const { mockResourceListView } = vi.hoisted(() => ({
@@ -28,7 +30,7 @@ const { mockResourceListView } = vi.hoisted(() => ({
 vi.mock('../common/Resource/ResourceListView', () => ({
   default: (props: any) => {
     mockResourceListView(props);
-    return null;
+    return <div data-testid="custom-resource-list">{props.title}</div>;
   },
 }));
 
@@ -84,4 +86,57 @@ describe('CustomResourceListTable additionalPrinterColumns priority', () => {
     expect(labels).not.toContain('WideOnlyCol');
     expect(labels).not.toContain('Age');
   });
+});
+
+function response(
+  resource: CustomResourceDefinition | null,
+  error: ApiError | null
+): [CustomResourceDefinition | null, ApiError | null] &
+  QueryResponse<CustomResourceDefinition, ApiError> {
+  const tuple: [CustomResourceDefinition | null, ApiError | null] = [resource, error];
+  return Object.assign(tuple, {
+    data: resource,
+    error,
+    isError: !!error,
+    isLoading: !resource && !error,
+    isFetching: false,
+    isSuccess: !!resource && !error,
+    status: error ? ('error' as const) : ('success' as const),
+  });
+}
+
+afterEach(() => vi.restoreAllMocks());
+
+it('retains the loaded custom-resource page with a warning until watch recovery succeeds', () => {
+  const resource = new CustomResourceDefinition(mockCRD, 'test');
+  const warning = new ApiError('Cannot recover the CRD watch', { status: 403 });
+  const get = vi
+    .spyOn(CustomResourceDefinition, 'useGet')
+    .mockReturnValue(response(resource, warning));
+  const content = () => (
+    <TestContext routerMap={{ crd: resource.getName() }}>
+      <CustomResourceList />
+    </TestContext>
+  );
+  const view = render(content());
+  expect(screen.getByTestId('custom-resource-list')).toHaveTextContent('MyCustomResource');
+  expect(screen.getByRole('alert')).toHaveTextContent(warning.message);
+
+  get.mockReturnValue(response(resource, null));
+  view.rerender(content());
+  expect(screen.getByTestId('custom-resource-list')).toBeVisible();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('still renders a fetch error when no CRD data is available', () => {
+  vi.spyOn(CustomResourceDefinition, 'useGet').mockReturnValue(
+    response(null, new ApiError('CRD forbidden', { status: 403 }))
+  );
+  render(
+    <TestContext routerMap={{ crd: 'mydefinition.phonyresources.io' }}>
+      <CustomResourceList />
+    </TestContext>
+  );
+  expect(screen.queryByTestId('custom-resource-list')).not.toBeInTheDocument();
+  expect(screen.getByText(/CRD forbidden/)).toBeVisible();
 });

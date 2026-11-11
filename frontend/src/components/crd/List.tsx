@@ -19,11 +19,14 @@ import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { Link, useThrottle } from '../common';
 import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
+import { hasListSnapshot } from '../common/Resource/hasListSnapshot';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function CustomResourceDefinitionList() {
   const { t } = useTranslation(['glossary', 'frequent']);
-  const [items, error] = CRD.useList();
+  const query = CRD.useList();
+  const { items, error, errors, watchErrors } = query;
+  const hasSnapshot = hasListSnapshot(query);
   const throttledItems = useThrottle(items, 1000);
 
   const categories = React.useMemo(() => {
@@ -48,7 +51,9 @@ export default function CustomResourceDefinitionList() {
       }}
       data={throttledItems}
       emptyActions={<EmptyStateActions />}
-      errorMessage={CRD.getErrorMessage(error)}
+      errorMessage={!hasSnapshot ? CRD.getErrorMessage(error) : undefined}
+      errors={hasSnapshot ? errors : undefined}
+      watchErrors={watchErrors}
       columns={[
         {
           label: t('glossary|Resource'),

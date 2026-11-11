@@ -24,10 +24,12 @@ import { labelSelectorToQuery, useCluster } from '../../lib/k8s';
 import Endpoint from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Service, { KubeServicePort } from '../../lib/k8s/service';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import Empty from '../common/EmptyContent';
 import { ValueLabel } from '../common/Label';
 import Link from '../common/Link';
 import { DetailsGrid, MetadataDictGrid, TargetedPodsSection } from '../common/Resource';
+import { hasListSnapshot } from '../common/Resource/hasListSnapshot';
 import PortForward from '../common/Resource/PortForward';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -45,8 +47,12 @@ export default function ServiceDetails(props: {
   const cluster = props.cluster ?? urlCluster ?? undefined;
   const { t } = useTranslation(['glossary', 'translation']);
 
-  const [endpoints, endpointsError] = Endpoint.useList({ namespace, cluster });
-  const [endpointSlices, endpointSlicesError] = EndpointSlice.useList({ namespace, cluster });
+  const endpointsQuery = Endpoint.useList({ namespace, cluster });
+  const [endpoints, endpointsError] = endpointsQuery;
+  const hasEndpointsSnapshot = hasListSnapshot(endpointsQuery);
+  const endpointSlicesQuery = EndpointSlice.useList({ namespace, cluster });
+  const [endpointSlices, endpointSlicesError] = endpointSlicesQuery;
+  const hasEndpointSlicesSnapshot = hasListSnapshot(endpointSlicesQuery);
 
   function getOwnedEndpoints(item: Service) {
     return item ? endpoints?.filter(endpoint => endpoint.getName() === item.getName()) : null;
@@ -219,7 +225,11 @@ export default function ServiceDetails(props: {
             id: 'headlamp.service-endpoints',
             section: (
               <SectionBox title={t('Endpoints')}>
-                {endpointsError ? (
+                <ClusterGroupErrorMessage
+                  errors={hasEndpointsSnapshot ? endpointsQuery.errors : undefined}
+                  watchErrors={endpointsQuery.watchErrors}
+                />
+                {endpointsError && !hasEndpointsSnapshot ? (
                   <Empty color="error">{endpointsError.toString()}</Empty>
                 ) : (
                   <SimpleTable
@@ -251,7 +261,11 @@ export default function ServiceDetails(props: {
             id: 'headlamp.service-endpointslices',
             section: (
               <SectionBox title={t('Endpoint Slices')}>
-                {endpointSlicesError ? (
+                <ClusterGroupErrorMessage
+                  errors={hasEndpointSlicesSnapshot ? endpointSlicesQuery.errors : undefined}
+                  watchErrors={endpointSlicesQuery.watchErrors}
+                />
+                {endpointSlicesError && !hasEndpointSlicesSnapshot ? (
                   <Empty color="error">{endpointSlicesError.toString()}</Empty>
                 ) : (
                   <SimpleTable

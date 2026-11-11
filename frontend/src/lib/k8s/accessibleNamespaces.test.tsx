@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { PropsWithChildren, useState } from 'react';
 import AllowedNamespacesSelectorGate, {
@@ -30,10 +30,12 @@ import {
 } from '../../helpers/clusterSettings';
 import { setConfig } from '../../redux/configSlice';
 import store from '../../redux/stores/store';
+import { setClusterSettings } from '../../settings/adminSettingsSlice';
 import { TestContext } from '../../test';
 import {
   IDENTITY_RESET_CHANNEL,
   queryClient as appQueryClient,
+  registerIdentityQueryClient,
   resetAccessibleNamespaces,
 } from '../queryClient';
 import {
@@ -222,6 +224,7 @@ describe('useAccessibleNamespaces across refreshes and identity changes', () => 
 describe('resetAccessibleNamespaces', () => {
   afterEach(() => {
     appQueryClient.clear();
+    store.dispatch(setClusterSettings({}));
     setDiscoveredNamespaces('prod', null);
     setDiscoveredNamespaces('dev', null);
   });
@@ -231,6 +234,20 @@ describe('resetAccessibleNamespaces', () => {
     setDiscoveredNamespaces('dev', ['team-b']);
     appQueryClient.setQueryData(['accessibleNamespaces', 'prod', 0], { status: 'all' });
     appQueryClient.setQueryData(['accessibleNamespaces', 'dev', 0], { status: 'all' });
+    appQueryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'prod'], ['old-prod']);
+    appQueryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'dev'], ['old-dev']);
+    appQueryClient.setQueryData(['object-watch', 'object', 'prod'], { generation: 4 });
+    appQueryClient.setQueryData(['object-watch', 'object', 'dev'], { generation: 2 });
+    appQueryClient.setQueryData(
+      ['kubeObject', 'list', 'v1', 'pods', 'dev', 'prod', {}],
+      ['dev-namespace-prod']
+    );
+    appQueryClient.setQueryData(['gateway-l4-route-availability', 'prod'], ['TCPRoute']);
+    appQueryClient.setQueryData(['cluster-defined-settings', {}, ['prod', 'dev']], {
+      prod: { old: true },
+      dev: { old: true },
+    });
+    store.dispatch(setClusterSettings({ prod: { private: true }, dev: { allowed: true } }));
 
     resetAccessibleNamespaces('prod');
 
@@ -238,16 +255,39 @@ describe('resetAccessibleNamespaces', () => {
     expect(getDiscoveredNamespaces('dev')).toEqual(['team-b']);
     expect(appQueryClient.getQueryData(['accessibleNamespaces', 'prod', 0])).toBeUndefined();
     expect(appQueryClient.getQueryData(['accessibleNamespaces', 'dev', 0])).toBeDefined();
+    expect(
+      appQueryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'prod'])
+    ).toBeUndefined();
+    expect(appQueryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'dev'])).toBeDefined();
+    expect(appQueryClient.getQueryData(['object-watch', 'object', 'prod'])).toBeUndefined();
+    expect(appQueryClient.getQueryData(['object-watch', 'object', 'dev'])).toBeDefined();
+    expect(
+      appQueryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'dev', 'prod', {}])
+    ).toEqual(['dev-namespace-prod']);
+    expect(appQueryClient.getQueryData(['gateway-l4-route-availability', 'prod'])).toBeUndefined();
+    expect(
+      appQueryClient.getQueryData(['cluster-defined-settings', {}, ['prod', 'dev']])
+    ).toBeUndefined();
+    expect(store.getState().adminSettings.clusterSettings).toEqual({ dev: { allowed: true } });
   });
 
   it('clears every cluster without an argument (OIDC token broadcast)', () => {
     setDiscoveredNamespaces('prod', ['team-a']);
     setDiscoveredNamespaces('dev', ['team-b']);
+    appQueryClient.setQueryData(['object', 'prod', {}, '', 'pod'], { user: 'old' });
+    appQueryClient.setQueryData(['object', 'dev', {}, '', 'pod'], { user: 'old' });
+    const credentialChange = vi.fn();
+    window.addEventListener('headlamp-credentials-changed', credentialChange);
 
     resetAccessibleNamespaces();
 
     expect(getDiscoveredNamespaces('prod')).toBeUndefined();
     expect(getDiscoveredNamespaces('dev')).toBeUndefined();
+    expect(appQueryClient.getQueriesData({ queryKey: ['object'] })).toEqual([]);
+    expect(credentialChange).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { cluster: undefined } })
+    );
+    window.removeEventListener('headlamp-credentials-changed', credentialChange);
   });
 });
 
@@ -288,6 +328,105 @@ describe('identity reset in another tab', () => {
     });
     expect(result.current.namespaces).toEqual(['new-user-ns']);
     expect(getDiscoveredNamespaces('prod')).toEqual(['new-user-ns']);
+  });
+
+  it('invalidates local sockets without rebroadcasting a cross-tab identity reset', async () => {
+    const credentialChange = vi.fn();
+    const observerMessages = vi.fn();
+    const observer = new BroadcastChannel(IDENTITY_RESET_CHANNEL);
+    observer.onmessage = observerMessages;
+    window.addEventListener('headlamp-credentials-changed', credentialChange);
+
+    const otherTab = new BroadcastChannel(IDENTITY_RESET_CHANNEL);
+    otherTab.postMessage({ cluster: 'prod' });
+
+    await waitFor(() =>
+      expect(credentialChange).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: { cluster: 'prod' } })
+      )
+    );
+    await waitFor(() => expect(observerMessages).toHaveBeenCalledOnce());
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(observerMessages).toHaveBeenCalledOnce();
+
+    window.removeEventListener('headlamp-credentials-changed', credentialChange);
+    otherTab.close();
+    observer.close();
+  });
+
+  it('cancels resource reads from the previous identity', async () => {
+    const abort = vi.fn();
+    const read = appQueryClient.fetchQuery({
+      queryKey: ['object', 'prod', {}, '', 'pod'],
+      queryFn: ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            abort();
+            reject(new DOMException('aborted', 'AbortError'));
+          });
+        }),
+    });
+    await waitFor(() =>
+      expect(appQueryClient.getQueryState(['object', 'prod', {}, '', 'pod'])?.fetchStatus).toBe(
+        'fetching'
+      )
+    );
+
+    resetAccessibleNamespaces('prod');
+
+    await expect(read).rejects.toBeDefined();
+    expect(abort).toHaveBeenCalledOnce();
+    expect(appQueryClient.getQueryData(['object', 'prod', {}, '', 'pod'])).toBeUndefined();
+  });
+
+  it('resets caches owned by a non-singleton QueryClient provider', async () => {
+    const providerClient = new QueryClient();
+    registerIdentityQueryClient(providerClient);
+    providerClient.setQueryData(['object', 'prod', {}, '', 'cached'], { user: 'old' });
+    const abort = vi.fn();
+    const read = providerClient.fetchQuery({
+      queryKey: ['object', 'prod', {}, '', 'pending'],
+      queryFn: ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            abort();
+            reject(new DOMException('aborted', 'AbortError'));
+          });
+        }),
+    });
+
+    resetAccessibleNamespaces('prod');
+
+    await expect(read).rejects.toBeDefined();
+    expect(abort).toHaveBeenCalledOnce();
+    expect(providerClient.getQueriesData({ queryKey: ['object'] })).toEqual([]);
+  });
+
+  it('notifies a mounted authorization observer before refetching after identity change', async () => {
+    const providerClient = new QueryClient();
+    registerIdentityQueryClient(providerClient);
+    const key = ['authVisible', 'pod', 'pods', 'v1', 'get', undefined, 'prod', 'prod'];
+    providerClient.setQueryData(key, { allowed: true });
+    let resolveNext!: (value: { allowed: boolean }) => void;
+    const observer = renderHook(
+      () =>
+        useQuery({
+          queryKey: key,
+          queryFn: () => new Promise<{ allowed: boolean }>(resolve => (resolveNext = resolve)),
+          staleTime: Infinity,
+        }),
+      { wrapper: makeWrapper(providerClient) }
+    );
+    expect(observer.result.current.data).toEqual({ allowed: true });
+
+    resetAccessibleNamespaces('prod');
+
+    await waitFor(() => expect(observer.result.current.data).toBeUndefined());
+    expect(observer.result.current.isFetching).toBe(true);
+    resolveNext({ allowed: false });
+    await waitFor(() => expect(observer.result.current.data).toEqual({ allowed: false }));
+
+    observer.unmount();
   });
 });
 

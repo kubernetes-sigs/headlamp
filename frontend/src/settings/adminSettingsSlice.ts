@@ -113,10 +113,19 @@ const adminSettingsSlice = createSlice({
     setClusterSettings(state, action: PayloadAction<Record<string, any>>) {
       state.clusterSettings = action.payload;
     },
+    clearClusterSettings(state, action: PayloadAction<string | undefined>) {
+      if (action.payload === undefined) {
+        state.clusterSettings = {};
+        return;
+      }
+
+      delete state.clusterSettings[action.payload];
+    },
   },
 });
 
-export const { setAdminSettings, setClusterSettings } = adminSettingsSlice.actions;
+export const { clearClusterSettings, setAdminSettings, setClusterSettings } =
+  adminSettingsSlice.actions;
 
 /** Reducer for the `adminSettings` slice of the store. */
 

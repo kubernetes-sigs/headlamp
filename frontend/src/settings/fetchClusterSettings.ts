@@ -14,14 +14,19 @@
  * limitations under the License.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { decodeBase64 } from '../helpers/base64';
 import { clusterFetch } from '../lib/k8s/api/v2/fetch';
+import {
+  getClusterIdentityGeneration,
+  IDENTITY_RESET_EVENT,
+  registerIdentityQueryClient,
+} from '../lib/queryClient';
 import { useTypedSelector } from '../redux/hooks';
 import type { SettingsSource } from './adminSettingsSlice';
-import { setClusterSettings } from './adminSettingsSlice';
+import { clearClusterSettings, setClusterSettings } from './adminSettingsSlice';
 
 const SETTINGS_DATA_KEY = 'settings.json';
 const REFETCH_INTERVAL = 60_000; // 1 minute
@@ -158,14 +163,15 @@ export async function fetchAllClusterSettings(
 
   const entries = await Promise.all(
     targets.map(async ({ clusterName, clusterSources }) => {
+      const identityGeneration = getClusterIdentityGeneration(clusterName);
       const data = await fetchClusterSources(clusterName, clusterSources);
-      return data !== null ? ([clusterName, data] as const) : null;
+      return data !== null ? ([clusterName, data, identityGeneration] as const) : null;
     })
   );
 
   const result: Record<string, any> = {};
   for (const entry of entries) {
-    if (entry !== null) {
+    if (entry !== null && getClusterIdentityGeneration(entry[0]) === entry[2]) {
       result[entry[0]] = entry[1];
     }
   }
@@ -179,12 +185,14 @@ export async function fetchAllClusterSettings(
  */
 export function useClusterDefinedSettings() {
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
   const sources = useTypedSelector(state => state.adminSettings.sources);
   const clusters = useTypedSelector(state => state.config.clusters);
 
   const knownClusterNames = useMemo(() => (clusters ? Object.keys(clusters) : []), [clusters]);
 
   const hasSources = Object.keys(sources).length > 0;
+  useEffect(() => registerIdentityQueryClient(queryClient), [queryClient]);
 
   const { data } = useQuery({
     queryKey: ['cluster-defined-settings', sources, knownClusterNames],
@@ -192,6 +200,15 @@ export function useClusterDefinedSettings() {
     enabled: hasSources && knownClusterNames.length > 0,
     refetchInterval: REFETCH_INTERVAL,
   });
+
+  useEffect(() => {
+    const reset = (event: Event) => {
+      const cluster = (event as CustomEvent<{ cluster?: string }>).detail?.cluster;
+      dispatch(clearClusterSettings(cluster));
+    };
+    window.addEventListener(IDENTITY_RESET_EVENT, reset);
+    return () => window.removeEventListener(IDENTITY_RESET_EVENT, reset);
+  }, [dispatch]);
 
   useEffect(() => {
     if (data) {

@@ -6419,7 +6419,7 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	require.Len(t, rr.Result().Cookies(), 1)
+	require.Len(t, rr.Result().Cookies(), 2)
 	assert.Equal(t, "headlamp-auth-YWJj.0", rr.Result().Cookies()[0].Name)
 	assert.Equal(t, "/clusters/~YWJj", rr.Result().Cookies()[0].Path)
 }
@@ -6450,10 +6450,11 @@ func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
 			createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
 
 			require.Equal(t, http.StatusOK, rr.Code)
-			require.Len(t, rr.Result().Cookies(), 1)
+			require.Len(t, rr.Result().Cookies(), 2)
 			assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0", rr.Result().Cookies()[0].Name)
 			assert.Equal(t, "/clusters/"+cluster, rr.Result().Cookies()[0].Path)
 			assert.Equal(t, -1, rr.Result().Cookies()[0].MaxAge)
+			assert.Equal(t, "/wsMultiplexer", rr.Result().Cookies()[1].Path)
 		})
 	}
 }

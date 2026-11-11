@@ -15,8 +15,9 @@
  */
 
 import '../../i18n/config';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { TestContext } from '../../test';
 import ChildGroupsSection from './ChildGroups';
 
@@ -130,12 +131,59 @@ describe('ChildGroupsSection', () => {
     expect(mockTable).not.toHaveBeenCalled();
   });
 
+  it.each(['composite', 'pod'])(
+    'shows a stopped %s watch even when the last successful child list was empty',
+    kind => {
+      const warning = new ApiError('Child group updates have stopped', { cluster: 'test' });
+      const list = kind === 'composite' ? mockCompositeList : mockPodGroupList;
+      list.mockReturnValue({
+        items: [],
+        isLoading: false,
+        isError: false,
+        watchErrors: [warning],
+      });
+
+      renderSection();
+
+      expect(screen.getByRole('alert')).toHaveTextContent(warning.message);
+      expect(
+        lastTable(kind === 'composite' ? 'childCompositePodGroups' : 'childPodGroups')
+      ).toMatchObject({ data: [], errorMessage: undefined });
+    }
+  );
+
   it('tolerates a list that has not resolved yet', () => {
     mockCompositeList.mockReturnValue({ items: null });
     mockPodGroupList.mockReturnValue({ items: null });
 
     expect(() => renderSection()).not.toThrow();
   });
+
+  it.each(['composite', 'pod'])(
+    'retains cached %s children alongside a failed recovery LIST',
+    kind => {
+      const error = new ApiError('Child group recovery LIST failed', { cluster: 'test' });
+      const list = kind === 'composite' ? mockCompositeList : mockPodGroupList;
+      list.mockReturnValue({
+        items: [group('retained-child', 'llm-serving-root')],
+        isLoading: false,
+        isError: true,
+        errors: [error],
+        watchErrors: [],
+      });
+
+      renderSection();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+      expect(screen.getByRole('alert')).toHaveTextContent(error.message);
+      expect(
+        lastTable(kind === 'composite' ? 'childCompositePodGroups' : 'childPodGroups')
+      ).toMatchObject({
+        data: [group('retained-child', 'llm-serving-root')],
+        errorMessage: undefined,
+      });
+    }
+  );
 
   it('shows a loading table while a list has not finished', () => {
     mockCompositeList.mockReturnValue({ items: null, isLoading: true });

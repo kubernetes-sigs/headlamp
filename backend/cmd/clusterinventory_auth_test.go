@@ -212,16 +212,17 @@ func TestInventoryMultiplexerRejectsMissingCredentialsOnReusedConnection(t *test
 	}))
 	m := NewMultiplexer(store, true)
 	message := Message{ClusterID: "inventory", UserID: "user-a", Path: "/api/v1/pods"}
-	m.connections[m.createConnectionKey(message.ClusterID, message.Path, message.UserID)] = &Connection{}
+	key := m.createConnectionKey(message.ClusterID, message.Path, message.UserID, nil, message.Query)
+	m.connections[key] = &Connection{}
 
 	for _, token := range []*string{nil, new(string)} {
-		_, err := m.getOrCreateConnection(message, nil, token)
+		_, err := m.getOrCreateConnectionContext(t.Context(), message, nil, token)
 		require.ErrorContains(t, err, "user authentication is required")
 	}
 
 	require.NoError(t, store.AddContext(&kubeconfig.Context{Name: "inventory", Source: kubeconfig.KubeConfig}))
 
-	_, err := m.getOrCreateConnection(message, nil, nil)
+	_, err := m.getOrCreateConnectionContext(t.Context(), message, nil, nil)
 	require.NoError(t, err)
 }
 

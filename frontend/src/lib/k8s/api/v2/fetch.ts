@@ -19,6 +19,7 @@ import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { notifyTokenRefreshed } from '../../../queryClient';
 import { ApiError } from './ApiError';
 import { makeUrl } from './makeUrl';
 
@@ -41,6 +42,10 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
   init.credentials = 'include';
   init.headers = addBackstageAuthHeaders(init.headers);
   const response = await fetch(makeUrl([getAppUrl(), url]), init);
+
+  if (response.headers.get('X-Headlamp-Auth-Changed') === '1') {
+    notifyTokenRefreshed((init as RequestInit & { cluster?: string }).cluster);
+  }
 
   // The backend signals through this header that it wants a reload.
   // See plugins.go

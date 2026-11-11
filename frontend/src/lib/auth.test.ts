@@ -66,7 +66,6 @@ describe('auth', () => {
         json: vi.fn().mockResolvedValue({}),
       };
       mockBackendFetch.mockResolvedValue(mockResponse as Response);
-
       const result = await setToken(cluster, token);
 
       expect(result).toBe(true);

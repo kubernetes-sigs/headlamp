@@ -1417,7 +1417,7 @@ func TestMultiplexerWebSocketErrorHelpers(t *testing.T) {
 	lock := &WSConnLock{conn: clientConn}
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 
-	m.sendClientError(lock, "c1", "/pods", "watch=1", "u1", assert.AnError)
+	m.sendClientErrorContext(t.Context(), lock, "c1", "/pods", "watch=1", "u1", assert.AnError)
 	m.handleConnectionError(lock, Message{ClusterID: "c1", Path: "/pods"}, errWatchExpired)
 	m.handleConnectionError(lock, Message{ClusterID: "c1", Path: "/pods"}, assert.AnError)
 
@@ -1429,7 +1429,7 @@ func TestMultiplexerWebSocketErrorHelpers(t *testing.T) {
 		Status:    ConnectionStatus{State: StateError, Error: "failed"},
 		Done:      make(chan struct{}),
 	}
-	_ = conn.writeStatusLocked()
+	require.NoError(t, conn.writeStatus())
 	m.endExpiredWatch(conn)
 }
 
@@ -1447,10 +1447,14 @@ func TestMultiplexerMonitorAndReconnect(t *testing.T) {
 	conn2 := &Connection{
 		ClusterID: "missing-cluster",
 		UserID:    "u1",
+		Client:    &WSConnLock{},
 		Done:      make(chan struct{}),
 	}
-	_, recErr := m.reconnect(conn2)
-	require.Error(t, recErr)
+	connKey := m.createConnectionKey(conn2.ClusterID, conn2.Path, conn2.UserID, conn2.Client, conn2.Query)
+	m.connections[connKey] = conn2
+	replacement, recErr := m.reconnect(conn2, conn2.Query, nil)
+	require.ErrorContains(t, recErr, "key not found")
+	assert.Nil(t, replacement)
 }
 
 func TestHandleServerStartErrorAndClusterDiscovery(t *testing.T) {

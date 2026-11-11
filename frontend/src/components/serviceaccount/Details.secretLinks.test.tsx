@@ -15,22 +15,48 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { getDefaultRoutes, setDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { TestContext } from '../../test';
 import ServiceAccountDetails from './Details';
 
-const { serviceAccount, mockActivityLaunch } = vi.hoisted(() => ({
+const { serviceAccount, mockActivityLaunch, roleList, clusterRoleList } = vi.hoisted(() => ({
   serviceAccount: { current: {} as any },
   mockActivityLaunch: vi.fn(),
+  roleList: vi.fn(),
+  clusterRoleList: vi.fn(),
 }));
 
 // Importing the real k8s classes here runs into the lib/k8s import cycle, so only stub what
 // this page imports from there.
-vi.mock('../../lib/k8s', () => ({ ResourceClasses: {} }));
+vi.mock('../../lib/k8s', () => ({ ResourceClasses: {}, useSelectedClusters: () => ['cluster-b'] }));
 vi.mock('../../lib/k8s/serviceAccount', () => ({ default: { kind: 'ServiceAccount' } }));
-vi.mock('../../lib/k8s/roleBinding', () => ({ default: {} }));
-vi.mock('../../lib/k8s/clusterRoleBinding', () => ({ default: {} }));
+vi.mock('../../lib/k8s/roleBinding', () => ({ default: { useList: roleList } }));
+vi.mock('../../lib/k8s/clusterRoleBinding', () => ({ default: { useList: clusterRoleList } }));
+
+vi.mock('../common/SectionBox', () => {
+  const SectionBox = ({ children }: PropsWithChildren) => <>{children}</>;
+  return { default: SectionBox, SectionBox };
+});
+
+vi.mock('../common/SimpleTable', () => ({
+  default: ({
+    data,
+    errorMessage,
+  }: {
+    data: { metadata: { name: string } }[] | null;
+    errorMessage?: string;
+  }) => (
+    <div>
+      {data?.map(item => (
+        <span key={item.metadata.name}>{item.metadata.name}</span>
+      ))}
+      {errorMessage}
+    </div>
+  ),
+}));
 
 // With the details drawer on (the default), Link opens the Secret through Activity.launch.
 vi.mock('../activity/Activity', () => ({
@@ -44,6 +70,9 @@ vi.mock('../common/Resource', () => ({
       {props.extraInfo(serviceAccount.current).map((row: any) => (
         <div key={row.name}>{row.value}</div>
       ))}
+      {props.extraSections(serviceAccount.current).map((section: any) => (
+        <div key={section.id}>{section.section}</div>
+      ))}
     </div>
   ),
 }));
@@ -51,6 +80,7 @@ vi.mock('../common/Resource', () => ({
 describe('ServiceAccountDetails secret links', () => {
   const originalPath = window.location.pathname;
   let originalRoutes: ReturnType<typeof getDefaultRoutes>;
+  let view: ReturnType<typeof render>;
 
   beforeEach(() => {
     originalRoutes = { ...getDefaultRoutes() };
@@ -63,19 +93,50 @@ describe('ServiceAccountDetails secret links', () => {
       },
     });
     mockActivityLaunch.mockReset();
+    roleList.mockReset().mockReturnValue({ items: [] });
+    clusterRoleList.mockReset().mockReturnValue({ items: [] });
     // Two clusters are selected, and cluster-a comes first in the URL.
     window.history.pushState({}, '', '/c/cluster-a+cluster-b/serviceaccounts');
     serviceAccount.current = {
       cluster: 'cluster-b',
+      metadata: { name: 'builder', namespace: 'sa-check' },
       secrets: [{ name: 'builder-token' }],
       imagePullSecrets: [{ name: 'registry' }],
     };
-    render(
+    view = render(
       <TestContext>
         <ServiceAccountDetails name="builder" namespace="sa-check" cluster="cluster-b" />
       </TestContext>
     );
   });
+
+  it.each(['namespaced', 'cluster'])(
+    'retains cached %s bindings and reports failed recovery LISTs',
+    kind => {
+      const list = kind === 'namespaced' ? roleList : clusterRoleList;
+      list.mockReturnValue({
+        items: [
+          {
+            metadata: { name: 'cached-binding', namespace: 'sa-check' },
+            subjects: [{ kind: 'ServiceAccount', name: 'builder', namespace: 'sa-check' }],
+          },
+        ],
+        isLoading: false,
+        isError: true,
+        errors: [new ApiError('Binding recovery forbidden', { status: 403 })],
+        watchErrors: [],
+      });
+      view.rerender(
+        <TestContext>
+          <ServiceAccountDetails name="builder" namespace="sa-check" cluster="cluster-b" />
+        </TestContext>
+      );
+      expect(screen.getByText('cached-binding')).toBeVisible();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "You don't have permissions to view this resource"
+      );
+    }
+  );
 
   afterEach(() => {
     setDefaultRoutes(originalRoutes);

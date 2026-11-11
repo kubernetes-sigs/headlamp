@@ -16,6 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { baseMocks } from '../../../.storybook/baseMocks';
 import { KubeObjectClass } from '../../lib/k8s/KubeObject';
 import { API_BASE, TestContext, TestContextProps } from '../../test';
 import CustomResourceList from './CustomResourceList';
@@ -82,5 +83,38 @@ export const List = Template.bind({});
 List.args = {
   routerParams: {
     crd: 'mydefinition.phonyresources.io',
+  },
+};
+
+export const RecoveryError = Template.bind({});
+RecoveryError.args = List.args;
+RecoveryError.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      base: [
+        http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+          HttpResponse.json(
+            { message: 'Cannot refresh the cached custom resource definition' },
+            { status: 403 }
+          )
+        ),
+        ...baseMocks,
+      ],
+      storyBase: [
+        http.get(
+          `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions/mydefinition.phonyresources.io`,
+          () => HttpResponse.json(mockCRD)
+        ),
+        http.get(`${API_BASE}/apis/my.phonyresources.io/v1/mycustomresources`, () =>
+          HttpResponse.json({
+            kind: 'MyCustomResourceList',
+            apiVersion: 'my.phonyresources.io/v1',
+            metadata: { resourceVersion: '1' },
+            items: mockCRList,
+          })
+        ),
+      ],
+    },
   },
 };

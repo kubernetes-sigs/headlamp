@@ -25,6 +25,7 @@ import { SimpleTableProps } from '../common/SimpleTable';
 export interface LimitRangeProps {
   limitRanges: LimitRange[] | null;
   errors: ApiError[] | null;
+  watchErrors?: ApiError[];
   hideColumns?: string[];
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
@@ -33,6 +34,7 @@ export interface LimitRangeProps {
 export function LimitRangeRenderer(props: LimitRangeProps) {
   const {
     errors,
+    watchErrors,
     limitRanges,
     hideColumns = [],
     reflectTableInURL = 'limitranges',
@@ -50,6 +52,7 @@ export function LimitRangeRenderer(props: LimitRangeProps) {
         titleSideActions: [<CreateResourceButton resourceClass={LimitRange} />],
       }}
       errors={errors}
+      watchErrors={watchErrors}
       data={limitRanges}
       reflectInURL={reflectTableInURL}
       id="headlamp-limitranges"
@@ -58,7 +61,20 @@ export function LimitRangeRenderer(props: LimitRangeProps) {
 }
 
 export function LimitRangeList() {
-  const { items: limitRanges, errors } = LimitRange.useList({ namespace: useNamespaces() });
+  const {
+    items: limitRanges,
+    errors,
+    watchErrors,
+  } = LimitRange.useList({
+    namespace: useNamespaces(),
+  });
 
-  return <LimitRangeRenderer limitRanges={limitRanges} errors={errors} reflectTableInURL />;
+  return (
+    <LimitRangeRenderer
+      limitRanges={limitRanges}
+      errors={errors}
+      watchErrors={watchErrors}
+      reflectTableInURL
+    />
+  );
 }

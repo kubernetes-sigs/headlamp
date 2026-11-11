@@ -94,6 +94,213 @@ backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
 
+## Multiplexed WebSocket ownership
+
+Each `/wsMultiplexer` client socket owns its upstream subscriptions. Routing
+`userId` values are not authenticated identities: a second socket using identical
+cluster/path/user fields must establish its own upstream connection with its own
+credentials. Its `CLOSE` messages and disconnect cannot stop another client's
+subscription.
+
+Watches (`watch=true` or `watch=1`) also include the exact original subscription
+query in that ownership key. Different selectors or resource versions on the same
+path are independent, and `CLOSE` targets only its own query. `STATUS`, data,
+retry errors, and ACKs preserve the original query and userId even when an
+upstream resume handshake uses a newer cursor. Explicit `reopen` replaces only
+that exact watch subscription, never another query's connection.
+
+Concurrent initial requests for the same client-owned route share one upstream
+dial and its result. Other clients and routes dial independently. A waiting
+request can cancel without cancelling the owner; `CLOSE` still invalidates the
+reservation so a retired dial cannot install or remove a newer subscription.
+
+An upstream connection retains the credential used for its handshake. Changing
+credentials requires a new subscription/client connection; replacing a stored
+token cannot reauthenticate an existing socket. Explicit unsafe service-account
+mode still uses its configured service-account credential, with separate
+subscriptions per client.
+
+Finite stream completion closes the upstream socket and leaves the subscription
+available to its client. Watches retain the main branch's exponential
+backoff and resume from the last resource version successfully forwarded to the
+client; expired watches ask the client to list again instead of resuming.
+Routine upstream watch timeouts (close code 1000) and going-away closes (1001)
+resume in the same way. An `ErrCloseSent` ping waits for the reader's close
+classification; it does not stop the sole monitor. A pending explicit reopen
+also leaves that monitor alive so a failed watch replacement can retry.
+Non-watch streams, including exec and logs, never redial automatically after a
+failed ping or reader exit. Only a new explicit `REQUEST` can reopen them.
+`CLOSE` and client disconnect cancel a pending replacement.
+Requests received during a replacement get a retry error. The multiplexer also
+reports upstream write failures to the requesting client.
+
+Opted-in list and single-object watch subscriptions recognize the
+`subscription_reconnecting` error code. Open watch transports in the error state
+return the same coded error during backoff even when no dial is currently reserved.
+Once the pending replacement finishes, they explicitly send `REQUEST` with
+`reopen: true` and their own query and original routing identity. This watch-only
+operation checks the existing handshake credential before replacing the socket.
+Both explicit replacements and heartbeat recovery resume from the last forwarded
+resource version and seed the replacement's cursor, even before its first event.
+Status and data keep the exact original query for routing. Multiplexed browser
+watches share the opening cursor per cached query and pin it until a relist/refetch;
+cache updates do not change their subscription identity. Normal object watches
+open with an empty cursor rather than an object's possibly expired last-write
+version. Once the watch is connected, a named GET reconciles an object that was
+deleted before the handshake; this does not add LIST permissions to normal
+GET/watch use. A shared event revision prevents successful reads from replacing
+newer watch updates or restoring a deleted object. Accepting a changed GET
+snapshot renews the watch generation, so a reconnect cannot replay older events
+over it. Until that generation receives its first event, renewal preserves the
+empty cursor instead of using an object's potentially compacted last-write
+version. A named GET newly returning 404 retires the previous generation and
+starts a fresh empty-cursor watch for recreation; repeated absence does not renew
+it again. Remounting a cached deletion starts an empty-cursor watch and named GET,
+not a collection LIST.
+Renewed object-watch generations use a query-cache-owner-scoped multiplexer
+session. The existing protocol routes frames by query, not stream generation, so
+replacing callbacks on the same session cannot fence queued frames when the
+cursor remains empty. Observers of the same owner/generation share that session;
+other owners and healthy sibling sessions are unaffected. Retired sessions close
+after their last observer leaves, and the owner's recovery budget survives
+generation changes. Existing list and finite-stream callers retain their shared
+multiplexer session and wire format.
+Legacy watches resume from their latest observed cursor. Since browsers hide an
+HTTP 410 handshake rejection as a generic socket failure, repeated failed legacy
+handshakes trigger a fresh snapshot before reopening. Recovery is scoped to the
+query-cache owner, not just the watch URL: lists with different cache keys, such
+as different limits, cannot advance each other's shared transport cursor.
+There are at most three snapshot recoveries per owner between successful socket
+opens. Cursor changes and successful LIST responses do not reset this budget.
+Exhaustion stops automatic recovery and reports an error; a successful open
+resets it. Legacy transport errors remain visible with cached items until
+readiness, even when LIST continues to succeed.
+An explicit 410 suspends that list's watch and rejects retired callbacks until
+a network snapshot succeeds. Failed snapshots leave it suspended with the error
+visible; ordinary cache updates cannot resume it. Unsubscribing prevents pending
+recovery from opening another socket, and paginated snapshots stay unwatched.
+Reconciliation preserves unchanged per-entry sockets: recovery in one namespace
+does not reopen healthy watches for other namespaces.
+After a single-object watch expires, a name-filtered collection LIST supplies a
+fresh snapshot and collection cursor: a named GET can keep returning an expired
+object version. This recovery requires LIST permission, and failures are surfaced
+through the query error. If a snapshot fails, the last successfully loaded object
+remains visible with a warning in the details view; its expired watch stays
+disabled until a snapshot succeeds. All observers adopt the fresh cursor,
+including when the fetching observer unmounts. Deleted objects report 404 while
+the watch remains active to observe recreation. Failed post-connect checks also
+retain the last object with an error until reconciliation succeeds. Joining
+seeded observers cannot overwrite the shared object or clear its error while a
+post-connect check is pending or failed. Loaded CRD
+pages, loaded custom-resource detail pages, and resolved environment values retain
+usable resources alongside a warning instead of replacing them with a recovery
+error. Custom-resource instance lists identify loaded snapshots from cluster
+results, not the combined items array: an initial failed LIST can also return an
+empty array. Successfully loaded empty snapshots remain usable during recovery;
+initial failures remain blocking, and other pending lists retain their loader.
+The outer definition LIST also keeps its loader while no snapshot exists, even
+when aggregation returns an empty array; cached empty definitions remain visible
+during their own refetches.
+Transport-only failures do not change a successfully loaded object's `status`,
+`isError`, or `isSuccess`; its `error` still exposes the live-update warning until
+readiness returns. Actual read failures and authoritative deletions remain errors
+and take precedence over transport warnings. Manually composed list views and
+related-resource tables must forward `watchErrors` separately from fetch `errors`
+to `ResourceListView`, `ResourceTable`, or `ClusterGroupErrorMessage`, including
+when the last successful snapshot was empty.
+New browser multiplexer sessions reconcile watches that have already applied
+events before resubscribing, rather than replaying their pinned opening queries
+into newer cached objects. This uses the same snapshot/error path on both v2
+and legacy servers, without changing routing identities or the wire protocol.
+Observers joining a route already waiting for reconciliation receive the same
+snapshot-required notification. Upstream error statuses reach that route's error
+listeners; connected status clears its warning through readiness.
+The error's `retryReady` acknowledgement handles errors delivered after the
+connected status or normal completion without retrying against a stale
+pre-reconnect status. This retries only an outstanding rejected watch request.
+Unsubscribed watches cancel the pending retry; generic and exec subscriptions do
+not opt in.
+
+Each client retains at most 64 unreserved completed subscriptions for explicit
+reopening. Older completed entries are removed without affecting other clients
+or reserved replacements. Retained entries still reject changed credentials;
+an evicted route needs a fresh authenticated handshake. Retention indexes completed
+entries per client and examines at most 65 entries when evicting, without scanning
+active subscriptions or other clients. Successful replacements skip retention
+entirely. Cleanup uses no additional timers or workers.
+
+Client reads remain responsive while initial or replacement handshakes are
+pending. `CLOSE` and disconnect invalidate the subscription and cancel the dial,
+including a blocked HTTP upgrade; a canceled request cannot install a socket or
+send its payload. Requests are processed by one bounded worker per client.
+REQUEST queue exhaustion closes the client socket with a retry-later reason rather than
+creating unbounded dial goroutines. Requests arriving during a pending dial are
+not saved for automatic replay. CLOSE cancellation and transport cleanup are
+immediate; their status notifications have a separate bounded queue, so they cannot
+exhaust REQUEST capacity. Notifications are best effort and may be dropped when
+that queue is full or the same route has already reopened.
+
+Clients offer `headlamp.multiplexer.v2.k8s.io` before the original
+`headlamp.multiplexer.k8s.io` protocol, alongside the existing private desktop
+backend-token protocol when needed. The backend prefers v2 when offered and
+continues to accept the original protocol or no selected protocol.
+V2 advertises explicit ACK support. Independently of the selected protocol, the
+backend honors every REQUEST carrying an optional `requestId` with a matching
+`ACK` after the worker settles it, including a request canceled by `CLOSE`.
+Parsed REQUESTs with missing routing fields receive ERROR followed by ACK without
+executing upstream work.
+This preserves older ACK-waiting clients that offer only the original protocol
+or no protocol during rolling upgrades. ACK is flow-control credit, not an
+upstream success result; requests without a `requestId` do not receive ACKs.
+Only negotiated v2 enables browser request pacing and `requestId` fields. Legacy
+connections send requests unpaced without request IDs or waiting for ACKs; STATUS,
+ERROR, DATA, and COMPLETE are never processing credits. COMPLETE is a watch-batch
+boundary, not subscription termination.
+For v2, one per-socket 60-second missing-ACK deadline reports an explicit error
+and closes the socket with private code 4000, triggering bounded watch-only
+recovery and notifying finite-stream listeners. This does not create a timer
+per subscription. The browser sends at most one unacknowledged
+list-watch request per socket and keeps at most one queued request per active watch,
+so distinct-subscription bursts do not exhaust the backend's 32-slot queue.
+Concurrent socket opens share one promise rather than per-subscriber polling timers.
+If a legacy burst nevertheless closes the socket with code 1013, the browser
+reconnects and restores only opted-in active list watches with the same queries
+and fresh handshake credentials. Automatic watch recovery is capped at three
+attempts without ACK progress, including across snapshot-driven route changes;
+failures are surfaced to subscription listeners. Original/no-protocol sessions
+reset this budget after 60 seconds of healthy connected watch operation instead
+of waiting for ACKs they never receive. An error or socket close cancels that
+health window. Ordinary browser/backend socket closes also notify watch listeners
+and trigger this bounded watch-only recovery without an explicit reconnect call.
+The internal connection reset without a close event does not start recovery.
+Generic/exec subscriptions are not automatically replayed by
+recovery; interrupted finite operations receive an explicit error on ordinary
+socket closes as well as overload and missing-ACK closes.
+
+Replacement reservations exclude upstream payload writes before the error status
+is published. Status delivery never holds subscription lifecycle or global map
+locks, so a stalled client cannot block other clients' lookups or cleanup.
+Cleanup closes transports before sending statuses, and retiring transports are
+detached before the replacement publishes its connected status.
+
+A request queued during a heartbeat reservation gets an explicit retry even if
+another client worker operation delays its processing until after installation.
+A superseded watch reader retires its transport without closing the subscription,
+so a failed replacement can retry with backoff from the last forwarded cursor.
+Finite-stream completion, explicit close, disconnect, and watch expiry still
+terminate their lifecycles as described above.
+
+Protocol-level end-to-end tests use real client WebSockets, the production
+multiplexer handler, and a local TLS upstream that rejects forged credentials:
+
+```bash
+cd backend
+go test -race ./cmd -run 'Test(Multiplexer|Reconnect|MonitorConnection)' -count=20
+```
+
+These tests do not require a live Kubernetes cluster or enable multiplexing in
+the frontend. Ordinary logs/terminal streams use their direct cluster endpoints.
+
 ## Service proxy content isolation
 
 Service proxy responses set `Content-Security-Policy: sandbox` and
@@ -412,13 +619,13 @@ expiration.
 
 ### Ranked optimization opportunities
 
-| Rank | Change | Expected memory effect | Trade-off |
-| --- | --- | --- | --- |
-| 1 | Share cache-invalidation watchers for equivalent cluster connections | Avoids duplicated informer stores and goroutines for stateless users | Requires careful authentication and watcher lifecycle isolation |
-| 2 | Add byte and entry limits to the Kubernetes response cache | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate |
-| 3 | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry | Narrows the internal cache API |
-| 4 | Initialize proxy transports only when a context is first used | Saves per-context TLS and transport state for unused contexts | Adds synchronization to the first request |
-| 5 | Lower `GOGC` for the desktop backend | About 2–4.5 MiB in measured idle/request workloads | More frequent GC and modestly higher CPU use |
+| Rank | Change                                                                     | Expected memory effect                                                             | Trade-off                                                       |
+| ---- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1    | Share cache-invalidation watchers for equivalent cluster connections       | Avoids duplicated informer stores and goroutines for stateless users               | Requires careful authentication and watcher lifecycle isolation |
+| 2    | Add byte and entry limits to the Kubernetes response cache                 | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate                                            |
+| 3    | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry                           | Narrows the internal cache API                                  |
+| 4    | Initialize proxy transports only when a context is first used              | Saves per-context TLS and transport state for unused contexts                      | Adds synchronization to the first request                       |
+| 5    | Lower `GOGC` for the desktop backend                                       | About 2–4.5 MiB in measured idle/request workloads                                 | More frequent GC and modestly higher CPU use                    |
 
 The desktop launcher defaults its bundled backend to `GOGC=25`, while preserving
 an explicitly configured `GOGC`. In isolated measurements, `GOGC=50` reduced
@@ -439,25 +646,25 @@ requests with Go 1.26.5. Private dirty memory is reported instead of total RSS
 because demand-paged executable mappings varied substantially with link layout.
 These are directional results from a small workload.
 
-| Runtime configuration | Private dirty after requests | Backend CPU | Result |
-| --- | ---: | ---: | --- |
-| `GOGC=100` | 17.2 MiB | 3.26 s | Go default and comparison baseline |
-| `GOGC=50` | 14.8 MiB | 3.37 s | Saves 2.4 MiB over the Go default |
-| `GOGC=25` | 12.7 MiB | 3.73 s | Current desktop default; saves another 2.1 MiB with about 11% more CPU than `GOGC=50` |
-| `GOGC=50 GOMEMLIMIT=64MiB` | 14.8 MiB | 3.43 s | No measurable saving in this workload |
-| `GOGC=50 GODEBUG=disablethp=1` | 11.7 MiB | 3.44 s | Linux-only saving on this host; not used because the compatibility setting is scheduled for removal |
-| `GOGC=50 GOMAXPROCS=1` | 13.2 MiB | 2.32 s | Not used because serializing execution can hurt concurrent workloads |
+| Runtime configuration          | Private dirty after requests | Backend CPU | Result                                                                                              |
+| ------------------------------ | ---------------------------: | ----------: | --------------------------------------------------------------------------------------------------- |
+| `GOGC=100`                     |                     17.2 MiB |      3.26 s | Go default and comparison baseline                                                                  |
+| `GOGC=50`                      |                     14.8 MiB |      3.37 s | Saves 2.4 MiB over the Go default                                                                   |
+| `GOGC=25`                      |                     12.7 MiB |      3.73 s | Current desktop default; saves another 2.1 MiB with about 11% more CPU than `GOGC=50`               |
+| `GOGC=50 GOMEMLIMIT=64MiB`     |                     14.8 MiB |      3.43 s | No measurable saving in this workload                                                               |
+| `GOGC=50 GODEBUG=disablethp=1` |                     11.7 MiB |      3.44 s | Linux-only saving on this host; not used because the compatibility setting is scheduled for removal |
+| `GOGC=50 GOMAXPROCS=1`         |                     13.2 MiB |      2.32 s | Not used because serializing execution can hurt concurrent workloads                                |
 
 Compiler experiments used the same workload with `GOGC=50`:
 
-| Build option | Binary size | Private dirty | Backend CPU | Result |
-| --- | ---: | ---: | ---: | --- |
-| Default | 114.4 MiB | 14.8 MiB | 3.37 s | Baseline |
-| `-trimpath -ldflags="-s -w"` | 81.4 MiB | 14.5 MiB | 3.38 s | Current backend build default; saves 28.8% on disk, but no meaningful runtime memory |
-| `-gcflags=all=-l` | 103.5 MiB | 12.8 MiB | 4.21 s | About 2 MiB less memory at roughly 25% more CPU; not selected |
-| `GOAMD64=v3` | 114.4 MiB | 14.9 MiB | 3.41 s | No memory saving and reduces CPU compatibility |
-| `-buildmode=pie` | 120.9 MiB | 19.1 MiB | 3.45 s | Increased private memory |
-| `GOEXPERIMENT=greenteagc` | 114.4 MiB | 14.7 MiB | 3.47 s | No meaningful saving in this workload |
+| Build option                 | Binary size | Private dirty | Backend CPU | Result                                                                               |
+| ---------------------------- | ----------: | ------------: | ----------: | ------------------------------------------------------------------------------------ |
+| Default                      |   114.4 MiB |      14.8 MiB |      3.37 s | Baseline                                                                             |
+| `-trimpath -ldflags="-s -w"` |    81.4 MiB |      14.5 MiB |      3.38 s | Current backend build default; saves 28.8% on disk, but no meaningful runtime memory |
+| `-gcflags=all=-l`            |   103.5 MiB |      12.8 MiB |      4.21 s | About 2 MiB less memory at roughly 25% more CPU; not selected                        |
+| `GOAMD64=v3`                 |   114.4 MiB |      14.9 MiB |      3.41 s | No memory saving and reduces CPU compatibility                                       |
+| `-buildmode=pie`             |   120.9 MiB |      19.1 MiB |      3.45 s | Increased private memory                                                             |
+| `GOEXPERIMENT=greenteagc`    |   114.4 MiB |      14.7 MiB |      3.47 s | No meaningful saving in this workload                                                |
 
 Go plugins are not a portable memory-saving mechanism for the backend. They are
 unsupported on Windows, must match the main binary's toolchain and dependencies,

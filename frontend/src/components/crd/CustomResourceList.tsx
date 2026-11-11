@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -37,7 +38,7 @@ export default function CustomResourceList() {
     return <Loader title={t('translation|Loading custom resource definition')} />;
   }
 
-  if (!!error) {
+  if (error && !crd) {
     return (
       <Empty color="error">
         {t(
@@ -51,7 +52,12 @@ export default function CustomResourceList() {
     );
   }
 
-  return <CustomResourceListTable crd={crd!} />;
+  return (
+    <>
+      {error && <Alert severity="warning">{error.toString()}</Alert>}
+      <CustomResourceListTable crd={crd!} />
+    </>
+  );
 }
 
 function CustomResourceLink(props: {

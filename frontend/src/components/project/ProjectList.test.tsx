@@ -16,14 +16,15 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, renderHook, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, renderHook, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 vi.mock('./useProjectResources', () => ({
   useProjectItems: () => ({ items: [], isLoading: false }),
 }));
 
 import App from '../../App';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import Namespace from '../../lib/k8s/namespace';
 import { createMuiTheme } from '../../lib/themes';
 import { HeadlampEventType } from '../../redux/headlampEventSlice';
@@ -239,6 +240,59 @@ describe('useProject', () => {
 describe('ProjectList events', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('retains cached projects while a recovery LIST error remains visible', () => {
+    const item = new Namespace(
+      {
+        apiVersion: 'v1',
+        kind: 'Namespace',
+        status: { phase: 'Active' },
+        metadata: {
+          name: 'cached-ns',
+          uid: 'cached-ns',
+          creationTimestamp: '2026-11-26T00:00:00Z',
+          labels: { [PROJECT_ID_LABEL]: 'cached-project' },
+        },
+      },
+      'cluster-a'
+    );
+    const error = new ApiError('Project recovery forbidden', { status: 403 });
+    const tuple: [Namespace[], ApiError] = [[item], error];
+    vi.spyOn(Namespace, 'useList').mockReturnValue(
+      Object.assign(tuple, {
+        items: [item],
+        data: [],
+        dataUpdatedAt: 1,
+        error,
+        errors: [error],
+        watchErrors: [],
+        isLoading: false,
+        isFetching: false,
+        isError: true,
+        isSuccess: false,
+        status: 'error' as const,
+      })
+    );
+    const client = new QueryClient();
+    const view = render(
+      <TestContext>
+        <QueryClientProvider client={client}>
+          <ThemeProvider theme={createMuiTheme({ name: 'Light', base: 'light' })}>
+            <ProjectList />
+          </ThemeProvider>
+        </QueryClientProvider>
+      </TestContext>
+    );
+    onTestFinished(async () => {
+      view.unmount();
+      await client.cancelQueries();
+      client.clear();
+    });
+    expect(screen.getByRole('link', { name: 'cached-project' })).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "You don't have permissions to view this resource"
+    );
   });
 
   it('dispatches PROJECT_LIST_VIEW with the listed projects', async () => {

@@ -14,9 +14,35 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import CRD from '../../../lib/k8s/crd';
+import CronJob from '../../../lib/k8s/cronJob';
+import DaemonSet from '../../../lib/k8s/daemonSet';
+import Deployment from '../../../lib/k8s/deployment';
+import Job from '../../../lib/k8s/job';
+import JobSet from '../../../lib/k8s/jobSet';
+import { KubeObject } from '../../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../../lib/k8s/leaderWorkerSet';
+import { LimitRange } from '../../../lib/k8s/limitRange';
+import Pod from '../../../lib/k8s/pod';
+import { PodMetrics } from '../../../lib/k8s/PodMetrics';
+import ReplicaSet from '../../../lib/k8s/replicaSet';
+import ResourceQuota from '../../../lib/k8s/resourceQuota';
+import Secret from '../../../lib/k8s/secret';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { TestContext } from '../../../test';
+import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
+import CustomResourceDefinitionList from '../../crd/List';
+import { mockCRD } from '../../crd/storyHelper';
+import JobsList from '../../job/List';
+import { LimitRangeList } from '../../limitRange/List';
+import PodList from '../../pod/List';
+import ResourceQuotaList from '../../resourceQuota/List';
+import SecretList from '../../secret/List';
+import { BASE_SECRET } from '../../secret/storyHelper';
+import WorkloadOverview from '../../workload/Overview';
 import { CreateResourceButton } from '../CreateResourceButton';
 import ResourceListView from './ResourceListView';
 
@@ -34,14 +60,17 @@ vi.mock('../CreateResourceButton', () => ({
   },
 }));
 
-vi.mock('../SectionBox', () => ({
-  default: (props: any) => (
+vi.mock('../../workload/Charts', () => ({ WorkloadCircleChart: () => null }));
+
+vi.mock('../SectionBox', () => {
+  const SectionBox = (props: any) => (
     <>
       {props.title}
       {props.children}
     </>
-  ),
-}));
+  );
+  return { default: SectionBox, SectionBox };
+});
 
 vi.mock('../SectionFilterHeader', () => ({
   default: (props: any) => {
@@ -56,8 +85,20 @@ vi.mock('./ResourceTable', () => ({
   __esModule: true,
   default: (props: any) => {
     lastResourceTablePropsHolder.current = props;
-    return <div data-testid="mock-resource-table" />;
+    return (
+      <div data-testid="mock-resource-table">
+        <ClusterGroupErrorMessage errors={props.errors} watchErrors={props.watchErrors} />
+        {props.errorMessage ? (
+          <span>{props.errorMessage}</span>
+        ) : (
+          props.data?.map((item: CRD | Secret) => (
+            <span key={item.getName()}>{item.getName()}</span>
+          ))
+        )}
+      </div>
+    );
   },
+  useThrottle: (value: unknown) => value,
 }));
 
 // Mark the EmptyStateActions rendering so we can detect the auto-default.
@@ -117,6 +158,203 @@ describe('ResourceListView', () => {
 describe('ResourceListView emptyActions defaulting', () => {
   beforeEach(() => {
     lastResourceTablePropsHolder.current = null;
+  });
+
+  describe('direct list consumers', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    function listResponse({
+      items,
+      error = null,
+      errors = error ? [error] : null,
+      watchErrors = [],
+      isFetching = false,
+    }: {
+      items: KubeObject[] | null;
+      error?: ApiError | null;
+      errors?: ApiError[] | null;
+      watchErrors?: ApiError[];
+      isFetching?: boolean;
+    }) {
+      const tuple: [KubeObject[] | null, ApiError | null] = [items, error];
+      const result = {
+        data: null,
+        dataUpdatedAt: items === null ? 0 : 1,
+        items,
+        error,
+        errors,
+        watchErrors,
+        isFetching,
+        isError: !!error,
+        isLoading: !items && !error,
+        isSuccess: !!items && !error,
+        status: error ? ('error' as const) : items ? ('success' as const) : ('pending' as const),
+      };
+      return Object.assign(tuple, result, {
+        clusterResults: items === null ? undefined : { test: result },
+      });
+    }
+
+    const snapshotPages = [
+      {
+        name: 'CRD',
+        resourceClass: CRD,
+        Page: CustomResourceDefinitionList,
+        item: new CRD(mockCRD, 'test'),
+      },
+      {
+        name: 'Secret',
+        resourceClass: Secret,
+        Page: SecretList,
+        item: new Secret(BASE_SECRET, 'test'),
+      },
+    ];
+
+    it('retains workload rows and shows failed recovery LIST errors', () => {
+      const error = new ApiError('Workload recovery forbidden', { status: 403 });
+      const job = new Job(
+        {
+          apiVersion: 'batch/v1',
+          kind: 'Job',
+          metadata: {
+            name: 'cached-job',
+            namespace: 'default',
+            uid: 'cached-job',
+            creationTimestamp: '2026-11-26T00:00:00Z',
+          },
+          spec: { template: { spec: { containers: [], nodeName: 'test-node' } } },
+          status: {},
+        },
+        'test'
+      );
+      for (const resourceClass of [
+        Pod,
+        Deployment,
+        StatefulSet,
+        DaemonSet,
+        ReplicaSet,
+        Job,
+        CronJob,
+        JobSet,
+        LeaderWorkerSet,
+      ]) {
+        vi.spyOn(resourceClass, 'useList').mockReturnValue(
+          listResponse({
+            items: resourceClass === Job ? [job] : [],
+            error: resourceClass === Job ? error : null,
+          })
+        );
+      }
+      render(
+        <TestContext>
+          <WorkloadOverview />
+        </TestContext>
+      );
+      expect(screen.getByText('cached-job')).toBeVisible();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "You don't have permissions to view this resource"
+      );
+      expect(lastResourceTablePropsHolder.current.errorMessage).toBeUndefined();
+    });
+
+    it.each(snapshotPages)(
+      'keeps $name rows and empty snapshots visible through pending and failed refresh',
+      ({ resourceClass, Page, item }) => {
+        const query = {
+          items: [item],
+          error: null as ApiError | null,
+          errors: null as ApiError[] | null,
+          watchErrors: [] as ApiError[],
+          isFetching: false,
+        };
+        vi.spyOn(resourceClass, 'useList').mockImplementation(() => listResponse(query));
+        const content = () => (
+          <TestContext>
+            <Page />
+          </TestContext>
+        );
+        const view = render(content());
+        expect(screen.getByText(item.getName())).toBeVisible();
+
+        const warning = new ApiError('Resource watch reconnecting');
+        Object.assign(query, { isFetching: true, watchErrors: [warning] });
+        view.rerender(content());
+        expect(screen.getByText(item.getName())).toBeVisible();
+        expect(screen.getByRole('alert')).toHaveTextContent(warning.message);
+
+        const error = new ApiError('Refresh forbidden', { status: 403 });
+        Object.assign(query, {
+          error,
+          errors: [error],
+          watchErrors: [],
+          isFetching: false,
+        });
+        view.rerender(content());
+        expect(screen.getByText(item.getName())).toBeVisible();
+        expect(lastResourceTablePropsHolder.current.errorMessage).toBeUndefined();
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          "You don't have permissions to view this resource"
+        );
+
+        query.items = [];
+        view.rerender(content());
+        expect(lastResourceTablePropsHolder.current.data).toEqual([]);
+        expect(lastResourceTablePropsHolder.current.errorMessage).toBeUndefined();
+        expect(screen.getByRole('alert')).toBeVisible();
+
+        Object.assign(query, {
+          error: null,
+          errors: null,
+          watchErrors: [warning],
+          isFetching: true,
+        });
+        view.rerender(content());
+        expect(lastResourceTablePropsHolder.current.data).toEqual([]);
+        expect(lastResourceTablePropsHolder.current.errorMessage).toBeUndefined();
+        expect(screen.getByRole('alert')).toHaveTextContent(warning.message);
+      }
+    );
+
+    it.each(snapshotPages)(
+      'preserves the initial no-snapshot $name error',
+      ({ resourceClass, Page }) => {
+        const error = new ApiError('Initial list forbidden', { status: 403 });
+        vi.spyOn(resourceClass, 'useList').mockReturnValue(listResponse({ items: null, error }));
+
+        render(
+          <TestContext>
+            <Page />
+          </TestContext>
+        );
+
+        expect(screen.getByText('Error: No permissions')).toBeVisible();
+        expect(lastResourceTablePropsHolder.current.data).toBeNull();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      }
+    );
+
+    it.each([
+      { name: 'Pod', resourceClass: Pod, Page: PodList },
+      { name: 'Job', resourceClass: Job, Page: JobsList },
+      { name: 'LimitRange', resourceClass: LimitRange, Page: LimitRangeList },
+      { name: 'ResourceQuota', resourceClass: ResourceQuota, Page: ResourceQuotaList },
+    ])('forwards $name watch errors alongside its snapshot', ({ resourceClass, Page }) => {
+      const warning = new ApiError('Watch unavailable');
+      vi.spyOn(resourceClass, 'useList').mockReturnValue(
+        listResponse({ items: [], watchErrors: [warning] })
+      );
+      vi.spyOn(PodMetrics, 'useList').mockReturnValue(listResponse({ items: null }));
+
+      render(
+        <TestContext>
+          <Page />
+        </TestContext>
+      );
+
+      expect(screen.getByRole('alert')).toHaveTextContent(warning.message);
+      expect(lastResourceTablePropsHolder.current.data).toEqual([]);
+      expect(lastResourceTablePropsHolder.current.errorMessage).toBeUndefined();
+    });
   });
 
   it('auto-injects EmptyStateActions when a resourceClass is provided and the caller did not set emptyActions', () => {

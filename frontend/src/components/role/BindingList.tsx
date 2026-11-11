@@ -105,10 +105,18 @@ function ServiceAccountList(props: { binding: RoleBinding }) {
 
 export default function RoleBindingList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const { items: roles, errors: roleErrors } = RoleBinding.useList({
+  const {
+    items: roles,
+    errors: roleErrors,
+    watchErrors: roleWatchErrors,
+  } = RoleBinding.useList({
     namespace: useNamespaces(),
   });
-  const { items: clusterRoles, errors: clusterRoleErrors } = ClusterRoleBinding.useList();
+  const {
+    items: clusterRoles,
+    errors: clusterRoleErrors,
+    watchErrors: clusterRoleWatchErrors,
+  } = ClusterRoleBinding.useList();
 
   const allRoles = React.useMemo(() => {
     if (roles === null && clusterRoles === null) {
@@ -131,6 +139,7 @@ export default function RoleBindingList() {
       title={t('glossary|Role Bindings')}
       headerProps={{ noNamespaceFilter: false }}
       errors={allErrors}
+      watchErrors={[...(roleWatchErrors ?? []), ...(clusterRoleWatchErrors ?? [])]}
       emptyActions={<EmptyStateActions />}
       columns={[
         'type',

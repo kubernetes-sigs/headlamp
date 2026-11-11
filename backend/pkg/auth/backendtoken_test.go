@@ -119,6 +119,7 @@ func TestNewBackendTokenMiddleware(t *testing.T) {
 		wantStatus          int
 		wantProtocol        string
 		wantTokenDownstream string
+		wantProtocolAuth    bool
 	}{
 		{
 			name:            "valid header",
@@ -127,18 +128,20 @@ func TestNewBackendTokenMiddleware(t *testing.T) {
 			wantStatus:      http.StatusNoContent,
 		},
 		{
-			name:            "valid protocol",
-			configuredToken: validToken,
-			protocolHeaders: []string{"v4.channel.k8s.io, " + tokenProtocol},
-			wantStatus:      http.StatusNoContent,
-			wantProtocol:    "v4.channel.k8s.io",
+			name:             "valid protocol",
+			configuredToken:  validToken,
+			protocolHeaders:  []string{"v4.channel.k8s.io, " + tokenProtocol},
+			wantStatus:       http.StatusNoContent,
+			wantProtocol:     "v4.channel.k8s.io",
+			wantProtocolAuth: true,
 		},
 		{
-			name:            "valid protocol across header values",
-			configuredToken: validToken,
-			protocolHeaders: []string{"v4.channel.k8s.io", tokenProtocol},
-			wantStatus:      http.StatusNoContent,
-			wantProtocol:    "v4.channel.k8s.io",
+			name:             "valid protocol across header values",
+			configuredToken:  validToken,
+			protocolHeaders:  []string{"v4.channel.k8s.io", tokenProtocol},
+			wantStatus:       http.StatusNoContent,
+			wantProtocol:     "v4.channel.k8s.io",
+			wantProtocolAuth: true,
 		},
 		{
 			name:            "malformed protocol",
@@ -168,11 +171,12 @@ func TestNewBackendTokenMiddleware(t *testing.T) {
 			wantStatus:      http.StatusForbidden,
 		},
 		{
-			name:            "matching header and protocol",
-			configuredToken: validToken,
-			tokenHeader:     validToken,
-			protocolHeaders: []string{tokenProtocol},
-			wantStatus:      http.StatusNoContent,
+			name:             "matching header and protocol",
+			configuredToken:  validToken,
+			tokenHeader:      validToken,
+			protocolHeaders:  []string{tokenProtocol},
+			wantStatus:       http.StatusNoContent,
+			wantProtocolAuth: true,
 		},
 		{
 			name:            "missing token",
@@ -206,6 +210,7 @@ func TestNewBackendTokenMiddleware(t *testing.T) {
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, tt.wantProtocol, r.Header.Get("Sec-WebSocket-Protocol"))
 				assert.Equal(t, tt.wantTokenDownstream, r.Header.Get(backendTokenHeader))
+				assert.Equal(t, tt.wantProtocolAuth, auth.IsBackendTokenProtocolAuthenticated(r))
 				w.WriteHeader(http.StatusNoContent)
 			})
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)

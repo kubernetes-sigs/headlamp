@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
@@ -183,6 +184,112 @@ func TestHandleClearToken(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.NotEmpty(t, rr.Result().Cookies())
 	})
+}
+
+func TestHandleMultiplexerAuthBootstrapsPreUpgradeCookie(t *testing.T) {
+	const (
+		cluster = "minikube"
+		token   = "legacy-token"
+	)
+
+	cfg := newCmdTestConfig(t)
+
+	req := httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/clusters/"+cluster+"/multiplexer-auth", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": cluster})
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		Path:     auth.GetCookiePath(cfg.BaseURL, cluster),
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+
+	cfg.handleMultiplexerAuth(rr, req)
+
+	require.Equal(t, http.StatusNoContent, rr.Code)
+	require.Equal(t, "cookie", rr.Header().Get("X-Headlamp-Multiplexer-Auth"))
+
+	var multiplexerCookie *http.Cookie
+
+	for _, cookie := range rr.Result().Cookies() {
+		require.False(t, strings.HasPrefix(cookie.Name, "headlamp-auth-"))
+
+		if strings.HasPrefix(cookie.Name, "headlamp-multiplexer-auth-") && cookie.Value == token {
+			multiplexerCookie = cookie
+		}
+	}
+
+	require.NotNil(t, multiplexerCookie)
+	require.Equal(t, "/wsMultiplexer", multiplexerCookie.Path)
+	require.Equal(t, token, multiplexerCookie.Value)
+
+	socketRequest := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/wsMultiplexer", nil)
+	socketRequest.AddCookie(multiplexerCookie)
+	socketToken, err := auth.GetTokenFromCookie(socketRequest, cluster)
+	require.NoError(t, err)
+	require.Equal(t, token, socketToken)
+}
+
+func TestHandleMultiplexerAuthAllowsBackendCredentials(t *testing.T) {
+	const cluster = "certificate"
+
+	cfg := newCmdTestConfig(t)
+	require.NoError(t, cfg.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		AuthInfo: &api.AuthInfo{ClientCertificate: "client.crt"},
+	}))
+
+	req := httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/clusters/"+cluster+"/multiplexer-auth", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": cluster})
+
+	rr := httptest.NewRecorder()
+
+	cfg.handleMultiplexerAuth(rr, req)
+
+	require.Equal(t, http.StatusNoContent, rr.Code)
+	require.Equal(t, "backend", rr.Header().Get("X-Headlamp-Multiplexer-Auth"))
+	require.Empty(t, rr.Result().Cookies())
+}
+
+func TestHandleMultiplexerAuthAllowsUserScopedBackendCredentials(t *testing.T) {
+	const (
+		cluster = "stateless"
+		userID  = "user-1"
+	)
+
+	contextKey := statelessContextKey(cluster, userID)
+	cfg := newCmdTestConfig(t)
+	require.NoError(t, cfg.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: contextKey,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		AuthInfo: &api.AuthInfo{ClientCertificate: "user.crt"},
+	}))
+
+	req := httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/clusters/"+cluster+"/multiplexer-auth", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": cluster})
+	req = req.WithContext(context.WithValue(req.Context(), resolvedClusterContextKey{}, resolvedClusterContext{
+		key: contextKey,
+	}))
+	rr := httptest.NewRecorder()
+
+	cfg.handleMultiplexerAuth(rr, req)
+
+	require.Equal(t, http.StatusNoContent, rr.Code)
+	require.Equal(t, "backend", rr.Header().Get("X-Headlamp-Multiplexer-Auth"))
+	require.Empty(t, rr.Result().Cookies())
 }
 
 func TestHandleSetTokenEdgeCases(t *testing.T) {

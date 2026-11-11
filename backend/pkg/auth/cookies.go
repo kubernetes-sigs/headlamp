@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -32,6 +33,7 @@ const (
 	// maxIDTokenChunks bounds client-controlled chunk-count metadata.
 	maxIDTokenChunks   = 16
 	maxAuthTokenChunks = 32
+	authChangeHeader   = "X-Headlamp-Auth-Changed"
 )
 
 // GetCookiePath returns the full cookie path including baseURL.
@@ -202,7 +204,58 @@ func SetTokenCookie(
 		clearAuthTokenChunkCookie(w, secure, cookiePath, sanitizedCluster, len(chunks))
 	}
 
+	setMultiplexerTokenCookieChunks(w, r, cluster, chunks, baseURL, sessionTTL)
+
 	return sizeErr
+}
+
+// SetMultiplexerTokenCookie copies an already-authenticated token into the
+// socket-specific HttpOnly cookie without exposing it to JavaScript.
+func SetMultiplexerTokenCookie(
+	w http.ResponseWriter,
+	r *http.Request,
+	cluster, token, baseURL string,
+	sessionTTL int,
+) error {
+	if cluster == "" || token == "" || SanitizeClusterName(cluster) == "" {
+		return nil
+	}
+
+	chunks, sizeErr := boundedAuthTokenChunks(token)
+	setMultiplexerTokenCookieChunks(w, r, cluster, chunks, baseURL, sessionTTL)
+
+	return sizeErr
+}
+
+func setMultiplexerTokenCookieChunks(
+	w http.ResponseWriter,
+	r *http.Request,
+	cluster string,
+	chunks []string,
+	baseURL string,
+	sessionTTL int,
+) {
+	secure := IsSecureContext(r)
+	multiplexerCookiePath := getMultiplexerCookiePath(baseURL)
+
+	multiplexerCluster := multiplexerCookieCluster(cluster)
+
+	for i, chunk := range chunks {
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec // The websocket scope remains HttpOnly and SameSite=strict.
+			Name:     fmt.Sprintf("headlamp-multiplexer-auth-%s.%d", multiplexerCluster, i),
+			Value:    chunk,
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     multiplexerCookiePath,
+			MaxAge:   sessionTTL,
+		})
+	}
+
+	if len(chunks) < maxAuthTokenChunks {
+		clearMultiplexerAuthTokenChunkCookie(
+			w, secure, multiplexerCookiePath, multiplexerCluster, len(chunks))
+	}
 }
 
 // GetTokenFromCookie retrieves an authentication cookie for a specific cluster.
@@ -212,11 +265,28 @@ func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
 		return "", errors.New("invalid cluster name")
 	}
 
-	// check for chunked cookies first
+	// The WebSocket cookie is root/baseURL-scoped, while the ordinary cookie is
+	// restricted to /clusters/<cluster>. Prefer the ordinary cookie on cluster
+	// requests and use the multiplexer cookie when the request is /wsMultiplexer.
+	for _, prefix := range []string{"headlamp-auth-", "headlamp-multiplexer-auth-"} {
+		cookieCluster := sanitizedCluster
+		if prefix == "headlamp-multiplexer-auth-" {
+			cookieCluster = multiplexerCookieCluster(cluster)
+		}
+
+		if token := getChunkedAuthToken(r, prefix, cookieCluster); token != "" {
+			return token, nil
+		}
+	}
+
+	return "", nil
+}
+
+func getChunkedAuthToken(r *http.Request, prefix, sanitizedCluster string) string {
 	var token strings.Builder
 
 	for i := 0; i < maxAuthTokenChunks; i++ {
-		cookie, err := r.Cookie(fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i))
+		cookie, err := r.Cookie(fmt.Sprintf("%s%s.%d", prefix, sanitizedCluster, i))
 		if err != nil {
 			break
 		}
@@ -228,11 +298,7 @@ func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
 		token.WriteString(cookie.Value)
 	}
 
-	if token.Len() > 0 {
-		return token.String(), nil
-	}
-
-	return "", nil
+	return token.String()
 }
 
 // ClearTokenCookie clears an authentication cookie for a specific cluster.
@@ -243,6 +309,7 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 	}
 
 	secure := IsSecureContext(r)
+	multiplexerCluster := multiplexerCookieCluster(cluster)
 
 	// clear chunked cookies
 	for i := 0; ; i++ {
@@ -266,6 +333,15 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 			MaxAge:   -1,
 		}
 		http.SetCookie(w, cookie)
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec // Mirror the cluster-cookie clearing operation.
+			Name:     fmt.Sprintf("headlamp-multiplexer-auth-%s.%d", multiplexerCluster, i),
+			Value:    "",
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     getMultiplexerCookiePath(baseURL),
+			MaxAge:   -1,
+		})
 	}
 }
 
@@ -279,13 +355,20 @@ func ClearTokenCookieBounded(w http.ResponseWriter, r *http.Request, cluster, ba
 
 	secure := IsSecureContext(r)
 	cookiePath := GetCookiePath(baseURL, cluster)
+	multiplexerCookiePath := getMultiplexerCookiePath(baseURL)
+	multiplexerCluster := multiplexerCookieCluster(cluster)
 
 	for i := 0; i < maxAuthTokenChunks; i++ {
-		if _, err := r.Cookie(fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)); i > 0 && err != nil {
-			continue
+		standardName := fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)
+		if _, err := r.Cookie(standardName); i == 0 || err == nil {
+			clearAuthTokenChunkCookie(w, secure, cookiePath, sanitizedCluster, i)
 		}
 
-		clearAuthTokenChunkCookie(w, secure, cookiePath, sanitizedCluster, i)
+		multiplexerName := fmt.Sprintf("headlamp-multiplexer-auth-%s.%d", multiplexerCluster, i)
+		if _, err := r.Cookie(multiplexerName); i == 0 || err == nil {
+			clearMultiplexerAuthTokenChunkCookie(
+				w, secure, multiplexerCookiePath, multiplexerCluster, i)
+		}
 	}
 }
 
@@ -311,6 +394,36 @@ func clearAuthTokenChunkCookie(w http.ResponseWriter, secure bool, cookiePath, s
 		MaxAge:   -1,
 	}
 	http.SetCookie(w, cookie)
+}
+
+func clearMultiplexerAuthTokenChunkCookie(
+	w http.ResponseWriter, secure bool, cookiePath, sanitizedCluster string, index int,
+) {
+	// G124: Secure is set from IsSecureContext so localhost development still works.
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Same trust and scope as the corresponding token cookie.
+		Name:     fmt.Sprintf("headlamp-multiplexer-auth-%s.%d", sanitizedCluster, index),
+		Value:    "",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		Path:     cookiePath,
+		MaxAge:   -1,
+	})
+}
+
+func getMultiplexerCookiePath(baseURL string) string {
+	trimmed := strings.Trim(baseURL, "/")
+	if trimmed == "" {
+		return "/wsMultiplexer"
+	}
+
+	return "/" + trimmed + "/wsMultiplexer"
+}
+
+func multiplexerCookieCluster(cluster string) string {
+	sum := sha256.Sum256([]byte(cluster))
+
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // SetIDTokenCookie sets an ID token cookie for a specific cluster.

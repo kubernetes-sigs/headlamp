@@ -21,6 +21,7 @@ import { ResourceClasses } from '../../lib/k8s';
 import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import ServiceAccount from '../../lib/k8s/serviceAccount';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
@@ -92,6 +93,8 @@ function ServiceAccountBindings(props: { serviceAccount: ServiceAccount }) {
     items: roleBindings,
     isLoading: roleBindingsLoading,
     isError: roleBindingsError,
+    errors: roleBindingErrors,
+    watchErrors: roleBindingWatchErrors,
   } = RoleBinding.useList({
     cluster: serviceAccount.cluster,
   });
@@ -99,6 +102,8 @@ function ServiceAccountBindings(props: { serviceAccount: ServiceAccount }) {
     items: clusterRoleBindings,
     isLoading: clusterRoleBindingsLoading,
     isError: clusterRoleBindingsError,
+    errors: clusterRoleBindingErrors,
+    watchErrors: clusterRoleBindingWatchErrors,
   } = ClusterRoleBinding.useList({ cluster: serviceAccount.cluster });
 
   const bindings = React.useMemo(() => {
@@ -131,6 +136,10 @@ function ServiceAccountBindings(props: { serviceAccount: ServiceAccount }) {
 
   return (
     <SectionBox title={t('Role Bindings')}>
+      <ClusterGroupErrorMessage
+        errors={[...(roleBindingErrors ?? []), ...(clusterRoleBindingErrors ?? [])]}
+        watchErrors={[...(roleBindingWatchErrors ?? []), ...(clusterRoleBindingWatchErrors ?? [])]}
+      />
       <SimpleTable
         data={data}
         emptyMessage={t('No role bindings reference this service account.')}

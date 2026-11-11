@@ -1170,6 +1170,7 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 	require.True(t, ok, "expected auth cookie to be set")
 	assert.Equal(t, "ACCESS_NEW", cookieVal)
 	assert.Equal(t, "Bearer ACCESS_NEW", req.Header.Get("Authorization"))
+	assert.Equal(t, "1", resp.Header.Get("X-Headlamp-Auth-Changed"))
 
 	idToken, ok := findIDTokenCookie(resp, cluster)
 	require.True(t, ok, "expected refreshed ID token cookie to be set")
