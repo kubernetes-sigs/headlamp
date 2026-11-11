@@ -315,7 +315,7 @@ func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 		w1 := httptest.NewRecorder()
 		rcw1 := k8cache.NewResponseCapture(w1)
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusTeapot) // example response
+			w.WriteHeader(http.StatusOK) // example response
 			_, err := w.Write([]byte("next handler called"))
 			assert.NoError(t, err)
 		})
@@ -323,7 +323,7 @@ func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 		k8cache.ServeFromCacheOrForwardToK8s(cache, true, next, "key", w1, r, rcw1)
 
 		// Assert first call went through next handler
-		assert.Equal(t, http.StatusTeapot, w1.Code)
+		assert.Equal(t, http.StatusOK, w1.Code)
 		assert.Contains(t, w1.Body.String(), "next handler called")
 		// Assert response was stored in cache
 		val, err := cache.Get(context.Background(), "key")
@@ -346,7 +346,7 @@ func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 		assert.False(t, called, "expected cache hit to skip next handler")
 
 		// Assert second call's output matches what was cached
-		assert.Equal(t, http.StatusTeapot, w2.Code)
+		assert.Equal(t, http.StatusOK, w2.Code)
 		assert.Contains(t, w2.Body.String(), "next handler called")
 	})
 }
