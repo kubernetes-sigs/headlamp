@@ -849,6 +849,15 @@ func loadKubeConfigClusters(config *HeadlampConfig, path string, skipFunc func(k
 	logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err, msg)
 }
 
+// dynamicClusterSource returns the source matching the backend's request trust boundary.
+func (c *HeadlampConfig) dynamicClusterSource() int {
+	if auth.IsBackendTokenRequired(c.UseInCluster) {
+		return kubeconfig.TokenProtectedDynamicCluster
+	}
+
+	return kubeconfig.DynamicCluster
+}
+
 // loadDynamicClusters loads clusters that Headlamp itself persists when clusters are added at
 // runtime. That file will only exist once such a cluster has been added, so a missing file is normal.
 func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kubeconfig.Context) bool) {
@@ -863,7 +872,7 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 		return
 	}
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, path, kubeconfig.DynamicCluster, skipFunc)
+	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, path, config.dynamicClusterSource(), skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err,
 			"loading the kubeconfig of dynamically added clusters")
@@ -2676,13 +2685,13 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 }
 
 // parseClusterFromKubeConfig parses the kubeconfig and returns a list of contexts and errors.
-func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
+func parseClusterFromKubeConfig(kubeConfigs []string, source int) ([]Cluster, []error) {
 	var clusters []Cluster
 
 	var setupErrors []error
 
 	for _, kubeConfig := range kubeConfigs {
-		contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, kubeconfig.DynamicCluster)
+		contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, source)
 		if err != nil {
 			setupErrors = append(setupErrors, err)
 			continue
@@ -2861,7 +2870,7 @@ func (c *HeadlampConfig) processClusterRequest(clusterReq ClusterReq) ([]kubecon
 func (c *HeadlampConfig) processKubeConfig(clusterReq ClusterReq) ([]kubeconfig.Context, []error) {
 	contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(
 		*clusterReq.KubeConfig,
-		kubeconfig.DynamicCluster,
+		c.dynamicClusterSource(),
 	)
 	setupErrors := c.handleLoadErrors(err, contextLoadErrors)
 
@@ -2896,7 +2905,7 @@ func (c *HeadlampConfig) processManualConfig(clusterReq ClusterReq) ([]kubeconfi
 		},
 	}
 
-	return kubeconfig.LoadContextsFromAPIConfig(conf, kubeconfig.DynamicCluster, false)
+	return kubeconfig.LoadContextsFromAPIConfig(conf, c.dynamicClusterSource(), false)
 }
 
 // handleLoadErrors handles the load errors.
@@ -2941,7 +2950,7 @@ func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) (string, error
 // addContextsToStore adds the contexts to the store.
 func (c *HeadlampConfig) addContextsToStore(contexts []kubeconfig.Context, setupErrors []error) []error {
 	for i := range contexts {
-		contexts[i].Source = kubeconfig.DynamicCluster
+		contexts[i].Source = c.dynamicClusterSource()
 		if err := c.KubeConfigStore.AddContext(&contexts[i]); err != nil {
 			setupErrors = append(setupErrors, err)
 		}
@@ -3259,7 +3268,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	source := kubeconfig.DynamicCluster
+	source := c.dynamicClusterSource()
 	if reqBody.Source == kubeConfigSource {
 		source = kubeconfig.KubeConfig
 	}
