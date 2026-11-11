@@ -17,14 +17,17 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -61,9 +64,13 @@ const (
 	SecureWebSocketScheme = "wss"
 	// MultiplexerProtocol is the public subprotocol selected for client connections.
 	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
+	// MultiplexerWatchProtocol negotiates acknowledged list-watch flow control.
+	MultiplexerWatchProtocol = "headlamp.multiplexer.v2.k8s.io"
 )
 
 var (
+	errSubscriptionInactive = errors.New("subscription is no longer active")
+	errReconnectInProgress  = errors.New("subscription is already reconnecting; retry after reconnection")
 	// errWatchExpired reports that the cluster no longer has the watch's resource version,
 	// so the watch cannot resume and the client has to list again.
 	errWatchExpired = errors.New("watch resource version expired")
@@ -110,8 +117,6 @@ type Connection struct {
 	mu sync.RWMutex
 	// writeMu is a mutex to synchronize access to the write operations.
 	writeMu sync.Mutex
-	// clusterWriteMu is a mutex to synchronize writes to the cluster WebSocket connection.
-	clusterWriteMu sync.Mutex
 	// forwardMu serializes forwarding cluster messages to the client with a reconnect taking
 	// over the stream, so the resume cursor only covers messages the client received.
 	forwardMu sync.Mutex
@@ -122,6 +127,9 @@ type Connection struct {
 	// forwarding, so a message it already read cannot reach the client after newer ones.
 	// Guarded by forwardMu.
 	superseded bool
+	// upstreamMu serializes payload writes with replacement reservations.
+	// Acquire it before lifecycle locks; never hold lifecycle locks during I/O.
+	upstreamMu sync.Mutex
 	// closed is a flag to indicate if the connection is closed.
 	closed bool
 	// usesServiceAccountToken is true when Token was loaded from the
@@ -131,6 +139,9 @@ type Connection struct {
 	Token *string
 	// closeOnce is used to ensure the connection is closed only once.
 	closeOnce sync.Once
+	// reconnecting and dialCancel are guarded by mu.
+	reconnecting bool
+	dialCancel   context.CancelFunc
 }
 
 // Message represents a WebSocket message structure.
@@ -149,12 +160,32 @@ type Message struct {
 	Binary bool `json:"binary,omitempty"`
 	// Type is the type of the message.
 	Type string `json:"type"`
+	// Reopen explicitly replaces a watch transport with this request's query.
+	Reopen bool `json:"reopen,omitempty"`
+	// RequestID opts into processing acknowledgements for client backpressure.
+	RequestID string `json:"requestId,omitempty"`
+}
+
+// connectionKey identifies an upstream connection within one client WebSocket.
+type connectionKey struct {
+	client    *WSConnLock
+	clusterID string
+	path      string
+	userID    string
+	query     string
+}
+
+type completedSubscription struct {
+	conn     *Connection
+	closedAt time.Time
 }
 
 // Multiplexer manages multiple WebSocket connections.
 type Multiplexer struct {
-	// connections is a map of connections indexed by the cluster ID and path.
-	connections map[string]*Connection
+	// Entries own subscriptions independently of the current transport's lifetime.
+	connections map[connectionKey]*Connection
+	// completed indexes only unreserved completed subscriptions, bounded per client.
+	completed map[*WSConnLock]map[connectionKey]completedSubscription
 	// mutex is a mutex to synchronize access to the connections.
 	mutex sync.RWMutex
 	// upgrader is the WebSocket upgrader.
@@ -229,26 +260,23 @@ func (conn *WSConnLock) WriteMessage(messageType int, data []byte) error {
 	return conn.conn.WriteMessage(messageType, data)
 }
 
-// Close safely closes the WebSocket connection.
-// It ensures thread-safety by acquiring the write mutex before closing,
-// preventing any concurrent writes during the close operation.
+// Close may run concurrently with writes, as supported by gorilla/websocket.
+// In particular, it must unblock a stalled writer rather than wait for it.
 func (conn *WSConnLock) Close() error {
-	conn.writeMu.Lock()
-	defer conn.writeMu.Unlock()
-
 	return conn.conn.Close()
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
 func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
 	return &Multiplexer{
-		connections:                  make(map[string]*Connection),
+		connections:                  make(map[connectionKey]*Connection),
+		completed:                    make(map[*WSConnLock]map[connectionKey]completedSubscription),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
 		heartbeatInterval:            HeartbeatInterval,
 		upgrader: websocket.Upgrader{
-			Subprotocols: []string{MultiplexerProtocol},
+			Subprotocols: []string{MultiplexerWatchProtocol, MultiplexerProtocol},
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
@@ -259,7 +287,8 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 // readServiceAccountToken reads the service account token from path, caching the value
 // per path and refreshing it when the file's mtime changes (e.g. kubelet token rotation).
 func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
-	stat, err := os.Stat(path) //nolint:gosec // Service account token file path from cluster config
+	// #nosec G703 -- path is a configured in-cluster TokenFile, never a client subscription path.
+	stat, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("stat service account token file: %w", err)
 	}
@@ -299,6 +328,16 @@ func (c *Connection) IsClosed() bool {
 
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
+	c.updateStatusContext(context.Background(), state, err)
+}
+
+func (c *Connection) updateStatusContext(ctx context.Context, state ConnectionState, err error) {
+	if state == StateClosed {
+		c.safeClose()
+
+		return
+	}
+
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -314,19 +353,9 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 		c.Status.Error = err.Error()
 	}
 
-	if c.Client == nil {
-		c.mu.Unlock()
-
-		if state == StateClosed {
-			c.safeClose()
-		}
-
-		return
-	}
-
-	writeErr := c.writeStatusLocked()
 	c.mu.Unlock()
 
+	writeErr := c.writeStatusContext(ctx)
 	if writeErr != nil {
 		if !websocket.IsCloseError(writeErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 			logger.Log(logger.LevelError,
@@ -335,17 +364,34 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 				"writing status message to client")
 		}
 	}
-
-	if state == StateClosed {
-		c.safeClose()
-	}
 }
 
-func (c *Connection) writeStatusLocked() error {
+func (c *Connection) writeStatus() error {
+	return c.writeStatusContext(context.Background())
+}
+
+func (c *Connection) writeStatusContext(ctx context.Context) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	if c.closed {
+	c.mu.RLock()
+	client := c.Client
+	c.mu.RUnlock()
+
+	if client == nil {
+		return nil
+	}
+
+	client.writeMu.Lock()
+	defer client.writeMu.Unlock()
+
+	// Snapshot after obtaining the writer: installation can detach a retiring
+	// transport while its status is waiting, avoiding stale closed notifications.
+	c.mu.RLock()
+
+	if c.Client != client || ctx.Err() != nil {
+		c.mu.RUnlock()
+
 		return nil
 	}
 
@@ -356,6 +402,7 @@ func (c *Connection) writeStatusLocked() error {
 		State: string(c.Status.State),
 		Error: c.Status.Error,
 	}
+	c.mu.RUnlock()
 
 	jsonData, jsonErr := json.Marshal(statusData)
 	if jsonErr != nil {
@@ -367,26 +414,40 @@ func (c *Connection) writeStatusLocked() error {
 	statusMsg := Message{
 		ClusterID: c.ClusterID,
 		Path:      c.Path,
+		Query:     c.Query,
+		UserID:    c.UserID,
 		Data:      string(jsonData),
 		Type:      "STATUS",
 	}
 
-	return c.Client.WriteJSON(statusMsg)
+	return client.conn.WriteJSON(statusMsg)
 }
 
 // safeClose safely closes the connection and its resources.
 func (c *Connection) safeClose() {
+	if c.closeTransport() {
+		_ = c.writeStatus()
+	}
+}
+
+func (c *Connection) detachAndClose() {
+	c.mu.Lock()
+	c.Client = nil
+	c.mu.Unlock()
+	c.safeClose()
+}
+
+// closeTransport completes lifecycle cleanup before any client notification.
+func (c *Connection) closeTransport() bool {
+	var notify bool
+
 	c.closeOnce.Do(func() {
 		c.mu.Lock()
 		if !c.closed {
-			shouldWriteStatus := c.Status.State != StateClosed
+			notify = c.Status.State != StateClosed && c.Client != nil
 			c.Status.State = StateClosed
 			c.Status.LastMsg = time.Now()
 			c.Status.Error = ""
-
-			if shouldWriteStatus && c.Client != nil {
-				_ = c.writeStatusLocked()
-			}
 
 			c.closed = true
 		}
@@ -405,14 +466,14 @@ func (c *Connection) safeClose() {
 			_ = c.WSConn.Close()
 		}
 	})
+
+	return notify
 }
 
-// dialClusterConnection creates and dials a new WebSocket connection to a Kubernetes cluster without registering it.
-func (m *Multiplexer) dialClusterConnection(
-	clusterID,
-	userID,
-	path,
-	query string,
+// establishClusterConnectionContext creates and dials a connection without registering it.
+func (m *Multiplexer) establishClusterConnectionContext(
+	ctx context.Context,
+	clusterID, userID, path, query string,
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
@@ -441,46 +502,56 @@ func (m *Multiplexer) dialClusterConnection(
 
 	tlsConfig, err := rest.TLSConfigFor(config)
 	if err != nil {
-		connection.updateStatus(StateError, err)
+		connection.updateStatusContext(ctx, StateError, err)
 
 		return nil, fmt.Errorf("failed to get TLS config: %w", err)
 	}
 
-	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
+	conn, err := m.dialWebSocketContext(ctx, wsURL, tlsConfig, config.Host, authToken)
 	if err != nil {
-		connection.updateStatus(StateError, err)
+		if ctx.Err() == nil {
+			connection.updateStatusContext(ctx, StateError, err)
+		}
 
 		return nil, err
 	}
 
 	connection.WSConn = conn
-	connection.updateStatus(StateConnected, nil)
+	connection.Status.State = StateConnected
 
 	return connection, nil
 }
 
-// establishClusterConnection creates, registers, and monitors a new WebSocket connection to a Kubernetes cluster.
-func (m *Multiplexer) establishClusterConnection(
-	clusterID,
-	userID,
-	path,
-	query string,
-	clientConn *WSConnLock,
-	token *string,
-) (*Connection, error) {
-	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token)
-	if err != nil {
-		return nil, err
+// startConnectionContext installs a dialed connection only if its reservation
+// remains active and still owns the subscription.
+func (m *Multiplexer) startConnectionContext(
+	ctx context.Context, key connectionKey, conn, previous *Connection,
+) error {
+	m.mutex.Lock()
+	if ctx.Err() != nil || m.connections[key] != previous {
+		m.mutex.Unlock()
+
+		_ = conn.WSConn.Close()
+
+		return fmt.Errorf("subscription changed while connecting: %w", errSubscriptionInactive)
 	}
 
-	m.mutex.Lock()
-	connKey := m.createConnectionKey(clusterID, path, userID)
-	m.connections[connKey] = connection
+	m.connections[key] = conn
+	m.forgetCompletedConnectionLocked(key)
 	m.mutex.Unlock()
 
-	go m.monitorConnection(connection)
+	if previous != nil {
+		previous.mu.Lock()
+		previous.Client = nil
+		previous.mu.Unlock()
+		previous.safeClose()
+	}
 
-	return connection, nil
+	conn.updateStatus(StateConnected, nil)
+	go m.monitorConnection(conn)
+	go m.handleClusterMessages(conn, key.client)
+
+	return nil
 }
 
 // getClusterConfigWithFallback attempts to get the cluster config,
@@ -567,10 +638,41 @@ func (m *Multiplexer) dialWebSocket(
 	host string,
 	token *string,
 ) (*websocket.Conn, error) {
+	return m.dialWebSocketContext(context.Background(), wsURL, tlsConfig, host, token)
+}
+
+func cancellableWebSocketDialer(ctx context.Context, tlsConfig *tls.Config) (websocket.Dialer, func()) {
 	dialer := websocket.Dialer{
 		TLSClientConfig:  tlsConfig,
 		HandshakeTimeout: HandshakeTimeout,
 	}
+
+	var stopCancel func() bool
+
+	dialer.NetDialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
+		var netDialer net.Dialer
+
+		conn, err := netDialer.DialContext(dialCtx, network, address)
+		if err == nil {
+			// DialContext alone does not interrupt a pending HTTP upgrade read.
+			stopCancel = context.AfterFunc(ctx, func() { _ = conn.Close() })
+		}
+
+		return conn, err
+	}
+
+	return dialer, func() {
+		if stopCancel != nil {
+			stopCancel()
+		}
+	}
+}
+
+func (m *Multiplexer) dialWebSocketContext(
+	ctx context.Context, wsURL string, tlsConfig *tls.Config, host string, token *string,
+) (*websocket.Conn, error) {
+	dialer, stopCancel := cancellableWebSocketDialer(ctx, tlsConfig)
+	defer stopCancel()
 
 	headers := http.Header{
 		"Origin": {host},
@@ -580,38 +682,47 @@ func (m *Multiplexer) dialWebSocket(
 		headers.Set("Authorization", "Bearer "+*token)
 	}
 
-	conn, resp, err := dialer.Dial(
+	conn, resp, err := dialer.DialContext(
+		ctx,
 		wsURL,
 		headers,
 	)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
-		// We only attempt to close the response body if there was an error and resp is not nil.
-		// In the successful case (when err is nil), the resp will actually be nil for WebSocket connections,
-		// so we don't need to close anything.
-		if resp != nil {
-			// Log only serializable fields from the response to avoid JSON marshaling errors
-			logger.Log(
-				logger.LevelError,
-				map[string]string{
-					"status":     resp.Status,
-					"statusCode": fmt.Sprintf("%d", resp.StatusCode),
-				},
-				nil,
-				"WebSocket response",
-			)
-
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode == http.StatusGone {
-				return nil, fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, err)
-			}
-		}
-
-		return nil, fmt.Errorf("dialing WebSocket: %w", err)
+	if err == nil {
+		return conn, nil
 	}
 
-	return conn, nil
+	if ctx.Err() != nil {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+
+		return nil, fmt.Errorf("subscription changed while connecting: %w", errSubscriptionInactive)
+	}
+
+	logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
+	// We only attempt to close the response body if there was an error and resp is not nil.
+	// In the successful case (when err is nil), the resp will actually be nil for WebSocket connections,
+	// so we don't need to close anything.
+	if resp != nil {
+		// Log only serializable fields from the response to avoid JSON marshaling errors
+		logger.Log(
+			logger.LevelError,
+			map[string]string{
+				"status":     resp.Status,
+				"statusCode": fmt.Sprintf("%d", resp.StatusCode),
+			},
+			nil,
+			"WebSocket response",
+		)
+
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode == http.StatusGone {
+			return nil, fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, err)
+		}
+	}
+
+	return nil, fmt.Errorf("dialing WebSocket: %w", err)
 }
 
 // calculateBackoffInterval returns the delay before the next reconnect attempt: the base
@@ -625,6 +736,14 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 	ticker := time.NewTicker(m.heartbeatInterval)
 	defer ticker.Stop()
 
+	m.monitorConnectionTicks(conn, ticker.C, ticker)
+}
+
+func (m *Multiplexer) monitorConnectionWithHeartbeat(conn *Connection, heartbeat <-chan time.Time) {
+	m.monitorConnectionTicks(conn, heartbeat, nil)
+}
+
+func (m *Multiplexer) monitorConnectionTicks(conn *Connection, heartbeat <-chan time.Time, ticker *time.Ticker) {
 	consecutiveFailures := 0
 
 	for {
@@ -633,7 +752,10 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 			conn.updateStatus(StateClosed, nil)
 
 			return
-		case <-ticker.C:
+		case <-heartbeat:
+			if conn.IsClosed() {
+				return
+			}
 			// A reconnected connection runs its own monitor.
 			if newConn, stop := m.handleHeartbeatTick(conn, &consecutiveFailures, ticker); stop || newConn != nil {
 				return
@@ -660,6 +782,17 @@ func resumeWatchQuery(query, resourceVersion string) string {
 	return values.Encode()
 }
 
+func isWatchQuery(query string) bool {
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		return false
+	}
+
+	watch, err := strconv.ParseBool(values.Get("watch"))
+
+	return err == nil && watch
+}
+
 // handleHeartbeatTick processes a single heartbeat tick and reconnects if disconnected.
 // Returns the newly reconnected Connection (if any) and a boolean indicating if the monitorConnection loop should stop.
 func (m *Multiplexer) handleHeartbeatTick(
@@ -670,75 +803,98 @@ func (m *Multiplexer) handleHeartbeatTick(
 	conn.mu.RLock()
 	closed := conn.closed || conn.Status.State == StateClosed
 	isConnected := !closed && conn.Status.State == StateConnected && conn.WSConn != nil
+	reconnecting := conn.reconnecting
 	conn.mu.RUnlock()
 
 	if closed {
 		return nil, true
 	}
 
-	if isConnected {
-		conn.clusterWriteMu.Lock()
-		err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
-		conn.clusterWriteMu.Unlock()
+	if reconnecting {
+		return nil, false
+	}
 
-		if err != nil {
-			conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
-		} else {
+	if isConnected {
+		err := conn.WSConn.WriteControl(websocket.PingMessage, nil, time.Now().Add(m.heartbeatInterval))
+		if err == nil {
+			return nil, false
+		}
+
+		if errors.Is(err, websocket.ErrCloseSent) {
+			// The close handler has replied, but the reader still classifies the
+			// close. Its result decides watch resumption versus finite completion.
 			return nil, false
 		}
 	}
 
-	newConn, err := m.reconnect(conn)
+	if !isWatchQuery(conn.Query) {
+		// Redialing an exec/log transport can repeat the operation before any
+		// payload is sent. Only an explicit REQUEST may reopen finite streams.
+		m.finishClusterReader(conn)
+		return nil, true
+	}
+
+	newConn, err := m.reconnect(conn, conn.Query, errors.New("upstream heartbeat or watch failed"))
 	if errors.Is(err, errWatchExpired) {
 		m.endExpiredWatch(conn)
 
 		return nil, true
 	}
 
-	if err != nil && conn.IsClosed() {
+	if errors.Is(err, errReconnectInProgress) {
+		return nil, false
+	}
+
+	if errors.Is(err, errSubscriptionInactive) ||
+		(err != nil && conn.IsClosed()) {
 		// The connection was closed or replaced while reconnecting.
 		return nil, true
 	}
 
 	if err != nil {
-		*consecutiveFailures++
-		delay := calculateBackoffInterval(*consecutiveFailures, m.heartbeatInterval, MaxReconnectBackoff)
-		ticker.Reset(delay)
-
-		logger.Log(logger.LevelError, map[string]string{
-			logFieldClusterID: conn.ClusterID,
-			"failures":        fmt.Sprintf("%d", *consecutiveFailures),
-			"nextRetryIn":     delay.String(),
-		}, err, "reconnecting to cluster")
+		m.backoffReconnect(conn, consecutiveFailures, ticker, err)
 
 		return nil, false
-	}
-
-	newConn.mu.RLock()
-	clientConn := newConn.Client
-	newConn.mu.RUnlock()
-
-	if clientConn != nil {
-		go m.handleClusterMessages(newConn, clientConn)
 	}
 
 	return newConn, false
 }
 
-// reconnect attempts to reestablish a connection.
-func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
-	if conn.IsClosed() {
-		return nil, fmt.Errorf("cannot reconnect closed connection")
+func (m *Multiplexer) backoffReconnect(conn *Connection, failures *int, ticker *time.Ticker, err error) {
+	*failures++
+
+	delay := calculateBackoffInterval(*failures, m.heartbeatInterval, MaxReconnectBackoff)
+	if ticker != nil {
+		ticker.Reset(delay)
 	}
 
-	if conn.WSConn != nil {
-		_ = conn.WSConn.Close()
+	logger.Log(logger.LevelError, map[string]string{
+		logFieldClusterID: conn.ClusterID,
+		"failures":        fmt.Sprintf("%d", *failures),
+		"nextRetryIn":     delay.String(),
+	}, err, "reconnecting to cluster")
+}
+
+// reconnect replaces the upstream transport for a subscription. A heartbeat can
+// reserve a replacement only while the reader is still active.
+func (m *Multiplexer) reconnect(conn *Connection, query string, heartbeatErr error) (*Connection, error) {
+	return m.reconnectContext(context.Background(), conn, query, heartbeatErr)
+}
+
+func (m *Multiplexer) reconnectContext(
+	ctx context.Context, conn *Connection, query string, heartbeatErr error,
+) (*Connection, error) {
+	watch := isWatchQuery(conn.Query)
+	if heartbeatErr == nil && watch && query != conn.Query {
+		return nil, fmt.Errorf("a watch reopen must preserve its subscription query")
 	}
 
-	conn.mu.RLock()
-	client := conn.Client
-	token := conn.Token
-	conn.mu.RUnlock()
+	ctx, key, err := m.reserveReconnect(ctx, conn, heartbeatErr)
+	if err != nil {
+		return nil, err
+	}
+
+	defer m.releaseReconnect(conn)
 
 	// Take over the stream before reading the cursor: a message the old reader has already
 	// read but not forwarded is dropped here and replayed by the new watch.
@@ -747,80 +903,116 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	resourceVersion := conn.resourceVersion
 	conn.forwardMu.Unlock()
 
-	// The reader may have ended the watch while this waited for forwardMu.
-	if conn.IsClosed() {
-		return nil, fmt.Errorf("cannot reconnect closed connection")
+	if heartbeatErr != nil {
+		conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", heartbeatErr))
 	}
 
-	newConn, err := m.dialClusterConnection(
-		conn.ClusterID,
-		conn.UserID,
-		conn.Path,
-		resumeWatchQuery(conn.Query, resourceVersion),
-		client,
-		token,
+	if watch {
+		query = resumeWatchQuery(query, resourceVersion)
+	}
+
+	conn.mu.RLock()
+	token := conn.Token
+	conn.mu.RUnlock()
+
+	newConn, err := m.establishClusterConnectionContext(
+		ctx, conn.ClusterID, conn.UserID, conn.Path, query, key.client, token,
 	)
 	if err != nil {
-		if !m.replaceRegistered(conn, nil) {
-			// conn was closed or another subscription owns its key now; stop retrying for it.
-			conn.safeClose()
+		m.mutex.RLock()
+		active := m.connections[key] == conn
+		m.mutex.RUnlock()
 
-			// %v, not %w: an expired watch on an obsolete conn must not send an expiry event.
-			return nil, fmt.Errorf("reconnect aborted: connection was closed or replaced during reconnect: %v", err)
+		if ctx.Err() != nil || !active {
+			conn.detachAndClose()
+
+			return nil, fmt.Errorf("subscription changed while connecting: %w", errSubscriptionInactive)
 		}
 
 		return nil, err
 	}
 
 	// Keep the query the client subscribed with, so its messages still route to it.
-	newConn.Query = conn.Query
-	newConn.resourceVersion = resourceVersion
-
-	if !m.replaceRegistered(conn, newConn) {
-		newConn.safeClose()
-		// conn was closed or replaced by another subscription for its key; close it too,
-		// so a replaced connection stops reconnecting.
-		conn.safeClose()
-
-		return nil, fmt.Errorf("reconnect aborted: connection was closed or replaced during reconnect")
+	if watch {
+		newConn.Query = conn.Query
+		newConn.resourceVersion = resourceVersion
 	}
 
-	go m.monitorConnection(newConn)
+	if err := m.startConnectionContext(ctx, key, newConn, conn); err != nil {
+		conn.detachAndClose()
+
+		return nil, err
+	}
 
 	return newConn, nil
 }
 
-// replaceRegistered reports whether conn is still open and registered for its key, and if so
-// registers newConn in its place when newConn is not nil.
-func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
+// reserveReconnect atomically excludes payload writes and claims an owned
+// subscription, without waiting for any client writer under the global lock.
+func (m *Multiplexer) reserveReconnect(
+	ctx context.Context, conn *Connection, heartbeatErr error,
+) (context.Context, connectionKey, error) {
+	conn.upstreamMu.Lock()
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	conn.mu.Lock()
+	clientConn := conn.Client
+	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, clientConn, conn.Query)
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	if m.connections[connKey] != conn || conn.IsClosed() {
-		return false
+	var claimErr error
+
+	switch {
+	case ctx.Err() != nil || clientConn == nil || m.connections[key] != conn || (heartbeatErr != nil && conn.closed):
+		claimErr = errSubscriptionInactive
+	case conn.reconnecting:
+		claimErr = errReconnectInProgress
+	default:
+		m.forgetCompletedConnectionLocked(key)
+
+		conn.reconnecting = true
+		ctx, conn.dialCancel = context.WithCancel(ctx)
 	}
 
-	if newConn != nil {
-		m.connections[connKey] = newConn
+	conn.mu.Unlock()
+	m.mutex.Unlock()
+	conn.upstreamMu.Unlock()
+
+	if claimErr != nil {
+		return nil, key, claimErr
 	}
 
-	return true
+	return ctx, key, nil
+}
+
+func (m *Multiplexer) releaseReconnect(conn *Connection) {
+	conn.releaseReconnect()
+	m.retainCompletedConnection(conn)
+}
+
+func (conn *Connection) releaseReconnect() {
+	conn.mu.Lock()
+	conn.dialCancel()
+	conn.dialCancel = nil
+	conn.reconnecting = false
+	conn.mu.Unlock()
 }
 
 // HandleClientWebSocket handles incoming WebSocket connections from clients.
 func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Request) {
-	clientConn, err := m.upgrader.Upgrade(w, r, nil)
+	clientConn, err := m.upgradeClient(w, r)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "upgrading connection")
 		return
 	}
 
 	lockClientConn := NewWSConnLock(clientConn)
+	work := m.newClientWork(r, lockClientConn)
 
 	defer func() {
+		work.cancel()
+
 		_ = lockClientConn.Close()
 		m.closeClientConnections(lockClientConn)
+		<-work.done
 	}()
 
 	for {
@@ -838,18 +1030,214 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 
-		// Validate required routing fields upfront
+		var validationErr error
+
 		if msg.ClusterID == "" || msg.Path == "" || msg.UserID == "" || msg.Type == "" {
-			errStr := fmt.Errorf(
+			validationErr = fmt.Errorf(
 				"missing required routing fields: clusterId='%s', path='%s', userId='%s', type='%s'",
 				msg.ClusterID, msg.Path, msg.UserID, msg.Type,
 			)
-			logger.Log(logger.LevelError, nil, errStr, "invalid client message")
+			logger.Log(logger.LevelError, nil, validationErr, "invalid client message")
+
+			if msg.Type != multiplexerRequestType || msg.RequestID == "" {
+				continue
+			}
+		}
+
+		key := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, lockClientConn, msg.Query)
+		if msg.Type == "CLOSE" {
+			work.closeSubscription(key)
 
 			continue
 		}
 
-		m.processClientMessage(r, lockClientConn, msg)
+		if !work.enqueue(&clientRequest{key: key, msg: msg, err: validationErr}) {
+			// A bounded queue prevents a slow dial/write from accumulating work.
+			closeOverloadedMultiplexerClient(clientConn)
+
+			return
+		}
+	}
+}
+
+func (m *Multiplexer) upgradeClient(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+	upgrader := m.upgrader
+
+	for _, protocol := range websocket.Subprotocols(r) {
+		if protocol == MultiplexerWatchProtocol {
+			// This websocket version selects in client order, despite its
+			// documented server preference. Restrict a per-request copy.
+			upgrader.Subprotocols = []string{MultiplexerWatchProtocol}
+			break
+		}
+	}
+
+	return upgrader.Upgrade(w, r, nil)
+}
+
+func closeOverloadedMultiplexerClient(client *websocket.Conn) {
+	_ = client.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseTryAgainLater, "multiplexer request queue full"),
+		time.Now().Add(time.Second))
+}
+
+const (
+	clientRequestQueueSize = 32
+	multiplexerRequestType = "REQUEST"
+)
+
+type clientRequest struct {
+	key    connectionKey
+	msg    Message
+	status *Connection
+	ctx    context.Context
+	cancel context.CancelFunc
+	err    error
+}
+
+// One bounded worker per client keeps reads (especially CLOSE/disconnect)
+// responsive without automatically replaying requests queued during a dial.
+type clientWork struct {
+	m             *Multiplexer
+	ctx           context.Context
+	cancel        context.CancelFunc
+	queue         chan *clientRequest
+	notifications chan *clientRequest
+	done          chan struct{}
+	mu            sync.Mutex
+	pending       map[*clientRequest]struct{}
+}
+
+func (m *Multiplexer) newClientWork(r *http.Request, client *WSConnLock) *clientWork {
+	ctx, cancel := context.WithCancel(r.Context())
+	work := &clientWork{
+		m:   m,
+		ctx: ctx, cancel: cancel,
+		queue:         make(chan *clientRequest, clientRequestQueueSize),
+		notifications: make(chan *clientRequest, clientRequestQueueSize),
+		done:          make(chan struct{}),
+		pending:       make(map[*clientRequest]struct{}),
+	}
+
+	go func() {
+		defer close(work.done)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case notification := <-work.notifications:
+				m.mutex.RLock()
+				reopened := m.connections[notification.key] != nil
+				m.mutex.RUnlock()
+
+				if !reopened {
+					_ = notification.status.writeStatusContext(ctx)
+				}
+			case request := <-work.queue:
+				if request.ctx.Err() == nil {
+					switch {
+					case request.err != nil:
+						m.handleConnectionErrorContext(request.ctx, client, request.msg, request.err)
+					default:
+						m.processClientMessage(r.WithContext(request.ctx), client, request.msg)
+					}
+				}
+
+				if request.msg.Type == multiplexerRequestType && request.msg.RequestID != "" && ctx.Err() == nil {
+					_ = client.WriteJSON(Message{
+						ClusterID: request.msg.ClusterID, Path: request.msg.Path, Query: request.msg.Query,
+						UserID: request.msg.UserID, RequestID: request.msg.RequestID, Type: "ACK",
+					})
+				}
+
+				work.mu.Lock()
+				delete(work.pending, request)
+				request.cancel()
+				work.mu.Unlock()
+			}
+		}
+	}()
+
+	return work
+}
+
+func (work *clientWork) enqueue(request *clientRequest) bool {
+	if request.status != nil {
+		select {
+		case work.notifications <- request:
+			return true
+		default:
+			return false
+		}
+	}
+
+	work.mu.Lock()
+	defer work.mu.Unlock()
+
+	request.ctx, request.cancel = context.WithCancel(work.ctx)
+	if request.err == nil && request.msg.Type == multiplexerRequestType {
+		needsDial, reconnecting := work.connectionState(request.key)
+		if reconnecting {
+			request.err = errReconnectInProgress
+		} else if needsDial {
+			for pending := range work.pending {
+				if pending.key == request.key && pending.msg.Type == multiplexerRequestType &&
+					pending.err == nil && pending.ctx.Err() == nil {
+					request.err = errReconnectInProgress
+					break
+				}
+			}
+		}
+	}
+
+	select {
+	case work.queue <- request:
+		work.pending[request] = struct{}{}
+
+		return true
+	default:
+		request.cancel()
+
+		return false
+	}
+}
+
+func (work *clientWork) connectionState(key connectionKey) (needsDial, reconnecting bool) {
+	work.m.mutex.RLock()
+	conn := work.m.connections[key]
+	work.m.mutex.RUnlock()
+
+	if conn == nil {
+		return true, false
+	}
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	return conn.closed || conn.reconnecting || conn.Status.State != StateConnected, conn.reconnecting
+}
+
+func (work *clientWork) cancelKey(key connectionKey) {
+	work.mu.Lock()
+	defer work.mu.Unlock()
+
+	for pending := range work.pending {
+		if pending.key == key {
+			pending.cancel()
+		}
+	}
+}
+
+func (work *clientWork) closeSubscription(key connectionKey) {
+	work.cancelKey(key)
+	conn := work.m.removeConnection(key)
+
+	// Invalidate and close immediately; only the notification waits for work.
+	if conn != nil && conn.closeTransport() {
+		// Notifications are best effort; lifecycle cancellation must never
+		// disconnect other subscriptions because the worker queue is full.
+		_ = work.enqueue(&clientRequest{key: key, status: conn})
 	}
 }
 
@@ -861,13 +1249,14 @@ func (m *Multiplexer) processClientMessage(
 ) {
 	// Check if it's a close message
 	if msg.Type == "CLOSE" {
-		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
+		m.closeConnection(m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, lockClientConn, msg.Query))
 
 		return
 	}
 
-	if msg.Type != "REQUEST" {
-		m.sendClientError(
+	if msg.Type != multiplexerRequestType {
+		m.sendClientErrorContext(
+			r.Context(),
 			lockClientConn,
 			msg.ClusterID,
 			msg.Path,
@@ -882,7 +1271,7 @@ func (m *Multiplexer) processClientMessage(
 	token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: msg.ClusterID}, err, "getting token from cookie")
-		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+		m.sendClientErrorContext(r.Context(), lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 
 		return
 	}
@@ -892,15 +1281,19 @@ func (m *Multiplexer) processClientMessage(
 		tokenPtr = &token
 	}
 
-	conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr)
+	conn, err := m.getOrCreateConnectionContext(r.Context(), msg, lockClientConn, tokenPtr)
 	if err != nil {
-		m.handleConnectionError(lockClientConn, msg, err)
+		if r.Context().Err() == nil && !errors.Is(err, errSubscriptionInactive) {
+			m.handleConnectionErrorContext(r.Context(), lockClientConn, msg, err)
+		}
 
 		return
 	}
 
-	if msg.Type == "REQUEST" && conn.Status.State == StateConnected {
-		_ = m.writeMessageToCluster(conn, []byte(msg.Data))
+	if err := m.writeMessageToClusterContext(r.Context(), conn, []byte(msg.Data)); err != nil {
+		if r.Context().Err() == nil {
+			m.handleConnectionErrorContext(r.Context(), lockClientConn, msg, err)
+		}
 	}
 }
 
@@ -910,20 +1303,22 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 
 	m.mutex.Lock()
 	for key, conn := range m.connections {
-		conn.mu.RLock()
-		isClient := conn.Client == clientConn
-		conn.mu.RUnlock()
-
-		if isClient {
+		if key.client == clientConn {
 			connsToClose = append(connsToClose, conn)
 
 			delete(m.connections, key)
 		}
 	}
+
+	delete(m.completed, clientConn)
 	m.mutex.Unlock()
 
 	for _, conn := range connsToClose {
 		conn.mu.Lock()
+		if conn.dialCancel != nil {
+			conn.dialCancel()
+		}
+
 		if conn.Client == clientConn {
 			conn.Client = nil
 			conn.Status.State = StateClosed
@@ -961,38 +1356,84 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 }
 
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
-// If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
+// Reusing a socket requires the same credentials as its upstream handshake.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
+	return m.getOrCreateConnectionContext(context.Background(), msg, clientConn, token)
+}
+
+func (m *Multiplexer) validateConnectionRequest(msg Message, token *string) error {
 	if token == nil || strings.TrimSpace(*token) == "" {
 		clusterContext, err := m.kubeConfigStore.GetContext(msg.ClusterID)
 		if err == nil && clusterContext.RequiresUserAuthentication() {
-			return nil, errUserAuthRequired
+			return errUserAuthRequired
 		}
 	}
 
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+	if msg.Reopen && !isWatchQuery(msg.Query) {
+		return fmt.Errorf("reopen is only supported for watches")
+	}
 
-	m.mutex.RLock()
-	conn, exists := m.connections[connKey]
-	m.mutex.RUnlock()
+	return nil
+}
 
-	if !exists {
-		var err error
+func (m *Multiplexer) getOrCreateConnectionContext(
+	ctx context.Context, msg Message, clientConn *WSConnLock, token *string,
+) (*Connection, error) {
+	if err := m.validateConnectionRequest(msg, token); err != nil {
+		return nil, err
+	}
 
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
-		if err != nil {
-			logger.Log(
-				logger.LevelError,
-				map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
-				err,
-				"establishing cluster connection",
-			)
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, clientConn, msg.Query)
 
+	m.mutex.Lock()
+	if ctx.Err() != nil {
+		m.mutex.Unlock()
+
+		return nil, errSubscriptionInactive
+	}
+
+	conn := m.connections[connKey]
+	if conn != nil {
+		m.mutex.Unlock()
+
+		if err := m.refreshConnectionToken(conn, token); err != nil {
 			return nil, err
 		}
 
-		go m.handleClusterMessages(conn, clientConn)
-	} else if err := m.refreshConnectionToken(conn, token); err != nil {
+		if msg.Reopen && !isWatchQuery(conn.Query) {
+			return nil, fmt.Errorf("reopen cannot replace a non-watch subscription")
+		}
+
+		if conn.IsClosed() || msg.Reopen {
+			return m.reconnectContext(ctx, conn, msg.Query, nil)
+		}
+
+		return conn, nil
+	}
+
+	// Reserve initial dials too: CLOSE must invalidate an absent subscription
+	// before an asynchronous handshake can install it.
+	previous := m.createConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+	ctx, previous.dialCancel = context.WithCancel(ctx)
+	previous.reconnecting = true
+	m.connections[connKey] = previous
+	m.mutex.Unlock()
+
+	defer previous.releaseReconnect()
+
+	conn, err := m.establishClusterConnectionContext(
+		ctx, msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+	if err != nil {
+		m.mutex.Lock()
+		if m.connections[connKey] == previous {
+			delete(m.connections, connKey)
+		}
+		m.mutex.Unlock()
+
+		return nil, err
+	}
+
+	if err := m.startConnectionContext(ctx, connKey, conn, previous); err != nil {
 		return nil, err
 	}
 
@@ -1000,30 +1441,61 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {
-	if requestToken == nil {
-		return nil
-	}
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
 
 	if conn.usesServiceAccountToken {
 		return nil
 	}
 
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
+	var current, requested string
+	if conn.Token != nil {
+		current = *conn.Token
+	}
 
-	if conn.Token == nil || *conn.Token != *requestToken {
-		conn.Token = requestToken
+	if requestToken != nil {
+		requested = *requestToken
+	}
+
+	if current != requested {
+		return fmt.Errorf("connection credentials changed; open a new subscription")
 	}
 
 	return nil
 }
 
 // sendClientError sends an error message to the client WebSocket connection.
-func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, query, userID string, err error) {
+func (m *Multiplexer) sendClientErrorContext(
+	ctx context.Context, clientConn *WSConnLock, clusterID, path, query, userID string, err error,
+) {
+	clientConn.writeMu.Lock()
+	defer clientConn.writeMu.Unlock()
+
+	if ctx.Err() != nil {
+		return
+	}
+
 	errorData := struct {
-		Error string `json:"error"`
+		Error      string `json:"error"`
+		Code       string `json:"code,omitempty"`
+		RetryReady bool   `json:"retryReady,omitempty"`
 	}{
 		Error: err.Error(),
+	}
+	if errors.Is(err, errReconnectInProgress) {
+		errorData.Code = "subscription_reconnecting"
+		// Snapshot readiness under the client writer so it agrees with STATUS
+		// ordering, including requests rejected while a worker was dialing.
+		m.mutex.RLock()
+		conn := m.connections[m.createConnectionKey(clusterID, path, userID, clientConn, query)]
+		m.mutex.RUnlock()
+
+		errorData.RetryReady = conn == nil
+		if conn != nil {
+			conn.mu.RLock()
+			errorData.RetryReady = !conn.reconnecting && (conn.closed || conn.Status.State == StateConnected)
+			conn.mu.RUnlock()
+		}
 	}
 
 	jsonData, jsonErr := json.Marshal(errorData)
@@ -1041,7 +1513,7 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 		Type:      "ERROR",
 	}
 
-	if err := clientConn.WriteJSON(errorMsg); err != nil {
+	if err := clientConn.conn.WriteJSON(errorMsg); err != nil {
 		logger.Log(
 			logger.LevelError,
 			map[string]string{logFieldClusterID: clusterID},
@@ -1053,6 +1525,12 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 
 // handleConnectionError handles errors that occur when establishing a connection.
 func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message, err error) {
+	m.handleConnectionErrorContext(context.Background(), clientConn, msg, err)
+}
+
+func (m *Multiplexer) handleConnectionErrorContext(
+	ctx context.Context, clientConn *WSConnLock, msg Message, err error,
+) {
 	if errors.Is(err, errWatchExpired) {
 		// Report it as the watch event the client relists on, as for a reconnect.
 		expiredMsg := Message{
@@ -1063,7 +1541,15 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 			Data:      watchExpiredEvent,
 			Type:      "DATA",
 		}
-		if writeErr := clientConn.WriteJSON(expiredMsg); writeErr != nil {
+
+		clientConn.writeMu.Lock()
+		defer clientConn.writeMu.Unlock()
+
+		if ctx.Err() != nil {
+			return
+		}
+
+		if writeErr := clientConn.conn.WriteJSON(expiredMsg); writeErr != nil {
 			logger.Log(logger.LevelInfo, map[string]string{logFieldClusterID: msg.ClusterID}, writeErr,
 				"sending watch expiry to client")
 		}
@@ -1071,7 +1557,12 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 		return
 	}
 
-	m.sendClientError(clientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+	m.sendClientErrorContext(ctx, clientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+
+	if ctx.Err() != nil {
+		return
+	}
+
 	logger.Log(logger.LevelError,
 		map[string]string{logFieldClusterID: msg.ClusterID}, err,
 		"establishing cluster connection")
@@ -1079,9 +1570,36 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 
 // writeMessageToCluster writes a message to the cluster WebSocket connection.
 func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error {
-	conn.clusterWriteMu.Lock()
-	err := conn.WSConn.WriteMessage(websocket.BinaryMessage, data)
-	conn.clusterWriteMu.Unlock()
+	return m.writeMessageToClusterContext(context.Background(), conn, data)
+}
+
+func (m *Multiplexer) writeMessageToClusterContext(ctx context.Context, conn *Connection, data []byte) error {
+	conn.upstreamMu.Lock()
+	conn.mu.RLock()
+
+	var err error
+
+	switch {
+	case ctx.Err() != nil:
+		err = errSubscriptionInactive
+	case conn.reconnecting:
+		err = errReconnectInProgress
+	case !conn.closed && isWatchQuery(conn.Query) && conn.Status.State == StateError:
+		err = errReconnectInProgress
+	case conn.closed || conn.WSConn == nil || conn.Status.State != StateConnected:
+		err = fmt.Errorf("subscription is not connected; retry after reconnection or reopen the subscription")
+	}
+
+	conn.mu.RUnlock()
+
+	if err != nil {
+		conn.upstreamMu.Unlock()
+
+		return err
+	}
+
+	err = conn.WSConn.WriteMessage(websocket.BinaryMessage, data)
+	conn.upstreamMu.Unlock()
 
 	if err != nil {
 		conn.updateStatus(StateError, err)
@@ -1098,8 +1616,90 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 	return nil
 }
 
+const maxCompletedSubscriptionsPerClient = 64
+
+// finishClusterReader bounds retained completed subscriptions before status I/O.
+// Reserved replacements remain owned even if their retiring reader exits.
+func (m *Multiplexer) finishClusterReader(conn *Connection) {
+	notify := conn.closeTransport()
+	m.retainCompletedConnection(conn)
+
+	if notify {
+		_ = conn.writeStatus()
+	}
+}
+
+func (m *Multiplexer) retainCompletedConnection(conn *Connection) {
+	conn.mu.RLock()
+	completed := conn.closed && !conn.reconnecting && conn.Client != nil
+	conn.mu.RUnlock()
+
+	if !completed {
+		return
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	conn.mu.RLock()
+
+	client := conn.Client
+
+	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, client, conn.Query)
+	if client == nil || !conn.closed || conn.reconnecting || m.connections[key] != conn {
+		conn.mu.RUnlock()
+
+		return
+	}
+
+	entry := completedSubscription{conn, conn.Status.LastMsg}
+	conn.mu.RUnlock()
+
+	entries := m.completed[client]
+	if entries == nil {
+		entries = make(map[connectionKey]completedSubscription)
+		m.completed[client] = entries
+	}
+
+	entries[key] = entry
+	if len(entries) <= maxCompletedSubscriptionsPerClient {
+		return
+	}
+
+	oldestKey, oldest := key, entries[key]
+	for candidateKey, candidate := range entries {
+		if candidate.closedAt.Before(oldest.closedAt) {
+			oldestKey, oldest = candidateKey, candidate
+		}
+	}
+
+	delete(m.connections, oldestKey)
+	delete(entries, oldestKey)
+	oldest.conn.mu.Lock()
+	oldest.conn.Client = nil
+	oldest.conn.mu.Unlock()
+}
+
+// Caller holds m.mutex.
+func (m *Multiplexer) forgetCompletedConnectionLocked(key connectionKey) {
+	entries := m.completed[key.client]
+	delete(entries, key)
+
+	if len(entries) == 0 {
+		delete(m.completed, key.client)
+	}
+}
+
 // handleClusterMessages handles messages from a cluster connection.
 func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
+	// Keep the subscription available for an in-flight replacement or a new request.
+	closeOnExit := true
+	defer func() {
+		if closeOnExit {
+			m.finishClusterReader(conn)
+		}
+	}()
+
 	var lastResourceVersion string
 
 	for {
@@ -1108,6 +1708,15 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 			return
 		default:
 			if err := m.processClusterMessage(conn, clientConn, &lastResourceVersion); err != nil {
+				if errors.Is(err, errConnectionSuperseded) && isWatchQuery(conn.Query) {
+					// The transport is retired, not the owned subscription: a failed
+					// replacement must leave the monitor eligible for its next retry.
+					closeOnExit = false
+					_ = conn.WSConn.Close()
+
+					return
+				}
+
 				if errors.Is(err, errConnectionSuperseded) || errors.Is(err, errWatchExpired) {
 					return
 				}
@@ -1118,13 +1727,18 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 						logFieldClusterID: conn.ClusterID,
 						"userID":          conn.UserID,
 					}, err, "writing to client connection failed; stopping client pump")
-					m.removeConnection(conn)
+					m.removeRegisteredConnection(conn)
 
 					return
 				}
 
-				// Let monitorConnection handle reconnect/backoff on all read errors, including close frames.
-				conn.updateStatus(StateError, err)
+				if isWatchQuery(conn.Query) {
+					// Watch close frames, including routine timeout code 1000, resume
+					// from the last forwarded cursor. Finite streams remain terminal.
+					closeOnExit = false
+
+					conn.updateStatus(StateError, err)
+				}
 
 				return
 			}
@@ -1171,7 +1785,7 @@ func (m *Multiplexer) processClusterMessage(
 		// The client received the expiry event and lists again; a watch resumed from here
 		// would miss what changed meanwhile, such as deletions. Removing conn before releasing
 		// forwardMu keeps a concurrent reconnect from replacing it.
-		m.removeConnection(conn)
+		m.removeRegisteredConnection(conn)
 
 		return errWatchExpired
 	}
@@ -1198,7 +1812,7 @@ func (m *Multiplexer) endExpiredWatch(conn *Connection) {
 		}
 	}
 
-	m.removeConnection(conn)
+	m.removeRegisteredConnection(conn)
 }
 
 // sendIfNewResourceVersion checks the version of a resource from an incoming message
@@ -1347,13 +1961,20 @@ func (m *Multiplexer) sendDataMessage(
 
 // removeConnection closes conn and removes it from the registry. A replacement client may
 // have registered the same key since, so the entry is only removed if it still is conn.
-func (m *Multiplexer) removeConnection(conn *Connection) {
+func (m *Multiplexer) removeRegisteredConnection(conn *Connection) {
 	m.mutex.Lock()
+	conn.mu.Lock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Client, conn.Query)
 	if m.connections[connKey] == conn {
 		delete(m.connections, connKey)
+		m.forgetCompletedConnectionLocked(connKey)
 	}
+
+	if conn.dialCancel != nil {
+		conn.dialCancel()
+	}
+	conn.mu.Unlock()
 	m.mutex.Unlock()
 
 	conn.safeClose()
@@ -1382,11 +2003,30 @@ func (m *Multiplexer) createWrapperMessage(conn *Connection, messageType int, me
 // cleanupConnections closes and removes all connections.
 func (m *Multiplexer) cleanupConnections() {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	connections := make([]*Connection, 0, len(m.connections))
 
 	for key, conn := range m.connections {
-		conn.updateStatus(StateClosed, nil)
+		connections = append(connections, conn)
 		delete(m.connections, key)
+		conn.mu.Lock()
+		if conn.dialCancel != nil {
+			conn.dialCancel()
+		}
+		conn.mu.Unlock()
+	}
+
+	clear(m.completed)
+	m.mutex.Unlock()
+
+	notifications := make([]*Connection, 0, len(connections))
+	for _, conn := range connections {
+		if conn.closeTransport() {
+			notifications = append(notifications, conn)
+		}
+	}
+
+	for _, conn := range notifications {
+		_ = conn.writeStatus()
 	}
 }
 
@@ -1400,30 +2040,42 @@ func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, 
 	return ctxtProxy, nil
 }
 
-// CloseConnection closes a specific connection based on its identifier.
-func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
-	connKey := m.createConnectionKey(clusterID, path, userID)
+// closeConnection closes the upstream connection for a single subscription.
+func (m *Multiplexer) closeConnection(connKey connectionKey) {
+	if conn := m.removeConnection(connKey); conn != nil {
+		conn.safeClose()
+	}
+}
 
+func (m *Multiplexer) removeConnection(connKey connectionKey) *Connection {
 	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	conn, exists := m.connections[connKey]
 	if !exists {
-		m.mutex.Unlock()
-		return
+		return nil
 	}
 
 	delete(m.connections, connKey)
-	m.mutex.Unlock()
+	m.forgetCompletedConnectionLocked(connKey)
+	conn.mu.Lock()
+	if conn.dialCancel != nil {
+		conn.dialCancel()
+	}
+	conn.mu.Unlock()
 
-	conn.updateStatus(StateClosed, nil)
-	conn.safeClose()
+	return conn
 }
 
-// createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
-// Uses string concatenation instead of fmt.Sprintf to avoid allocation overhead
-// on this hot path (called on every WebSocket message routing).
-func (m *Multiplexer) createConnectionKey(clusterID, path, userID string) string {
-	return clusterID + ":" + path + ":" + userID
+func (m *Multiplexer) createConnectionKey(
+	clusterID, path, userID string, client *WSConnLock, query ...string,
+) connectionKey {
+	key := connectionKey{client: client, clusterID: clusterID, path: path, userID: userID}
+	if len(query) != 0 && isWatchQuery(query[0]) {
+		key.query = query[0]
+	}
+
+	return key
 }
 
 // createWebSocketURL creates a WebSocket URL from the given parameters.
