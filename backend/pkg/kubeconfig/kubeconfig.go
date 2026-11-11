@@ -114,6 +114,8 @@ const (
 	InCluster
 	ClusterInventory
 	DiscoveredCluster
+	// TokenProtectedDynamicCluster is a dynamic context accepted through the local backend-token boundary.
+	TokenProtectedDynamicCluster
 )
 
 // DiscoveryOrigin identifies a generated connection without imposing source-specific types.
@@ -777,7 +779,7 @@ func (c *Context) SourceStr() string {
 	switch c.Source {
 	case KubeConfig:
 		return "kubeconfig"
-	case DynamicCluster:
+	case DynamicCluster, TokenProtectedDynamicCluster:
 		return "dynamic_cluster"
 	case InCluster:
 		return "incluster"
@@ -1027,7 +1029,7 @@ func GetContextsFromKubeconfig(kubeconfig map[string]interface{}) ([]interface{}
 // rawContext can be a single context or a list of contexts.
 // kubeconfig is the kubeconfig data.
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
-// It can be KubeConfig, DynamicCluster, or InCluster.
+// It can be KubeConfig, DynamicCluster, TokenProtectedDynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
 // Relative certificate and key paths are left unresolved because no filesystem
 // origin is available through this entry point.
@@ -1445,7 +1447,7 @@ func createKubeConfig(
 // contextName is the name of the context.
 // clientConfig is the client config.
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
-// It can be KubeConfig, DynamicCluster, or InCluster.
+// It can be KubeConfig, DynamicCluster, TokenProtectedDynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
 func convertToContext(contextName string, clientConfig *api.Config, source int, skipProxySetup bool) (Context, error) {
 	context, exists := clientConfig.Contexts[contextName]

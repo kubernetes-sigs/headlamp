@@ -30,12 +30,17 @@ const (
 	backendTokenProtocolPrefix = "base64url.headlamp.backend.authorization.k8s.io." // #nosec G101
 )
 
+// IsBackendTokenRequired reports whether requests must cross the local backend-token boundary.
+func IsBackendTokenRequired(useInCluster bool) bool {
+	return !useInCluster && os.Getenv("HEADLAMP_BACKEND_TOKEN") != ""
+}
+
 // CheckBackendToken verifies that a request carries the token configured by the desktop app.
 func CheckBackendToken(useInCluster bool, w http.ResponseWriter, r *http.Request) error {
 	backendTokenEnv := os.Getenv("HEADLAMP_BACKEND_TOKEN")
 	// An empty token leaves the optional desktop trust boundary disabled for
 	// standalone development and test servers; configuring a token opts in.
-	if useInCluster || backendTokenEnv == "" {
+	if !IsBackendTokenRequired(useInCluster) {
 		return nil
 	}
 
@@ -55,7 +60,7 @@ func CheckBackendToken(useInCluster bool, w http.ResponseWriter, r *http.Request
 func NewBackendTokenMiddleware(useInCluster bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if useInCluster || os.Getenv("HEADLAMP_BACKEND_TOKEN") == "" {
+			if !IsBackendTokenRequired(useInCluster) {
 				next.ServeHTTP(w, r)
 				return
 			}

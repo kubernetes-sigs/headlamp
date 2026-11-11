@@ -103,7 +103,7 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	targetClusterName := mux.Vars(r)["clusterName"]
 
-	contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, kubeconfig.DynamicCluster)
+	contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, c.dynamicClusterSource())
 	if len(contextLoadErrors) > 0 {
 		// Log all errors
 		for _, contextError := range contextLoadErrors {
@@ -190,7 +190,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	contexts, setupErrors := parseClusterFromKubeConfig(kubeconfigs)
+	contexts, setupErrors := parseClusterFromKubeConfig(kubeconfigs, c.dynamicClusterSource())
 	if len(setupErrors) > 0 && len(contexts) == 0 {
 		// Only fail the request when NO clusters could be parsed at all.
 		// Partial failures (some entries invalid, others valid) still return the valid clusters.
