@@ -546,6 +546,8 @@
       "StorageClass": [Function],
       "TCPRoute": [Function],
       "UDPRoute": [Function],
+      "ValidatingAdmissionPolicy": [Function],
+      "ValidatingAdmissionPolicyBinding": [Function],
       "VolumeAttributesClass": [Function],
       "Workload": [Function],
     },
@@ -706,6 +708,12 @@
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
     "useSelectedClusters": [Function],
+    "validatingAdmissionPolicy": {
+      "default": [Function],
+    },
+    "validatingAdmissionPolicyBinding": {
+      "default": [Function],
+    },
     "volumeAttributesClass": {
       "default": [Function],
     },
