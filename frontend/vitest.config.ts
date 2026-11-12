@@ -17,7 +17,21 @@
 /// <reference types="vitest" />
 import { defineConfig, mergeConfig } from 'vitest/config';
 import { coverageConfigDefaults } from 'vitest/config';
+import { BaseSequencer, type TestSpecification } from 'vitest/node';
 import viteConfig from './vite.config';
+
+/**
+ * Starts the storyshot shards first. A fresh CI run has no cached results,
+ * so by default Vitest orders files by size and would queue the small shard
+ * wrappers behind the other tests, leaving them as the tail of the run.
+ */
+class StoryshotsFirstSequencer extends BaseSequencer {
+  async sort(files: TestSpecification[]) {
+    const sorted = await super.sort(files);
+    const isShard = (f: TestSpecification) => /storybook\.\d+\.test\.tsx$/.test(f.moduleId);
+    return [...sorted.filter(isShard), ...sorted.filter(f => !isShard(f))];
+  }
+}
 
 export default mergeConfig(
   viteConfig,
@@ -50,6 +64,9 @@ export default mergeConfig(
           functions: 59,
           lines: 64,
         },
+      },
+      sequence: {
+        sequencer: StoryshotsFirstSequencer,
       },
       restoreMocks: false,
       setupFiles: ['./src/setupTests.ts'],
