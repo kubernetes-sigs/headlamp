@@ -7,6 +7,9 @@ on:
       - "frontend/**"
       - "e2e-tests/**"
       - "Makefile"
+      - "tools/build-dependencies.test.js"
+      - ".github/scripts/generate-release-issue-body.js"
+      - ".github/workflows/app-artifacts-mac.yml"
       - ".github/workflows/backend-embed-test.yml"
   push:
     branches:
@@ -18,6 +21,9 @@ on:
       - "frontend/**"
       - "e2e-tests/**"
       - "Makefile"
+      - "tools/build-dependencies.test.js"
+      - ".github/scripts/generate-release-issue-body.js"
+      - ".github/workflows/app-artifacts-mac.yml"
       - ".github/workflows/backend-embed-test.yml"
 
 permissions:
@@ -40,6 +46,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.*"
+
+      - name: Test build dependencies
+        run: node --test tools/build-dependencies.test.js
 
       - name: Install frontend dependencies
         run: |
