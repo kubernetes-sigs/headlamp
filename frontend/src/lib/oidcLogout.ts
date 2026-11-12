@@ -57,5 +57,10 @@ export async function redirectToOIDCLogout(cluster: string): Promise<void> {
     throw new Error('OIDC logout response did not include a redirect URL');
   }
 
-  window.location.href = new URL(result.redirectURL, getAppUrl()).href;
+  const targetUrl = new URL(result.redirectURL, getAppUrl());
+  if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
+    throw new Error(`Invalid redirect URL protocol: ${targetUrl.protocol}`);
+  }
+
+  window.location.href = targetUrl.href;
 }
