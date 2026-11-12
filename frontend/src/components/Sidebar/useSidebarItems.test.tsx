@@ -38,7 +38,8 @@ import { useSidebarItems } from './useSidebarItems';
 const DontDeleteMe = App;
 
 vi.mock('../../lib/k8s/api/v1/hooks', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../lib/k8s/api/v1/hooks')>();
+  type HooksModule = typeof import('../../lib/k8s/api/v1/hooks');
+  const actual = await importOriginal<HooksModule>();
   return { ...actual, useSelectedClusters: vi.fn(actual.useSelectedClusters) };
 });
 

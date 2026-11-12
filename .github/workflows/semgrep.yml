@@ -1,0 +1,107 @@
+name: Semgrep
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan Go and TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      SEMGREP_SEND_METRICS: 'off'
+      SEMGREP_ENABLE_VERSION_CHECK: '0'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Check out pinned public rules
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: semgrep/semgrep-rules
+          ref: a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2
+          path: .semgrep-rules
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep Community Edition
+        run: python -m pip install semgrep==1.185.0 PyYAML==6.0.3
+
+      - name: Select high-confidence security rules
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          import yaml
+
+          selected = []
+          root = Path(".semgrep-rules")
+          for language in ("go", "javascript", "typescript"):
+              for source in sorted((root / language).rglob("*.yaml")):
+                  document = yaml.safe_load(source.read_text())
+                  if not isinstance(document, dict):
+                      continue
+                  for rule in document.get("rules", []):
+                      metadata = rule.get("metadata", {})
+                      if metadata.get("category") != "security" or metadata.get("confidence") != "HIGH":
+                          continue
+                      prefix = source.relative_to(root).with_suffix("").as_posix().replace("/", ".")
+                      rule["id"] = prefix + "." + rule["id"]
+                      selected.append(rule)
+          if not selected:
+              raise SystemExit("No high-confidence security rules were selected")
+          Path("selected-rules.yml").write_text(yaml.safe_dump({"rules": selected}, sort_keys=False))
+          print(json.dumps({
+              "selected_rules": len(selected),
+              "languages": dict(Counter(language for rule in selected for language in rule["languages"])),
+          }))
+          PY
+
+      - name: Scan Go, JavaScript, and TypeScript
+        run: |
+          semgrep scan \
+            --strict \
+            --config selected-rules.yml \
+            --exclude .semgrep-rules \
+            --exclude selected-rules.yml \
+            --metrics off \
+            --disable-version-check \
+            --jobs 2 \
+            --timeout 5 \
+            --sarif \
+            --output semgrep.sarif \
+            .
+
+      - name: Summarize SARIF
+        run: |
+          jq -e '.runs | length > 0' semgrep.sarif
+          jq '{tools: [.runs[].tool.driver.name], rules: [.runs[].tool.driver.rules[]] | length, findings: [.runs[].results[]] | length}' semgrep.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@5895b2c9be147bc7f1c75ce72c5cb577febb1907 # v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-community
+          wait-for-processing: true

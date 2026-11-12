@@ -25,6 +25,13 @@ You can install the required frontend, app, and backend dependencies by running:
 npm run install:all
 ```
 
+## Code scanning
+
+The [Semgrep workflow](https://github.com/kubernetes-sigs/headlamp/blob/main/.github/workflows/semgrep.yml)
+checks Go, JavaScript, and TypeScript for potential security issues on pull
+requests and pushes to `main`, alongside existing CodeQL scans. Findings are
+available in GitHub code scanning for review.
+
 ## Build the code
 
 Headlamp is composed of a `backend` and a `frontend`.
