@@ -822,7 +822,7 @@
   "No rules data to be shown.": "دکھانے کے لیے قواعد کا کوئی ڈیٹا نہیں ہے",
   "Section Name": "سیکشن کا نام",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "تلاش کے لیے <1>{formatShortcutKey(searchShortcutKey)}</1> دبائیں",
+  "Press<1>{{shortcut}}</1>to search": "تلاش کے لیے <1>{{shortcut}}</1> دبائیں",
   "Search resources, pages, clusters by name": "نام کے ذریعے ریسورسز، صفحات اور کلسٹرز تلاش کریں",
   "Current Namespace": "موجودہ نیم اسپیس",
   "Set namespace: {{namespace}}": "نیم اسپیس سیٹ کریں: {{namespace}}",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

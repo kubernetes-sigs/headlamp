@@ -822,7 +822,7 @@
   "No rules data to be shown.": "কোনও Rules Data দেখানোর জন্য নেই।",
   "Section Name": "বিভাগের নাম",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "<1>{formatShortcutKey(searchShortcutKey)}</1> টিপুন অনুসন্ধান করতে",
+  "Press<1>{{shortcut}}</1>to search": "<1>{{shortcut}}</1> টিপুন অনুসন্ধান করতে",
   "Search resources, pages, clusters by name": "নাম অনুসারে Resources, Page, Cluster Search করুন",
   "Current Namespace": "বর্তমান নেমস্পেস",
   "Set namespace: {{namespace}}": "নেমস্পেস সেট করুন: {{namespace}}",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }
