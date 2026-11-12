@@ -97,15 +97,21 @@ vi.mock('../../../lib/k8s/api/v1/apply', () => ({
   apply: mockApply,
 }));
 
-vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../../redux/clusterActionSlice')>()),
-  clusterAction: mockClusterAction,
-}));
+vi.mock('../../../redux/clusterActionSlice', async importOriginal => {
+  type ClusterActionModule = typeof import('../../../redux/clusterActionSlice');
+  return {
+    ...(await importOriginal<ClusterActionModule>()),
+    clusterAction: mockClusterAction,
+  };
+});
 
-vi.mock('../../../redux/headlampEventSlice', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../../redux/headlampEventSlice')>()),
-  useEventCallback: () => mockDispatchCreateEvent,
-}));
+vi.mock('../../../redux/headlampEventSlice', async importOriginal => {
+  type HeadlampEventModule = typeof import('../../../redux/headlampEventSlice');
+  return {
+    ...(await importOriginal<HeadlampEventModule>()),
+    useEventCallback: () => mockDispatchCreateEvent,
+  };
+});
 
 vi.mock('@monaco-editor/react', () => {
   return {
