@@ -100,7 +100,7 @@ jobs:
           jq '{tools: [.runs[].tool.driver.name], rules: [.runs[].tool.driver.rules[]] | length, findings: [.runs[].results[]] | length}' semgrep.sarif
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@5895b2c9be147bc7f1c75ce72c5cb577febb1907 # v4
+        uses: github/codeql-action/upload-sarif@3ea37a44b6e4e6847c46edae209410d258d548d1 # v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep-community
