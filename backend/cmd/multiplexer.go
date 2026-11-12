@@ -48,10 +48,12 @@ const (
 	StateClosed ConnectionState = "closed"
 )
 
+// HeartbeatInterval is the interval at which the multiplexer sends heartbeat messages to the
+// client, and how often monitorConnection re-checks an impersonated connection's expiry. It is a
+// var, not a const, so tests can shorten it rather than waiting out a real-sized interval.
+var HeartbeatInterval = 30 * time.Second
+
 const (
-	// HeartbeatInterval is the interval at which the multiplexer pings cluster connections.
-	// It is also the first delay before retrying a failed reconnect.
-	HeartbeatInterval = 30 * time.Second
 	// MaxReconnectBackoff caps the delay between failed reconnect attempts.
 	MaxReconnectBackoff = 10 * time.Minute
 	// HandshakeTimeout is the timeout for the handshake with the client.
@@ -731,6 +733,22 @@ func resumeWatchQuery(query, resourceVersion string) string {
 	return values.Encode()
 }
 
+// pingSucceeds sends a heartbeat ping on conn's cluster WebSocket connection and reports whether
+// it succeeded, recording the failure on conn's status otherwise.
+func pingSucceeds(conn *Connection) bool {
+	conn.clusterWriteMu.Lock()
+	err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
+	conn.clusterWriteMu.Unlock()
+
+	if err != nil {
+		conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
+
+		return false
+	}
+
+	return true
+}
+
 // handleHeartbeatTick processes a single heartbeat tick and reconnects if disconnected.
 // Returns the newly reconnected Connection (if any) and a boolean indicating if the monitorConnection loop should stop.
 func (m *Multiplexer) handleHeartbeatTick(
@@ -747,16 +765,21 @@ func (m *Multiplexer) handleHeartbeatTick(
 		return nil, true
 	}
 
-	if isConnected {
-		conn.clusterWriteMu.Lock()
-		err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
-		conn.clusterWriteMu.Unlock()
+	// A healthy upstream watch (pings succeeding, no client message to re-verify against) has
+	// nothing else that ever stops it once its impersonated identity's verified token expires:
+	// handleClusterMessages only forwards upstream events and never checks expiry. Treating this
+	// the same as an expired watch -- telling the client to relist via endExpiredWatch, instead
+	// of just closing the connection -- is what lets its next subscription re-verify credentials
+	// and establish a fresh connection, rather than leaving the stale one registered with nothing
+	// to prompt the frontend to replace it.
+	if conn.impersonationExpired() {
+		m.endExpiredWatch(conn)
 
-		if err != nil {
-			conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
-		} else {
-			return nil, false
-		}
+		return nil, true
+	}
+
+	if isConnected && pingSucceeds(conn) {
+		return nil, false
 	}
 
 	newConn, err := m.reconnect(conn)
@@ -818,6 +841,19 @@ func (m *Multiplexer) handleReconnectDialError(conn *Connection, err error) erro
 	}
 
 	return err
+}
+
+// impersonationExpired reports whether c's impersonated identity has expired. It is read under
+// c.mu since the message-processing goroutine concurrently writes it (checkConnectionIdentity,
+// refreshConnectionToken), the same reasoning reconnect's own doc comment gives for its
+// Token/impersonation snapshot above. A connection that does not impersonate (nil) never expires
+// here: its caller-presented token, not this field, governs its own lifetime.
+func (c *Connection) impersonationExpired() bool {
+	c.mu.RLock()
+	imp := c.impersonation
+	c.mu.RUnlock()
+
+	return imp != nil && imp.Expired()
 }
 
 // reconnect attempts to reestablish a connection.
