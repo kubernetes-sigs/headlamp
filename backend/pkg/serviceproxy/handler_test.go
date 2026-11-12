@@ -502,7 +502,16 @@ func TestGetServiceFromCluster(t *testing.T) {
 				"forbidden-service",
 				nil,
 			),
-			expectedStatus: http.StatusNotFound,
+			expectedStatus: http.StatusForbidden,
+			expectError:    true,
+		},
+		{
+			name:           "internal server error from cluster",
+			namespace:      "default",
+			serviceName:    "failing-service",
+			setupService:   false,
+			mockError:      k8serrors.NewInternalError(errors.New("etcd connection timeout")),
+			expectedStatus: http.StatusInternalServerError,
 			expectError:    true,
 		},
 	}
