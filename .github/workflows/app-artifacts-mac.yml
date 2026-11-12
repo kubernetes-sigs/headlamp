@@ -42,9 +42,9 @@ jobs:
           backend/go.sum
     - name: Dependencies
       run: brew install make
-    - name: Build Backend and Frontend
+    - name: Build Backend and Prepare App
       run: |
-        make
+        make backend app-prepare
     - name: Add MacOS certs
       run: cd ./app/mac/scripts/ && sh ./setup-certificate.sh
       env:
@@ -57,7 +57,7 @@ jobs:
         APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLEIDPASS }}
         APPLE_TEAM_ID: ${{ secrets.APPLETEAMID }}
       run: |
-        make app-mac 2>&1 | tee build.log
+        (cd app && npm run package -- --mac) 2>&1 | tee build.log
         if grep -q "Mac codesign: Failed" build.log; then
           echo "Error: Mac codesign failed"
           exit 1
@@ -65,7 +65,7 @@ jobs:
     - name: Build Unsigned App Mac
       if: ${{ ! inputs.signBinaries }}
       run: |
-        make app-mac
+        (cd app && npm run package -- --mac)
     - name: Upload artifact
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:

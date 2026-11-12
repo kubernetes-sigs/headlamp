@@ -24,6 +24,9 @@ npm run app:build
 
 This command builds the frontend, sets up plugins, and compiles the Electron app into a distributable package.
 
+Makefile packaging targets also rebuild the frontend before preparing the app,
+even when `frontend/build` already exists.
+
 To build without creating installers (faster for development):
 
 ```bash
@@ -71,6 +74,10 @@ npm run app:format
 ```
 
 ## Test
+
+On Linux or macOS, run build dependency regression tests from the repository
+root with `node --test tools/build-dependencies.test.js`. These tests require
+Bash, GNU Make, and Go on `PATH`; native Windows is not supported.
 
 Run unit tests:
 

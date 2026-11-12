@@ -79,8 +79,7 @@ else
 	cd backend && tools\golangci-lint.exe run --fix
 endif
 
-frontend/build:
-	make frontend
+frontend/build: frontend
 
 .PHONY: app
 app-prepare: frontend/build
