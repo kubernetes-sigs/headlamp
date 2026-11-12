@@ -779,8 +779,10 @@ func handlePortForwardSuccess(
 }
 
 // handlePortForwardReadiness waits for the port forward to be ready, handling potential
-// errors from errOut, timeouts, or premature stop signals.
+// errors from errOut, timeouts, premature stop signals, or an impersonation deadline passing.
 // It updates the portForward details in the cache based on the outcome.
+//
+//nolint:funlen // Select covers 5 distinct outcomes; splitting it would obscure that they race on one wait
 func handlePortForwardReadiness(
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
@@ -789,6 +791,22 @@ func handlePortForwardReadiness(
 	logParams map[string]string,
 	forwardErrChan <-chan error,
 ) error {
+	// A reconnect's new tunnel establishing successfully (readyChan firing) proves nothing
+	// about whether the impersonated identity authorizing it is still valid: the SPDY
+	// handshake this waits for can itself take long enough for impersonationExpiry to pass
+	// while it is in flight, exactly the "check once, then let a long-running operation
+	// proceed regardless" gap already fixed for Helm's actions (see NewActionConfig's
+	// deadlineEnforcingRoundTripper). A nil channel (no impersonation, or none left to expire)
+	// is never selected, so this case only ever fires when it actually applies.
+	var impersonationDeadline <-chan time.Time
+
+	if expiry := pfDetails.impersonationExpirySnapshot(); !expiry.IsZero() {
+		timer := time.NewTimer(time.Until(expiry))
+		defer timer.Stop()
+
+		impersonationDeadline = timer.C
+	}
+
 	select {
 	case <-readyChan:
 		if errOut.String() != "" {
@@ -809,6 +827,9 @@ func handlePortForwardReadiness(
 		return handlePortForwardError(cache, pfDetails, logParams, err.Error())
 	case <-time.After(PortForwardReadinessTimeout):
 		return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
+	case <-impersonationDeadline:
+		return handlePortForwardError(cache, pfDetails, logParams,
+			"impersonated identity expired while waiting for portforward to become ready")
 	case <-pfDetails.closeChan:
 		msg := "portforward stopped before becoming ready"
 

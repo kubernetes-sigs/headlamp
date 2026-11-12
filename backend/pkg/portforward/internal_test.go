@@ -104,6 +104,7 @@ func TestStartPortForward_ImpersonationUsesServiceAccountCredential(t *testing.T
 	assert.ElementsMatch(t, []string{"dev", "ops"}, receivedGroups)
 }
 
+//nolint:funlen // Table of 4 independent readiness-outcome subtests
 func TestHandlePortForwardReadiness(t *testing.T) {
 	c := cache.New[interface{}]()
 	logParams := map[string]string{"id": "id"}
@@ -161,6 +162,38 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, "some error", err.Error())
 		assert.Equal(t, STOPPED, pfDetails.Status)
+	})
+
+	// TestHandlePortForwardReadiness/impersonation_deadline_passes_before_ready locks in a fix
+	// for a gap where a reconnect's new tunnel establishing successfully (readyChan firing)
+	// never checked whether the impersonated identity authorizing it was still valid: the
+	// select here had only a fixed PortForwardReadinessTimeout, with no awareness of
+	// impersonationExpiry at all, so a deadline passing while the SPDY handshake was still in
+	// flight did not stop the tunnel from completing and flipping to RUNNING anyway -- the same
+	// "checked once before, not enforced throughout" gap already fixed for Helm's actions (see
+	// NewActionConfig's deadlineEnforcingRoundTripper). readyChan is deliberately never
+	// signalled here, so the only way this can return is via that deadline, not via success.
+	t.Run("impersonation_deadline_passes_before_ready", func(t *testing.T) {
+		pfDetails := &portForward{
+			ID:                   "id",
+			Cluster:              "cluster",
+			closeChan:            make(chan struct{}, 1),
+			Status:               RUNNING,
+			impersonationExpiry:  time.Now().Add(20 * time.Millisecond),
+			impersonatedUsername: "alice@example.com",
+		}
+		readyChan := make(chan struct{}, 1)
+		forwardErrChan := make(chan error, 1)
+
+		start := time.Now()
+		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		elapsed := time.Since(start)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expired")
+		assert.Equal(t, STOPPED, pfDetails.Status)
+		assert.Less(t, elapsed, PortForwardReadinessTimeout,
+			"the impersonation deadline, not the much longer fixed readiness timeout, must be what ends this wait")
 	})
 }
 
