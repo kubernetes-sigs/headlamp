@@ -32,6 +32,8 @@ const avoidCheck = [
   // Internal helper exported only so `ResourceTable` and its co-located
   // tests can import it; deliberately kept out of the barrel.
   'getResourceRowId',
+  // Internal helpers for `LastAppliedDiff`.
+  'lastAppliedConfiguration',
 ];
 
 const checkExports = [
@@ -48,6 +50,7 @@ const checkExports = [
   'EditButton',
   'EditorDialog',
   'EnvVarGrid',
+  'LastAppliedDiff',
   'MainInfoSection',
   'MatchExpressions',
   'MetadataDisplay',
