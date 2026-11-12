@@ -116,7 +116,15 @@ func getServiceFromCluster(
 			return nil, http.StatusUnauthorized, err
 		}
 
-		return nil, http.StatusNotFound, err
+		if errors.IsForbidden(err) {
+			return nil, http.StatusForbidden, err
+		}
+
+		if errors.IsNotFound(err) {
+			return nil, http.StatusNotFound, err
+		}
+
+		return nil, http.StatusInternalServerError, err
 	}
 
 	return ps, http.StatusOK, err
