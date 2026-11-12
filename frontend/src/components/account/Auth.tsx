@@ -134,7 +134,7 @@ export function PureAuthToken({
         onClose={onClose}
         PaperProps={{ 'aria-label': title, 'aria-labelledby': undefined }}
       >
-        <DialogTitle id="authtoken-dialog-title">{title}</DialogTitle>
+        <DialogTitle>{title}</DialogTitle>
         <DialogContent>
           <DialogContentText>
             <Trans t={t}>Please paste your authentication token.</Trans>
