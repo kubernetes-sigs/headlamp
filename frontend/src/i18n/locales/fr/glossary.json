@@ -4,6 +4,7 @@
   "Cluster selector": "Sélecteur de cluster",
   "Namespace": "Espace de nom",
   "Git Commit": "Commit Git",
+  "Certificate Signing Requests": "",
   "Memory": "Mémoire",
   "CPU": "CPU",
   "Pods": "Pods",
