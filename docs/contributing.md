@@ -188,8 +188,12 @@ out Kinvolk's
 
 ## Testing
 
-The frontend is tested via Storybook-related snapshots. So new components should have
-an associated story when possible.
+Major new functionality must include automated tests that exercise the new
+behavior. These tests must be part of the project's automated test suite, and
+reviewers must verify that they are included before approving the pull request.
+
+The frontend test suite includes Storybook-related tests. New components should
+have an associated story when possible.
 
 For running the frontend tests, use the following command:
 
