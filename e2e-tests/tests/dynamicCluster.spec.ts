@@ -26,19 +26,7 @@ let headlampPage: HeadlampPage;
 test.beforeEach(async ({ page }) => {
   headlampPage = new HeadlampPage(page);
 
-  // Navigate to the test cluster page
-  await headlampPage.navigateTopage('/c/test');
-
-  // Authenticate only when the auth page appears (e.g. minikube with token auth).
-  // Use a short wait to avoid racing page hydration in slower environments.
-  const authHeader = page.locator('h1:has-text("Authentication")');
-  const hasAuthPage = await authHeader
-    .waitFor({ state: 'visible', timeout: 2000 })
-    .then(() => true)
-    .catch(() => false);
-  if (hasAuthPage) {
-    await headlampPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
-  }
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 });
 
 test('There is cluster choose button and test cluster is selected', async () => {

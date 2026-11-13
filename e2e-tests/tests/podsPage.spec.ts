@@ -279,20 +279,10 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       '--restart=Never'
     );
 
-    const headlampPage = new HeadlampPage(page);
-    await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
-    const needsAuthentication = await Promise.race([
-      page
-        .getByRole('button', { name: 'Authenticate' })
-        .waitFor({ state: 'visible' })
-        .then(() => true),
-      page
-        .getByRole('heading', { name: 'Overview' })
-        .waitFor({ state: 'visible' })
-        .then(() => false),
-    ]);
-    if (needsAuthentication) {
-      await headlampPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
+    // Clusters that authenticate with a client certificate need no token.
+    const token = process.env.HEADLAMP_TEST_TOKEN;
+    if (token) {
+      await new HeadlampPage(page).setAuthCookie('test', token);
     }
     await page.goto('/c/test/pods', { waitUntil: 'domcontentloaded' });
 
@@ -366,27 +356,10 @@ test('positions the resource YAML viewer for each viewport size', async ({ page 
       `--from-literal=line100=${hundredColumnValue}`
     );
 
-    await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
-    const needsAuthentication = await Promise.race([
-      page
-        .getByRole('heading', { level: 1, name: 'Authentication' })
-        .waitFor({ state: 'visible' })
-        .then(() => true),
-      page
-        .getByRole('heading', { name: 'Overview' })
-        .waitFor({ state: 'visible' })
-        .then(() => false),
-    ]);
-    if (needsAuthentication) {
-      const useTokenButton = page.getByRole('button', { name: 'Use A Token' });
-      if (await useTokenButton.isVisible()) {
-        await useTokenButton.click();
-      }
-      const token = process.env.HEADLAMP_TEST_TOKEN;
-      expect(token).toBeTruthy();
-      await page.getByRole('textbox', { name: 'ID token' }).fill(token!);
-      await page.getByRole('button', { name: 'Authenticate' }).click();
-      await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+    // Clusters that authenticate with a client certificate need no token.
+    const token = process.env.HEADLAMP_TEST_TOKEN;
+    if (token) {
+      await new HeadlampPage(page).setAuthCookie('test', token);
     }
     await page.route(`**/clusters/test/api/v1/namespaces/default/configmaps/${name}`, route =>
       route.abort('failed')
