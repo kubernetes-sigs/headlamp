@@ -453,6 +453,7 @@ describe('AdvancedSearch', () => {
 
       await waitFor(() => {
         expect(mockSetRawQueryState).toHaveBeenCalledWith(expect.any(Function));
+        expect(mockSetRawQueryState.mock.lastCall?.[0]('')).toBe('new query');
       });
     });
 
@@ -548,7 +549,7 @@ describe('AdvancedSearch', () => {
     });
 
     it('restoreSavedSearch filters resources by available resource IDs', async () => {
-      savedSearchResourcesValue = 'v1pods+v1services';
+      savedSearchResourcesValue = 'v1pods+v1services+v1missing';
 
       renderAdvancedSearch();
 
@@ -904,6 +905,7 @@ describe('AdvancedSearch', () => {
 
       await waitFor(() => {
         expect(mockSetRawQueryState).toHaveBeenCalled();
+        expect(mockSetRawQueryState.mock.lastCall?.[0]('')).toBe('new query');
       });
     });
   });
