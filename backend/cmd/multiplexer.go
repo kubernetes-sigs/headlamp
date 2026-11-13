@@ -20,12 +20,16 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -58,6 +62,10 @@ const (
 	// MultiplexerProtocol is the public subprotocol selected for client connections.
 	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
 )
+
+// clientWriteTimeout bounds each write to a client. Without it, a client that stops
+// reading blocks the writer, and everything waiting on the writer's locks, forever.
+var clientWriteTimeout = 30 * time.Second
 
 // ConnectionState represents the current state of a connection.
 type ConnectionState string
@@ -138,6 +146,9 @@ type Multiplexer struct {
 	saTokenCache map[string]saTokenCacheEntry
 	// saTokenMu guards saTokenCache.
 	saTokenMu sync.RWMutex
+	// afterClientSnapshot, when set, runs after closeClientConnections copies the
+	// connection map. Tests use it to change the registry at that point.
+	afterClientSnapshot func()
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -155,6 +166,9 @@ type WSConnLock struct {
 	// writeMu is a mutex to synchronize access to write operations.
 	// This prevents concurrent writes to the WebSocket connection.
 	writeMu sync.Mutex
+	// closed is set when the client disconnects. It is read without locks, so connections
+	// of a disconnected client can be told apart before they are cleaned up.
+	closed atomic.Bool
 }
 
 // NewWSConnLock creates a new WSConnLock instance that wraps the provided
@@ -172,7 +186,28 @@ func (conn *WSConnLock) WriteJSON(v interface{}) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteJSON(v)
+	if err := conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout)); err != nil {
+		return err
+	}
+
+	return conn.closeOnTimeout(conn.conn.WriteJSON(v))
+}
+
+// closeOnTimeout closes the connection when err is a write timeout. The client stopped
+// reading and the connection can't be written to again, so closing it ends the client's
+// read loop and lets the client reconnect.
+func (conn *WSConnLock) closeOnTimeout(err error) error {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		logger.Log(logger.LevelInfo, nil, err, "closing client connection after write timeout")
+
+		// Not Close(): the caller holds writeMu. Marking it closed keeps a reconnecting
+		// client from reusing watches on this socket before its handler cleans up.
+		conn.closed.Store(true)
+		_ = conn.conn.Close()
+	}
+
+	return err
 }
 
 // ReadJSON reads the next JSON-encoded message from the WebSocket connection
@@ -195,13 +230,19 @@ func (conn *WSConnLock) WriteMessage(messageType int, data []byte) error {
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
-	return conn.conn.WriteMessage(messageType, data)
+	if err := conn.conn.SetWriteDeadline(time.Now().Add(clientWriteTimeout)); err != nil {
+		return err
+	}
+
+	return conn.closeOnTimeout(conn.conn.WriteMessage(messageType, data))
 }
 
 // Close safely closes the WebSocket connection.
 // It ensures thread-safety by acquiring the write mutex before closing,
 // preventing any concurrent writes during the close operation.
 func (conn *WSConnLock) Close() error {
+	conn.closed.Store(true)
+
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
@@ -583,7 +624,11 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 // reconnect attempts to reestablish a connection.
 func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
-	if conn.IsClosed() {
+	conn.mu.RLock()
+	client, closed := conn.Client, conn.closed
+	conn.mu.RUnlock()
+
+	if closed || client == nil {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
@@ -596,7 +641,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		conn.UserID,
 		conn.Path,
 		conn.Query,
-		conn.Client,
+		client,
 		conn.Token,
 	)
 	if err != nil {
@@ -608,6 +653,9 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	m.mutex.Lock()
 	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = newConn
 	m.mutex.Unlock()
+
+	// Closing the old cluster socket ended its reader, so the replacement needs its own.
+	go m.handleClusterMessages(newConn, client)
 
 	return newConn, nil
 }
@@ -710,10 +758,29 @@ func (m *Multiplexer) processClientMessage(
 
 // closeClientConnections closes all connections associated with a specific client.
 func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
+	// Repeat until a pass finds nothing to close: a reconnect can register a replacement
+	// for one of this client's connections while a pass runs.
+	for m.closeClientConnectionsPass(clientConn) {
+	}
+}
+
+// closeClientConnectionsPass closes the connections of clientConn that are registered when
+// it starts, and reports whether it closed any.
+func (m *Multiplexer) closeClientConnectionsPass(clientConn *WSConnLock) bool {
+	// Check each connection's client without holding m.mutex: a write to a client that
+	// stopped reading holds that connection's lock, and waiting on it under m.mutex would
+	// block every other client.
+	m.mutex.RLock()
+	conns := maps.Clone(m.connections)
+	m.mutex.RUnlock()
+
+	if m.afterClientSnapshot != nil {
+		m.afterClientSnapshot()
+	}
+
 	var connsToClose []*Connection
 
-	m.mutex.Lock()
-	for key, conn := range m.connections {
+	for key, conn := range conns {
 		conn.mu.RLock()
 		isClient := conn.Client == clientConn
 		conn.mu.RUnlock()
@@ -721,10 +788,13 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 		if isClient {
 			connsToClose = append(connsToClose, conn)
 
-			delete(m.connections, key)
+			m.mutex.Lock()
+			if m.connections[key] == conn {
+				delete(m.connections, key)
+			}
+			m.mutex.Unlock()
 		}
 	}
-	m.mutex.Unlock()
 
 	for _, conn := range connsToClose {
 		conn.mu.Lock()
@@ -738,6 +808,8 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 
 		conn.safeClose()
 	}
+
+	return len(connsToClose) > 0
 }
 
 func logUnexpectedClientReadClose(err error) {
@@ -772,6 +844,14 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	m.mutex.RLock()
 	conn, exists := m.connections[connKey]
 	m.mutex.RUnlock()
+
+	// A connection of a client that disconnected is about to be closed by
+	// closeClientConnections, so a reconnecting client gets a new one.
+	if exists {
+		conn.mu.RLock()
+		exists = conn.Client != nil && !conn.Client.closed.Load()
+		conn.mu.RUnlock()
+	}
 
 	if !exists {
 		var err error
@@ -1057,13 +1137,17 @@ func (m *Multiplexer) sendDataMessage(
 	return nil
 }
 
-// cleanupConnection performs cleanup for a connection.
+// cleanupConnection closes conn and removes it from the registry. A replacement may have
+// been registered for the same key since, so the entry is only removed if it still is conn.
 func (m *Multiplexer) cleanupConnection(conn *Connection) {
 	conn.safeClose()
 
-	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+
+	m.mutex.Lock()
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
 }
 
