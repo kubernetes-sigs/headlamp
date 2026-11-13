@@ -1354,7 +1354,7 @@ func TestDrainNodeStatusNonStringCacheValue(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	kubeConfigPath := filepath.Join("headlamp_testdata", "kubeconfig")
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
