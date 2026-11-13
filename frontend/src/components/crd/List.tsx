@@ -18,6 +18,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { Link, useThrottle } from '../common';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function CustomResourceDefinitionList() {
@@ -46,6 +47,7 @@ export default function CustomResourceDefinitionList() {
         noNamespaceFilter: true,
       }}
       data={throttledItems}
+      emptyActions={<EmptyStateActions />}
       errorMessage={CRD.getErrorMessage(error)}
       columns={[
         {

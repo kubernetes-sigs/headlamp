@@ -22,6 +22,7 @@ import CRD from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { useNamespaces } from '../../redux/filterSlice';
 import { EmptyContent as Empty, Link, Loader, ResourceListView, ShowHideLabel } from '../common/';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import { fingerprint, sortKey } from './crInstancesKey';
 
 interface ClassifiedCrd {
@@ -76,7 +77,11 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
   }
 
   if (crInstancesList.length === 0) {
-    return <Empty>{t('translation|No custom resources instances found.')}</Empty>;
+    return (
+      <Empty actions={<EmptyStateActions />}>
+        {t('translation|No custom resources instances found.')}
+      </Empty>
+    );
   }
 
   return (
