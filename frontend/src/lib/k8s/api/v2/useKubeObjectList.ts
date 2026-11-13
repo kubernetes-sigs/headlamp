@@ -550,13 +550,22 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     // Create subscriptions for each connection
     connections.forEach(({ url, cluster, namespace, watchQueryKey: connWatchQueryKey }) => {
       const parsedUrl = new URL(url, BASE_WS_URL);
+      let isExpired = false;
 
       // Subscribe to WebSocket updates
       WebSocketManager.subscribe(
         cluster,
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
-        update => handleUpdate(update, cluster, namespace, connWatchQueryKey),
+        update => {
+          if (isExpired) {
+            return;
+          }
+          if (isResourceVersionExpiredError(update)) {
+            isExpired = true;
+          }
+          handleUpdate(update, cluster, namespace, connWatchQueryKey);
+        },
         error => {
           console.error(`WebSocket subscription error for cluster ${cluster}:`, error);
           const key = `${cluster}:${endpointKey}:${namespace || ''}:${connWatchQueryKey}`;
@@ -700,6 +709,10 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         cluster,
         url,
         onMessage(update: KubeListUpdateEvent<K>) {
+          if (isExpired) {
+            return;
+          }
+
           if (isResourceVersionExpiredError(update)) {
             isExpired = true;
             delete latestResourceVersions.current[watchKey];
@@ -1110,6 +1123,7 @@ export function useKubeObjectList<K extends KubeObject>({
         data: results.map(result => result.data),
         dataUpdatedAts: results.map(result => result.dataUpdatedAt),
         queryStatuses: results.map(result => result.status),
+        isFetchings: results.map(result => result.isFetching),
         clusterResults,
         items:
           emptyWhenNoRequests && results.length === 0
@@ -1230,7 +1244,7 @@ export function useKubeObjectList<K extends KubeObject>({
     const relistedKeys = new Set<string>();
     if (query.data) {
       query.data.forEach((data, index) => {
-        if (data && query.queryStatuses?.[index] === 'success') {
+        if (data && query.queryStatuses?.[index] === 'success' && !query.isFetchings?.[index]) {
           const key = `${data.cluster}:${endpointKey}:${
             data.namespace || ''
           }:${activeWatchQueryKey}`;
@@ -1321,6 +1335,7 @@ export function useKubeObjectList<K extends KubeObject>({
     query.data,
     query.dataUpdatedAts,
     query.isFetching,
+    query.isFetchings,
     query.queryStatuses,
     requests,
     shouldWatch,
