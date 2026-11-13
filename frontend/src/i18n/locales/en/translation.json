@@ -715,6 +715,7 @@
   "No devices are allocated yet.": "No devices are allocated yet.",
   "Requests": "Requests",
   "This claim requests no devices.": "This claim requests no devices.",
+  "Allocated Devices": "Allocated Devices",
   "Devices": "Devices",
   "Pending": "Pending",
   "Allocated": "Allocated",

@@ -21,6 +21,7 @@ import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import DeviceRequestsTable from './DeviceRequestsTable';
+import ResourceClaimAllocatedDevices from './ResourceClaimAllocatedDevices';
 import ResourceClaimStatus from './ResourceClaimStatus';
 
 export default function ResourceClaimDetails(props: {
@@ -71,6 +72,14 @@ export default function ResourceClaimDetails(props: {
                   cluster={item.cluster}
                   emptyMessage={t('translation|This claim requests no devices.')}
                 />
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.resourceclaim-allocated-devices',
+            section: (
+              <SectionBox title={t('translation|Allocated Devices')}>
+                <ResourceClaimAllocatedDevices claim={item} />
               </SectionBox>
             ),
           },
