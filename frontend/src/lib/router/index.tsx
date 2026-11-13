@@ -114,7 +114,7 @@ import ServiceDetails from '../../components/service/Details';
 import ServiceList from '../../components/service/List';
 import ServiceAccountDetails from '../../components/serviceaccount/Details';
 import ServiceAccountList from '../../components/serviceaccount/List';
-import { DefaultSidebars } from '../../components/Sidebar';
+import { DefaultSidebars } from '../../components/Sidebar/sidebarSlice';
 import StatefulSetList from '../../components/statefulset/List';
 import PersistentVolumeClaimDetails from '../../components/storage/ClaimDetails';
 import PersistentVolumeClaimList from '../../components/storage/ClaimList';
