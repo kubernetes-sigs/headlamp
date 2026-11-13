@@ -964,6 +964,62 @@ describe('useWatchKubeObjectLists', () => {
     expect(onReconnect).toHaveBeenCalledWith('default', 'default', '');
   });
 
+  it('does not resurrect cached resourceVersion when onClose fires after a 410 expired error', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const onReconnect = vi.fn();
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+
+    const cacheKey = kubeObjectListQuery(
+      mockClass,
+      endpoint as any,
+      'default',
+      'default',
+      {}
+    ).queryKey;
+    queryClient.setQueryData(cacheKey, {
+      list: { metadata: { resourceVersion: '100' }, items: [] },
+    });
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
+          endpoint,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const connection = useWebSocketSpy.mock.calls[0][0].connections[0];
+
+    // 1. Deliver 410 Expired error
+    connection.onMessage({
+      type: 'ERROR',
+      object: {
+        kind: 'Status',
+        status: 'Failure',
+        message: 'too old resource version: 100',
+        code: 410,
+        reason: 'Expired',
+      },
+    });
+
+    expect(onReconnect).toHaveBeenCalledWith('default', 'default', '');
+    onReconnect.mockClear();
+
+    // 2. Normal close follows the 410 error
+    connection.onClose?.(new CloseEvent('close', { code: 1000 }));
+
+    // onClose must NOT call onReconnect with cached '100'
+    expect(onReconnect).not.toHaveBeenCalled();
+  });
+
   it('relists when watch connection fails with handshake failure code 1002', () => {
     const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
     const onReconnect = vi.fn();
@@ -2458,6 +2514,53 @@ describe('useKubeObjectList', () => {
     });
   });
 
+  it('reconnects with existing resourceVersion when normal close code 1000 occurs without a 410 error', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const callsBeforeClose = spy.mock.calls.length;
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(initialConnection?.url).toContain('resourceVersion=100');
+
+    // Simulate normal close (code 1000) on a healthy connection
+    act(() => {
+      initialConnection?.onClose?.(new CloseEvent('close', { code: 1000 }));
+    });
+
+    // Healthy watch must reconnect using its current resourceVersion 100
+    await waitFor(() => {
+      expect(spy.mock.calls.length).toBeGreaterThan(callsBeforeClose);
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=100');
+    });
+  });
+
   it('reconnects with newest resourceVersion when disconnect occurs immediately after a watch event', async () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
     const queryClient = new QueryClient();
@@ -3012,6 +3115,93 @@ describe('useKubeObjectList', () => {
     await waitFor(() => {
       const latestCall = spy.mock.calls.at(-1)?.[0];
       expect(latestCall?.connections[0]?.url).toContain('resourceVersion=200');
+    });
+  });
+
+  it('keeps watch suspended when 410 is followed by normal close and resumes with fresh resourceVersion upon relist completion', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    const relistDeferred = deferred<Response>();
+
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-1', '100')],
+              resourceVersion: '100',
+            })
+          ),
+      } as Response)
+      .mockReturnValueOnce(relistDeferred.promise);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+      expect(activeCalls.length).toBeGreaterThan(0);
+    });
+
+    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+    expect(initialConnection?.url).toContain('resourceVersion=100');
+
+    // 1. Deliver 410 Gone error
+    act(() => {
+      initialConnection?.onMessage({
+        type: 'ERROR',
+        object: {
+          kind: 'Status',
+          apiVersion: 'v1',
+          status: 'Failure',
+          message: 'too old resource version: 100 (150)',
+          reason: 'Expired',
+          code: 410,
+        },
+      });
+    });
+
+    // 2. Normal close follows immediately while HTTP relist is in flight
+    act(() => {
+      initialConnection?.onClose?.(new CloseEvent('close', { code: 1000 }));
+    });
+
+    // 3. Watch must remain suspended (0 connections) and not reconnect with stale 100
+    await waitFor(() => {
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections.length).toBe(0);
+    });
+
+    // Wait a tick to ensure no late reconnect with 100 fires
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(spy.mock.calls.at(-1)?.[0].connections.length).toBe(0);
+
+    // 4. Resolve the HTTP relist with fresh resourceVersion 200
+    await act(async () => {
+      relistDeferred.resolve({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-1', '200')],
+              resourceVersion: '200',
+            })
+          ),
+      } as Response);
+    });
+
+    // 5. Watch resumes with refreshed resourceVersion 200, not stale 100
+    await waitFor(() => {
+      const latestCall = spy.mock.calls.at(-1)?.[0];
+      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=200');
+      expect(latestCall?.connections[0]?.url).not.toContain('resourceVersion=100');
     });
   });
 

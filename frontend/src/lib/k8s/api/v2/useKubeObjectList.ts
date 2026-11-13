@@ -694,11 +694,14 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         resourceVersion: latestResourceVersions.current[watchKey] || resourceVersion,
       });
 
+      let isExpired = false;
+
       return {
         cluster,
         url,
         onMessage(update: KubeListUpdateEvent<K>) {
           if (isResourceVersionExpiredError(update)) {
+            isExpired = true;
             delete latestResourceVersions.current[watchKey];
             delete prevListsResourceVersions.current[watchKey];
             if (onReconnect) {
@@ -754,6 +757,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         },
         onClose(event?: CloseEvent) {
           if (enabled) {
+            if (isExpired) {
+              delete latestResourceVersions.current[watchKey];
+              delete prevListsResourceVersions.current[watchKey];
+              return;
+            }
+
             const key = kubeObjectListQuery<K>(
               kubeObjectClass,
               endpoint,
@@ -1187,6 +1196,12 @@ export function useKubeObjectList<K extends KubeObject>({
         }
         setReconnectTrigger(prev => prev + 1);
       } else {
+        // If a relist is currently pending for this key, any incoming reconnect cursor from an
+        // active or closing connection is obsolete; do not remove the pending relist marker or
+        // stage the stale cursor.
+        if (pendingRelistKeysRef.current.has(key)) {
+          return;
+        }
         pendingRelistKeysRef.current.delete(key);
         disconnectedWatchesRef.current.set(key, latestResourceVersion);
         setReconnectTrigger(prev => prev + 1);
