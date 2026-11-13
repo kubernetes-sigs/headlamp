@@ -256,7 +256,7 @@ func TestCreateAndCacheClientSetErrors(t *testing.T) {
 	}
 	hookMu.Unlock()
 
-	_, err := createAndCacheClientSet(k, "tok", "c\x00rev\x00tok")
+	_, err := createAndCacheClientSet(k, "tok", "c\x00rev\x00tok", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "creator boom")
 
@@ -267,7 +267,7 @@ func TestCreateAndCacheClientSetErrors(t *testing.T) {
 		mu.Lock()
 		clientsetCache["c\x00rev\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
 			key: "c\x00rev\x00tok",
-			cs:  &CachedClientSet{clientset: existingCS, lastUsed: time.Now()},
+			cs:  &CachedClientSet{clientset: existingCS, lastUsed: time.Now(), context: k},
 		})
 		mu.Unlock()
 
@@ -275,7 +275,7 @@ func TestCreateAndCacheClientSetErrors(t *testing.T) {
 	}
 	hookMu.Unlock()
 
-	got, err := createAndCacheClientSet(k, "tok", "c\x00rev\x00tok")
+	got, err := createAndCacheClientSet(k, "tok", "c\x00rev\x00tok", nil)
 	require.NoError(t, err)
 	assert.Same(t, existingCS, got)
 }
@@ -296,7 +296,7 @@ func TestGetCachedAndGetClientSetErrors(t *testing.T) {
 	})
 	mu.Unlock()
 
-	cs, ok := getCachedClientSet("ctx\x00rev\x00tok")
+	cs, ok := getCachedClientSet("ctx\x00rev\x00tok", nil)
 	assert.False(t, ok)
 	assert.Nil(t, cs)
 
