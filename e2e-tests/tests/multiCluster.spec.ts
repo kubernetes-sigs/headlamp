@@ -55,15 +55,29 @@ test.describe('multi-cluster setup', () => {
   }) => {
     await page.evaluate(() => localStorage.setItem('recent_clusters', JSON.stringify(['test'])));
 
+    // Each response carries a new gitVersion. Waiting for it to render proves the fetch finished
+    // before the clock moves; a poll that fires while a fetch is still in flight reuses that
+    // fetch instead of sending a request, which would hide both extra and missing polls.
     let versionRequests = 0;
-    page.on('request', request => {
-      if (new URL(request.url()).pathname.endsWith('/clusters/test/version')) {
-        versionRequests++;
-      }
+    await page.route('**/clusters/test/version', async route => {
+      versionRequests++;
+      await route.fulfill({
+        json: { major: '1', minor: '99', gitVersion: `v1.99.${versionRequests}` },
+      });
     });
+    const expectVersionShown = (count: number) =>
+      expect(page.getByText(`v1.99.${count}`, { exact: true })).toBeVisible();
 
+    // Fake timers let the test skip the 10s polling interval instead of waiting it out.
+    await page.clock.install();
     await page.reload();
     await expect.poll(() => versionRequests).toBe(1);
+    await expectVersionShown(1);
+
+    // While the page is visible, the next polling interval fetches the version again.
+    await page.clock.fastForward(11_000);
+    await expect.poll(() => versionRequests).toBe(2);
+    await expectVersionShown(2);
 
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', {
@@ -72,8 +86,10 @@ test.describe('multi-cluster setup', () => {
       });
       window.dispatchEvent(new Event('visibilitychange'));
     });
-    await page.waitForTimeout(11_000);
-    expect(versionRequests).toBe(1);
+    await page.clock.fastForward(11_000);
+    // Give a wrongly scheduled background request time to reach the network.
+    await page.waitForTimeout(1_000);
+    expect(versionRequests).toBe(2);
 
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', {
@@ -82,7 +98,8 @@ test.describe('multi-cluster setup', () => {
       });
       window.dispatchEvent(new Event('visibilitychange'));
     });
-    await expect.poll(() => versionRequests, { timeout: 2_000 }).toBe(2);
+    await expect.poll(() => versionRequests, { timeout: 2_000 }).toBe(3);
+    await expectVersionShown(3);
   });
 
   test("user should be able to login to 'test' cluster, perform logout and return to cluster selection", async ({

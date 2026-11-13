@@ -174,7 +174,7 @@ test.describe('portforward auto-reconnect', () => {
       const deadline = Date.now() + 90_000;
 
       while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 3_000));
+        await new Promise(r => setTimeout(r, 1_000));
 
         const resp = await request.get(`${pfBaseURL()}?id=${pfId}`, {
           headers: apiHeaders(),
@@ -300,7 +300,7 @@ test.describe('portforward auto-reconnect', () => {
       let finalStatus = '';
 
       while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 3_000));
+        await new Promise(r => setTimeout(r, 1_000));
 
         const resp = await request.get(`${pfBaseURL()}?id=${pfId}`, {
           headers: apiHeaders(),
