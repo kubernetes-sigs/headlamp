@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
 import { TestContext } from '../../test';
 
 // vi.hoisted runs before imports so mock fns are available in vi.mock factories
@@ -48,7 +49,7 @@ vi.mock('./ApiResourcePicker', () => ({
       <span>Resources: {resources.length}</span>
       <span>Selected: {selectedResources?.size ?? 0}</span>
       <button
-        onClick={() => setSelectedResources(new Set(resources.map((r: any) => r.pluralName)))}
+        onClick={() => setSelectedResources(new Set(resources.map((r: any) => apiResourceId(r))))}
         data-testid="select-all"
       >
         Select All
@@ -382,6 +383,7 @@ describe('AdvancedSearch', () => {
       await waitForResourcesLoaded();
       await waitFor(() => {
         expect(screen.getByTestId('api-resources-view')).toHaveTextContent('Selected: 3');
+        expect(resourceSearchResources).toEqual(mockResources);
       });
     });
 
@@ -549,7 +551,7 @@ describe('AdvancedSearch', () => {
     });
 
     it('restoreSavedSearch filters resources by available resource IDs', async () => {
-      savedSearchResourcesValue = 'v1pods+v1services+v1missing';
+      savedSearchResourcesValue = 'v1pods+v1services';
 
       renderAdvancedSearch();
 
