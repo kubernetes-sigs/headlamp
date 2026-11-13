@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+import '../i18n/config';
 import { configureStore, Middleware } from '@reduxjs/toolkit';
+import { publishApiWarnings } from '../lib/k8s/api/v1/apiWarnings';
 import clusterActionSliceReducer, {
   CallbackAction,
   cancelClusterAction,
   CLUSTER_ACTION_GRACE_PERIOD,
   executeClusterAction,
   updateClusterAction,
+  waitForAll,
 } from './clusterActionSlice';
 
 vi.setConfig({ testTimeout: 10000 });
@@ -90,6 +93,179 @@ describe('clusterActionSlice', () => {
           type: updateClusterAction.type,
           payload: expect.objectContaining({
             message: 'Success',
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should show the API server warnings with the success message', async () => {
+      const callback = vi.fn(() => {
+        publishApiWarnings(['would violate PodSecurity "restricted:latest"']);
+        publishApiWarnings([
+          'unknown field "bogus"',
+          'would violate PodSecurity "restricted:latest"',
+        ]);
+        return Promise.resolve();
+      });
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Applied pod.',
+        successOptions: { variant: 'success' },
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message:
+              'Applied pod.\n• would violate PodSecurity "restricted:latest"\n• unknown field "bogus"',
+            state: 'complete',
+            snackbarProps: { variant: 'warning' },
+            dismissible: true,
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should keep the success variant when there are no API server warnings', async () => {
+      const callback = vi.fn(() => Promise.resolve());
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Applied pod.',
+        successOptions: { variant: 'success' },
+      };
+
+      // Warnings from before the action started are not part of it.
+      publishApiWarnings(['an earlier warning']);
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message: 'Applied pod.',
+            state: 'complete',
+            snackbarProps: { variant: 'success' },
+            dismissible: false,
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should keep the warnings of accepted writes when another write fails', async () => {
+      // Like applying two resources from the editor: both writes are sent, the first is
+      // accepted with a warning, the second is rejected, and then the action fails.
+      const acceptedWrite = () => {
+        publishApiWarnings(['would violate PodSecurity "restricted:latest"']);
+        return Promise.resolve();
+      };
+      const rejectedWrite = () => Promise.reject(new Error('pods "bad" is forbidden'));
+      const callback = vi.fn(async () => {
+        const results = await Promise.allSettled([acceptedWrite(), rejectedWrite()]);
+        if (results.some(result => result.status === 'rejected')) {
+          throw new Error('Failed to create Pod bad.');
+        }
+      });
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Applied priv,bad.',
+        errorMessage: 'Failed to apply priv,bad.',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message:
+              'Failed to apply priv,bad. Failed to create Pod bad.\nWarnings:\n• would violate PodSecurity "restricted:latest"',
+            state: 'error',
+            snackbarProps: { variant: 'error' },
+            autoHideDuration: 15000,
+            dismissible: true,
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should keep the warnings of writes that finish after a failed one', async () => {
+      // Like restarting two Deployments: the first patch is rejected right away, and the
+      // second is accepted with a warning later.
+      const rejectedWrite = () => Promise.reject(new Error('deployments.apps "api" is forbidden'));
+      const acceptedWrite = async () => {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        publishApiWarnings(['would violate PodSecurity "restricted:latest"']);
+      };
+      const callback = vi.fn(() => waitForAll([rejectedWrite(), acceptedWrite()]));
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Restarted 2 items.',
+        errorMessage: 'Failed to restart 2 items.',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      await vi.advanceTimersByTimeAsync(CLUSTER_ACTION_GRACE_PERIOD + 100);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message:
+              'Failed to restart 2 items. deployments.apps "api" is forbidden\nWarnings:\n• would violate PodSecurity "restricted:latest"',
+            state: 'error',
+            snackbarProps: { variant: 'error' },
+            autoHideDuration: 15000,
+            dismissible: true,
+          }),
+        })
+      );
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+    });
+
+    it('should not add warnings to an error when no write was accepted', async () => {
+      const callback = vi.fn(() => Promise.reject(new Error('Something went wrong')));
+      const action: CallbackAction = {
+        callback,
+        successMessage: 'Success',
+        errorMessage: 'Error',
+      };
+
+      // Warnings from before the action started are not part of it.
+      publishApiWarnings(['an earlier warning']);
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(store.getActions()).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message: 'Error. Something went wrong',
+            state: 'error',
+            snackbarProps: { variant: 'error' },
+            autoHideDuration: undefined,
+            dismissible: false,
           }),
         })
       );
@@ -605,6 +781,26 @@ describe('clusterActionSlice', () => {
       const action2 = cancelClusterAction(actionKey);
       const state = clusterActionSliceReducer(undefined, action2);
       expect(state[actionKey]).toBeUndefined();
+    });
+  });
+
+  describe('waitForAll', () => {
+    it('should return the values in order', async () => {
+      await expect(waitForAll([Promise.resolve('a'), Promise.resolve('b')])).resolves.toEqual([
+        'a',
+        'b',
+      ]);
+    });
+
+    it('should fail with the first rejection in the list', async () => {
+      const first = new Error('first');
+      await expect(
+        waitForAll([
+          Promise.resolve('a'),
+          Promise.reject(first),
+          Promise.reject(new Error('second')),
+        ])
+      ).rejects.toBe(first);
     });
   });
 

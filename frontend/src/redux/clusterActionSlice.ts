@@ -18,6 +18,7 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import i18next from 'i18next';
 import type { OptionsObject as SnackbarProps } from 'notistack';
+import { subscribeToApiWarnings } from '../lib/k8s/api/v1/apiWarnings';
 
 /**
  * See components/common/ActionsNotifier.tsx for a user of cluster actions.
@@ -76,9 +77,19 @@ export interface ClusterAction {
    * The props to pass to the snackbar. Could be { variant: 'success' }.
    */
   snackbarProps?: SnackbarProps;
+  /**
+   * Shows a close button on the snackbar. Used for messages with API server warnings,
+   * which stay on screen longer and can be tall enough to cover the buttons below them.
+   */
+  dismissible?: boolean;
 }
 
 export interface CallbackAction extends CallbackActionOptions {
+  /**
+   * Runs the action. If it makes several writes, wait for all of them to finish before
+   * throwing (for example with `Promise.allSettled`), so their API server warnings are
+   * not lost.
+   */
   callback: (...args: any[]) => void;
 }
 
@@ -171,6 +182,9 @@ const controllers = new Map<string, AbortController>();
 
 /** The amount of time to wait before allowing the action to be cancelled. */
 export const CLUSTER_ACTION_GRACE_PERIOD = 5000;
+
+/** How long a success message that has API server warnings stays, so they can be read. */
+const CLUSTER_ACTION_WARNINGS_DURATION = 15000;
 
 // Splits the body of a K8s "is invalid: [...]" multi-error into one entry per
 // field error. A naive regex split on `, ` followed by `\w+:` falsely splits Go
@@ -267,15 +281,22 @@ export const executeClusterAction = createAsyncThunk(
         })
       );
     }
-    function dispatchSuccess() {
+    function dispatchSuccess(warnings: string[] = []) {
+      const hasWarnings = warnings.length > 0;
+      const message = hasWarnings
+        ? [successMessage, ...warnings.map(warning => `• ${warning}`)].filter(Boolean).join('\n')
+        : successMessage;
+
       dispatch(
         updateClusterAction({
           buttons: undefined,
           dismissSnackbar: actionKey,
           id: actionKey,
-          message: successMessage,
+          message,
           state: 'complete',
-          snackbarProps: successOptions,
+          snackbarProps: hasWarnings ? { ...successOptions, variant: 'warning' } : successOptions,
+          autoHideDuration: hasWarnings ? CLUSTER_ACTION_WARNINGS_DURATION : undefined,
+          dismissible: hasWarnings,
           url: successUrl,
         })
       );
@@ -294,7 +315,7 @@ export const executeClusterAction = createAsyncThunk(
         })
       );
     }
-    function dispatchError(err?: Error | string | null) {
+    function dispatchError(err?: Error | string | null, warnings: string[] = []) {
       let message = errorMessage || '';
       if (err) {
         const rawMessage = typeof err === 'string' ? err : err.message;
@@ -332,6 +353,21 @@ export const executeClusterAction = createAsyncThunk(
           console.error('errorMessageFormatter threw an error:', formatterErr);
         }
       }
+
+      // An action can make several writes, like applying several resources, and some can
+      // be accepted with warnings before another one fails. Keep those warnings, under a
+      // label so they are not read as the reason for the failure.
+      const hasWarnings = warnings.length > 0;
+      if (hasWarnings) {
+        message = [
+          message,
+          `${i18next.t('translation|Warnings')}:`,
+          ...warnings.map(warning => `• ${warning}`),
+        ]
+          .filter(Boolean)
+          .join('\n');
+      }
+
       dispatch(
         updateClusterAction({
           buttons: undefined,
@@ -340,6 +376,8 @@ export const executeClusterAction = createAsyncThunk(
           message,
           state: 'error',
           snackbarProps: errorOptions,
+          autoHideDuration: hasWarnings ? CLUSTER_ACTION_WARNINGS_DURATION : undefined,
+          dismissible: hasWarnings,
           url: errorUrl,
         })
       );
@@ -353,6 +391,10 @@ export const executeClusterAction = createAsyncThunk(
     }
 
     async function cancellableActionLogic() {
+      // The API server can accept a request and still warn about it (Pod Security,
+      // admission policies, deprecated APIs, ...). Show those along with the result.
+      const warnings = new Set<string>();
+
       dispatchStart();
       try {
         await new Promise((resolve, reject) => {
@@ -366,12 +408,19 @@ export const executeClusterAction = createAsyncThunk(
         if (controller.signal.aborted) {
           return rejectWithValue('Action cancelled');
         }
-        if (callbackArgs === undefined) {
-          await Promise.resolve(callback());
-        } else {
-          await Promise.resolve(callback(...callbackArgs));
+        const unsubscribe = subscribeToApiWarnings(newWarnings => {
+          newWarnings.forEach(warning => warnings.add(warning));
+        });
+        try {
+          if (callbackArgs === undefined) {
+            await Promise.resolve(callback());
+          } else {
+            await Promise.resolve(callback(...callbackArgs));
+          }
+        } finally {
+          unsubscribe();
         }
-        dispatchSuccess();
+        dispatchSuccess(Array.from(warnings));
         if (onSuccess) {
           try {
             onSuccess();
@@ -399,7 +448,7 @@ export const executeClusterAction = createAsyncThunk(
             }
           }
         } else {
-          dispatchError(error);
+          dispatchError(error, Array.from(warnings));
           if (onError) {
             try {
               onError(error);
@@ -481,6 +530,31 @@ export function clusterAction(
   actionOptions: CallbackActionOptions = {}
 ) {
   return executeClusterAction({ callback, ...actionOptions });
+}
+
+/**
+ * Waits for all the promises like `Promise.all`, but when some fail it only rejects
+ * after all of them have settled.
+ *
+ * Use it for the writes of a cluster action. The action stops collecting API server
+ * warnings once its callback is done, so with `Promise.all` a failed write would drop
+ * the warnings of the writes that finish after it.
+ *
+ * @param promises - The promises to wait for.
+ *
+ * @returns The values of the promises, in the same order.
+ *
+ * @throws The reason of the first promise in the list that was rejected.
+ */
+export async function waitForAll<T>(promises: Promise<T>[]): Promise<T[]> {
+  const results = await Promise.allSettled(promises);
+  const rejected = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected'
+  );
+  if (rejected) {
+    throw rejected.reason;
+  }
+  return results.map(result => (result as PromiseFulfilledResult<T>).value);
 }
 
 export default clusterActionSlice.reducer;
