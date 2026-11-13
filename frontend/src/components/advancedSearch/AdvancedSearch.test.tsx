@@ -564,7 +564,7 @@ describe('AdvancedSearch', () => {
     });
 
     it('restoreSavedSearch filters resources by available resource IDs', async () => {
-      savedSearchResourcesValue = 'v1pods+v1services';
+      savedSearchResourcesValue = 'v1pods+v1services+v1unavailable';
 
       renderAdvancedSearch();
 
@@ -574,15 +574,11 @@ describe('AdvancedSearch', () => {
         fireEvent.click(saveButton);
       });
 
-      // Verify the callback was called
       await waitFor(() => {
-        expect(mockCallbacks.onSearchSelected).toHaveBeenCalledWith(
-          expect.objectContaining({ resources: 'v1pods+v1services' })
-        );
+        expect(screen.getByTestId('api-resources-view')).toHaveTextContent('Selected: 2');
+        expect(screen.getByTestId('resource-search')).toHaveTextContent('Resources: 2');
+        expect(resourceSearchResources).toEqual(mockResources.slice(0, 2));
       });
-
-      // Check the mock callback call count
-      expect(mockCallbacks.onSearchSelected).toHaveBeenCalledTimes(1);
     });
   });
 
