@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -135,4 +136,112 @@ func TestGetClientSet_InFlightDedupDifferentKeys(t *testing.T) {
 
 	assert.Equal(t, len(tokens), int(createCount.Load()),
 		"each unique token should create its own clientset")
+}
+
+// TestGetClientSet_ReplacedContext verifies that a context replaced in the
+// store, for example by a kubeconfig reload with rotated credentials, gets a
+// clientset created from it, not the one cached or being created for the old
+// context.
+//
+//nolint:funlen // Covers both the cached and the in-flight clientset.
+func TestGetClientSet_ReplacedContext(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	k8cache.ResetInFlight()
+
+	newContext := func(token string) *kubeconfig.Context {
+		return &kubeconfig.Context{
+			ClusterID:   "/path+test-cluster",
+			Cluster:     &api.Cluster{Server: "https://example.com"},
+			AuthInfo:    &api.AuthInfo{Token: token},
+			KubeContext: &api.Context{Cluster: "test-cluster"},
+		}
+	}
+
+	oldContext, reloadedContext := newContext("old"), newContext("new")
+
+	var (
+		mu      sync.Mutex
+		created = map[*kubernetes.Clientset]*kubeconfig.Context{}
+		// oldCreating blocks the creation for oldContext once it is set.
+		oldCreating chan struct{}
+		releaseOld  = make(chan struct{})
+	)
+
+	restoreCreator := k8cache.SetClientsetCreator(
+		func(k *kubeconfig.Context, _ string) (*kubernetes.Clientset, error) {
+			mu.Lock()
+			block := oldCreating
+			mu.Unlock()
+
+			if k == oldContext && block != nil {
+				close(block)
+				<-releaseOld
+			}
+
+			cs := &kubernetes.Clientset{}
+
+			mu.Lock()
+			created[cs] = k
+			mu.Unlock()
+
+			return cs, nil
+		},
+	)
+	defer restoreCreator()
+
+	createdFrom := func(cs *kubernetes.Clientset) *kubeconfig.Context {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return created[cs]
+	}
+
+	cs, err := k8cache.GetClientSet("test-cluster", oldContext, "")
+	assert.NoError(t, err)
+	assert.Same(t, oldContext, createdFrom(cs))
+
+	cached, err := k8cache.GetClientSet("test-cluster", oldContext, "")
+	assert.NoError(t, err)
+	assert.Same(t, cs, cached, "the clientset should be cached for the same context")
+
+	cs, err = k8cache.GetClientSet("test-cluster", reloadedContext, "")
+	assert.NoError(t, err)
+	assert.Same(t, reloadedContext, createdFrom(cs), "a cached clientset of the old context was used")
+
+	// A creation for the old context is still running when the reloaded
+	// context asks for its clientset.
+	k8cache.ResetClientsetCache()
+
+	mu.Lock()
+	oldCreating = make(chan struct{})
+	mu.Unlock()
+
+	oldDone := make(chan struct{})
+
+	go func() {
+		defer close(oldDone)
+
+		_, _ = k8cache.GetClientSet("test-cluster", oldContext, "")
+	}()
+
+	<-oldCreating
+
+	reloaded := make(chan *kubernetes.Clientset, 1)
+
+	go func() {
+		cs, err := k8cache.GetClientSet("test-cluster", reloadedContext, "")
+		assert.NoError(t, err)
+
+		reloaded <- cs
+	}()
+
+	select {
+	case cs = <-reloaded:
+		assert.Same(t, reloadedContext, createdFrom(cs))
+	case <-time.After(5 * time.Second):
+		t.Error("the reloaded context waited for the old context's clientset")
+	}
+
+	close(releaseOld)
+	<-oldDone
 }
