@@ -4,6 +4,7 @@
   "Cluster selector": "Selekce clusteru",
   "Namespace": "Obor názvů",
   "Git Commit": "Potvrzení Git",
+  "Cluster Trust Bundles": "",
   "Memory": "Paměť",
   "CPU": "CPU",
   "Pods": "Pody",

@@ -502,6 +502,7 @@
     "ResourceClasses": {
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
+      "ClusterTrustBundle": [Function],
       "CompositePodGroup": [Function],
       "ConfigMap": [Function],
       "ControllerRevision": [Function],
@@ -560,6 +561,9 @@
       "default": [Function],
     },
     "clusterRoleBinding": {
+      "default": [Function],
+    },
+    "clusterTrustBundle": {
       "default": [Function],
     },
     "compositePodGroup": {
