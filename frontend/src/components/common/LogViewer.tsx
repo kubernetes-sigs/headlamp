@@ -304,7 +304,7 @@ export function LogViewer(props: LogViewerProps) {
         )}
         <div
           id="xterm-container"
-          ref={ref => setTerminalContainerRef(ref)}
+          ref={setTerminalContainerRef}
           style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
         />
         <SearchPopover
