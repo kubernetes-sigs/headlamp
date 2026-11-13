@@ -87,19 +87,32 @@ vi.mock('./SavedSearches', () => ({
 }));
 
 vi.mock('./SearchSettings', () => ({
-  SearchSettings: ({ maxItemsPerResource, refetchIntervalMs }: any) => (
+  SearchSettings: ({
+    maxItemsPerResource,
+    refetchIntervalMs,
+    setMaxItemsPerResource,
+    setRefetchIntervalMs,
+  }: any) => (
     <div data-testid="search-settings">
       <span>Max Items: {maxItemsPerResource}</span>
       <span>Refetch: {refetchIntervalMs}</span>
       <input
         data-testid="max-items-input"
         value={maxItemsPerResource}
-        onChange={e => mockCallbacks.setMaxItemsPerResource(Number(e.target.value))}
+        onChange={e => {
+          const value = Number(e.target.value);
+          setMaxItemsPerResource(value);
+          mockCallbacks.setMaxItemsPerResource(value);
+        }}
       />
       <input
         data-testid="refetch-input"
         value={refetchIntervalMs}
-        onChange={e => mockCallbacks.setRefetchIntervalMs(Number(e.target.value))}
+        onChange={e => {
+          const value = Number(e.target.value);
+          setRefetchIntervalMs(value);
+          mockCallbacks.setRefetchIntervalMs(value);
+        }}
       />
     </div>
   ),
@@ -612,6 +625,7 @@ describe('AdvancedSearch', () => {
 
       await waitFor(() => {
         expect(mockCallbacks.setMaxItemsPerResource).toHaveBeenCalledWith(5000);
+        expect(screen.getByTestId('resource-search')).toHaveTextContent('Max Items: 5000');
       });
     });
 
@@ -626,6 +640,7 @@ describe('AdvancedSearch', () => {
 
       await waitFor(() => {
         expect(mockCallbacks.setRefetchIntervalMs).toHaveBeenCalledWith(30000);
+        expect(screen.getByTestId('resource-search')).toHaveTextContent('Refetch: 30000');
       });
     });
   });
