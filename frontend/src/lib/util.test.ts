@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { createMemoryHistory, History } from 'history';
 import React from 'react';
 import { Provider } from 'react-redux';
+import { Router } from 'react-router-dom';
 import store from '../redux/stores/store';
 import {
   combineClusterListErrors,
@@ -30,6 +32,7 @@ import {
   normalizeUnit,
   timeAgo,
   useFilterFunc,
+  useURLState,
 } from './util';
 
 const SECOND = 1000;
@@ -548,5 +551,163 @@ describe('useFilterFunc', () => {
     rerender({ criteria: ['b'] });
 
     expect(result.current).not.toBe(first);
+  });
+});
+
+describe('useURLState', () => {
+  function createRouterWrapper(history: History) {
+    return function Wrapper({ children }: { children: React.ReactNode }) {
+      return React.createElement(Router, { history }, children);
+    };
+  }
+
+  it('reads initial value from the URL query parameter', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?count=5'] });
+    const { result } = renderHook(() => useURLState('count', 1), {
+      wrapper: createRouterWrapper(history),
+    });
+
+    expect(result.current[0]).toBe(5);
+  });
+
+  it('synchronizes state when the URL changes externally and on Back/Forward', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?count=1'] });
+    const { result } = renderHook(() => useURLState('count', 0), {
+      wrapper: createRouterWrapper(history),
+    });
+
+    expect(result.current[0]).toBe(1);
+
+    act(() => {
+      history.push('/test?count=2');
+    });
+    expect(result.current[0]).toBe(2);
+
+    act(() => {
+      history.push('/test?count=3');
+    });
+    expect(result.current[0]).toBe(3);
+
+    act(() => {
+      history.goBack();
+    });
+    expect(result.current[0]).toBe(2);
+
+    act(() => {
+      history.goBack();
+    });
+    expect(result.current[0]).toBe(1);
+
+    act(() => {
+      history.goForward();
+    });
+    expect(result.current[0]).toBe(2);
+  });
+
+  it('restores default value when the query parameter is removed from URL', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?page=3'] });
+    const { result } = renderHook(() => useURLState('page', 1), {
+      wrapper: createRouterWrapper(history),
+    });
+
+    expect(result.current[0]).toBe(3);
+
+    act(() => {
+      history.push('/test');
+    });
+    expect(result.current[0]).toBe(1);
+    expect(history.location.search).toBe('');
+  });
+
+  it('removes query parameter from URL when state is set to default and hideDefault is true', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?page=2'] });
+    const { result } = renderHook(() => useURLState('page', 1), {
+      wrapper: createRouterWrapper(history),
+    });
+
+    expect(result.current[0]).toBe(2);
+
+    act(() => {
+      result.current[1](1);
+    });
+    expect(result.current[0]).toBe(1);
+    expect(history.location.search).toBe('');
+  });
+
+  it('retains default value in URL when hideDefault is false', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test'] });
+    const { result } = renderHook(
+      () => useURLState('mode', { defaultValue: 'auto', hideDefault: false }),
+      { wrapper: createRouterWrapper(history) }
+    );
+
+    expect(result.current[0]).toBe('auto');
+    expect(history.location.search).toBe('?mode=auto');
+  });
+
+  it('handles prefixed keys correctly in URL reading and writing', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?sub.tab=details'] });
+    const { result } = renderHook(
+      () => useURLState('tab', { defaultValue: 'overview', prefix: 'sub' }),
+      { wrapper: createRouterWrapper(history) }
+    );
+
+    expect(result.current[0]).toBe('details');
+
+    act(() => {
+      result.current[1]('logs');
+    });
+    expect(result.current[0]).toBe('logs');
+    expect(history.location.search).toBe('?sub.tab=logs');
+
+    act(() => {
+      result.current[1]('overview');
+    });
+    expect(result.current[0]).toBe('overview');
+    expect(history.location.search).toBe('');
+  });
+
+  it('acts like plain useState when key is empty and does not touch or track URL', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?page=5'] });
+    const { result } = renderHook(() => useURLState('', 1), {
+      wrapper: createRouterWrapper(history),
+    });
+
+    expect(result.current[0]).toBe(1);
+    expect(history.location.search).toBe('?page=5');
+
+    act(() => {
+      result.current[1](2);
+    });
+    expect(result.current[0]).toBe(2);
+    // URL search must remain unchanged
+    expect(history.location.search).toBe('?page=5');
+
+    // External URL navigation does not affect empty-key state
+    act(() => {
+      history.push('/test?page=10');
+    });
+    expect(result.current[0]).toBe(2);
+  });
+
+  it('supports functional updates with latest state', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?step=1'] });
+    const { result } = renderHook(() => useURLState('step', 1), {
+      wrapper: createRouterWrapper(history),
+    });
+
+    expect(result.current[0]).toBe(1);
+
+    act(() => {
+      result.current[1](prev => prev + 1);
+    });
+    expect(result.current[0]).toBe(2);
+    expect(history.location.search).toBe('?step=2');
+
+    act(() => {
+      result.current[1](prev => prev + 5);
+    });
+    expect(result.current[0]).toBe(7);
+    expect(history.location.search).toBe('?step=7');
   });
 });
