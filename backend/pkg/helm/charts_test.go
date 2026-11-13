@@ -30,9 +30,28 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 )
 
-var settings = cli.New()
+// newIsolatedChartSettings returns helm settings rooted in temporary
+// directories, so chart tests neither read nor write the user's real helm
+// configuration and repository caches.
+func newIsolatedChartSettings(t *testing.T) *cli.EnvSettings {
+	t.Helper()
+
+	configHome := t.TempDir()
+	cacheHome := t.TempDir()
+
+	t.Setenv("HELM_CONFIG_HOME", configHome)
+	t.Setenv("HELM_CACHE_HOME", cacheHome)
+	// Helm gives the repository-specific variables precedence over the home
+	// directories, so pin them as well to stay off the user's real files.
+	t.Setenv("HELM_REPOSITORY_CONFIG", filepath.Join(configHome, "repositories.yaml"))
+	t.Setenv("HELM_REPOSITORY_CACHE", filepath.Join(cacheHome, "repository"))
+
+	return cli.New()
+}
 
 func TestListChart(t *testing.T) {
+	settings := newIsolatedChartSettings(t)
+
 	cache := cache.New[interface{}]()
 	require.NotNil(t, cache)
 
@@ -95,6 +114,7 @@ func TestListChartContentType(t *testing.T) {
 	ch := cache.New[interface{}]()
 	require.NotNil(t, ch)
 
+	settings := newIsolatedChartSettings(t)
 	helmHandler, err := helm.NewHandlerWithSettings(ch, settings)
 	require.NoError(t, err)
 
