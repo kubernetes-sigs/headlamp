@@ -2980,9 +2980,11 @@ describe('useKubeObjectList', () => {
     expect(latestConn?.url).toBe(initialConn?.url);
   });
 
-  it('refreshes cursors for all namespaces when one namespace disconnects and connections restart', async () => {
+  it('preserves healthy sibling watch connection when another namespace disconnects, and reconnects sibling with advanced cursor only on its own disconnect', async () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity } },
+    });
 
     queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'ns-a', {}], {
       list: { items: [makePod('pod-a', '100')], metadata: { resourceVersion: '100' } },
@@ -3027,16 +3029,34 @@ describe('useKubeObjectList', () => {
       });
     });
 
-    // Now ns-a disconnects
+    // 1. Healthy sibling isolation: ns-a disconnects
     act(() => {
       connA?.onClose?.();
     });
 
-    // When connections restart, ns-b MUST reconnect with its advanced cursor 250, not initial 200
+    // ns-a reconnects with its cursor 100, while healthy sibling ns-b retains its starting connection URL (200)
     await waitFor(() => {
       const latestConnections = spy.mock.calls.at(-1)?.[0].connections;
-      const restartedB = latestConnections?.find((c: any) => c.url.includes('ns-b'));
-      expect(restartedB?.url).toContain('resourceVersion=250');
+      const currentA = latestConnections?.find((c: any) => c.url.includes('ns-a'));
+      const currentB = latestConnections?.find((c: any) => c.url.includes('ns-b'));
+      expect(currentA?.url).toContain('resourceVersion=100');
+      expect(currentB?.url).toContain('resourceVersion=200');
+      expect(currentB?.url).not.toContain('resourceVersion=250');
+    });
+
+    // 2. Own disconnect: ns-b itself now disconnects
+    const latestB = spy.mock.calls
+      .at(-1)?.[0]
+      .connections?.find((c: any) => c.url.includes('ns-b'));
+    act(() => {
+      latestB?.onClose?.();
+    });
+
+    // Only on its own disconnect does ns-b reconnect using its advanced cursor 250
+    await waitFor(() => {
+      const latestConnections = spy.mock.calls.at(-1)?.[0].connections;
+      const reconnectedB = latestConnections?.find((c: any) => c.url.includes('ns-b'));
+      expect(reconnectedB?.url).toContain('resourceVersion=250');
     });
   });
 
@@ -3721,12 +3741,13 @@ describe('useKubeObjectList', () => {
       });
     });
 
-    // While ns-a is relisting, ns-a watch is suspended and ns-b remains watching
+    // While ns-a is relisting, ns-a watch is suspended and ns-b remains watching on starting cursor 200
     await waitFor(() => {
       const active = spy.mock.calls.at(-1)?.[0].connections ?? [];
       expect(active.length).toBe(1);
       expect(active[0].url).toContain('ns-b');
-      expect(active[0].url).toContain('resourceVersion=250');
+      expect(active[0].url).toContain('resourceVersion=200');
+      expect(active[0].url).not.toContain('resourceVersion=250');
     });
 
     // Complete ns-a relist with fresh resourceVersion 300
@@ -3742,14 +3763,29 @@ describe('useKubeObjectList', () => {
       } as Response);
     });
 
-    // Both namespaces now watch: ns-a with fresh 300, ns-b retaining its advanced 250
+    // Both namespaces now watch: ns-a resumes with fresh 300, ns-b remains undisturbed on starting 200
     await waitFor(() => {
       const active = spy.mock.calls.at(-1)?.[0].connections ?? [];
       expect(active.length).toBe(2);
       const activeA = active.find((c: any) => c.url.includes('ns-a'));
       const activeB = active.find((c: any) => c.url.includes('ns-b'));
       expect(activeA?.url).toContain('resourceVersion=300');
-      expect(activeB?.url).toContain('resourceVersion=250');
+      expect(activeB?.url).toContain('resourceVersion=200');
+      expect(activeB?.url).not.toContain('resourceVersion=250');
+    });
+
+    // When ns-b itself disconnects, it reconnects using its advanced cursor 250
+    const latestB = spy.mock.calls
+      .at(-1)?.[0]
+      .connections?.find((c: any) => c.url.includes('ns-b'));
+    act(() => {
+      latestB?.onClose?.();
+    });
+
+    await waitFor(() => {
+      const active = spy.mock.calls.at(-1)?.[0].connections ?? [];
+      const reconnectedB = active.find((c: any) => c.url.includes('ns-b'));
+      expect(reconnectedB?.url).toContain('resourceVersion=250');
     });
   });
 
@@ -4294,7 +4330,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     expect(currentCachedData.list.metadata.resourceVersion).toBe('210');
   });
 
-  it('preserves latest resourceVersion across updates when lists re-renders in multiplexer mode', async () => {
+  it('preserves starting resourceVersion for healthy sibling when lists re-renders in multiplexer mode', async () => {
     const lists = [
       { cluster: 'cluster-a', namespace: 'ns-a', resourceVersion: '10' },
       { cluster: 'cluster-a', namespace: 'ns-b', resourceVersion: '20' },
@@ -4344,8 +4380,9 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect(mockSubscribe).toHaveBeenCalled();
     });
 
-    // ns-b must subscribe with advanced cursor 25, not stale 20
+    // ns-b must retain starting cursor 20 and not restart with 25
     const subscribeB = mockSubscribe.mock.calls.find(call => call[1].includes('ns-b'));
-    expect(subscribeB?.[2]).toContain('resourceVersion=25');
+    expect(subscribeB?.[2]).toContain('resourceVersion=20');
+    expect(subscribeB?.[2]).not.toContain('resourceVersion=25');
   });
 });
