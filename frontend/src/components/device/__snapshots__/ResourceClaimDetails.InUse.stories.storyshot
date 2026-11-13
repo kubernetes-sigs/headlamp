@@ -445,6 +445,119 @@
                   <h2
                     class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
                   >
+                    Used By
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              />
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                tabindex="0"
+              >
+                <table
+                  class="MuiTable-root css-1ok7ihs-MuiTable-root"
+                >
+                  <thead
+                    class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                    >
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Resource
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Name
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        pods
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/"
+                        >
+                          trainer-0
+                        </a>
+                      </td>
+                    </tr>
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        pods
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/"
+                        >
+                          trainer-1
+                        </a>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
                     Events
                   </h2>
                   <div

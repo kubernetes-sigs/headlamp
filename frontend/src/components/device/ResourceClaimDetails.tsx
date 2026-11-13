@@ -22,6 +22,7 @@ import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import DeviceRequestsTable from './DeviceRequestsTable';
 import ResourceClaimAllocatedDevices from './ResourceClaimAllocatedDevices';
+import ResourceClaimConsumers from './ResourceClaimConsumers';
 import ResourceClaimStatus from './ResourceClaimStatus';
 
 export default function ResourceClaimDetails(props: {
@@ -80,6 +81,14 @@ export default function ResourceClaimDetails(props: {
             section: (
               <SectionBox title={t('translation|Allocated Devices')}>
                 <ResourceClaimAllocatedDevices claim={item} />
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.resourceclaim-consumers',
+            section: (
+              <SectionBox title={t('translation|Used By')}>
+                <ResourceClaimConsumers claim={item} />
               </SectionBox>
             ),
           },
