@@ -44,6 +44,10 @@ export const BUILT_IN_RELATION_IDS = [
   'tcproute-service',
   'udproute-gateway',
   'udproute-service',
+  'listenerset-gateway',
+  'httproute-listenerset',
+  'tcproute-listenerset',
+  'udproute-listenerset',
   'backendtlspolicy-service',
   'backendtrafficpolicy-service',
 ];

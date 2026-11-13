@@ -415,6 +415,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'backendtrafficpolicies',
             label: t('glossary|BackendTrafficPolicies'),
           },
+          {
+            name: 'listenersets',
+            label: t('glossary|ListenerSets'),
+          },
         ],
       },
       {
