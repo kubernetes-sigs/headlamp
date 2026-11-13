@@ -986,14 +986,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.StartPortForward(
-				config.KubeConfigStore,
-				config.Cache,
-				config.shouldUseUnsafeServiceAccountToken(),
-				contextKey,
-				w,
-				r,
-			)
+			config.portForwardRequestHandler(contextKey, w, r)
 		})),
 	).Methods("POST")
 
@@ -1006,7 +999,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
+			config.portForwardRequestHandler(contextKey, w, r)
 		})),
 	).Methods("DELETE")
 
@@ -1019,9 +1012,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.GetPortForwards(config.Cache, contextKey, w, r)
+			config.portForwardRequestHandler(contextKey, w, r)
 		})),
-	)
+	).Methods("GET")
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1031,7 +1024,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				return
 			}
 
-			portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
+			config.portForwardRequestHandler(contextKey, w, r)
 		})),
 	).Methods("GET")
 
@@ -1713,6 +1706,19 @@ func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader strin
 	if proxyAuthTokenHeader != "" {
 		r.Header.Del(proxyAuthTokenHeader)
 	}
+}
+
+func (c *HeadlampConfig) portForwardRequestHandler(contextKey string, w http.ResponseWriter, r *http.Request) {
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
+			r = r.Clone(r.Context())
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+	}
+
+	clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+	portforward.RequestHandler(c.KubeConfigStore, c.Cache,
+		c.shouldUseUnsafeServiceAccountToken(), contextKey, w, r)
 }
 
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {

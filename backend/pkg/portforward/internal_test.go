@@ -771,7 +771,7 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 
 	defer func() { _ = res.Body.Close() }()
 
-	assert.Equal(t, http.StatusInternalServerError, res.StatusCode,
+	assert.Equal(t, http.StatusNotFound, res.StatusCode,
 		"stop request with user ID must not find entries stored under base cluster key")
 }
 
@@ -811,7 +811,7 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	r.Header.Set("X-HEADLAMP-USER-ID", "user")
 	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
 
-	StartPortForward(kubeConfigStore, c, false, contextKey, w, r)
+	startPortForwardForOwner(kubeConfigStore, c, false, contextKey, contextKey, w, r)
 
 	res := w.Result()
 
@@ -865,7 +865,7 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(body))
 		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
 
-		StartPortForward(store, c, false, "test-cluster", w, r)
+		startPortForwardForOwner(store, c, false, "test-cluster", "test-cluster", w, r)
 
 		return w
 	}

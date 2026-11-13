@@ -80,6 +80,44 @@ fall back to the pod's service account or forward that credential to an external
 context. Legacy unscoped routes remain available for existing callers, but
 cookie-only browser clients should use the cluster-scoped routes.
 
+## Port-forward authentication and ownership
+
+Every port-forward create/list/get/stop/delete request authenticates to Kubernetes
+using `authentication.k8s.io/v1` SelfSubjectReview. The API server must support
+this endpoint and permit the authenticated user to create self-subject reviews.
+An unavailable/unsupported review endpoint fails closed rather than trusting
+unverified JWT claims or arbitrary nonempty bearer text.
+
+An Authorization bearer token takes precedence over the cluster cookie. Supplied
+user tokens replace stored authentication methods for the request, so invalid
+tokens cannot fall back to a configured certificate or token file. Static
+kubeconfig credentials still work when no user token is supplied.
+When proxy authentication is enabled, its configured token header takes
+precedence and is subject to the same Kubernetes identity verification.
+
+Sessions are scoped by the exact context key and the Kubernetes-returned username
+and UID. Another user cannot list, inspect, stop, delete, or overwrite them by
+supplying the same forwarding ID. Refreshed tokens for the same principal retain
+access; a different UID does not. Public cluster names and response shapes remain
+unchanged. Existing unowned cache entries are not adopted by the next caller.
+The store is in memory; no persistent session migration is required.
+
+In-cluster service-account credentials are not used in place of a missing user
+token unless unsafe service-account mode was explicitly enabled. That unsafe
+mode deliberately shares the service-account identity, not individual user
+ownership. Desktop backend-token protection remains an additional boundary.
+
+Run the local HTTP end-to-end and ownership regressions without a Kubernetes cluster:
+
+```bash
+cd backend
+go test -race ./pkg/portforward ./cmd -run 'TestPortForward(AuthenticatedOwnershipEndToEnd|AuthenticationFailsClosed|CreationKeepsOwnerScope|CookieOwnership|RoutesRejectForgedCredentials)$' -count=20
+```
+
+These tests use the production request handler and real HTTP/TLS connections to a
+local mock of the Kubernetes authentication API. Session-control tests use
+synthetic channels and do not establish live Kubernetes port-forwards.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
