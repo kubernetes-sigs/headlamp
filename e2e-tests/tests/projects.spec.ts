@@ -16,7 +16,6 @@
 
 import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
-import { NamespacesPage } from './namespacesPage';
 
 const PROJECT_ID_LABEL = 'headlamp.dev/project-id';
 
@@ -127,41 +126,48 @@ test('replaces a built-in project creation choice', async ({ page }) => {
   await expect(page).toHaveURL(/\/project\/create-yaml$/);
 });
 
-test('opens a project created from a labelled namespace', async ({ page }) => {
-  const namespaceName = 'testing-e2e-project';
-  const projectName = 'testing-e2e';
+test('opens a project created from a labelled namespace', async ({ page }, testInfo) => {
+  const token = process.env.HEADLAMP_TEST_TOKEN;
+  test.skip(!token, 'HEADLAMP_TEST_TOKEN is required to create the project fixture.');
+
+  // The namespace is created through the API because the sidebar example plugin removes the
+  // Namespaces page from the CI deployment.
+  const projectName = `labelled-project-${testInfo.workerIndex}-${Date.now()}`;
+  const namespaceName = `${projectName}-namespace`;
+  const namespacePath = `/clusters/test/api/v1/namespaces/${namespaceName}`;
+  const headers = { Authorization: `Bearer ${token}` };
   const headlampPage = new HeadlampPage(page);
-  const namespacesPage = new NamespacesPage(page);
 
-  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  await headlampPage.navigateToCluster('test', token);
 
-  const content = await page.content();
-  test.skip(
-    !content.includes('Namespaces') || !content.includes('href="/c/test/namespaces'),
-    'Namespace permissions are required for this test'
-  );
-
-  await namespacesPage.navigateToNamespaces();
-  const setupStatus = await namespacesPage.createNamespace(namespaceName, {
-    [PROJECT_ID_LABEL]: projectName,
+  const createResponse = await page.request.post('/clusters/test/api/v1/namespaces', {
+    headers,
+    data: {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: { name: namespaceName, labels: { [PROJECT_ID_LABEL]: projectName } },
+    },
   });
+  expect(createResponse.status(), await createResponse.text()).toBe(201);
 
   try {
-    await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+    await headlampPage.navigateTopage('/');
     await page.getByRole('tab', { name: 'Projects' }).click();
 
     const projectLink = page.getByRole('link', { name: projectName, exact: true });
     await expect(projectLink).toBeVisible();
-    await expect(projectLink).toHaveAttribute('href', `/project/${projectName}`);
+    // The projects example plugin adds a per-cluster projectKey query to project links.
+    const projectPath = new RegExp(`/project/${projectName}(\\?|$)`);
+    await expect(projectLink).toHaveAttribute('href', projectPath);
     await projectLink.click();
 
-    await expect(page).toHaveURL(new RegExp(`/project/${projectName}$`));
-    await expect(page.getByText(projectName, { exact: true }).first()).toBeVisible();
+    await expect(page).toHaveURL(projectPath);
+    // Opening a project from the home list takes several seconds to load its resources.
+    await expect(page.getByText(projectName, { exact: true }).first()).toBeVisible({
+      timeout: 20_000,
+    });
   } finally {
-    if (setupStatus === 'created') {
-      await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
-      await namespacesPage.navigateToNamespaces();
-      await namespacesPage.deleteNamespace(namespaceName);
-    }
+    const deleteResponse = await page.request.delete(namespacePath, { headers });
+    expect(deleteResponse.ok()).toBe(true);
   }
 });
