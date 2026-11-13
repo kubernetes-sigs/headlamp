@@ -46,6 +46,48 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
 
+/**
+ * Checks whether an incoming update represents an expired resourceVersion error (e.g. HTTP 410 Gone).
+ */
+export function isResourceVersionExpiredError(update: any): boolean {
+  if (!update || typeof update !== 'object') return false;
+  if (update.type === 'ERROR') {
+    const obj = update.object || {};
+    if (obj.code === 410 || obj.reason === 'Expired' || obj.reason === 'Gone') {
+      return true;
+    }
+    const message =
+      typeof obj.message === 'string'
+        ? obj.message
+        : typeof update.message === 'string'
+        ? update.message
+        : '';
+    if (/too old resource version|expired/i.test(message)) {
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Returns a stable identifier for a Kubernetes resource endpoint or class.
+ */
+export function getResourceIdentity(
+  endpoint?: KubeObjectEndpoint | null,
+  kubeObjectClass?: KubeObjectClass | (new (...args: any) => any)
+): string {
+  if (endpoint) {
+    const groupPrefix = endpoint.group ? `${endpoint.group}/` : '';
+    return `${groupPrefix}${endpoint.version || ''}/${endpoint.resource || ''}`;
+  }
+  const objClass = kubeObjectClass as any;
+  if (objClass) {
+    return `${objClass.apiVersion || ''}/${objClass.apiName || objClass.kind || ''}`;
+  }
+  return '';
+}
+
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
     error instanceof ApiError
@@ -275,6 +317,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   lists,
   queryParams,
   watchQueryParams,
+  onReconnect,
 }: {
   /** KubeObject class of the watched resource list */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -286,6 +329,13 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  /** Callback invoked when an active watch connection disconnects and needs to reconnect */
+  onReconnect?: (
+    cluster: string,
+    namespace?: string,
+    latestResourceVersion?: string,
+    watchQueryKey?: string
+  ) => void;
 }) {
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
@@ -296,6 +346,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
     queryParams: multiplexerEnabled ? queryParams : undefined,
     watchQueryParams: multiplexerEnabled ? watchQueryParams : undefined,
     enabled: multiplexerEnabled,
+    onReconnect,
   });
 
   useWatchKubeObjectListsLegacy({
@@ -305,6 +356,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
     queryParams: !multiplexerEnabled ? queryParams : undefined,
     watchQueryParams: !multiplexerEnabled ? watchQueryParams : undefined,
     enabled: !multiplexerEnabled,
+    onReconnect,
   });
 }
 
@@ -326,6 +378,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   queryParams,
   watchQueryParams,
   enabled = true,
+  onReconnect,
 }: {
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   endpoint?: KubeObjectEndpoint | null;
@@ -333,19 +386,39 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   queryParams?: QueryParameters;
   watchQueryParams?: QueryParameters;
   enabled?: boolean;
+  onReconnect?: (
+    cluster: string,
+    namespace?: string,
+    latestResourceVersion?: string,
+    watchQueryKey?: string
+  ) => void;
 }): void {
   const client = useQueryClient();
+  const endpointKey = getResourceIdentity(endpoint, kubeObjectClass);
 
   // Track the latest resource versions to prevent duplicate updates
   const latestResourceVersions = useRef<Record<string, string>>({});
+  const prevListsResourceVersions = useRef<Record<string, string>>({});
+
+  const hasQueryParams = watchQueryParams !== undefined || queryParams !== undefined;
+  const watchQueryKey = useMemo(
+    () => (enabled ? getWatchQueryParamsKey(watchQueryParams ?? queryParams) : ''),
+    [enabled, watchQueryParams, queryParams]
+  );
 
   // Stabilize queryParams to prevent unnecessary effect triggers
   // Only update when the stringified params change
-  const stableQueryParamsKey = enabled ? JSON.stringify(queryParams) : '__disabled__';
-  const stableWatchQueryParamsKey = enabled
-    ? JSON.stringify(watchQueryParams ?? queryParams)
+  const stableQueryParamsKey = enabled
+    ? JSON.stringify(
+        queryParams
+          ? Object.entries(queryParams)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .filter(([, v]) => v !== undefined && v !== '')
+          : null
+      )
     : '__disabled__';
-  /* eslint-disable react-hooks/exhaustive-deps -- Query params are intentionally stabilized by their JSON keys. */
+  const stableWatchQueryParamsKey = enabled ? watchQueryKey : '__disabled__';
+  /* eslint-disable react-hooks/exhaustive-deps -- Query params are intentionally stabilized by their keys. */
   const stableQueryParams = useMemo(() => queryParams, [stableQueryParamsKey]);
   const stableWatchQueryParams = useMemo(
     () => watchQueryParams ?? queryParams,
@@ -361,38 +434,45 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     }
 
     return lists.map(list => {
-      const key = `${list.cluster}:${list.namespace || ''}`;
+      const key = `${list.cluster}:${endpointKey}:${list.namespace || ''}:${watchQueryKey}`;
 
-      // Always use the latest resource version from the server
-      latestResourceVersions.current[key] = list.resourceVersion;
+      const prevListRV = prevListsResourceVersions.current[key];
+      if (list.resourceVersion && list.resourceVersion !== prevListRV) {
+        prevListsResourceVersions.current[key] = list.resourceVersion;
+        latestResourceVersions.current[key] = list.resourceVersion;
+      } else if (list.resourceVersion && !latestResourceVersions.current[key]) {
+        latestResourceVersions.current[key] = list.resourceVersion;
+      }
 
       // Construct WebSocket URL with current parameters
       return {
         url: makeUrl([KubeObjectEndpoint.toUrl(endpoint, list.namespace)], {
           ...stableWatchQueryParams,
           watch: 1,
-          resourceVersion: latestResourceVersions.current[key],
+          resourceVersion: list.resourceVersion || latestResourceVersions.current[key] || '',
         }),
         cluster: list.cluster,
         namespace: list.namespace,
+        watchQueryKey,
       };
     });
-  }, [enabled, endpoint, lists, stableWatchQueryParams]);
+  }, [enabled, endpoint, endpointKey, lists, stableWatchQueryParams, watchQueryKey]);
 
   // Create stable update handler to process WebSocket messages
   // Re-create only when dependencies change
   const handleUpdate = useCallback(
-    (update: any, cluster: string, namespace: string | undefined) => {
+    (
+      update: any,
+      cluster: string,
+      namespace: string | undefined,
+      currentWatchQueryKey?: string
+    ) => {
       if (!update || typeof update !== 'object' || !endpoint) {
         return;
       }
 
-      const key = `${cluster}:${namespace || ''}`;
-
-      // Update resource version from incoming message
-      if (update.object?.metadata?.resourceVersion) {
-        latestResourceVersions.current[key] = update.object.metadata.resourceVersion;
-      }
+      const activeWatchQueryKey = currentWatchQueryKey ?? watchQueryKey;
+      const key = `${cluster}:${endpointKey}:${namespace || ''}:${activeWatchQueryKey}`;
 
       // Create query key for React Query cache
       const queryKey = kubeObjectListQuery<K>(
@@ -403,6 +483,27 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         stableQueryParams ?? {}
       ).queryKey;
 
+      if (isResourceVersionExpiredError(update)) {
+        delete latestResourceVersions.current[key];
+        delete prevListsResourceVersions.current[key];
+        if (onReconnect) {
+          if (hasQueryParams) {
+            onReconnect(cluster, namespace, '', activeWatchQueryKey);
+          } else {
+            onReconnect(cluster, namespace, '');
+          }
+        } else {
+          client.invalidateQueries({ queryKey });
+        }
+        return;
+      }
+
+      if (update.type === 'ERROR') {
+        return;
+      }
+
+      let appliedResourceVersion: string | undefined;
+
       // Update React Query cache with new data
       client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
         if (!oldResponse) {
@@ -410,6 +511,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         }
 
         const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass, cluster);
+        appliedResourceVersion = newList.metadata.resourceVersion;
 
         // Only update if the list actually changed
         if (newList === oldResponse.list) {
@@ -418,8 +520,23 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
         return { ...oldResponse, list: newList };
       });
+
+      if (appliedResourceVersion) {
+        latestResourceVersions.current[key] = appliedResourceVersion;
+      } else if (update.object?.metadata?.resourceVersion) {
+        latestResourceVersions.current[key] = update.object.metadata.resourceVersion;
+      }
     },
-    [client, kubeObjectClass, endpoint, stableQueryParams]
+    [
+      client,
+      kubeObjectClass,
+      endpoint,
+      endpointKey,
+      stableQueryParams,
+      watchQueryKey,
+      hasQueryParams,
+      onReconnect,
+    ]
   );
 
   // Set up WebSocket subscriptions
@@ -431,16 +548,46 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     const cleanups: (() => void)[] = [];
 
     // Create subscriptions for each connection
-    connections.forEach(({ url, cluster, namespace }) => {
+    connections.forEach(({ url, cluster, namespace, watchQueryKey: connWatchQueryKey }) => {
       const parsedUrl = new URL(url, BASE_WS_URL);
+      let isExpired = false;
 
       // Subscribe to WebSocket updates
       WebSocketManager.subscribe(
         cluster,
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
-        update => handleUpdate(update, cluster, namespace),
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
+        update => {
+          if (isExpired) {
+            return;
+          }
+          if (isResourceVersionExpiredError(update)) {
+            isExpired = true;
+          }
+          handleUpdate(update, cluster, namespace, connWatchQueryKey);
+        },
+        error => {
+          console.error(`WebSocket subscription error for cluster ${cluster}:`, error);
+          const key = `${cluster}:${endpointKey}:${namespace || ''}:${connWatchQueryKey}`;
+          delete latestResourceVersions.current[key];
+          delete prevListsResourceVersions.current[key];
+          if (onReconnect) {
+            if (hasQueryParams) {
+              onReconnect(cluster, namespace, '', connWatchQueryKey);
+            } else {
+              onReconnect(cluster, namespace, '');
+            }
+          } else {
+            const queryKey = kubeObjectListQuery<K>(
+              kubeObjectClass,
+              endpoint,
+              namespace,
+              cluster,
+              stableQueryParams ?? {}
+            ).queryKey;
+            client.invalidateQueries({ queryKey });
+          }
+        }
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {
@@ -459,7 +606,18 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     return () => {
       cleanups.forEach(cleanup => cleanup());
     };
-  }, [connections, enabled, endpoint, handleUpdate]);
+  }, [
+    connections,
+    enabled,
+    endpoint,
+    endpointKey,
+    handleUpdate,
+    kubeObjectClass,
+    client,
+    stableQueryParams,
+    hasQueryParams,
+    onReconnect,
+  ]);
 }
 
 /**
@@ -477,6 +635,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   queryParams,
   watchQueryParams,
   enabled = true,
+  onReconnect,
 }: {
   /** KubeObject class of the watched resource list */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -489,14 +648,35 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
   enabled?: boolean;
+  onReconnect?: (
+    cluster: string,
+    namespace?: string,
+    latestResourceVersion?: string,
+    watchQueryKey?: string
+  ) => void;
 }) {
   const client = useQueryClient();
+  const endpointKey = getResourceIdentity(endpoint, kubeObjectClass);
+  const latestResourceVersions = useRef<Record<string, string>>({});
+  const prevListsResourceVersions = useRef<Record<string, string>>({});
 
-  const stableQueryParamsKey = enabled ? JSON.stringify(queryParams) : '__disabled__';
-  const stableWatchQueryParamsKey = enabled
-    ? JSON.stringify(watchQueryParams ?? queryParams)
+  const hasQueryParams = watchQueryParams !== undefined || queryParams !== undefined;
+  const watchQueryKey = useMemo(
+    () => (enabled ? getWatchQueryParamsKey(watchQueryParams ?? queryParams) : ''),
+    [enabled, watchQueryParams, queryParams]
+  );
+
+  const stableQueryParamsKey = enabled
+    ? JSON.stringify(
+        queryParams
+          ? Object.entries(queryParams)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .filter(([, v]) => v !== undefined && v !== '')
+          : null
+      )
     : '__disabled__';
-  /* eslint-disable react-hooks/exhaustive-deps -- Query params are intentionally stabilized by their JSON keys. */
+  const stableWatchQueryParamsKey = enabled ? watchQueryKey : '__disabled__';
+  /* eslint-disable react-hooks/exhaustive-deps -- Query params are intentionally stabilized by their keys. */
   const stableQueryParams = useMemo(() => queryParams, [stableQueryParamsKey]);
   const stableWatchQueryParams = useMemo(
     () => watchQueryParams ?? queryParams,
@@ -508,16 +688,58 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
     if (!enabled || !endpoint) return [];
 
     return lists.map(({ cluster, namespace, resourceVersion }) => {
+      const watchKey = `${cluster}:${endpointKey}:${namespace || ''}:${watchQueryKey}`;
+      const prevListRV = prevListsResourceVersions.current[watchKey];
+      if (resourceVersion && resourceVersion !== prevListRV) {
+        prevListsResourceVersions.current[watchKey] = resourceVersion;
+        latestResourceVersions.current[watchKey] = resourceVersion;
+      } else if (resourceVersion && !latestResourceVersions.current[watchKey]) {
+        latestResourceVersions.current[watchKey] = resourceVersion;
+      }
+
       const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
         ...stableWatchQueryParams,
         watch: 1,
-        resourceVersion,
+        resourceVersion: resourceVersion || latestResourceVersions.current[watchKey] || '',
       });
+
+      let isExpired = false;
 
       return {
         cluster,
         url,
         onMessage(update: KubeListUpdateEvent<K>) {
+          if (isExpired) {
+            return;
+          }
+
+          if (isResourceVersionExpiredError(update)) {
+            isExpired = true;
+            delete latestResourceVersions.current[watchKey];
+            delete prevListsResourceVersions.current[watchKey];
+            if (onReconnect) {
+              if (hasQueryParams) {
+                onReconnect(cluster, namespace, '', watchQueryKey);
+              } else {
+                onReconnect(cluster, namespace, '');
+              }
+            } else {
+              const key = kubeObjectListQuery<K>(
+                kubeObjectClass,
+                endpoint,
+                namespace,
+                cluster,
+                stableQueryParams ?? {}
+              ).queryKey;
+              client.invalidateQueries({ queryKey: key });
+            }
+            return;
+          }
+
+          if (update.type === 'ERROR') {
+            return;
+          }
+
           const key = kubeObjectListQuery<K>(
             kubeObjectClass,
             endpoint,
@@ -525,6 +747,8 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             stableQueryParams ?? {}
           ).queryKey;
+          let appliedResourceVersion: string | undefined;
+
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
 
@@ -534,8 +758,53 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
               kubeObjectClass,
               cluster
             );
+            appliedResourceVersion = newList.metadata.resourceVersion;
             return { ...oldResponse, list: newList };
           });
+
+          if (appliedResourceVersion) {
+            latestResourceVersions.current[watchKey] = appliedResourceVersion;
+          } else if (update.object?.metadata?.resourceVersion) {
+            latestResourceVersions.current[watchKey] = update.object.metadata.resourceVersion;
+          }
+        },
+        onClose(event?: CloseEvent) {
+          if (enabled) {
+            if (isExpired) {
+              delete latestResourceVersions.current[watchKey];
+              delete prevListsResourceVersions.current[watchKey];
+              return;
+            }
+
+            const key = kubeObjectListQuery<K>(
+              kubeObjectClass,
+              endpoint,
+              namespace,
+              cluster,
+              stableQueryParams ?? {}
+            ).queryKey;
+            const cached = client.getQueryData<ListResponse<any>>(key);
+            const cachedRV = cached?.list?.metadata?.resourceVersion;
+            const eventRV = latestResourceVersions.current[watchKey];
+            const isAbnormalClose = Boolean(
+              event && (event.code === 1002 || event.code === 1008 || event.code === 4404)
+            );
+            const rv = isAbnormalClose ? '' : cachedRV || eventRV || resourceVersion;
+            if (rv) {
+              latestResourceVersions.current[watchKey] = rv;
+            } else {
+              delete latestResourceVersions.current[watchKey];
+              delete prevListsResourceVersions.current[watchKey];
+              if (!onReconnect) {
+                client.invalidateQueries({ queryKey: key });
+              }
+            }
+            if (hasQueryParams) {
+              onReconnect?.(cluster, namespace, rv, watchQueryKey);
+            } else {
+              onReconnect?.(cluster, namespace, rv);
+            }
+          }
         },
       };
     });
@@ -544,9 +813,13 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
     lists,
     kubeObjectClass,
     endpoint,
+    endpointKey,
     stableQueryParams,
     stableWatchQueryParams,
+    watchQueryKey,
+    hasQueryParams,
     client,
+    onReconnect,
   ]);
 
   useWebSockets<KubeListUpdateEvent<K>>({
@@ -603,6 +876,36 @@ function withoutPaginationParams(queryParams: QueryParameters): QueryParameters 
   delete params.continue;
   delete params.limit;
   return params;
+}
+
+/**
+ * Generates a stable, canonical query string key from query parameters for Kubernetes watches.
+ * Excludes pagination parameters (continue, limit), watch mechanics (watch, resourceVersion),
+ * and undefined or empty values. Sorts keys alphabetically to guarantee order invariance.
+ *
+ * @param queryParams - The query parameters object to canonicalize
+ * @returns A sorted, URL-encoded query string representing the watch stream identity
+ */
+export function getWatchQueryParamsKey(queryParams?: QueryParameters): string {
+  if (!queryParams) {
+    return '';
+  }
+
+  const params = new URLSearchParams();
+  const sortedKeys = Object.keys(queryParams).sort();
+
+  for (const key of sortedKeys) {
+    if (key === 'continue' || key === 'limit' || key === 'resourceVersion' || key === 'watch') {
+      continue;
+    }
+    const val = (queryParams as Record<string, any>)[key];
+    if (val !== undefined && val !== '') {
+      params.set(key, String(val));
+    }
+  }
+
+  params.sort();
+  return params.toString();
 }
 
 function getListRequestCount(requests: Array<{ cluster: string; namespaces?: string[] }>) {
@@ -700,6 +1003,7 @@ export function useKubeObjectList<K extends KubeObject>({
   emptyWhenNoRequests?: boolean;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
+  const queryClient = useQueryClient();
   const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
 
   // Get working endpoint from the first cluster
@@ -710,15 +1014,26 @@ export function useKubeObjectList<K extends KubeObject>({
     maybeNamespace
   );
 
-  const cleanedUpQueryParams = Object.fromEntries(
-    Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+  const endpointKey = getResourceIdentity(endpoint, kubeObjectClass);
+  const queryParamsKey = JSON.stringify(
+    queryParams
+      ? Object.entries(queryParams)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .filter(([, v]) => v !== undefined && v !== '')
+      : null
   );
+  const cleanedUpQueryParams = useMemo(() => {
+    const entries = Object.entries(queryParams ?? {})
+      .filter(([, value]) => value !== undefined && value !== '')
+      .sort(([a], [b]) => a.localeCompare(b));
+    return Object.fromEntries(entries);
+  }, [queryParamsKey]);
   const listRequests = useMemo(() => flattenListRequests(requests), [requests]);
   const limit = getPositiveLimit(cleanedUpQueryParams);
   const initialListRequestCount =
     limit && listRequests.length > limit ? limit : listRequests.length;
   const [activeListRequestCount, setActiveListRequestCount] = useState(initialListRequestCount);
-  const listRequestInputKey = JSON.stringify([listRequests, cleanedUpQueryParams]);
+  const listRequestInputKey = JSON.stringify([endpointKey, listRequests, cleanedUpQueryParams]);
 
   useEffect(() => {
     setActiveListRequestCount(initialListRequestCount);
@@ -729,7 +1044,10 @@ export function useKubeObjectList<K extends KubeObject>({
     [activeListRequestCount, listRequests]
   );
   const hasPendingListRequests = activeListRequests.length < listRequests.length;
-  const perRequestQueryParams = getPerRequestQueryParams(cleanedUpQueryParams, requests);
+  const perRequestQueryParams = useMemo(
+    () => getPerRequestQueryParams(cleanedUpQueryParams, requests),
+    [cleanedUpQueryParams, requests]
+  );
 
   const queries = useMemo(
     () =>
@@ -803,6 +1121,9 @@ export function useKubeObjectList<K extends KubeObject>({
 
       return {
         data: results.map(result => result.data),
+        dataUpdatedAts: results.map(result => result.dataUpdatedAt),
+        queryStatuses: results.map(result => result.status),
+        isFetchings: results.map(result => result.isFetching),
         clusterResults,
         items:
           emptyWhenNoRequests && results.length === 0
@@ -836,27 +1157,165 @@ export function useKubeObjectList<K extends KubeObject>({
     { cluster: string; namespace?: string; resourceVersion: string }[]
   >([]);
 
+  const disconnectedWatchesRef = useRef<Map<string, string | undefined>>(new Map());
+  const pendingRelistKeysRef = useRef<Set<string>>(new Set());
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
+
+  const endpointRef = useRef(endpoint);
+  endpointRef.current = endpoint;
+  const kubeObjectClassRef = useRef(kubeObjectClass);
+  kubeObjectClassRef.current = kubeObjectClass;
+  const perRequestQueryParamsRef = useRef(perRequestQueryParams);
+  perRequestQueryParamsRef.current = perRequestQueryParams;
+
+  const handleWatchReconnect = useCallback(
+    (
+      cluster: string,
+      namespace?: string,
+      latestResourceVersion?: string,
+      watchQueryKey?: string
+    ) => {
+      const currentWatchQueryKey = getWatchQueryParamsKey(
+        withoutPaginationParams(perRequestQueryParamsRef.current)
+      );
+
+      // If watchQueryKey is provided from a disconnecting connection and does not match the
+      // currently active query, it belongs to an obsolete subscription; ignore it to prevent
+      // corrupting the active query's cursor or relist state.
+      if (watchQueryKey !== undefined && watchQueryKey !== currentWatchQueryKey) {
+        return;
+      }
+
+      const activeQueryKey = watchQueryKey ?? currentWatchQueryKey;
+      const currentEndpointKey = getResourceIdentity(
+        endpointRef.current,
+        kubeObjectClassRef.current
+      );
+      const key = `${cluster}:${currentEndpointKey}:${namespace || ''}:${activeQueryKey}`;
+      if (!latestResourceVersion) {
+        pendingRelistKeysRef.current.add(key);
+        disconnectedWatchesRef.current.delete(key);
+        const queryKey = endpointRef.current
+          ? kubeObjectListQuery<K>(
+              kubeObjectClassRef.current,
+              endpointRef.current,
+              namespace,
+              cluster,
+              perRequestQueryParamsRef.current,
+              refetchInterval
+            ).queryKey
+          : undefined;
+        if (queryKey) {
+          queryClient.invalidateQueries({ queryKey });
+        }
+        setReconnectTrigger(prev => prev + 1);
+      } else {
+        // If a relist is currently pending for this key, any incoming reconnect cursor from an
+        // active or closing connection is obsolete; do not remove the pending relist marker or
+        // stage the stale cursor.
+        if (pendingRelistKeysRef.current.has(key)) {
+          return;
+        }
+        pendingRelistKeysRef.current.delete(key);
+        disconnectedWatchesRef.current.set(key, latestResourceVersion);
+        setReconnectTrigger(prev => prev + 1);
+      }
+    },
+    [queryClient, refetchInterval]
+  );
+
+  const prevListRequestInputKeyRef = useRef(listRequestInputKey);
+  const prevDataUpdatedAtsRef = useRef<Record<string, number>>({});
+
   useEffect(() => {
+    const inputsChanged = prevListRequestInputKeyRef.current !== listRequestInputKey;
+    prevListRequestInputKeyRef.current = listRequestInputKey;
+
+    if (inputsChanged) {
+      pendingRelistKeysRef.current.clear();
+      prevDataUpdatedAtsRef.current = {};
+      disconnectedWatchesRef.current.clear();
+    }
+
+    const activeWatchQueryKey = getWatchQueryParamsKey(
+      withoutPaginationParams(perRequestQueryParams)
+    );
+
+    const relistedKeys = new Set<string>();
+    if (query.data) {
+      query.data.forEach((data, index) => {
+        if (data && query.queryStatuses?.[index] === 'success' && !query.isFetchings?.[index]) {
+          const key = `${data.cluster}:${endpointKey}:${
+            data.namespace || ''
+          }:${activeWatchQueryKey}`;
+          const currentUpdatedAt = query.dataUpdatedAts?.[index] || 0;
+          const prevUpdatedAt = prevDataUpdatedAtsRef.current[key];
+          if (currentUpdatedAt > (prevUpdatedAt || 0)) {
+            prevDataUpdatedAtsRef.current[key] = currentUpdatedAt;
+            if (pendingRelistKeysRef.current.has(key)) {
+              relistedKeys.add(key);
+              pendingRelistKeysRef.current.delete(key);
+            }
+          }
+        }
+      });
+    }
+
+    // Capture any watches that requested a reconnect and clear the ref
+    const disconnectedWatches = new Map(disconnectedWatchesRef.current);
+    const hasDisconnected = disconnectedWatches.size > 0;
+    disconnectedWatchesRef.current.clear();
+
     setListsToWatch(currentListsToWatch => {
       const keptListsToWatch = currentListsToWatch.filter(watching =>
         isWatchedListStillRequested(watching, requests)
       );
 
-      if (!shouldWatch) {
-        return keptListsToWatch.length === currentListsToWatch.length
-          ? currentListsToWatch
-          : keptListsToWatch;
+      if (!shouldWatch || !query.data) {
+        return keptListsToWatch.length > 0 ? [] : currentListsToWatch;
       }
 
       const nextListsToWatch = query.data
         .filter(data => data && !data.skipWatch)
-        .map(data => ({
-          cluster: data!.cluster,
-          namespace: data!.namespace,
-          resourceVersion: data!.list.metadata.resourceVersion,
-        }));
+        .filter(data => {
+          const key = `${data!.cluster}:${endpointKey}:${
+            data!.namespace || ''
+          }:${activeWatchQueryKey}`;
+          return !pendingRelistKeysRef.current.has(key);
+        })
+        .map(data => {
+          const key = `${data!.cluster}:${endpointKey}:${
+            data!.namespace || ''
+          }:${activeWatchQueryKey}`;
+          const isDisconnected = disconnectedWatches.has(key);
+          const wasRelisted = relistedKeys.has(key);
+          const shouldRefresh = inputsChanged || isDisconnected || wasRelisted;
+
+          // If this watch was already established and hasn't been disconnected or refreshed,
+          // preserve its starting resourceVersion so healthy connections aren't torn down.
+          const existingWatch = shouldRefresh
+            ? undefined
+            : currentListsToWatch.find(
+                watching =>
+                  watching.cluster === data!.cluster &&
+                  (watching.namespace || '') === (data!.namespace || '')
+              );
+
+          const disconnectedRV = disconnectedWatches.get(key);
+          const currentDataRV = data!.list.metadata.resourceVersion;
+          const latestAvailableRV =
+            (wasRelisted ? currentDataRV || disconnectedRV : disconnectedRV || currentDataRV) || '';
+
+          return {
+            cluster: data!.cluster,
+            namespace: data!.namespace,
+            resourceVersion: existingWatch ? existingWatch.resourceVersion : latestAvailableRV,
+          };
+        });
 
       if (
+        !hasDisconnected &&
+        relistedKeys.size === 0 &&
         nextListsToWatch.length === currentListsToWatch.length &&
         nextListsToWatch.every((nextList, index) => {
           const currentList = currentListsToWatch[index];
@@ -872,7 +1331,19 @@ export function useKubeObjectList<K extends KubeObject>({
 
       return nextListsToWatch;
     });
-  }, [query.data, requests, shouldWatch]);
+  }, [
+    query.data,
+    query.dataUpdatedAts,
+    query.isFetching,
+    query.isFetchings,
+    query.queryStatuses,
+    requests,
+    shouldWatch,
+    listRequestInputKey,
+    reconnectTrigger,
+    endpointKey,
+    perRequestQueryParams,
+  ]);
 
   useWatchKubeObjectLists({
     lists: shouldWatch ? listsToWatch : [],
@@ -880,6 +1351,7 @@ export function useKubeObjectList<K extends KubeObject>({
     kubeObjectClass,
     queryParams: perRequestQueryParams,
     watchQueryParams: withoutPaginationParams(perRequestQueryParams),
+    onReconnect: handleWatchReconnect,
   });
 
   const [paginationError, setPaginationError] = useState<ApiError | null>(null);
@@ -892,7 +1364,6 @@ export function useKubeObjectList<K extends KubeObject>({
     it => it !== null
   );
 
-  const queryClient = useQueryClient();
   const loadMorePromiseRef = useRef<Promise<void> | null>(null);
 
   const loadMore = useCallback(async () => {

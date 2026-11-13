@@ -20,7 +20,7 @@ import WS from 'vitest-websocket-mock';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
-import { openWebSocket, useWebSockets } from './webSocket';
+import { openWebSocket, resetWebSocketsForTesting, useWebSockets } from './webSocket';
 import { BASE_WS_URL } from './webSocket';
 
 vi.mock('../../../cluster', () => ({
@@ -225,6 +225,346 @@ describe('useWebSockets', () => {
     await waitFor(() => {
       expect(onMessageA).not.toHaveBeenCalled();
       expect(onMessageB).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not tear down healthy sockets when connections array reference changes with unchanged connection', async () => {
+    const urlA = 'api/v1/namespaces/ns-a/pods?watch=1&resourceVersion=stable-a';
+    const urlB = 'api/v1/namespaces/ns-b/pods?watch=1&resourceVersion=stable-b';
+    const serverA = new WS(`${BASE_WS_URL}${urlA}`);
+    const serverB = new WS(`${BASE_WS_URL}${urlB}`);
+    const onMessageA = vi.fn();
+    const onMessageB = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ conns }) =>
+        useWebSockets({
+          connections: conns,
+        }),
+      {
+        initialProps: {
+          conns: [
+            { cluster: '', url: urlA, onMessage: onMessageA },
+            { cluster: '', url: urlB, onMessage: onMessageB },
+          ],
+        },
+      }
+    );
+
+    await serverA.connected;
+    await serverB.connected;
+
+    // Sibling urlA changes to urlA2 (reconnecting), while urlB remains identical
+    serverA.close();
+    const urlA2 = 'api/v1/namespaces/ns-a2/pods?watch=1&resourceVersion=reconnected-a';
+    const serverA2 = new WS(`${BASE_WS_URL}${urlA2}`);
+
+    rerender({
+      conns: [
+        { cluster: '', url: urlA2, onMessage: onMessageA },
+        { cluster: '', url: urlB, onMessage: onMessageB },
+      ],
+    });
+
+    await serverA2.connected;
+
+    // serverB must NOT have closed and should continue receiving messages
+    await serverB.send(JSON.stringify({ type: 'ADDED', object: { metadata: { name: 'pod-b' } } }));
+    await waitFor(() => {
+      expect(onMessageB).toHaveBeenCalledWith({
+        type: 'ADDED',
+        object: { metadata: { name: 'pod-b' } },
+      });
+    });
+
+    serverA2.close();
+    serverB.close();
+  });
+
+  it('notifies onClose listeners and removes socket when connection closes', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=5';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage = vi.fn();
+    const onClose = vi.fn();
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage, onClose }],
+      })
+    );
+
+    await server.connected;
+
+    // Simulate unexpected server close
+    server.close();
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not call onClose when unmounting intentionally', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=6';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage = vi.fn();
+    const onClose = vi.fn();
+
+    const hook = renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage, onClose }],
+      })
+    );
+
+    await server.connected;
+
+    // Unmount intentionally
+    hook.unmount();
+
+    // Allow any asynchronous close events to settle
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('cleans up pending socket reference if it closes during initialization', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=7';
+    const server1 = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage1 = vi.fn();
+    const onClose1 = vi.fn();
+
+    const hook1 = renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessage1, onClose: onClose1 }],
+      })
+    );
+
+    await server1.connected;
+    // Server closes connection immediately
+    server1.close();
+
+    await waitFor(() => {
+      expect(onClose1).toHaveBeenCalledTimes(1);
+    });
+
+    hook1.unmount();
+
+    // Now establish a second connection to the same URL with a fresh server
+    const server2 = new WS(`${BASE_WS_URL}${url}`);
+    const onMessage2 = vi.fn();
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessage2 }],
+      })
+    );
+
+    // The second connection must successfully connect and receive messages
+    await server2.connected;
+    await server2.send(
+      JSON.stringify({ type: 'ADDED', object: { metadata: { name: 'pod-fresh' } } })
+    );
+
+    await waitFor(() => {
+      expect(onMessage2).toHaveBeenCalledTimes(1);
+    });
+
+    server2.close();
+  });
+
+  describe('handshake failure and retry behavior', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      resetWebSocketsForTesting();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    it('schedules a 5-second delayed retry on immediate close without spinning immediately', async () => {
+      const createdSockets: any[] = [];
+
+      const WebSocketMock = vi.fn(function () {
+        const listenersMap: Record<string, Function> = {};
+        const mockSocket = {
+          binaryType: '',
+          readyState: 0,
+          addEventListener: vi.fn((event: string, handler: Function) => {
+            listenersMap[event] = handler;
+          }),
+          close: vi.fn(),
+          listenersMap,
+        };
+        createdSockets.push(mockSocket);
+        return mockSocket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const onMessage = vi.fn();
+      const onClose = vi.fn();
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url: '/api/v1/pods', onMessage, onClose }],
+        })
+      );
+
+      // Sockets connect asynchronously through openWebSocket
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(1));
+
+      // Simulate handshake failure: close fires without open event
+      createdSockets[0].listenersMap.close(new CloseEvent('close'));
+
+      // Verify onClose is NOT called when !hasOpened
+      expect(onClose).not.toHaveBeenCalled();
+
+      // Ensure no immediate retry spin
+      vi.advanceTimersByTime(1000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(3999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+
+      // At 5 seconds, single-flight retry fires
+      vi.advanceTimersByTime(1);
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(2));
+
+      hook.unmount();
+    });
+
+    it('notifies close listeners after repeated handshake failures', async () => {
+      const createdSockets: any[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listenersMap: Record<string, Function> = {};
+        const mockSocket = {
+          binaryType: '',
+          readyState: 0,
+          addEventListener: vi.fn((event: string, handler: Function) => {
+            listenersMap[event] = handler;
+          }),
+          close: vi.fn(),
+          listenersMap,
+        };
+        createdSockets.push(mockSocket);
+        return mockSocket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const onClose = vi.fn();
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url: '/api/v1/pods', onMessage: vi.fn(), onClose }],
+        })
+      );
+
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(1));
+
+      // First handshake failure
+      createdSockets[0].listenersMap.close(new CloseEvent('close'));
+      expect(onClose).not.toHaveBeenCalled();
+
+      // Retry 1
+      vi.advanceTimersByTime(5000);
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(2));
+
+      // Second handshake failure
+      createdSockets[1].listenersMap.close(new CloseEvent('close'));
+      expect(onClose).not.toHaveBeenCalled();
+
+      // Retry 2
+      vi.advanceTimersByTime(5000);
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(3));
+
+      // Third handshake failure
+      createdSockets[2].listenersMap.close(new CloseEvent('close'));
+
+      // Close listeners must be notified so recovery/relist can occur
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      hook.unmount();
+    });
+
+    it('wakes up failed endpoint immediately when browser online event fires', async () => {
+      const createdSockets: any[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listenersMap: Record<string, Function> = {};
+        const mockSocket = {
+          binaryType: '',
+          readyState: 0,
+          addEventListener: vi.fn((event: string, handler: Function) => {
+            listenersMap[event] = handler;
+          }),
+          close: vi.fn(),
+          listenersMap,
+        };
+        createdSockets.push(mockSocket);
+        return mockSocket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url: '/api/v1/pods', onMessage: vi.fn() }],
+        })
+      );
+
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(1));
+
+      // Simulate failed handshake
+      createdSockets[0].listenersMap.close(new CloseEvent('close'));
+
+      // 1 second elapsed, no retry yet
+      vi.advanceTimersByTime(1000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+
+      // Browser online event triggers immediate retry
+      window.dispatchEvent(new Event('online'));
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(2));
+
+      // Advancing remaining timer does not trigger duplicate retry
+      vi.advanceTimersByTime(5000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+
+      hook.unmount();
+    });
+
+    it('clears retry timers when component unmounts', async () => {
+      const createdSockets: any[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listenersMap: Record<string, Function> = {};
+        const mockSocket = {
+          binaryType: '',
+          readyState: 0,
+          addEventListener: vi.fn((event: string, handler: Function) => {
+            listenersMap[event] = handler;
+          }),
+          close: vi.fn(),
+          listenersMap,
+        };
+        createdSockets.push(mockSocket);
+        return mockSocket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url: '/api/v1/pods', onMessage: vi.fn() }],
+        })
+      );
+
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(1));
+
+      // Simulate failed handshake
+      createdSockets[0].listenersMap.close(new CloseEvent('close'));
+
+      // Unmount component before 5s retry timer fires
+      hook.unmount();
+
+      // Advance time past the 5s timer window
+      vi.advanceTimersByTime(10000);
+
+      // No new connection attempt should occur
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
     });
   });
 });
