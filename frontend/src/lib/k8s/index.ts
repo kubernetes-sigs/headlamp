@@ -33,6 +33,7 @@ import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import DeviceClass from './deviceClass';
+import DisaggregatedSet from './disaggregatedSet';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
@@ -99,6 +100,7 @@ export const ResourceClasses = {
   Job,
   JobSet,
   LeaderWorkerSet,
+  DisaggregatedSet,
   Namespace,
   NetworkPolicy,
   Node,
@@ -368,6 +370,7 @@ export * as controllerRevision from './controllerRevision';
 export * as daemonSet from './daemonSet';
 export * as deployment from './deployment';
 export * as deviceClass from './deviceClass';
+export * as disaggregatedSet from './disaggregatedSet';
 export * as event from './event';
 export * as ingress from './ingress';
 export * as ingressClass from './ingressClass';
