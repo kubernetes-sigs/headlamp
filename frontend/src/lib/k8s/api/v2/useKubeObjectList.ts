@@ -449,7 +449,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         url: makeUrl([KubeObjectEndpoint.toUrl(endpoint, list.namespace)], {
           ...stableWatchQueryParams,
           watch: 1,
-          resourceVersion: latestResourceVersions.current[key] || list.resourceVersion,
+          resourceVersion: list.resourceVersion || latestResourceVersions.current[key] || '',
         }),
         cluster: list.cluster,
         namespace: list.namespace,
@@ -700,7 +700,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
       const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
         ...stableWatchQueryParams,
         watch: 1,
-        resourceVersion: latestResourceVersions.current[watchKey] || resourceVersion,
+        resourceVersion: resourceVersion || latestResourceVersions.current[watchKey] || '',
       });
 
       let isExpired = false;
