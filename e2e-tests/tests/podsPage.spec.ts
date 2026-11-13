@@ -461,14 +461,8 @@ test('react-hotkey for logs search', async ({ page }) => {
   const podsTable = page.getByRole('table');
   await expect(podsTable).toBeVisible();
 
-  const podLink = podsTable
-    .locator('tbody')
-    .nth(0)
-    .locator('tr')
-    .nth(0)
-    .locator('td')
-    .nth(1)
-    .locator('a');
+  // Tests only create pods outside kube-system, so this pod stays stable under parallel runs.
+  const podLink = podsTable.locator('a[href*="/pods/kube-system/"]').first();
   const podName = await podLink.textContent();
 
   await podLink.click();
