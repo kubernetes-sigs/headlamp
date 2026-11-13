@@ -232,6 +232,57 @@ func TestSyncContextsMissingFile(t *testing.T) {
 	require.Equal(t, dynamicName, contexts[0].Name)
 }
 
+// removalRecorder records the contexts removed from the store.
+type removalRecorder struct {
+	kubeconfig.ContextStore
+	removed []string
+}
+
+func (r *removalRecorder) RemoveContext(name string) error {
+	r.removed = append(r.removed, name)
+
+	return r.ContextStore.RemoveContext(name)
+}
+
+// TestSyncContextsKeepsRenamedContext checks that a reload does not remove a
+// context renamed in Headlamp, which is stored under its custom name.
+func TestSyncContextsKeepsRenamedContext(t *testing.T) {
+	kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, os.WriteFile(kubeConfigPath, []byte(`apiVersion: v1
+kind: Config
+clusters:
+- name: test-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: test-user
+  user:
+    token: token
+contexts:
+- name: test-context
+  context:
+    cluster: test-cluster
+    user: test-user
+    extensions:
+    - name: headlamp_info
+      extension:
+        customName: renamed-context
+`), 0o600))
+
+	store := &removalRecorder{ContextStore: kubeconfig.NewContextStore()}
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	_, err := store.GetContext("renamed-context")
+	require.NoError(t, err)
+
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	require.Empty(t, store.removed, "the renamed context should not be removed and added again")
+
+	_, err = store.GetContext("renamed-context")
+	require.NoError(t, err)
+}
+
 // captureErrorLogs records the messages logged at error level until the test ends.
 func captureErrorLogs(t *testing.T) func() []string {
 	t.Helper()

@@ -180,8 +180,9 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 
 		found := false
 
-		for _, newCtx := range newContexts {
-			if existingCtx.Name == newCtx.Name {
+		for i := range newContexts {
+			// A context renamed in Headlamp is stored under its custom name.
+			if name, err := storeName(&newContexts[i]); err == nil && existingCtx.Name == name {
 				found = true
 
 				break
