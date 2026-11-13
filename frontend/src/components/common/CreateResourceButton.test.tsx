@@ -24,6 +24,17 @@ const { authVisibleProps, editorDialogProps } = vi.hoisted(() => ({
   editorDialogProps: vi.fn(),
 }));
 
+vi.mock('react-i18next', async () => {
+  const actual = await vi.importActual<typeof import('react-i18next')>('react-i18next');
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (key: string, vars?: { name?: string }) =>
+        vars?.name ? key.replace('{{ name }}', vars.name) : key,
+    }),
+  };
+});
+
 vi.mock('../../lib/k8s', () => ({
   useSelectedClusters: () => ['legacy', 'dra'],
 }));
@@ -52,6 +63,13 @@ const resourceClass = {
   kind: 'DeviceClass',
   apiName: 'deviceclasses',
   getBaseObject: () => ({ kind: 'DeviceClass' }),
+} as any;
+
+const podClass = {
+  kind: 'Pod',
+  apiName: 'pods',
+  apiVersion: 'v1',
+  getBaseObject: () => ({}),
 } as any;
 
 function launchCreate(cluster?: string) {
@@ -83,5 +101,32 @@ describe('CreateResourceButton', () => {
     expect(activity.cluster).toBe('dra');
     expect(authVisibleProps.mock.calls[0][0].cluster).toBe('dra');
     expect(editorDialogProps.mock.calls[0][0].cluster).toBe('dra');
+  });
+});
+
+describe('CreateResourceButton variants', () => {
+  beforeEach(() => {
+    vi.mocked(Activity.launch).mockReset();
+    authVisibleProps.mockReset();
+    editorDialogProps.mockReset();
+  });
+
+  it('labeled variant shows visible "Create Pod" text and launches the create activity on click', () => {
+    render(<CreateResourceButton resourceClass={podClass} variant="labeled" />);
+    const button = screen.getByRole('button', { name: /Create Pod/i });
+    // User can see the label; the icon variant would only expose it via aria-label.
+    expect(button).toHaveTextContent(/Create Pod/i);
+    fireEvent.click(button);
+    expect(Activity.launch).toHaveBeenCalledTimes(1);
+  });
+
+  it('icon variant (default) exposes its label via accessible name, not visible text', () => {
+    render(<CreateResourceButton resourceClass={podClass} />);
+    const button = screen.getByRole('button', { name: /Create Pod/i });
+    // Icon variant shows an icon only; the "Create Pod" name comes from
+    // ActionButton's tooltip/aria-label, not from visible children text.
+    expect(button).not.toHaveTextContent(/Create Pod/i);
+    fireEvent.click(button);
+    expect(Activity.launch).toHaveBeenCalledTimes(1);
   });
 });
