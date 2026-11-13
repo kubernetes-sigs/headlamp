@@ -20,18 +20,20 @@ import { HeadlampPage } from './headlampPage';
 // The Prometheus plugin is bundled in the Docker image via container/build-manifest.json
 // and in the App via app/app-build-manifest.json. These tests verify it is present and working.
 
-test('prometheus plugin is bundled', async ({ page }) => {
-  const headlampPage = new HeadlampPage(page);
-  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
-
+test('plugins list includes the bundled prometheus plugin', async ({ request }) => {
   // Query the plugins endpoint to verify Prometheus is bundled.
   // The Docker image includes it as a static plugin (container/build-manifest.json).
   // The App includes it via app/app-build-manifest.json.
   // If this assertion fails, the plugin is missing from the build — that's a bug.
-  const pluginsResponse = await page.request.get('/plugins');
+  const pluginsResponse = await request.get('/plugins');
   expect(pluginsResponse.ok(), '/plugins should return a successful response').toBeTruthy();
   const plugins = await pluginsResponse.json();
   expect(Array.isArray(plugins), '/plugins should return an array').toBeTruthy();
+  expect(plugins.length).toBeGreaterThan(0);
+  expect(
+    plugins.some((p: { path?: string }) => p.path && p.path.includes('plugins/')),
+    'at least one plugin should be served from a plugins/ path'
+  ).toBeTruthy();
 
   const prometheusPlugin = plugins.find(
     (p: { name?: string; path?: string }) =>
@@ -55,11 +57,7 @@ test('prometheus plugin has settings', async ({ page }) => {
 
   // Verify the details page is specifically for the Prometheus plugin:
   // the section header renders the plugin name as a heading.
-  await expect(
-    page
-      .getByRole('heading', { name: /prometheus/i })
-      .first()
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: /prometheus/i }).first()).toBeVisible();
 
   // Verify a stable element from the Prometheus settings component is present,
   // confirming the settings UI actually loaded for this plugin.

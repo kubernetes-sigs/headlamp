@@ -29,18 +29,11 @@ test.describe('multi-cluster setup', () => {
     await expect(page.locator('h1:has-text("Home")')).toBeVisible();
   });
 
-  test('document title should include the route and product names', async ({ page }) => {
+  test('home page lists the configured clusters with valid links', async ({ page }) => {
     await expect(page).toHaveTitle('Choose a cluster - Headlamp');
-  });
-
-  test("table should contain 'Name' and 'Status' column headers", async ({ page }) => {
     await expect(page.locator('th', { hasText: 'Name' })).toBeVisible();
     await expect(page.locator('th', { hasText: 'Status' })).toBeVisible();
-  });
 
-  test("table should include the configured 'test' and 'test2' clusters with valid links", async ({
-    page,
-  }) => {
     for (const clusterName of ['test', 'test2']) {
       const clusterAnchor = page.locator('table tbody tr td a', {
         hasText: new RegExp(`^${clusterName}$`),

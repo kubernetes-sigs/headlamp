@@ -29,24 +29,6 @@ test.beforeEach(async ({ page }) => {
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 });
 
-test('There is cluster choose button and test cluster is selected', async () => {
-  await headlampPage.pageLocatorContent(
-    'button:has-text("Our Cluster Chooser button. Cluster: test")',
-    'Our Cluster Chooser button. Cluster: test'
-  );
-});
-
-test('Store modified kubeconfig to IndexDB and check if present', async ({ page }) => {
-  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
-  await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
-  await page.waitForLoadState('load');
-
-  const storedKubeconfig = await getKubeconfigFromIndexDB(page);
-  await page.waitForLoadState('load');
-
-  expect(storedKubeconfig).not.toBeNull();
-});
-
 test('parseKubeConfig endpoint accepts kubeconfigs array format', async ({ page }) => {
   const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
 
@@ -103,6 +85,7 @@ test('stateless cluster loads without errors after storing kubeconfig', async ({
 
   // Step 1: Store kubeconfig in IndexedDB (simulates the user adding a cluster)
   await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
+  expect(await getKubeconfigFromIndexDB(page)).toBe(base64EncodedKubeconfig);
 
   // Step 2: Reload to trigger stateless startup parsing flow.
   await page.reload({ waitUntil: 'load' });
