@@ -75,6 +75,8 @@
   "Drivers": "Pilotes",
   "Resource Claims": "Demandes de ressources",
   "Resource Claim Templates": "Modèles de demande de ressources",
+  "Devices": "",
+  "Resource Slices": "",
   "Subsets": "Sous-ensembles",
   "Endpoint: {{ name }}": "Endpoint : {{ name }}",
   "IP": "IP",

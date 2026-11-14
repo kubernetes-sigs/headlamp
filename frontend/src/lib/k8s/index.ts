@@ -281,6 +281,7 @@ export * as compositePodGroup from './compositePodGroup';
 export * as podGroup from './podGroup';
 export * as resourceClaim from './resourceClaim';
 export * as resourceClaimTemplate from './resourceClaimTemplate';
+export * as resourceSlice from './resourceSlice';
 export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';
 export * as role from './role';

@@ -511,6 +511,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'resourceClaimTemplates',
             label: t('glossary|Resource Claim Templates'),
           },
+          {
+            name: 'resourceSlices',
+            label: t('glossary|Resource Slices'),
+          },
         ],
       });
     }

@@ -39,6 +39,7 @@ export const supportedKinds = [
   'DeviceClass',
   'ResourceClaim',
   'ResourceClaimTemplate',
+  'ResourceSlice',
   'ResourceQuota',
   'ClusterRole',
   'Role',
