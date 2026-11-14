@@ -681,8 +681,9 @@ const defaultRoutes: { [routeName: string]: Route } = {
     component: () => <RoleDetails />,
   },
   clusterRoles: {
-    path: '/roles',
+    path: '/clusterroles',
     exact: true,
+    name: 'Roles',
     sidebar: 'roles',
     component: () => <RoleList />,
   },
