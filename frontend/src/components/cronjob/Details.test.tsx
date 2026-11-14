@@ -22,12 +22,15 @@ import CronJobDetails from './Details';
 const OWNER_CLUSTER = 'owner-cluster';
 const OTHER_CLUSTER = 'other-cluster';
 
-const { mockApply, capturedAction, mockUseGet, authVisibleProps } = vi.hoisted(() => ({
-  mockApply: vi.fn().mockResolvedValue({}),
-  authVisibleProps: [] as Array<{ authVerb: string; item: any; cluster?: string }>,
-  capturedAction: { current: null as null | (() => Promise<void>) },
-  mockUseGet: vi.fn(),
-}));
+const { mockApply, capturedAction, mockUseGet, authVisibleProps, capturedExtraInfo } = vi.hoisted(
+  () => ({
+    mockApply: vi.fn().mockResolvedValue({}),
+    authVisibleProps: [] as Array<{ authVerb: string; item: any; cluster?: string }>,
+    capturedAction: { current: null as null | (() => Promise<void>) },
+    mockUseGet: vi.fn(),
+    capturedExtraInfo: { current: null as null | ((item: any) => any) },
+  })
+);
 
 vi.mock('../../lib/k8s/api/v1/apply', () => ({ apply: mockApply }));
 
@@ -55,9 +58,18 @@ vi.mock('react-i18next', async importOriginal => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
 }));
 
-// Render only the action buttons; the rest of the details view is irrelevant here.
+// Render only the action buttons; capturedExtraInfo lets tests inspect extraInfo fields.
 vi.mock('../common/Resource', () => ({
-  DetailsGrid: ({ actions }: { actions: React.ReactNode[] }) => <div>{actions}</div>,
+  DetailsGrid: ({
+    actions,
+    extraInfo,
+  }: {
+    actions: React.ReactNode[];
+    extraInfo?: (item: any) => any;
+  }) => {
+    capturedExtraInfo.current = extraInfo ?? null;
+    return <div>{actions}</div>;
+  },
 }));
 
 vi.mock('../common/Resource/AuthVisible', () => ({
@@ -259,5 +271,40 @@ describe('CronJobDetails: Spawn Job', () => {
 
     expect(mockApply).toHaveBeenCalledTimes(1);
     expect(mockApply.mock.calls[0][0].metadata.name).toBe('nightly.report-2');
+  });
+
+  describe('extraInfo fields with partial CronJob data', () => {
+    it('handles CronJob without spec or status without throwing', () => {
+      const bareCronJob = {
+        kind: 'CronJob',
+        apiVersion: 'batch/v1',
+        metadata: { name: 'bare-cronjob', namespace: 'default' },
+        cluster: OWNER_CLUSTER,
+        getName: () => 'bare-cronjob',
+        getNamespace: () => 'default',
+      };
+      mockUseGet.mockReturnValue([bareCronJob]);
+
+      render(
+        <TestContext>
+          <CronJobDetails />
+        </TestContext>
+      );
+
+      expect(capturedExtraInfo.current).toBeTypeOf('function');
+      const extraInfo = capturedExtraInfo.current!(bareCronJob);
+      expect(Array.isArray(extraInfo)).toBe(true);
+
+      const findField = (name: string) => extraInfo.find((f: any) => f.name === name);
+
+      expect(findField('Time Zone')?.hide).toBe(true);
+      expect(findField('Concurrency Policy')?.hide).toBe(true);
+      expect(findField('Starting deadline')?.hide).toBe(true);
+      expect(findField('Successful Jobs History Limit')?.hide).toBe(true);
+      expect(findField('Failed Jobs History Limit')?.hide).toBe(true);
+      expect(findField('translation|Suspend')?.value).toBe('false');
+      expect(findField('Last Successful Time')?.hide).toBe(true);
+      expect(findField('Active Jobs')?.hide).toBe(true);
+    });
   });
 });

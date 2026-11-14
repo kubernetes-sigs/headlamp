@@ -75,4 +75,36 @@ describe('CronJob class', () => {
       ).toBe('degraded');
     });
   });
+
+  describe('getContainers', () => {
+    it('returns empty array when spec is undefined', () => {
+      const cronJob = new CronJob({
+        apiVersion: 'batch/v1',
+        kind: 'CronJob',
+        metadata: { name: 'test-cronjob', namespace: 'default' },
+      } as any);
+      expect(cronJob.getContainers()).toEqual([]);
+    });
+
+    it('returns containers when jobTemplate is present', () => {
+      const cronJob = new CronJob({
+        apiVersion: 'batch/v1',
+        kind: 'CronJob',
+        metadata: { name: 'test-cronjob', namespace: 'default' },
+        spec: {
+          schedule: '* * * * *',
+          jobTemplate: {
+            spec: {
+              template: {
+                spec: {
+                  containers: [{ name: 'app', image: 'nginx' }],
+                },
+              },
+            },
+          },
+        },
+      } as any);
+      expect(cronJob.getContainers()).toEqual([{ name: 'app', image: 'nginx' }]);
+    });
+  });
 });
