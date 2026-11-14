@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/cli/browser"
+	"github.com/gobwas/glob"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -240,23 +241,11 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
 	}
 
-	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
-	cfg.ProxyAuthUsernameHeader = conf.ProxyAuthUsernameHeader
-	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
-	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
-	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+	applyProxyAuthSettings(cfg, conf)
 
-	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
-		os.Exit(1)
-	}
+	compiledProxyURLs := compileProxyURLPatternsOrExit(cfg.ProxyURLs)
 
-	cfg.AdminSettings, err = loadAdminSettings(conf.SettingsPath)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading admin settings")
-		os.Exit(1)
-	}
+	cfg.AdminSettings = loadAdminSettingsOrExit(conf.SettingsPath)
 
 	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
@@ -272,6 +261,40 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	}
 
 	return headlampConfig
+}
+
+// applyProxyAuthSettings copies the trusted-header proxy-auth configuration onto cfg.
+func applyProxyAuthSettings(cfg *headlampconfig.HeadlampConfig, conf *config.Config) {
+	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
+	cfg.ProxyAuthUsernameHeader = conf.ProxyAuthUsernameHeader
+	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
+	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
+	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+}
+
+// compileProxyURLPatternsOrExit compiles the configured --proxy-urls patterns, exiting the
+// process on an invalid pattern: a malformed glob here is a configuration error the operator
+// must fix before the server can safely know which URLs it is allowed to proxy to.
+func compileProxyURLPatternsOrExit(patterns []string) []glob.Glob {
+	compiledProxyURLs, err := compileProxyURLPatterns(patterns)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
+		os.Exit(1)
+	}
+
+	return compiledProxyURLs
+}
+
+// loadAdminSettingsOrExit reads and validates the admin settings JSON file, exiting the
+// process if the configured path cannot be read or does not contain valid JSON.
+func loadAdminSettingsOrExit(path string) json.RawMessage {
+	adminSettings, err := loadAdminSettings(path)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading admin settings")
+		os.Exit(1)
+	}
+
+	return adminSettings
 }
 
 // loadAdminSettings reads and validates the admin settings JSON file.

@@ -516,6 +516,53 @@ func TestMonitorConnection(t *testing.T) {
 	assert.Equal(t, StateClosed, conn.Status.State)
 }
 
+// TestMonitorConnection_ClosesOnExpiredImpersonation locks in a fix for a gap where a healthy
+// upstream watch -- heartbeat pings succeeding, no client message to trigger
+// checkConnectionIdentity's per-message re-verification -- had nothing that ever closed it once
+// its impersonated identity's verified token expired: handleClusterMessages only forwards
+// upstream events and never checks expiry itself. monitorConnection's heartbeat tick now checks
+// it independently of whether the ping succeeds, so an expired, otherwise-healthy connection is
+// still closed on the same cadence instead of streaming protected data indefinitely.
+func TestMonitorConnection_ClosesOnExpiredImpersonation(t *testing.T) {
+	originalInterval := HeartbeatInterval
+	HeartbeatInterval = 20 * time.Millisecond
+
+	defer func() { HeartbeatInterval = originalInterval }()
+
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+	conn.impersonation = &kubeconfig.Impersonation{
+		Username: "alice@example.com",
+		Expiry:   time.Now().Add(-time.Minute),
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("monitorConnection must close an expired, otherwise-healthy connection on its own, " +
+			"not only when the ping fails or a client message arrives")
+	}
+
+	assert.Equal(t, StateClosed, conn.Status.State)
+	assert.True(t, conn.IsClosed())
+}
+
 func TestUpdateStatus(t *testing.T) {
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()

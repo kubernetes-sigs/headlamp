@@ -48,9 +48,12 @@ const (
 	StateClosed ConnectionState = "closed"
 )
 
+// HeartbeatInterval is the interval at which the multiplexer sends heartbeat messages to the
+// client, and how often monitorConnection re-checks an impersonated connection's expiry. It is a
+// var, not a const, so tests can shorten it rather than waiting out a real-sized interval.
+var HeartbeatInterval = 30 * time.Second
+
 const (
-	// HeartbeatInterval is the interval at which the multiplexer sends heartbeat messages to the client.
-	HeartbeatInterval = 30 * time.Second
 	// HandshakeTimeout is the timeout for the handshake with the client.
 	HandshakeTimeout = 45 * time.Second
 	// CleanupRoutineInterval is the interval at which the multiplexer cleans up unused connections.
@@ -637,6 +640,20 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-heartbeat.C:
+			// A healthy upstream watch (pings succeeding, no client message to re-verify
+			// against) has nothing else that ever stops it once its impersonated identity's
+			// verified token expires: handleClusterMessages only forwards upstream events and
+			// never checks expiry, and this ticker's own ping-failure branch below only reacts
+			// to a broken connection, not an expired one. Checking here, independently of
+			// whether the ping itself succeeds, closes it on the same cadence as the heartbeat
+			// instead of leaving it to keep streaming protected data indefinitely.
+			if conn.impersonationExpired() {
+				conn.updateStatus(StateClosed, errors.New("impersonated identity expired"))
+				conn.safeClose()
+
+				return
+			}
+
 			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 
@@ -648,6 +665,19 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 			}
 		}
 	}
+}
+
+// impersonationExpired reports whether c's impersonated identity has expired. It is read under
+// c.mu since the message-processing goroutine concurrently writes it (checkConnectionIdentity,
+// refreshConnectionToken), the same reasoning reconnect's own doc comment gives for its
+// Token/impersonation snapshot above. A connection that does not impersonate (nil) never expires
+// here: its caller-presented token, not this field, governs its own lifetime.
+func (c *Connection) impersonationExpired() bool {
+	c.mu.RLock()
+	imp := c.impersonation
+	c.mu.RUnlock()
+
+	return imp != nil && imp.Expired()
 }
 
 // reconnect attempts to reestablish a connection.

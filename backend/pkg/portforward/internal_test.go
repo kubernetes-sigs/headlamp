@@ -42,6 +42,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // Cover the legacy client-go fallback error.
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -194,6 +195,43 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		assert.Equal(t, STOPPED, pfDetails.Status)
 		assert.Less(t, elapsed, PortForwardReadinessTimeout,
 			"the impersonation deadline, not the much longer fixed readiness timeout, must be what ends this wait")
+	})
+
+	// TestHandlePortForwardReadiness/impersonation_renewed_during_wait locks in a fix for a gap
+	// where the deadline was captured once as a fixed timer built from a one-time snapshot: a
+	// concurrent status/list request renewing impersonationExpiry (ExtendImpersonationExpiryForID)
+	// while this wait was still in progress had no effect on that already-armed timer, which kept
+	// firing at the original, now-stale deadline and stopped an otherwise still-authorized
+	// port-forward. readyChan is deliberately not signalled until well after the periodic
+	// re-check (impersonationExpiryCheckInterval) would have fired at least once, so a pass here
+	// can only mean that check correctly saw the renewed expiry, not that readiness happened to
+	// win the select before any check ran at all.
+	t.Run("impersonation_renewed_during_wait", func(t *testing.T) {
+		pfDetails := &portForward{
+			ID: "id-renew", cacheKey: "cluster", mu: &sync.Mutex{},
+			closeChan:            make(chan struct{}, 1),
+			Status:               RUNNING,
+			impersonationExpiry:  time.Now().Add(50 * time.Millisecond),
+			impersonatedUsername: "alice@example.com",
+		}
+		registerLivePortForward(pfDetails)
+
+		readyChan := make(chan struct{}, 1)
+		forwardErrChan := make(chan error, 1)
+
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			ExtendImpersonationExpiryForID("cluster", "id-renew", "alice@example.com", nil, time.Now().Add(time.Hour))
+
+			time.Sleep(impersonationExpiryCheckInterval + 200*time.Millisecond)
+
+			readyChan <- struct{}{}
+		}()
+
+		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+
+		require.NoError(t, err)
+		assert.Equal(t, RUNNING, pfDetails.Status)
 	})
 }
 
@@ -622,6 +660,73 @@ func TestHandlePodCheck_StopsOnExpiredImpersonationBeforeCheckingPod(t *testing.
 	default:
 		t.Fatal("closeChan should be closed once the monitor stops")
 	}
+}
+
+// TestMonitorCallContext_UsesImpersonationExpiryWhenSooner and
+// TestMonitorCallContext_FallsBackToGenericTimeoutWithoutImpersonation lock in a fix for a gap
+// where checkIfPodIsRunning and resolveServicePod (the monitor's periodic health check, and the
+// reconnect loop's pod-discovery call) ran on context.Background(), with no bound at all: a
+// single stalled call on the monitor goroutine -- the same goroutine that checks
+// impersonationExpiry between calls -- could keep an impersonated tunnel usable past its
+// verified identity's lifetime for as long as that call took to return on its own.
+// monitorCallContext now bounds every such call by whichever is sooner: a short generic
+// timeout, or the port-forward's own impersonation expiry.
+func TestMonitorCallContext_UsesImpersonationExpiryWhenSooner(t *testing.T) {
+	expiry := time.Now().Add(500 * time.Millisecond)
+	pf := &portForward{mu: &sync.Mutex{}, impersonationExpiry: expiry}
+
+	ctx, cancel := monitorCallContext(pf)
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, expiry, deadline, 10*time.Millisecond,
+		"the impersonation expiry is sooner than the generic timeout and must be what bounds this call")
+}
+
+func TestMonitorCallContext_FallsBackToGenericTimeoutWithoutImpersonation(t *testing.T) {
+	pf := &portForward{mu: &sync.Mutex{}}
+
+	ctx, cancel := monitorCallContext(pf)
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, time.Now().Add(monitorAPICallTimeout), deadline, 100*time.Millisecond,
+		"a port-forward with no impersonation expiry must still get a bounded, not unbounded, call context")
+}
+
+// TestCheckIfPodIsRunning_RespectsCancelledContext proves checkIfPodIsRunning actually uses
+// the context it is given, rather than the hardcoded context.Background() it used before this
+// fix (which no caller, including an already-expired monitorCallContext deadline, could ever
+// have cancelled). The fake clientset's in-memory tracker does not itself observe context
+// cancellation, so this builds a real *kubernetes.Clientset against a server that blocks
+// forever: the only way the call can return at all is via the context passed in.
+func TestCheckIfPodIsRunning_RespectsCancelledContext(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-block:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+
+	clientset, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err = checkIfPodIsRunning(ctx, clientset, "default", "my-pod")
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Less(t, elapsed, 5*time.Second,
+		"the call must be aborted by the context passed in, not run indefinitely against a server that never responds")
 }
 
 // TestExtendImpersonationExpiryForID_ExtendsMatchingIdentity locks in the fix for a gap where
@@ -1335,7 +1440,7 @@ func TestResolveServicePod_ReturnsReadyPod(t *testing.T) {
 
 	clientset := fake.NewClientset(slice)
 
-	podName, podNamespace, err := resolveServicePod(clientset, "default", "my-service")
+	podName, podNamespace, err := resolveServicePod(context.Background(), clientset, "default", "my-service")
 	require.NoError(t, err)
 	assert.Equal(t, "my-pod-abc", podName)
 	assert.Equal(t, "default", podNamespace)
@@ -1365,7 +1470,7 @@ func TestResolveServicePod_NoReadyEndpoints(t *testing.T) {
 
 	clientset := fake.NewClientset(slice)
 
-	_, _, err := resolveServicePod(clientset, "default", "my-service")
+	_, _, err := resolveServicePod(context.Background(), clientset, "default", "my-service")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no ready endpoints")
 }
@@ -1375,7 +1480,7 @@ func TestResolveServicePod_ServiceNotFound(t *testing.T) {
 
 	clientset := fake.NewClientset()
 
-	_, _, err := resolveServicePod(clientset, "default", "nonexistent-service")
+	_, _, err := resolveServicePod(context.Background(), clientset, "default", "nonexistent-service")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no ready endpoints")
 }
@@ -1403,7 +1508,7 @@ func TestResolveServicePod_SkipsNonPodTargetRef(t *testing.T) {
 
 	clientset := fake.NewClientset(slice)
 
-	_, _, err := resolveServicePod(clientset, "default", "my-service")
+	_, _, err := resolveServicePod(context.Background(), clientset, "default", "my-service")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no ready endpoints")
 }
@@ -1446,7 +1551,7 @@ func TestResolveServicePod_MultipleSlices(t *testing.T) {
 
 	clientset := fake.NewClientset(slice1, slice2)
 
-	podName, podNamespace, err := resolveServicePod(clientset, "production", "my-service")
+	podName, podNamespace, err := resolveServicePod(context.Background(), clientset, "production", "my-service")
 	require.NoError(t, err)
 	assert.Equal(t, "backend-pod-xyz", podName)
 	assert.Equal(t, "production", podNamespace)

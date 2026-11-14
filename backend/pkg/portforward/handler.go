@@ -58,6 +58,10 @@ const (
 const (
 	PodAvailabilityCheckTimer   = 5 // seconds
 	PortForwardReadinessTimeout = 30 * time.Second
+	// impersonationExpiryCheckInterval bounds how long a renewal (ExtendImpersonationExpiryForID/
+	// -ForCluster, from a concurrent status/list request) can go unnoticed by a readiness wait
+	// already in progress: see handlePortForwardReadiness's re-check loop.
+	impersonationExpiryCheckInterval = time.Second
 )
 
 var inFlightPortForwards sync.Map
@@ -137,6 +141,27 @@ func (pf *portForward) impersonationExpirySnapshot() time.Time {
 	}
 
 	return pf.impersonationExpiry
+}
+
+// monitorAPICallTimeout bounds a single Kubernetes API call the monitor/reconnect loop makes
+// on pf's behalf, well under PodAvailabilityCheckTimer so a slow call still leaves the loop
+// room to keep ticking on schedule.
+const monitorAPICallTimeout = 3 * time.Second
+
+// monitorCallContext derives a context for a single API call the monitor or reconnect loop
+// makes, bounded by whichever is sooner: monitorAPICallTimeout, or pf's own impersonation
+// expiry when that applies. Without this, a stalled call on this same goroutine -- the one that
+// also checks impersonationExpiry between calls -- could keep an impersonated tunnel usable
+// past its verified identity's lifetime for as long as that one call takes to return on its
+// own; context.Background() has no bound on that at all.
+func monitorCallContext(pf *portForward) (context.Context, context.CancelFunc) {
+	deadline := time.Now().Add(monitorAPICallTimeout)
+
+	if expiry := pf.impersonationExpirySnapshot(); !expiry.IsZero() && expiry.Before(deadline) {
+		deadline = expiry
+	}
+
+	return context.WithDeadline(context.Background(), deadline)
 }
 
 // setStatusAndSnapshot updates the Status and Error fields and returns a
@@ -530,7 +555,10 @@ func handlePodCheck(
 		return true
 	}
 
-	err := checkIfPodIsRunning(clientset, pfDetails.Namespace, pfDetails.Pod)
+	checkCtx, cancel := monitorCallContext(pfDetails)
+	defer cancel()
+
+	err := checkIfPodIsRunning(checkCtx, clientset, pfDetails.Namespace, pfDetails.Pod)
 	if err == nil {
 		return false // pod is fine
 	}
@@ -579,10 +607,10 @@ func handlePodCheck(
 // resolveServicePod queries the EndpointSlice API for the given service and
 // returns the name and namespace of the first ready pod backing the service.
 func resolveServicePod(
-	clientset kubernetes.Interface, serviceNamespace, serviceName string,
+	ctx context.Context, clientset kubernetes.Interface, serviceNamespace, serviceName string,
 ) (podName string, podNamespace string, err error) {
 	slices, err := clientset.DiscoveryV1().EndpointSlices(serviceNamespace).List(
-		context.Background(), v1.ListOptions{
+		ctx, v1.ListOptions{
 			LabelSelector: discoveryv1.LabelServiceName + "=" + serviceName,
 		})
 	if err != nil {
@@ -685,8 +713,11 @@ func tryReconnectOnce(
 		return false, true
 	}
 
+	resolveCtx, cancel := monitorCallContext(pfDetails)
+	defer cancel()
+
 	newPod, podNamespace, err := resolveServicePod(
-		clientset, pfDetails.ServiceNamespace, pfDetails.Service)
+		resolveCtx, clientset, pfDetails.ServiceNamespace, pfDetails.Service)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "resolving service endpoint for reconnect")
 		storeReconnecting(cache, pfDetails)
@@ -796,68 +827,85 @@ func handlePortForwardReadiness(
 	// handshake this waits for can itself take long enough for impersonationExpiry to pass
 	// while it is in flight, exactly the "check once, then let a long-running operation
 	// proceed regardless" gap already fixed for Helm's actions (see NewActionConfig's
-	// deadlineEnforcingRoundTripper). A nil channel (no impersonation, or none left to expire)
-	// is never selected, so this case only ever fires when it actually applies.
-	var impersonationDeadline <-chan time.Time
+	// deadlineEnforcingRoundTripper).
+	//
+	// This re-checks the CURRENT expiry periodically rather than arming a single timer from a
+	// one-time snapshot: a concurrent status/list request can renew impersonationExpiry
+	// (ExtendImpersonationExpiryForID/-ForCluster) while this wait is still in progress, and a
+	// timer built before that renewal would go stale, firing at the original deadline even
+	// though the live expiry has since moved later. The ticker only runs at all when
+	// impersonation applied to begin with; a port-forward with a zero expiry can never have one
+	// assigned later (extendPortForwardExpiry requires a nonzero expiry to extend in the first
+	// place), so nil-channel inaction here is permanent, not a one-time skip.
+	var impersonationCheck <-chan time.Time
 
-	if expiry := pfDetails.impersonationExpirySnapshot(); !expiry.IsZero() {
-		timer := time.NewTimer(time.Until(expiry))
-		defer timer.Stop()
+	if !pfDetails.impersonationExpirySnapshot().IsZero() {
+		ticker := time.NewTicker(impersonationExpiryCheckInterval)
+		defer ticker.Stop()
 
-		impersonationDeadline = timer.C
+		impersonationCheck = ticker.C
 	}
 
-	select {
-	case <-readyChan:
-		if errOut.String() != "" {
-			return handlePortForwardError(cache, pfDetails, logParams,
-				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
+	timeout := time.NewTimer(PortForwardReadinessTimeout)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case <-readyChan:
+			if errOut.String() != "" {
+				return handlePortForwardError(cache, pfDetails, logParams,
+					fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
+			}
+
+			handlePortForwardSuccess(cache, pfDetails, logParams)
+
+			return nil
+		case err, ok := <-forwardErrChan:
+			if !ok {
+				return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
+			}
+
+			if err == nil {
+				return handlePortForwardError(cache, pfDetails, logParams, "portforward failed: nil error received")
+			}
+
+			return handlePortForwardError(cache, pfDetails, logParams, err.Error())
+		case <-timeout.C:
+			return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
+		case <-impersonationCheck:
+			if (kubeconfig.Impersonation{Expiry: pfDetails.impersonationExpirySnapshot()}).Expired() {
+				return handlePortForwardError(cache, pfDetails, logParams,
+					"impersonated identity expired while waiting for portforward to become ready")
+			}
+			// Not expired as of this check (possibly renewed since the last one): keep waiting
+			// for readyChan/forwardErrChan/timeout/closeChan, re-checking again on the next tick.
+		case <-pfDetails.closeChan:
+			msg := "portforward stopped before becoming ready"
+
+			if pfDetails.mu != nil {
+				pfDetails.mu.Lock()
+			}
+
+			if pfDetails.Status == RUNNING {
+				pfDetails.Status = STOPPED
+			}
+
+			if pfDetails.Error == "" {
+				pfDetails.Error = msg
+			}
+
+			pfSnapshot := *pfDetails
+
+			if pfDetails.mu != nil {
+				pfDetails.mu.Unlock()
+			}
+
+			portforwardstore(cache, pfSnapshot)
+			logger.Log(logger.LevelInfo, logParams, nil, msg)
+
+			return errors.New(msg)
 		}
-
-		handlePortForwardSuccess(cache, pfDetails, logParams)
-	case err, ok := <-forwardErrChan:
-		if !ok {
-			return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
-		}
-
-		if err == nil {
-			return handlePortForwardError(cache, pfDetails, logParams, "portforward failed: nil error received")
-		}
-
-		return handlePortForwardError(cache, pfDetails, logParams, err.Error())
-	case <-time.After(PortForwardReadinessTimeout):
-		return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
-	case <-impersonationDeadline:
-		return handlePortForwardError(cache, pfDetails, logParams,
-			"impersonated identity expired while waiting for portforward to become ready")
-	case <-pfDetails.closeChan:
-		msg := "portforward stopped before becoming ready"
-
-		if pfDetails.mu != nil {
-			pfDetails.mu.Lock()
-		}
-
-		if pfDetails.Status == RUNNING {
-			pfDetails.Status = STOPPED
-		}
-
-		if pfDetails.Error == "" {
-			pfDetails.Error = msg
-		}
-
-		pfSnapshot := *pfDetails
-
-		if pfDetails.mu != nil {
-			pfDetails.mu.Unlock()
-		}
-
-		portforwardstore(cache, pfSnapshot)
-		logger.Log(logger.LevelInfo, logParams, nil, msg)
-
-		return errors.New(msg)
 	}
-
-	return nil
 }
 
 // forwardPortsAsync runs ForwardPorts in a goroutine, reporting errors via
@@ -976,9 +1024,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
 
-func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
-	ctx := context.Background()
-
+func checkIfPodIsRunning(ctx context.Context, clientset kubernetes.Interface, namespace string, pod string) error {
 	p, err := clientset.CoreV1().Pods(namespace).Get(ctx, pod, v1.GetOptions{})
 	if err != nil {
 		return err
