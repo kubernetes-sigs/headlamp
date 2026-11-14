@@ -830,7 +830,7 @@
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 当前 / {{ desiredReplicas }} 期望",
   "Last Scale Time": "",
   "Targets": "目标",
-  "more…": "更多…",
+  "{{count}} more…_other": "{{count}} 更多…",
   "Default": "默认",
   "Host": "主机",
   "Completions": "",

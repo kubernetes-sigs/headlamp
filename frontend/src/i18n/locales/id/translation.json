@@ -830,7 +830,7 @@
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} saat ini / {{ desiredReplicas }} diinginkan",
   "Last Scale Time": "",
   "Targets": "Target",
-  "more…": "lainnya…",
+  "{{count}} more…_other": "{{count}} lainnya…",
   "Default": "Default",
   "Host": "Host",
   "Completions": "",

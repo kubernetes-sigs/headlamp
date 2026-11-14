@@ -830,7 +830,7 @@
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 當前 / {{ desiredReplicas }} 期望",
   "Last Scale Time": "",
   "Targets": "目標",
-  "more…": "更多…",
+  "{{count}} more…_other": "{{count}} 更多…",
   "Default": "預設",
   "Host": "主機",
   "Completions": "",
