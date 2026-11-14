@@ -434,7 +434,26 @@
         </thead>
         <tbody
           class="css-1obf64m"
-        />
+        >
+          <tr
+            class="css-1ospngb"
+          >
+            <td
+              class="MuiBox-root css-3ji4ib"
+              colspan="4"
+            >
+              <div
+                class="MuiBox-root css-19midj6"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                >
+                  No results found
+                </p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
       </table>
       <div
         class="MuiBox-root css-1bxknjp"
