@@ -104,7 +104,7 @@ describe('ErrorComponent', () => {
 
     expect(writeText).toHaveBeenCalledWith('Request stack');
     await waitFor(() =>
-      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('translation|Copied to clipboard', {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('Copied to clipboard', {
         variant: 'success',
       })
     );
@@ -124,7 +124,7 @@ describe('ErrorComponent', () => {
     await user.click(screen.getByRole('button', { name: /Copy$/ }));
 
     await waitFor(() =>
-      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('translation|Failed to copy to clipboard', {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('Failed to copy to clipboard', {
         variant: 'error',
       })
     );
@@ -150,7 +150,7 @@ describe('ErrorComponent', () => {
     expect(issueUrl.searchParams.get('body')).toContain('Headlamp Version\n');
     expect(issueUrl.searchParams.get('body')).toContain('Git Commit\n');
     expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-      'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
+      'Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
       { variant: 'warning' }
     );
   });
@@ -190,7 +190,7 @@ describe('ErrorComponent', () => {
 
       expect(open).not.toHaveBeenCalled();
       expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-        'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
+        'Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
         { variant: 'warning' }
       );
     }
