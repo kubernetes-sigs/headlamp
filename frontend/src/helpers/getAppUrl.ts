@@ -36,7 +36,7 @@ declare global {
  * @example isElectron returns '/' until the backend port is confirmed
  * @example isElectron with port 4467 returns 'http://127.0.0.1:4467/'
  * @example isDockerDesktop returns 'http://localhost:64446/'
- * @example base-url set as '/headlamp' returns '/headlamp/'
+ * @example browser origin 'https://headlamp.example.com' with base-url '/headlamp' returns 'https://headlamp.example.com/headlamp/'
  * @example isDevMode and base-url is set returns 'http://localhost:4466/headlamp/'
  * @example returns 'https://headlamp.example.com/'using the window.location.origin of browser
  *
@@ -72,8 +72,8 @@ export function getAppUrl(): string {
     url = window.location.origin;
   }
 
-  const baseUrl = getBaseUrl();
-  url += baseUrl ? baseUrl + '/' : '/';
+  const baseUrl = getBaseUrl().replace(/^\/+|\/+$/g, '');
+  url += baseUrl ? `/${baseUrl}/` : '/';
 
   return url;
 }
