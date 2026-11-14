@@ -12,10 +12,11 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- range .Values.persistentVolumeClaim.accessModes}}
+  {{- if not .Values.persistentVolumeClaim.accessModes }}
+  {{- fail "A valid .Values.persistentVolumeClaim.accessModes entry required!" }}
+  {{- end }}
   accessModes:
-    - {{ . }}
-  {{- end}}
+    {{- toYaml .Values.persistentVolumeClaim.accessModes | nindent 4 }}
   resources:
     requests:
       storage: {{ required "A valid .Values.persistentVolumeClaim.size entry required!" .Values.persistentVolumeClaim.size }}
