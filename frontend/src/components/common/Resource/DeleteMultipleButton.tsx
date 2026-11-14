@@ -50,19 +50,19 @@ interface DeleteMultipleButtonDescriptionProps {
 
 function DeleteMultipleButtonDescription(props: DeleteMultipleButtonDescriptionProps) {
   const { t } = useTranslation(['translation']);
-  const clusters = uniq(props.items?.map(it => it.cluster));
+  const clusters = uniq(props.items?.map(it => it.cluster).filter(Boolean));
   return (
-    <p>
-      {t('Are you sure you want to delete the following items?')}
+    <>
+      <p>{t('Are you sure you want to delete the following items?')}</p>
       <ul>
         {props.items?.map(item => (
           <li key={item.metadata.uid}>
-            {item.kind}: {item.metadata.name}{' '}
-            {clusters.length > 0 ? `(cluster: ${item.cluster})` : ''}
+            {item.kind}: {item.metadata.name}
+            {clusters.length > 1 && item.cluster ? ` (cluster: ${item.cluster})` : ''}
           </li>
         ))}
       </ul>
-    </p>
+    </>
   );
 }
 
