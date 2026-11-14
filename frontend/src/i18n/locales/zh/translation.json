@@ -406,9 +406,12 @@
   "To confirm, type {{ name }} in the field below.": "",
   "Namespace name": "",
   "Are you sure you want to delete the following items?": "您确定要删除这些资源吗？",
+  "and {{ count }} more_other": "",
+  "Pods deleted instead of evicted because eviction is not permitted: {{ pods }}.": "",
+  "Pods skipped because their eviction permission could not be verified: {{ pods }}.": "",
+  "Deleted {{ itemsLength }} items.": "已删除 {{ itemsLength }} 个资源。",
   "Deleting {{ itemsLength }} items…": "正在删除 {{ itemsLength }} 个资源…",
   "Cancelled deletion of {{ itemsLength }} items.": "取消删除 {{ itemsLength }} 个资源。",
-  "Deleted {{ itemsLength }} items.": "已删除 {{ itemsLength }} 个资源。",
   "Error deleting {{ itemsLength }} items.": "删除 {{ itemsLength }} 个资源时出错。",
   "Delete items": "删除资源",
   "Your selection includes system namespaces. Deleting them may break your cluster.": "",
@@ -1136,5 +1139,6 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "and {{ count }} more_one": ""
 }
