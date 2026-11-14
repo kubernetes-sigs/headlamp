@@ -41,8 +41,11 @@ export default function Home() {
   const history = useHistory();
   const location = useLocation();
   const clusters = useClustersConf();
+  // Arriving from the auth screen means the user asked to leave the cluster, so
+  // sending them back into it would just return them to the screen they left.
+  const { fromAuthChooser = false } = (location.state || {}) as { fromAuthChooser?: boolean };
 
-  if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
+  if (!isElectron() && !fromAuthChooser && clusters && Object.keys(clusters).length === 1) {
     const cluster = Object.keys(clusters)[0];
     const isLogout = new URLSearchParams(location.search).get('logout') === 'true';
     if (isLogout) {
