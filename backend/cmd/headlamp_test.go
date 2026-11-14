@@ -5257,6 +5257,7 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 
 	req, err := makeJSONReq(http.MethodPost, "/clusters/~YWJj/set-token", map[string]string{"token": ""})
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
 	createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
@@ -5265,6 +5266,63 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	require.Len(t, rr.Result().Cookies(), 1)
 	assert.Equal(t, "headlamp-auth-YWJj.0", rr.Result().Cookies()[0].Name)
 	assert.Equal(t, "/clusters/~YWJj", rr.Result().Cookies()[0].Path)
+}
+
+func TestSetTokenEndpointContentTypeValidation(t *testing.T) {
+	setupTestEnv(t)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	cases := []struct {
+		name        string
+		contentType string
+		wantCode    int
+	}{
+		{
+			name:        "missing content-type",
+			contentType: "",
+			wantCode:    http.StatusUnsupportedMediaType,
+		},
+		{
+			name:        "text/plain content-type",
+			contentType: "text/plain",
+			wantCode:    http.StatusUnsupportedMediaType,
+		},
+		{
+			name:        "application/x-www-form-urlencoded content-type",
+			contentType: "application/x-www-form-urlencoded",
+			wantCode:    http.StatusUnsupportedMediaType,
+		},
+		{
+			name:        "application/json content-type",
+			contentType: "application/json",
+			wantCode:    http.StatusOK,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := makeJSONReq(http.MethodPost, "/clusters/test-cluster/set-token", map[string]string{"token": ""})
+			require.NoError(t, err)
+
+			if tc.contentType != "" {
+				req.Header.Set("Content-Type", tc.contentType)
+			}
+
+			rr := httptest.NewRecorder()
+			createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
+
+			assert.Equal(t, tc.wantCode, rr.Code)
+		})
+	}
 }
 
 func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
