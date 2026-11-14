@@ -165,8 +165,8 @@ const Template: StoryFn<WorkloadCircleChartProps> = (args: WorkloadCircleChartPr
 export const DefaultDeployment = Template.bind({});
 DefaultDeployment.args = {
   workloadData: [partialRunningDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const LoadingWorkload = Template.bind({});
@@ -180,48 +180,48 @@ LoadingWorkload.args = {
 export const AllRunningDeployment = Template.bind({});
 AllRunningDeployment.args = {
   workloadData: [allRunningDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const AllFailedDeployment = Template.bind({});
 AllFailedDeployment.args = {
   workloadData: [allFailedDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const DefaultStatefulSet = Template.bind({});
 DefaultStatefulSet.args = {
   workloadData: [partialRunningStatefulSet],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const AllRunningStatefulSet = Template.bind({});
 AllRunningStatefulSet.args = {
   workloadData: [allRunningStatefulSet],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const AllFailedStatefulSet = Template.bind({});
 AllFailedStatefulSet.args = {
   workloadData: [allFailedStatefulSet],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const MixedWorkloads = Template.bind({});
 MixedWorkloads.args = {
   workloadData: [allRunningDeployment, partialRunningStatefulSet, allFailedDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const Empty = Template.bind({});
 Empty.args = {
   workloadData: [],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
