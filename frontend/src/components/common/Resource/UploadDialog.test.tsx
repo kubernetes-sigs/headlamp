@@ -33,6 +33,48 @@ describe('UploadDialog', () => {
     vi.unstubAllGlobals();
   });
 
+  describe('Upload File', () => {
+    const pickFiles = (files: File[]) => {
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      fireEvent.change(input, { target: { files } });
+    };
+
+    it('shows error and keeps the dialog open when all files are empty', async () => {
+      const readAsText = vi.spyOn(FileReader.prototype, 'readAsText');
+      const setCode = vi.fn();
+      const setUploadFiles = vi.fn();
+      renderComponent(setCode, setUploadFiles);
+
+      pickFiles([new File([], 'empty.yaml')]);
+      fireEvent.click(screen.getByRole('button', { name: /load/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/All of the files are empty/i)).toBeInTheDocument();
+      });
+
+      // The files are only read on the way to setCode, so not reading them means the editor
+      // can't be replaced later either.
+      expect(readAsText).not.toHaveBeenCalled();
+      expect(setCode).not.toHaveBeenCalled();
+      expect(setUploadFiles).not.toHaveBeenCalled();
+    });
+
+    it('calls setCode with file content when a file is not empty', async () => {
+      const yamlContent = 'apiVersion: v1\nkind: Pod';
+      const setCode = vi.fn();
+      const setUploadFiles = vi.fn();
+      renderComponent(setCode, setUploadFiles);
+
+      pickFiles([new File([yamlContent], 'pod.yaml')]);
+      fireEvent.click(screen.getByRole('button', { name: /load/i }));
+
+      await waitFor(() => {
+        expect(setCode).toHaveBeenCalledWith({ format: 'yaml', code: yamlContent });
+      });
+      expect(setUploadFiles).toHaveBeenCalledWith(false);
+    });
+  });
+
   describe('Load from URL', () => {
     it('shows error and does not call setCode when fetch returns a non-2xx response', async () => {
       vi.stubGlobal(
