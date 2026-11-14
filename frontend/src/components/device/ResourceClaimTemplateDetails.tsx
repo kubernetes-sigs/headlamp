@@ -23,6 +23,7 @@ import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
+import ResourceClaimTemplateClaims from './ResourceClaimTemplateClaims';
 
 export default function ResourceClaimTemplateDetails(props: {
   name?: string;
@@ -87,6 +88,14 @@ export default function ResourceClaimTemplateDetails(props: {
                   data={item.requests}
                   emptyMessage={t('translation|This template requests no devices.')}
                 />
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.resourceclaimtemplate-claims',
+            section: (
+              <SectionBox title={t('glossary|Resource Claims')}>
+                <ResourceClaimTemplateClaims template={item} />
               </SectionBox>
             ),
           },
