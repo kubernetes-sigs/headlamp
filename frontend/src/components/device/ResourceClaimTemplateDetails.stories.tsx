@@ -16,12 +16,15 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { baseMocks } from '../../../.storybook/baseMocks';
 import type { KubeResourceClaimTemplate } from '../../lib/k8s/resourceClaimTemplate';
 import { API_BASE, TestContext } from '../../test';
 import ResourceClaimTemplateDetails from './ResourceClaimTemplateDetails';
 import {
   PRIORITIZED_RESOURCE_CLAIM_TEMPLATE,
+  RESOURCE_CLAIM_DUMMY_DATA,
   RESOURCE_CLAIM_TEMPLATE_DUMMY_DATA,
+  TEMPLATE_POD_DUMMY_DATA,
 } from './storyHelper';
 
 const [singleRequest, multipleRequests] = RESOURCE_CLAIM_TEMPLATE_DUMMY_DATA;
@@ -41,11 +44,30 @@ const emptyEvents = http.get(`${API_BASE}/api/v1/namespaces/${namespace}/events`
   })
 );
 
-const handlersFor = (template: KubeResourceClaimTemplate) => [
-  http.get(detailsUrl(template.metadata.name), () => HttpResponse.json(template)),
-  collectionWatch,
-  emptyEvents,
-];
+/** The base mocks answer the Pod list with no Pods, so these go ahead of them. */
+const storyFor = (template: KubeResourceClaimTemplate) => ({
+  msw: {
+    handlers: {
+      base: null,
+      story: [
+        http.get(detailsUrl(template.metadata.name), () => HttpResponse.json(template)),
+        collectionWatch,
+        emptyEvents,
+        http.get(`${API_BASE}/api/v1/namespaces/${namespace}/pods`, () =>
+          HttpResponse.json({ kind: 'PodList', items: TEMPLATE_POD_DUMMY_DATA, metadata: {} })
+        ),
+        http.get(`${API_BASE}/apis/resource.k8s.io/v1/namespaces/${namespace}/resourceclaims`, () =>
+          HttpResponse.json({
+            kind: 'ResourceClaimList',
+            items: RESOURCE_CLAIM_DUMMY_DATA,
+            metadata: {},
+          })
+        ),
+        ...baseMocks,
+      ],
+    },
+  },
+});
 
 export default {
   title: 'ResourceClaimTemplate/Details',
@@ -63,17 +85,15 @@ const Template: StoryFn<{ name: string }> = args => {
 
 export const SingleRequest = Template.bind({});
 SingleRequest.args = { name: singleRequest.metadata.name };
-SingleRequest.parameters = { msw: { handlers: { story: handlersFor(singleRequest) } } };
+SingleRequest.parameters = storyFor(singleRequest);
 
 export const MultipleRequests = Template.bind({});
 MultipleRequests.args = { name: multipleRequests.metadata.name };
-MultipleRequests.parameters = { msw: { handlers: { story: handlersFor(multipleRequests) } } };
+MultipleRequests.parameters = storyFor(multipleRequests);
 
 export const PrioritizedRequest = Template.bind({});
 PrioritizedRequest.args = { name: PRIORITIZED_RESOURCE_CLAIM_TEMPLATE.metadata.name };
-PrioritizedRequest.parameters = {
-  msw: { handlers: { story: handlersFor(PRIORITIZED_RESOURCE_CLAIM_TEMPLATE) } },
-};
+PrioritizedRequest.parameters = storyFor(PRIORITIZED_RESOURCE_CLAIM_TEMPLATE);
 
 export const Loading = Template.bind({});
 Loading.args = { name: singleRequest.metadata.name };
