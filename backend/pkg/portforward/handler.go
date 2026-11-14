@@ -477,7 +477,7 @@ func handlePodCheck(
 			"pod unavailable, attempting reconnect via service")
 
 		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
-		portforwardstore(cache, pfSnapshot)
+		updatePortForwardStatus(cache, pfSnapshot)
 
 		// Close the old forwarder's stop channel so its goroutine
 		// exits, then allocate a fresh one. attemptReconnect's
@@ -500,7 +500,7 @@ func handlePodCheck(
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
 	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
-	portforwardstore(cache, pfSnapshot)
+	updatePortForwardStatus(cache, pfSnapshot)
 	safeCloseChan(pfDetails.closeChan)
 
 	return true
@@ -588,7 +588,7 @@ func attemptReconnect(
 
 // storeReconnecting persists the RECONNECTING status to the cache.
 func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
-	portforwardstore(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
+	updatePortForwardStatus(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
 }
 
 // tryReconnectOnce resolves a new pod for the service, initialises a fresh
@@ -737,7 +737,7 @@ func handlePortForwardReadiness(
 			pfDetails.mu.Unlock()
 		}
 
-		portforwardstore(cache, pfSnapshot)
+		updatePortForwardStatus(cache, pfSnapshot)
 		logger.Log(logger.LevelInfo, logParams, nil, msg)
 
 		return errors.New(msg)
