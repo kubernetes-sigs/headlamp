@@ -113,6 +113,12 @@ context snapshot for authentication and forward creation. A cached routing key
 cannot supply another caller's credentials. `X-HEADLAMP-USER-ID` is a routing
 label, not authentication. Requests addressing a cached internal context without
 their own token or request kubeconfig cannot borrow its stored credentials.
+Request-supplied kubeconfigs cannot read backend-local token/certificate/key
+files or run exec/auth-provider credential plugins. These methods require an
+independent request token that replaces the configured credentials; otherwise
+the request is rejected before authentication. Embedded credentials remain
+supported, and trusted server-configured kubeconfigs keep their existing
+credential methods.
 Recreating a context with a different endpoint or TLS/proxy trust configuration
 does not grant access to existing sessions even if that endpoint claims the same
 username and UID. Restoring the original authority with valid credentials retains

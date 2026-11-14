@@ -170,3 +170,42 @@ func TestPortForwardOwnerScopePinsTransportTrust(t *testing.T) {
 
 	require.Equal(t, original, portForwardOwnerKey("shared", cluster.DeepCopy(), user))
 }
+
+func TestRequestContextRejectsLocalCredentialProviders(t *testing.T) {
+	upstream := newPortForwardTestAPI(t)
+	sessions := cache.New[interface{}]()
+
+	t.Cleanup(func() { _ = sessions.Close() })
+
+	for _, test := range []struct {
+		name string
+		info *api.AuthInfo
+	}{
+		{"token-file", &api.AuthInfo{TokenFile: "/backend/token"}},
+		{"certificate-file", &api.AuthInfo{ClientCertificate: "/backend/client.crt"}},
+		{"key-file", &api.AuthInfo{ClientKey: "/backend/client.key"}},
+		{"exec", &api.AuthInfo{Exec: &api.ExecConfig{Command: "/backend/provider"}}},
+		{"auth-provider", &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{Name: "oidc"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			kContext := &kubeconfig.Context{
+				Name: "shared", Cluster: &api.Cluster{Server: upstream.server.URL, InsecureSkipTLSVerify: true},
+				KubeContext: &api.Context{Cluster: "api", AuthInfo: "user"}, AuthInfo: test.info,
+			}
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/portforward/list", nil)
+			request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
+			response := httptest.NewRecorder()
+			before := upstream.calls.Load()
+
+			RequestHandlerWithContext(kContext, sessions, true, "shared", response, request)
+			require.Equal(t, http.StatusBadRequest, response.Code)
+			require.Equal(t, before, upstream.calls.Load(), "provider must not be resolved before rejection")
+			request.Header.Set("Authorization", "Bearer bob")
+
+			response = httptest.NewRecorder()
+			RequestHandlerWithContext(kContext, sessions, true, "shared", response, request)
+			require.Equal(t, http.StatusOK, response.Code)
+			require.Equal(t, test.info, kContext.AuthInfo, "request authentication must not modify the original context")
+		})
+	}
+}

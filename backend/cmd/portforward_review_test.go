@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -253,5 +254,54 @@ func TestPortForwardStatelessCreationPinsRequestCredentials(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("authentication or permission check missing")
 		}
+	}
+}
+
+func TestPortForwardStatelessCannotReadBackendTokenFile(t *testing.T) {
+	upstream, seen := portForwardReviewIdentityAPI(t)
+	store := kubeconfig.NewContextStore()
+	server := portForwardReviewServer(t, store, "", true)
+	tokenFile := filepath.Join(t.TempDir(), "backend-token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("alice"), 0o600))
+	data, err := clientcmd.Write(api.Config{
+		Clusters:       map[string]*api.Cluster{"api": {Server: upstream.URL, InsecureSkipTLSVerify: true}},
+		AuthInfos:      map[string]*api.AuthInfo{"user": {TokenFile: tokenFile}},
+		Contexts:       map[string]*api.Context{"shared": {Cluster: "api", AuthInfo: "user"}},
+		CurrentContext: "shared",
+	})
+	require.NoError(t, err)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		server.URL+"/clusters/shared/portforward/list", nil)
+	require.NoError(t, err)
+	request.Header.Set("KUBECONFIG", base64.StdEncoding.EncodeToString(data))
+	request.Header.Set("X-HEADLAMP-USER-ID", "known-routing-id")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+
+	_ = response.Body.Close()
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+
+	select {
+	case leaked := <-seen:
+		t.Fatalf("stateless request sent a backend-local credential upstream: %q", leaked)
+	default:
+	}
+
+	request, err = http.NewRequestWithContext(t.Context(), http.MethodGet,
+		server.URL+"/clusters/shared/portforward/list", nil)
+	require.NoError(t, err)
+	request.Header.Set("KUBECONFIG", base64.StdEncoding.EncodeToString(data))
+	request.Header.Set("Authorization", "Bearer bob")
+	response, err = http.DefaultClient.Do(request)
+	require.NoError(t, err)
+
+	_ = response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	select {
+	case got := <-seen:
+		require.Equal(t, "Bearer bob", got, "independent request credentials must replace local providers")
+	case <-time.After(time.Second):
+		t.Fatal("request token was not authenticated")
 	}
 }

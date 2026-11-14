@@ -71,7 +71,28 @@ func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interfac
 func RequestHandlerWithContext(kContext *kubeconfig.Context, sessions cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool, contextKey string, w http.ResponseWriter, r *http.Request,
 ) {
+	token, err := requestToken(r)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "reading stateless portforward credentials")
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+
+		return
+	}
+
+	if token == "" && requestContextUsesLocalCredentials(kContext.AuthInfo) {
+		logger.Log(logger.LevelWarn, nil, nil, "stateless portforward requires embedded or independent credentials")
+		http.Error(w, "request kubeconfig credential files and providers require an independent request token",
+			http.StatusBadRequest)
+
+		return
+	}
+
 	handleRequestContext(kContext, sessions, unsafeUseServiceAccountToken, contextKey, true, w, r)
+}
+
+func requestContextUsesLocalCredentials(info *api.AuthInfo) bool {
+	return info != nil && (info.TokenFile != "" || info.ClientCertificate != "" || info.ClientKey != "" ||
+		info.Exec != nil || info.AuthProvider != nil)
 }
 
 //nolint:funlen // Authentication must complete before dispatching any local session operation.
