@@ -121,6 +121,24 @@ describe('desktop preload API', () => {
     expect(electronMocks.removeListener).toHaveBeenCalledWith('locale', wrappedListener);
   });
 
+  it('exposes only capability-bound GitHub OAuth requests', async () => {
+    electronMocks.invoke.mockResolvedValue({ success: true });
+    const capability = 'a'.repeat(64);
+
+    await expect(desktopApi.githubOAuth.start(capability)).resolves.toEqual({ success: true });
+    await desktopApi.githubOAuth.refresh(capability, 'ghr_token');
+
+    expect(electronMocks.invoke).toHaveBeenNthCalledWith(1, 'github-oauth-start', capability);
+    expect(electronMocks.invoke).toHaveBeenNthCalledWith(2, 'github-oauth-refresh', {
+      capability,
+      refreshToken: 'ghr_token',
+    });
+    expect(desktopApi).not.toHaveProperty('startGitHubOAuth');
+    expect(desktopApi).not.toHaveProperty('onGitHubOAuthCallback');
+    expect(desktopApi).not.toHaveProperty('refreshGitHubOAuth');
+    expect(electronMocks.on).not.toHaveBeenCalled();
+  });
+
   it('falls back to removing the provided listener', () => {
     const listener = vi.fn();
     desktopApi.receive('locale', listener);
