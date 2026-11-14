@@ -2598,9 +2598,30 @@ func verifyClusterMessageForwarded(
 	testMsg := []byte(fmt.Sprintf(`{"metadata":{"resourceVersion":"%s"},"kind":"Pod","apiVersion":"v1"}`, resourceVersion))
 	require.NoError(t, srvWs.WriteMessage(websocket.TextMessage, testMsg))
 
-	var clientMsg Message
-	require.NoError(t, clientConn.ReadJSON(&clientMsg))
-	assert.Equal(t, "/api/v1/pods", clientMsg.Path)
+	require.NoError(t, clientConn.conn.SetReadDeadline(time.Now().Add(2*time.Second)))
+	defer func() {
+		_ = clientConn.conn.SetReadDeadline(time.Time{})
+	}()
+
+	for {
+		var clientMsg Message
+		require.NoError(t, clientConn.ReadJSON(&clientMsg), "timed out or failed waiting for cluster DATA frame")
+
+		switch clientMsg.Type {
+		case "STATUS", "COMPLETE":
+			// Discard control frames preceding or interspersed with the cluster data
+			continue
+		case "DATA":
+			require.Equal(t, "DATA", clientMsg.Type)
+			require.Equal(t, "/api/v1/pods", clientMsg.Path)
+			require.Equal(t, "test-cluster", clientMsg.ClusterID)
+			require.Contains(t, clientMsg.Data, fmt.Sprintf(`"resourceVersion":"%s"`, resourceVersion))
+
+			return
+		default:
+			t.Fatalf("unexpected message type received: %s", clientMsg.Type)
+		}
+	}
 }
 
 func createCapturingUpgradeServer(
@@ -2661,6 +2682,98 @@ func TestHandleClusterMessages_StateClosedNotOverwrittenByStateError(t *testing.
 
 	assert.Equal(t, StateClosed, finalState,
 		"handleClusterMessages defer must not overwrite StateClosed with StateError")
+}
+
+func TestHandleClusterMessages_ClosesUpstreamSocketOnReaderExit(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 200*time.Millisecond)
+	srvWs := awaitServerSocket(t, serverSockets, "server socket upgrade")
+
+	// Close the server side to simulate upstream peer termination
+	_ = srvWs.Close()
+
+	m.handleClusterMessages(conn, clientConn)
+
+	assert.Error(t, conn.WSConn.WriteMessage(websocket.PingMessage, nil),
+		"upstream socket must be closed when reader exits")
+
+	conn.mu.RLock()
+	state := conn.Status.State
+	conn.mu.RUnlock()
+	assert.Equal(t, StateError, state, "status must be StateError upon reader exit")
+
+	select {
+	case <-conn.Done:
+		t.Fatal("conn.Done must remain open so monitorConnection can reconnect")
+	default:
+	}
+}
+
+func TestHandleClusterMessages_OldReaderDoesNotCloseReplacementConnection(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, oldConn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 200*time.Millisecond)
+	oldSrvWs := awaitServerSocket(t, serverSockets, "old server socket upgrade")
+
+	newConn, err := m.createClusterConnection(
+		"test-cluster",
+		"test-user",
+		"/api/v1/pods",
+		"",
+		clientConn,
+		nil,
+	)
+	require.NoError(t, err)
+
+	newSrvWs := awaitServerSocket(t, serverSockets, "new server socket upgrade")
+	defer func() { _ = newSrvWs.Close() }()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.mutex.Lock()
+	m.connections[connKey] = newConn
+	m.mutex.Unlock()
+
+	_ = oldSrvWs.Close()
+
+	m.handleClusterMessages(oldConn, clientConn)
+
+	assert.Error(t, oldConn.WSConn.WriteMessage(websocket.PingMessage, nil),
+		"old socket must be closed")
+
+	m.mutex.RLock()
+	activeConn := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Equal(t, newConn, activeConn, "replacement connection must remain in map")
+
+	assert.NoError(t, newConn.WSConn.WriteMessage(websocket.PingMessage, nil),
+		"replacement socket must remain open and unaffected by old reader exit")
+
+	newConn.mu.RLock()
+	newState := newConn.Status.State
+	newConn.mu.RUnlock()
+	assert.Equal(t, StateConnected, newState, "replacement connection state must be unaffected")
+
+	newConn.safeClose()
 }
 
 func TestUpdateStatusIfNotClosed_DeterministicOrderings(t *testing.T) {
@@ -2780,26 +2893,122 @@ func TestUpdateStatusIfNotClosed_RejectsWhenClosed(t *testing.T) {
 	conn.mu.RUnlock()
 }
 
+func createGatedUpgradeServer(
+	upgradeArrived chan<- struct{},
+	releaseUpgrade <-chan struct{},
+) (*httptest.Server, <-chan *websocket.Conn) {
+	serverSockets := make(chan *websocket.Conn, 1)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case upgradeArrived <- struct{}{}:
+		default:
+		}
+
+		<-releaseUpgrade
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		serverSockets <- ws
+	}))
+
+	return server, serverSockets
+}
+
+type reconnectResult struct {
+	newConn *Connection
+	err     error
+}
+
+func startAsyncReconnect(m *Multiplexer, conn *Connection) <-chan reconnectResult {
+	resultCh := make(chan reconnectResult, 1)
+
+	go func() {
+		newConn, err := m.reconnect(conn)
+		resultCh <- reconnectResult{newConn: newConn, err: err}
+	}()
+
+	return resultCh
+}
+
+func assertReplacementServerSocketClosed(t *testing.T, serverSockets <-chan *websocket.Conn) {
+	t.Helper()
+
+	select {
+	case srvWs := <-serverSockets:
+		defer func() {
+			_ = srvWs.Close()
+		}()
+
+		_ = srvWs.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, _, readErr := srvWs.ReadMessage()
+		assert.Error(t, readErr, "replacement server socket must be closed when newConn is closed")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket")
+	}
+}
+
 func TestReconnect_ClosedConnectionDoesNotLeak(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+
+	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
+	defer server.Close()
+	defer func() {
+		select {
+		case <-releaseUpgrade:
+		default:
+			close(releaseUpgrade)
+		}
+	}()
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
 
-	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
-
-	conn.mu.Lock()
-	conn.closed = true
-	conn.mu.Unlock()
-
+	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn)
 	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
 
-	newConn, err := m.reconnect(conn)
-	assert.Error(t, err)
-	assert.Nil(t, newConn)
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	resultCh := startAsyncReconnect(m, conn)
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect upgrade request to arrive at server")
+	}
+
+	// Close original connection through client disconnect while reconnect is in flight
+	m.closeClientConnections(clientConn)
+
+	// Release upgrade so createClusterConnection completes
+	close(releaseUpgrade)
+
+	var res reconnectResult
+	select {
+	case res = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect to complete")
+	}
+
+	require.Error(t, res.err)
+	assert.Contains(t, res.err.Error(), "connection was closed during reconnect")
+	assert.Nil(t, res.newConn)
 
 	m.mutex.RLock()
-	assert.Nil(t, m.connections[connKey], "connection must not be registered in map")
+	assert.Nil(t, m.connections[connKey], "replacement connection must not be registered in map")
 	m.mutex.RUnlock()
+
+	assertReplacementServerSocketClosed(t, serverSockets)
 }

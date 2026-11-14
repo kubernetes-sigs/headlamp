@@ -325,6 +325,18 @@ func (c *Connection) IsClosed() bool {
 	return c.closed
 }
 
+// activeClient returns the client connection if the connection is open, or nil otherwise.
+func (c *Connection) activeClient() *WSConnLock {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed {
+		return nil
+	}
+
+	return c.Client
+}
+
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
 	c.updateStatusInternal(state, err, false)
@@ -756,8 +768,8 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 				backoffAttempt = 0
 				conn = newConn
 
-				if newConn.Client != nil && !newConn.IsClosed() {
-					go m.handleClusterMessages(newConn, newConn.Client)
+				if clientConn := newConn.activeClient(); clientConn != nil {
+					go m.handleClusterMessages(newConn, clientConn)
 				}
 
 				timer.Reset(m.getHeartbeatInterval())
@@ -1080,6 +1092,10 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 
 			return
 		default:
+		}
+
+		if conn.WSConn != nil {
+			_ = conn.WSConn.Close()
 		}
 
 		if !conn.updateStatusIfNotClosed(StateError, nil) {
