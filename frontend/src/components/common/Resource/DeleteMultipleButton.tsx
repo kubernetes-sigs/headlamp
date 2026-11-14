@@ -48,6 +48,9 @@ interface DeleteMultipleButtonDescriptionProps {
   items?: KubeObject[];
 }
 
+// How many Pod names a notification lists before summarising the rest.
+const MAX_NAMED_PODS = 5;
+
 function DeleteMultipleButtonDescription(props: DeleteMultipleButtonDescriptionProps) {
   const { t } = useTranslation(['translation']);
   const clusters = uniq(props.items?.map(it => it.cluster));
@@ -103,31 +106,197 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
     normalizedConfirmInput.join(', ') !== protectedNamespaceNames.join(', ');
 
   const deleteFunc = React.useCallback(
-    (items: KubeObject[]) => {
+    async (items: KubeObject[]) => {
       if (!items || items.length === 0) {
         return;
       }
       const clonedItems = _.cloneDeep(items);
       const itemsLength = clonedItems.length;
 
+      type EvictionVerdict = 'allowed' | 'denied' | 'error';
+
+      const namespaceVerdicts = new Map<string, Promise<EvictionVerdict>>();
+      const podVerdicts = new Map<string, Promise<EvictionVerdict>>();
+
+      const checkEviction = (pod: Pod, podName?: string): Promise<EvictionVerdict> =>
+        pod
+          .getAuthorization('create', { subresource: 'eviction', name: podName })
+          .then((result): EvictionVerdict => {
+            // An explicit verdict answers the question that was asked, whether that
+            // was namespace-wide or for one Pod. A failed evaluation (for example an
+            // authorizer webhook erroring) or a response we cannot read, such as one
+            // without an `allowed` verdict, is not an answer, so it must not be taken
+            // as permission to delete.
+            const status = result?.status;
+            if (status?.allowed === true && !status.evaluationError) {
+              return 'allowed';
+            }
+            if (status?.allowed === false && !status.evaluationError) {
+              return 'denied';
+            }
+            console.error(
+              `Could not determine the bulk eviction permission for ` +
+                `${pod.cluster}/${pod.getNamespace()}${podName ? `/${podName}` : ''}:`,
+              result
+            );
+            return 'error';
+          })
+          .catch((err: Error) => {
+            console.error(
+              `Error while getting authorization for bulk eviction of ` +
+                `${pod.cluster}/${pod.getNamespace()}${podName ? `/${podName}` : ''}:`,
+              err
+            );
+            return 'error';
+          });
+
+      const evictionVerdict = async (pod: Pod): Promise<EvictionVerdict> => {
+        const namespaceKey = `${pod.cluster}/${pod.getNamespace()}`;
+        let namespaceVerdict = namespaceVerdicts.get(namespaceKey);
+
+        if (!namespaceVerdict) {
+          // Reuse a namespace-wide grant; only a denial needs per-pod checks.
+          namespaceVerdict = checkEviction(pod);
+          namespaceVerdicts.set(namespaceKey, namespaceVerdict);
+        }
+
+        const namespaceResult = await namespaceVerdict;
+        if (namespaceResult !== 'denied') {
+          return namespaceResult;
+        }
+
+        const podKey = `${namespaceKey}/${pod.getName()}`;
+        let podVerdict = podVerdicts.get(podKey);
+
+        if (!podVerdict) {
+          podVerdict = checkEviction(pod, pod.getName());
+          podVerdicts.set(podKey, podVerdict);
+        }
+
+        return podVerdict;
+      };
+
+      // Resolve the authorization questions before dispatching, so the notification
+      // can name the Pods that were deleted instead of evicted and the Pods that were
+      // skipped because their eviction permission could not be verified.
+      const actions = await Promise.all(
+        clonedItems.map(async item => {
+          if (!settingsObj.useEvict || item.kind !== 'Pod') {
+            return { item, operation: 'delete' as const, fallback: false };
+          }
+
+          const pod = item as Pod;
+          const verdict = await evictionVerdict(pod);
+          if (verdict === 'allowed') {
+            return { item, operation: 'evict' as const, fallback: false };
+          }
+          if (verdict === 'denied') {
+            // The user asked to delete and eviction is not permitted. Deletion is
+            // still attempted, as it was before the eviction check existed (#3619).
+            return { item, operation: 'delete' as const, fallback: true };
+          }
+          // The check itself failed, so we cannot tell whether evicting is allowed.
+          // Skip the Pod rather than deleting it and bypassing a PodDisruptionBudget.
+          return { item, operation: 'skip' as const, fallback: false };
+        })
+      );
+
+      const fallbackPods = actions
+        .filter(action => action.fallback)
+        .map(action => action.item as Pod);
+      const skippedPods = actions
+        .filter(action => action.operation === 'skip')
+        .map(action => action.item as Pod);
+
+      const podList = (pods: Pod[]) => {
+        const names = pods.map(pod =>
+          [pod.cluster, pod.getNamespace(), pod.getName()].filter(Boolean).join('/')
+        );
+        if (names.length <= MAX_NAMED_PODS) {
+          return names.join(', ');
+        }
+        const more = t('and {{ count }} more', { count: names.length - MAX_NAMED_PODS });
+        return `${names.slice(0, MAX_NAMED_PODS).join(', ')} ${more}`;
+      };
+
+      const fallbackMessageFor = (pods: Pod[]) =>
+        pods.length > 0
+          ? t('Pods deleted instead of evicted because eviction is not permitted: {{ pods }}.', {
+              pods: podList(pods),
+            })
+          : '';
+      const fallbackMessage = fallbackMessageFor(fallbackPods);
+      const skippedMessage =
+        skippedPods.length > 0
+          ? t('Pods skipped because their eviction permission could not be verified: {{ pods }}.', {
+              pods: podList(skippedPods),
+            })
+          : '';
+      const processedLength = itemsLength - skippedPods.length;
+      const outcomeMessage = [
+        processedLength > 0
+          ? t('Deleted {{ itemsLength }} items.', { itemsLength: processedLength })
+          : '',
+        fallbackMessage,
+        skippedMessage,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
       dispatch(
         clusterAction(
           async () => {
-            await Promise.all(
-              items.map(item => {
-                if (settingsObj.useEvict && item.kind === 'Pod') {
-                  const pod = item as Pod;
-                  return pod.evict();
+            const results = await Promise.allSettled(
+              actions.map(({ item, operation }) => {
+                if (operation === 'evict') {
+                  return (item as Pod).evict();
                 }
-                return item.delete();
+                if (operation === 'delete') {
+                  return item.delete();
+                }
+                return Promise.resolve();
               })
             );
+
+            // A failing item must not hide which Pods were deleted instead of
+            // evicted, so report that alongside the failure.
+            const failure = results.find(result => result.status === 'rejected');
+            if (failure) {
+              const reason =
+                failure.reason instanceof Error ? failure.reason.message : String(failure.reason);
+              const failureMessage = reason && !reason.endsWith('.') ? `${reason}.` : reason;
+              // Only name the fallback Pods whose delete actually succeeded.
+              const deletedFallbackPods = actions
+                .filter((action, index) => action.fallback && results[index].status === 'fulfilled')
+                .map(action => action.item as Pod);
+              throw new Error(
+                [failureMessage, fallbackMessageFor(deletedFallbackPods), skippedMessage]
+                  .filter(Boolean)
+                  .join(' ')
+              );
+            }
+
+            if (skippedMessage) {
+              // Part of the batch has already run, so report the whole outcome:
+              // what was deleted and which Pods were left alone.
+              throw new Error(outcomeMessage);
+            }
           },
           {
             startMessage: t('Deleting {{ itemsLength }} items…', { itemsLength }),
             cancelledMessage: t('Cancelled deletion of {{ itemsLength }} items.', { itemsLength }),
-            successMessage: t('Deleted {{ itemsLength }} items.', { itemsLength }),
-            errorMessage: t('Error deleting {{ itemsLength }} items.', { itemsLength }),
+            successMessage: [
+              t('Deleted {{ itemsLength }} items.', { itemsLength }),
+              fallbackMessage,
+            ]
+              .filter(Boolean)
+              .join(' '),
+            // The thrown error already carries the whole outcome when Pods were
+            // skipped; otherwise report the delete/evict call that failed.
+            errorMessage: skippedMessage
+              ? ''
+              : t('Error deleting {{ itemsLength }} items.', { itemsLength }),
+            successOptions: fallbackPods.length > 0 ? { variant: 'warning' } : undefined,
             cancelUrl: location.pathname,
             startUrl: location.pathname,
             errorUrl: location.pathname,
@@ -203,7 +372,11 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
         confirmButtonDisabled={confirmButtonDisabled}
         handleClose={() => setOpenAlert(false)}
         onConfirm={() => {
-          deleteFunc(items);
+          // The dialog is already closed here, so surface a failure to prepare the
+          // batch instead of leaving an unhandled rejection with no feedback.
+          deleteFunc(items).catch(err => {
+            console.error('Error while preparing to delete the selected items:', err);
+          });
           dispatchDeleteEvent({
             resources: items,
             status: EventStatus.CONFIRMED,
