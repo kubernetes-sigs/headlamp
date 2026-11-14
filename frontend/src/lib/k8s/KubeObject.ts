@@ -37,6 +37,7 @@ import type {
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
+import { STRICT_FIELD_VALIDATION } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
@@ -560,7 +561,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   }
 
   update(data: KubeObjectInterface) {
-    return this._class().apiEndpoint.put(data, {}, this._clusterName);
+    return this._class().apiEndpoint.put(data, STRICT_FIELD_VALIDATION, this._clusterName);
   }
 
   /**
@@ -599,20 +600,20 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         filteredOps,
         this.getNamespace()!,
         this.getName(),
-        {},
+        STRICT_FIELD_VALIDATION,
         this._clusterName
       );
     }
     return (endpoint as ApiClient<KubeObjectInterface>).jsonPatch(
       filteredOps,
       this.getName(),
-      {},
+      STRICT_FIELD_VALIDATION,
       this._clusterName
     );
   }
 
   static put(data: KubeObjectInterface) {
-    return this.apiEndpoint.put(data);
+    return this.apiEndpoint.put(data, STRICT_FIELD_VALIDATION);
   }
 
   scale(numReplicas: number) {
@@ -654,7 +655,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     args.push(this.getName());
 
     // @ts-ignore
-    return this._class().apiEndpoint.patch(...args, {}, this._clusterName);
+    return this._class().apiEndpoint.patch(...args, STRICT_FIELD_VALIDATION, this._clusterName);
   }
 
   /** Performs a request to check if the user has the given permission.
