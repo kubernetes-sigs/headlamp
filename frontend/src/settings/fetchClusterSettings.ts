@@ -17,6 +17,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
+import { decodeBase64 } from '../helpers/base64';
 import { clusterFetch } from '../lib/k8s/api/v2/fetch';
 import { useTypedSelector } from '../redux/hooks';
 import type { SettingsSource } from './adminSettingsSlice';
@@ -64,7 +65,7 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
  * `disabled` is a UI affordance, not a confidentiality boundary — anything
  * sensitive must be protected via RBAC on the underlying ConfigMap/Secret.
  */
-async function fetchSource(
+export async function fetchSource(
   clusterName: string,
   source: SettingsSource
 ): Promise<Record<string, any> | null> {
@@ -81,7 +82,7 @@ async function fetchSource(
     if (isSecret) {
       const encoded = resource?.data?.[SETTINGS_DATA_KEY];
       if (typeof encoded === 'string') {
-        raw = atob(encoded);
+        raw = decodeBase64(encoded);
       }
     } else {
       raw = resource?.data?.[SETTINGS_DATA_KEY];
@@ -146,7 +147,7 @@ function resolveClusterNames(
  * Fetches cluster-defined settings for all allowed clusters.
  * Returns a map of cluster name to settings object.
  */
-async function fetchAllClusterSettings(
+export async function fetchAllClusterSettings(
   sources: Record<string, SettingsSource[]>,
   knownClusters: string[]
 ): Promise<Record<string, any>> {
