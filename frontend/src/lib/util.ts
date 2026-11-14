@@ -16,7 +16,7 @@
 
 import merge from 'lodash/merge';
 import React from 'react';
-import { useHistory } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
@@ -422,6 +422,14 @@ type URLStateParams<T> = {
 };
 export function useURLState(
   key: string,
+  defaultValue: string
+): [string, React.Dispatch<React.SetStateAction<string>>];
+export function useURLState(
+  key: string,
+  valueOrParams: string | URLStateParams<string>
+): [string, React.Dispatch<React.SetStateAction<string>>];
+export function useURLState(
+  key: string,
   defaultValue: number
 ): [number, React.Dispatch<React.SetStateAction<number>>];
 export function useURLState(
@@ -443,16 +451,17 @@ export function useURLState<T extends string | number | undefined = string>(
     typeof paramsOrDefault === 'object' ? paramsOrDefault : { defaultValue: paramsOrDefault };
   const { defaultValue, hideDefault = true, prefix = '' } = params;
   const history = useHistory();
+  const location = useLocation();
   // Don't even use the prefix if the key is empty
   const fullKey = !key ? '' : !!prefix ? prefix + '.' + key : key;
 
-  function getURLValue() {
+  function getURLValue(search: string = location.search) {
     // An empty key means that we don't want to use the state from the URL.
     if (fullKey === '') {
       return null;
     }
 
-    const urlParams = new URLSearchParams(history.location.search);
+    const urlParams = new URLSearchParams(search);
     const urlValue = urlParams.get(fullKey);
     if (urlValue === null) {
       return null;
@@ -469,7 +478,7 @@ export function useURLState<T extends string | number | undefined = string>(
   }
 
   const initialValue = React.useMemo(() => {
-    const newValue = getURLValue();
+    const newValue = getURLValue(location.search);
     if (newValue === null) {
       return defaultValue;
     }
@@ -480,17 +489,20 @@ export function useURLState<T extends string | number | undefined = string>(
 
   React.useEffect(
     () => {
-      const newValue = getURLValue();
-      if (newValue === null) {
-        if (defaultValue !== undefined && defaultValue !== value) {
-          setValue(defaultValue);
-        }
-      } else if (newValue !== value) {
-        setValue(newValue as T);
+      if (fullKey === '') {
+        return;
       }
+
+      const newValue = getURLValue(location.search);
+      setValue(prev => {
+        if (newValue === null) {
+          return defaultValue !== undefined ? defaultValue : prev;
+        }
+        return (newValue !== prev ? newValue : prev) as T;
+      });
     },
-    // eslint-disable-next-line
-    [history]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [location.search]
   );
 
   React.useEffect(() => {
@@ -499,9 +511,12 @@ export function useURLState<T extends string | number | undefined = string>(
       return;
     }
 
-    const urlCurrentValue = getURLValue();
+    const urlCurrentValue = getURLValue(history.location.search);
 
-    if (urlCurrentValue === value) {
+    if (
+      urlCurrentValue === value ||
+      (urlCurrentValue === null && value === defaultValue && hideDefault)
+    ) {
       return;
     }
 

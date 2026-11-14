@@ -41,7 +41,7 @@ import {
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
-import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
@@ -137,32 +137,28 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
   renderRowSelectionToolbar?: (props: { table: MRT_TableInstance<RowItem> }) => ReactNode;
 };
 
-// Use a zero-indexed "useURLState" hook, so pages are shown in the URL as 1-indexed
-// but internally are 0-indexed.
+// Converts between the 1-indexed page stored in the URL and the 0-indexed page
+// index used by Material React Table.
 function usePageURLState(
   key: string,
   prefix: string,
   initialPage: number
-): ReturnType<typeof useURLState> {
-  const [page, setPage] = useURLState(key, { defaultValue: initialPage + 1, prefix });
-  const [zeroIndexPage, setZeroIndexPage] = useState(page - 1);
+): [number, React.Dispatch<React.SetStateAction<number>>] {
+  const [urlPage, setUrlPage] = useURLState(key, { defaultValue: initialPage, prefix });
+  const tablePageIndex = Math.max(0, urlPage - 1);
 
-  useEffect(() => {
-    setZeroIndexPage((zeroIndexPage: number) => {
-      if (page - 1 !== zeroIndexPage) {
-        return page - 1;
-      }
+  const setTablePageIndex = useCallback<React.Dispatch<React.SetStateAction<number>>>(
+    action => {
+      setUrlPage(prevUrlPage => {
+        const prevPageIndex = Math.max(0, prevUrlPage - 1);
+        const nextPageIndex = typeof action === 'function' ? action(prevPageIndex) : action;
+        return Math.max(1, nextPageIndex + 1);
+      });
+    },
+    [setUrlPage]
+  );
 
-      return zeroIndexPage;
-    });
-  }, [page]);
-
-  useEffect(() => {
-    setPage(zeroIndexPage + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zeroIndexPage]);
-
-  return [zeroIndexPage, setZeroIndexPage];
+  return [tablePageIndex, setTablePageIndex];
 }
 
 const StyledHeadRow = styled('tr')(({ theme }) => ({
@@ -421,7 +417,7 @@ export default function Table<RowItem extends Record<string, any>>({
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const defaultRowsPerPage = getTablesRowsPerPage(rowsPerPageOptions[0]);
+  const defaultRowsPerPage = useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [pageSize, setPageSize] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
@@ -616,8 +612,8 @@ export default function Table<RowItem extends Record<string, any>>({
     },
     onPaginationChange: (updater: any) => {
       if (!tableProps.data?.length) return;
-      const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
-      setPage(pagination.pageIndex + 1);
+      const pagination = updater({ pageIndex: Number(page), pageSize: Number(pageSize) });
+      setPage(pagination.pageIndex);
       setPageSize(pagination.pageSize);
       if (pagination.pageSize !== Number(pageSize)) {
         setTablesRowsPerPage(pagination.pageSize);
@@ -675,7 +671,7 @@ export default function Table<RowItem extends Record<string, any>>({
         columnOrder,
         columnVisibility: mergedColumnVisibility,
         pagination: {
-          pageIndex: page - 1,
+          pageIndex: page,
           pageSize: pageSize,
         },
         globalFilter,
