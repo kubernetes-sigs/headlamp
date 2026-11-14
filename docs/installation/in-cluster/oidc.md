@@ -121,6 +121,24 @@ By default, Headlamp shows a "Sign in" button for OIDC clusters. To bypass this 
 
 > **ℹ️ Note:** This will only cause a redirect if the user is not currently authenticated and the selected cluster is configured in OIDC.
 
+### Disabling token login
+
+By default, the login screen of an OIDC cluster also offers a "Use A Token" option, so users can paste a bearer token (e.g. a ServiceAccount token) instead of signing in with the Identity Provider. If your organization requires SSO-only access, you can disable that option.
+
+- `-disable-token-login=true` OR env var `HEADLAMP_CONFIG_DISABLE_TOKEN_LOGIN`
+- With the Helm chart: `config.oidc.disableTokenLogin: true`
+
+When enabled, for clusters that use OIDC:
+
+- the "Use A Token" option is not shown on the login screen;
+- the backend refuses pasted tokens for that cluster (`403 Forbidden`). Signing in through the Identity Provider and logging out keep working.
+
+Clusters that do not use OIDC are not affected, since a token is their only way to log in.
+
+It works with or without `-oidc-auto-login`. Together, users are sent straight to the Identity Provider and have no token option.
+
+> **ℹ️ Note:** This controls how users log in through Headlamp. It does not stop a client from sending its own `Authorization: Bearer` header or auth cookie to Headlamp's API, so it is not a replacement for access control on the API server.
+
 ### Token Validation Overrides
 
 In the event your OIDC Provider issues `access_tokens` from a different Issuer URL or clientID audience than its `id_tokens` (i.e. Azure Entra ID) you may have need of the following parameters to configure what is used in validation of tokens.
