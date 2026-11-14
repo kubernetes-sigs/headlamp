@@ -43,6 +43,8 @@ const (
 func newHelmHandler(t *testing.T) *helm.Handler {
 	t.Helper()
 
+	settings := newIsolatedChartSettings(t)
+
 	cache := cache.New[interface{}]()
 	require.NotNil(t, cache)
 

@@ -23,18 +23,21 @@ export interface CrossVersionObjectReference {
   name: string;
 }
 
+interface MetricLabelSelector {
+  matchLabels?: {
+    [key: string]: string;
+  };
+  matchExpressions?: {
+    key: string;
+    operator: string;
+    // Exists and DoesNotExist requirements omit values entirely.
+    values?: string[];
+  }[];
+}
+
 interface MetricIdentifier {
   name: string;
-  selector: {
-    matchLabels: {
-      [key: string]: string;
-    };
-    matchExpressions: {
-      key: string;
-      operator: string;
-      values: string[];
-    };
-  };
+  selector?: MetricLabelSelector;
 }
 
 interface MetricValueStatus {
@@ -43,17 +46,61 @@ interface MetricValueStatus {
   value?: string;
 }
 
-function metricValueStatus(status: MetricValueStatus, t: Function): string {
-  if (status.averageUtilization) {
+function metricValueStatus(
+  status: MetricValueStatus,
+  t: Function,
+  targetType?: MetricType
+): string {
+  if (targetType === 'Utilization') {
+    if (status.averageUtilization !== undefined && status.averageUtilization !== null) {
+      return `${status.averageUtilization}%`;
+    }
+    return t('translation|<unknown>');
+  }
+  if (targetType === 'AverageValue') {
+    if (status.averageValue !== undefined && status.averageValue !== null) {
+      return `${status.averageValue}`;
+    }
+    return t('translation|<unknown>');
+  }
+  if (targetType === 'Value') {
+    if (status.value !== undefined && status.value !== null) {
+      return `${status.value}`;
+    }
+    return t('translation|<unknown>');
+  }
+  if (status.averageUtilization !== undefined && status.averageUtilization !== null) {
     return `${status.averageUtilization}%`;
   }
-  if (status.averageValue) {
+  if (status.averageValue !== undefined && status.averageValue !== null) {
     return `${status.averageValue}`;
   }
-  if (status.value) {
+  if (status.value !== undefined && status.value !== null) {
     return `${status.value}`;
   }
   return t('translation|<unknown>');
+}
+
+/**
+ * Checks whether a metric status value has the shape expected by the target type.
+ */
+function matchesTargetType(
+  target: MetricTarget | undefined,
+  current: MetricValueStatus | undefined
+): boolean {
+  if (!target || !current) {
+    return false;
+  }
+  switch (target.type) {
+    case 'Utilization':
+      return current.averageUtilization !== undefined && current.averageUtilization !== null;
+    case 'AverageValue':
+      return current.averageValue !== undefined && current.averageValue !== null;
+    case 'Value':
+      return current.value !== undefined && current.value !== null;
+    default:
+      return false;
+  }
 }
 
 interface MetricTarget {
@@ -144,7 +191,7 @@ interface HpaStatus {
         object?: {
           current: MetricValueStatus;
           metric: MetricIdentifier;
-          desiredObject: CrossVersionObjectReference;
+          describedObject: CrossVersionObjectReference;
         };
         pods?: {
           current: MetricValueStatus;
@@ -181,6 +228,148 @@ interface HPAMetrics {
   shortValue: string;
 }
 
+/**
+ * Compares two metric selectors by value rather than by serialization.
+ *
+ * The API server round-trips selectors between spec and status, so omitted and
+ * empty selectors mean the same thing and the requirements in matchLabels and
+ * matchExpressions can be written in any order. Two selectors are equal when
+ * they require exactly the same labels and expressions, regardless of spelling.
+ */
+function isSameSelector(a?: MetricLabelSelector, b?: MetricLabelSelector): boolean {
+  const aLabels = a?.matchLabels || {};
+  const bLabels = b?.matchLabels || {};
+  const aLabelKeys = Object.keys(aLabels);
+  const bLabelKeys = Object.keys(bLabels);
+  if (aLabelKeys.length !== bLabelKeys.length) {
+    return false;
+  }
+  for (const key of aLabelKeys) {
+    if (aLabels[key] !== bLabels[key]) {
+      return false;
+    }
+  }
+
+  const aExpressions = a?.matchExpressions || [];
+  const bExpressions = b?.matchExpressions || [];
+  if (aExpressions.length !== bExpressions.length) {
+    return false;
+  }
+
+  const normalizeExpression = (expression: {
+    key: string;
+    operator: string;
+    values?: string[];
+  }) => ({
+    key: expression.key,
+    operator: expression.operator,
+    // Exists and DoesNotExist requirements omit values; treat that as no
+    // values rather than failing to iterate undefined.
+    values: [...(expression.values || [])].sort(),
+  });
+
+  const aSorted = aExpressions
+    .map(normalizeExpression)
+    .sort((x, y) =>
+      x.key === y.key
+        ? x.operator === y.operator
+          ? JSON.stringify(x.values).localeCompare(JSON.stringify(y.values))
+          : x.operator.localeCompare(y.operator)
+        : x.key.localeCompare(y.key)
+    );
+  const bSorted = bExpressions
+    .map(normalizeExpression)
+    .sort((x, y) =>
+      x.key === y.key
+        ? x.operator === y.operator
+          ? JSON.stringify(x.values).localeCompare(JSON.stringify(y.values))
+          : x.operator.localeCompare(y.operator)
+        : x.key.localeCompare(y.key)
+    );
+
+  return aSorted.every((expression, index) => {
+    const other = bSorted[index];
+    return (
+      expression.key === other.key &&
+      expression.operator === other.operator &&
+      expression.values.length === other.values.length &&
+      expression.values.every((value, i) => value === other.values[i])
+    );
+  });
+}
+
+/**
+ * Compares two cross-version object references by identity.
+ */
+function isSameObjectRef(
+  a?: CrossVersionObjectReference,
+  b?: CrossVersionObjectReference
+): boolean {
+  return (
+    (a?.apiVersion || '') === (b?.apiVersion || '') &&
+    (a?.kind || '') === (b?.kind || '') &&
+    (a?.name || '') === (b?.name || '')
+  );
+}
+
+/**
+ * Picks the status entry that reports a given spec metric.
+ *
+ * `status.currentMetrics` lists only the metrics the HPA controller managed to
+ * read, so a metric that failed is absent and the entries after it shift left.
+ * Matching by position therefore pairs a spec metric with an unrelated status
+ * entry, which silently shows another metric's values. The entries have to be
+ * matched by the identity the controller writes them with: the source type plus
+ * the resource, container, metric name, metric selector or described object
+ * they refer to, as well as the expected current-value shape for the target type.
+ */
+function findCurrentMetric(
+  spec: HpaSpec['metrics'][number],
+  currentMetrics: HpaStatus['currentMetrics']
+) {
+  return currentMetrics?.find(status => {
+    if (status.type !== spec.type) {
+      return false;
+    }
+    if (spec.resource) {
+      return (
+        status.resource?.name === spec.resource.name &&
+        matchesTargetType(spec.resource.target, status.resource?.current)
+      );
+    }
+    if (spec.containerResource) {
+      return (
+        status.containerResource?.name === spec.containerResource.name &&
+        status.containerResource?.container === spec.containerResource.container &&
+        matchesTargetType(spec.containerResource.target, status.containerResource?.current)
+      );
+    }
+    if (spec.pods) {
+      return (
+        status.pods?.metric?.name === spec.pods.metric?.name &&
+        isSameSelector(status.pods.metric?.selector, spec.pods.metric?.selector) &&
+        matchesTargetType(spec.pods.target, status.pods?.current)
+      );
+    }
+    if (spec.object) {
+      return (
+        status.object?.metric?.name === spec.object.metric?.name &&
+        isSameSelector(status.object.metric?.selector, spec.object.metric?.selector) &&
+        isSameObjectRef(status.object?.describedObject, spec.object.describedObject) &&
+        matchesTargetType(spec.object.target, status.object?.current)
+      );
+    }
+    if (spec.external) {
+      return (
+        status.external?.metric?.name === spec.external.metric?.name &&
+        isSameSelector(status.external.metric?.selector, spec.external.metric?.selector) &&
+        matchesTargetType(spec.external.target, status.external?.current)
+      );
+    }
+    return false;
+  });
+}
+
 class HPA extends KubeObject<KubeHPA> {
   static kind = 'HorizontalPodAutoscaler';
   static apiName = 'horizontalpodautoscalers';
@@ -211,14 +400,14 @@ class HPA extends KubeObject<KubeHPA> {
     const specMetrics = this.spec?.metrics || [];
     for (let iter = 0; iter < specMetrics.length; iter++) {
       const spec = specMetrics[iter];
-      const status = this.status?.currentMetrics?.[iter];
+      const status = findCurrentMetric(spec, this.status?.currentMetrics);
       switch (spec.type) {
         case 'External':
           {
             if (spec.external) {
               const value = `${
                 status && status.external
-                  ? metricValueStatus(status.external.current, t)
+                  ? metricValueStatus(status.external.current, t, spec.external.target.type)
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.external.target)}`;
               const metricName = spec.external.metric?.name || t('translation|<unknown>');
@@ -237,7 +426,7 @@ class HPA extends KubeObject<KubeHPA> {
             if (spec.object) {
               const value = `${
                 status && status.object
-                  ? metricValueStatus(status.object.current, t)
+                  ? metricValueStatus(status.object.current, t, spec.object.target.type)
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.object.target)}`;
               const metricName = spec.object.metric?.name || t('translation|<unknown>');
@@ -264,7 +453,7 @@ class HPA extends KubeObject<KubeHPA> {
             if (spec.pods) {
               const value = `${
                 status && status.pods
-                  ? metricValueStatus(status.pods.current, t)
+                  ? metricValueStatus(status.pods.current, t, spec.pods.target.type)
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.pods.target)}`;
               const metricName = spec.pods.metric?.name || t('translation|<unknown>');
@@ -291,32 +480,33 @@ class HPA extends KubeObject<KubeHPA> {
               if (spec.resource.target.type === 'AverageValue') {
                 value = `${
                   status && status.resource
-                    ? metricValueStatus(status.resource.current, t)
+                    ? metricValueStatus(status.resource.current, t, spec.resource.target.type)
                     : t('translation|<unknown>')
                 }/${metricTargetValue(spec.resource.target)}`;
                 shortValue = `${
                   status && status.resource
-                    ? metricValueStatus(status.resource.current, t)
+                    ? metricValueStatus(status.resource.current, t, spec.resource.target.type)
                     : t('translation|<unknown>')
                 }/${metricTargetValue(spec.resource.target)}`;
               }
               if (spec.resource.target.type === 'Utilization') {
                 definition = `${definition} ${defineMetricTarget(spec.resource.target)}`;
-                if (status) {
-                  value = `${
-                    status.resource
-                      ? status.resource.current.averageUtilization
-                      : t('translation|<unknown>')
-                  }% (${
-                    status.resource
+                if (
+                  status &&
+                  status.resource &&
+                  status.resource.current.averageUtilization !== undefined &&
+                  status.resource.current.averageUtilization !== null
+                ) {
+                  const currentUtil = status.resource.current.averageUtilization;
+                  const currentAvg =
+                    status.resource.current.averageValue !== undefined &&
+                    status.resource.current.averageValue !== null
                       ? status.resource.current.averageValue
-                      : t('translation|<unknown>')
-                  })/${metricTargetValue(spec.resource.target)}`;
-                  shortValue = `${
-                    status.resource
-                      ? status.resource.current.averageUtilization
-                      : t('translation|<unknown>')
-                  }% /${metricTargetValue(spec.resource.target)}`;
+                      : t('translation|<unknown>');
+                  value = `${currentUtil}% (${currentAvg})/${metricTargetValue(
+                    spec.resource.target
+                  )}`;
+                  shortValue = `${currentUtil}% /${metricTargetValue(spec.resource.target)}`;
                 } else {
                   value = `${t('translation|<unknown>')}/${metricTargetValue(
                     spec.resource.target
@@ -340,7 +530,11 @@ class HPA extends KubeObject<KubeHPA> {
             if (spec.containerResource) {
               const value = `${
                 status && status.containerResource
-                  ? metricValueStatus(status.containerResource.current, t)
+                  ? metricValueStatus(
+                      status.containerResource.current,
+                      t,
+                      spec.containerResource.target.type
+                    )
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.containerResource.target)}`;
               const definition = t(

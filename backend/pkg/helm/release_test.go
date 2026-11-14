@@ -190,7 +190,13 @@ func TestListRelease(t *testing.T) {
 }
 
 func TestUpgradeRelease(t *testing.T) {
+	k8sClientConfig := GetClient(t, "minikube")
+
 	helmHandler := newHelmHandler(t)
+
+	// upgrade resolves the chart from the repository, so add it for this
+	// test's own isolated helm configuration.
+	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
 	upgradeReq := helm.UpgradeReleaseRequest{
 		CommonInstallUpdateRequest: helm.CommonInstallUpdateRequest{
@@ -210,8 +216,6 @@ func TestUpgradeRelease(t *testing.T) {
 		"PUT", "/clusters/minikube/helm/releases",
 		bytes.NewBuffer(upgradeReqBytes))
 	require.NoError(t, err)
-
-	k8sClientConfig := GetClient(t, "minikube")
 
 	// response recorder
 	rr := httptest.NewRecorder()
