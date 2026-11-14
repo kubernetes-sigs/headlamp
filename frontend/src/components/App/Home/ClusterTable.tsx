@@ -66,7 +66,7 @@ import RegisteredClusterEmptyState from './RegisteredClusterEmptyState';
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
  */
-function ClusterStatus({
+export function ClusterStatus({
   error,
   cluster,
   isConnected,
@@ -84,8 +84,34 @@ function ClusterStatus({
   const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
   const renderedCustomStatus = useMemo(() => {
     for (const Status of customStatuses) {
-      const renderedStatus = <Status cluster={cluster} error={error} />;
-      if (renderedStatus !== null) {
+      // Call as a plain function (not JSX) so the null-check below is meaningful.
+      // Using <Status ... /> would always return a non-null React element, causing
+      // the loop to exit after the first callback regardless of what it renders.
+      //
+      // Constraint: callbacks must not call React hooks. Stateful logic should live
+      // in an inner component that the callback returns, not in the callback itself.
+      // See: https://react.dev/reference/rules/rules-of-hooks
+      //
+      // A try/catch guards against callbacks that throw synchronously — whether from
+      // a hook-rules violation or any other runtime error — so a misbehaving plugin
+      // does not crash the entire ClusterTable.
+      let renderedStatus: React.ReactElement | null | undefined;
+      try {
+        renderedStatus = Status({ cluster, error });
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error(
+            '[ClusterStatus] A registerClusterStatus callback threw. ' +
+              'A common cause is calling React hooks in the callback — move hook calls into an inner component instead.',
+            e
+          );
+        }
+        continue;
+      }
+      // A plugin callback could mistakenly return undefined instead of null.
+      // Returning undefined from ClusterStatus itself is invalid for React, so
+      // treat it the same as null here.
+      if (renderedStatus !== null && renderedStatus !== undefined) {
         return renderedStatus;
       }
     }
