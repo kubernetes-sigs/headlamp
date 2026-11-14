@@ -242,16 +242,20 @@ func TestPortforwardKeyGenerator(t *testing.T) {
 		p    portForward
 		want string
 	}{
-		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_clusterid"},
-		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_clusterservice"},
-		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_clusterpod"},
-		{"service_and_pod", portForward{Cluster: "cluster", Service: "service", Pod: "pod"}, "PORT_FORWARD_clusterservice"},
-		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_clusterid"},
-		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_clusterid"},
+		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_cluster\x00id"},
+		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_cluster\x00service"},
+		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_cluster\x00pod"},
+		{
+			"service_and_pod",
+			portForward{Cluster: "cluster", Service: "service", Pod: "pod"},
+			"PORT_FORWARD_cluster\x00service",
+		},
+		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_cluster\x00id"},
+		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_cluster\x00id"},
 		{
 			"id_and_service_and_pod",
 			portForward{Cluster: "cluster", ID: "id", Service: "service", Pod: "pod"},
-			"PORT_FORWARD_clusterid",
+			"PORT_FORWARD_cluster\x00id",
 		},
 	}
 
@@ -1100,6 +1104,42 @@ func TestGetPortForwardList_UserIDKeyIsolation(t *testing.T) {
 	// Query with a user-specific key — should NOT find the entry.
 	resultWithUser := getPortForwardList(c, "clusteruser123")
 	assert.Empty(t, resultWithUser, "user-specific key must not return entries stored under base cluster key")
+}
+
+// TestGetPortForwardList_DoesNotMatchClusterNamePrefix locks in a fix for a cross-cluster leak
+// in the persistent cache's own key scheme (portforwardKeyGenerator/getPortForwardList), the
+// same ambiguity already fixed for the live-forward registry (livePortForwardKey) elsewhere in
+// this file: without a delimiter, cluster "prod" is a textual prefix of "prod-eu"'s keys, so a
+// request naming only "prod" would also return "prod-eu"'s port-forwards (pod/namespace/service
+// names leaked across a cluster boundary).
+func TestGetPortForwardList_DoesNotMatchClusterNamePrefix(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	portforwardstore(c, portForward{ID: "pf-prod", Cluster: "prod", Pod: "web", Status: RUNNING})
+	portforwardstore(c, portForward{ID: "pf-prod-eu", Cluster: "prod-eu", Pod: "web-eu", Status: RUNNING})
+
+	result := getPortForwardList(c, "prod")
+
+	require.Len(t, result, 1, "a same-prefixed, unrelated cluster's port-forwards must not be included")
+	assert.Equal(t, "pf-prod", result[0].ID)
+}
+
+// TestGetPortForwardByID_DoesNotMatchClusterIDConcatenation is the by-ID counterpart: distinct
+// (cluster, id) pairs that concatenate to the same string without a delimiter (cluster "prod" +
+// id "1x" vs. cluster "prod1" + id "x") must not collide onto the same cache entry.
+func TestGetPortForwardByID_DoesNotMatchClusterIDConcatenation(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	portforwardstore(c, portForward{ID: "1x", Cluster: "prod", Pod: "pod-a", Status: RUNNING})
+	portforwardstore(c, portForward{ID: "x", Cluster: "prod1", Pod: "pod-b", Status: RUNNING})
+
+	got, err := getPortForwardByID(c, "prod", "1x")
+	require.NoError(t, err)
+	assert.Equal(t, "pod-a", got.Pod, "must return cluster \"prod\"'s own record, not cluster \"prod1\"'s")
+
+	got, err = getPortForwardByID(c, "prod1", "x")
+	require.NoError(t, err)
+	assert.Equal(t, "pod-b", got.Pod)
 }
 
 // TestGetPortForwardByID_UserIDKeyIsolation verifies that getPortForwardByID
