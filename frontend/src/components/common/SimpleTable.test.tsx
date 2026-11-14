@@ -225,4 +225,249 @@ describe('SimpleTable', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByRole('cell')).toHaveTextContent('second');
   });
+
+  describe('default sorting with nullish values (regression tests)', () => {
+    it('sorts undefined string values to the bottom in both ascending and descending order', async () => {
+      renderTable({
+        columns: [
+          { label: 'Name', datum: 'name' },
+          { label: 'Zone', datum: 'zone', sort: true },
+        ],
+        data: [
+          { name: 'Row B', zone: 'us-east-1b' },
+          { name: 'Row Missing', zone: undefined },
+          { name: 'Row A', zone: 'us-east-1a' },
+        ],
+        defaultSortingColumn: 2,
+        showPagination: false,
+      });
+
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'Row A',
+          'us-east-1a',
+          'Row B',
+          'us-east-1b',
+          'Row Missing',
+          '',
+        ])
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'Row B',
+          'us-east-1b',
+          'Row A',
+          'us-east-1a',
+          'Row Missing',
+          '',
+        ])
+      );
+    });
+
+    it('sorts null string values to the bottom in both ascending and descending order', async () => {
+      renderTable({
+        columns: [
+          { label: 'Name', datum: 'name' },
+          { label: 'Host', datum: 'host', sort: true },
+        ],
+        data: [
+          { name: 'Host B', host: 'host-b' },
+          { name: 'Host Missing', host: null },
+          { name: 'Host A', host: 'host-a' },
+        ],
+        defaultSortingColumn: 2,
+        showPagination: false,
+      });
+
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'Host A',
+          'host-a',
+          'Host B',
+          'host-b',
+          'Host Missing',
+          '',
+        ])
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'Host B',
+          'host-b',
+          'Host A',
+          'host-a',
+          'Host Missing',
+          '',
+        ])
+      );
+    });
+
+    it('sorts numeric values correctly with 0, positive numbers, and nullish values', async () => {
+      renderTable({
+        columns: [
+          { label: 'Name', datum: 'name' },
+          { label: 'Port', datum: 'port', sort: true },
+        ],
+        data: [
+          { name: 'web', port: 8080 },
+          { name: 'none-null', port: null },
+          { name: 'root', port: 0 },
+          { name: 'secure', port: 443 },
+          { name: 'none-undef', port: undefined },
+        ],
+        defaultSortingColumn: 2,
+        showPagination: false,
+      });
+
+      await waitFor(() => {
+        expect(getBodyCellText()).toEqual([
+          'root',
+          '0',
+          'secure',
+          '443',
+          'web',
+          '8080',
+          'none-null',
+          '',
+          'none-undef',
+          '',
+        ]);
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() => {
+        expect(getBodyCellText()).toEqual([
+          'web',
+          '8080',
+          'secure',
+          '443',
+          'root',
+          '0',
+          'none-null',
+          '',
+          'none-undef',
+          '',
+        ]);
+      });
+    });
+
+    it('preserves existing sorting behavior for all defined values', async () => {
+      renderTable({
+        columns: [{ label: 'Value', datum: 'value', sort: true }],
+        data: [{ value: 'charlie' }, { value: 'alpha' }, { value: 'bravo' }],
+        defaultSortingColumn: 1,
+        showPagination: false,
+      });
+
+      await waitFor(() => expect(getBodyCellText()).toEqual(['alpha', 'bravo', 'charlie']));
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() => expect(getBodyCellText()).toEqual(['charlie', 'bravo', 'alpha']));
+    });
+
+    it('groups multiple missing values at the bottom with stable ordering while sorting defined values', async () => {
+      renderTable({
+        columns: [
+          { label: 'Name', datum: 'name' },
+          { label: 'Zone', datum: 'zone', sort: true },
+        ],
+        data: [
+          { name: 'item-3', zone: 'zone-c' },
+          { name: 'item-null-1', zone: null },
+          { name: 'item-1', zone: 'zone-a' },
+          { name: 'item-undef-1', zone: undefined },
+          { name: 'item-2', zone: 'zone-b' },
+          { name: 'item-null-2', zone: null },
+        ],
+        defaultSortingColumn: 2,
+        showPagination: false,
+      });
+
+      await waitFor(() => {
+        expect(getBodyCellText()).toEqual([
+          'item-1',
+          'zone-a',
+          'item-2',
+          'zone-b',
+          'item-3',
+          'zone-c',
+          'item-null-1',
+          '',
+          'item-undef-1',
+          '',
+          'item-null-2',
+          '',
+        ]);
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() => {
+        expect(getBodyCellText()).toEqual([
+          'item-3',
+          'zone-c',
+          'item-2',
+          'zone-b',
+          'item-1',
+          'zone-a',
+          'item-null-1',
+          '',
+          'item-undef-1',
+          '',
+          'item-null-2',
+          '',
+        ]);
+      });
+    });
+
+    it('sorts getter-based columns with nullish values to the bottom in both ascending and descending order', async () => {
+      renderTable({
+        columns: [
+          { label: 'Name', datum: 'name' },
+          {
+            label: 'Role',
+            getter: (row: { role?: string | null }) => row.role,
+            sort: true,
+          },
+        ],
+        data: [
+          { name: 'member-b', role: 'developer' },
+          { name: 'member-null', role: null },
+          { name: 'member-a', role: 'admin' },
+          { name: 'member-undef', role: undefined },
+        ],
+        defaultSortingColumn: 2,
+        showPagination: false,
+      });
+
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'member-a',
+          'admin',
+          'member-b',
+          'developer',
+          'member-null',
+          '',
+          'member-undef',
+          '',
+        ])
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Sort descending' }));
+      await waitFor(() =>
+        expect(getBodyCellText()).toEqual([
+          'member-b',
+          'developer',
+          'member-a',
+          'admin',
+          'member-null',
+          '',
+          'member-undef',
+          '',
+        ])
+      );
+    });
+  });
 });
