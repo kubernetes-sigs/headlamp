@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -32,6 +33,7 @@ type HeadlampConfig struct {
 	OidcCACert                string
 	OidcUsePKCE               bool
 	OidcSkipLogout            bool
+	OidcAuthURLParams         url.Values
 	OidcScopes                []string
 	Cache                     cache.Cache[interface{}]
 	Multiplexer               WebSocketMultiplexer
