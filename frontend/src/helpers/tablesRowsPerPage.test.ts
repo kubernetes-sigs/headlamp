@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { getTablesRowsPerPage, parseTablesRowsPerPage } from './tablesRowsPerPage';
+import {
+  getTablesRowsPerPage,
+  parseTablesRowsPerPage,
+  setTablesRowsPerPage,
+} from './tablesRowsPerPage';
 
 describe('parseTablesRowsPerPage', () => {
   test('accepts whole numbers', () => {
@@ -54,6 +58,7 @@ describe('parseTablesRowsPerPage', () => {
 
 describe('getTablesRowsPerPage', () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     localStorage.clear();
   });
 
@@ -75,6 +80,34 @@ describe('getTablesRowsPerPage', () => {
       localStorage.setItem('tables_rows_per_page', value);
 
       expect(getTablesRowsPerPage(5)).toBe(5);
+    }
+  );
+
+  test('returns the default when localStorage access is blocked', () => {
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+      throw new DOMException('Storage blocked', 'SecurityError');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(getTablesRowsPerPage(25)).toBe(25);
+  });
+});
+
+describe('setTablesRowsPerPage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  test.each(['SecurityError', 'QuotaExceededError'])(
+    'does not throw when localStorage.setItem fails with %s',
+    errorName => {
+      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new DOMException('Storage unavailable', errorName);
+      });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => setTablesRowsPerPage(25)).not.toThrow();
     }
   );
 });
