@@ -19,7 +19,7 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
 export interface KubeNamespace extends KubeObjectInterface {
-  status: {
+  status?: {
     phase: string;
     conditions?: KubeCondition[];
   };
