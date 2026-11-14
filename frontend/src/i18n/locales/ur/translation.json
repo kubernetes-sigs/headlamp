@@ -839,6 +839,7 @@
   "Targets": "اہداف",
   "more…": "مزید…",
   "Default": "ڈیفالٹ",
+  "(default host)": "",
   "Host": "ہوسٹ",
   "Completions": "",
   "Number of successfully finished pods required.": "",

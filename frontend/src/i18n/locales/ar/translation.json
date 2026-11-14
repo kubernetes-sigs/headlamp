@@ -867,6 +867,7 @@
   "Targets": "الأهداف",
   "more…": "المزيد…",
   "Default": "افتراضي",
+  "(default host)": "",
   "Host": "المضيف",
   "Completions": "",
   "Number of successfully finished pods required.": "",

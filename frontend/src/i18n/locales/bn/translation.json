@@ -839,6 +839,7 @@
   "Targets": "লক্ষ্য",
   "more…": "আরও…",
   "Default": "Default",
+  "(default host)": "",
   "Host": "হোস্ট",
   "Completions": "",
   "Number of successfully finished pods required.": "",

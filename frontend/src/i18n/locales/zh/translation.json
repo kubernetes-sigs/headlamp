@@ -832,6 +832,7 @@
   "Targets": "目标",
   "more…": "更多…",
   "Default": "默认",
+  "(default host)": "",
   "Host": "主机",
   "Completions": "",
   "Number of successfully finished pods required.": "",
