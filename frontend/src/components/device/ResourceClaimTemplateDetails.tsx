@@ -20,6 +20,7 @@ import ResourceClaimTemplate from '../../lib/k8s/resourceClaimTemplate';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import DeviceRequestsTable from './DeviceRequestsTable';
+import ResourceClaimTemplateClaims from './ResourceClaimTemplateClaims';
 
 export default function ResourceClaimTemplateDetails(props: {
   name?: string;
@@ -48,6 +49,14 @@ export default function ResourceClaimTemplateDetails(props: {
                   cluster={item.cluster}
                   emptyMessage={t('translation|This template requests no devices.')}
                 />
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.resourceclaimtemplate-claims',
+            section: (
+              <SectionBox title={t('glossary|Resource Claims')}>
+                <ResourceClaimTemplateClaims template={item} />
               </SectionBox>
             ),
           },
