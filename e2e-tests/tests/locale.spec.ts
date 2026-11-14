@@ -16,13 +16,26 @@
 
 import { expect, test } from '@playwright/test';
 
-test('changes the application locale from general settings', async ({ page }) => {
+test('changes the application locale and text direction from general settings', async ({
+  page,
+}) => {
   await page.route('**/config', route => route.fulfill({ json: { clusters: [] } }));
   await page.route('**/plugins', route => route.fulfill({ json: [] }));
   await page.goto('/settings/general');
 
-  await page.getByRole('combobox', { name: 'Select locale' }).click();
+  // The select's accessible name is translated, so find it by position once the locale changes.
+  const localeSelect = page.getByRole('main').getByRole('combobox').first();
+  await expect(localeSelect).toHaveAccessibleName('Select locale');
+  await localeSelect.click();
   await page.getByRole('option', { name: 'Čeština' }).click();
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'cs');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+
+  await localeSelect.click();
+  await page.getByRole('option', { name: 'العربية' }).click();
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.locator('body')).toHaveAttribute('dir', 'rtl');
 });

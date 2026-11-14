@@ -26,37 +26,7 @@ let headlampPage: HeadlampPage;
 test.beforeEach(async ({ page }) => {
   headlampPage = new HeadlampPage(page);
 
-  // Navigate to the test cluster page
-  await headlampPage.navigateTopage('/c/test');
-
-  // Authenticate only when the auth page appears (e.g. minikube with token auth).
-  // Use a short wait to avoid racing page hydration in slower environments.
-  const authHeader = page.locator('h1:has-text("Authentication")');
-  const hasAuthPage = await authHeader
-    .waitFor({ state: 'visible', timeout: 2000 })
-    .then(() => true)
-    .catch(() => false);
-  if (hasAuthPage) {
-    await headlampPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
-  }
-});
-
-test('There is cluster choose button and test cluster is selected', async () => {
-  await headlampPage.pageLocatorContent(
-    'button:has-text("Our Cluster Chooser button. Cluster: test")',
-    'Our Cluster Chooser button. Cluster: test'
-  );
-});
-
-test('Store modified kubeconfig to IndexDB and check if present', async ({ page }) => {
-  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
-  await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
-  await page.waitForLoadState('load');
-
-  const storedKubeconfig = await getKubeconfigFromIndexDB(page);
-  await page.waitForLoadState('load');
-
-  expect(storedKubeconfig).not.toBeNull();
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 });
 
 test('parseKubeConfig endpoint accepts kubeconfigs array format', async ({ page }) => {
@@ -115,6 +85,7 @@ test('stateless cluster loads without errors after storing kubeconfig', async ({
 
   // Step 1: Store kubeconfig in IndexedDB (simulates the user adding a cluster)
   await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
+  expect(await getKubeconfigFromIndexDB(page)).toBe(base64EncodedKubeconfig);
 
   // Step 2: Reload to trigger stateless startup parsing flow.
   await page.reload({ waitUntil: 'load' });

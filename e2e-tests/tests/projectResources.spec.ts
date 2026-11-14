@@ -214,7 +214,7 @@ async function mockProjectCollections(
   return { requestedCollections, unexpectedRequests };
 }
 
-test('keeps the project resources grid visible at 200% text zoom', async ({ page }) => {
+test('keeps project tabs and the resources grid usable at 200% text zoom', async ({ page }) => {
   const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
   const token = process.env.HEADLAMP_TEST_TOKEN;
   if (!token) {
@@ -232,6 +232,20 @@ test('keeps the project resources grid visible at 200% text zoom', async ({ page
   await headlampPage.navigateToCluster(cluster, token);
   await headlampPage.navigateTopage(`/project/${projectName}`);
   await page.addStyleTag({ content: ':root { font-size: 200%; }' });
+
+  // The project tabs must stay reachable by scrolling instead of being clipped.
+  const tabs = page.getByRole('tablist');
+  await expect(tabs).toBeVisible();
+  const tabScroller = tabs.locator('..');
+  await expect(tabScroller).toHaveClass(/MuiTabs-scrollableX/);
+  await expect
+    .poll(() => tabScroller.evaluate(element => element.scrollWidth > element.clientWidth))
+    .toBe(true);
+  const defaultTabs = tabs.getByRole('tab');
+  for (let index = 0; index < 4; index += 1) {
+    await expect(defaultTabs.nth(index)).toBeAttached();
+  }
+
   await page.getByRole('tab', { name: 'Resources' }).click();
 
   await expect

@@ -20,7 +20,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { HeadlampPage } from './headlampPage';
 
 const execFileAsync = promisify(execFile);
 
@@ -71,13 +70,10 @@ test.describe('portforward auto-reconnect', () => {
   const clusterName = 'test';
   const pfBaseURL = () => `${baseURL()}/clusters/${clusterName}/portforward`;
 
-  test('service-backed port-forward reconnects when the pod is deleted', async ({ page }) => {
+  test('service-backed port-forward reconnects when the pod is deleted', async ({ request }) => {
     // This test creates real K8s resources and waits for reconnection,
     // which involves backoff timers (5s check + 5s first retry).
     test.setTimeout(120_000);
-
-    const hlPage = new HeadlampPage(page);
-    await hlPage.navigateToCluster(clusterName, process.env.HEADLAMP_TEST_TOKEN);
 
     const testId = `pf-reconnect-${Date.now()}`;
     const tempDir = await mkdtemp(join(tmpdir(), 'headlamp-e2e-pf-'));
@@ -134,7 +130,7 @@ test.describe('portforward auto-reconnect', () => {
       expect(initialPod).not.toBe('');
 
       // --- Step 1: Start port-forward via backend API ---
-      const startResp = await page.request.post(pfBaseURL(), {
+      const startResp = await request.post(pfBaseURL(), {
         headers: apiHeaders(),
         data: {
           namespace: 'default',
@@ -155,7 +151,7 @@ test.describe('portforward auto-reconnect', () => {
       // --- Step 2: Verify initial status is Running ---
       // The start endpoint returns synchronously after readiness,
       // but poll once to be safe.
-      const verifyResp = await page.request.get(`${pfBaseURL()}?id=${pfId}`, {
+      const verifyResp = await request.get(`${pfBaseURL()}?id=${pfId}`, {
         headers: apiHeaders(),
       });
       expect(verifyResp.ok()).toBeTruthy();
@@ -178,9 +174,9 @@ test.describe('portforward auto-reconnect', () => {
       const deadline = Date.now() + 90_000;
 
       while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 3_000));
+        await new Promise(r => setTimeout(r, 1_000));
 
-        const resp = await page.request.get(`${pfBaseURL()}?id=${pfId}`, {
+        const resp = await request.get(`${pfBaseURL()}?id=${pfId}`, {
           headers: apiHeaders(),
         });
 
@@ -213,7 +209,7 @@ test.describe('portforward auto-reconnect', () => {
       expect(finalPf!.status).toBe('Running');
 
       // --- Cleanup: stop and delete the port-forward ---
-      await page.request.delete(pfBaseURL(), {
+      await request.delete(pfBaseURL(), {
         headers: apiHeaders(),
         data: { id: pfId, stopOrDelete: false },
       });
@@ -240,13 +236,10 @@ test.describe('portforward auto-reconnect', () => {
     }
   });
 
-  test('direct pod port-forward does NOT reconnect on pod deletion', async ({ page }) => {
+  test('direct pod port-forward does NOT reconnect on pod deletion', async ({ request }) => {
     // Control test: a port-forward that targets a pod directly (no service)
     // should stop cleanly when the pod is deleted, not attempt reconnect.
     test.setTimeout(90_000);
-
-    const hlPage = new HeadlampPage(page);
-    await hlPage.navigateToCluster(clusterName, process.env.HEADLAMP_TEST_TOKEN);
 
     const testId = `pf-no-reconnect-${Date.now()}`;
     const tempDir = await mkdtemp(join(tmpdir(), 'headlamp-e2e-pf-'));
@@ -276,7 +269,7 @@ test.describe('portforward auto-reconnect', () => {
       );
 
       // Start a direct-pod port-forward (no service field)
-      const startResp = await page.request.post(pfBaseURL(), {
+      const startResp = await request.post(pfBaseURL(), {
         headers: apiHeaders(),
         data: {
           namespace: 'default',
@@ -307,9 +300,9 @@ test.describe('portforward auto-reconnect', () => {
       let finalStatus = '';
 
       while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 3_000));
+        await new Promise(r => setTimeout(r, 1_000));
 
-        const resp = await page.request.get(`${pfBaseURL()}?id=${pfId}`, {
+        const resp = await request.get(`${pfBaseURL()}?id=${pfId}`, {
           headers: apiHeaders(),
         });
 
@@ -331,7 +324,7 @@ test.describe('portforward auto-reconnect', () => {
       expect(finalStatus).toBe('Stopped');
 
       // Cleanup the port-forward entry
-      await page.request.delete(pfBaseURL(), {
+      await request.delete(pfBaseURL(), {
         headers: apiHeaders(),
         data: { id: pfId, stopOrDelete: false },
       });

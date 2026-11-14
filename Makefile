@@ -413,11 +413,13 @@ image-verify-digests:
 	@npm run image:verify-image-digests
 
 .PHONY: build-plugins-container
+# Set INSTALL_JOBS to limit how many example plugins install their dependencies in parallel.
 build-plugins-container:
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=$(DOCKER_PLUGINS_PLATFORM) \
 	--push=$(DOCKER_PUSH) \
+	$(if $(INSTALL_JOBS),--build-arg INSTALL_JOBS=$(INSTALL_JOBS)) \
 	-t $(DOCKER_REPO)/$(DOCKER_PLUGINS_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
 	Dockerfile.plugins \
 	.

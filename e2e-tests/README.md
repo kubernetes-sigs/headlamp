@@ -23,7 +23,7 @@ Install the Playwright dependencies:
 ```bash
 cd e2e-tests
 npm ci
-npx playwright install --with-deps
+npx playwright install --with-deps chromium
 cd ..
 ```
 
@@ -185,6 +185,9 @@ otherwise skipped unless `HEADLAMP_CLUSTER_INVENTORY_E2E=true`.
 npx playwright test
 ```
 
+To use CI's settings (two workers, retries, and per-test durations in the
+output), run `CI=1 npx playwright test`.
+
 ## Run a single test
 
 You can run a single test with the grep flag:
@@ -205,6 +208,26 @@ npx playwright test -g "404 page is present"
 ```shell
 npx playwright test -g "404 page is present" --headed
 ```
+
+## Writing tests
+
+CI runs the suite with two Playwright workers against the same clusters, so
+tests run in parallel and must not depend on each other:
+
+- Give the resources a test creates unique names (for example with
+  `Date.now()`) and delete them when the test ends.
+- Don't assume which row a list shows first. Lists sort newest first, and other
+  tests create pods in the `default` namespace while yours runs. Tests don't
+  create pods in `kube-system`, so pick one there when any pod will do.
+- Create fixtures such as namespaces through the API. CI loads every example
+  plugin, and the `sidebar` example removes the Namespaces page, so a test that
+  needs that page is skipped in CI.
+
+`HeadlampPage.navigateToCluster(cluster, token)` signs in by setting the
+backend's per-cluster auth cookie rather than filling in the login form. The
+login form is still covered by the login and logout tests in
+`multiCluster.spec.ts` and by `helmPlugins.spec.ts`, which runs against a
+non-root base URL.
 
 ## OAuth2-Proxy + Dex e2e test (opt-in)
 
@@ -233,21 +256,21 @@ Two modes are supported:
    npx playwright test tests/dexOauth2Proxy.spec.ts
    ```
 
-    The test runs
-    `../docs/installation/in-cluster/dex/test-scripts/run.sh`
-    in `beforeAll` and `cleanup.sh` in `afterAll`.
+   The test runs
+   `../docs/installation/in-cluster/dex/test-scripts/run.sh`
+   in `beforeAll` and `cleanup.sh` in `afterAll`.
 
 2. **Use a stack you already brought up:**
 
-    ```shell
-    cd ../docs/installation/in-cluster/dex/test-scripts
-    ./run.sh
-    cd -
-    export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
-    npx playwright test tests/dexOauth2Proxy.spec.ts
-    # …when done:
-    ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
-    ```
+   ```shell
+   cd ../docs/installation/in-cluster/dex/test-scripts
+   ./run.sh
+   cd -
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   # …when done:
+   ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
+   ```
 
 The test points at `http://localhost:8080` (the port `run.sh`
 port-forwards to OAuth2-Proxy) and signs in to Dex as
