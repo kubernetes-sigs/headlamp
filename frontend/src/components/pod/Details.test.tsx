@@ -46,11 +46,13 @@ vi.mock('../../redux/headlampEventSlice', async () => {
 });
 let capturedOnResourceUpdate: ((item: any, error?: any) => void) | undefined;
 let capturedExtraInfo: ((item: any) => any[]) | undefined;
+let capturedExtraSections: ((item: any, context: any) => any[]) | undefined;
 
 vi.mock('../common/Resource', () => ({
   DetailsGrid: (props: any) => {
     capturedOnResourceUpdate = props.onResourceUpdate;
     capturedExtraInfo = props.extraInfo;
+    capturedExtraSections = props.extraSections;
     return <div data-testid="details-grid" />;
   },
   ConditionsSection: () => null,
@@ -502,6 +504,22 @@ describe('PodDetails Pod Group row', () => {
 
   it('hides the row when the pod has no scheduling group', () => {
     expect(getPodGroupRow().hide).toBe(true);
+  });
+});
+
+describe('PodDetails volumes section', () => {
+  it("passes the pod's cluster so volume links open in that cluster", () => {
+    capturedExtraSections = undefined;
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }} urlPrefix="/c/main/pods">
+        <PodDetails name="test-pod" namespace="default" />
+      </TestContext>
+    );
+
+    const sections = capturedExtraSections!({ ...mockPod, cluster: 'cluster-b' }, { events: [] });
+    const volumes = sections.find(section => section.id === 'headlamp.pod-volumes');
+
+    expect(volumes.section.props.cluster).toBe('cluster-b');
   });
 });
 
