@@ -8,150 +8,384 @@
       >
         Showing documentation for: Pod
       </p>
-      <ul
-        aria-multiselectable="false"
-        class="MuiTreeView-root css-16c5dhn-MuiTreeView-root"
-        id=":mock-test-id:"
-        role="tree"
-        tabindex="0"
+      <div
+        class="MuiBox-root css-17somc1"
       >
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   apiVersion
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   string
                   )
                 </span>
               </div>
+              <div
+                class="MuiBox-root css-1mzwru7"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                >
+                  
+                        APIVersion defines the versioned schema of this representation of an object. 
+                        Servers should convert recognized schemas to the latest internal value, 
+                        and may reject unrecognized values. 
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                      
+                </p>
+              </div>
             </div>
           </div>
-        </li>
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        </div>
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   kind
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   string
                   )
                 </span>
               </div>
+              <div
+                class="MuiBox-root css-1mzwru7"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                >
+                  
+                        Kind is a string value representing the REST resource this object represents. 
+                        Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. 
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds',
+                      
+                </p>
+              </div>
             </div>
           </div>
-        </li>
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        </div>
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   metadata
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   object
                   )
                 </span>
               </div>
+              <div
+                class="MuiBox-root css-1mzwru7"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                >
+                  Standard object's metadata. 
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+                </p>
+                <div
+                  class="MuiBox-root css-0"
+                >
+                  <div
+                    class="MuiBox-root css-1fhgjcy"
+                  >
+                    <div
+                      class="MuiBox-root css-1yp4ln"
+                    >
+                      <div
+                        class="MuiBox-root css-qylq8y"
+                      />
+                      <div
+                        class="MuiBox-root css-1hmp91p"
+                      >
+                        <div
+                          aria-expanded="false"
+                          class="MuiBox-root css-127t9hs"
+                          role="button"
+                          tabindex="0"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
+                          >
+                            annotations
+                          </p>
+                           
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
+                          >
+                            (
+                            object
+                            )
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1mzwru7"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                          >
+                            Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. 
+                          They are not queryable and should be preserved when modifying objects. 
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="MuiBox-root css-1fhgjcy"
+                  >
+                    <div
+                      class="MuiBox-root css-1yp4ln"
+                    >
+                      <div
+                        class="MuiBox-root css-qylq8y"
+                      />
+                      <div
+                        class="MuiBox-root css-1hmp91p"
+                      >
+                        <div
+                          aria-expanded="false"
+                          class="MuiBox-root css-127t9hs"
+                          role="button"
+                          tabindex="0"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
+                          >
+                            creationTimestamp
+                          </p>
+                           
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
+                          >
+                            (
+                            string
+                            )
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1mzwru7"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                          >
+                            CreationTimestamp is a timestamp representing the server time when this object was created
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="MuiBox-root css-1fhgjcy"
+                  >
+                    <div
+                      class="MuiBox-root css-1yp4ln"
+                    >
+                      <div
+                        class="MuiBox-root css-qylq8y"
+                      />
+                      <div
+                        class="MuiBox-root css-1hmp91p"
+                      >
+                        <div
+                          aria-expanded="false"
+                          class="MuiBox-root css-127t9hs"
+                          role="button"
+                          tabindex="0"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
+                          >
+                            deletionTimestamp
+                          </p>
+                           
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
+                          >
+                            (
+                            string
+                            )
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1mzwru7"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                          >
+                            DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </li>
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        </div>
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   spec
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   object
                   )
                 </span>
               </div>
+              <div
+                class="MuiBox-root css-1mzwru7"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                >
+                  Specification of the desired behavior of the pod. 
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+                </p>
+                <div
+                  class="MuiBox-root css-0"
+                >
+                  <div
+                    class="MuiBox-root css-1fhgjcy"
+                  >
+                    <div
+                      class="MuiBox-root css-1yp4ln"
+                    >
+                      <div
+                        class="MuiBox-root css-qylq8y"
+                      />
+                      <div
+                        class="MuiBox-root css-1hmp91p"
+                      >
+                        <div
+                          aria-expanded="false"
+                          class="MuiBox-root css-127t9hs"
+                          role="button"
+                          tabindex="0"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
+                          >
+                            containers
+                          </p>
+                           
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
+                          >
+                            (
+                            array
+                            )
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1mzwru7"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-md2b23-MuiTypography-root"
+                          >
+                            List of containers belonging to the pod. Containers cannot currently be added or removed. 
+                          There must be at least one container in a Pod. Cannot be updated.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
     </div>
   </div>
 </body>
