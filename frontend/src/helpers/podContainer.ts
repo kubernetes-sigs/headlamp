@@ -49,8 +49,10 @@ export function resolveContainerName(item: Pod, preferredName: string | undefine
 /**
  * Gets the default container name for a pod based on its current execution state.
  *
- * It prioritizes running main containers, then running init containers,
- * falling back to the first container in the spec if none are running.
+ * It uses the container named by the `kubectl.kubernetes.io/default-container`
+ * annotation when the pod has it, as kubectl does for logs and exec. Otherwise it
+ * prioritizes running main containers, then running init containers, falling back
+ * to the first container in the spec if none are running.
  *
  * @param item - The pod object to check.
  * @returns The name of the default container or an empty string if none exist.
@@ -58,6 +60,11 @@ export function resolveContainerName(item: Pod, preferredName: string | undefine
 export function getDefaultContainer(item: Pod): string {
   if (!item) {
     return '';
+  }
+
+  const annotatedName = item.metadata?.annotations?.['kubectl.kubernetes.io/default-container'];
+  if (annotatedName && getAllContainers(item).some(c => c.name === annotatedName)) {
+    return annotatedName;
   }
 
   // Prefer a running main container
