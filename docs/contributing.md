@@ -55,8 +55,8 @@ Follow these steps when submitting a PR to ensure it meets the project’s stand
 Run the following commands from your project directory:
 
 - `npm run frontend:test` - Run the test suite
-- 'npm run frontend:lint' - Check code for lint and formatting issues
-- 'npm run frontend:lint:fix' - Automatically fix lint and formatting issues where possible
+- `npm run frontend:lint` - Check code for lint and formatting issues
+- `npm run frontend:lint:fix` - Automatically fix lint and formatting issues where possible
 
 These steps ensure your code is functional, well-typed, and formatted consistently.
 
@@ -188,8 +188,12 @@ out Kinvolk's
 
 ## Testing
 
-The frontend is tested via Storybook-related snapshots. So new components should have
-an associated story when possible.
+Major new functionality must include automated tests that exercise the new
+behavior. These tests must be part of the project's automated test suite, and
+reviewers must verify that they are included before approving the pull request.
+
+The frontend test suite includes Storybook-related tests. New components should
+have an associated story when possible.
 
 For running the frontend tests, use the following command:
 

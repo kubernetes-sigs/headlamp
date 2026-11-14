@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
+import { Icon, InlineIcon } from '@iconify/react';
+import Button from '@mui/material/Button';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../lib/k8s';
@@ -31,6 +32,12 @@ export interface CreateResourceButtonProps {
   resourceName?: string;
   /** The cluster to create the resource in. Defaults to the first selected cluster. */
   cluster?: string;
+  /**
+   * Visual style. `'icon'` (default) renders a compact icon-only action
+   * button suitable for toolbars; `'labeled'` renders a text+icon MUI Button
+   * suitable for empty-state CTAs.
+   */
+  variant?: 'icon' | 'labeled';
 }
 
 /** Inner component rendered inside the Activity panel. Holds shared state so the
@@ -101,18 +108,19 @@ function CreateResourceActivityContent(props: {
  *  creating a Kubernetes resource. Shows a form tab when the resource kind
  *  has a matching entry in {@link RESOURCE_DEFINITIONS}. */
 export function CreateResourceButton(props: CreateResourceButtonProps) {
-  const { resourceClass, resourceName, cluster } = props;
+  const { resourceClass, resourceName, cluster, variant = 'icon' } = props;
   const { t } = useTranslation(['glossary', 'translation']);
   const clusters = useSelectedClusters();
   const targetCluster = cluster ?? clusters[0];
 
   const name = resourceName ?? resourceClass.kind;
   const activityId = 'create-resource-' + resourceClass.apiName;
+  const label = t('translation|Create {{ name }}', { name });
 
   const openActivity = () => {
     Activity.launch({
       id: activityId,
-      title: t('translation|Create {{ name }}', { name }),
+      title: label,
       location: 'full',
       cluster: targetCluster,
       icon: <Icon icon="mdi:plus-circle" />,
@@ -129,12 +137,23 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
 
   return (
     <AuthVisible item={resourceClass} authVerb="create" cluster={cluster}>
-      <ActionButton
-        color="primary"
-        description={t('translation|Create {{ name }}', { name })}
-        icon={'mdi:plus-circle'}
-        onClick={openActivity}
-      />
+      {variant === 'labeled' ? (
+        <Button
+          onClick={openActivity}
+          color="primary"
+          variant="outlined"
+          startIcon={<InlineIcon icon="mdi:plus-circle" />}
+        >
+          {label}
+        </Button>
+      ) : (
+        <ActionButton
+          color="primary"
+          description={label}
+          icon={'mdi:plus-circle'}
+          onClick={openActivity}
+        />
+      )}
     </AuthVisible>
   );
 }

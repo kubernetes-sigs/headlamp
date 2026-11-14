@@ -338,4 +338,35 @@ describe('ResourceTable Column Visibility', () => {
     expect(kubeObjectSearch(mockRow, 'name', 'non-existent')).toBe(false);
     expect(kubeObjectSearch(mockRow, 'name', 'non-existent')).toBe(false);
   });
+
+  describe('emptyActions suppression on error', () => {
+    const columns = [
+      {
+        id: 'name',
+        label: 'Name',
+        getValue: (item: any) => item.metadata.name,
+      },
+    ];
+    const actions = <span data-testid="ea" />;
+
+    it('forwards emptyActions when there is no error', () => {
+      renderTable({ columns, data: [], emptyActions: actions });
+      expect(lastTablePropsHolder.current.emptyActions).toBe(actions);
+    });
+
+    it('drops emptyActions when errorMessage is set', () => {
+      renderTable({ columns, data: [], emptyActions: actions, errorMessage: 'Resource not found' });
+      expect(lastTablePropsHolder.current.emptyActions).toBeUndefined();
+    });
+
+    it('drops emptyActions when errors array is non-empty', () => {
+      renderTable({
+        columns,
+        data: [],
+        emptyActions: actions,
+        errors: [{ cluster: 'test-cluster', error: new Error('boom') }],
+      });
+      expect(lastTablePropsHolder.current.emptyActions).toBeUndefined();
+    });
+  });
 });

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import PortForwardingList from './index';
@@ -387,5 +387,31 @@ describe('PortForwardingList', () => {
     expect(snackbarCalls).toHaveLength(0);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('opens running port forward with noopener,noreferrer in window.open', async () => {
+    const pf = makePortForward({ status: PORT_FORWARD_RUNNING_STATUS, port: '8080' });
+    mockListPortForward.mockResolvedValue([pf]);
+    const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    renderList();
+
+    await waitFor(() => {
+      expect(mockTable).toHaveBeenCalled();
+    });
+
+    const columns = mockTable.mock.calls[0][0].columns;
+    const localPortColumn = columns.find((col: any) => col.id === 'localPort');
+    expect(localPortColumn).toBeDefined();
+
+    const { getByText } = render(localPortColumn.Cell({ row: { original: pf } }));
+    const portLink = getByText('8080');
+    fireEvent.click(portLink);
+
+    expect(windowOpenSpy).toHaveBeenCalledWith(
+      'http://localhost:8080',
+      '_blank',
+      'noopener,noreferrer'
+    );
   });
 });

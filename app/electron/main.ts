@@ -628,14 +628,16 @@ class PluginManagerEventListeners {
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
 
-    const installedPlugin = PluginManager.list(destinationFolder)?.find(
-      plugin => plugin.pluginName === pluginName
+    PluginManager.uninstall(
+      pluginName,
+      destinationFolder,
+      progress => {
+        updateCache(progress);
+      },
+      // Clear the consents of the bundle being removed while it can still be found: if saving
+      // them fails, the uninstall stops and can be retried.
+      bundleName => removeRunCmdConsent(pluginName, bundleName)
     );
-    removeRunCmdConsent(pluginName, installedPlugin?.folderName);
-
-    PluginManager.uninstall(pluginName, destinationFolder, progress => {
-      updateCache(progress);
-    });
   }
 
   /**

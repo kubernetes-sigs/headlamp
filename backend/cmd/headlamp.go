@@ -1553,6 +1553,26 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
+		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
+			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		resp := struct {
+			OAuth2Token   *oauth2.Token
+			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
+		}{oauth2Token, new(json.RawMessage)}
+
+		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
 		rawIDToken, _ := oauth2Token.Extra("id_token").(string)
 		if rawIDToken == "" && tokenType == "id_token" {
 			rawIDToken = rawUserToken
@@ -1575,26 +1595,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		); err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to cache ID token")
 			http.Error(w, "Failed to cache ID token: "+err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
-			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		resp := struct {
-			OAuth2Token   *oauth2.Token
-			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
-		}{oauth2Token, new(json.RawMessage)}
-
-		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
@@ -3670,12 +3670,22 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 
 		return
 	}
+	// The cache is shared and typed as interface{}, so guard the assertion
+	// instead of letting a non-string value panic the handler.
+	id, ok := cacheItem.(string)
+	if !ok {
+		c.handleError(w, ctx, span, fmt.Errorf("unexpected cache value type %T", cacheItem),
+			"invalid drain status", http.StatusInternalServerError)
+
+		return
+	}
+
 	// Prepare successful response
 	responsePayload := struct {
 		ID      string `json:"id"`
 		Cluster string `json:"cluster"`
 	}{
-		ID:      cacheItem.(string),
+		ID:      id,
 		Cluster: drainPayload.Cluster,
 	}
 
