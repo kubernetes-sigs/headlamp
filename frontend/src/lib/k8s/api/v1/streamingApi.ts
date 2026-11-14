@@ -25,6 +25,7 @@ import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
+import { multiplexedStream } from './multiplexedStream';
 import type { QueryParameters } from './queryParameters';
 
 /**
@@ -304,6 +305,11 @@ export interface StreamArgs {
   stdout?: boolean;
   stderr?: boolean;
   cluster?: string;
+  /**
+   * Whether to stream through the backend's multiplexer, which keeps an exec or attach
+   * session for a grace period when the connection drops (see multiplexedStream).
+   */
+  multiplexed?: boolean;
 }
 
 /**
@@ -318,6 +324,10 @@ export interface StreamArgs {
  * the stream, and `getSocket`, which returns the WebSocket object.
  */
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
+  if (args.multiplexed) {
+    return multiplexedStream(url, cb, args);
+  }
+
   let connection: StreamConnection | null = null;
   let isCancelled = false;
   const { failCb, cluster = '' } = args;

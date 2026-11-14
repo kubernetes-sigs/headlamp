@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -43,6 +44,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
@@ -1926,6 +1928,12 @@ func TestRestrictedEndpointsRequireToken(t *testing.T) {
 			path:   "/wsMultiplexer",
 			body:   nil,
 		},
+		{
+			name:   "GET /clusters/{name}/wsMultiplexer",
+			method: http.MethodGet,
+			path:   "/clusters/" + minikubeName + "/wsMultiplexer",
+			body:   nil,
+		},
 	}
 
 	for _, tc := range cases {
@@ -2020,6 +2028,42 @@ func assertRouteRequiresBackendToken(t *testing.T, method, path string, body int
 			}
 		})
 	}
+}
+
+// TestClusterMultiplexerGetsClusterAuthCookie checks that the multiplexer is
+// served under a cluster's path, where a browser sends the cluster's auth cookie,
+// which it doesn't send to the multiplexer's top-level path.
+func TestClusterMultiplexerGetsClusterAuthCookie(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+	server := httptest.NewServer(newRestrictedEndpointsHandler(t))
+	defer server.Close()
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	jar.SetCookies(serverURL, []*http.Cookie{{ //nolint:gosec // Test cookie for a plain HTTP server.
+		Name:     "headlamp-auth-" + minikubeName + ".0",
+		Value:    "token",
+		Path:     auth.GetCookiePath("", minikubeName),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}})
+
+	clusterPath := "/clusters/" + minikubeName + "/wsMultiplexer"
+
+	assert.Empty(t, jar.Cookies(&url.URL{Scheme: "http", Host: serverURL.Host, Path: "/wsMultiplexer"}))
+	assert.Len(t, jar.Cookies(&url.URL{Scheme: "http", Host: serverURL.Host, Path: clusterPath}), 1)
+
+	dialer := websocket.Dialer{Jar: jar, Subprotocols: []string{MultiplexerProtocol}}
+
+	ws, resp, err := dialer.Dial("ws"+strings.TrimPrefix(server.URL, "http")+clusterPath, nil)
+	require.NoError(t, err, "the cluster's path must reach the multiplexer, not the cluster proxy")
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, ws.Close())
 }
 
 // TestRestrictedEndpointsBypassedWithoutConfiguredToken preserves standalone

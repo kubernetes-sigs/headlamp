@@ -25,7 +25,12 @@ import { DEFAULT_POD_DEBUG_IMAGE, loadClusterSettings } from '../../helpers/clus
 import { getCluster } from '../../lib/cluster';
 import { KubeContainer, KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
-import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
+import {
+  Channel,
+  isRetryableStartError,
+  useTerminalStream,
+  XTerminalConnected,
+} from '../../lib/k8s/useTerminalStream';
 import { useTypedSelector } from '../../redux/hooks';
 
 /**
@@ -95,6 +100,8 @@ function generateContainerName(item: Pod): string {
 /**
  * Creates an ephemeral debug container and waits for it to be ready.
  * Polls pod status up to 30 times (30 seconds) for container to reach running state.
+ * A container still starting after that, e.g. pulling its image, is attached to all
+ * the same, as the terminal keeps trying until it runs.
  *
  * @param item - Pod to add ephemeral container to
  * @param containerName - Name for the new container
@@ -103,18 +110,21 @@ function generateContainerName(item: Pod): string {
  * @param targetContainerName - Optional name of the container to target.
  *   When set, the debug container shares the target's PID namespace.
  *   If undefined, no targeting is applied.
- * @returns Object with containerName if successful, empty object on error
+ * @returns Object with containerName if successful, or whether adding the container can
+ *   be retried
  */
-async function debugPod(
+export async function debugPod(
   item: Pod,
   containerName: string,
   debugImage: string,
   onError: (message: string) => void,
   targetContainerName?: string
-) {
+): Promise<{ containerName?: string; retry?: boolean }> {
+  let added = false;
   try {
     // Add ephemeral container to the pod
     await item.addEphemeralContainer(containerName, debugImage, ['sh'], targetContainerName);
+    added = true;
 
     // Wait for the container to be ready by polling the pod status
     const maxRetries = 30; // 30 seconds timeout
@@ -123,8 +133,10 @@ async function debugPod(
     while (retries < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Refresh pod data
-      const updatedPod: Pod = await new Promise<Pod>((resolve, reject) => {
+      // Refresh pod data. A poll that fails, e.g. during a short network drop, is
+      // skipped, as the wait ends with attaching to the container anyway. A pod that
+      // is gone or can't be read is final.
+      const updatedPod = await new Promise<Pod | null>((resolve, reject) => {
         Pod.apiGet(
           (pod: Pod) => {
             resolve(pod);
@@ -132,7 +144,12 @@ async function debugPod(
           item.getName(),
           item.getNamespace(),
           (err: any) => {
-            if (err) reject(err);
+            if (err?.status === 404 || err?.status === 403) {
+              reject(err);
+            } else if (err) {
+              console.debug('DebugPod: polling the pod failed', err);
+              resolve(null);
+            }
           },
           {
             cluster: item.cluster || undefined,
@@ -141,7 +158,7 @@ async function debugPod(
       });
 
       // Check if ephemeral container is running
-      const ephemeralStatus = updatedPod.status?.ephemeralContainerStatuses?.find(
+      const ephemeralStatus = updatedPod?.status?.ephemeralContainerStatuses?.find(
         (status: any) => status.name === containerName
       );
 
@@ -160,11 +177,12 @@ async function debugPod(
       retries++;
     }
 
-    throw new Error('Timeout waiting for ephemeral container to start');
+    return { containerName };
   } catch (e: any) {
     console.error('Error:DebugPod: creating ephemeral container', e);
     onError(e.message || 'Failed to create debug container');
-    return {};
+    // Only adding the container is tried again; one that terminated is final.
+    return added ? {} : { retry: isRetryableStartError(e) };
   }
 }
 
@@ -189,6 +207,9 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
   const containerCreatedRef = useRef(false);
   const defaultPodDebugImage = useTypedSelector(state => state.config.defaultPodDebugImage);
   const defaultPodDebugImageRef = useRef(defaultPodDebugImage);
+  const debugContainerNameRef = useRef<string | null>(null);
+  // The last failure to add the container that was reported, so retries stay quiet.
+  const reportedErrorRef = useRef('');
   const onCloseRef = useRef<() => void>(() => {});
   const isSuccessfulExitRef = useRef<(channel: number, text: string) => boolean>(() => false);
   const isShellNotFoundRef = useRef<(channel: number, text: string) => boolean>(() => false);
@@ -200,7 +221,9 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
 
   const connectStream = useCallback(
     async (onDataCallback: (data: ArrayBuffer) => void) => {
-      const cluster = getCluster();
+      // The pod's cluster and its settings, not the current page's: the terminal
+      // stays open, and reconnects, while the user goes elsewhere.
+      const cluster = item.cluster || getCluster();
       if (!cluster) {
         enqueueSnackbar(t('translation|No cluster selected'), { variant: 'error' });
         return { stream: null };
@@ -224,23 +247,34 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
 
       if (runningDebugContainer) {
         containerName = runningDebugContainer.name;
+        debugContainerNameRef.current = containerName;
         containerCreatedRef.current = true;
         xtermRef.current?.xterm.writeln(t('translation|Attaching to existing debug container...'));
+      } else if (containerCreatedRef.current && debugContainerNameRef.current) {
+        // Reconnecting: the terminal already shows the reconnect progress.
+        containerName = debugContainerNameRef.current;
       } else {
-        containerName = generateContainerName(item);
-
-        xtermRef.current?.xterm.writeln(t('translation|Creating ephemeral debug container...'));
-        if (targetContainer) {
-          xtermRef.current?.xterm.writeln(
-            t('translation|Targeting container: {{container}}', { container: targetContainer })
-          );
+        // A retry adds the same container. If an attempt whose response was lost added
+        // it, the retry sends the same list of ephemeral containers, which changes
+        // nothing, so it cannot add a second one.
+        if (!debugContainerNameRef.current) {
+          debugContainerNameRef.current = generateContainerName(item);
+          xtermRef.current?.xterm.writeln(t('translation|Creating ephemeral debug container...'));
+          if (targetContainer) {
+            xtermRef.current?.xterm.writeln(
+              t('translation|Targeting container: {{container}}', { container: targetContainer })
+            );
+          }
         }
+        containerName = debugContainerNameRef.current;
 
-        const { containerName: readyContainerName } = await debugPod(
+        const { containerName: readyContainerName, retry } = await debugPod(
           item,
           containerName,
           debugImage,
           (errorMessage: string) => {
+            if (errorMessage === reportedErrorRef.current) return;
+            reportedErrorRef.current = errorMessage;
             enqueueSnackbar(
               t('translation|Failed to create debug container: {{message}}', {
                 message: errorMessage,
@@ -253,14 +287,14 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         );
 
         if (!readyContainerName) {
-          return { stream: null };
+          return { stream: null, retry };
         }
 
         containerCreatedRef.current = true;
         xtermRef.current?.xterm.writeln(t('translation|Attaching to debug container...'));
       }
 
-      const stream = item.attach(containerName, onDataCallback, {});
+      const stream = item.attach(containerName, onDataCallback, { multiplexed: true });
 
       return {
         stream,
