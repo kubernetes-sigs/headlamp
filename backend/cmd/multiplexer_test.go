@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -30,8 +31,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -55,6 +59,53 @@ func TestNewMultiplexer(t *testing.T) {
 	assert.NotNil(t, m.connections)
 	assert.NotNil(t, m.upgrader)
 	assert.Equal(t, []string{MultiplexerProtocol}, m.upgrader.Subprotocols)
+}
+
+func TestCheckOrigin_AllowsAnyOriginWhenImpersonationDisabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+
+	assert.True(t, m.upgrader.CheckOrigin(req),
+		"origin must stay unrestricted for deployments that never enable impersonation")
+}
+
+func TestCheckOrigin_RejectsCrossOriginWhenImpersonationEnabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.oidcUseImpersonationEnabled = true
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+	req.Header.Set("Origin", "https://evil.headlamp.example.com")
+
+	assert.False(t, m.upgrader.CheckOrigin(req),
+		"a same-site sibling subdomain must not be able to open the impersonation-authenticated socket")
+}
+
+func TestCheckOrigin_AllowsSameOriginWhenImpersonationEnabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.oidcUseImpersonationEnabled = true
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+	req.Header.Set("Origin", "http://headlamp.example.com")
+
+	assert.True(t, m.upgrader.CheckOrigin(req))
+}
+
+func TestCheckOrigin_AllowsMissingOriginWhenImpersonationEnabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.oidcUseImpersonationEnabled = true
+
+	// A request with no Origin header was not sent by a browser page making a cross-origin
+	// request in the first place (e.g. kubectl-style or server-side WebSocket clients never
+	// send one), so it is not the CSRF-style scenario this check defends against.
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://headlamp.example.com/wsMultiplexer", nil)
+
+	assert.True(t, m.upgrader.CheckOrigin(req))
 }
 
 func TestHandleClientWebSocket(t *testing.T) {
@@ -173,7 +224,7 @@ func TestDialWebSocket(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	//nolint:gosec // Test server uses self-signed TLS certificates
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil)
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, nil, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
@@ -207,7 +258,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	token := "my-test-token"
 	//nolint:gosec // Test server uses self-signed TLS certificates
-	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token)
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 
@@ -218,6 +269,62 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 	assert.Equal(t, "Bearer "+token, receivedAuth)
 }
 
+func TestDialWebSocket_SendsImpersonationHeaders(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	var receivedUser string
+
+	var receivedGroups []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("WebSocket upgrade failed: %v", err)
+		}
+
+		defer func() { _ = ws.Close() }()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	token := "service-account-token"
+	impersonation := &kubeconfig.Impersonation{Username: "alice@example.com", Groups: []string{"dev", "ops"}}
+
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
+	conn, err := m.dialWebSocket(wsURL, tlsConfig, server.URL, &token, impersonation)
+	require.NoError(t, err)
+
+	if conn != nil {
+		_ = conn.Close()
+	}
+
+	assert.Equal(t, "alice@example.com", receivedUser)
+	assert.Equal(t, []string{"dev", "ops"}, receivedGroups)
+}
+
+func TestCheckConnectionIdentity(t *testing.T) {
+	alice := &kubeconfig.Impersonation{Username: "alice", Groups: []string{"dev"}}
+	bob := &kubeconfig.Impersonation{Username: "bob", Groups: []string{"dev"}}
+
+	// A connection opened without impersonation is only reusable without impersonation.
+	conn := &Connection{}
+	require.NoError(t, checkConnectionIdentity(conn, nil))
+	require.Error(t, checkConnectionIdentity(conn, alice))
+
+	// A connection opened for one identity is reusable only for that identity.
+	conn = &Connection{impersonation: alice}
+	sameAlice := &kubeconfig.Impersonation{Username: "alice", Groups: []string{"dev"}}
+	require.NoError(t, checkConnectionIdentity(conn, sameAlice))
+	require.Error(t, checkConnectionIdentity(conn, bob))
+	require.Error(t, checkConnectionIdentity(conn, nil))
+}
+
 func TestDialWebSocket_Errors(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
 	m := NewMultiplexer(contextStore, false)
@@ -225,12 +332,12 @@ func TestDialWebSocket_Errors(t *testing.T) {
 	// Test invalid URL
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
-	ws, err := m.dialWebSocket("invalid-url", tlsConfig, "", nil)
+	ws, err := m.dialWebSocket("invalid-url", tlsConfig, "", nil, nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
 
 	// Test unreachable URL
-	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil)
+	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil, nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
 }
@@ -266,7 +373,7 @@ func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
 	// This should fail with a "bad handshake" error and log the response
-	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, ws)
@@ -409,6 +516,53 @@ func TestMonitorConnection(t *testing.T) {
 	assert.Equal(t, StateClosed, conn.Status.State)
 }
 
+// TestMonitorConnection_ClosesOnExpiredImpersonation locks in a fix for a gap where a healthy
+// upstream watch -- heartbeat pings succeeding, no client message to trigger
+// checkConnectionIdentity's per-message re-verification -- had nothing that ever closed it once
+// its impersonated identity's verified token expired: handleClusterMessages only forwards
+// upstream events and never checks expiry itself. monitorConnection's heartbeat tick now checks
+// it independently of whether the ping succeeds, so an expired, otherwise-healthy connection is
+// still closed on the same cadence instead of streaming protected data indefinitely.
+func TestMonitorConnection_ClosesOnExpiredImpersonation(t *testing.T) {
+	originalInterval := HeartbeatInterval
+	HeartbeatInterval = 20 * time.Millisecond
+
+	defer func() { HeartbeatInterval = originalInterval }()
+
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+	conn.impersonation = &kubeconfig.Impersonation{
+		Username: "alice@example.com",
+		Expiry:   time.Now().Add(-time.Minute),
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("monitorConnection must close an expired, otherwise-healthy connection on its own, " +
+			"not only when the ping fails or a client message arrives")
+	}
+
+	assert.Equal(t, StateClosed, conn.Status.State)
+	assert.True(t, conn.IsClosed())
+}
+
 func TestUpdateStatus(t *testing.T) {
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -469,6 +623,38 @@ func TestCleanupConnections(t *testing.T) {
 
 	assert.Empty(t, m.connections)
 	assert.Equal(t, StateClosed, conn.Status.State)
+}
+
+// TestCleanupConnection_DoesNotRemoveReplacementInstalledUnderSameKey covers a race
+// checkConnectionIdentity's own cleanup can cause: it closes the OLD connection (conn.Done) and
+// removes its map entry when the identity no longer matches, but the OLD reader's
+// handleClusterMessages goroutine, blocked in conn.WSConn.ReadMessage(), does not notice
+// conn.Done until that read returns -- so a replacement connection can be established and
+// installed under the exact same key in between. When the old reader's loop finally exits and
+// runs ITS OWN deferred cleanupConnection(conn) call, conn's map entry is gone, but naively
+// recomputing the key and deleting it anyway would remove the REPLACEMENT instead, since it now
+// occupies that same key.
+func TestCleanupConnection_DoesNotRemoveReplacementInstalledUnderSameKey(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+
+	defer clientServer.Close()
+
+	oldConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.connections[connKey] = oldConn
+
+	// A replacement is established and installed under the same key before the old reader's
+	// deferred cleanup runs -- exactly what checkConnectionIdentity's own cleanupConnection(conn)
+	// call sets up by closing conn.Done without removing conn from the goroutine still reading it.
+	newConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	m.connections[connKey] = newConn
+
+	m.cleanupConnection(oldConn)
+
+	got, exists := m.connections[connKey]
+	assert.True(t, exists, "the replacement connection must remain tracked after the old reader's cleanup")
+	assert.Same(t, newConn, got, "cleanup for the old connection must not remove the replacement")
 }
 
 func TestCloseConnection(t *testing.T) {
@@ -724,7 +910,7 @@ func TestGetOrCreateConnection(t *testing.T) {
 
 	token := "token"
 
-	conn, err := m.getOrCreateConnection(msg, clientConn, &token)
+	conn, err := m.getOrCreateConnection(msg, clientConn, &token, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "test-cluster", conn.ClusterID)
@@ -733,13 +919,13 @@ func TestGetOrCreateConnection(t *testing.T) {
 	assert.Equal(t, "watch=true", conn.Query)
 
 	// Test getting an existing connection
-	conn2, err := m.getOrCreateConnection(msg, clientConn, &token)
+	conn2, err := m.getOrCreateConnection(msg, clientConn, &token, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
 	// Test with invalid cluster
 	msg.ClusterID = "non-existent-cluster"
-	conn3, err := m.getOrCreateConnection(msg, clientConn, &token)
+	conn3, err := m.getOrCreateConnection(msg, clientConn, &token, nil)
 	assert.Error(t, err)
 	assert.Nil(t, conn3)
 }
@@ -767,7 +953,9 @@ func TestEstablishClusterConnection(t *testing.T) {
 	defer clientServer.Close()
 
 	// Test successful connection establishment
-	conn, err := m.establishClusterConnection("test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+	conn, err := m.establishClusterConnection(
+		"test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn, nil, nil,
+	)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "test-cluster", conn.ClusterID)
@@ -776,7 +964,9 @@ func TestEstablishClusterConnection(t *testing.T) {
 	assert.Equal(t, "watch=true", conn.Query)
 
 	// Test with invalid cluster
-	conn, err = m.establishClusterConnection("non-existent", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+	conn, err = m.establishClusterConnection(
+		"non-existent", "test-user", "/api/v1/pods", "watch=true", clientConn, nil, nil,
+	)
 	assert.Error(t, err)
 	assert.Nil(t, conn)
 }
@@ -825,6 +1015,7 @@ func TestEstablishClusterConnectionUsesServiceAccountToken(t *testing.T) {
 		"watch=true",
 		clientConn,
 		&requestToken,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
@@ -903,6 +1094,261 @@ func TestReconnect(t *testing.T) {
 	newConn, err = m.reconnect(conn)
 	assert.Error(t, err)
 	assert.Nil(t, newConn)
+}
+
+// TestReconnect_RefusesExpiredImpersonation checks that an automatic reconnect -- which has no
+// client message in flight to re-verify a fresh token against -- refuses to reestablish a
+// connection under an identity whose verified token has since expired, and cleans up the stale
+// map entry rather than leaving it pointing at the connection it just closed.
+// TestProcessClientMessage_ClosesConnectionWhenIdentityCannotBeReverified checks that a message
+// whose identity fails re-verification closes the client's WebSocket connection, rather than
+// just reporting an error for that one message. The upgrade request's cookie is fixed for the
+// socket's whole lifetime and can never pick up a token the browser has since refreshed, so
+// leaving the connection open would mean every later message keeps failing the same way,
+// forever; closing it is what lets the frontend's existing reconnect logic open a fresh
+// handshake with a current cookie.
+func TestProcessClientMessage_ClosesConnectionWhenIdentityCannotBeReverified(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.resolveImpersonation = func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error) {
+		return nil, fmt.Errorf("token expired")
+	}
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", UserID: "test-user", Type: "REQUEST"}
+
+	m.processClientMessage(req, clientConn, msg)
+
+	err := clientConn.WriteMessage(websocket.TextMessage, []byte("ping"))
+	require.Error(t, err, "the client connection should have been closed after identity re-verification failed")
+}
+
+// TestProcessClientMessage_UnknownClusterWithImpersonationDoesNotPanic locks in that an unknown
+// cluster ID is handled cleanly under --oidc-use-impersonation, using the real resolver (not a
+// mock): getClusterContextWithFallback returns a nil *kubeconfig.Context on lookup failure, and
+// impersonationForRequest's shouldUseImpersonationForContext check must stay nil-safe for it.
+func TestProcessClientMessage_UnknownClusterWithImpersonationDoesNotPanic(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeconfig.NewContextStore(),
+			},
+			OidcClientID:     "headlamp",
+			OidcIdpIssuerURL: "https://example.com",
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	m := NewMultiplexer(cfg.KubeConfigStore, false)
+	m.resolveImpersonation = func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error) {
+		return cfg.impersonationForRequest(nil, r, clusterName, kContext)
+	}
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	msg := Message{ClusterID: "unknown-cluster", Path: "/api/v1/pods", UserID: "test-user", Type: "REQUEST"}
+
+	require.NotPanics(t, func() {
+		m.processClientMessage(req, clientConn, msg)
+	})
+}
+
+func TestReconnect_RefusesExpiredImpersonation(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/services", "watch=true", clientConn, nil)
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+	conn.Status.State = StateError
+	conn.impersonation = &kubeconfig.Impersonation{Username: "alice", Expiry: time.Now().Add(-time.Minute)}
+
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	newConn, err := m.reconnect(conn)
+	require.Error(t, err)
+	assert.Nil(t, newConn)
+	assert.Contains(t, err.Error(), "expired")
+
+	m.mutex.RLock()
+	_, stillMapped := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, stillMapped, "a refused reconnect must remove the stale connection entry")
+
+	assert.True(t, conn.IsClosed(), "a refused reconnect must close the old connection")
+}
+
+// TestCheckConnectionIdentity_UpdatesStoredImpersonationExpiry locks in the fix for a gap this
+// package's own reconnect logic could hit: sameImpersonation only compares Username and Groups,
+// not Expiry, so a freshly verified token for the same identity passed this check without ever
+// updating the connection's stored impersonation. reconnect (exercised by
+// TestReconnect_RefusesExpiredImpersonation above) reuses that stored impersonation with no
+// client message available to re-verify against, so a stale Expiry left over from whenever the
+// connection was first established would cause a later automatic reconnect to be wrongly
+// refused as expired, even though a newer token had since been verified for this very
+// connection.
+func TestCheckConnectionIdentity_UpdatesStoredImpersonationExpiry(t *testing.T) {
+	conn := &Connection{}
+	conn.impersonation = &kubeconfig.Impersonation{
+		Username: "alice",
+		Groups:   []string{"dev"},
+		Expiry:   time.Now().Add(-time.Minute),
+	}
+
+	freshExpiry := time.Now().Add(time.Hour)
+	fresh := &kubeconfig.Impersonation{
+		Username: "alice",
+		Groups:   []string{"dev"},
+		Expiry:   freshExpiry,
+	}
+
+	require.NoError(t, checkConnectionIdentity(conn, fresh))
+
+	assert.Equal(t, freshExpiry, conn.impersonation.Expiry,
+		"a freshly verified identity's expiry must replace the connection's stale stored one")
+}
+
+// TestCheckConnectionIdentity_IgnoresGroupOrder locks in the fix for a gap in sameImpersonation:
+// group membership is a set, not a sequence, so a refreshed token repeating the same groups in
+// a different order must still be treated as the same identity. Before this fix, checking the
+// groups as an ordered slice would reject such a connection with "connection belongs to a
+// different identity" purely because of reordering.
+func TestCheckConnectionIdentity_IgnoresGroupOrder(t *testing.T) {
+	conn := &Connection{}
+	conn.impersonation = &kubeconfig.Impersonation{
+		Username: "alice",
+		Groups:   []string{"dev", "ops"},
+	}
+
+	reordered := &kubeconfig.Impersonation{
+		Username: "alice",
+		Groups:   []string{"ops", "dev"},
+	}
+
+	assert.NoError(t, checkConnectionIdentity(conn, reordered),
+		"the same groups in a different order must not be treated as a different identity")
+}
+
+// TestCheckConnectionIdentity_IgnoresDuplicateGroups locks in a follow-up fix to the one above:
+// sameGroups compared sorted copies but still checked length first, so a duplicate entry (for
+// example a refresh changing ["dev", "dev"] to ["dev"]) was treated as a different identity even
+// though it has identical authorization semantics. Comparing compacted (deduplicated), sorted
+// copies fixes this.
+func TestCheckConnectionIdentity_IgnoresDuplicateGroups(t *testing.T) {
+	conn := &Connection{}
+	conn.impersonation = &kubeconfig.Impersonation{
+		Username: "alice",
+		Groups:   []string{"dev", "dev"},
+	}
+
+	deduplicated := &kubeconfig.Impersonation{
+		Username: "alice",
+		Groups:   []string{"dev"},
+	}
+
+	assert.NoError(t, checkConnectionIdentity(conn, deduplicated),
+		"a duplicate group entry must not be treated as a different identity")
+}
+
+// TestReconnect_SnapshotsIdentityUnderLock locks in the fix for a data race: checkConnectionIdentity
+// writes conn.impersonation/conn.Token under conn.mu for each client message, while reconnect used
+// to read them directly and unsynchronized while establishing the replacement connection. Those
+// paths run on different goroutines in production -- the per-message handler and the heartbeat
+// loop -- and can execute concurrently. This runs both concurrently (meaningful under `go test
+// -race`) to prove the snapshot added to reconnect removes the race; functionally, it also still
+// refuses the reconnect once the stored impersonation is expired, matching
+// TestReconnect_RefusesExpiredImpersonation above.
+func TestReconnect_SnapshotsIdentityUnderLock(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/services", "watch=true", clientConn, nil)
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+	conn.Status.State = StateError
+	conn.impersonation = &kubeconfig.Impersonation{Username: "alice", Expiry: time.Now().Add(-time.Minute)}
+
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	stop := make(chan struct{})
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				fresh := &kubeconfig.Impersonation{Username: "alice", Expiry: time.Now().Add(-time.Minute)}
+				_ = checkConnectionIdentity(conn, fresh)
+			}
+		}
+	}()
+
+	_, err := m.reconnect(conn)
+
+	close(stop)
+	wg.Wait()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expired")
 }
 
 func TestCreateWrapperMessage(t *testing.T) {
@@ -1381,7 +1827,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 		UserID:    "test-user",
 	}
 
-	conn, err := m.getOrCreateConnection(msg, clientConn, &originalToken)
+	conn, err := m.getOrCreateConnection(msg, clientConn, &originalToken, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, &originalToken, conn.Token)
@@ -1390,7 +1836,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 	newToken := "new-refreshed-token"
 
 	// Get the same connection, but with a new token
-	conn2, err := m.getOrCreateConnection(msg, clientConn, &newToken)
+	conn2, err := m.getOrCreateConnection(msg, clientConn, &newToken, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
@@ -1429,7 +1875,7 @@ func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) 
 		UserID:    conn.UserID,
 	}
 
-	refreshedConn, err := m.getOrCreateConnection(msg, clientConn, &requestToken)
+	refreshedConn, err := m.getOrCreateConnection(msg, clientConn, &requestToken, nil)
 	require.NoError(t, err)
 	assert.Equal(t, conn, refreshedConn)
 	require.NotNil(t, refreshedConn.Token)
@@ -1530,7 +1976,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Test server uses self-signed TLS certificates
 
-	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil, nil)
 	require.NoError(t, err)
 
 	conn.WSConn = ws
@@ -1640,6 +2086,74 @@ func TestHandleClusterMessages(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Test timed out")
 	}
+}
+
+// TestGetOrCreateConnection_ClosesStaleConnectionOnIdentityMismatch locks in the fix for a
+// privilege-leak gap: checkConnectionIdentity failing (a refreshed token's identity no longer
+// matches the one the connection was opened for) used to just return an error, leaving the
+// existing connection's upstream watch mapped and running. handleClusterMessages would keep
+// reading from it and forwarding its events to the client indefinitely under the old identity's
+// privileges, even though the message carrying the new identity was itself rejected. The fix
+// closes and removes that stale connection as part of rejecting the mismatch, which this proves
+// by showing the forwarding loop (handleClusterMessages) actually stops -- not just that the
+// mismatched request errors -- so no further old-identity event can reach the client.
+func TestGetOrCreateConnection_ClosesStaleConnectionOnIdentityMismatch(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn)
+	conn.WSConn = wsConn.conn
+	conn.impersonation = &kubeconfig.Impersonation{Username: "alice", Groups: []string{"dev"}}
+
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.handleClusterMessages(conn, clientConn)
+		close(done)
+	}()
+
+	// Prove the pipe is alive, under alice's identity, before the mismatch.
+	firstMessage := []byte(`{"metadata":{"resourceVersion":"1"},"kind":"Pod","apiVersion":"v1"}`)
+	require.NoError(t, wsConn.WriteMessage(websocket.TextMessage, firstMessage))
+
+	var msg Message
+	require.NoError(t, clientConn.ReadJSON(&msg))
+
+	// A later message claiming a different verified identity for the same connection key must
+	// be rejected...
+	msgReq := Message{
+		ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user", Type: "REQUEST",
+	}
+	mismatched := &kubeconfig.Impersonation{Username: "bob", Groups: []string{"dev"}}
+
+	_, err := m.getOrCreateConnection(msgReq, clientConn, nil, mismatched)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "different identity")
+
+	// ...and that rejection must tear down the stale connection, so its forwarding loop stops
+	// rather than continuing to deliver alice's watch events under her now-superseded identity.
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handleClusterMessages did not stop after the identity mismatch")
+	}
+
+	assert.True(t, conn.IsClosed(), "the stale connection must be closed after an identity mismatch")
+
+	m.mutex.RLock()
+	_, stillMapped := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, stillMapped, "the stale connection must be removed from the connection map")
 }
 
 func TestSendCompleteMessage(t *testing.T) {

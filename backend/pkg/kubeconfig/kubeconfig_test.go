@@ -434,14 +434,16 @@ func TestContext(t *testing.T) {
 // Check that a hint is logged when an OIDC cluster returns a 401.
 func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 	tests := []struct {
-		name     string
-		oidc     bool
-		status   int
-		wantWarn bool
+		name         string
+		oidc         bool
+		status       int
+		wantWarn     bool
+		impersonated bool
 	}{
-		{"oidc 401 warns", true, http.StatusUnauthorized, true},
-		{"oidc 200 is silent", true, http.StatusOK, false},
-		{"non-oidc 401 is silent", false, http.StatusUnauthorized, false},
+		{"oidc 401 warns", true, http.StatusUnauthorized, true, false},
+		{"oidc 200 is silent", true, http.StatusOK, false, false},
+		{"non-oidc 401 is silent", false, http.StatusUnauthorized, false, false},
+		{"impersonated oidc 401 is silent", true, http.StatusUnauthorized, false, true},
 	}
 
 	for _, tt := range tests {
@@ -463,6 +465,10 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 				ctx.OidcConf = &kubeconfig.OidcConfig{ClientID: "test-client-id", IdpIssuerURL: "https://oidc.example.com"}
 			}
 
+			if tt.impersonated {
+				ctx = ctx.WithImpersonation(kubeconfig.Impersonation{Username: "alice"})
+			}
+
 			request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
 			require.NoError(t, err)
 			request.Header.Set("Authorization", "Bearer test-token")
@@ -471,6 +477,42 @@ func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
 			assert.Equal(t, tt.wantWarn, warned)
 		})
 	}
+}
+
+// TestSetupProxyOIDCTokenRejectionWarning_ContextImpersonationIsSilent locks in the fix for a
+// gap the table above does not cover: WithImpersonation sets the kubeconfig-native
+// AuthInfo.Impersonate field, but --oidc-use-impersonation's own mechanism (what the main cluster
+// proxy actually uses) carries the identity on the REQUEST's own context instead (see
+// ContextWithImpersonation), set by the caller per request, not by the Context itself. The
+// warning must be suppressed for that case too: the actual credential sent is the service
+// account token, not the user's OIDC bearer token, so a 401 there means something else entirely
+// (for example a missing RBAC grant for impersonation), and the hint would be misleading.
+func TestSetupProxyOIDCTokenRejectionWarning_ContextImpersonationIsSilent(t *testing.T) {
+	warned := false
+
+	original := logger.SetLogFunc(func(_ uint, _ map[string]string, _ interface{}, msg string) {
+		warned = warned || strings.Contains(msg, "rejected the forwarded bearer token")
+	})
+	defer logger.SetLogFunc(original)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	ctx := &kubeconfig.Context{
+		Name:     "oidc-test-context",
+		Cluster:  &api.Cluster{Server: server.URL},
+		OidcConf: &kubeconfig.OidcConfig{ClientID: "test-client-id", IdpIssuerURL: "https://oidc.example.com"},
+	}
+
+	reqCtx := kubeconfig.ContextWithImpersonation(context.Background(), kubeconfig.Impersonation{Username: "alice"})
+	request, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "/api", nil)
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer test-token")
+
+	require.NoError(t, ctx.ProxyRequest(httptest.NewRecorder(), request))
+	assert.False(t, warned, "the OIDC-issuer-mismatch hint must not fire for a context-impersonated request")
 }
 
 func TestLoadContextsFromBase64String(t *testing.T) {
@@ -1471,6 +1513,39 @@ func TestSkipKubeContextInCommaSeparatedString(t *testing.T) {
 			for _, ctx := range []kubeconfig.Context{eks, dev, staging, unnamed} {
 				assert.Equal(t, tt.want[ctx.Name], skip(ctx), "context %q", ctx.Name)
 			}
+		})
+	}
+}
+
+// TestSameGroupSet locks in SameGroupSet's contract as the single shared implementation moved
+// here from cmd/multiplexer.go's sameGroups and pkg/portforward/store.go's sameGroupSet (they
+// were byte-for-byte duplicates, kept separate only because pkg/portforward could not import
+// the main cmd package): group membership is a set, not a sequence, so reordering and duplicate
+// entries must not be treated as a changed identity.
+func TestSameGroupSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		a, b []string
+		want bool
+	}{
+		{name: "identical order", a: []string{"dev", "ops"}, b: []string{"dev", "ops"}, want: true},
+		{name: "reordered", a: []string{"dev", "ops"}, b: []string{"ops", "dev"}, want: true},
+		{
+			name: "duplicate collapses to same set",
+			a:    []string{"dev", "dev"}, b: []string{"dev"}, want: true,
+		},
+		{name: "different membership", a: []string{"dev"}, b: []string{"ops"}, want: false},
+		{name: "different size", a: []string{"dev", "ops"}, b: []string{"dev"}, want: false},
+		{name: "both empty", a: nil, b: []string{}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, kubeconfig.SameGroupSet(tt.a, tt.b))
 		})
 	}
 }

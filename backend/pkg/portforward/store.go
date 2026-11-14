@@ -20,12 +20,134 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 const storeKeyPrefix = "PORT_FORWARD_"
+
+// keyPartDelimiter separates the cluster portion of a persistent-cache key
+// (portforwardKeyGenerator) from the ID/service/pod portion that follows it, using the same NUL
+// byte livePortForwardKey already uses for the same reason: without a delimiter, concatenation
+// alone is ambiguous both between cluster names (cluster "prod" is a textual prefix of
+// "prod-eu"'s keys, so getPortForwardList's prefix match would return prod-eu's entries for a
+// request naming only "prod") and between whole (cluster, id) pairs (cluster "prod"+id "1x" and
+// cluster "prod1"+id "x" concatenate to the identical key, so getPortForwardByID could return a
+// different cluster's record entirely). A NUL byte cannot appear in a cluster name, ID, service,
+// or pod name, so it is unambiguous.
+const keyPartDelimiter = "\x00"
+
+// livePortForwards indexes the actual, running *portForward object by livePortForwardKey, so a
+// later request for the same cluster/ID can reach the goroutine's own object -- not a cache
+// snapshot, which GetPortForwards/GetPortForwardByID return by value -- to extend
+// impersonationExpiry (see ExtendImpersonationExpiryForID/-Cluster). An entry is added once,
+// in startPortForward, and removed as soon as the port-forward reaches a terminal STOPPED
+// status or is explicitly deleted, both of which always go through portforwardstore or
+// stopOrDeletePortForward below.
+var livePortForwards sync.Map // key: livePortForwardKey(cluster, id) -> *portForward
+
+// livePortForwardKey builds livePortForwards' key for p, using a NUL byte between cluster and
+// ID. portforwardKeyGenerator below (the persistent cache's own, separately pre-existing key
+// scheme) concatenates the two fields with no delimiter at all, which is fine for an exact
+// cache.Get(key) lookup but makes any prefix match over those keys ambiguous: a cluster name
+// that is a textual prefix of another's (e.g. "prod" / "prod-eu") collides. Because this
+// registry is only ever used for prefix/exact matches (see Extend* below) and nothing else
+// reads its keys, it is free to use a safer scheme of its own instead of inheriting that
+// ambiguity -- NUL cannot appear in either a cluster name or a generated ID, so this delimiter
+// is unambiguous.
+func livePortForwardKey(cluster, id string) string {
+	return cluster + "\x00" + id
+}
+
+// registerLivePortForward makes pf reachable by the Extend* functions below, keyed by its
+// cluster and ID. Callers always supply a non-empty ID (StartPortForward generates one when the
+// request left it blank, before this is ever called).
+func registerLivePortForward(pf *portForward) {
+	cluster := pf.cacheKey
+	if cluster == "" {
+		cluster = pf.Cluster
+	}
+
+	livePortForwards.Store(livePortForwardKey(cluster, pf.ID), pf)
+}
+
+// extendPortForwardExpiry extends pf's impersonationExpiry to newExpiry under pf.mu, but only
+// when newExpiry is later than its current expiry (so this can only extend, never shorten),
+// pf was started under impersonation in the first place (impersonationExpiry.IsZero()
+// otherwise, meaning this field does not apply to it at all), and both username AND group
+// membership match the identity pf was started under. Username alone is not enough: pf.rConf's
+// own Impersonate.Groups -- the actual authorization a reconnect or ongoing monitor call
+// carries -- is fixed at start and never updated, so a later re-verification for the same
+// username but a group membership that has since shrunk must not extend this port-forward's
+// expiry, or it would keep running under those now-stale, over-broad groups for longer than
+// that smaller membership's own token would ever have allowed.
+func extendPortForwardExpiry(pf *portForward, username string, groups []string, newExpiry time.Time) {
+	if pf.mu != nil {
+		pf.mu.Lock()
+		defer pf.mu.Unlock()
+	}
+
+	sameIdentity := !pf.impersonationExpiry.IsZero() &&
+		pf.impersonatedUsername == username && kubeconfig.SameGroupSet(pf.impersonatedGroups, groups)
+	if sameIdentity && newExpiry.After(pf.impersonationExpiry) {
+		pf.impersonationExpiry = newExpiry
+	}
+}
+
+// ExtendImpersonationExpiryForID extends the impersonation expiry of the single live
+// port-forward identified by cluster and id, when its impersonated identity is username/groups.
+// GET .../portforward (by ID) calls this with the identity it just re-verified for this
+// request, so an actively-refreshing browser session keeps its port-forward alive past the
+// lifetime of any one verified ID token.
+func ExtendImpersonationExpiryForID(cluster, id, username string, groups []string, newExpiry time.Time) {
+	if username == "" || newExpiry.IsZero() {
+		return
+	}
+
+	value, ok := livePortForwards.Load(livePortForwardKey(cluster, id))
+	if !ok {
+		return
+	}
+
+	pf, ok := value.(*portForward)
+	if !ok {
+		return
+	}
+
+	extendPortForwardExpiry(pf, username, groups, newExpiry)
+}
+
+// ExtendImpersonationExpiryForCluster extends the impersonation expiry of every live
+// port-forward in cluster whose impersonated identity is username/groups. GET
+// .../portforward/list calls this the same way ExtendImpersonationExpiryForID does for a
+// single ID.
+func ExtendImpersonationExpiryForCluster(cluster, username string, groups []string, newExpiry time.Time) {
+	if username == "" || newExpiry.IsZero() {
+		return
+	}
+
+	prefix := cluster + "\x00"
+
+	livePortForwards.Range(func(key, value interface{}) bool {
+		keyStr, ok := key.(string)
+		if !ok || !strings.HasPrefix(keyStr, prefix) {
+			return true
+		}
+
+		pf, ok := value.(*portForward)
+		if !ok {
+			return true
+		}
+
+		extendPortForwardExpiry(pf, username, groups, newExpiry)
+
+		return true
+	})
+}
 
 // portforwardKeyGenerator generates a unique key
 // based on the cluster name, id,service name, and pod name.
@@ -38,10 +160,10 @@ func portforwardKeyGenerator(p portForward) string {
 	}
 
 	if p.ID != "" {
-		return storeKeyPrefix + clusterKey + p.ID
+		return storeKeyPrefix + clusterKey + keyPartDelimiter + p.ID
 	}
 
-	key := storeKeyPrefix + clusterKey
+	key := storeKeyPrefix + clusterKey + keyPartDelimiter
 
 	if p.Service != "" {
 		key += p.Service
@@ -52,9 +174,24 @@ func portforwardKeyGenerator(p portForward) string {
 	return key
 }
 
+// livePortForwardKeyFor builds livePortForwards' key for an existing portForward value, using
+// the same cacheKey/Cluster fallback registerLivePortForward applies when it first registers it.
+func livePortForwardKeyFor(p portForward) string {
+	cluster := p.cacheKey
+	if cluster == "" {
+		cluster = p.Cluster
+	}
+
+	return livePortForwardKey(cluster, p.ID)
+}
+
 // portforwardstore stores a port forward in the cache.
 func portforwardstore(cache cache.Cache[interface{}], p portForward) {
 	key := portforwardKeyGenerator(p)
+
+	if p.Status == STOPPED {
+		livePortForwards.Delete(livePortForwardKeyFor(p))
+	}
 
 	err := cache.Set(context.Background(), key, p)
 	if err != nil {
@@ -84,6 +221,8 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 		portforward.Status = STOPPED
 		portforwardstore(cache, portforward)
 	} else {
+		livePortForwards.Delete(livePortForwardKeyFor(portforward))
+
 		err := cache.Delete(context.Background(), portforwardKeyGenerator(portforward))
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"cluster": cluster, "id": id},
@@ -99,7 +238,7 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 // getPortForwardList returns a list of port forwards by its cluster name.
 func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portForward {
 	portforwards, err := cache.GetAll(context.Background(), func(key string) bool {
-		return strings.HasPrefix(key, storeKeyPrefix+cluster)
+		return strings.HasPrefix(key, storeKeyPrefix+cluster+keyPartDelimiter)
 	})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
@@ -118,7 +257,7 @@ func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portFo
 
 // getPortForwardByID returns a port forward by its cluster name and id.
 func getPortForwardByID(cache cache.Cache[interface{}], cluster string, id string) (portForward, error) {
-	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+id)
+	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+keyPartDelimiter+id)
 	if err != nil {
 		return portForward{}, fmt.Errorf("failed to get portforward from cache: %w", err)
 	}

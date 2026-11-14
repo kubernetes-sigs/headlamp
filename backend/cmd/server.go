@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/cli/browser"
+	"github.com/gobwas/glob"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -135,6 +136,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ForceTheme:                            conf.ForceTheme,
 		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
 		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
+		OidcUseImpersonation:                  conf.OidcUseImpersonation,
 	}
 }
 
@@ -213,6 +215,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	setupKubeConfigStoreWatcher(kubeConfigStore)
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
+	multiplexer.oidcUseImpersonationEnabled = conf.OidcUseImpersonation
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
@@ -238,28 +241,60 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
 	}
 
+	applyProxyAuthSettings(cfg, conf)
+
+	compiledProxyURLs := compileProxyURLPatternsOrExit(cfg.ProxyURLs)
+
+	cfg.AdminSettings = loadAdminSettingsOrExit(conf.SettingsPath)
+
+	headlampConfig := &HeadlampConfig{
+		HeadlampConfig:    cfg,
+		compiledProxyURLs: compiledProxyURLs,
+	}
+
+	// The multiplexer calls this once per client message with no per-message response of its
+	// own (see impersonationForRequest's doc comment), so w is always nil here.
+	multiplexer.resolveImpersonation = func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error) {
+		return headlampConfig.impersonationForRequest(nil, r, clusterName, kContext)
+	}
+
+	return headlampConfig
+}
+
+// applyProxyAuthSettings copies the trusted-header proxy-auth configuration onto cfg.
+func applyProxyAuthSettings(cfg *headlampconfig.HeadlampConfig, conf *config.Config) {
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
 	cfg.ProxyAuthUsernameHeader = conf.ProxyAuthUsernameHeader
 	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+}
 
-	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
+// compileProxyURLPatternsOrExit compiles the configured --proxy-urls patterns, exiting the
+// process on an invalid pattern: a malformed glob here is a configuration error the operator
+// must fix before the server can safely know which URLs it is allowed to proxy to.
+func compileProxyURLPatternsOrExit(patterns []string) []glob.Glob {
+	compiledProxyURLs, err := compileProxyURLPatterns(patterns)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
 		os.Exit(1)
 	}
 
-	cfg.AdminSettings, err = loadAdminSettings(conf.SettingsPath)
+	return compiledProxyURLs
+}
+
+// loadAdminSettingsOrExit reads and validates the admin settings JSON file, exiting the
+// process if the configured path cannot be read or does not contain valid JSON.
+func loadAdminSettingsOrExit(path string) json.RawMessage {
+	adminSettings, err := loadAdminSettings(path)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading admin settings")
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
-		HeadlampConfig:    cfg,
-		compiledProxyURLs: compiledProxyURLs,
-	}
+	return adminSettings
 }
 
 // loadAdminSettings reads and validates the admin settings JSON file.
@@ -332,6 +367,13 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 
 	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 	if err != nil {
+		return
+	}
+
+	// Cache entries are keyed by cluster and URL, not by identity. A request that acts as a
+	// verified user must neither read another identity's response nor store its own.
+	if c.shouldUseImpersonationForContext(kContext) {
+		next.ServeHTTP(w, r)
 		return
 	}
 

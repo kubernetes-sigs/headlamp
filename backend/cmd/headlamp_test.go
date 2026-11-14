@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -43,6 +44,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/internal/testutil"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
@@ -71,6 +73,7 @@ import (
 const (
 	minikubeName            = "minikube"
 	testServiceAccountToken = "service-account-token"
+	testOidcClientID        = "headlamp"
 )
 
 func makeJSONReq(method, url string, jsonObj interface{}) (*http.Request, error) {
@@ -95,6 +98,31 @@ func writeTestTokenFile(t *testing.T) string {
 	require.NoError(t, os.WriteFile(tokenFile, []byte(testServiceAccountToken), 0o600))
 
 	return tokenFile
+}
+
+// applySetCookies replays a response's Set-Cookie headers onto req as a browser's cookie jar
+// would: for each (name, path) pair, only the LAST Set-Cookie wins, and a cleared cookie (empty
+// value) is dropped rather than replayed as a literal empty-valued cookie. Simply appending every
+// Set-Cookie header in order (as Response.Cookies() returns them) would instead let an earlier
+// clearing write -- for example ClearTokenCookie's internal call inside SetTokenCookie -- shadow
+// the real value set right after it, since net/http returns the first matching cookie by name.
+func applySetCookies(req *http.Request, resp *http.Response) {
+	type key struct{ name, path string }
+
+	latest := map[key]*http.Cookie{}
+
+	for _, c := range resp.Cookies() {
+		latest[key{c.Name, c.Path}] = c
+	}
+
+	for _, c := range latest {
+		if c.Value == "" || c.MaxAge < 0 {
+			continue
+		}
+
+		//nolint:gosec // Request cookie fixture; response security attributes do not apply.
+		req.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
+	}
 }
 
 func TestValidateServiceAccountNamespace(t *testing.T) {
@@ -1085,6 +1113,78 @@ func newExternalProxyHandler(t *testing.T, upstream string) http.Handler {
 	})
 }
 
+// TestExternalProxy_DoesNotForwardCookies checks that the Cookie header is not forwarded to an
+// allowed external proxy target. Auth cookies are scoped to the whole deployment (see
+// auth.GetCookiePath), so a single request carries every cluster's auth token; this handler
+// otherwise copies every inbound header verbatim to an operator-configured but arbitrary
+// external URL, which is not one of our own cluster API servers.
+func TestExternalProxy_DoesNotForwardCookies(t *testing.T) {
+	var forwardedCookieHeader string
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwardedCookieHeader = r.Header.Get("Cookie")
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer proxyServer.Close()
+
+	handler := newExternalProxyHandler(t, proxyServer.URL)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", proxyServer.URL)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("some-cluster") + ".0", Value: "cluster-token",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Empty(t, forwardedCookieHeader, "the Cookie header must never reach an external proxy target")
+}
+
+// TestExternalProxy_ForwardsNonAuthCookiesButStripsHeadlampAuth checks that stripping Headlamp's
+// own auth cookies (see TestExternalProxy_DoesNotForwardCookies) does not take a caller's other
+// cookies with it. A blanket Header.Del("Cookie") would also drop cookies the caller attached for
+// the external target's own purposes, which have nothing to do with Headlamp's session.
+func TestExternalProxy_ForwardsNonAuthCookiesButStripsHeadlampAuth(t *testing.T) {
+	var forwardedCookieHeader string
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwardedCookieHeader = r.Header.Get("Cookie")
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer proxyServer.Close()
+
+	handler := newExternalProxyHandler(t, proxyServer.URL)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", proxyServer.URL)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("some-cluster") + ".0", Value: "cluster-token",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+	req.AddCookie(&http.Cookie{
+		Name: "session_id", Value: "caller-owned-cookie",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, forwardedCookieHeader, "session_id=caller-owned-cookie",
+		"a caller's own, non-Headlamp cookie must still reach the external target")
+	assert.NotContains(t, forwardedCookieHeader, "headlamp-auth-",
+		"Headlamp's own auth cookies must never reach an external proxy target")
+}
+
 func TestExternalProxyForwarding(t *testing.T) {
 	const backendToken = "desktop-token"
 
@@ -1451,7 +1551,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1504,7 +1604,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1601,7 +1701,7 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	})
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-" + customCluster + ".0",
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(customCluster) + ".0",
 		Value:    testToken,
 		HttpOnly: true,
 		Secure:   true,
@@ -1620,7 +1720,99 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	}
 }
 
-func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
+//nolint:funlen // Test sets up kubeconfig, OIDC issuer, and asserts impersonated drain credentials
+func TestHandleNodeDrainImpersonatesVerifiedUser(t *testing.T) {
+	const (
+		cluster  = "main"
+		nodeName = "node-a"
+	)
+
+	tokenFile := writeTestTokenFile(t)
+
+	type apiRequest struct {
+		authorization string
+		impersonated  string
+	}
+
+	requests := make(chan apiRequest, 3)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case requests <- apiRequest{
+			authorization: r.Header.Get("Authorization"),
+			impersonated:  r.Header.Get("Impersonate-User"),
+		}:
+		default:
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/"+nodeName:
+			_ = json.NewEncoder(w).Encode(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: nodeName}})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/nodes/"+nodeName:
+			_ = json.NewEncoder(w).Encode(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: nodeName}})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/pods":
+			_ = json.NewEncoder(w).Encode(&corev1.PodList{})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	req, err := makeJSONReq(http.MethodPost, "/drain-node", struct {
+		Cluster  string `json:"cluster"`
+		NodeName string `json:"nodeName"`
+	}{
+		Cluster:  cluster,
+		NodeName: nodeName,
+	})
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	cfg.handleNodeDrain(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	select {
+	case got := <-requests:
+		// The raw OIDC token never reaches the API server; the drain acts as the verified user.
+		assert.Equal(t, "Bearer "+testServiceAccountToken, got.authorization)
+		assert.Equal(t, "alice@example.com", got.impersonated)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for drain request to reach Kubernetes API")
+	}
+}
+
+func TestDrainNodeCancelledContextWritesInterruptedStatus(t *testing.T) {
 	pod1 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-1",
@@ -1651,12 +1843,112 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
-	assert.Never(t, func() bool {
+	require.Eventually(t, func() bool {
 		_, err := testCache.Get(context.Background(), cacheKey)
 		return err == nil
-	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
+	}, time.Second, 10*time.Millisecond, "a cancelled drain must still report a status, not vanish silently")
+
+	got, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, "error: node drain was canceled; node may be partially drained", got)
+}
+
+// TestDrainNode_RefusesExpiredImpersonation covers the gap TestDrainNodeCancelledContextWritesInterruptedStatus
+// does not: an impersonated drain's verified identity can expire mid-operation even though the
+// caller never cancelled anything -- the drain runs on Headlamp's own service account credential,
+// which Kubernetes has no token to re-verify or expire on its own, so nothing else would ever stop
+// it from cordoning the node and evicting its pods under a session that has already ended. Passing
+// an already-past impersonationExpiry with an otherwise live ctx must still refuse before the node
+// is ever touched, exactly as an already-cancelled ctx does.
+func TestDrainNode_RefusesExpiredImpersonation(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+
+	fakeClient := fake.NewClientset(node)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", time.Now().Add(-time.Minute))
+
+	require.Eventually(t, func() bool {
+		_, err := testCache.Get(context.Background(), cacheKey)
+		return err == nil
+	}, time.Second, 10*time.Millisecond,
+		"a drain refused for expired impersonation must still report a status, not leave the status endpoint 404 forever")
+
+	got, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, "error: authorization expired before node drain finished; node may be partially drained", got)
+
+	gotNode, err := fakeClient.CoreV1().Nodes().Get(context.Background(), "test-node", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.False(t, gotNode.Spec.Unschedulable, "the node must not be cordoned once impersonation has expired")
+}
+
+// TestDrainNodeReportsPartialDrainWhenDeadlinePassesMidOperation covers a gap the other
+// expiry tests do not: TestDrainNode_RefusesExpiredImpersonation only passes a deadline that
+// is already in the past before the drain starts at all. Here the deadline is still in the
+// future when drainNodePods begins deleting pods, and passes partway through -- after pod-1's
+// delete is issued but before the loop reaches pod-2 -- which is the far more realistic case a
+// short-lived impersonated token actually produces in practice.
+func TestDrainNodeReportsPartialDrainWhenDeadlinePassesMidOperation(t *testing.T) {
+	pod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod-1", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	pod2 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod-2", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
+
+	fakeClient := fake.NewClientset(node, pod1, pod2)
+
+	deadline := time.Now().Add(50 * time.Millisecond)
+
+	// Delay pod-1's deletion just long enough for the deadline to pass before the loop reaches
+	// pod-2.
+	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.(k8stesting.DeleteAction).GetName() == "pod-1" {
+			time.Sleep(80 * time.Millisecond)
+		}
+
+		return false, nil, nil
+	})
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{Cache: testCache}}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster", deadline)
+
+	require.Eventually(t, func() bool {
+		_, err := testCache.Get(context.Background(), cacheKey)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+
+	got, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, "error: authorization expired before node drain finished; node may be partially drained", got)
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(context.Background(), "pod-1", metav1.GetOptions{})
+	assert.Error(t, err, "pod-1's delete was issued before the deadline passed, so it should be gone")
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(context.Background(), "pod-2", metav1.GetOptions{})
+	assert.NoError(t, err, "pod-2 must not be deleted once the deadline passed before the loop reached it")
 }
 
 func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
@@ -1703,7 +1995,7 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster", time.Time{})
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -2231,35 +2523,6 @@ func TestCheckUniqueName(t *testing.T) {
 			got := CheckUniqueName(kubeConfig.Contexts, "random-cluster-x", tc.newName)
 			if got != tc.expectUnique {
 				t.Fatalf("CheckUniqueName(%q) = %v; want %v", tc.newName, got, tc.expectUnique)
-			}
-		})
-	}
-}
-
-// TestCheckUniqueNameOwnContext checks that the context being renamed does not
-// count as taken, so it can go back to its original name.
-func TestCheckUniqueNameOwnContext(t *testing.T) {
-	kubeConfig, err := clientcmd.LoadFromFile("./headlamp_testdata/name_validation_test")
-	require.NoError(t, err)
-
-	cases := []struct {
-		label        string
-		currentName  string
-		newName      string
-		expectUnique bool
-	}{
-		{"back to the original name", "superfly-name", "random-cluster-y", true},
-		{"original name by context name", "random-cluster-y", "random-cluster-y", true},
-		{"keep the current custom name", "superfly-name", "superfly-name", true},
-		{"original name of another context", "superfly-name", "random-cluster-x", false},
-		{"unique name for a renamed context", "superfly-name", "amazing-name", true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.label, func(t *testing.T) {
-			got := CheckUniqueName(kubeConfig.Contexts, tc.currentName, tc.newName)
-			if got != tc.expectUnique {
-				t.Fatalf("CheckUniqueName(%q, %q) = %v; want %v", tc.currentName, tc.newName, got, tc.expectUnique)
 			}
 		})
 	}
@@ -4531,7 +4794,7 @@ func TestHandleClusterServiceProxyUsesServiceAccountToken(t *testing.T) {
 //nolint:funlen // Test verifies token extraction for Helm release handling
 func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 	clusterName := "test-cluster-nooidc"
-	cookieName := "headlamp-auth-" + clusterName + ".0"
+	cookieName := "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0"
 
 	// #nosec G101 -- test credential, not a real secret
 	testToken := "non-oidc-test-token"
@@ -4602,6 +4865,77 @@ func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 		"clientConfig bearer token should be set from cookie in non-OIDC in-cluster deployment")
 }
 
+// TestHelmRouteReleaseHandlerImpersonatesVerifiedUser checks that the Helm release handler's
+// impersonation branch authenticates with the in-cluster service account token and carries the
+// verified identity (not the raw OIDC token) in the generated client config. The existing
+// service-account-token test above covers --unsafe-use-service-account-token, which is a
+// different branch of the same handler; this covers --oidc-use-impersonation specifically.
+//
+//nolint:funlen // Test verifies Helm release handling with impersonated OIDC identity
+func TestHelmRouteReleaseHandlerImpersonatesVerifiedUser(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev", "ops"},
+	}))
+
+	var (
+		capturedAuthHeader        string
+		capturedBearerToken       string
+		capturedImpersonateUser   string
+		capturedImpersonateGroups []string
+	)
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		capturedAuthHeader = r.Header.Get("Authorization")
+
+		restConfig, restErr := clientConfig.ClientConfig()
+		if restErr == nil && restConfig != nil {
+			capturedBearerToken = restConfig.BearerToken
+			capturedImpersonateUser = restConfig.Impersonate.UserName
+			capturedImpersonateGroups = restConfig.Impersonate.Groups
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/release/test", nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	w := httptest.NewRecorder()
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/release/test", "test", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, capturedAuthHeader, "the raw OIDC token must not be forwarded")
+	assert.Equal(t, testServiceAccountToken, capturedBearerToken)
+	assert.Equal(t, "alice@example.com", capturedImpersonateUser)
+	assert.ElementsMatch(t, []string{"dev", "ops", "system:authenticated"}, capturedImpersonateGroups)
+}
+
 //nolint:funlen // Test verifies Helm release handling with service account token
 func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 	clusterName := "main"
@@ -4653,7 +4987,7 @@ func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-" + clusterName + ".0",
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
 		Value:    "cookie-token",
 		HttpOnly: true,
 		Secure:   true,
@@ -4721,6 +5055,49 @@ func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
 	assert.Empty(t, capturedAuthHeader)
 }
 
+// TestHelmRouteRepositoryHandler_UnknownClusterWithImpersonationDoesNotPanic locks in that an
+// unknown cluster name is handled cleanly (the KubeConfigStore lookup error, not a panic) when
+// --oidc-use-impersonation is set: GetContext returns a nil *kubeconfig.Context on failure, and
+// shouldUseImpersonationForContext (and so impersonationForRequest) must stay nil-safe for it.
+func TestHelmRouteRepositoryHandler_UnknownClusterWithImpersonationDoesNotPanic(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeconfig.NewContextStore(),
+			},
+			OidcClientID:     testOidcClientID,
+			OidcIdpIssuerURL: "https://example.com",
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/repositories", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	handlerCalled := false
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		handlerCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	require.NotPanics(t, func() {
+		c.helmRouteRepositoryHandler(ctx, span, req, w, "unknown-cluster", "/helm/repositories", "test", handler)
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.False(t, handlerCalled, "the repository handler must not run without a token")
+}
+
 func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:funlen // test scaffolding.
 	const cluster, proxyAuthTokenHeader = "main", "Impersonate-User"
 
@@ -4770,7 +5147,7 @@ func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:f
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.Header.Set(proxyAuthTokenHeader, "kind-header-leak")
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-main.0",
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName("main") + ".0",
 		Value:    "cookie-token",
 		HttpOnly: true,
 		Secure:   true,
@@ -4839,7 +5216,7 @@ func TestClusterRequestHandlerFallsBackToClusterContextForWebSocketCookie(t *tes
 			", base64url.headlamp.authorization.k8s.io.stale-user, v4.channel.k8s.io",
 	)
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-main.0",
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName("main") + ".0",
 		Value:    "cookie-token",
 		HttpOnly: true,
 		Secure:   true,
@@ -5180,6 +5557,2075 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
 
+// TestHelmRouteReleaseHandler_AttachesImpersonationToRequestContext locks in a fix for a gap
+// where helmRouteReleaseHandler resolved the verified impersonation and applied it to the
+// outgoing REST client (context.WithImpersonation, for Impersonate-User/Group headers) but
+// never attached it to r's own context via kubeconfig.ContextWithImpersonation -- the one
+// carrier pkg/helm's impersonationExpiryFromRequest reads from. install/upgrade/uninstall/
+// rollback all run in a goroutine past this handler's own return, and that goroutine's own
+// impersonationExpired guard (added specifically so one of those actions stops once the user's
+// session has expired, exactly like drainNode's existing guard) silently did nothing: it always
+// saw a zero Time and could never expire. Without this handler's own unit tests ever reaching
+// this request/response boundary (they called the internal action functions directly, bypassing
+// this handler entirely), that gap would have shipped invisibly.
+func TestHelmRouteReleaseHandler_AttachesImpersonationToRequestContext(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     cluster,
+		Cluster:  &api.Cluster{Server: "https://" + cluster + ".example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	expiry := time.Now().Add(time.Hour).Truncate(time.Second)
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev"},
+		"exp":    float64(expiry.Unix()),
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+		"/clusters/"+cluster+"/helm/releases/uninstall", nil)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	ctx, span := telemetry.CreateSpan(req.Context(), req, "test", "test")
+
+	defer span.End()
+
+	var (
+		sawImpersonation bool
+		gotExpiry        time.Time
+	)
+
+	cfg.helmRouteReleaseHandler(ctx, span, req, rr, cluster, "/releases/uninstall", "UninstallRelease",
+		func(_ clientcmd.ClientConfig, _ http.ResponseWriter, r *http.Request) {
+			imp, ok := kubeconfig.ImpersonationFromContext(r.Context())
+			sawImpersonation = ok
+
+			if ok {
+				gotExpiry = imp.Expiry
+			}
+		})
+
+	require.True(t, sawImpersonation,
+		"helmRouteReleaseHandler must attach the verified impersonation to the request's context: "+
+			"it is the only carrier pkg/helm's background install/upgrade/uninstall/rollback actions "+
+			"can read an expiry from")
+	assert.True(t, gotExpiry.Equal(expiry))
+}
+
+//nolint:funlen // Test sets up a fake API server, kubeconfig, and OIDC issuer end to end
+func TestHandleClusterAPI_OIDCImpersonation(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	var receivedAuth, receivedUser string
+
+	var receivedGroups []string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev", "ops"},
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	// A client-supplied impersonation header must never reach the API server.
+	req.Header.Set("Impersonate-User", "system:admin")
+	req.Header.Add("Impersonate-Group", "system:masters")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	// The real API server never sees the raw OIDC token: the connection authenticates as
+	// Headlamp's own in-cluster service account token instead.
+	assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
+	// Per-user identity is preserved via impersonation headers, derived from the verified
+	// OIDC token's claims using the configured me-username-path/me-groups-path JMESPaths.
+	assert.Equal(t, "alice@example.com", receivedUser)
+	assert.ElementsMatch(t, []string{"dev", "ops", "system:authenticated"}, receivedGroups)
+}
+
+// TestImpersonationFailureHidesVerificationDetail locks in a fix for a gap where an
+// identity-verification failure on these routes sent the raw underlying OIDC error
+// (issuer/audience/claim detail, token-parsing errors) straight to the client instead of a
+// generic "unauthorized". That detail is diagnostic information about the identity provider's
+// configuration, useful for an operator reading the server log, not something an unverified
+// caller needs to see.
+func TestImpersonationFailureHidesVerificationDetail(t *testing.T) {
+	const cluster = "main"
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{
+			name:   "service proxy",
+			method: http.MethodGet,
+			path:   "/clusters/" + cluster + "/serviceproxy/default/svc?request=/",
+		},
+		{
+			name:   "port forward start",
+			method: http.MethodPost,
+			path:   "/clusters/" + cluster + "/portforward",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenFile := writeTestTokenFile(t)
+
+			kubeConfigStore := kubeconfig.NewContextStore()
+			require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+				Name:     cluster,
+				Cluster:  &api.Cluster{Server: "https://" + cluster + ".example.com"},
+				AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+				Source:   kubeconfig.InCluster,
+			}))
+
+			issuer := testutil.NewFakeOIDCIssuer(t)
+			cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+			handler := createHeadlampHandler(newTestHandlerCtx(t), cfg)
+
+			req := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
+			req.AddCookie(&http.Cookie{
+				Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+				Value:    "not-a-valid-jwt",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+			assert.Equal(t, "unauthorized", strings.TrimSpace(rr.Body.String()))
+		})
+	}
+}
+
+// TestHandleClusterAPI_OIDCImpersonation_ProactiveRefreshThenImpersonate is an end-to-end check
+// that the two layers production actually stacks -- auth.NewOIDCTokenRefreshMiddleware (wrapping
+// the whole handler in serverHandler) and handleClusterAPI's own impersonation handling --
+// interact correctly in a single request, not just in isolation from each other. Every other
+// impersonation test here either exercises impersonationForRequest directly or drives
+// handleClusterAPI with a token that is already valid for the whole request, so neither one
+// alone would have caught a bug in how the two layers hand off: for example, the refresh
+// middleware's own Set-Cookie/Authorization-header update not reaching the impersonation check
+// that runs afterward in the same request.
+//
+// The cookie presented here is deliberately near its expiry (not already expired), so the
+// proactive middleware -- not impersonationForRequest's own verify-failure fallback -- is what
+// performs the refresh. The fake token endpoint returns a DIFFERENT identity than the one on the
+// presented token, so a passing assertion on the refreshed identity reaching the fake API server
+// can only mean the refreshed token, not the stale one, was what got impersonated.
+//
+//nolint:funlen // Test exercises proactive refresh middleware and impersonation together in one request
+func TestHandleClusterAPI_OIDCImpersonation_ProactiveRefreshThenImpersonate(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	var receivedAuth, receivedUser string
+
+	var receivedGroups []string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	// Needed for the refresh middleware's own token exchange; impersonationForRequest's verifier
+	// is built from cfg's own fields instead, so TestHandleClusterAPI_OIDCImpersonation above
+	// never needed this (it never triggers a refresh).
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	staleToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(time.Second).Unix()),
+	}))
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice-refreshed@example.com",
+		"groups": []interface{}{"dev", "ops"},
+	}))
+
+	require.NoError(t, cfg.Cache.Set(context.Background(), "oidc-token-"+staleToken, "cached-refresh-token"))
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	// The same production wiring as serverHandler: the refresh middleware wraps the whole
+	// handler tree, including handleClusterAPI's routes.
+	handler := cfg.OIDCTokenRefreshMiddleware(router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    staleToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
+	assert.Equal(t, "alice-refreshed@example.com", receivedUser,
+		"the API server must be impersonated as the refreshed identity, not the stale one")
+	assert.ElementsMatch(t, []string{"dev", "ops", "system:authenticated"}, receivedGroups)
+
+	// The browser's cookie must also come away refreshed and deployment-scoped (impersonation
+	// is in effect for this context), not just this one request's in-flight Authorization header.
+	var cookie *http.Cookie
+
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0" {
+			cookie = c
+		}
+	}
+
+	require.NotNil(t, cookie, "expected a refreshed auth cookie")
+	assert.Equal(t, refreshedToken, cookie.Value)
+	assert.Equal(t, "/", cookie.Path)
+}
+
+func TestHandleClusterAPI_OIDCImpersonation_ForgedTokenRejected(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("the API server should not be contacted for a token that fails verification")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	attacker := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	// The attacker signs claims naming a privileged user with their own key.
+	forged := attacker.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "admin@example.com",
+		"groups": []interface{}{"system:masters"},
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    forged,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// TestHandleClusterAPI_PlainPassthroughStripsClientImpersonationHeaders covers the third branch
+// of clusterRequestHandler's switch: a context that uses neither Headlamp's own service account
+// credential nor impersonation (UsesInClusterServiceAccountToken is false, so both
+// shouldUseUnsafeServiceAccountTokenForContext and shouldUseImpersonationForContext are false),
+// which forwards the caller's own proxy-auth/cookie token as the Bearer credential directly.
+// impersonatingRoundTripper does nothing in this branch (no impersonation value is ever attached
+// to the request's context here), so stripImpersonationHeaders is the only thing standing
+// between a client-supplied Impersonate-* header and the API server; it must still run
+// unconditionally, not just in the other two branches that go on to set their own.
+func TestHandleClusterAPI_PlainPassthroughStripsClientImpersonationHeaders(t *testing.T) {
+	const cluster = "main"
+
+	var (
+		receivedAuth   string
+		receivedUser   string
+		receivedGroups []string
+	)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUser = r.Header.Get("Impersonate-User")
+		receivedGroups = r.Header.Values("Impersonate-Group")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL},
+		AuthInfo: &api.AuthInfo{Token: "plain-user-token"},
+		// Not kubeconfig.InCluster, and no TokenFile: UsesInClusterServiceAccountToken is false,
+		// so this context never qualifies for the service-account or impersonation branches,
+		// regardless of the global --oidc-use-impersonation setting below.
+		Source: kubeconfig.KubeConfig,
+	})
+	require.NoError(t, err)
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	// This branch forwards whatever is in the cookie directly, unverified -- that is the whole
+	// point of the plain-passthrough path, so a trivial value is enough to exercise it.
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    "raw-cookie-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	// A client-supplied impersonation header must never reach the API server, even on this
+	// plain-passthrough path where the round tripper does nothing to protect against it.
+	req.Header.Set("Impersonate-User", "system:admin")
+	req.Header.Add("Impersonate-Group", "system:masters")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer raw-cookie-token", receivedAuth)
+	assert.Empty(t, receivedUser, "client-supplied Impersonate-User must not reach the API server")
+	assert.Empty(t, receivedGroups, "client-supplied Impersonate-Group must not reach the API server")
+}
+
+// TestHandleClusterAPI_OIDCImpersonation_ConnectionHeaderCannotStripIdentity checks that a
+// client cannot defeat impersonation by naming the trusted Impersonate-* headers in its own
+// Connection header. httputil.ReverseProxy removes any header a client names there before
+// handing the request to its Transport; if that happened to our headers (set directly on the
+// request, as setImpersonationHeaders used to), the API server would see no impersonation at
+// all and treat the request as Headlamp's own service account instead of the verified user.
+//
+//nolint:funlen // Test covers both a plain request and a WebSocket upgrade in table-driven subtests
+func TestHandleClusterAPI_OIDCImpersonation_ConnectionHeaderCannotStripIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		connection    string
+		otherHeaders  map[string]string
+		wantUpgradeNo bool
+	}{
+		{
+			name:       "plain request",
+			connection: "Impersonate-User, Impersonate-Group",
+		},
+		{
+			name:       "websocket upgrade request",
+			connection: "Upgrade, Impersonate-User, Impersonate-Group",
+			otherHeaders: map[string]string{
+				"Upgrade": "websocket",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const cluster = "main"
+
+			tokenFile := writeTestTokenFile(t)
+
+			var receivedAuth, receivedUser string
+
+			var receivedGroups []string
+
+			kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedAuth = r.Header.Get("Authorization")
+				receivedUser = r.Header.Get("Impersonate-User")
+				receivedGroups = r.Header.Values("Impersonate-Group")
+
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("OK"))
+			}))
+			t.Cleanup(kubeAPI.Close)
+
+			kubeConfigStore := kubeconfig.NewContextStore()
+			require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+				Name: cluster,
+				KubeContext: &api.Context{
+					Cluster:  cluster,
+					AuthInfo: cluster,
+				},
+				Cluster: &api.Cluster{
+					Server:                kubeAPI.URL,
+					InsecureSkipTLSVerify: true,
+				},
+				AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+				Source:   kubeconfig.InCluster,
+			}))
+
+			issuer := testutil.NewFakeOIDCIssuer(t)
+			cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+			token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+				"email":  "alice@example.com",
+				"groups": []interface{}{"dev"},
+			}))
+
+			router := mux.NewRouter()
+			handleClusterAPI(cfg, router)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+			req.AddCookie(&http.Cookie{
+				Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+				Value:    token,
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			for name, value := range tc.otherHeaders {
+				req.Header.Set(name, value)
+			}
+			// Names our own trusted headers as hop-by-hop, so a naive implementation that sets
+			// them directly on the inbound request has them stripped before they reach the wire.
+			req.Header.Set("Connection", tc.connection)
+
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
+			assert.Equal(t, "alice@example.com", receivedUser,
+				"the Connection header must not strip the verified identity")
+			assert.ElementsMatch(t, []string{"dev", "system:authenticated"}, receivedGroups)
+		})
+	}
+}
+
+// TestHandleClusterAPI_OIDCImpersonation_ExecSessionClosedOnExpiry locks in the fix for a gap in
+// clusterRequestHandler: unlike every other long-lived impersonated session this feature added
+// (multiplexer, port-forward, helm), a WebSocket-upgraded one -- kubectl exec or attach, proxied
+// via httputil.ReverseProxy's hijack-and-pipe upgrade handling -- ran for the life of the
+// underlying connection with no cutoff once the verified identity's expiry passed. Fixed by
+// binding the request's context to a deadline at impersonation.Expiry: ReverseProxy's own
+// handleUpgradeResponse already closes the hijacked backend connection once the request's
+// context is cancelled (see golang.org/issue/35559), so nothing else needs to watch for it.
+//
+//nolint:funlen // Sets up a real hijacked connection end to end; splitting it would obscure the sequence
+func TestHandleClusterAPI_OIDCImpersonation_ExecSessionClosedOnExpiry(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	// Simulates kubectl exec/attach's apiserver endpoint: accepts the upgrade, then holds the
+	// connection open indefinitely, as a real exec session would for an interactive shell,
+	// never closing it on its own -- so the test can tell whether the *client* side (Headlamp's
+	// own proxy) is the one that eventually closes it.
+	backendClosed := make(chan struct{})
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rc := http.NewResponseController(w)
+
+		conn, _, err := rc.Hijack()
+		require.NoError(t, err)
+
+		defer func() { _ = conn.Close() }()
+
+		_, err = conn.Write([]byte("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
+		require.NoError(t, err)
+
+		buf := make([]byte, 1)
+		for {
+			if _, err := conn.Read(buf); err != nil {
+				close(backendClosed)
+				return
+			}
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	// exp has whole-second granularity (see impersonationTestClaims), so one second from now is
+	// the smallest reliable margin for a short-lived token in this test.
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev"},
+		"exp":    float64(time.Now().Add(time.Second).Unix()),
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	headlamp := httptest.NewServer(router)
+	t.Cleanup(headlamp.Close)
+
+	headlampURL, err := url.Parse(headlamp.URL)
+	require.NoError(t, err)
+
+	var dialer net.Dialer
+
+	conn, err := dialer.DialContext(context.Background(), "tcp", headlampURL.Host)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	require.NoError(t, err)
+
+	req.Host = headlampURL.Host
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	require.NoError(t, req.Write(conn))
+
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+
+	start := time.Now()
+
+	// With the fix, Headlamp closes its side once the verified identity's expiry passes, which
+	// closes the backend connection too (both ends of the hijacked pipe close together). Reading
+	// until EOF measures how long the session actually stayed open.
+	_, _ = io.Copy(io.Discard, conn)
+	elapsed := time.Since(start)
+
+	assert.Less(t, elapsed, 5*time.Second,
+		"exec/attach session should be closed once the impersonated identity's expiry passes")
+
+	select {
+	case <-backendClosed:
+	case <-time.After(5 * time.Second):
+		t.Error("backend connection was never closed")
+	}
+}
+
+// TestHandleClusterAPI_OIDCImpersonation_BearerOnlyToken checks that a request presenting its ID
+// token only as an Authorization bearer header -- with no cookie and no proxy-auth header, as
+// pkg/serviceproxy and the Helm routes already accept -- is still impersonated correctly.
+func TestHandleClusterAPI_OIDCImpersonation_BearerOnlyToken(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	var receivedUser string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUser = r.Header.Get("Impersonate-User")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	// No cookie: the token is presented only as a bearer header.
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "alice@example.com", receivedUser)
+}
+
+// TestHandleClusterAPI_OIDCImpersonation_InvalidBearerOnlyTokenRejected checks the bearer-only
+// fallback also rejects a token that fails verification, rather than treating an unparsable or
+// forged bearer value as if no token were presented at all.
+func TestHandleClusterAPI_OIDCImpersonation_InvalidBearerOnlyTokenRejected(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("the API server should not be contacted for a token that fails verification")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	req.Header.Set("Authorization", "Bearer not-a-jwt")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// newImpersonationTestConfig returns a Headlamp config that impersonates OIDC users verified
+// against the issuer at issuerURL.
+// TestHandleClusterAPI_DoesNotLeakOtherClusterCookies checks that the raw Cookie header is
+// stripped before a request reaches the upstream API server. Auth cookies are scoped to the
+// whole deployment (see auth.GetCookiePath), not per cluster, so a browser attaches every
+// cluster's auth cookie to every cluster's request; cluster A's API server must never see
+// cluster B's raw token in the forwarded Cookie header.
+func TestHandleClusterAPI_DoesNotLeakOtherClusterCookies(t *testing.T) {
+	var receivedCookieHeader, receivedAuth string
+
+	clusterAAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCookieHeader = r.Header.Get("Cookie")
+		receivedAuth = r.Header.Get("Authorization")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(clusterAAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:    "cluster-a",
+		Cluster: &api.Cluster{Server: clusterAAPI.URL},
+	}))
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:    "cluster-b",
+		Cluster: &api.Cluster{Server: "https://cluster-b.example.com"},
+	}))
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/cluster-a/healthz", nil)
+	// A browser with cookies scoped to the deployment root attaches every cluster's auth
+	// cookie to every cluster's request, not just the one being requested.
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-a") + ".0", Value: "cluster-a-token",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-b") + ".0", Value: "cluster-b-token",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer cluster-a-token", receivedAuth)
+	assert.Empty(t, receivedCookieHeader, "the raw Cookie header must never reach the upstream API server")
+}
+
+// TestHandleClusterAPI_ImpersonationDoesNotLeakCookies locks in the fix for an asymmetry: Cookie
+// deletion used to live only in the non-impersonation branch's own inline call, so proving it
+// also happened under impersonation depended on knowing clearRequestAuthorization deletes Cookie
+// too, which is not obvious from its name. Cookie deletion is now unconditional, after the
+// switch, so every branch is provably covered from one place regardless of which one ran.
+func TestHandleClusterAPI_ImpersonationDoesNotLeakCookies(t *testing.T) {
+	var receivedCookieHeader, receivedAuth string
+
+	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCookieHeader = r.Header.Get("Cookie")
+		receivedAuth = r.Header.Get("Authorization")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(clusterAPI.Close)
+
+	tokenFile := writeTestTokenFile(t)
+	clusterName := "cluster-a"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: clusterAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:    "cluster-b",
+		Cluster: &api.Cluster{Server: "https://cluster-b.example.com"},
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+clusterName+"/healthz", nil)
+	// A browser with cookies scoped to the deployment root (as impersonation uses) attaches
+	// every cluster's auth cookie to every cluster's request, not just the one being requested.
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0", Value: token,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-b") + ".0", Value: "cluster-b-token",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Empty(t, receivedCookieHeader,
+		"the raw Cookie header must never reach the upstream API server under impersonation either")
+	assert.Empty(t, receivedAuth, "the raw OIDC token must not be forwarded as Authorization under impersonation")
+}
+
+// TestHandleClusterAPI_ReissuesLegacyCookieAtDeploymentScope locks in the fix for a gap: a
+// session that logged in before --oidc-use-impersonation was enabled on this deployment only
+// has a cookie scoped to /clusters/<cluster>. An ordinary cluster request still finds and
+// verifies that cookie successfully (a browser still attaches a narrow-scoped cookie to its own
+// cluster-scoped subpath), so nothing else would prompt a fresh login that would otherwise
+// reissue it at the wider, deployment-scoped path /wsMultiplexer and node-drain depend on --
+// those routes would silently never work for that session. This checks that a successful
+// impersonated cluster request reissues the cookie at the deployment-wide path once, not just
+// leaving the narrow one in place or writing the token again on every subsequent request.
+//
+//nolint:funlen // Test sets up kubeconfig, OIDC issuer, and a legacy-scoped cookie to verify reissue
+func TestHandleClusterAPI_ReissuesLegacyCookieAtDeploymentScope(t *testing.T) {
+	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(clusterAPI.Close)
+
+	tokenFile := writeTestTokenFile(t)
+	clusterName := "cluster-a"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: clusterAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+clusterName+"/healthz", nil)
+	// Only the legacy, narrow-scoped cookie a pre-impersonation login would have set -- no
+	// deployment-wide one exists yet.
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0", Value: token,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	wantName := "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0"
+
+	var sawDeploymentScopedReissue bool
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == wantName && cookie.Path == "/" && cookie.Value == token {
+			sawDeploymentScopedReissue = true
+		}
+	}
+
+	assert.True(t, sawDeploymentScopedReissue,
+		"a successful impersonated cluster request must reissue the cookie at the deployment-wide path too")
+
+	nextRequest := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "/clusters/"+clusterName+"/healthz", nil)
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.MaxAge >= 0 {
+			nextRequest.AddCookie(cookie)
+		}
+	}
+
+	nextResponse := httptest.NewRecorder()
+	router.ServeHTTP(nextResponse, nextRequest)
+	assert.Equal(t, http.StatusOK, nextResponse.Code)
+	assert.Empty(t, nextResponse.Result().Cookies(),
+		"an already migrated session must not write another token-bearing Set-Cookie response")
+}
+
+func TestHandleClusterAPI_RejectsUnstorableMigrationWithoutClearingCookie(t *testing.T) {
+	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(clusterAPI.Close)
+
+	tokenFile := writeTestTokenFile(t)
+	clusterName := "cluster-a"
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: clusterAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":   "alice@example.com",
+		"padding": strings.Repeat("a", 20000),
+	}))
+	require.Greater(t, len(token), 5*3800)
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/"+clusterName+"/healthz", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0", Value: token,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code,
+		"an unstorable deployment-scoped cookie must fail the migration request")
+	assert.Empty(t, rr.Result().Cookies(),
+		"failed migration must leave the existing cookie untouched")
+}
+
+func newImpersonationTestConfig(kubeConfigStore kubeconfig.ContextStore, issuerURL string) *HeadlampConfig {
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeConfigStore,
+			},
+			OidcClientID:     testOidcClientID,
+			OidcIdpIssuerURL: issuerURL,
+			MeUsernamePaths:  "email",
+			MeGroupsPaths:    "groups",
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+}
+
+// impersonationTestClaims returns valid ID token claims for the test issuer, merged with extra.
+func impersonationTestClaims(issuerURL string, extra map[string]interface{}) map[string]interface{} {
+	claims := map[string]interface{}{
+		"iss": issuerURL,
+		"aud": testOidcClientID,
+		"sub": "alice",
+		"iat": float64(time.Now().Unix()),
+		"exp": float64(time.Now().Add(time.Hour).Unix()),
+	}
+
+	for key, value := range extra {
+		claims[key] = value
+	}
+
+	return claims
+}
+
+// TestImpersonationForRequest_RefreshesExpiredToken locks in the fix for a gap flagged from two
+// angles: a request whose carried ID token has expired is retried once against a freshly
+// refreshed token before being rejected outright. This matters most for the WebSocket
+// multiplexer, which calls impersonationForRequest (via resolveImpersonation) once per client
+// message for a connection's entire lifetime, against the single *http.Request captured at the
+// initial upgrade -- its Cookie header can never be updated after that, no matter how many
+// other requests refresh the browser's actual cookie in the meantime. Without this fallback, a
+// long-lived connection would reject every message from the moment its captured token expires,
+// until a full reconnect happens to land after some unrelated request has refreshed the
+// browser's cookie first.
+//
+//nolint:funlen // Test exercises expiry, refresh, and re-verification of the resulting token
+func TestImpersonationForRequest_RefreshesExpiredToken(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	// refreshedIDToken looks this up via kContext.OidcConfig(), separately from the verifier's
+	// own issuer/client ID (set on c by newImpersonationTestConfig); both must point at the
+	// same fake issuer for the refreshed token to verify.
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	expiredToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
+
+	// Mirrors auth.oidcKeyPrefix ("oidc-token-"), an unexported constant in the auth package:
+	// this is the cache key GetNewToken looks up a token's refresh token under.
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
+
+	var capturedGrantType, capturedRefreshToken string
+
+	var tokenEndpointHits int32
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&tokenEndpointHits, 1)
+
+		require.NoError(t, r.ParseForm())
+		capturedGrantType = r.PostForm.Get("grant_type")
+		capturedRefreshToken = r.PostForm.Get("refresh_token")
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	// Modeled on the WebSocket multiplexer's own call shape: a request carrying the token as a
+	// cookie, not an Authorization header (see requestIDToken).
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+		Value:    expiredToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	identity, err := c.impersonationForRequest(nil, req, clusterName, kContext)
+	require.NoError(t, err,
+		"a request whose token expired must be retried against a refreshed token, not rejected outright")
+	require.NotNil(t, identity)
+
+	assert.Equal(t, "alice@example.com", identity.Username,
+		"the resolved identity must come from the refreshed token, not the expired one")
+	assert.Equal(t, "refresh_token", capturedGrantType)
+	assert.Equal(t, cachedRefreshToken, capturedRefreshToken)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits))
+
+	// A second call against the SAME request -- modeling the multiplexer's next client
+	// message on the same long-lived connection -- must not refresh again: the first call's
+	// refreshed token must already be on req's own Authorization header for requestIDToken to
+	// find, not just returned to its caller.
+	identity, err = c.impersonationForRequest(nil, req, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	assert.Equal(t, "alice@example.com", identity.Username)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits),
+		"a second call on the same request must reuse the refreshed token, not refresh again")
+}
+
+// TestImpersonationForRequest_ReissuesAlreadyDeploymentScopedCookieAfterRefresh locks in a gap
+// distinct from the one above: a route that already has a response writer and whose cookie is
+// already deployment-scoped (so the migration check alone would not fire) must still get the
+// refreshed token written back to its cookie. Without this, a route like /drain-node -- which
+// skips the proactive refresh middleware and reaches impersonationForRequest with an expired,
+// already deployment-scoped cookie -- would verify and use the refreshed token for this one
+// request but never persist it to the browser, leaving the browser to keep resending the stale
+// token until the server-side cache backing the refresh eventually expires too.
+//
+//nolint:funlen // Sets up a deployment-scoped cookie, refreshes it, and verifies the replay.
+func TestImpersonationForRequest_ReissuesAlreadyDeploymentScopedCookieAfterRefresh(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	expiredToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, "cached-refresh-token"))
+
+	issuer.TokenHandler = func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	// Establish an already deployment-scoped cookie carrying the expired token, the same as a
+	// session this package itself already migrated on an earlier request.
+	setupRR := httptest.NewRecorder()
+	setupReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	require.NoError(t, auth.SetTokenCookie(setupRR, setupReq, clusterName, expiredToken, "", 3600, true))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/drain-node", nil)
+	applySetCookies(req, setupRR.Result())
+
+	require.True(t, auth.IsDeploymentScopedTokenCookie(req, clusterName),
+		"test setup must start from an already deployment-scoped cookie")
+
+	rr := httptest.NewRecorder()
+	identity, err := c.impersonationForRequest(rr, req, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	assert.Equal(t, "alice@example.com", identity.Username)
+
+	replayReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	applySetCookies(replayReq, rr.Result())
+
+	persistedToken, err := auth.GetTokenFromCookie(replayReq, clusterName)
+	require.NoError(t, err)
+	assert.Equal(t, refreshedToken, persistedToken,
+		"an already deployment-scoped cookie must be reissued with the refreshed token, "+
+			"not left carrying the expired one")
+}
+
+// TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie locks in the fix for a security gap:
+// a token that arrived via the trusted identity-aware-proxy header must never be turned into a
+// persistent Headlamp cookie. docs/installation/in-cluster/identity-aware-proxy.md states
+// "Backend does not maintain any persistent session, it relies on the headers injected" --
+// reissuing a cookie for it would let a caller authenticate on a later request even without the
+// trusted header present at all, contradicting that header-only trust model.
+func TestHandleClusterAPI_ProxyAuthTokenNeverBecomesCookie(t *testing.T) {
+	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec // Test fixture header name, not a real credential
+
+	clusterAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(clusterAPI.Close)
+
+	tokenFile := writeTestTokenFile(t)
+	clusterName := "cluster-a"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: clusterAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+	c.ProxyAuthEnabled = true
+	c.ProxyAuthTokenHeader = proxyAuthTokenHeader
+
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+clusterName+"/healthz", nil)
+	req.Header.Set(proxyAuthTokenHeader, token)
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	for _, cookie := range rr.Result().Cookies() {
+		assert.NotContains(t, cookie.Name, "headlamp-auth-",
+			"a proxy-auth-sourced token must never be turned into a Headlamp session cookie")
+	}
+}
+
+// TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader locks in a follow-up fix to the
+// one above: persistTokenOnRequest caches a refreshed token under a cluster-scoped header
+// (refreshedIDTokenHeaderPrefix+clusterName) that requestIDToken checks first, regardless of
+// which header or cookie the original (now-expired) token came in on -- rather than overwriting
+// that original source's own header or a cluster-agnostic Authorization header. The latter
+// would be wrong for two independent reasons: it would never be found by a request whose
+// original token came in via the proxy-auth header (requestIDToken never reaches Authorization
+// for such a request), and -- the reason the cache is cluster-scoped at all -- a WebSocket
+// multiplexer shares one *http.Request across every cluster it multiplexes (see
+// HandleClientWebSocket), so a cluster-agnostic header would leak one cluster's refreshed token
+// into a later message's identity resolution for a different cluster on the same connection.
+//
+//nolint:funlen // Test verifies a refreshed token is both used and persisted for a proxy-auth caller
+func TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader(t *testing.T) {
+	const proxyAuthTokenHeader = "X-Auth-Token" //nolint:gosec // Test fixture header name, not a real credential
+
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+	c.ProxyAuthEnabled = true
+	c.ProxyAuthTokenHeader = proxyAuthTokenHeader
+
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	expiredToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
+
+	var tokenEndpointHits int32
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&tokenEndpointHits, 1)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	require.NoError(t, err)
+	req.Header.Set(proxyAuthTokenHeader, expiredToken)
+
+	identity, err := c.impersonationForRequest(nil, req, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	assert.Equal(t, "alice@example.com", identity.Username)
+
+	assert.Equal(t, expiredToken, req.Header.Get(proxyAuthTokenHeader),
+		"the original proxy-auth header must be left untouched -- it is a trusted-proxy-injected "+
+			"header, not something this package should overwrite in place")
+	assert.Empty(t, req.Header.Get("Authorization"),
+		"Authorization must not be set when this request's token came in via the proxy-auth header")
+	assert.NotEmpty(t, req.Header.Get(refreshedIDTokenHeaderPrefix+clusterName),
+		"the refreshed token must be cached under the cluster-scoped header requestIDToken checks first")
+
+	identity, err = c.impersonationForRequest(nil, req, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits),
+		"a second call on the same request must reuse the refreshed token, not refresh again")
+}
+
+// TestImpersonationForRequest_RefreshDoesNotLeakAcrossClusters locks in the fix for the actual
+// cross-cluster leak TestImpersonationForRequest_PersistsRefreshToProxyAuthHeader's unit-level
+// assertions describe: a WebSocket multiplexer connection shares one *http.Request across every
+// cluster it multiplexes (see HandleClientWebSocket), so persisting a refreshed token under a
+// cluster-agnostic name would make cluster-A's refreshed token resolve cluster-B's identity on
+// a later message for the same connection, even though cluster-B's own cookie was never touched.
+//
+//nolint:funlen // Test sets up two clusters, a fake OIDC issuer, and a shared multiplexer-style request
+func TestImpersonationForRequest_RefreshDoesNotLeakAcrossClusters(t *testing.T) {
+	tokenFileA := writeTestTokenFile(t)
+	tokenFileB := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "cluster-a", Cluster: &api.Cluster{Server: "https://cluster-a.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFileA}, Source: kubeconfig.InCluster,
+	}))
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "cluster-b", Cluster: &api.Cluster{Server: "https://cluster-b.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFileB}, Source: kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+	kContextA, err := kubeConfigStore.GetContext("cluster-a")
+	require.NoError(t, err)
+
+	kContextA.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	kContextB, err := kubeConfigStore.GetContext("cluster-b")
+	require.NoError(t, err)
+
+	kContextB.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	// cluster-a's token is expired and will be refreshed; cluster-b's token is already valid
+	// and must never need a refresh -- so the only way its identity could come back wrong is by
+	// picking up cluster-a's refreshed token instead of its own cookie.
+	expiredTokenA := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com", "exp": float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+	refreshedTokenA := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+	validTokenB := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "bob@example.com",
+	}))
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredTokenA, "cached-refresh-token"))
+
+	issuer.TokenHandler = func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "new-access-token", "token_type": "Bearer", "expires_in": 3600,
+			"refresh_token": "new-refresh-token", "id_token": refreshedTokenA,
+		}))
+	}
+
+	// One *http.Request, as HandleClientWebSocket captures at upgrade and reuses for every
+	// client message regardless of msg.ClusterID.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-a") + ".0", Value: expiredTokenA,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName("cluster-b") + ".0", Value: validTokenB,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	// Message 1: cluster-a, whose token is expired and gets reactively refreshed.
+	identityA, err := c.impersonationForRequest(nil, req, "cluster-a", kContextA)
+	require.NoError(t, err)
+	require.NotNil(t, identityA)
+	assert.Equal(t, "alice@example.com", identityA.Username)
+
+	// Message 2 on the SAME req: cluster-b must resolve as bob, not alice.
+	identityB, err := c.impersonationForRequest(nil, req, "cluster-b", kContextB)
+	require.NoError(t, err)
+	require.NotNil(t, identityB)
+	assert.Equal(t, "bob@example.com", identityB.Username,
+		"cluster-b's identity must come from its own cookie, not cluster-a's refreshed token "+
+			"cached on the request they share")
+}
+
+// TestImpersonationForRequest_ReusesLatestKnownGoodToken locks in a fix for a gap in the
+// reactive refresh fallback itself: it used to always perform its own refresh-token exchange,
+// consuming (and for a provider that rotates refresh tokens, permanently invalidating) the
+// cached refresh token, with no way to update the browser's own cookie to the result. A second,
+// independent request presenting that same stale cookie -- a different *http.Request, as a
+// reconnect or an unrelated HTTP request would be, unlike the same-request reuse
+// TestImpersonationForRequest_RefreshesExpiredToken already covers -- must reuse the token a
+// first request's reactive refresh already obtained, instead of attempting its own exchange
+// against an already-consumed refresh token.
+//
+//nolint:funlen // Test verifies the latest-known-good token cache across multiple requests
+func TestImpersonationForRequest_ReusesLatestKnownGoodToken(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	expiredToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
+
+	var tokenEndpointHits int32
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&tokenEndpointHits, 1)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	newStaleRequest := func() *http.Request {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+			Value:    expiredToken,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		return req
+	}
+
+	// First request: a fresh *http.Request carrying the expired cookie, modeling the first
+	// multiplexer message that discovers the need to refresh.
+	identity, err := c.impersonationForRequest(nil, newStaleRequest(), clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits))
+
+	// Second request: a SEPARATE *http.Request still carrying the SAME stale cookie, as a
+	// reconnect or an unrelated HTTP request the browser's cookie jar has not yet been updated
+	// for would present. It must reuse the first request's refreshed token rather than
+	// attempting its own exchange.
+	identity, err = c.impersonationForRequest(nil, newStaleRequest(), clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	assert.Equal(t, "alice@example.com", identity.Username)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits),
+		"a second, independent request with the same stale cookie must reuse the already-refreshed token")
+}
+
+// TestImpersonationForRequest_LatestTokenCacheIsPerSession locks in the fix for a critical
+// cross-user authentication bypass in the "latest known-good token" cache introduced above: it
+// used to be keyed only by cluster, so once alice's token was refreshed, bob's request -- a
+// completely different, unrelated stale token for the SAME cluster, failing verification for
+// any reason at all (expired, malformed, forged; failing verification is not evidence of who
+// presented it) -- would find alice's still-valid refreshed token in that shared entry and be
+// resolved AS alice. Keying the cache by the exact stale token presented (see
+// auth.LatestIDTokenCacheKey) closes this: bob's lookup, keyed by his own token, can never match
+// an entry written for alice's.
+//
+//nolint:funlen // Test verifies the latest-known-good token cache does not leak across sessions
+func TestImpersonationForRequest_LatestTokenCacheIsPerSession(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	// Alice's session: an expired token with a cached refresh token, successfully refreshed.
+	aliceExpiredToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+	aliceRefreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+aliceExpiredToken, "alice-refresh-token"))
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      aliceRefreshedToken,
+		}))
+	}
+
+	aliceReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	require.NoError(t, err)
+	aliceReq.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+		Value:    aliceExpiredToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	identity, err := c.impersonationForRequest(nil, aliceReq, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	require.Equal(t, "alice@example.com", identity.Username)
+
+	// Bob's session: a different, unrelated stale token for the same cluster, with no cached
+	// refresh token of its own at all (simulating any failed-verification case -- expired with
+	// no session, malformed, or forged).
+	bobBadToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "bob@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+
+	bobReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	require.NoError(t, err)
+	bobReq.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+		Value:    bobBadToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	identity, err = c.impersonationForRequest(nil, bobReq, clusterName, kContext)
+	require.Error(t, err,
+		"bob's request must not be silently resolved as alice just because alice's token was recently refreshed")
+	assert.Nil(t, identity)
+}
+
+// TestImpersonationForRequest_CoalescesConcurrentRefreshes locks in the fix for a check-then-act
+// race: the "latest known-good token" cache check and the refresh-token exchange used to be
+// sequential with no synchronization between callers, so concurrent callers presenting the same
+// stale token -- an HTTP request and a WebSocket message, or two sockets -- could all miss the
+// cache check at once and each perform their own exchange. For a provider that rotates refresh
+// tokens, every exchange after the first to finish would fail outright (using a refresh token
+// the first already consumed); for one with reuse detection, two uses of the same refresh token
+// can be read as token theft and revoke the entire token family, turning a benign race into a
+// forced re-login. This launches many goroutines presenting the same stale token concurrently,
+// holding the fake issuer's token endpoint open until all of them have started so the race
+// window is actually exercised (not just avoided by scheduling luck), and confirms only one
+// exchange happens.
+//
+//nolint:funlen // Test drives concurrent goroutines to verify singleflight coalescing
+func TestImpersonationForRequest_CoalescesConcurrentRefreshes(t *testing.T) {
+	const concurrentCallers = 10
+
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	expiredToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	const cachedRefreshToken = "cached-refresh-token" //nolint:gosec // Test fixture constant, not a real credential
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+expiredToken, cachedRefreshToken))
+
+	var (
+		tokenEndpointHits int32
+		arrived           int32
+		release           = make(chan struct{})
+	)
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&tokenEndpointHits, 1)
+
+		// Held open until every caller below has started, so whichever one becomes the
+		// singleflight leader is still in flight while all the others attempt to join it --
+		// proving coalescing, not just that no two calls happened to overlap by luck.
+		<-release
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	var wg sync.WaitGroup
+
+	identities := make([]string, concurrentCallers)
+	errs := make([]error, concurrentCallers)
+
+	for i := 0; i < concurrentCallers; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+			if reqErr != nil {
+				errs[i] = reqErr
+				return
+			}
+
+			req.AddCookie(&http.Cookie{
+				Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+				Value:    expiredToken,
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			if atomic.AddInt32(&arrived, 1) == concurrentCallers {
+				close(release)
+			}
+
+			identity, err := c.impersonationForRequest(nil, req, clusterName, kContext)
+			errs[i] = err
+
+			if identity != nil {
+				identities[i] = identity.Username
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i := 0; i < concurrentCallers; i++ {
+		require.NoError(t, errs[i])
+		assert.Equal(t, "alice@example.com", identities[i])
+	}
+
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits),
+		"concurrent callers presenting the same stale token must coalesce into a single refresh-token exchange")
+}
+
+// TestImpersonationForRequest_DefaultUsernameDoesNotCollideOnDisplayName locks in the fix for a
+// privilege-boundary bug: when --me-username-path is left at its default
+// (config.DefaultMeUsernamePath, "preferred_username,upn,username,name"), impersonation used to
+// inherit that chain as-is for resolving the Kubernetes username to impersonate. Its final
+// fallback, the `name` claim, is a display label OIDC does not require to be unique -- two
+// different users can have identical display names -- so two different people, authenticated as
+// two different OIDC subjects, could both resolve to the same Kubernetes username and inherit
+// identical RBAC. The fix substitutes config.DefaultImpersonationUsernamePath, which ends in
+// `join('#', [iss, sub])` (the OIDC subject claim, which IS guaranteed unique per issuer)
+// instead of `name`, whenever the operator left the shared /me flag unconfigured.
+//
+//nolint:funlen // Test compares default and display-name username paths across two requests
+func TestImpersonationForRequest_DefaultUsernameDoesNotCollideOnDisplayName(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+
+	// Mirrors newImpersonationTestConfig, except MeUsernamePaths is left at its real-world
+	// default instead of an explicit override: cmd/server.go always populates this field from
+	// config.ApplyMeDefaults, so an operator who never passed --me-username-path reaches
+	// impersonationSettings with exactly config.DefaultMeUsernamePath here, never "".
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeConfigStore,
+			},
+			OidcClientID:     testOidcClientID,
+			OidcIdpIssuerURL: issuer.URL,
+			MeUsernamePaths:  config.DefaultMeUsernamePath,
+			MeGroupsPaths:    config.DefaultMeGroupsPath,
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	// Neither token carries preferred_username, upn, or username -- only the shared display
+	// name and each token's own distinct, unique sub -- so the chain falls all the way through
+	// to the final entry in each case.
+	aliceToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"sub":  "alice-subject-id",
+		"name": "John Smith",
+	}))
+	bobToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"sub":  "bob-subject-id",
+		"name": "John Smith",
+	}))
+
+	aliceReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	require.NoError(t, err)
+	aliceReq.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0", Value: aliceToken,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	bobReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
+	require.NoError(t, err)
+	bobReq.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0", Value: bobToken,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	aliceIdentity, err := c.impersonationForRequest(nil, aliceReq, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, aliceIdentity)
+
+	bobIdentity, err := c.impersonationForRequest(nil, bobReq, clusterName, kContext)
+	require.NoError(t, err)
+	require.NotNil(t, bobIdentity)
+
+	assert.NotEqual(t, aliceIdentity.Username, bobIdentity.Username,
+		"two different users sharing a display name must not be impersonated as the same Kubernetes user")
+	assert.Equal(t, issuer.URL+"#alice-subject-id", aliceIdentity.Username)
+	assert.Equal(t, issuer.URL+"#bob-subject-id", bobIdentity.Username)
+}
+
+// TestOIDCTokenRefresh_CoalescesAcrossProactiveAndReactivePaths locks in the fix for a gap left
+// by TestImpersonationForRequest_CoalescesConcurrentRefreshes's own singleflight.Group: that fix
+// only coalesced concurrent callers that both went through latestOrRefreshedIDToken (the
+// multiplexer's reactive refresh). NewOIDCTokenRefreshMiddleware's proactive refresh -- triggered
+// by an ordinary /clusters/... HTTP request -- called RefreshAndCacheNewToken directly, with no
+// coordination at all against the reactive path. A browser's expired cookie used concurrently by
+// an HTTP request and a WebSocket message could therefore still exchange the same rotating
+// refresh token twice: exactly the race the earlier fix intended to prevent, just reachable
+// through a second, uncoordinated code path. The fix moves the actual coalescing down into
+// auth.RefreshAndCacheNewToken itself (see its doc comment) and has both
+// c.OIDCTokenRefreshMiddleware and c.refreshedIDToken (reached via latestOrRefreshedIDToken)
+// pass the SAME *singleflight.Group, c.tokenRefreshGroup, so neither path can race the other for
+// the same stale token. This launches one goroutine down each path, both presenting the exact
+// same stale token, and asserts only one token-endpoint exchange happens across the two.
+//
+//nolint:funlen // Test drives both the proactive middleware and reactive refresh path concurrently
+func TestOIDCTokenRefresh_CoalescesAcrossProactiveAndReactivePaths(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{
+		Name:     clusterName,
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}
+	require.NoError(t, kubeConfigStore.AddContext(kContext))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	c := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: testOidcClientID, IdpIssuerURL: issuer.URL}
+
+	staleToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice-old@example.com",
+		"exp":   float64(time.Now().Add(-time.Hour).Unix()),
+	}))
+	refreshedToken := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email": "alice@example.com",
+	}))
+
+	require.NoError(t, c.Cache.Set(context.Background(), "oidc-token-"+staleToken, "cached-refresh-token"))
+
+	var tokenEndpointHits int32
+
+	issuer.TokenHandler = func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&tokenEndpointHits, 1)
+
+		// A fixed delay, not a start-of-goroutine handshake: on a slow or heavily loaded
+		// scheduler (CI's QEMU-emulated architecture builds can be this slow), both callers
+		// merely having STARTED is not enough to guarantee they overlap at the actual
+		// singleflight.Group.Do call -- one can run to completion, including this handler
+		// returning, before the other is even scheduled to reach it, which is correct,
+		// non-overlapping singleflight behavior rather than a coalescing failure. This sleep
+		// gives a concurrently launched caller for the same stale token generous wall-clock
+		// room to also reach group.Do and join this in-flight call, so the test's result
+		// reflects coalescing rather than scheduling luck.
+		time.Sleep(300 * time.Millisecond)
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+			"id_token":      refreshedToken,
+		}))
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+
+	// The reactive path: refreshedIDToken is latestOrRefreshedIDToken's own exchange
+	// primitive -- what the multiplexer's reactive refresh bottoms out in once its cache check
+	// (a separate, already-covered optimization; see
+	// TestImpersonationForRequest_ReusesLatestKnownGoodToken) misses. Calling it directly here,
+	// rather than through impersonationForRequest's full verify-then-fallback flow, isolates
+	// the exchange-level race this fix closes from that cache's own opportunistic reuse, which
+	// would otherwise let whichever path finishes first hide the race by writing
+	// LatestIDTokenCacheKey before the other path ever reaches its own exchange attempt.
+	go func() {
+		defer wg.Done()
+
+		refreshed, err := c.refreshedIDToken(context.Background(), kContext, staleToken)
+		assert.NoError(t, err)
+		assert.Equal(t, refreshedToken, refreshed)
+	}()
+
+	// The proactive path: an ordinary cluster HTTP request through the token-refresh
+	// middleware, carrying the exact same stale cookie.
+	go func() {
+		defer wg.Done()
+
+		req := httptest.NewRequestWithContext(
+			context.Background(), http.MethodGet, "/clusters/"+clusterName+"/api/v1/nodes", nil)
+		req.AddCookie(&http.Cookie{
+			Name:     "headlamp-auth-" + auth.SanitizeClusterName(clusterName) + ".0",
+			Value:    staleToken,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		rec := httptest.NewRecorder()
+
+		handler := c.OIDCTokenRefreshMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		handler.ServeHTTP(rec, req)
+	}()
+
+	wg.Wait()
+
+	assert.EqualValues(t, 1, atomic.LoadInt32(&tokenEndpointHits),
+		"the proactive middleware refresh and the reactive multiplexer refresh must coalesce "+
+			"into a single exchange for the same stale token")
+}
+
+// TestHandleSetToken_RejectsOversizedTokenWithError locks in the fix for a gap in how this
+// handler used SetTokenCookie: a storage failure (such as an oversized token -- see
+// TestSetTokenCookie_RejectsOversizedToken) must be reported to the caller as an error, not
+// answered with the same 200 OK as success. Before this fix, SetTokenCookie had no return value
+// at all, so this handler always wrote 200 regardless of whether anything was actually stored.
+func TestHandleSetToken_RejectsOversizedTokenWithError(t *testing.T) {
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     "main",
+		Cluster:  &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeConfigStore,
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	// The maxTokenChunks cap is only enforced when useDeploymentScope applies (see
+	// SetTokenCookie): this context must actually need it for the rejection below to exercise
+	// anything, matching how a real impersonated deployment would hit this.
+	oversizedToken := strings.Repeat("a", 20000)
+
+	body, err := json.Marshal(map[string]string{"token": oversizedToken})
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/token/main", bytes.NewReader(body))
+	require.NoError(t, err)
+
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "main"})
+
+	rr := httptest.NewRecorder()
+	c.handleSetToken(rr, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code,
+		"a storage failure must not be answered with the same status as success")
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Value != "" {
+			t.Errorf("expected no real cookie to be set for a rejected token, got %q=%q", cookie.Name, cookie.Value)
+		}
+	}
+}
+
+func TestHandleClusterAPI_OIDCImpersonation_NoTokenRejected(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("the API server should not be contacted when no identity could be resolved")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:         true,
+				OidcUseImpersonation: true,
+				KubeConfigStore:      kubeConfigStore,
+			},
+			MeUsernamePaths:  "email",
+			MeGroupsPaths:    "groups",
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	// No auth cookie/token presented at all.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
 func TestOIDCLogoutEndpoint(t *testing.T) {
 	setupTestEnv(t)
 
@@ -5262,9 +7708,19 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	require.Len(t, rr.Result().Cookies(), 1)
-	assert.Equal(t, "headlamp-auth-YWJj.0", rr.Result().Cookies()[0].Name)
-	assert.Equal(t, "/clusters/~YWJj", rr.Result().Cookies()[0].Path)
+
+	// ClearTokenCookie (see cookies.go) clears both the current, hash-suffixed name and the
+	// pre-hash-suffix legacy name, at both the cluster and deployment scope paths, not just
+	// the one legacy name/path this test cares about -- find it among the rest.
+	var found bool
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == "headlamp-auth-YWJj.0" && cookie.Path == "/clusters/~YWJj" {
+			found = true
+		}
+	}
+
+	assert.True(t, found, "expected the legacy, pre-hash-suffix cookie to be cleared")
 }
 
 func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
@@ -5293,10 +7749,25 @@ func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
 			createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
 
 			require.Equal(t, http.StatusOK, rr.Code)
-			require.Len(t, rr.Result().Cookies(), 1)
-			assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0", rr.Result().Cookies()[0].Name)
-			assert.Equal(t, "/clusters/"+cluster, rr.Result().Cookies()[0].Path)
-			assert.Equal(t, -1, rr.Result().Cookies()[0].MaxAge)
+
+			// ClearTokenCookie (see cookies.go) clears a floor of chunk indices at both the
+			// cluster and deployment scope paths, not just the one real chunk this cluster
+			// ever had, so the response carries more than a single Set-Cookie -- find the
+			// specific clearing cookie this test cares about among them.
+			wantName := "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0"
+			wantPath := "/clusters/" + cluster
+
+			var found bool
+
+			for _, cookie := range rr.Result().Cookies() {
+				if cookie.Name == wantName && cookie.Path == wantPath {
+					found = true
+
+					assert.Equal(t, -1, cookie.MaxAge)
+				}
+			}
+
+			assert.True(t, found, "expected %q to be cleared at %q", wantName, wantPath)
 		})
 	}
 }
@@ -5848,7 +8319,7 @@ func newOIDCLogoutTestRequest(t *testing.T, cluster string, tc oidcLogoutTestCas
 		req.AddCookie(&http.Cookie{
 			Name:  "headlamp-auth-" + sanitizedCluster + ".0",
 			Value: "test-auth-token",
-			Path:  auth.GetCookiePath(tc.baseURL, cluster),
+			Path:  auth.GetCookiePath(tc.baseURL, cluster, false),
 		})
 	}
 
@@ -5920,14 +8391,24 @@ func TestOIDCLogoutResponseHeaderBudget(t *testing.T) {
 				req.Header.Set("Content-Type", "application/json")
 
 				hintCookie := &http.Cookie{
-					Name: "headlamp-id-token-main.0", Value: strings.Repeat("a", 2048),
-					Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode,
+					Name:     "headlamp-id-token-" + auth.SanitizeClusterName("main") + ".0",
+					Value:    strings.Repeat("a", 2048),
+					Secure:   true,
+					HttpOnly: true, SameSite: http.SameSiteStrictMode,
 				}
 				req.AddCookie(hintCookie)
 
 				rr := httptest.NewRecorder()
 				handler.ServeHTTP(rr, req)
 				require.Equal(t, http.StatusOK, rr.Code)
+				// This response carries both the real ID token value (SetIDTokenCookie, sized
+				// here like a realistic JWT) and ClearTokenCookie's per-chunk clearing. The
+				// latter only blindly floor-clears the cluster-scoped path (which a
+				// deployment-wide route like this one cannot see); the deployment-wide path
+				// itself is skipped when nothing indicates a cookie could be there (see
+				// ClearTokenCookie's doc comment in pkg/auth/cookies.go), so a fresh login like
+				// this one -- nothing to clear at either scope -- fits the same proxy-buffer
+				// budget as the redirect-step response below instead of needing a larger one.
 				assertResponseHeaderBudget(t, rr, 4096)
 
 				if !skip {

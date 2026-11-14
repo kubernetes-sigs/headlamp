@@ -122,7 +122,7 @@ func TestInstallRelease(t *testing.T) {
 
 	// uninstall release if it already exists
 	k8sClientConfig := GetClient(t, "minikube")
-	actionConfig, err := helm.NewActionConfig(k8sClientConfig, "default")
+	actionConfig, err := helm.NewActionConfig(k8sClientConfig, "default", time.Time{})
 	require.NoError(t, err)
 
 	listClient := action.NewList(actionConfig)
@@ -326,7 +326,7 @@ func TestVerifyUser(t *testing.T) {
 
 			if tt.wantResult {
 				k8sClientConfig := GetClient(t, "minikube")
-				actionConfig, err = helm.NewActionConfig(k8sClientConfig, "default")
+				actionConfig, err = helm.NewActionConfig(k8sClientConfig, "default", time.Time{})
 				require.NoError(t, err)
 			} else {
 				// Create action config with invalid REST client getter
