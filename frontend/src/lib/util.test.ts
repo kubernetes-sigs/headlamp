@@ -92,6 +92,16 @@ describe('getPercentStr', () => {
     expect(getPercentStr(2, 3)).toBe('66.7 %');
     expect(getPercentStr(1, 3)).toBe('33.3 %');
   });
+
+  it('should return null for non-finite, negative, or invalid inputs', () => {
+    expect(getPercentStr(NaN, 100)).toBeNull();
+    expect(getPercentStr(10, NaN)).toBeNull();
+    expect(getPercentStr(Infinity, 100)).toBeNull();
+    expect(getPercentStr(10, Infinity)).toBeNull();
+    expect(getPercentStr(-Infinity, 100)).toBeNull();
+    expect(getPercentStr(10, -100)).toBeNull();
+    expect(getPercentStr(-10, 100)).toBeNull();
+  });
 });
 
 describe('getReadyReplicas / getTotalReplicas', () => {
