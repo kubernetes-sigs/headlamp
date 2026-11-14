@@ -1,0 +1,563 @@
+/*
+Copyright 2026 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+you may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package auth
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/oauth2"
+)
+
+var (
+	discoveryCache  sync.Map
+	stsTokenCacheMu sync.Mutex
+	stsTokenCache   = make(map[string]tokenCacheEntry)
+	stsInflight     = make(map[string]*tokenExchangeFlight)
+)
+
+type tokenCacheEntry struct {
+	token     string
+	expiresAt time.Time
+}
+
+// tokenExchangeFlight is an exchange shared by every caller with the same
+// cache key. token and err are set before done is closed.
+type tokenExchangeFlight struct {
+	done  chan struct{}
+	token string
+	err   error
+}
+
+// stsExchangeTimeout bounds a shared exchange, which no single caller's
+// context can cancel.
+const stsExchangeTimeout = 30 * time.Second
+
+// ResetSTSCache clears all cached STS discovery metadata and exchanged tokens (used in testing).
+func ResetSTSCache() {
+	discoveryCache = sync.Map{}
+
+	stsTokenCacheMu.Lock()
+	stsTokenCache = make(map[string]tokenCacheEntry)
+	stsInflight = make(map[string]*tokenExchangeFlight)
+	stsTokenCacheMu.Unlock()
+}
+
+// STSError represents an error during STS token exchange with an associated HTTP status code.
+type STSError struct {
+	StatusCode int
+	Message    string
+	Err        error
+}
+
+func (e *STSError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Err)
+	}
+
+	return e.Message
+}
+
+func (e *STSError) Unwrap() error {
+	return e.Err
+}
+
+// GetSTSErrorStatusCode returns the HTTP status code from an error if it is an STSError,
+// or http.StatusInternalServerError.
+func GetSTSErrorStatusCode(err error) int {
+	var stsErr *STSError
+	if errors.As(err, &stsErr) && stsErr.StatusCode != 0 {
+		return stsErr.StatusCode
+	}
+
+	return http.StatusInternalServerError
+}
+
+// STSOptions holds the configuration for the STS token exchange.
+type STSOptions struct {
+	Enabled                 bool
+	IssuerURL               string
+	ClientID                string
+	ClientSecret            string
+	SubjectTokenType        string
+	AudienceMap             map[string]string
+	ServiceAccountTokenPath string
+}
+
+// ParseAudienceMap parses a comma-separated key-value list (e.g. "c1=a1,c2=a2") into a map.
+func ParseAudienceMap(s string) map[string]string {
+	m := make(map[string]string)
+	if s == "" {
+		return m
+	}
+
+	pairs := strings.Split(s, ",")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(kv[0])
+		val := strings.TrimSpace(kv[1])
+
+		if key == "" || val == "" {
+			continue
+		}
+
+		m[key] = val
+	}
+
+	return m
+}
+
+// discoverTokenEndpoint queries the OIDC issuer's discovery endpoint to locate its token_endpoint.
+func discoverTokenEndpoint(ctx context.Context, issuerURL string) (string, error) {
+	if cached, ok := discoveryCache.Load(issuerURL); ok {
+		if tokenEndpoint, ok := cached.(string); ok && tokenEndpoint != "" {
+			return tokenEndpoint, nil
+		}
+	}
+
+	wellKnownURL := strings.TrimSuffix(issuerURL, "/") + "/.well-known/openid-configuration"
+
+	req, err := http.NewRequestWithContext(ctx, "GET", wellKnownURL, nil)
+	if err != nil {
+		return "", &STSError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "failed to create discovery request",
+			Err:        err,
+		}
+	}
+
+	client, _ := ctx.Value(oauth2.HTTPClient).(*http.Client)
+	if client == nil {
+		client = &http.Client{}
+	}
+
+	httpClient := *client
+	httpClient.CheckRedirect = rejectHTTPSDowngrade
+
+	if httpClient.Timeout == 0 {
+		httpClient.Timeout = 10 * time.Second
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", &STSError{StatusCode: http.StatusBadGateway, Message: "discovery request failed", Err: err}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", &STSError{
+			StatusCode: http.StatusBadGateway,
+			Message:    fmt.Sprintf("discovery request returned status: %s", resp.Status),
+		}
+	}
+
+	var metadata struct {
+		TokenEndpoint string `json:"token_endpoint"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+		return "", &STSError{
+			StatusCode: http.StatusBadGateway,
+			Message:    "failed to decode discovery response",
+			Err:        err,
+		}
+	}
+
+	if err := validateTokenEndpoint(issuerURL, metadata.TokenEndpoint); err != nil {
+		return "", err
+	}
+
+	discoveryCache.Store(issuerURL, metadata.TokenEndpoint)
+
+	return metadata.TokenEndpoint, nil
+}
+
+// rejectHTTPSDowngrade is the redirect policy for discovery. Whoever answers
+// a plaintext hop could advertise their own HTTPS token_endpoint, which would
+// then receive the subject token and client credentials.
+func rejectHTTPSDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+
+	if strings.EqualFold(via[0].URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https") {
+		return fmt.Errorf("refusing to follow a redirect from https to %s", req.URL.Scheme)
+	}
+
+	return nil
+}
+
+// validateTokenEndpoint rejects a missing token endpoint, or one that would
+// downgrade an HTTPS issuer to plaintext HTTP, since the exchange carries the
+// subject token and client credentials.
+func validateTokenEndpoint(issuerURL, tokenEndpoint string) error {
+	if tokenEndpoint == "" {
+		return &STSError{StatusCode: http.StatusBadGateway, Message: "discovery response missing token_endpoint"}
+	}
+
+	tokenEndpointURL, err := url.Parse(tokenEndpoint)
+	if err != nil || (strings.HasPrefix(strings.ToLower(issuerURL), "https://") &&
+		!strings.EqualFold(tokenEndpointURL.Scheme, "https")) {
+		return &STSError{
+			StatusCode: http.StatusBadGateway,
+			Message:    "discovery response has an invalid or insecure token_endpoint",
+		}
+	}
+
+	return nil
+}
+
+//nolint:gosec // A file path, not a credential.
+var saTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+//nolint:gosec // A token type URN, not a credential.
+const defaultSubjectTokenType = "urn:ietf:params:oauth:token-type:jwt"
+
+// ExchangeTokenForCluster exchanges the subject token for a cluster-scoped token using RFC 8693.
+// Exchanged tokens are cached in memory and deduplicated across concurrent requests.
+//
+//nolint:funlen // Validates the request, then serves it from the cache or a shared exchange.
+func ExchangeTokenForCluster(
+	ctx context.Context,
+	opts STSOptions,
+	subjectToken string,
+	clusterID string,
+) (string, error) {
+	if !opts.Enabled {
+		return "", &STSError{StatusCode: http.StatusInternalServerError, Message: "STS is not enabled"}
+	}
+
+	if opts.IssuerURL == "" {
+		return "", &STSError{StatusCode: http.StatusInternalServerError, Message: "STS issuer URL is required"}
+	}
+
+	if strings.TrimSpace(subjectToken) == "" {
+		return "", &STSError{StatusCode: http.StatusBadRequest, Message: "subject token is required"}
+	}
+
+	if strings.TrimSpace(clusterID) == "" {
+		return "", &STSError{StatusCode: http.StatusBadRequest, Message: "cluster ID is required"}
+	}
+
+	audience, ok := opts.AudienceMap[clusterID]
+	if !ok || audience == "" {
+		return "", &STSError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    fmt.Sprintf("no STS audience configured for cluster %s", clusterID),
+		}
+	}
+
+	subjectTokenType := strings.TrimSpace(opts.SubjectTokenType)
+	if subjectTokenType == "" {
+		subjectTokenType = defaultSubjectTokenType
+	} else if !strings.Contains(subjectTokenType, ":") {
+		// A shorthand such as access_token. Complete URIs of any scheme are sent
+		// as configured.
+		subjectTokenType = "urn:ietf:params:oauth:token-type:" + subjectTokenType
+	}
+
+	// Cache key: issuer|cluster|audience|subjectTokenType|sha256(client auth)|sha256(subjectToken)
+	// The client auth part keeps a client from reusing a token the STS issued
+	// to another client without its own credentials being checked.
+	clientHash := sha256.Sum256(fmt.Appendf(nil, "%q|%q|%q",
+		opts.ClientID, opts.ClientSecret, opts.ServiceAccountTokenPath))
+	tokenHash := sha256.Sum256([]byte(subjectToken))
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s|%x|%x",
+		opts.IssuerURL, clusterID, audience, subjectTokenType, clientHash[:], tokenHash[:])
+
+	stsTokenCacheMu.Lock()
+	if entry, found := stsTokenCache[cacheKey]; found {
+		if time.Now().Before(entry.expiresAt) {
+			stsTokenCacheMu.Unlock()
+			return entry.token, nil
+		}
+
+		delete(stsTokenCache, cacheKey)
+	}
+
+	flight, inFlight := stsInflight[cacheKey]
+	if !inFlight {
+		flight = &tokenExchangeFlight{done: make(chan struct{})}
+		stsInflight[cacheKey] = flight
+
+		// Detach from the caller that started the exchange, so canceling its
+		// request doesn't fail the other callers waiting on the same flight.
+		exchangeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stsExchangeTimeout)
+
+		go func() {
+			defer cancel()
+
+			flight.token, flight.err = exchangeAndCache(exchangeCtx, opts, subjectToken, subjectTokenType, audience, cacheKey)
+
+			stsTokenCacheMu.Lock()
+			delete(stsInflight, cacheKey)
+			stsTokenCacheMu.Unlock()
+			close(flight.done)
+		}()
+	}
+	stsTokenCacheMu.Unlock()
+
+	select {
+	case <-flight.done:
+		return flight.token, flight.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// exchangeAndCache performs the exchange and caches the result until shortly
+// before it expires.
+func exchangeAndCache(
+	ctx context.Context,
+	opts STSOptions,
+	subjectToken, subjectTokenType, audience, cacheKey string,
+) (string, error) {
+	// The token's lifetime may start when the STS issues it, so count it from
+	// before the request: a slow response must not keep it cached past expiry.
+	exchangeStartedAt := time.Now()
+
+	resultToken, expiresIn, err := performTokenExchange(ctx, opts, subjectToken, subjectTokenType, audience)
+	if err != nil {
+		return "", err
+	}
+
+	// Without a positive expires_in there is no safe lifetime to cache for.
+	if expiresIn <= 0 {
+		return resultToken, nil
+	}
+
+	ttl := time.Duration(expiresIn) * time.Second
+
+	buffer := 30 * time.Second
+	if ttl <= 60*time.Second {
+		buffer = 5 * time.Second
+	}
+
+	now := time.Now()
+
+	expiresAt := exchangeStartedAt.Add(ttl - buffer)
+	if expiresAt.After(now) {
+		stsTokenCacheMu.Lock()
+		// Evict expired entries so tokens from ended sessions don't accumulate.
+		// ponytail: O(n) sweep per insert, move to a TTL cache if n gets large.
+		for key, entry := range stsTokenCache {
+			if !now.Before(entry.expiresAt) {
+				delete(stsTokenCache, key)
+			}
+		}
+
+		stsTokenCache[cacheKey] = tokenCacheEntry{
+			token:     resultToken,
+			expiresAt: expiresAt,
+		}
+		stsTokenCacheMu.Unlock()
+	}
+
+	return resultToken, nil
+}
+
+// oauthErrorCodeRegex matches an OAuth error code: RFC 6749 section 5.2
+// allows printable ASCII except '"' and '\'. The length is bounded, as the
+// code comes from the STS and ends up in logs.
+var oauthErrorCodeRegex = regexp.MustCompile(`^[\x20\x21\x23-\x5B\x5D-\x7E]{1,64}$`)
+
+// stsErrorCode returns the OAuth error code of an STS error response, or ""
+// when it has no valid one. The description and the rest of the body are
+// never returned, as they can hold sensitive details.
+func stsErrorCode(body io.Reader) string {
+	var oauthError struct {
+		Code string `json:"error"`
+	}
+
+	if err := json.NewDecoder(io.LimitReader(body, 64<<10)).Decode(&oauthError); err != nil {
+		return ""
+	}
+
+	if !oauthErrorCodeRegex.MatchString(oauthError.Code) {
+		return ""
+	}
+
+	return oauthError.Code
+}
+
+// isSTSClientError reports whether an STS error code is about Headlamp's own
+// client or configuration rather than the user's token, so it must not be
+// reported as 401, which logs the user out. RFC 8693 reports an invalid or
+// expired subject token as invalid_request (some servers use invalid_grant);
+// a response without a known code keeps the 401.
+func isSTSClientError(code string) bool {
+	switch code {
+	case "invalid_client", "unauthorized_client", "unsupported_grant_type", "invalid_target", "invalid_scope":
+		return true
+	default:
+		return false
+	}
+}
+
+// performTokenExchange executes the actual RFC 8693 HTTP exchange request.
+//
+//nolint:funlen // Builds, sends and decodes one RFC 8693 request.
+func performTokenExchange(
+	ctx context.Context,
+	opts STSOptions,
+	subjectToken string,
+	subjectTokenType string,
+	audience string,
+) (string, int64, error) {
+	tokenURL, err := discoverTokenEndpoint(ctx, opts.IssuerURL)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to discover token endpoint: %w", err)
+	}
+
+	data := url.Values{}
+	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
+	data.Set("subject_token", subjectToken)
+	data.Set("subject_token_type", subjectTokenType)
+	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
+	data.Set("audience", audience)
+
+	if opts.ClientID != "" {
+		data.Set("client_id", opts.ClientID)
+	}
+
+	var useClientAssertion bool
+
+	// Without a client secret, authenticate with the pod's service account token
+	// (RFC 7523). client_id is optional here: the STS takes it from the JWT's sub.
+	if opts.ClientSecret == "" {
+		tokenPath := opts.ServiceAccountTokenPath
+		if tokenPath == "" {
+			tokenPath = saTokenPath
+		}
+
+		cleanPath := filepath.Clean(tokenPath)
+		// #nosec G304
+		tokenBytes, err := os.ReadFile(cleanPath)
+		if err != nil {
+			return "", 0, &STSError{
+				StatusCode: http.StatusInternalServerError,
+				Message:    fmt.Sprintf("failed to read service account token: %v", err),
+				Err:        err,
+			}
+		}
+
+		assertion := strings.TrimSpace(string(tokenBytes))
+		if assertion == "" {
+			return "", 0, &STSError{
+				StatusCode: http.StatusInternalServerError,
+				Message:    "service account token file is empty",
+			}
+		}
+
+		data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+		data.Set("client_assertion", assertion)
+
+		useClientAssertion = true
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", 0, &STSError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "failed to create token exchange request",
+			Err:        err,
+		}
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if opts.ClientID != "" && opts.ClientSecret != "" && !useClientAssertion {
+		// RFC 6749 §2.3.1: form-encode the credentials before Basic encoding.
+		req.SetBasicAuth(url.QueryEscape(opts.ClientID), url.QueryEscape(opts.ClientSecret))
+	}
+
+	client, _ := ctx.Value(oauth2.HTTPClient).(*http.Client)
+	if client == nil {
+		client = &http.Client{}
+	}
+
+	httpClient := *client
+	// Following a 307/308 would replay the credentials in the body to the redirect target.
+	httpClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	if httpClient.Timeout == 0 {
+		httpClient.Timeout = 10 * time.Second
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", 0, &STSError{StatusCode: http.StatusBadGateway, Message: "token exchange request failed", Err: err}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		errorCode := stsErrorCode(resp.Body)
+
+		statusCode := http.StatusBadGateway
+		if (resp.StatusCode == http.StatusBadRequest ||
+			resp.StatusCode == http.StatusUnauthorized ||
+			resp.StatusCode == http.StatusForbidden) && !isSTSClientError(errorCode) {
+			statusCode = http.StatusUnauthorized
+		}
+
+		// The error is only logged; clients get a generic message.
+		msg := fmt.Sprintf("token exchange returned status: %s (token_url=%s)", resp.Status, tokenURL)
+		if errorCode != "" {
+			msg = fmt.Sprintf("token exchange returned status: %s (error=%q, token_url=%s)", resp.Status, errorCode, tokenURL)
+		}
+
+		return "", 0, &STSError{StatusCode: statusCode, Message: msg}
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int64  `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", 0, &STSError{
+			StatusCode: http.StatusBadGateway,
+			Message:    "failed to decode token response",
+			Err:        err,
+		}
+	}
+
+	if tokenResp.AccessToken == "" {
+		return "", 0, &STSError{
+			StatusCode: http.StatusBadGateway,
+			Message:    "token exchange response missing access_token",
+		}
+	}
+
+	return tokenResp.AccessToken, tokenResp.ExpiresIn, nil
+}

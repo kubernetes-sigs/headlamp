@@ -87,6 +87,12 @@ type Config struct {
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcSkipLogout               bool   `koanf:"oidc-skip-logout"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
+	OidcStsEnabled               bool   `koanf:"oidc-sts-enabled"`
+	OidcStsIssuerURL             string `koanf:"oidc-sts-issuer-url"`
+	OidcStsClientID              string `koanf:"oidc-sts-client-id"`
+	OidcStsClientSecret          string `koanf:"oidc-sts-client-secret"`
+	OidcStsSubjectTokenType      string `koanf:"oidc-sts-subject-token-type"`
+	OidcStsAudienceMap           string `koanf:"oidc-sts-audience-map"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
 	MeGroupsPath                 string `koanf:"me-groups-path"`
@@ -170,6 +176,22 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
+	if err := c.validateTracing(); err != nil {
+		return err
+	}
+
+	if err := c.validateClusterInventory(); err != nil {
+		return err
+	}
+
+	if err := c.validateOidcSts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateTracing() error {
 	if c.TracingEnabled != nil && *c.TracingEnabled {
 		if c.ServiceName == "" {
 			return errors.New("service-name is required when tracing is enabled")
@@ -187,8 +209,50 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if err := c.validateClusterInventory(); err != nil {
-		return err
+	return nil
+}
+
+func (c *Config) validateOidcSts() error {
+	if !c.OidcStsEnabled {
+		return nil
+	}
+
+	if strings.TrimSpace(c.OidcStsIssuerURL) == "" && strings.TrimSpace(c.OidcIdpIssuerURL) == "" {
+		return errors.New("oidc-sts-enabled requires oidc-sts-issuer-url or oidc-idp-issuer-url")
+	}
+
+	if c.OidcStsClientSecret != "" && c.OidcStsClientID == "" {
+		return errors.New("oidc-sts-client-secret requires oidc-sts-client-id")
+	}
+
+	// Every entry is checked here, as a malformed one would otherwise be
+	// skipped and only fail the cluster's requests later, and a cluster mapped
+	// twice would silently get the last audience.
+	clusters := make(map[string]bool)
+
+	for _, pair := range strings.Split(c.OidcStsAudienceMap, ",") {
+		if strings.TrimSpace(pair) == "" {
+			continue
+		}
+
+		cluster, audience, ok := strings.Cut(pair, "=")
+		if !ok || strings.TrimSpace(cluster) == "" || strings.TrimSpace(audience) == "" {
+			return fmt.Errorf("invalid oidc-sts-audience-map entry %q: expected cluster=audience", pair)
+		}
+
+		cluster = strings.TrimSpace(cluster)
+		if clusters[cluster] {
+			return fmt.Errorf("oidc-sts-audience-map maps cluster %q more than once", cluster)
+		}
+
+		clusters[cluster] = true
+	}
+
+	if len(clusters) == 0 {
+		return errors.New(
+			"oidc-sts-enabled requires at least one valid audience mapping " +
+				"configured via oidc-sts-audience-map (e.g. cluster1=aud1)",
+		)
 	}
 
 	return nil
@@ -679,6 +743,16 @@ func addOIDCFlags(f *flag.FlagSet) {
 			"default. Preconditions and caveats: "+
 			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("oidc-sts-enabled", false, "Enable RFC 8693 OAuth 2.0 Token Exchange (STS)")
+	f.String("oidc-sts-issuer-url", "",
+		"Override Identity provider issuer URL for OIDC STS (falls back to oidc-idp-issuer-url)")
+	f.String("oidc-sts-client-id", "", "ClientID for OIDC STS (optional with service account token auth)")
+	f.String("oidc-sts-client-secret", "",
+		"Client secret for OIDC STS (if unset, the pod's service account token is used as an RFC 7523 client assertion)")
+	f.String("oidc-sts-subject-token-type", "",
+		"Subject token type for STS token exchange (falls back to urn:ietf:params:oauth:token-type:jwt)")
+	f.String("oidc-sts-audience-map", "",
+		"Comma-separated key-value pairs of cluster ID to target token audience (e.g. cluster1=aud1,cluster2=aud2)")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,

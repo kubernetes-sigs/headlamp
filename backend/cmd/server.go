@@ -256,9 +256,28 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
+	}
+	headlampConfig.configureSTS(conf, multiplexer)
+
+	return headlampConfig
+}
+
+// configureSTS sets the STS token exchange options, and when STS is enabled,
+// makes the multiplexer exchange the caller's token too.
+func (c *HeadlampConfig) configureSTS(conf *config.Config, multiplexer *Multiplexer) {
+	c.OidcStsEnabled = conf.OidcStsEnabled
+	c.OidcStsIssuerURL = conf.OidcStsIssuerURL
+	c.OidcStsClientID = conf.OidcStsClientID
+	c.OidcStsClientSecret = conf.OidcStsClientSecret
+	c.OidcStsSubjectTokenType = conf.OidcStsSubjectTokenType
+	c.OidcStsAudienceMap = conf.OidcStsAudienceMap
+
+	if c.OidcStsEnabled {
+		multiplexer.exchangeToken = c.exchangeSTSToken
+		multiplexer.subjectToken = c.requestSubjectToken
 	}
 }
 

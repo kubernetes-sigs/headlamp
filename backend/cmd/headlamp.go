@@ -91,6 +91,8 @@ type HeadlampConfig struct {
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	stsClientOnce     sync.Once
+	stsClient         *http.Client
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -979,22 +981,30 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				contextKey, err := config.getContextKeyForRequest(r)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 
-			portforward.StartPortForward(
-				config.KubeConfigStore,
-				config.Cache,
-				config.shouldUseUnsafeServiceAccountToken(),
-				contextKey,
-				w,
-				r,
-			)
-		})),
+				tokenSource, err := config.portForwardTokenSource(r, contextKey)
+				if err != nil {
+					http.Error(w, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
+					return
+				}
+
+				portforward.StartPortForward(
+					config.KubeConfigStore,
+					config.Cache,
+					config.shouldUseUnsafeServiceAccountToken(),
+					contextKey,
+					w,
+					r,
+					tokenSource,
+				)
+			})),
 	).Methods("POST")
 
 	r.Handle(
@@ -1708,9 +1718,12 @@ func clearRequestAuthorization(r *http.Request) {
 	r.Header.Del("Cookie")
 }
 
+// clearConfiguredProxyTokenHeader removes the proxy token header, once the
+// token is forwarded in Authorization. When that is the proxy token header
+// itself, it now holds the forwarded token, so it is kept.
 func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
 	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
-	if proxyAuthTokenHeader != "" {
+	if proxyAuthTokenHeader != "" && !strings.EqualFold(proxyAuthTokenHeader, "Authorization") {
 		r.Header.Del(proxyAuthTokenHeader)
 	}
 }
@@ -1774,6 +1787,233 @@ func (c *HeadlampConfig) requestTokenForContext(
 	}
 
 	return token
+}
+
+// proxyAuthToken returns the token from the configured proxy-auth header, if
+// any, without a Bearer prefix, which the header has when it is Authorization.
+func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
+	if !c.ProxyAuthEnabled || c.ProxyAuthTokenHeader == "" {
+		return ""
+	}
+
+	return auth.BearerTokenValue(r.Header.Get(c.ProxyAuthTokenHeader))
+}
+
+// requestSubjectToken returns the caller's token for a cluster request: the
+// proxy-auth header, then a Bearer Authorization header, then the cluster
+// cookie. Other Authorization schemes, such as Basic from an authenticating
+// proxy, don't carry the user's Kubernetes token, so the cookie wins over them.
+func (c *HeadlampConfig) requestSubjectToken(r *http.Request, clusterName string) string {
+	if token := c.proxyAuthToken(r); token != "" {
+		return token
+	}
+
+	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
+	if token := auth.BearerTokenValue(authorization); token != "" && token != authorization {
+		return token
+	}
+
+	return tokenFromCookie(r, clusterName)
+}
+
+// stsSubjectToken returns the caller's token to exchange through STS, as
+// requestSubjectToken does. An Authorization header it doesn't select, such as
+// Basic from an authenticating proxy or a raw token, is removed from r: handlers
+// that read the header would otherwise send it to the cluster unexchanged.
+func (c *HeadlampConfig) stsSubjectToken(r *http.Request, clusterName string) string {
+	token := c.requestSubjectToken(r, clusterName)
+	if token == "" || token != auth.BearerTokenValue(r.Header.Get("Authorization")) {
+		r.Header.Del("Authorization")
+	}
+
+	return token
+}
+
+// exchangeSTSToken exchanges token for a token scoped to clusterName when STS
+// is enabled. Otherwise, or for an empty token, it returns token unchanged.
+func (c *HeadlampConfig) exchangeSTSToken(ctx context.Context, clusterName, token string) (string, error) {
+	if !c.OidcStsEnabled || token == "" {
+		return token, nil
+	}
+
+	stsOpts := auth.STSOptions{
+		Enabled:          true,
+		IssuerURL:        c.OidcStsIssuerURL,
+		ClientID:         c.OidcStsClientID,
+		ClientSecret:     c.OidcStsClientSecret,
+		SubjectTokenType: c.OidcStsSubjectTokenType,
+		AudienceMap:      auth.ParseAudienceMap(c.OidcStsAudienceMap),
+	}
+	if stsOpts.IssuerURL == "" {
+		stsOpts.IssuerURL = c.OidcIdpIssuerURL
+	}
+
+	exchangedToken, err := auth.ExchangeTokenForCluster(c.stsContext(ctx), stsOpts, token, clusterName)
+	if err != nil {
+		// Callers can tell their own cancellation apart, and it isn't an STS
+		// failure. Anything else reaches clients as a generic message, as the
+		// details can hold the STS URL or a file path, so they are logged.
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err, "STS token exchange failed")
+
+		return "", &auth.STSError{StatusCode: auth.GetSTSErrorStatusCode(err), Message: "STS token exchange failed"}
+	}
+
+	return exchangedToken, nil
+}
+
+// stsContext returns ctx with the HTTP client for STS requests. The client is
+// built once from the OIDC TLS settings, so exchanges share its connections
+// instead of each setting up a transport.
+func (c *HeadlampConfig) stsContext(ctx context.Context) context.Context {
+	c.stsClientOnce.Do(func() {
+		tlsCtx := auth.ConfigureTLSContext(context.Background(), &c.OidcSkipTLSVerify, &c.OidcCACert)
+		c.stsClient, _ = tlsCtx.Value(oauth2.HTTPClient).(*http.Client)
+	})
+
+	if c.stsClient == nil {
+		return ctx
+	}
+
+	return oidc.ClientContext(ctx, c.stsClient)
+}
+
+// stsTokenSource returns a function that exchanges subjectToken for a token
+// scoped to clusterName on every call, for work that outlives one exchanged
+// token. The STS cache keeps repeated calls cheap.
+func (c *HeadlampConfig) stsTokenSource(clusterName, subjectToken string) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		return c.exchangeSTSToken(ctx, clusterName, subjectToken)
+	}
+}
+
+// portForwardTokenSource returns the cluster credential for a port-forward
+// when STS is enabled: a function that exchanges the caller's token on every
+// call, so the forward keeps working after the first exchanged token expires.
+// The STS cache keeps repeated calls cheap. The token is exchanged once up
+// front so a rejected token fails the request. It returns nil when there is
+// nothing to exchange.
+func (c *HeadlampConfig) portForwardTokenSource(
+	r *http.Request,
+	contextKey string,
+) (func(context.Context) (string, error), error) {
+	if !c.OidcStsEnabled {
+		return nil, nil
+	}
+
+	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err != nil || c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		return nil, nil // StartPortForward reports a missing context.
+	}
+
+	clusterName := mux.Vars(r)["clusterName"]
+
+	subjectToken := c.stsSubjectToken(r, clusterName)
+	if subjectToken == "" {
+		return nil, nil
+	}
+
+	tokenSource := c.stsTokenSource(clusterName, subjectToken)
+
+	if _, err := tokenSource(r.Context()); err != nil {
+		return nil, err
+	}
+
+	return tokenSource, nil
+}
+
+// stsTokenMiddleware replaces the caller's token with the STS-exchanged one
+// before any cluster-bound handler (or the cache's authorization check) runs.
+// The cluster's auth cookies are dropped from the request so handlers that
+// prefer cookies use the exchanged Authorization header instead.
+func (c *HeadlampConfig) stsTokenMiddleware(next http.Handler) http.Handler {
+	if !c.OidcStsEnabled {
+		return next
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clusterName := mux.Vars(r)["clusterName"]
+
+		// Look up on a clone: the lookup strips the WebSocket identity
+		// subprotocol, which the downstream handler still needs. A request whose
+		// context can't be resolved is rejected here: Helm and the service proxy
+		// look up the route's cluster themselves and would forward the caller's
+		// token to it without exchanging it.
+		contextKey, err := c.getContextKeyForRequest(r.Clone(r.Context()))
+		if err != nil {
+			http.Error(w, "failed to get context key", http.StatusBadRequest)
+			return
+		}
+
+		_, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
+		if err != nil {
+			http.Error(w, "failed to get context", http.StatusNotFound)
+			return
+		}
+
+		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		processWebSocketProtocolHeader(r)
+
+		subjectToken := c.stsSubjectToken(r, clusterName)
+
+		token, err := c.exchangeSTSToken(r.Context(), clusterName, subjectToken)
+		if err != nil {
+			http.Error(w, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
+			return
+		}
+
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+			// Keep the subject token for handlers whose work can outlive the
+			// exchanged one, so they can exchange it again.
+			r = r.WithContext(context.WithValue(r.Context(), stsSubjectTokenKey{}, subjectToken))
+		}
+
+		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+		dropClusterAuthCookies(r, clusterName)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// stsSubjectTokenKey is the request context key under which stsTokenMiddleware
+// keeps the caller's token it exchanged.
+type stsSubjectTokenKey struct{}
+
+// stsClientConfig is a client config whose REST config exchanges the caller's
+// token for every request.
+type stsClientConfig struct {
+	baseClientConfig
+	restConfig func() (*rest.Config, error)
+}
+
+// baseClientConfig names the embedded client config, which can't be called
+// ClientConfig like the method stsClientConfig overrides.
+type baseClientConfig = clientcmd.ClientConfig
+
+func (s stsClientConfig) ClientConfig() (*rest.Config, error) {
+	return s.restConfig()
+}
+
+// dropClusterAuthCookies removes the cluster's chunked auth cookies from r.
+func dropClusterAuthCookies(r *http.Request, clusterName string) {
+	prefix := fmt.Sprintf("headlamp-auth-%s.", auth.SanitizeClusterName(clusterName))
+	cookies := r.Cookies()
+
+	r.Header.Del("Cookie")
+
+	for _, cookie := range cookies {
+		if !strings.HasPrefix(cookie.Name, prefix) {
+			r.AddCookie(cookie)
+		}
+	}
 }
 
 func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
@@ -2143,15 +2383,18 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 // to proxy requests to in-cluster services.
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
-		}))).Queries("request", "{request}").
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(c.stsTokenMiddleware(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
+			})))).Queries("request", "{request}").
 		Methods("GET")
 }
 
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").Handler(
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(c.stsTokenMiddleware(http.HandlerFunc(func(
+			w http.ResponseWriter, r *http.Request,
+		) {
 			ctx := r.Context()
 			path := r.URL.Path
 			clusterName := mux.Vars(r)["clusterName"]
@@ -2172,7 +2415,7 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 			}
 
 			c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, helmHandler)
-		})))
+		}))))
 }
 
 func (c *HeadlampConfig) helmRouteReleaseHandler(
@@ -2207,7 +2450,21 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 		applyRequestTokenToContext(r, clusterName, context)
 	}
 
-	handler(context.ClientConfig(), w, r)
+	clientConfig := context.ClientConfig()
+
+	// Install, upgrade, rollback and uninstall keep running after the request,
+	// possibly for longer than the exchanged token lasts.
+	if subjectToken, ok := r.Context().Value(stsSubjectTokenKey{}).(string); ok && !unsafeUseServiceAccountToken {
+		tokenSource := c.stsTokenSource(clusterName, subjectToken)
+		clientConfig = stsClientConfig{
+			baseClientConfig: clientConfig,
+			restConfig: func() (*rest.Config, error) {
+				return context.RESTConfigWithTokenSource(tokenSource)
+			},
+		}
+	}
+
+	handler(clientConfig, w, r)
 }
 
 func (c *HeadlampConfig) helmRouteRepositoryHandler(
@@ -2397,20 +2654,8 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			clearRequestAuthorization(r)
-		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
-
-			if token == "" {
-				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-			}
-
-			if token != "" {
-				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			}
+		} else if token := c.requestSubjectToken(r, mux.Vars(r)["clusterName"]); token != "" {
+			r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		}
 
 		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
@@ -2450,6 +2695,10 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	if c.CacheEnabled {
 		handler = CacheMiddleWare(c)(handler)
 	}
+
+	// STS must run before the cache middleware so its authorization check
+	// uses the exchanged token.
+	handler = c.stsTokenMiddleware(handler)
 
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
 }
@@ -3463,7 +3712,24 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+	subjectToken := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
+
+	// Drain doesn't run behind stsTokenMiddleware, so pick the token to exchange
+	// as the middleware does: the proxy-auth header first, and only a Bearer
+	// Authorization header, as other schemes don't carry the user's token. The
+	// cookie of the context's own name stays a fallback, as above.
+	if c.OidcStsEnabled && !c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {
+		subjectToken = c.stsSubjectToken(r, drainPayload.Cluster)
+		if subjectToken == "" && ctxtProxy.Name != drainPayload.Cluster {
+			subjectToken = tokenFromCookie(r, ctxtProxy.Name)
+		}
+	}
+
+	token, err := c.exchangeSTSToken(ctx, drainPayload.Cluster, subjectToken)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
+		return
+	}
 
 	if token == "" && c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
 		!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {
@@ -3473,7 +3739,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	clientset, err := ctxtProxy.ClientSetWithToken(token)
+	clientset, err := c.drainClientset(ctxtProxy, drainPayload.Cluster, subjectToken, token)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "getting client", http.StatusInternalServerError)
 
@@ -3500,6 +3766,26 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	}
 
 	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
+}
+
+// drainClientset returns the clientset to drain with. When token was exchanged
+// via STS, the clientset exchanges subjectToken again for every request
+// instead, since the drain keeps running after the request, possibly for
+// longer than token lasts.
+func (c *HeadlampConfig) drainClientset(
+	kContext *kubeconfig.Context,
+	clusterName, subjectToken, token string,
+) (kubernetes.Interface, error) {
+	if !c.OidcStsEnabled || subjectToken == "" || c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		return kContext.ClientSetWithToken(token)
+	}
+
+	restConf, err := kContext.RESTConfigWithTokenSource(c.stsTokenSource(clusterName, subjectToken))
+	if err != nil {
+		return nil, err
+	}
+
+	return kubernetes.NewForConfig(restConf)
 }
 
 func (c *HeadlampConfig) drainNode(

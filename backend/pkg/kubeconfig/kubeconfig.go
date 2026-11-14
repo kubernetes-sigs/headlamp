@@ -464,6 +464,60 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 	return kubernetes.NewForConfig(restConf)
 }
 
+// RESTConfigWithTokenSource returns the context's REST config with the token
+// from tokenSource, called for every request, instead of the context's own
+// credentials. It is for work that outlives a short-lived token, such as an
+// STS-exchanged one.
+func (c *Context) RESTConfigWithTokenSource(
+	tokenSource func(context.Context) (string, error),
+) (*rest.Config, error) {
+	restConf, err := c.RESTConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	tokenConf := rest.AnonymousClientConfig(restConf)
+	// Keep what isn't a token, as the cluster proxy does.
+	tokenConf.Impersonate = restConf.Impersonate
+	tokenConf.CertFile, tokenConf.KeyFile = restConf.CertFile, restConf.KeyFile
+	tokenConf.CertData, tokenConf.KeyData = restConf.CertData, restConf.KeyData
+	tokenConf.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+		return &tokenSourceRoundTripper{base: rt, tokenSource: tokenSource}
+	})
+
+	return tokenConf, nil
+}
+
+// tokenSourceRoundTripper sets each request's bearer token from tokenSource,
+// called with the request's context, so canceling a request also stops it
+// waiting for its token.
+type tokenSourceRoundTripper struct {
+	base        http.RoundTripper
+	tokenSource func(context.Context) (string, error)
+}
+
+func (t *tokenSourceRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	token, err := t.tokenSource(req.Context())
+	if err != nil {
+		// A RoundTripper must close the body, even on errors.
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+
+		return nil, err
+	}
+
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	return t.base.RoundTrip(req)
+}
+
+// WrappedRoundTripper returns the round tripper this one wraps.
+func (t *tokenSourceRoundTripper) WrappedRoundTripper() http.RoundTripper {
+	return t.base
+}
+
 // SourceStr returns the source from which the context was loaded.
 func (c *Context) SourceStr() string {
 	switch c.Source {
