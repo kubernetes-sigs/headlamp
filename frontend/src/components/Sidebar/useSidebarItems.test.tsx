@@ -17,9 +17,12 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
+import { createInstance } from 'i18next';
 import React from 'react';
+import { I18nextProvider } from 'react-i18next';
 import { Provider } from 'react-redux';
 import App from '../../App';
+import frenchTranslations from '../../i18n/locales/fr/translation.json';
 import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
 import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import CRD from '../../lib/k8s/crd';
@@ -117,6 +120,40 @@ describe('useSidebarItems', () => {
       vi.restoreAllMocks();
     }
   });
+
+  it.each([DefaultSidebars.HOME, DefaultSidebars.IN_CLUSTER])(
+    'lists translated Projects as a global entry in the %s sidebar',
+    async sidebar => {
+      const i18n = createInstance();
+      await i18n.init({
+        lng: 'fr',
+        resources: { fr: { translation: frenchTranslations } },
+      });
+      vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a']);
+      const Wrapper = wrapper(mockStore({}, []));
+      const { result } = renderHook(() => useSidebarItems(sidebar), {
+        wrapper: ({ children }) => (
+          <I18nextProvider i18n={i18n}>
+            <Wrapper>{children}</Wrapper>
+          </I18nextProvider>
+        ),
+      });
+
+      const projects = result.current.find(item => item.name === 'projects');
+      expect(projects?.label).toBe('Projets');
+      expect(projects?.url).toBe('/projects');
+      expect(result.current.slice(0, 2).map(item => item.name)).toEqual(['home', 'projects']);
+      if (sidebar === DefaultSidebars.IN_CLUSTER) {
+        expect(result.current[2].name).toBe('cluster');
+        const clusterItems = result.current.find(item => item.name === 'cluster')?.subList;
+        expect(clusterItems?.map(item => item.name)).toEqual([
+          'namespaces',
+          'nodes',
+          'advancedSearch',
+        ]);
+      }
+    }
+  );
 
   it.each([
     { label: 'neither route kind', kinds: [], tcpVisible: false, udpVisible: false },

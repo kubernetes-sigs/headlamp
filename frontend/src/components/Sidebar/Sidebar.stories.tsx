@@ -150,6 +150,14 @@ HomeSidebarClosed.args = {
     sidebar: DefaultSidebars.HOME,
   },
 };
+export const ProjectsSelected = Template.bind({});
+ProjectsSelected.args = {
+  isSidebarOpen: true,
+  selected: {
+    item: 'projects',
+    sidebar: DefaultSidebars.HOME,
+  },
+};
 export const NotVisibleSidebar = Template.bind({});
 NotVisibleSidebar.args = {
   isVisible: false,
