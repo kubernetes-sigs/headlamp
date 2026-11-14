@@ -220,31 +220,31 @@ spec:
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
-              value: {{ $oidc.clientID }}
+              value: {{ $oidc.clientID | quote }}
             {{- end }}
             {{- if $oidc.clientSecret }}
             - name: OIDC_CLIENT_SECRET
-              value: {{ $oidc.clientSecret }}
+              value: {{ $oidc.clientSecret | quote }}
             {{- end }}
             {{- if $oidc.issuerURL }}
             - name: OIDC_ISSUER_URL
-              value: {{ $oidc.issuerURL }}
+              value: {{ $oidc.issuerURL | quote }}
             {{- end }}
             {{- if $oidc.scopes }}
             - name: OIDC_SCOPES
-              value: {{ $oidc.scopes }}
+              value: {{ $oidc.scopes | quote }}
             {{- end }}
             {{- if $oidc.callbackURL }}
             - name: OIDC_CALLBACK_URL
-              value: {{ $oidc.callbackURL }}
+              value: {{ $oidc.callbackURL | quote }}
             {{- end }}
             {{- if $oidc.validatorClientID }}
             - name: OIDC_VALIDATOR_CLIENT_ID
-              value: {{ $oidc.validatorClientID }}
+              value: {{ $oidc.validatorClientID | quote }}
             {{- end }}
             {{- if $oidc.validatorIssuerURL }}
             - name: OIDC_VALIDATOR_ISSUER_URL
-              value: {{ $oidc.validatorIssuerURL }}
+              value: {{ $oidc.validatorIssuerURL | quote }}
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
@@ -256,7 +256,7 @@ spec:
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
-              value: {{ $oidc.meUserInfoURL }}
+              value: {{ $oidc.meUserInfoURL | quote }}
             {{- end }}
             {{- if $oidc.autoLogin }}
             - name: OIDC_AUTO_LOGIN
