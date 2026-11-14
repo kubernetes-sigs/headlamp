@@ -87,6 +87,36 @@ describe('Terminal', () => {
     expect(true).toBe(true);
   });
 
+  it('cancels stream handle if exec/attach resolves after unmount', async () => {
+    let resolveExec: (value: any) => void;
+    const cancelSpy = vi.fn();
+    const execPromise = new Promise(resolve => {
+      resolveExec = resolve;
+    });
+
+    const pod = createMockPod(() => execPromise as Promise<any>);
+
+    const { unmount } = render(
+      <TestContext>
+        <Terminal item={pod as any} open onClose={() => {}} />
+      </TestContext>
+    );
+
+    // Unmount while exec is still pending
+    unmount();
+
+    // Now resolve the exec promise after unmount
+    await act(async () => {
+      resolveExec({
+        cancel: cancelSpy,
+        getSocket: () => null,
+      });
+    });
+
+    // Verify the returned handle was cancelled immediately
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
   describe('initialContainer', () => {
     it('uses initialContainer when it matches a known container', async () => {
       let capturedContainer: string | undefined;
