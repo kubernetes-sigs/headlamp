@@ -19,12 +19,12 @@ package portforward
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
@@ -75,22 +75,6 @@ func registerLivePortForward(pf *portForward) {
 	livePortForwards.Store(livePortForwardKey(cluster, pf.ID), pf)
 }
 
-// sameGroupSet reports whether a and b contain the same group membership, ignoring order and
-// duplicates: group membership is a set, not a sequence, and a refreshed token's claims are not
-// guaranteed to repeat the same order (or dedupe identically) as the token it replaces, even for
-// the identical identity. This mirrors cmd/multiplexer.go's own sameGroups, which solves the
-// identical problem for WebSocket connection identity binding; it is duplicated rather than
-// shared because pkg/portforward cannot import the main package.
-func sameGroupSet(a, b []string) bool {
-	sortedA := slices.Clone(a)
-	sortedB := slices.Clone(b)
-
-	slices.Sort(sortedA)
-	slices.Sort(sortedB)
-
-	return slices.Equal(slices.Compact(sortedA), slices.Compact(sortedB))
-}
-
 // extendPortForwardExpiry extends pf's impersonationExpiry to newExpiry under pf.mu, but only
 // when newExpiry is later than its current expiry (so this can only extend, never shorten),
 // pf was started under impersonation in the first place (impersonationExpiry.IsZero()
@@ -108,7 +92,7 @@ func extendPortForwardExpiry(pf *portForward, username string, groups []string, 
 	}
 
 	sameIdentity := !pf.impersonationExpiry.IsZero() &&
-		pf.impersonatedUsername == username && sameGroupSet(pf.impersonatedGroups, groups)
+		pf.impersonatedUsername == username && kubeconfig.SameGroupSet(pf.impersonatedGroups, groups)
 	if sameIdentity && newExpiry.After(pf.impersonationExpiry) {
 		pf.impersonationExpiry = newExpiry
 	}
