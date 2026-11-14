@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
 var settings = cli.New()
@@ -112,4 +114,43 @@ func TestListChartContentType(t *testing.T) {
 
 	// Verify Content-Type header is correctly set.
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+func TestListChartsWithInvalidRepoCacheGraceful(t *testing.T) {
+	tempDir := t.TempDir()
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(tempDir, "repositories.yaml")
+	customSettings.RepositoryCache = filepath.Join(tempDir, "cache")
+
+	err := os.MkdirAll(customSettings.RepositoryCache, 0o755)
+	require.NoError(t, err)
+
+	ch := cache.New[interface{}]()
+	require.NotNil(t, ch)
+
+	helmHandler, err := helm.NewHandlerWithSettings(ch, customSettings)
+	require.NoError(t, err)
+
+	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+
+	// Add an un-cached / broken repository entry to repositories.yaml directly
+	repoFile, err := repo.LoadFile(customSettings.RepositoryConfig)
+	require.NoError(t, err)
+
+	repoFile.Add(&repo.Entry{
+		Name: "broken_repo",
+		URL:  "https://example.com/charts",
+	})
+	err = repoFile.WriteFile(customSettings.RepositoryConfig, 0o644)
+	require.NoError(t, err)
+
+	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
+		"GET", "/clusters/minikube/helm/repositories/charts", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.ListCharts(rr, listChartsRequest)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "headlamp_test_repo/headlamp")
 }
