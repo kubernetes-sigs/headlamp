@@ -56,6 +56,8 @@ type HeadlampCFG struct {
 	InClusterContextName   string
 	ListenAddr             string
 	CacheEnabled           bool
+	CacheMaxEntryMB        int64
+	CacheMaxTotalMB        int64
 	DevMode                bool
 	Insecure               bool
 	EnableHelm             bool
