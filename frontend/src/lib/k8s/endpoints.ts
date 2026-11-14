@@ -45,6 +45,11 @@ export interface KubeEndpoint extends KubeObjectInterface {
   subsets: KubeEndpointSubset[];
 }
 
+/** Like Go's net.JoinHostPort: wraps an IPv6 address in brackets. */
+function joinHostPort(ip: string, port: number) {
+  return ip.includes(':') ? `[${ip}]:${port}` : `${ip}:${port}`;
+}
+
 class Endpoints extends KubeObject<KubeEndpoint> {
   static kind = 'Endpoints';
   static apiName = 'endpoints';
@@ -100,12 +105,22 @@ class Endpoints extends KubeObject<KubeEndpoint> {
     return this.getAddresses().join(', ');
   }
 
+  /**
+   * Addresses as kubectl prints them: "ip:port" for each port, IPv6 in brackets,
+   * and only the IP for a subset with no ports (for example a headless service).
+   */
   getAddresses() {
     const addresses: string[] = [];
     this.subsets?.forEach((subset: KubeEndpointSubset) => {
-      subset.ports?.forEach(port => {
+      if (!subset.ports?.length) {
         subset.addresses?.forEach(address => {
-          addresses.push(address.ip + ':' + port.port);
+          addresses.push(address.ip);
+        });
+        return;
+      }
+      subset.ports.forEach(port => {
+        subset.addresses?.forEach(address => {
+          addresses.push(joinHostPort(address.ip, port.port));
         });
       });
     });
