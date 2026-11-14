@@ -21,6 +21,8 @@ import { clusterFetch } from './fetch';
 
 export interface KubeNodeSummaryStats {
   node?: {
+    /** When the node's operating system booted. The kubelet reports the system boot time here. */
+    startTime?: string | null;
     fs?: {
       availableBytes?: number;
       capacityBytes?: number;

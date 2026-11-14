@@ -20,6 +20,8 @@ import Tooltip from '@mui/material/Tooltip';
 import { styled } from '@mui/system';
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { KubeNodeSummaryStats } from '../../lib/k8s/api/v2/nodeSummaryApi';
+import type { Time } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 
@@ -41,6 +43,20 @@ function isWorkloadPod(pod: Pod): boolean {
 // remain scheduled on it.
 export function isNodeDrained(node: Node, podsOnNode: Pod[]): boolean {
   return isNodeCordoned(node) && !podsOnNode.some(isWorkloadPod);
+}
+
+// The kubelet's summary stats carry the system boot time. The Ready condition
+// is only a fallback: its lastTransitionTime stays put when a node reboots
+// before the node controller marks it NotReady, which on a single-node cluster,
+// where that controller goes down with the node, is every reboot.
+export function getNodeUptimeStart(
+  node: Node,
+  summaryStats: KubeNodeSummaryStats | null
+): Time | undefined {
+  return (
+    summaryStats?.node?.startTime ??
+    node.status?.conditions?.find(({ type }) => type === 'Ready')?.lastTransitionTime
+  );
 }
 
 const WrappingBox = styled(Box)(({ theme }) => ({
