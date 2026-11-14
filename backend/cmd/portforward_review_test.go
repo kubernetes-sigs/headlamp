@@ -87,7 +87,9 @@ func portForwardReviewServer(t *testing.T, store kubeconfig.ContextStore,
 	return server
 }
 
-func portForwardReviewContext(name, server, token string) *kubeconfig.Context {
+func portForwardReviewContext(server, token string) *kubeconfig.Context {
+	const name = "shared"
+
 	return &kubeconfig.Context{
 		Name: name, Cluster: &api.Cluster{Server: server, InsecureSkipTLSVerify: true},
 		KubeContext: &api.Context{Cluster: name, AuthInfo: name}, AuthInfo: &api.AuthInfo{Token: token},
@@ -99,7 +101,7 @@ func TestPortForwardProxyAuthorizationNormalization(t *testing.T) {
 	for _, proxyHeader := range []string{"Authorization", "authorization", "AUTHORIZATION", "X-Forwarded-Token"} {
 		t.Run(proxyHeader, func(t *testing.T) {
 			store := kubeconfig.NewContextStore()
-			require.NoError(t, store.AddContext(portForwardReviewContext("shared", upstream.URL, "bob")))
+			require.NoError(t, store.AddContext(portForwardReviewContext(upstream.URL, "bob")))
 
 			server := portForwardReviewServer(t, store, proxyHeader, false)
 			for _, test := range []struct {
@@ -172,7 +174,7 @@ func TestPortForwardStatelessRequestDoesNotBorrowCachedCredentials(t *testing.T)
 	upstream, seen := portForwardReviewIdentityAPI(t)
 	store := kubeconfig.NewContextStore()
 	key := statelessContextKey("shared", "known-routing-id")
-	victim := portForwardReviewContext("shared", upstream.URL, "alice")
+	victim := portForwardReviewContext(upstream.URL, "alice")
 	victim.Internal = true
 	require.NoError(t, store.AddContextWithKeyAndTTL(victim, key, time.Minute))
 
@@ -230,7 +232,7 @@ func TestPortForwardStatelessCreationPinsRequestCredentials(t *testing.T) {
 	upstream, seen := portForwardReviewIdentityAPI(t)
 	store := kubeconfig.NewContextStore()
 	key := statelessContextKey("shared", "known-routing-id")
-	victim := portForwardReviewContext("shared", upstream.URL, "alice")
+	victim := portForwardReviewContext(upstream.URL, "alice")
 	victim.Internal = true
 	require.NoError(t, store.AddContextWithKeyAndTTL(victim, key, time.Minute))
 	server := portForwardReviewServer(t, store, "", true)

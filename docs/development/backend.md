@@ -99,6 +99,9 @@ an existing Bearer prefix is normalized only once. An explicitly supplied empty
 credential is rejected, never replaced by a cookie or stored identity. Static
 contexts with names that cannot form cookie names can still use their configured
 credentials when no Authorization header was supplied.
+The outer cluster OIDC middleware validates supplied Authorization before
+refresh: an expiring cookie cannot replace an invalid header or collapse multiple
+headers into an accepted credential. Legitimate cookie-only refresh still works.
 
 Sessions are scoped by the exact context key, API server/TLS/proxy authority, and
 the Kubernetes-returned username and UID. Another user cannot list, inspect,
@@ -142,6 +145,9 @@ Header, Unicode-name, authority-replacement and stateless-cache regressions:
 cd backend
 go test -race ./pkg/portforward ./cmd -run '^TestPortForward(ProxyAuthorizationNormalization|RejectsEmptySuppliedCredentials|UnicodeStaticContext|ContextReplacementPinsAuthority|Stateless.*)$' -count=20
 ```
+
+The fully wrapped refresh-order regression is
+`go test -race ./cmd -run '^TestPortForwardValidatesAuthorizationBeforeRefresh$' -count=20`.
 
 These tests use the production request handler and real HTTP/TLS connections to a
 local mock of the Kubernetes authentication API. Session-control tests use
