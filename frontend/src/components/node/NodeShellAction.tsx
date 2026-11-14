@@ -54,7 +54,9 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   if (item === null) {
     return <></>;
   }
-  const cluster = getCluster();
+  // Use the node's own cluster. With several clusters selected, getCluster()
+  // returns the first cluster in the URL, which may not own this node.
+  const cluster = item.cluster || getCluster();
   function isLinux(item: Node | null): boolean {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
@@ -66,8 +68,19 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   }
   return (
     <>
-      <AuthVisible authVerb="create" item={Pod} namespace={namespace}>
-        <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
+      <AuthVisible
+        authVerb="create"
+        item={Pod}
+        namespace={namespace}
+        cluster={cluster ?? undefined}
+      >
+        <AuthVisible
+          item={Pod}
+          namespace={namespace}
+          cluster={cluster ?? undefined}
+          authVerb="get"
+          subresource="exec"
+        >
           <ActionButton
             description={
               isLinux(item)
