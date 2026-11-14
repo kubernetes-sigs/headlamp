@@ -2815,6 +2815,33 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
+// requestWithImpersonationDeadline attaches imp to r's context (see ContextWithImpersonation)
+// and, when imp.Expiry is known, binds that context to a deadline at that time. The caller must
+// defer the returned cancel to release the timer.
+//
+// For an ordinary request this RoundTrips once and returns well before Expiry, so the deadline
+// never fires. It matters for a WebSocket-upgrading one (kubectl exec or attach):
+// ReverseProxy.ServeHTTP hijacks the connection and pipes bytes for the life of the session with
+// no further HTTP-level check, so without this an impersonated exec/attach session would keep
+// running indefinitely past the point its verified identity expires -- the one place that gap
+// existed, since every other long-lived impersonated session (multiplexer, port-forward, helm)
+// already enforces it. net/http/httputil's own handleUpgradeResponse already closes the hijacked
+// backend connection once the request's context is cancelled (see golang.org/issue/35559), so a
+// deadline here is enough; no watchdog goroutine is needed.
+func requestWithImpersonationDeadline(
+	r *http.Request, imp kubeconfig.Impersonation,
+) (*http.Request, context.CancelFunc) {
+	ctx := kubeconfig.ContextWithImpersonation(r.Context(), imp)
+
+	if imp.Expiry.IsZero() {
+		return r.WithContext(ctx), func() {}
+	}
+
+	ctx, cancel := context.WithDeadline(ctx, imp.Expiry)
+
+	return r.WithContext(ctx), cancel
+}
+
 //nolint:funlen // Handler orchestrates request forwarding, auth, and telemetry
 func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2892,8 +2919,11 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 			clearRequestAuthorization(r)
 		case impersonation != nil:
 			clearRequestAuthorization(r)
-			// Carried via the request's context, not a header: see ContextWithImpersonation.
-			r = r.WithContext(kubeconfig.ContextWithImpersonation(r.Context(), *impersonation))
+
+			var cancel context.CancelFunc
+
+			r, cancel = requestWithImpersonationDeadline(r, *impersonation)
+			defer cancel()
 		default:
 			var token string
 

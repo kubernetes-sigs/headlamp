@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -5948,6 +5949,126 @@ func TestHandleClusterAPI_OIDCImpersonation_ConnectionHeaderCannotStripIdentity(
 				"the Connection header must not strip the verified identity")
 			assert.ElementsMatch(t, []string{"dev", "system:authenticated"}, receivedGroups)
 		})
+	}
+}
+
+// TestHandleClusterAPI_OIDCImpersonation_ExecSessionClosedOnExpiry locks in the fix for a gap in
+// clusterRequestHandler: unlike every other long-lived impersonated session this feature added
+// (multiplexer, port-forward, helm), a WebSocket-upgraded one -- kubectl exec or attach, proxied
+// via httputil.ReverseProxy's hijack-and-pipe upgrade handling -- ran for the life of the
+// underlying connection with no cutoff once the verified identity's expiry passed. Fixed by
+// binding the request's context to a deadline at impersonation.Expiry: ReverseProxy's own
+// handleUpgradeResponse already closes the hijacked backend connection once the request's
+// context is cancelled (see golang.org/issue/35559), so nothing else needs to watch for it.
+//
+//nolint:funlen // Sets up a real hijacked connection end to end; splitting it would obscure the sequence
+func TestHandleClusterAPI_OIDCImpersonation_ExecSessionClosedOnExpiry(t *testing.T) {
+	const cluster = "main"
+
+	tokenFile := writeTestTokenFile(t)
+
+	// Simulates kubectl exec/attach's apiserver endpoint: accepts the upgrade, then holds the
+	// connection open indefinitely, as a real exec session would for an interactive shell,
+	// never closing it on its own -- so the test can tell whether the *client* side (Headlamp's
+	// own proxy) is the one that eventually closes it.
+	backendClosed := make(chan struct{})
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rc := http.NewResponseController(w)
+
+		conn, _, err := rc.Hijack()
+		require.NoError(t, err)
+
+		defer func() { _ = conn.Close() }()
+
+		_, err = conn.Write([]byte("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
+		require.NoError(t, err)
+
+		buf := make([]byte, 1)
+		for {
+			if _, err := conn.Read(buf); err != nil {
+				close(backendClosed)
+				return
+			}
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	issuer := testutil.NewFakeOIDCIssuer(t)
+	cfg := newImpersonationTestConfig(kubeConfigStore, issuer.URL)
+
+	// exp has whole-second granularity (see impersonationTestClaims), so one second from now is
+	// the smallest reliable margin for a short-lived token in this test.
+	token := issuer.Sign(t, impersonationTestClaims(issuer.URL, map[string]interface{}{
+		"email":  "alice@example.com",
+		"groups": []interface{}{"dev"},
+		"exp":    float64(time.Now().Add(time.Second).Unix()),
+	}))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	headlamp := httptest.NewServer(router)
+	t.Cleanup(headlamp.Close)
+
+	headlampURL, err := url.Parse(headlamp.URL)
+	require.NoError(t, err)
+
+	var dialer net.Dialer
+
+	conn, err := dialer.DialContext(context.Background(), "tcp", headlampURL.Host)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/healthz", nil)
+	require.NoError(t, err)
+
+	req.Host = headlampURL.Host
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	require.NoError(t, req.Write(conn))
+
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+
+	start := time.Now()
+
+	// With the fix, Headlamp closes its side once the verified identity's expiry passes, which
+	// closes the backend connection too (both ends of the hijacked pipe close together). Reading
+	// until EOF measures how long the session actually stayed open.
+	_, _ = io.Copy(io.Discard, conn)
+	elapsed := time.Since(start)
+
+	assert.Less(t, elapsed, 5*time.Second,
+		"exec/attach session should be closed once the impersonated identity's expiry passes")
+
+	select {
+	case <-backendClosed:
+	case <-time.After(5 * time.Second):
+		t.Error("backend connection was never closed")
 	}
 }
 
