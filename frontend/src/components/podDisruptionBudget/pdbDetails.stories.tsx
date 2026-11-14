@@ -103,6 +103,12 @@ Default.parameters = {
           `${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint`,
           () => HttpResponse.json(mockPDB)
         ),
+        http.get(`${API_BASE}/api/v1/namespaces/kube-system/pods`, () =>
+          HttpResponse.json({ kind: 'PodList', items: [], metadata: {} })
+        ),
+        http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/kube-system/pods`, () =>
+          HttpResponse.json({ kind: 'PodMetricsList', items: [], metadata: {} })
+        ),
       ],
     },
   },
