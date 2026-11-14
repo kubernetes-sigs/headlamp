@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2017",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "allowSyntheticDefaultImports": true,
     "jsx": "react-jsx",
     "moduleResolution": "bundler",

@@ -30,6 +30,7 @@ const validate = require('validate-npm-package-name');
 const yargs = require('yargs/yargs');
 const headlampPluginPkg = require('../package.json');
 const { getNativeTypeScriptCommand, getUpgradeOverrides } = require('./typescript');
+const { readTestConfiguration } = require('./test-config');
 const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl');
 const { table } = require('table');
 const tar = require('tar');
@@ -668,7 +669,7 @@ async function start() {
  * @param scriptName {string} - name of the script to run.
  * @param cmdLine {string} - command line to run.
  * @param env {object} - environment variables to run the command with.
- * @param {(projectDirectory: string) => { file: string, args: string[] } | undefined} [resolveCommand]
+ * @param {(projectDirectory: string) => { file: string, args: string[], env?: Record<string, string> } | undefined} [resolveCommand]
  * @returns {0 | 1} - Exit code, where 0 is success, 1 is failure.
  */
 function runScriptOnPackages(packageFolder, scriptName, cmdLine, env, resolveCommand) {
@@ -760,7 +761,7 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env, resolveCom
       child_process.execFileSync(...execution, {
         stdio: 'inherit',
         encoding: 'utf8',
-        env: { ...process.env, ...(env || {}) },
+        env: { ...process.env, ...(env || {}), ...(command?.env || {}) },
       });
     } catch (e) {
       console.error(`Problem running ${scriptName} inside of "${folder}"\r\n`, e.message);
@@ -1484,11 +1485,39 @@ function storybook_build(packageFolder) {
  * Run tests.
  *
  * @param packageFolder {string} - folder where the package is.
+ * @param {{ run?: boolean, watch?: boolean, exclude?: string[] }} options - headlamp-plugin SDK test options.
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
-function test(packageFolder) {
-  const script = `vitest -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs`;
-  return runScriptOnPackages(packageFolder, 'test', script, { UNDER_TEST: 'true' });
+function test(packageFolder, options) {
+  return runScriptOnPackages(packageFolder, 'test', 'vitest', { UNDER_TEST: 'true' }, () => {
+    const configuration = readTestConfiguration(process.cwd());
+    const watch = options.run ? false : options.watch ?? configuration.watch;
+    const exclude = [...new Set([...configuration.exclude, ...(options.exclude || [])])];
+    const packagePath = require.resolve('vitest/package.json');
+    const packageJson = require(packagePath);
+    const bin = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.vitest;
+    if (typeof bin !== 'string') {
+      throw new Error('Vitest has no CLI entry point. Reinstall @kinvolk/headlamp-plugin.');
+    }
+    const entry = path.resolve(path.dirname(packagePath), bin);
+    if (!fs.existsSync(entry)) {
+      throw new Error(`Vitest CLI is missing at "${entry}". Reinstall @kinvolk/headlamp-plugin.`);
+    }
+    const mode = watch === undefined ? [] : watch ? ['--watch'] : ['--run'];
+    return {
+      file: process.execPath,
+      args: [
+        entry,
+        '--config',
+        path.resolve(__dirname, '..', 'config', 'test.config.mjs'),
+        ...mode,
+      ],
+      env: {
+        PWD: process.cwd(),
+        HEADLAMP_TEST_CONFIGURATION: JSON.stringify({ ...configuration, exclude, watch }),
+      },
+    };
+  });
 }
 
 /**
@@ -2115,15 +2144,48 @@ yargs(process.argv.slice(2))
     'test [package]',
     'Test. <package> defaults to current working directory.' + ' Can also be a folder of packages.',
     yargs => {
-      yargs.positional('package', {
-        describe: 'Package to test',
-        type: 'string',
-        default: '.',
-      });
+      return yargs
+        .parserConfiguration({ 'populate--': true })
+        .positional('package', {
+          describe: 'Package to test',
+          type: 'string',
+          default: '.',
+        })
+        .option('run', {
+          describe: 'Run tests once instead of watching.',
+          type: 'boolean',
+        })
+        .option('watch', {
+          describe: 'Watch and rerun tests when files change.',
+          type: 'boolean',
+        })
+        .conflicts('run', 'watch')
+        .option('exclude', {
+          describe: 'Add an excluded test-file glob. Repeat to exclude more patterns.',
+          type: 'string',
+          array: true,
+        })
+        .check(argv => {
+          if (argv['--']?.length) {
+            throw new Error(
+              'Use headlamp-plugin SDK test options or headlamp.test; runner arguments are not supported.'
+            );
+          }
+          return true;
+        })
+        .example(
+          '$0 test --run --exclude "e2e/**"',
+          'Run tests once with headlamp-plugin SDK options'
+        )
+        .example('$0 test', 'Use the package.json headlamp.test configuration');
     },
     argv => {
       // @ts-ignore
-      process.exitCode = test(argv.package);
+      process.exitCode = test(argv.package, {
+        run: argv.run,
+        watch: argv.watch,
+        exclude: argv.exclude,
+      });
     }
   )
   .command(

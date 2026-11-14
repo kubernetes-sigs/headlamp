@@ -32,7 +32,7 @@ Complete tutorial from installation to your first working plugin, with practical
 
 ### 🛠️ [Building & Shipping Plugins](./building.md)
 
-Learn the development workflow, production builds, and deployment strategies.
+Learn the development workflow, testing, production builds, and deployment strategies.
 
 ### 🔐 [Desktop Command Capabilities](./command-capabilities.md)
 

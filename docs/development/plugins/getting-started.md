@@ -290,6 +290,9 @@ npm run tsc
 npm run test
 ```
 
+For portable test settings, headlamp-plugin SDK options, and automatic
+dependency-folder exclusions, see [Testing Plugins](./building.md#testing-plugins).
+
 #### 3. Building for Production
 
 When ready to deploy:
