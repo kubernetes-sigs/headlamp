@@ -152,6 +152,10 @@ class Event extends KubeObject<KubeEvent> {
       'involvedObject.name': name,
     };
 
+    if (object.metadata.uid) {
+      fieldSelector['involvedObject.uid'] = object.metadata.uid;
+    }
+
     if (namespace) {
       path = `/api/v1/namespaces/${namespace}/events`;
       fieldSelector['involvedObject.namespace'] = namespace;
