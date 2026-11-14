@@ -403,6 +403,13 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         stableQueryParams ?? {}
       ).queryKey;
 
+      // The watch's resource version expired, so it cannot report what changed since, such
+      // as deletions. List again to replace the cached list; the watch then resumes from it.
+      if (update.type === 'ERROR' && update.object?.code === 410) {
+        client.invalidateQueries({ queryKey });
+        return;
+      }
+
       // Update React Query cache with new data
       client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
         if (!oldResponse) {

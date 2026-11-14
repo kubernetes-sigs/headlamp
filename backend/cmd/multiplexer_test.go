@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -864,6 +865,11 @@ func TestReconnect(t *testing.T) {
 
 	// Create initial connection
 	conn := m.createConnection("test-cluster", "test-user", "/api/v1/services", "watch=true", clientConn, nil)
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/services", "test-user")
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
 	wsConn, wsServer := createTestWebSocketConnection()
 
 	defer wsServer.Close()
@@ -1938,4 +1944,756 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+func TestCalculateBackoffInterval(t *testing.T) {
+	baseInterval := 30 * time.Second
+	maxInterval := 10 * time.Minute
+
+	tests := []struct {
+		failures int
+		expected time.Duration
+	}{
+		{failures: 0, expected: 30 * time.Second},
+		{failures: 1, expected: 60 * time.Second},
+		{failures: 2, expected: 120 * time.Second},
+		{failures: 3, expected: 240 * time.Second},
+		{failures: 4, expected: 480 * time.Second},
+		{failures: 5, expected: 10 * time.Minute},
+		{failures: 6, expected: 10 * time.Minute},
+		{failures: 15, expected: 10 * time.Minute},
+		{failures: 100, expected: 10 * time.Minute},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("failures_%d", tt.failures), func(t *testing.T) {
+			got := calculateBackoffInterval(tt.failures, baseInterval, maxInterval)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestSendDataMessage_ReturnsClientWriteErrorOnWriteFailure(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	_ = clientConn.Close()
+
+	err := m.sendDataMessage(conn, clientConn, websocket.TextMessage, []byte("test"))
+	require.Error(t, err)
+
+	var writeErr clientWriteError
+	assert.ErrorAs(t, err, &writeErr)
+}
+
+func createFailServer(t *testing.T, requestTimes *[]time.Time, mu *sync.Mutex) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+
+		*requestTimes = append(*requestTimes, time.Now())
+
+		mu.Unlock()
+
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+// assertBackoffResults checks that each gap between reconnect attempts doubles, starting at
+// twice the heartbeat interval. A timer never fires early, so each gap is at least its
+// expected delay; it must also stay below the next delay, or the backoff did not double.
+func assertBackoffResults(t *testing.T, requestTimes []time.Time, mu *sync.Mutex, heartbeat time.Duration) {
+	t.Helper()
+
+	mu.Lock()
+	times := make([]time.Time, len(requestTimes))
+	copy(times, requestTimes)
+	mu.Unlock()
+
+	require.GreaterOrEqual(t, len(times), 4)
+
+	expected := 2 * heartbeat
+
+	for i := 1; i < 4; i++ {
+		gap := times[i].Sub(times[i-1])
+
+		assert.GreaterOrEqual(t, gap, expected-5*time.Millisecond, "gap %d", i)
+		assert.Less(t, gap, 2*expected, "gap %d", i)
+
+		expected *= 2
+	}
+}
+
+func TestMonitorConnection_ExponentialBackoff(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+	m.heartbeatInterval = 50 * time.Millisecond
+
+	var (
+		requestTimes []time.Time
+		mu           sync.Mutex
+	)
+
+	failServer := createFailServer(t, &requestTimes, &mu)
+	err := store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: failServer.URL},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn.Status.State = StateError
+	conn.WSConn = nil
+
+	// A monitored connection is always registered; a reconnect only retries while it still is.
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = conn
+	m.mutex.Unlock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		n := len(requestTimes)
+		mu.Unlock()
+
+		return n >= 4
+	}, 2*time.Second, 10*time.Millisecond)
+
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
+
+	<-done
+
+	assert.Equal(t, StateClosed, conn.Status.State)
+	assertBackoffResults(t, requestTimes, &mu, m.heartbeatInterval)
+}
+
+func TestHandleHeartbeatTick_ClosedAndHealthyConnections(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// 1. Closed connection returns (nil, true)
+	closedConn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	closedConn.closed = true
+
+	consecutiveFailures := 0
+	currentInterval := 30 * time.Second
+
+	ticker := time.NewTicker(currentInterval)
+	defer ticker.Stop()
+
+	newConn, stop := m.handleHeartbeatTick(closedConn, &consecutiveFailures, ticker)
+	assert.Nil(t, newConn)
+	assert.True(t, stop)
+
+	// 2. Connected connection with working WebSocket returns (nil, false)
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+
+	wsConn, wsServer := createTestWebSocketConn()
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn
+	conn.Status.State = StateConnected
+
+	newConn, stop = m.handleHeartbeatTick(conn, &consecutiveFailures, ticker)
+	assert.Nil(t, newConn)
+	assert.False(t, stop)
+}
+
+// waitForDial waits until a paused handshake server has received a dial.
+func waitForDial(t *testing.T, dialStarted <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-dialStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not start dialing")
+	}
+}
+
+// newPausedHandshakeServer returns a cluster server that holds the WebSocket handshake
+// until releaseDial is closed. dialStarted is closed once a dial reaches it, and
+// dialedSocketClosed once the client closes the socket it dialed.
+func newPausedHandshakeServer() (server *httptest.Server, dialStarted, releaseDial, dialedSocketClosed chan struct{}) {
+	dialStarted = make(chan struct{})
+	releaseDial = make(chan struct{})
+	dialedSocketClosed = make(chan struct{})
+
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(dialStarted)
+		<-releaseDial
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		// ReadMessage only returns once the client closes the socket.
+		_, _, _ = ws.ReadMessage()
+
+		close(dialedSocketClosed)
+	}))
+
+	return server, dialStarted, releaseDial, dialedSocketClosed
+}
+
+func TestReconnectAbortsIfConnectionClosedDuringDial(t *testing.T) {
+	server, dialStarted, releaseDial, dialedSocketClosed := newPausedHandshakeServer()
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clusterID := "test-cluster"
+	path := "/api/v1/pods"
+	userID := "test-user"
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:    clusterID,
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	})
+	require.NoError(t, err)
+
+	connKey := m.createConnectionKey(clusterID, path, userID)
+	conn := m.createConnection(clusterID, userID, path, "watch=1", nil, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	reconnectErr := make(chan error, 1)
+
+	go func() {
+		newConn, err := m.reconnect(conn)
+		assert.Nil(t, newConn)
+
+		reconnectErr <- err
+	}()
+
+	waitForDial(t, dialStarted)
+
+	m.CloseConnection(clusterID, path, userID)
+	close(releaseDial)
+
+	select {
+	case err := <-reconnectErr:
+		require.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not return")
+	}
+
+	select {
+	case <-dialedSocketClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("socket dialed by the aborted reconnect was not closed")
+	}
+
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, exists, "resurrected connection must not be published to registry")
+}
+
+func TestClientWriteFailureKeepsReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clusterID := "test-cluster"
+	path := "/api/v1/pods"
+	userID := "test-user"
+	connKey := m.createConnectionKey(clusterID, path, userID)
+
+	failedClient, failedServer := createTestWebSocketConnection()
+	defer failedServer.Close()
+
+	require.NoError(t, failedClient.conn.Close())
+
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	oldConn := m.createConnection(clusterID, userID, path, "watch=1", failedClient, nil)
+	oldConn.WSConn = clusterConn
+
+	replacementClient, replacementServer := createTestWebSocketConnection()
+	defer replacementServer.Close()
+
+	// A new client subscribed to the same key after the old one was removed.
+	replacement := m.createConnection(clusterID, userID, path, "watch=1", replacementClient, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = replacement
+	m.mutex.Unlock()
+
+	// The echo server returns this frame, which the old pump then fails to write.
+	require.NoError(t, clusterConn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ADDED"}`)))
+
+	m.handleClusterMessages(oldConn, failedClient)
+
+	m.mutex.RLock()
+	current := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Same(t, replacement, current)
+	assert.False(t, replacement.IsClosed())
+	assert.True(t, oldConn.IsClosed())
+}
+
+func TestReconnectResumesFromLatestResourceVersion(t *testing.T) {
+	queries := make(chan string, 2)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries <- r.URL.RawQuery
+
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		_, _, _ = ws.ReadMessage()
+	}))
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	path := "/api/v1/pods"
+	query := "resourceVersion=100&watch=1"
+	conn := m.createConnection("test-cluster", "test-user", path, query, clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(conn.ClusterID, path, conn.UserID)] = conn
+	m.mutex.Unlock()
+
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	conn.WSConn = clusterConn
+
+	// The echo server returns the event, as if the cluster sent it.
+	event := []byte(`{"type":"MODIFIED","object":{"metadata":{"resourceVersion":"250"}}}`)
+	require.NoError(t, clusterConn.WriteMessage(websocket.TextMessage, event))
+
+	lastResourceVersion := ""
+	require.NoError(t, m.processClusterMessage(conn, clientConn, &lastResourceVersion))
+
+	resumed, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer resumed.safeClose()
+
+	assert.Equal(t, "resourceVersion=250&watch=1", <-queries)
+	assert.Equal(t, query, resumed.Query, "messages must keep routing to the subscribed query")
+}
+
+// readClientMessageOfType returns the next message of type msgType the multiplexer wrote to
+// client, which the test server echoes back.
+func readClientMessageOfType(t *testing.T, client *WSConnLock, msgType string) Message {
+	t.Helper()
+
+	require.NoError(t, client.conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+
+	for {
+		var msg Message
+
+		require.NoError(t, client.ReadJSON(&msg))
+
+		if msg.Type == msgType {
+			return msg
+		}
+	}
+}
+
+func TestResumeCursorAdvancesOnlyAfterForwarding(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	failedClient, failedServer := createTestWebSocketConnection()
+	defer failedServer.Close()
+
+	require.NoError(t, failedClient.conn.Close())
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", failedClient)
+	conn.WSConn = clusterConn
+	conn.resourceVersion = "100"
+
+	event := []byte(`{"type":"MODIFIED","object":{"metadata":{"resourceVersion":"250"}}}`)
+	require.NoError(t, clusterConn.WriteMessage(websocket.TextMessage, event))
+
+	lastResourceVersion := ""
+	err := m.processClusterMessage(conn, failedClient, &lastResourceVersion)
+
+	var writeErr clientWriteError
+	require.ErrorAs(t, err, &writeErr)
+	assert.Equal(t, "100", conn.resourceVersion, "a reconnect must replay the event the client missed")
+}
+
+func TestSupersededConnectionStopsForwarding(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		_, _, _ = ws.ReadMessage()
+	}))
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", clientConn, nil)
+
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = conn
+	m.mutex.Unlock()
+
+	resumed, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer resumed.safeClose()
+
+	// The old reader still holds an event it read before the reconnect took over.
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	conn.WSConn = clusterConn
+
+	event := []byte(`{"type":"MODIFIED","object":{"metadata":{"resourceVersion":"250"}}}`)
+	require.NoError(t, clusterConn.WriteMessage(websocket.TextMessage, event))
+
+	lastResourceVersion := ""
+	err = m.processClusterMessage(conn, clientConn, &lastResourceVersion)
+	require.ErrorIs(t, err, errConnectionSuperseded)
+
+	// Only the new connection's STATUS reached the client, not the stale event.
+	require.NoError(t, clientConn.conn.SetReadDeadline(time.Now().Add(200*time.Millisecond)))
+
+	for {
+		var msg Message
+		if err := clientConn.ReadJSON(&msg); err != nil {
+			break
+		}
+
+		assert.NotEqual(t, "DATA", msg.Type, "a superseded connection forwarded an event")
+	}
+}
+
+func TestExpiredWatchEventEndsConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	clusterConn, clusterServer := createTestWebSocketConn()
+	defer clusterServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", clientConn, nil)
+	conn.WSConn = clusterConn
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	expired := `{"type":"ERROR","object":{"kind":"Status","code":410,"reason":"Expired"}}`
+	require.NoError(t, clusterConn.WriteMessage(websocket.TextMessage, []byte(expired)))
+
+	pumpDone := make(chan struct{})
+
+	go func() {
+		m.handleClusterMessages(conn, clientConn)
+		close(pumpDone)
+	}()
+
+	select {
+	case <-pumpDone:
+	case <-time.After(5 * time.Second):
+		_ = clusterConn.Close()
+
+		t.Fatal("the cluster pump kept reading after the watch expired")
+	}
+
+	assert.Equal(t, expired, readClientMessageOfType(t, clientConn, "DATA").Data,
+		"the client needs the expiry to list again")
+	assert.True(t, conn.IsClosed(), "an expired watch must not be resumed")
+
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, exists)
+}
+
+func TestReconnectHandshakeExpiryEndsWatch(t *testing.T) {
+	var dials atomic.Int32
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dials.Add(1)
+
+		http.Error(w, "too old resource version", http.StatusGone)
+	}))
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", clientConn, nil)
+	conn.Status.State = StateError
+	conn.resourceVersion = "250"
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	failures := 0
+	interval := m.heartbeatInterval
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	newConn, stop := m.handleHeartbeatTick(conn, &failures, ticker)
+	assert.Nil(t, newConn)
+	assert.True(t, stop, "retrying would send the same expired resource version again")
+	assert.Equal(t, int32(1), dials.Load())
+	assert.Equal(t, 0, failures)
+
+	assert.JSONEq(t, watchExpiredEvent, readClientMessageOfType(t, clientConn, "DATA").Data)
+	assert.True(t, conn.IsClosed())
+
+	m.mutex.RLock()
+	_, exists := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.False(t, exists)
+}
+
+func TestResumeWatchQuery(t *testing.T) {
+	assert.Equal(t, "resourceVersion=250&watch=1", resumeWatchQuery("resourceVersion=100&watch=1", "250"))
+
+	// A watch subscribed without a resource version, such as a single object's, starts again
+	// from the current state: resuming it could hit an expired version it never asked for.
+	single := "fieldSelector=metadata.name%3Dmy-pod&watch=1"
+	assert.Equal(t, single, resumeWatchQuery(single, "250"))
+
+	assert.Equal(t, "resourceVersion=100", resumeWatchQuery("resourceVersion=100", "250"), "not a watch")
+}
+
+func TestFirstDialExpiryAsksClientToRelist(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "too old resource version", http.StatusGone)
+	}))
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// The client watches from the resource version of a cached list the cluster has compacted.
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/pods",
+		Query:     "resourceVersion=100&watch=1",
+		UserID:    "test-user",
+		Type:      "REQUEST",
+	}
+
+	_, err := m.getOrCreateConnection(msg, clientConn, nil)
+	require.ErrorIs(t, err, errWatchExpired)
+
+	m.handleConnectionError(clientConn, msg, err)
+
+	data := readClientMessageOfType(t, clientConn, "DATA")
+	assert.Equal(t, msg.Query, data.Query)
+	assert.JSONEq(t, watchExpiredEvent, data.Data)
+}
+
+func TestReconnectClosesConnectionReplacedDuringDial(t *testing.T) {
+	server, dialStarted, releaseDial, _ := newPausedHandshakeServer()
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", nil, nil)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	reconnectErr := make(chan error, 1)
+
+	go func() {
+		_, err := m.reconnect(conn)
+		reconnectErr <- err
+	}()
+
+	waitForDial(t, dialStarted)
+
+	// Another subscription for the same key registers while the reconnect is dialing.
+	replacement := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", nil, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = replacement
+	m.mutex.Unlock()
+
+	close(releaseDial)
+
+	select {
+	case err := <-reconnectErr:
+		require.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not return")
+	}
+
+	assert.True(t, conn.IsClosed(), "a replaced connection must stop reconnecting")
+	assert.Same(t, replacement, m.connections[connKey])
+	assert.False(t, replacement.IsClosed())
+}
+
+// newPausedFailingHandshakeServer returns a server that rejects the handshake once releaseDial
+// is closed, so a test can act while a dial that is going to fail is in flight.
+func newPausedFailingHandshakeServer() (server *httptest.Server, dialStarted, releaseDial chan struct{}) {
+	dialStarted = make(chan struct{})
+	releaseDial = make(chan struct{})
+
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(dialStarted)
+		<-releaseDial
+		http.Error(w, "cluster unavailable", http.StatusServiceUnavailable)
+	}))
+
+	return server, dialStarted, releaseDial
+}
+
+func TestReconnectClosesConnectionReplacedDuringFailedDial(t *testing.T) {
+	server, dialStarted, releaseDial := newPausedFailingHandshakeServer()
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", nil, nil)
+	conn.Status.State = StateError
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	failures := 0
+
+	ticker := time.NewTicker(m.heartbeatInterval)
+	defer ticker.Stop()
+
+	stopped := make(chan bool, 1)
+
+	go func() {
+		newConn, stop := m.handleHeartbeatTick(conn, &failures, ticker)
+		assert.Nil(t, newConn)
+
+		stopped <- stop
+	}()
+
+	waitForDial(t, dialStarted)
+
+	// Another subscription for the same key registers while the reconnect is dialing.
+	replacement := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", nil, nil)
+
+	m.mutex.Lock()
+	m.connections[connKey] = replacement
+	m.mutex.Unlock()
+
+	close(releaseDial)
+
+	select {
+	case stop := <-stopped:
+		assert.True(t, stop, "a replaced connection must stop retrying through an outage")
+	case <-time.After(5 * time.Second):
+		t.Fatal("heartbeat tick did not return")
+	}
+
+	assert.True(t, conn.IsClosed())
+	assert.Equal(t, 0, failures)
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	assert.Same(t, replacement, m.connections[connKey])
+	assert.False(t, replacement.IsClosed())
 }
