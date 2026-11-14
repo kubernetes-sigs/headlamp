@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // OIDCTokenRefreshConfig holds the configuration needed by the OIDC token
@@ -131,7 +133,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			RefreshAndSetToken(RefreshAndSetTokenParams{
+			err = RefreshAndSetToken(RefreshAndSetTokenParams{
 				Ctx:                       ctx,
 				OIDCAuthConfig:            oidcAuthConfig,
 				Cache:                     config.Cache,
@@ -147,10 +149,36 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
 			})
+			if err != nil {
+				status = "token_refresh_failure"
+
+				ClearTokenCookieBounded(w, r, cluster, config.BaseURL)
+
+				if writeErr := writeExpiredAuthenticationResponse(w); writeErr != nil {
+					logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+						writeErr, "writing expired authentication response")
+				}
+
+				return
+			}
 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func writeExpiredAuthenticationResponse(w http.ResponseWriter) error {
+	w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+
+	return json.NewEncoder(w).Encode(metav1.Status{
+		TypeMeta: metav1.TypeMeta{Kind: "Status", APIVersion: "v1"},
+		Status:   metav1.StatusFailure,
+		Message:  "authentication session expired",
+		Reason:   metav1.StatusReasonUnauthorized,
+		Code:     http.StatusUnauthorized,
+	})
 }
 
 // shouldUseUnsafeServiceAccountToken reports whether the config is running
@@ -175,7 +203,11 @@ func (c *OIDCTokenRefreshConfig) shouldSkipOIDCRefresh(
 	w http.ResponseWriter, r *http.Request, span trace.Span,
 	status *string, next http.Handler,
 ) bool {
-	if !strings.HasPrefix(r.URL.String(), "/clusters/") {
+	path := strings.Split(strings.TrimPrefix(r.URL.Path, "/clusters/"), "/")
+	// A new login must be able to replace an expired cookie. The route still
+	// applies its backend-token guard before accepting the replacement.
+	settingToken := r.Method == http.MethodPost && len(path) == 2 && path[1] == "set-token"
+	if !strings.HasPrefix(r.URL.Path, "/clusters/") || settingToken {
 		c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
 
 		*status = "skipped"
