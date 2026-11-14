@@ -832,6 +832,13 @@ func loadKubeConfigClusters(config *HeadlampConfig, path string, skipFunc func(k
 		return
 	}
 
+	// Like kubectl, load the files in a path list that exist and skip the
+	// missing ones. When none of them exist, the load below still reports
+	// the kubeconfig as not found.
+	if existing := kubeconfig.ExistingKubeConfigPaths(path); existing != "" {
+		path = existing
+	}
+
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, path, kubeconfig.KubeConfig, skipFunc)
 	if err == nil {
 		return
