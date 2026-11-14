@@ -302,11 +302,19 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
 
 	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
-		// Check the decompressed body for Kubernetes error status before
-		// marshalling the full CachedResponseData. This avoids allocating
-		// the JSON envelope for responses that will be discarded anyway.
+		// Only skip caching for actual Kubernetes error Status objects.
+		// Use a fast substring pre-check so non-error responses (the common
+		// case) skip the JSON decode entirely.
 		if strings.Contains(dcmpBody, "Failure") {
-			return nil
+			var statusProbe struct {
+				Kind   string `json:"kind"`
+				Status string `json:"status"`
+			}
+
+			if err := json.NewDecoder(strings.NewReader(dcmpBody)).Decode(&statusProbe); err == nil &&
+				statusProbe.Kind == "Status" && statusProbe.Status == "Failure" {
+				return nil
+			}
 		}
 
 		cachedData := CachedResponseData{
