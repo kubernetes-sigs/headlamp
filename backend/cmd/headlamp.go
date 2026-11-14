@@ -247,7 +247,8 @@ func fileExists(filename string) bool {
 }
 
 func mustReadFile(path string) []byte {
-	data, err := os.ReadFile(path) //nolint:gosec // Path is validated/trusted configuration file path
+	//nolint:gosec // G304: Static asset path resolved at server startup from --html-static-dir.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
@@ -469,7 +470,8 @@ func getOIDCLogoutProvider(
 		if ok {
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Insecure mode explicitly requested via config
+			//nolint:gosec // G402: Operator opted in via --insecure-ssl for OIDC.
+			tlsCfg := &tls.Config{InsecureSkipVerify: true}
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
@@ -1200,7 +1202,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
 		defer cancel()
 
-		//nolint:gosec // Target URL is validated against allowed proxy URLs whitelist
+		//nolint:gosec // G107: Validated by proxyURLAllowed.
 		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
@@ -1243,7 +1245,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			},
 		}
 
-		//nolint:gosec // Target URL and any redirects are validated against the allowed proxy URLs whitelist
+		//nolint:gosec // G107: Target URL and any redirects are validated against the allowed proxy URLs whitelist.
 		resp, err := client.Do(proxyReq)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
@@ -1367,7 +1369,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 			tr := baseTransport.Clone()
 
-			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // Insecure mode explicitly requested via config
+			//nolint:gosec // G402: Operator opted in via --insecure-ssl for OIDC.
+			tlsCfg := &tls.Config{InsecureSkipVerify: true}
 			if baseTransport.TLSClientConfig != nil {
 				tlsCfg = baseTransport.TLSClientConfig.Clone()
 				tlsCfg.InsecureSkipVerify = true
