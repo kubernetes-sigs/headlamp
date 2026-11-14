@@ -23,15 +23,18 @@ import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export function getSchedule(cronJob: CronJob, locale: string) {
-  const { schedule } = cronJob.spec;
+  const schedule = cronJob.spec?.schedule;
+  if (!schedule) {
+    return '';
+  }
   let described = '';
   if (!schedule.startsWith('@')) {
     try {
       described = cronstrue.toString(schedule, { locale });
     } catch (e) {
       console.debug(
-        `Could not describe cron "${schedule}" for cronJob ${cronJob.metadata.namespace}/${cronJob.metadata.name}:`,
-        e
+        `Could not describe cron "${schedule}" for cronJob ${cronJob.metadata?.namespace}/${cronJob.metadata?.name}:`,
+        e,
       );
     }
   }
@@ -39,7 +42,7 @@ export function getSchedule(cronJob: CronJob, locale: string) {
 }
 
 export function getLastScheduleTime(cronJob: CronJob) {
-  const { lastScheduleTime } = cronJob.status;
+  const lastScheduleTime = cronJob.status?.lastScheduleTime;
   if (!lastScheduleTime) {
     return '';
   }
@@ -60,7 +63,7 @@ export default function CronJobList() {
         {
           id: 'schedule',
           label: t('Schedule'),
-          getValue: cronJob => cronJob.spec.schedule,
+          getValue: cronJob => cronJob.spec?.schedule ?? '',
           render: cronJob => getSchedule(cronJob, i18n.language),
         },
         {
@@ -78,19 +81,19 @@ export default function CronJobList() {
         {
           id: 'lastScheduleTime',
           label: t('Last Schedule'),
-          getValue: cronJob => cronJob.status.lastScheduleTime ?? '',
+          getValue: cronJob => cronJob.status?.lastScheduleTime ?? '',
           render: cronJob => getLastScheduleTime(cronJob),
         },
         {
           id: 'containers',
           label: t('Containers'),
-          getValue: deployment =>
-            deployment
+          getValue: cronJob =>
+            cronJob
               .getContainers()
               .map(c => c.name)
               .join(', '),
-          render: deployment => {
-            const containers = deployment.getContainers().map(c => c.name);
+          render: cronJob => {
+            const containers = cronJob.getContainers().map(c => c.name);
             const containerText = containers.join(', ');
             const containerTooltip = containers.join('\n');
             return (
@@ -103,13 +106,13 @@ export default function CronJobList() {
         {
           id: 'images',
           label: t('Images'),
-          getValue: deployment =>
-            deployment
+          getValue: cronJob =>
+            cronJob
               .getContainers()
               .map(c => c.image)
               .join(', '),
-          render: deployment => {
-            const images = deployment.getContainers().map(c => c.image);
+          render: cronJob => {
+            const images = cronJob.getContainers().map(c => c.image);
             const imageText = images.join(', ');
             const imageTooltip = images.join('\n');
             return (

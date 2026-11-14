@@ -62,7 +62,7 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
   const suffix = `-manual-spawn-${uniqueString()}`;
 
   const [jobName, setJobName] = useState(
-    () => `${cronJob?.metadata?.name.substring(0, maxNameLength - suffix.length)}${suffix}`
+    () => `${cronJob?.metadata?.name.substring(0, maxNameLength - suffix.length)}${suffix}`,
   );
 
   const isValidJobName = jobName.length <= maxNameLength && jobNameRegex.test(jobName);
@@ -71,7 +71,7 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
     jobName.length > maxNameLength
       ? t('translation|Job names must be under 64 characters.')
       : t(
-          "translation|Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character."
+          "translation|Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.",
         );
 
   function handleSpawn() {
@@ -119,7 +119,7 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
         errorMessage: t('translation|Failed to spawn Job {{ newItemName }}', {
           newItemName: jobName,
         }),
-      })
+      }),
     );
   }
 
@@ -188,9 +188,9 @@ export default function CronJobDetails(props: {
   const ownedJobs = useMemo(
     () =>
       jobs?.filter(job =>
-        job.metadata.ownerReferences?.find(ref => ref.kind === 'CronJob' && ref.name === name)
+        job.metadata.ownerReferences?.find(ref => ref.kind === 'CronJob' && ref.name === name),
       ) ?? [],
-    [jobs, name]
+    [jobs, name],
   );
 
   function applySuspend(cronJob: CronJob, suspend: boolean) {
@@ -228,8 +228,8 @@ export default function CronJobDetails(props: {
             : t('translation|Failed to resume CronJob {{ newItemName }}.', {
                 newItemName: cronJob.metadata.name,
               }),
-        }
-      )
+        },
+      ),
     );
   }
 
@@ -303,13 +303,13 @@ export default function CronJobDetails(props: {
           },
           {
             name: t('Time Zone'),
-            value: item.spec.timeZone,
-            hide: !item.spec.timeZone,
+            value: item.spec?.timeZone,
+            hide: !item.spec?.timeZone,
           },
           {
             name: t('Concurrency Policy'),
-            value: item.spec.concurrencyPolicy,
-            hide: !item.spec.concurrencyPolicy,
+            value: item.spec?.concurrencyPolicy,
+            hide: !item.spec?.concurrencyPolicy,
           },
           {
             name: t('translation|Suspend'),
@@ -317,18 +317,18 @@ export default function CronJobDetails(props: {
           },
           {
             name: t('Starting deadline'),
-            value: `${item.spec.startingDeadlineSeconds}s`,
-            hide: !item.spec.startingDeadlineSeconds,
+            value: `${item.spec?.startingDeadlineSeconds}s`,
+            hide: !item.spec?.startingDeadlineSeconds,
           },
           {
             name: t('Successful Jobs History Limit'),
-            value: item.spec.successfulJobsHistoryLimit,
-            hide: item.spec.successfulJobsHistoryLimit === undefined,
+            value: item.spec?.successfulJobsHistoryLimit,
+            hide: item.spec?.successfulJobsHistoryLimit === undefined,
           },
           {
             name: t('Failed Jobs History Limit'),
-            value: item.spec.failedJobsHistoryLimit,
-            hide: item.spec.failedJobsHistoryLimit === undefined,
+            value: item.spec?.failedJobsHistoryLimit,
+            hide: item.spec?.failedJobsHistoryLimit === undefined,
           },
           {
             name: t('Last Schedule'),
