@@ -46,6 +46,12 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
 
+function isExpiredWatchEvent(update: KubeListUpdateEvent<any>): boolean {
+  return (
+    update.type === 'ERROR' && (update.object?.code === 410 || update.object?.reason === 'Expired')
+  );
+}
+
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
     error instanceof ApiError
@@ -403,6 +409,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         stableQueryParams ?? {}
       ).queryKey;
 
+      // A compacted watch must relist before it can resume from a valid version.
+      if (isExpiredWatchEvent(update)) {
+        void client.invalidateQueries({ queryKey, exact: true }, { cancelRefetch: false });
+        return;
+      }
+
       // Update React Query cache with new data
       client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
         if (!oldResponse) {
@@ -525,6 +537,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             stableQueryParams ?? {}
           ).queryKey;
+          if (isExpiredWatchEvent(update)) {
+            void client.invalidateQueries({ queryKey: key, exact: true }, { cancelRefetch: false });
+            return;
+          }
+
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
 
@@ -534,7 +551,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
               kubeObjectClass,
               cluster
             );
-            return { ...oldResponse, list: newList };
+            return newList === oldResponse.list ? oldResponse : { ...oldResponse, list: newList };
           });
         },
       };
