@@ -27,10 +27,11 @@ interface CopyButtonProps {
   iconButtonProps?: ComponentProps<typeof ActionButton>['iconButtonProps'];
   width?: ComponentProps<typeof ActionButton>['width'];
   onClick?: MouseEventHandler<HTMLElement>;
+  description?: string;
 }
 
 export default function CopyButton(props: CopyButtonProps) {
-  const { text, buttonStyle, iconButtonProps, width, onClick } = props;
+  const { text, buttonStyle, iconButtonProps, width, onClick, description } = props;
   const { t } = useTranslation(['translation']);
   const [copied, setCopied] = useState(false);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -63,7 +64,9 @@ export default function CopyButton(props: CopyButtonProps) {
   return (
     <>
       <ActionButton
-        description={copied ? t('translation|Copied!') : t('translation|Copy to clipboard')}
+        description={
+          copied ? t('translation|Copied!') : description || t('translation|Copy to clipboard')
+        }
         buttonStyle={buttonStyle}
         onClick={onCopy}
         icon={copied ? 'mdi:check' : 'mdi:content-copy'}
