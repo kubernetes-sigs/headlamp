@@ -17,6 +17,7 @@
 import fs from 'fs';
 import { fileURLToPath } from 'node:url';
 import path from 'path';
+import { createDefaultValuePlugin } from '../../../plugins/headlamp-plugin/config/extraction-defaults.cjs';
 import sharedConfig from './i18nextSharedConfig.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,24 +27,25 @@ const currentLocales = [];
 fs.readdirSync(directoryPath).forEach(file => currentLocales.push(file));
 
 export default {
-  lexers: {
-    default: ['JsxLexer'],
-  },
-  namespaceSeparator: '|',
-  keySeparator: false,
-  output: path.join(directoryPath, './$LOCALE/$NAMESPACE.json'),
   locales: currentLocales,
-  contextSeparator: sharedConfig.contextSeparator,
-  defaultValue: (locale, _namespace, key) => {
-    // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
-    // missing values.
-    if (locale === 'en') {
-      const contextSepIdx = key.indexOf(sharedConfig.contextSeparator);
-      if (contextSepIdx >= 0) {
-        return key.substring(0, contextSepIdx);
+  plugins: [createDefaultValuePlugin()],
+  extract: {
+    input: ['src/**/*.{ts,tsx}'],
+    ignore: ['src/**/*.test.{ts,tsx}'],
+    nsSeparator: '|',
+    keySeparator: false,
+    output: path.join(directoryPath, '{{language}}/{{namespace}}.json'),
+    primaryLanguage: 'en',
+    removeUnusedKeys: false,
+    sort: false,
+    contextSeparator: sharedConfig.contextSeparator,
+    defaultValue: (key, _namespace, locale, value) => {
+      if (locale === 'en') {
+        if (value !== undefined) return value;
+        const contextSepIdx = key.indexOf(sharedConfig.contextSeparator);
+        return contextSepIdx >= 0 ? key.substring(0, contextSepIdx) : key;
       }
-      return key;
-    }
-    return '';
+      return '';
+    },
   },
 };

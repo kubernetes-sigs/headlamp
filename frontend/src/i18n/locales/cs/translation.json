@@ -836,7 +836,7 @@
   "No rules data to be shown.": "Nejsou k dispozici žádná data pravidel k zobrazení.",
   "Section Name": "Název oddílu",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Stiskněte<1>{formatShortcutKey(searchShortcutKey)}</1> pro hledání",
+  "Press<1>{{shortcut}}</1>to search": "Stiskněte<1>{{shortcut}}</1> pro hledání",
   "Search resources, pages, clusters by name": "Hledat prostředky, stránky a clustery podle názvu",
   "Current Namespace": "Aktuální obor názvů",
   "Set namespace: {{namespace}}": "Nastavit obor názvů: {{namespace}}",
@@ -953,7 +953,7 @@
   "Allowed disruptions": "Povolená přerušení",
   "Current//context:pods": "Aktuální",
   "Total": "Celkem",
-  "N/A": "Není k\u00a0dispozici",
+  "N/A": "Není k dispozici",
   "Allowed Disruptions": "Povolená přerušení",
   "Pod Group Template Name": "",
   "Composite Pod Group": "",
@@ -1172,5 +1172,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

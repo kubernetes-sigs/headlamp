@@ -822,7 +822,7 @@
   "No rules data to be shown.": "Det finns inga regeldata att visa.",
   "Section Name": "Avsnittsnamn",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Tryck på<1>{formatShortcutKey(searchShortcutKey)}</1> för att söka",
+  "Press<1>{{shortcut}}</1>to search": "Tryck på<1>{{shortcut}}</1> för att söka",
   "Search resources, pages, clusters by name": "Sök resurser, sidor, kluster med namn",
   "Current Namespace": "Aktuell namnrymd",
   "Set namespace: {{namespace}}": "Ange namnrymd: {{namespace}}",
@@ -949,8 +949,8 @@
   "Pod Port": "Poddport",
   "Local Port": "Lokal port",
   "Error starting port forward": "",
-  "Docker Desktop requires ports in range 30000-32000.": "Docker Desktop kräver portar i intervallet 30\u00a0000 – 32\u00a0000.",
-  "Leave empty to auto-assign from range 30000-32000.": "Lämna tomt om du vill tilldela automatiskt från intervallet 30\u00a0000–32 000.",
+  "Docker Desktop requires ports in range 30000-32000.": "Docker Desktop kräver portar i intervallet 30 000 – 32 000.",
+  "Leave empty to auto-assign from range 30000-32000.": "Lämna tomt om du vill tilldela automatiskt från intervallet 30 000–32 000.",
   "Leave empty to auto-assign an available port.": "Lämna tomt för att automatiskt tilldela en tillgänglig port.",
   "Start Port Forward": "Starta portvidarebefordran",
   "Target": "Mål",
@@ -1054,7 +1054,7 @@
   "Expand All": "Visa alla",
   "Performance Stats": "",
   "Fit to screen": "Anpassa till skärm",
-  "Zoom to 100%": "Zooma till 100\u00a0%",
+  "Zoom to 100%": "Zooma till 100 %",
   "{{count}} operations_one": "",
   "{{count}} operations_other": "",
   "Summary (last {{count}} operations)_one": "",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

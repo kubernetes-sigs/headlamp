@@ -850,7 +850,7 @@
   "No rules data to be shown.": "لا توجد بيانات قواعد للعرض",
   "Section Name": "اسم القسم",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "اضغط <1>{formatShortcutKey(searchShortcutKey)}</1> للبحث",
+  "Press<1>{{shortcut}}</1>to search": "اضغط <1>{{shortcut}}</1> للبحث",
   "Search resources, pages, clusters by name": "ابحث عن الموارد والصفحات والكتل حسب الاسم",
   "Current Namespace": "النطاق الحالي",
   "Set namespace: {{namespace}}": "تعيين النطاق: {{namespace}}",
@@ -1196,5 +1196,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

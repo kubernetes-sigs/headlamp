@@ -822,7 +822,7 @@
   "No rules data to be shown.": "Er zijn geen regelgegevens om weer te geven.",
   "Section Name": "Sectienaam",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Druk op<1>{formatShortcutKey(searchShortcutKey)}</1>om te zoeken",
+  "Press<1>{{shortcut}}</1>to search": "Druk op<1>{{shortcut}}</1>om te zoeken",
   "Search resources, pages, clusters by name": "Resources, pagina's, clusters zoeken op naam",
   "Current Namespace": "Huidige naamruimte",
   "Set namespace: {{namespace}}": "Naamruimte instellen: {{namespace}}",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

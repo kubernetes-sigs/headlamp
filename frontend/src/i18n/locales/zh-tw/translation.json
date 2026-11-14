@@ -815,7 +815,7 @@
   "No rules data to be shown.": "無規則資料顯示。",
   "Section Name": "區段名稱",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "",
+  "Press<1>{{shortcut}}</1>to search": "",
   "Search resources, pages, clusters by name": "按名稱搜尋資源、頁面、叢集",
   "Current Namespace": "當前命名空間",
   "Set namespace: {{namespace}}": "設定命名空間：{{namespace}}",
@@ -1136,5 +1136,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

@@ -822,7 +822,7 @@
   "No rules data to be shown.": "காட்ட விதிகள் டேட்டா எதுவும் இல்லை.",
   "Section Name": "பிரிவின் பெயர்",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "",
+  "Press<1>{{shortcut}}</1>to search": "",
   "Search resources, pages, clusters by name": "ரிசோர்ஸ்கள், பக்கங்கள், க்ளஸ்டர்களை பெயரால் தேடு",
   "Current Namespace": "",
   "Set namespace: {{namespace}}": "",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

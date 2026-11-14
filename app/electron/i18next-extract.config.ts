@@ -16,19 +16,23 @@
 
 import * as path from 'path';
 import sharedConfig from '../../frontend/src/i18n/i18nextSharedConfig.mjs';
+import { createDefaultValuePlugin } from '../../plugins/headlamp-plugin/config/extraction-defaults.cjs';
 import { CURRENT_LOCALES, LOCALES_DIR } from './i18n-helper';
 
 export default {
-  lexers: {
-    default: ['JsxLexer'],
-  },
-  namespaceSeparator: '|',
-  keySeparator: false,
-  defaultNamespace: 'app',
-  contextSeparator: sharedConfig.contextSeparator,
-  output: path.join(LOCALES_DIR, '$LOCALE/$NAMESPACE.json'),
   locales: CURRENT_LOCALES.length > 0 ? CURRENT_LOCALES : ['en'],
-  // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
-  // missing values.
-  useKeysAsDefaultValue: (locale: string) => locale === 'en',
+  plugins: [createDefaultValuePlugin()],
+  extract: {
+    input: ['electron/main.ts', 'electron/protocolHandler.ts', 'electron/developmentPlugins.ts'],
+    nsSeparator: '|',
+    keySeparator: false,
+    defaultNS: 'app',
+    primaryLanguage: 'en',
+    removeUnusedKeys: false,
+    sort: false,
+    contextSeparator: sharedConfig.contextSeparator,
+    output: path.join(LOCALES_DIR, '{{language}}/{{namespace}}.json'),
+    defaultValue: (key: string, _namespace: string, locale: string, value: string) =>
+      locale === 'en' ? value ?? key : '',
+  },
 };

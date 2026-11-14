@@ -352,7 +352,7 @@ frontend-tsc:
 .PHONY: frontend-i18n-check
 frontend-i18n-check:
 	@echo "Checking translations. If this fails use: 'npm run i18n'"
-	cd frontend && npm run i18n -- --fail-on-update
+	cd frontend && npm run i18n -- --ci
 
 frontend-test:
 	cd frontend && npm run test -- --coverage

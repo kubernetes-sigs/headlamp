@@ -107,7 +107,7 @@ npm run app:tsc
 
 ## Translations (i18n)
 
-The app uses [i18next](https://www.i18next.com/) for translations. Translation keys are extracted from `app/electron/main.ts` using i18next-parser.
+The app uses [i18next](https://www.i18next.com/) for translations. Translation keys are extracted using i18next-cli with `app/electron/i18next-extract.config.ts`.
 
 To regenerate translation files after changing translatable strings:
 
