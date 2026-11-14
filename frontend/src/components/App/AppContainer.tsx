@@ -18,7 +18,11 @@ import GlobalStyles from '@mui/material/GlobalStyles';
 import { SnackbarProvider } from 'notistack';
 import React, { useEffect } from 'react';
 import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
-import { DesktopBackendApi, initializeDesktopBackend } from '../../helpers/backendTokenFetch';
+import {
+  DesktopBackendApi,
+  initializeDesktopBackend,
+  initializeHeadlessBackend,
+} from '../../helpers/backendTokenFetch';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { isElectron } from '../../helpers/isElectron';
 import Plugins from '../../plugin/Plugins';
@@ -165,6 +169,12 @@ const Router = ({ children }: React.PropsWithChildren<{}>) =>
   );
 
 export default function AppContainer() {
+  // Synchronously initialize headless backend if running in external browser mode
+  // so token and fetch wrappers are installed before any child components render or make requests.
+  if (typeof window !== 'undefined' && !window.desktopApi) {
+    initializeHeadlessBackend();
+  }
+
   // Desktop rendering waits until both authenticated backend connection details arrive.
   const [desktopBackendReady, setDesktopBackendReady] = React.useState(!window.desktopApi);
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
