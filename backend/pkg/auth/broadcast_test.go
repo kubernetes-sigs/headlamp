@@ -18,6 +18,7 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -468,4 +470,75 @@ func TestBroadcastOIDCToken_InternalContextCannotClobberRealClusterCookie(t *tes
 			"matching context is an internal one that sanitizes to the same cookie name; got: %v",
 		realCluster, broadcastClusters(got))
 	assert.Empty(t, got, "no cluster should receive a broadcast cookie in this scenario")
+}
+
+// refreshWithBroadcast runs RefreshAndSetToken against a mock OIDC provider
+// with a three-context store (src, dst-match sharing src's issuer+client-id,
+// dst-other on a different issuer) and returns the reassembled cookies.
+func refreshWithBroadcast(t *testing.T, useTokenBroadcast bool) map[string]broadcastCookieInfo {
+	t.Helper()
+
+	const oldToken = "OLD"
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(newOIDCContext("src", testIssuerA, testClientFoo)))
+	require.NoError(t, store.AddContext(newOIDCContext("dst-match", testIssuerA, testClientFoo)))
+	require.NoError(t, store.AddContext(newOIDCContext("dst-other", testIssuerB, testClientFoo)))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/src", nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:               context.Background(),
+		OIDCAuthConfig:    &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:             fc,
+		Token:             oldToken,
+		Cluster:           "src",
+		Writer:            rr,
+		Request:           req,
+		TelemetryHandler:  &telemetry.RequestHandler{},
+		SessionTTL:        3600,
+		KubeConfigStore:   store,
+		UseTokenBroadcast: useTokenBroadcast,
+	})
+
+	return broadcastCookies(t, rr)
+}
+
+func TestRefreshAndSetToken_BroadcastsToSiblings(t *testing.T) {
+	got := refreshWithBroadcast(t, true)
+
+	// The source cluster's cookie carries the refreshed token, as before.
+	require.Contains(t, got, "src")
+	assert.Equal(t, "NEW", got["src"].value)
+
+	// The matching sibling receives the same refreshed token, scoped to its
+	// own cluster path, without a separate login or refresh of its own.
+	require.Contains(t, got, "dst-match")
+	assert.Equal(t, "NEW", got["dst-match"].value)
+	assert.Equal(t, "/clusters/dst-match", got["dst-match"].path)
+
+	// A sibling on a different issuer is untouched.
+	_, other := got["dst-other"]
+	assert.False(t, other, "did not expect a broadcast cookie for dst-other")
+}
+
+func TestRefreshAndSetToken_NoBroadcastWhenDisabled(t *testing.T) {
+	got := refreshWithBroadcast(t, false)
+
+	// Only the source cluster's cookie is refreshed.
+	require.Contains(t, got, "src")
+	assert.Equal(t, "NEW", got["src"].value)
+	assert.Len(t, got, 1, "expected no sibling cookies when broadcast is disabled")
 }
