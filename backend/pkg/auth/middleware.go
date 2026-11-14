@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -96,7 +97,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			cluster, token := ParseClusterAndToken(r)
+			cluster, token := ParseClusterAndToken(stripBaseURL(r, config.BaseURL))
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return
 			}
@@ -153,6 +154,27 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 	}
 }
 
+// stripBaseURL returns a shallow copy of r with the base URL removed from its
+// path. This middleware runs before the router has matched a route, so the
+// clusterName route variable is not set yet. Without this, a base URL that has
+// its own "clusters/" segment (e.g. "/clusters/headlamp") would be read as the
+// cluster name.
+func stripBaseURL(r *http.Request, baseURL string) *http.Request {
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	if baseURL == "" || !strings.HasPrefix(r.URL.Path, baseURL+"/") {
+		return r
+	}
+
+	r2 := new(http.Request)
+	*r2 = *r
+	r2.URL = new(url.URL)
+	*r2.URL = *r.URL
+	r2.URL.Path = strings.TrimPrefix(r.URL.Path, baseURL)
+	r2.URL.RawPath = ""
+
+	return r2
+}
+
 // shouldUseUnsafeServiceAccountToken reports whether the config is running
 // in-cluster with unsafe service account token usage enabled.
 func (c *OIDCTokenRefreshConfig) shouldUseUnsafeServiceAccountToken() bool {
@@ -175,7 +197,8 @@ func (c *OIDCTokenRefreshConfig) shouldSkipOIDCRefresh(
 	w http.ResponseWriter, r *http.Request, span trace.Span,
 	status *string, next http.Handler,
 ) bool {
-	if !strings.HasPrefix(r.URL.String(), "/clusters/") {
+	// Check the path without the base URL, but pass the original request on.
+	if !strings.HasPrefix(stripBaseURL(r, c.BaseURL).URL.String(), "/clusters/") {
 		c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
 
 		*status = "skipped"
