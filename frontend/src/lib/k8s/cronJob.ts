@@ -102,7 +102,7 @@ class CronJob extends KubeObject<KubeCronJob> {
   }
 
   getContainers(): KubeContainer[] {
-    return this.spec.jobTemplate?.spec?.template?.spec?.containers || [];
+    return this.spec?.jobTemplate?.spec?.template?.spec?.containers || [];
   }
 
   /**

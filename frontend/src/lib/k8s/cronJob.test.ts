@@ -49,14 +49,14 @@ describe('CronJob class', () => {
       expect(
         makeCronJob(
           {},
-          { lastScheduleTime: '2026-01-01T00:00:00Z', lastSuccessfulTime: '2026-01-01T00:01:00Z' }
-        ).getHealth()
+          { lastScheduleTime: '2026-01-01T00:00:00Z', lastSuccessfulTime: '2026-01-01T00:01:00Z' },
+        ).getHealth(),
       ).toBe('healthy');
     });
 
     it('classifies a cron job scheduled but never succeeded as failed', () => {
       expect(makeCronJob({}, { lastScheduleTime: '2026-01-01T00:00:00Z' }).getHealth()).toBe(
-        'failed'
+        'failed',
       );
     });
 
@@ -64,15 +64,47 @@ describe('CronJob class', () => {
       expect(
         makeCronJob(
           {},
-          { lastScheduleTime: '2026-01-01T00:05:00Z', lastSuccessfulTime: '2026-01-01T00:00:00Z' }
-        ).getHealth()
+          { lastScheduleTime: '2026-01-01T00:05:00Z', lastSuccessfulTime: '2026-01-01T00:00:00Z' },
+        ).getHealth(),
       ).toBe('failed');
     });
 
     it('treats suspend as taking priority over a failing schedule', () => {
       expect(
-        makeCronJob({ suspend: true }, { lastScheduleTime: '2026-01-01T00:00:00Z' }).getHealth()
+        makeCronJob({ suspend: true }, { lastScheduleTime: '2026-01-01T00:00:00Z' }).getHealth(),
       ).toBe('degraded');
+    });
+  });
+
+  describe('getContainers', () => {
+    it('returns empty array when spec is undefined', () => {
+      const cronJob = new CronJob({
+        apiVersion: 'batch/v1',
+        kind: 'CronJob',
+        metadata: { name: 'test-cronjob', namespace: 'default' },
+      } as any);
+      expect(cronJob.getContainers()).toEqual([]);
+    });
+
+    it('returns containers when jobTemplate is present', () => {
+      const cronJob = new CronJob({
+        apiVersion: 'batch/v1',
+        kind: 'CronJob',
+        metadata: { name: 'test-cronjob', namespace: 'default' },
+        spec: {
+          schedule: '* * * * *',
+          jobTemplate: {
+            spec: {
+              template: {
+                spec: {
+                  containers: [{ name: 'app', image: 'nginx' }],
+                },
+              },
+            },
+          },
+        },
+      } as any);
+      expect(cronJob.getContainers()).toEqual([{ name: 'app', image: 'nginx' }]);
     });
   });
 });
