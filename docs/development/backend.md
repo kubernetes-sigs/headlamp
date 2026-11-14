@@ -49,6 +49,38 @@ backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
 
+## Multiplexed WebSocket ownership
+
+Each `/wsMultiplexer` client socket owns its upstream subscriptions. Routing
+`userId` values are not authenticated identities: a second socket using identical
+cluster/path/user fields must establish its own upstream connection with its own
+credentials. Its `CLOSE` messages and disconnect cannot stop another client's
+subscription.
+
+An upstream connection retains the credential used for its handshake. Changing
+credentials requires a new subscription/client connection; replacing a stored
+token cannot reauthenticate an existing socket. Explicit unsafe service-account
+mode still uses its configured service-account credential, with separate
+subscriptions per client.
+
+Reader cleanup closes the upstream socket and leaves the subscription available
+to its client. A heartbeat can reserve a replacement while the reader is active.
+If the reader exits first, a new `REQUEST` opens the upstream socket using that
+request's query. `CLOSE` and client disconnect cancel a pending replacement.
+Requests received during a replacement get a retry error. The multiplexer also
+reports upstream write failures to the requesting client.
+
+Protocol-level end-to-end tests use real client WebSockets, the production
+multiplexer handler, and a local TLS upstream that rejects forged credentials:
+
+```bash
+cd backend
+go test -race ./cmd -run 'Test(Multiplexer|Reconnect|MonitorConnection)' -count=20
+```
+
+These tests do not require a live Kubernetes cluster or enable multiplexing in
+the frontend. Ordinary logs/terminal streams use their direct cluster endpoints.
+
 ## Service proxy content isolation
 
 Service proxy responses set `Content-Security-Policy: sandbox` and
