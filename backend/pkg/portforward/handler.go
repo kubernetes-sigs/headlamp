@@ -684,9 +684,20 @@ func attemptReconnect(
 	return false
 }
 
-// storeReconnecting persists the RECONNECTING status to the cache.
+// storeReconnecting persists the RECONNECTING status to the cache and re-registers pfDetails in
+// livePortForwards. The readiness failure that got tryReconnectOnce here (handlePortForwardError,
+// called from handlePortForwardReadiness on the attempt this one is about to retry after) already
+// deregistered it via portforwardstore's own STOPPED handling, even though this reconnect
+// sequence is not actually finished -- another attempt is about to run. Without re-registering
+// here, ExtendImpersonationExpiryForID/-ForCluster would silently no-op for the whole backoff
+// window before that next attempt, even though the browser keeps polling and re-verifying during
+// it; the extension could only take effect once some LATER attempt finally succeeds
+// (handlePortForwardSuccess), understating how long the user's actual session should keep this
+// port-forward alive once it reconnects. registerLivePortForward is idempotent, so this is safe
+// whether or not a prior attempt in the same sequence already deregistered it.
 func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
 	portforwardstore(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
+	registerLivePortForward(pfDetails)
 }
 
 // tryReconnectOnce resolves a new pod for the service, initialises a fresh

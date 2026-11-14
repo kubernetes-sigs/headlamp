@@ -951,6 +951,49 @@ func TestHandlePortForwardSuccess_ReregistersAfterFailedThenRecoveredReconnect(t
 			"so status polling can extend its expiry again")
 }
 
+// TestStoreReconnecting_RemainsExtendableDuringBackoffWindow locks in a fix for a gap during a
+// reconnect's backoff window specifically: handlePortForwardError (called from
+// handlePortForwardReadiness on a failed readiness check) deregisters pfDetails from
+// livePortForwards via portforwardstore's own STOPPED handling, same as
+// TestHandlePortForwardSuccess_ReregistersAfterFailedThenRecoveredReconnect above -- but unlike
+// that test, which confirms a port-forward is re-registered once reconnection eventually
+// succeeds, this confirms it is ALSO reachable for extension during the backoff windows between
+// failed attempts, before any attempt has succeeded: storeReconnecting (called after every
+// failed attempt, whether or not it is later retried successfully) must re-register it too, or a
+// browser actively polling and re-verifying during that window would have its extension calls
+// silently dropped.
+func TestStoreReconnecting_RemainsExtendableDuringBackoffWindow(t *testing.T) {
+	c := cache.New[interface{}]()
+	logParams := map[string]string{"id": "pf-retrying"}
+
+	pf := &portForward{
+		ID: "pf-retrying", cacheKey: "cluster", mu: &sync.Mutex{}, closeChan: make(chan struct{}),
+		Status:               RUNNING,
+		impersonationExpiry:  time.Now().Add(time.Minute),
+		impersonatedUsername: "alice@example.com",
+	}
+	registerLivePortForward(pf)
+
+	// Simulates one reconnect attempt's readiness check failing (handlePortForwardReadiness ->
+	// handlePortForwardError), the same deregistering call tryReconnectOnce sees before it calls
+	// storeReconnecting to go back to RECONNECTING and retry.
+	require.Error(t, handlePortForwardError(c, pf, logParams, "readiness probe failed"))
+
+	laterExpiry := pf.impersonationExpiry.Add(time.Hour)
+	ExtendImpersonationExpiryForID("cluster", "pf-retrying", "alice@example.com", nil, laterExpiry)
+	assert.False(t, pf.impersonationExpiry.Equal(laterExpiry),
+		"deregistered by the failed readiness check, so not yet reachable for extension")
+
+	// Simulates tryReconnectOnce's own next step after that failure: go back to RECONNECTING to
+	// retry, without having succeeded yet.
+	storeReconnecting(c, pf)
+
+	ExtendImpersonationExpiryForID("cluster", "pf-retrying", "alice@example.com", nil, laterExpiry)
+	assert.True(t, pf.impersonationExpiry.Equal(laterExpiry),
+		"a port-forward still RECONNECTING (not yet succeeded again) must already be "+
+			"re-registered, so status polling during the backoff window can extend its expiry")
+}
+
 // TestPortForwardImpersonationExpiry_ConcurrentReadWriteIsRaceFree locks in a fix for a data
 // race: handlePodCheck and tryReconnectOnce read pfDetails.impersonationExpiry (via
 // impersonationExpirySnapshot), while ExtendImpersonationExpiryForID/-ForCluster write the same
