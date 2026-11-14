@@ -311,9 +311,9 @@
                       >
                         <a
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                          href="http://*.one.domain.tld/"
+                          href="https://*.one.domain.tld/"
                         >
-                          http://*.one.domain.tld/
+                          https://*.one.domain.tld/
                         </a>
                       </td>
                       <td
@@ -336,9 +336,9 @@
                       >
                         <a
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                          href="http://*.two.domain.tld/"
+                          href="https://*.two.domain.tld/"
                         >
-                          http://*.two.domain.tld/
+                          https://*.two.domain.tld/
                         </a>
                       </td>
                       <td
