@@ -77,3 +77,57 @@ describe('PluginSettingsDetails events', () => {
     });
   });
 });
+
+describe('PluginSettingsDetails status', () => {
+  function renderDetails(details: PluginInfo, others: PluginInfo[] = []) {
+    store.dispatch(setPluginSettings([details, ...others]));
+
+    render(
+      <TestContext routerMap={{ name: details.name }}>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetails />
+        </ThemeProvider>
+      </TestContext>
+    );
+  }
+
+  it('shows why an enabled plugin blocked by a disabled scoped version is not loaded', () => {
+    renderDetails({ ...plugin, name: 'app-catalog', isLoaded: false }, [
+      {
+        ...plugin,
+        name: '@headlamp-k8s/app-catalog',
+        type: 'shipped',
+        isEnabled: false,
+        isLoaded: false,
+      },
+    ]);
+
+    expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This plugin is not loaded because a @headlamp-k8s version of it is installed.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('gives no scoped reason for a plugin the user disabled', () => {
+    renderDetails({ ...plugin, name: 'app-catalog', isEnabled: false, isLoaded: false }, [
+      { ...plugin, name: '@headlamp-k8s/app-catalog', type: 'shipped' },
+    ]);
+
+    expect(screen.queryByText(/@headlamp-k8s version/)).not.toBeInTheDocument();
+  });
+
+  it('gives no scoped reason when no @headlamp-k8s version is installed', () => {
+    renderDetails({ ...plugin, name: 'app-catalog', isLoaded: false });
+
+    expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+    expect(screen.queryByText(/@headlamp-k8s version/)).not.toBeInTheDocument();
+  });
+
+  it('does not show a plugin the user disabled as not loaded', () => {
+    renderDetails({ ...plugin, isEnabled: false, isLoaded: false });
+
+    expect(screen.queryByText('Not Loaded')).not.toBeInTheDocument();
+  });
+});
