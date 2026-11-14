@@ -89,6 +89,8 @@ export interface KubePodSpec {
   priority?: number;
   priorityClassName?: string;
   runtimeClassName?: string;
+  /** Resources reserved for the pod sandbox, populated from its RuntimeClass at admission. */
+  overhead?: Record<string, string>;
   terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
