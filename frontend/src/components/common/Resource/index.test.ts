@@ -29,6 +29,8 @@ const avoidCheck = [
   'fetchLatestKubeObject',
   'logSeverityFilter',
   'CopyableCell',
+  // Internal hook and handle shared by `DetailsDrawer` and the details activity.
+  'DrawerResizeHandle',
   // Internal helper exported only so `ResourceTable` and its co-located
   // tests can import it; deliberately kept out of the barrel.
   'getResourceRowId',
