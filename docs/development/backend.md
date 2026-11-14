@@ -118,6 +118,19 @@ These tests use the production request handler and real HTTP/TLS connections to 
 local mock of the Kubernetes authentication API. Session-control tests use
 synthetic channels and do not establish live Kubernetes port-forwards.
 
+CI also enables the live Minikube lifecycle test. With a running `minikube`
+context and a Headlamp pod exposing its backend port in the `headlamp` namespace:
+
+```bash
+cd backend
+HEADLAMP_RUN_INTEGRATION_TESTS=true go test -race ./pkg/portforward -run '^TestStartPortForward$' -count=1
+```
+
+This test creates a real forward and uses the authenticated request handler to
+stop, list, inspect, and delete it. Cleanup also deletes the forward if a later
+assertion fails; the test does not access owner-scoped cache records through
+legacy unscoped keys.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
