@@ -236,6 +236,7 @@
   "API Groups": "Skupiny rozhraní API",
   "Resources": "Prostředky",
   "Non Resources": "Nezdrojové prostředky",
+  "Resource Names": "",
   "Verbs": "Příkazy",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

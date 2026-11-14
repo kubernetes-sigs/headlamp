@@ -236,6 +236,7 @@
   "API Groups": "API 그룹",
   "Resources": "리소스",
   "Non Resources": "비 리소스",
+  "Resource Names": "",
   "Verbs": "동작",
   "RuntimeClass": "런타임 클래스",
   "Workloads (scheduling)": "워크로드(스케줄링)",
