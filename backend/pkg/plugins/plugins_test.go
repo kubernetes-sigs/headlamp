@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -477,6 +478,36 @@ func TestHandlePluginEvents(t *testing.T) {
 	// clean up
 	err = os.RemoveAll(testDirPath)
 	require.NoError(t, err)
+}
+
+func TestHandlePluginEventsChmod(t *testing.T) {
+	for _, test := range []struct {
+		op      fsnotify.Op
+		refresh bool
+	}{
+		{fsnotify.Chmod, false},
+		{fsnotify.Write, true},
+		{fsnotify.Write | fsnotify.Chmod, true},
+		{fsnotify.Create | fsnotify.Chmod, true},
+		{fsnotify.Remove | fsnotify.Chmod, true},
+		{fsnotify.Rename | fsnotify.Chmod, true},
+	} {
+		t.Run(test.op.String(), func(t *testing.T) {
+			pluginDir := t.TempDir()
+			ch := cache.New[interface{}]()
+			require.NoError(t, ch.Set(context.Background(), plugins.PluginCanSendRefreshKey, true))
+			require.NoError(t, ch.Set(context.Background(), plugins.PluginRefreshKey, false))
+
+			events := make(chan string, 1)
+			events <- filepath.Join(pluginDir, "main.js") + ":" + test.op.String()
+			close(events)
+			plugins.HandlePluginEvents("", "", pluginDir, events, ch)
+
+			refresh, err := ch.Get(context.Background(), plugins.PluginRefreshKey)
+			require.NoError(t, err)
+			assert.Equal(t, test.refresh, refresh)
+		})
+	}
 }
 
 func TestGeneratePluginPathsPreservesInventorySource(t *testing.T) {
