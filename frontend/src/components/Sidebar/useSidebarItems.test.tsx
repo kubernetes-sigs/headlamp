@@ -16,7 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
@@ -24,6 +24,7 @@ import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
 import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
+import DeviceTaintRule from '../../lib/k8s/deviceTaintRule';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PodGroup from '../../lib/k8s/podGroup';
 import reducers from '../../redux/reducers/reducers';
@@ -85,6 +86,7 @@ describe('useSidebarItems', () => {
     vi.spyOn(PodGroup, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(CompositePodGroup, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
+    vi.spyOn(DeviceTaintRule, 'isEnabled').mockResolvedValue(false);
     const emptyCRDs: [CRD[], null] = [[], null];
     vi.spyOn(CRD, 'useList').mockReturnValue(
       Object.assign(emptyCRDs, {
@@ -214,6 +216,55 @@ describe('useSidebarItems', () => {
 
       await waitFor(() => expect(podGroupEnabled).toHaveBeenCalledWith('test-cluster'));
       expect(schedulingItems(result.current)).toBeUndefined();
+    });
+  });
+
+  describe('the Devices section', () => {
+    it('shows Device Taint Rules only when the resource is served', async () => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(true);
+      vi.spyOn(DeviceTaintRule, 'isEnabled').mockResolvedValue(true);
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => {
+        const devices = result.current.find(item => item.name === 'devices');
+        expect(devices?.label).toBe('Devices');
+        expect(devices?.subList?.map(item => item.name)).toContain('deviceTaintRules');
+      });
+    });
+
+    it('adds Device Taint Rules when its discovery resolves after the Devices section', async () => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(true);
+      let resolveDeviceTaintRules: (served: boolean) => void = () => {};
+      vi.spyOn(DeviceTaintRule, 'isEnabled').mockReturnValue(
+        new Promise<boolean>(resolve => {
+          resolveDeviceTaintRules = resolve;
+        })
+      );
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      const deviceSubItems = () =>
+        result.current.find(item => item.name === 'devices')?.subList?.map(item => item.name);
+
+      await waitFor(() => {
+        expect(deviceSubItems()).toContain('deviceClasses');
+      });
+      expect(deviceSubItems()).not.toContain('deviceTaintRules');
+
+      await act(async () => {
+        resolveDeviceTaintRules(true);
+      });
+
+      await waitFor(() => {
+        expect(deviceSubItems()).toContain('deviceTaintRules');
+      });
     });
   });
 
