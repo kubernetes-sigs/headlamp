@@ -692,6 +692,7 @@ func createMockKubeAPIServer() *httptest.Server {
 	return server
 }
 
+//nolint:funlen // Test exercises connection lifecycle with query updates and cleanups.
 func TestGetOrCreateConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	m := NewMultiplexer(store, false)
@@ -736,6 +737,45 @@ func TestGetOrCreateConnection(t *testing.T) {
 	conn2, err := m.getOrCreateConnection(msg, clientConn, &token)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
+
+	// Test getting connection when query changes (should close old and create new)
+	msgDifferentQuery := msg
+	msgDifferentQuery.Query = "watch=true&resourceVersion=200"
+
+	connNewQuery, err := m.getOrCreateConnection(msgDifferentQuery, clientConn, &token)
+	assert.NoError(t, err)
+	assert.NotNil(t, connNewQuery)
+	assert.NotEqual(t, conn, connNewQuery, "Should create a new connection when query changes")
+	assert.Equal(t, "watch=true&resourceVersion=200", connNewQuery.Query)
+
+	// Test getting connection when client connection changes (e.g. client reconnected before old client cleanup)
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	connNewClient, err := m.getOrCreateConnection(msgDifferentQuery, clientConn2, &token)
+	assert.NoError(t, err)
+	assert.NotNil(t, connNewClient)
+	assert.NotEqual(t, connNewQuery, connNewClient, "Should create a new connection when client connection changes")
+	assert.Equal(t, clientConn2, connNewClient.Client)
+
+	diffKey := m.createConnectionKey(msgDifferentQuery.ClusterID, msgDifferentQuery.Path, msgDifferentQuery.UserID)
+
+	// Simulate old client cleanup occurring after reconnection:
+	// it should not close or remove the new connection belonging to clientConn2
+	m.closeClientConnections(clientConn)
+	m.mutex.RLock()
+	currentConn, exists := m.connections[diffKey]
+	m.mutex.RUnlock()
+	assert.True(t, exists)
+	assert.Equal(t, connNewClient, currentConn)
+
+	// Ensure old connection teardown does not delete the replacement connection from connections map
+	m.cleanupConnection(connNewQuery)
+	m.mutex.RLock()
+	currentConnAfterOldCleanup, existsAfterOldCleanup := m.connections[diffKey]
+	m.mutex.RUnlock()
+	assert.True(t, existsAfterOldCleanup)
+	assert.Equal(t, connNewClient, currentConnAfterOldCleanup)
 
 	// Test with invalid cluster
 	msg.ClusterID = "non-existent-cluster"
