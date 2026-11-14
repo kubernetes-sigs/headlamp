@@ -235,25 +235,28 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 		userID = matches[1]
 	}
 
-	// Remove the base64url.headlamp.authorization.k8s.io subprotocol from the list
-	// because it is unrecognized by the k8s server.
-	protocols := strings.Split(r.Header.Get("Sec-Websocket-Protocol"), ", ")
+	// Remove the Headlamp identity subprotocol so it is not forwarded upstream.
+	// Split on commas and trim space so the rewrite does not depend on ", " spacing.
+	protocols := strings.Split(r.Header.Get("Sec-Websocket-Protocol"), ",")
 
 	var updatedProtocols []string
 
 	for _, protocol := range protocols {
+		protocol = strings.TrimSpace(protocol)
+		if protocol == "" {
+			continue
+		}
+
 		if !strings.HasPrefix(protocol, "base64url.headlamp.authorization.k8s.io.") {
 			updatedProtocols = append(updatedProtocols, protocol)
 		}
 	}
 
-	updatedProtocol := strings.Join(updatedProtocols, ", ")
-
-	// Remove the existing Sec-Websocket-Protocol header
-	r.Header.Del("Sec-Websocket-Protocol")
-
-	// Add the updated Sec-Websocket-Protocol header
-	r.Header.Add("Sec-Websocket-Protocol", updatedProtocol)
+	if len(updatedProtocols) > 0 {
+		r.Header.Set("Sec-Websocket-Protocol", strings.Join(updatedProtocols, ", "))
+	} else {
+		r.Header.Del("Sec-Websocket-Protocol")
+	}
 
 	if userID == "" {
 		return clusterName
