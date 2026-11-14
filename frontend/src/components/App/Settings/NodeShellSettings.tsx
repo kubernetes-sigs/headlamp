@@ -70,9 +70,12 @@ export default function NodeShellSettings(props: SettingsProps) {
   }, [namespace]);
 
   const isValidNamespace = isValidNamespaceFormat(namespaceInput);
-  const invalidNamespaceMessage = t(
-    "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
-  );
+  const invalidNamespaceMessage = (value: string) =>
+    value.length > 63
+      ? t('translation|Namespaces must be under 64 characters.')
+      : t(
+          "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
+        );
 
   function updateNodeShell(patch: Partial<ClusterSettings['nodeShellTerminal']>) {
     setClusterSettings(settings => ({
@@ -144,7 +147,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                     ? t('translation|The default namespace is {{ namespace }}.', {
                         namespace: defaultNodeShellNamespace,
                       })
-                    : invalidNamespaceMessage
+                    : invalidNamespaceMessage(namespaceInput)
                 }
                 variant="outlined"
                 size="small"
