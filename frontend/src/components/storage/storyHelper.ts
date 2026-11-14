@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+import type { KubeCSIDriver } from '../../lib/k8s/csiDriver';
+import type { KubeCSINode } from '../../lib/k8s/csiNode';
+import type { KubeCSIStorageCapacity } from '../../lib/k8s/csiStorageCapacity';
 import { KubePersistentVolume } from '../../lib/k8s/persistentVolume';
 import { KubePersistentVolumeClaim } from '../../lib/k8s/persistentVolumeClaim';
 import { KubeStorageClass } from '../../lib/k8s/storageClass';
+import type { KubeVolumeAttachment } from '../../lib/k8s/volumeAttachment';
 import type { KubeVolumeAttributesClass } from '../../lib/k8s/volumeAttributesClass';
 
 export const BASE_SC: KubeStorageClass = {
@@ -127,5 +131,119 @@ export const BASE_VOLUME_ATTRIBUTES_CLASS: KubeVolumeAttributesClass = {
   driverName: 'csi.test',
   parameters: {
     'example.com/parameter': 'enabled',
+  },
+};
+
+export const BASE_CSI_DRIVER: KubeCSIDriver = {
+  apiVersion: 'storage.k8s.io/v1',
+  kind: 'CSIDriver',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'csi.test',
+    resourceVersion: '1234',
+    uid: 'csi-driver-1',
+  },
+  spec: {
+    attachRequired: true,
+    podInfoOnMount: true,
+    storageCapacity: true,
+    fsGroupPolicy: 'ReadWriteOnceWithFSType',
+    volumeLifecycleModes: ['Persistent'],
+  },
+};
+
+export const BASE_CSI_NODE: KubeCSINode = {
+  apiVersion: 'storage.k8s.io/v1',
+  kind: 'CSINode',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-node',
+    resourceVersion: '1234',
+    uid: 'csi-node-1',
+  },
+  spec: {
+    drivers: [
+      {
+        name: 'csi.test',
+        nodeID: 'node-id-1',
+        topologyKeys: ['topology.csi.test/zone'],
+        allocatable: {
+          count: 16,
+        },
+      },
+    ],
+  },
+};
+
+export const BASE_CSI_STORAGE_CAPACITY: KubeCSIStorageCapacity = {
+  apiVersion: 'storage.k8s.io/v1',
+  kind: 'CSIStorageCapacity',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-storage-capacity',
+    namespace: 'default',
+    resourceVersion: '1234',
+    uid: 'csi-capacity-1',
+  },
+  storageClassName: 'storage-class',
+  capacity: '100Gi',
+  maximumVolumeSize: '50Gi',
+  nodeTopology: {
+    matchLabels: {
+      'topology.csi.test/zone': 'zone-a',
+    },
+  },
+};
+
+export const BASE_VOLUME_ATTACHMENT: KubeVolumeAttachment = {
+  apiVersion: 'storage.k8s.io/v1',
+  kind: 'VolumeAttachment',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-volume-attachment',
+    resourceVersion: '1234',
+    uid: 'volume-attachment-1',
+  },
+  spec: {
+    attacher: 'csi.test',
+    nodeName: 'my-node',
+    source: {
+      persistentVolumeName: 'my-pv',
+    },
+  },
+  status: {
+    attached: true,
+  },
+};
+
+export const VOLUME_ATTACHMENT_ATTACH_ERROR: KubeVolumeAttachment = {
+  ...BASE_VOLUME_ATTACHMENT,
+  metadata: {
+    ...BASE_VOLUME_ATTACHMENT.metadata,
+    name: 'volume-attachment-attach-error',
+    uid: 'volume-attachment-2',
+  },
+  status: {
+    attached: false,
+    attachError: {
+      message: 'rpc error: code = Internal desc = could not attach volume',
+      time: '2023-04-27T20:32:00Z',
+    },
+  },
+};
+
+export const VOLUME_ATTACHMENT_DETACH_ERROR: KubeVolumeAttachment = {
+  ...BASE_VOLUME_ATTACHMENT,
+  metadata: {
+    ...BASE_VOLUME_ATTACHMENT.metadata,
+    name: 'volume-attachment-detach-error',
+    uid: 'volume-attachment-3',
+  },
+  status: {
+    attached: true,
+    detachError: {
+      message: 'rpc error: code = Internal desc = could not detach volume',
+      time: '2023-04-27T20:33:00Z',
+    },
   },
 };
