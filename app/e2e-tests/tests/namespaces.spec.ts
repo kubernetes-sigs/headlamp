@@ -108,6 +108,13 @@ test.describe('create a namespace with the minimal editor', async () => {
     await minimalEditorSwitch.check();
     const editor = page.getByRole('textbox', { name: 'yaml Code' });
 
+    const originalBounds = await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      const bounds = window.getBounds();
+      window.setContentSize(1280, 960);
+      return bounds;
+    });
+
     try {
       await electronApp.evaluate(({ BrowserWindow }) => {
         BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2);
@@ -123,9 +130,11 @@ test.describe('create a namespace with the minimal editor', async () => {
       await applyButton.click();
       await page.waitForSelector(`text=Applied ${name}`);
     } finally {
-      await electronApp.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1);
-      });
+      await electronApp.evaluate(({ BrowserWindow }, bounds) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        window.webContents.setZoomFactor(1);
+        window.setBounds(bounds);
+      }, originalBounds);
     }
 
     await namespacesPage.deleteNamespace(name);
