@@ -979,60 +979,21 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.StartPortForward(
-				config.KubeConfigStore,
-				config.Cache,
-				config.shouldUseUnsafeServiceAccountToken(),
-				contextKey,
-				w,
-				r,
-			)
-		})),
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("POST")
 
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
-		})),
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("DELETE")
 
 	r.Handle(
 		"/clusters/{clusterName}/portforward/list",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.GetPortForwards(config.Cache, contextKey, w, r)
-		})),
-	)
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
+	).Methods("GET")
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
-		})),
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
@@ -1713,6 +1674,47 @@ func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader strin
 	if proxyAuthTokenHeader != "" {
 		r.Header.Del(proxyAuthTokenHeader)
 	}
+}
+
+func (c *HeadlampConfig) portForwardRequestHandler(w http.ResponseWriter, r *http.Request) {
+	proxyHeader := strings.TrimSpace(c.ProxyAuthTokenHeader)
+	if c.ProxyAuthEnabled && proxyHeader != "" && !strings.EqualFold(proxyHeader, "Authorization") {
+		if values, supplied := r.Header[http.CanonicalHeaderKey(proxyHeader)]; supplied {
+			r = r.Clone(r.Context())
+
+			r.Header["Authorization"] = append([]string(nil), values...)
+		}
+	}
+
+	if !strings.EqualFold(proxyHeader, "Authorization") {
+		clearConfiguredProxyTokenHeader(r, proxyHeader)
+	}
+
+	if supplied := r.Header.Get("KUBECONFIG"); supplied != "" && c.EnableDynamicClusters {
+		key, kContext, err := resolveStatelessRequestContext(r, supplied)
+		if err != nil {
+			logger.Log(logger.LevelWarn, nil, err, "resolving portforward request kubeconfig")
+			http.Error(w, "invalid request kubeconfig", http.StatusBadRequest)
+
+			return
+		}
+
+		portforward.RequestHandlerWithContext(kContext, c.Cache,
+			c.shouldUseUnsafeServiceAccountToken(), key, w, r)
+
+		return
+	}
+
+	contextKey, err := c.getContextKeyForRequest(r)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "resolving portforward context")
+		http.Error(w, "invalid request context", http.StatusBadRequest)
+
+		return
+	}
+
+	portforward.RequestHandler(c.KubeConfigStore, c.Cache,
+		c.shouldUseUnsafeServiceAccountToken(), contextKey, w, r)
 }
 
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {

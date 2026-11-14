@@ -41,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // Cover the legacy client-go fallback error.
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/portforward"
 	streamhttp "k8s.io/streaming/pkg/httpstream"
 )
@@ -113,16 +114,20 @@ func TestPortforwardKeyGenerator(t *testing.T) {
 		p    portForward
 		want string
 	}{
-		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_clusterid"},
-		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_clusterservice"},
-		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_clusterpod"},
-		{"service_and_pod", portForward{Cluster: "cluster", Service: "service", Pod: "pod"}, "PORT_FORWARD_clusterservice"},
-		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_clusterid"},
-		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_clusterid"},
+		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_cluster\x00id"},
+		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_cluster\x00service"},
+		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_cluster\x00pod"},
+		{
+			"service_and_pod",
+			portForward{Cluster: "cluster", Service: "service", Pod: "pod"},
+			"PORT_FORWARD_cluster\x00service",
+		},
+		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_cluster\x00id"},
+		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_cluster\x00id"},
 		{
 			"id_and_service_and_pod",
 			portForward{Cluster: "cluster", ID: "id", Service: "service", Pod: "pod"},
-			"PORT_FORWARD_clusterid",
+			"PORT_FORWARD_cluster\x00id",
 		},
 	}
 
@@ -221,6 +226,47 @@ func TestGetPortForwardList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []portForward{p3}, pfList)
+}
+
+// TestGetPortForwardListClusterNamePrefix checks that listing the port forwards
+// of a cluster doesn't include those of another cluster whose name starts with
+// the same text (e.g. "prod" and "prod-eu").
+func TestGetPortForwardListClusterNamePrefix(t *testing.T) {
+	prod := portForward{ID: "id1", Cluster: "prod"}
+	prodService := portForward{Cluster: "prod", Service: "svc"}
+	prodEU := portForward{ID: "id2", Cluster: "prod-eu"}
+
+	cache := cache.New[interface{}]()
+
+	for _, p := range []portForward{prod, prodService, prodEU} {
+		err := cache.Set(context.Background(), portforwardKeyGenerator(p), p)
+		require.NoError(t, err)
+	}
+
+	assert.ElementsMatch(t, []portForward{prod, prodService}, getPortForwardList(cache, "prod"))
+	assert.ElementsMatch(t, []portForward{prodEU}, getPortForwardList(cache, "prod-eu"))
+}
+
+// TestPortForwardStoreStatelessUserIsolation checks that a base cluster key
+// doesn't match port forwards stored under a stateless (per-user) context key,
+// which is "<cluster>\x00<userID>" and so contains the store key separator.
+func TestPortForwardStoreStatelessUserIsolation(t *testing.T) {
+	userKey := "k8s-prod" + storeKeySeparator + "user123"
+	base := portForward{ID: "id1", Cluster: "k8s-prod"}
+	user := portForward{ID: "id2", Cluster: "k8s-prod", cacheKey: userKey}
+
+	cache := cache.New[interface{}]()
+
+	for _, p := range []portForward{base, user} {
+		err := cache.Set(context.Background(), portforwardKeyGenerator(p), p)
+		require.NoError(t, err)
+	}
+
+	assert.ElementsMatch(t, []portForward{base}, getPortForwardList(cache, "k8s-prod"))
+	assert.ElementsMatch(t, []portForward{user}, getPortForwardList(cache, userKey))
+
+	_, err := getPortForwardByID(cache, "k8s-prod", "id2")
+	assert.Error(t, err, "the base cluster key must not find a user's port forward")
 }
 
 // Test portForwardRequest.Validate() function.
@@ -726,7 +772,7 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 
 	defer func() { _ = res.Body.Close() }()
 
-	assert.Equal(t, http.StatusInternalServerError, res.StatusCode,
+	assert.Equal(t, http.StatusNotFound, res.StatusCode,
 		"stop request with user ID must not find entries stored under base cluster key")
 }
 
@@ -739,7 +785,7 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	)
 
 	c := cache.New[interface{}]()
-	kubeConfigStore := kubeconfig.NewContextStore()
+	kContext := &kubeconfig.Context{Name: contextKey}
 
 	// Seed a running port-forward in the cache
 	pf := portForward{
@@ -766,7 +812,7 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	r.Header.Set("X-HEADLAMP-USER-ID", "user")
 	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
 
-	StartPortForward(kubeConfigStore, c, false, contextKey, w, r)
+	startPortForwardForOwner(kContext, c, false, contextKey, contextKey, w, r)
 
 	res := w.Result()
 
@@ -775,34 +821,29 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
 }
 
-// blockingContextStore makes GetContext block until released, and signals via
-// `entered` (closed once) that a caller is inside, meaning it holds the in-flight lock.
-type blockingContextStore struct {
-	kubeconfig.ContextStore
-	entered chan struct{}
-	release chan struct{}
-	once    sync.Once
-}
-
-func (b *blockingContextStore) GetContext(name string) (*kubeconfig.Context, error) {
-	b.once.Do(func() { close(b.entered) })
-	<-b.release
-
-	return nil, fmt.Errorf("context not found: %s", name)
-}
-
 // TestStartPortForward_ConcurrentRequests verifies the in-flight lock deterministically:
-// G1 acquires the lock and blocks in GetContext; only then is G2 started (guaranteed 409).
-// G2 completes, the test unblocks G1, which returns 500 on the missing context.
+// G1 blocks in the upstream permission check while G2 gets a conflict.
 //
 //nolint:funlen // Long test function covering concurrent port-forwarding lock synchronization.
 func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 	c := cache.New[interface{}]()
 
-	store := &blockingContextStore{
-		ContextStore: kubeconfig.NewContextStore(),
-		entered:      make(chan struct{}),
-		release:      make(chan struct{}),
+	entered, release := make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	signal := sync.OnceFunc(func() { close(entered) })
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		signal()
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"apiVersion":"authorization.k8s.io/v1","kind":"SelfSubjectAccessReview",` +
+			`"status":{"allowed":false}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+	t.Cleanup(unblock)
+
+	kContext := &kubeconfig.Context{
+		Name: "test-cluster", Cluster: &api.Cluster{Server: upstream.URL, InsecureSkipTLSVerify: true},
 	}
 
 	makeRequest := func() *httptest.ResponseRecorder {
@@ -811,6 +852,7 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 			"pod":        "some-pod",
 			"namespace":  "default",
 			"targetPort": "8080",
+			"port":       "8080",
 		}
 
 		body, err := json.Marshal(payload)
@@ -820,7 +862,7 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(body))
 		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
 
-		StartPortForward(store, c, false, "test-cluster", w, r)
+		startPortForwardForOwner(kContext.Copy(), c, false, "test-cluster", "test-cluster", w, r)
 
 		return w
 	}
@@ -839,12 +881,10 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 		rec[0] = makeRequest()
 	}()
 
-	// Wait (bounded) for G1 to enter GetContext (holding the lock); otherwise fail instead of hanging.
 	select {
-	case <-store.entered:
-		// G1 is now inside GetContext
+	case <-entered:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for first request to enter GetContext")
+		t.Fatal("timed out waiting for first request to enter the permission check")
 	}
 
 	wg2.Add(1)
@@ -855,8 +895,8 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 		rec[1] = makeRequest()
 	}()
 
-	wg2.Wait()           // G2 short-circuits at 409; doesn't call GetContext.
-	close(store.release) // unblock G1.
+	wg2.Wait()
+	unblock()
 	wg1.Wait()
 
 	res0 := rec[0].Result()
@@ -877,7 +917,7 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 
 	assert.Equal(t, 1, conflicts, "expected exactly one 409 Conflict from the in-flight lock")
 	assert.Contains(t, statusCodes, http.StatusInternalServerError,
-		"expected the winning request to return 500 for missing context")
+		"expected the winning request to return 500 for denied permission")
 }
 
 // ---------------------------------------------------------------------------

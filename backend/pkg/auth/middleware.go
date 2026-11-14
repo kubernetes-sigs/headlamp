@@ -96,6 +96,16 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
+			if headers, supplied := r.Header["Authorization"]; supplied &&
+				(len(headers) != 1 || BearerTokenValue(headers[0]) == "") {
+				status = "invalid_credentials"
+
+				logger.Log(logger.LevelWarn, nil, nil, "rejecting invalid supplied authorization before OIDC refresh")
+				http.Error(w, "invalid supplied authorization", http.StatusUnauthorized)
+
+				return
+			}
+
 			cluster, token := ParseClusterAndToken(r)
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return

@@ -93,8 +93,20 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 // Handles stateless cluster requests if kubeconfig is set and dynamic clusters are enabled.
 // It returns context key which is used to store the context in the cache.
 func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) (string, error) {
-	var contextKey string
+	key, context, err := resolveStatelessRequestContext(r, kubeConfig)
+	if err != nil {
+		return "", err
+	}
 
+	if err := c.setKeyInCache(key, *context); err != nil {
+		return "", err
+	}
+
+	return key, nil
+}
+
+//nolint:funlen // Resolves the selected context while preserving load errors and custom-name handling.
+func resolveStatelessRequestContext(r *http.Request, kubeConfig string) (string, *kubeconfig.Context, error) {
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	targetClusterName := mux.Vars(r)["clusterName"]
 
@@ -108,19 +120,24 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "loading contexts from kubeconfig")
 
-			return "", err
+			return "", nil, err
 		}
 
 		// If no contexts were loaded, return an error
 		if len(contexts) == 0 {
-			return "", fmt.Errorf("failed to load any valid contexts from kubeconfig")
+			return "", nil, fmt.Errorf("failed to load any valid contexts from kubeconfig")
 		}
 	}
 
 	if len(contexts) == 0 {
 		logger.Log(logger.LevelError, nil, nil, "no contexts found in kubeconfig")
-		return "", fmt.Errorf("no contexts found in kubeconfig")
+		return "", nil, fmt.Errorf("no contexts found in kubeconfig")
 	}
+
+	var (
+		selected   *kubeconfig.Context
+		contextKey string
+	)
 
 	for _, context := range contexts {
 		effectiveContextName := context.Name
@@ -132,7 +149,7 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
 					err, "marshaling custom object")
 
-				return "", err
+				return "", nil, err
 			}
 
 			if customObj.CustomName != "" {
@@ -147,14 +164,17 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 
 		cacheKey := statelessContextKey(effectiveContextName, userID)
 
-		if err := c.setKeyInCache(cacheKey, context); err != nil {
-			return "", err
+		if selected == nil {
+			contextKey = cacheKey
+			selected = &context
 		}
-
-		contextKey = cacheKey
 	}
 
-	return contextKey, nil
+	if selected == nil {
+		return "", nil, fmt.Errorf("context %q not found in supplied kubeconfig", targetClusterName)
+	}
+
+	return contextKey, selected, nil
 }
 
 // parseKubeConfig parses the kubeconfig and returns a list of contexts and errors.

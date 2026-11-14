@@ -218,7 +218,7 @@ func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 		{
 			name:           "id not found in cache",
 			id:             "does-not-exist",
-			wantStatusCode: http.StatusInternalServerError,
+			wantStatusCode: http.StatusNotFound,
 			wantBody:       "failed to delete port forward",
 		},
 	}
