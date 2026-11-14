@@ -827,6 +827,7 @@
   "Current Namespace": "Geçerli Ad Alanı",
   "Set namespace: {{namespace}}": "Ad alanını ayarlayın: {{namespace}}",
   "Page": "Sayfa",
+  "Search \"{{query}}\" with Advanced Search": "Gelişmiş Arama ile \"{{query}}\" ara",
   "Configure Keyboard Shortcuts": "Klavye Kısayollarını Yapılandır",
   "Reference": "Başvuru",
   "Metrics": "Ölçümler",

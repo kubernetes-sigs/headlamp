@@ -366,7 +366,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       id: 'advanced-search-suggestion',
       subLabel: t('Advanced Search (Beta)'),
       icon: <Icon icon="mdi:search" />,
-      label: `Search "${query}" with Advanced Search`,
+      label: t('translation|Search "{{query}}" with Advanced Search', { query }),
       onClick: () => {
         // Set the search query in localStorage for the Advanced Search
         setAdvancedSearchQueryKey(() => `metadata.name === "${query}"`);
@@ -376,7 +376,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, selectedClusters]);
+  }, [query, selectedClusters, t]);
   const configureShortcutsAction: SearchResult = useMemo(
     () => ({
       id: 'configure-shortcuts',

@@ -820,6 +820,7 @@
   "Current Namespace": "當前命名空間",
   "Set namespace: {{namespace}}": "設定命名空間：{{namespace}}",
   "Page": "頁面",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "",
   "Reference": "參考",
   "Metrics": "指標",
