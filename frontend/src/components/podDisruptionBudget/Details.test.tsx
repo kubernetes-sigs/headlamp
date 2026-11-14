@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from '@mui/material/styles';
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
+import NameValueTable from '../common/NameValueTable/NameValueTable';
 import PDBDetails from './Details';
+
+const theme = createMuiTheme({ base: 'light', name: 'light' });
 
 const { mockDetailsGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
@@ -93,5 +98,92 @@ describe('PDBDetails', () => {
 
     const props = mockDetailsGrid.mock.calls[0][0];
     expect(props.extraInfo(null)).toBeFalsy();
+  });
+
+  describe('disruption limits row visibility (issue #8398)', () => {
+    function getDisruptionRows(item: any) {
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+          <PDBDetails />
+        </TestContext>
+      );
+      const props = mockDetailsGrid.mock.calls[0][0];
+      const rows = props.extraInfo(item);
+      const maxUnavailableRow = rows.find((r: any) => String(r.name).includes('Max Unavailable'));
+      const minAvailableRow = rows.find((r: any) => String(r.name).includes('Min Available'));
+      return { rows, maxUnavailableRow, minAvailableRow };
+    }
+
+    it('shows Min Available and hides Max Unavailable when only minAvailable is specified', () => {
+      const { maxUnavailableRow, minAvailableRow } = getDisruptionRows({
+        spec: { minAvailable: 1 },
+        selectors: [],
+        status: {},
+      });
+
+      expect(minAvailableRow.hide).toBe(false);
+      expect(maxUnavailableRow.hide).toBe(true);
+    });
+
+    it('shows Max Unavailable and hides Min Available when only maxUnavailable is specified', () => {
+      const { maxUnavailableRow, minAvailableRow } = getDisruptionRows({
+        spec: { maxUnavailable: 1 },
+        selectors: [],
+        status: {},
+      });
+
+      expect(maxUnavailableRow.hide).toBe(false);
+      expect(minAvailableRow.hide).toBe(true);
+    });
+
+    it('preserves and shows Max Unavailable when value is 0', () => {
+      const { maxUnavailableRow, minAvailableRow } = getDisruptionRows({
+        spec: { maxUnavailable: 0 },
+        selectors: [],
+        status: {},
+      });
+
+      expect(maxUnavailableRow.hide).toBe(false);
+      expect(minAvailableRow.hide).toBe(true);
+    });
+
+    it('preserves and shows Min Available when value is 0', () => {
+      const { maxUnavailableRow, minAvailableRow } = getDisruptionRows({
+        spec: { minAvailable: 0 },
+        selectors: [],
+        status: {},
+      });
+
+      expect(minAvailableRow.hide).toBe(false);
+      expect(maxUnavailableRow.hide).toBe(true);
+    });
+
+    it('renders percentage strings such as "50%" correctly without hiding', () => {
+      const { maxUnavailableRow, minAvailableRow } = getDisruptionRows({
+        spec: { minAvailable: '50%' },
+        selectors: [],
+        status: {},
+      });
+
+      expect(minAvailableRow.hide).toBe(false);
+      expect(maxUnavailableRow.hide).toBe(true);
+    });
+
+    it('renders only the configured disruption limit in NameValueTable', () => {
+      const { rows } = getDisruptionRows({
+        spec: { minAvailable: 1 },
+        selectors: [],
+        status: {},
+      });
+
+      const { getByText, queryByText } = render(
+        <ThemeProvider theme={theme}>
+          <NameValueTable rows={rows} />
+        </ThemeProvider>
+      );
+
+      expect(getByText(/Min Available/)).toBeInTheDocument();
+      expect(queryByText(/Max Unavailable/)).toBeNull();
+    });
   });
 });

@@ -52,10 +52,12 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
           {
             name: t('translation|Max Unavailable'),
             value: <>{item.spec.maxUnavailable}</>,
+            hide: item.spec.maxUnavailable === undefined,
           },
           {
             name: t('translation|Min Available'),
             value: <>{item.spec.minAvailable}</>,
+            hide: item.spec.minAvailable === undefined,
           },
           {
             name: t('glossary|Selector'),
