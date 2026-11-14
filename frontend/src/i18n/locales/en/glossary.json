@@ -74,6 +74,7 @@
   "Device Classes": "Device Classes",
   "Drivers": "Drivers",
   "Resource Claims": "Resource Claims",
+  "Pod": "Pod",
   "Resource Claim Templates": "Resource Claim Templates",
   "Subsets": "Subsets",
   "Endpoint: {{ name }}": "Endpoint: {{ name }}",

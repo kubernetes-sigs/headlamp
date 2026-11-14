@@ -74,6 +74,7 @@
   "Device Classes": "",
   "Drivers": "",
   "Resource Claims": "",
+  "Pod": "",
   "Resource Claim Templates": "",
   "Subsets": "",
   "Endpoint: {{ name }}": "",
