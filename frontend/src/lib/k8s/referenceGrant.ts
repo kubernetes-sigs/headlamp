@@ -69,11 +69,11 @@ class ReferenceGrant extends KubeObject<KubeReferenceGrant> {
   }
 
   get from(): ReferenceGrantFrom[] {
-    return this.jsonData.spec.from || [];
+    return this.jsonData.spec?.from || [];
   }
 
   get to(): ReferenceGrantTo[] {
-    return this.jsonData.spec.to || [];
+    return this.jsonData.spec?.to || [];
   }
 
   static get pluralName() {

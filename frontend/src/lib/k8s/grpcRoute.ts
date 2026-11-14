@@ -86,15 +86,15 @@ class GRPCRoute extends KubeObject<KubeGRPCRoute> {
   }
 
   get hostnames(): string[] {
-    return this.jsonData.spec.hostnames || [];
+    return this.jsonData.spec?.hostnames || [];
   }
 
   get rules(): GRPCRouteRule[] {
-    return this.jsonData.spec.rules || [];
+    return this.jsonData.spec?.rules || [];
   }
 
   get parentRefs(): GatewayParentReference[] {
-    return this.jsonData.spec.parentRefs || [];
+    return this.jsonData.spec?.parentRefs || [];
   }
 
   static get pluralName() {
