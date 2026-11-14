@@ -123,6 +123,26 @@ describe('PureAuthToken', () => {
     expect(screen.getByText('Authentication: my-cluster')).toBeInTheDocument();
   });
 
+  it('uses the authentication title for aria-label and keeps dialog IDs unique', () => {
+    renderPure({ title: 'Authentication: my-cluster' });
+
+    const dialog = screen.getByRole('dialog', { name: 'Authentication: my-cluster' });
+    const title = screen.getByRole('heading', {
+      level: 1,
+      name: 'Authentication: my-cluster',
+    });
+
+    expect(dialog).toHaveAttribute('aria-label', 'Authentication: my-cluster');
+    expect(dialog).not.toHaveAttribute('aria-labelledby');
+    expect(title).toBeInTheDocument();
+
+    const ids = [dialog, ...Array.from(dialog.querySelectorAll<HTMLElement>('[id]'))]
+      .map(element => element.id)
+      .filter(id => id !== '');
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('renders the token input field', () => {
     renderPure();
 

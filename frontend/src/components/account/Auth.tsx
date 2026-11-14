@@ -130,8 +130,12 @@ export function PureAuthToken({
 
   return (
     <Box component="main">
-      <ClusterDialog useCover onClose={onClose} aria-labelledby="authtoken-dialog-title">
-        <DialogTitle id="authtoken-dialog-title">{title}</DialogTitle>
+      <ClusterDialog
+        useCover
+        onClose={onClose}
+        PaperProps={{ 'aria-label': title, 'aria-labelledby': undefined }}
+      >
+        <DialogTitle>{title}</DialogTitle>
         <DialogContent>
           <DialogContentText>
             <Trans t={t}>Please paste your authentication token.</Trans>
