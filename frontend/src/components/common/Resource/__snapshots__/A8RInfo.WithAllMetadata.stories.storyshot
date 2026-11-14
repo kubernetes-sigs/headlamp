@@ -1,0 +1,78 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1hdbc19"
+    >
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Description
+            :
+          </strong>
+           
+          A service that does awesome things
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Owner
+            :
+          </strong>
+           
+          team-awesome
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Chat
+            :
+          </strong>
+           
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="https://chat.example.com/awesome"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            https://chat.example.com/awesome
+          </a>
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Bugs
+            :
+          </strong>
+           
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="https://bugs.example.com/awesome"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            https://bugs.example.com/awesome
+          </a>
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
