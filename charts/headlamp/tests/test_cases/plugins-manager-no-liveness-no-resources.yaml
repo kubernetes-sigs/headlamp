@@ -1,0 +1,6 @@
+pluginsManager:
+  enabled: true
+  # Disable liveness probe entirely
+  livenessProbe: ~
+  # Remove all resource constraints (BestEffort QoS)
+  resources: ~
