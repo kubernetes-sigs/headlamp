@@ -15,11 +15,17 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Provider } from 'react-redux';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import Endpoints from '../../lib/k8s/endpoints';
+import { KubeObject } from '../../lib/k8s/KubeObject';
+import Pod from '../../lib/k8s/pod';
 import { setConfig } from '../../redux/configSlice';
+import { setDetailDrawerEnabled } from '../../redux/drawerModeSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
 import { setTheme } from '../App/themeSlice';
@@ -89,5 +95,109 @@ describe('GlobalSearchContent theme actions', () => {
       screen.findByRole('option', { name: 'Theme Lights Out' }, { timeout: 500 })
     ).rejects.toThrow();
     expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBeNull();
+  });
+});
+
+describe('GlobalSearchContent resource results', () => {
+  let currentPath = '';
+
+  function LocationProbe() {
+    currentPath = useLocation().pathname;
+    return null;
+  }
+
+  function mockList(cls: typeof KubeObject<any>, items: KubeObject[]) {
+    vi.spyOn(KubeObject, 'useList').mockImplementation(function (this: any) {
+      const list = this === cls ? items : [];
+      return { items: list, data: { items: list }, isFetching: false } as any;
+    });
+  }
+
+  function metadata(name: string, cluster: string) {
+    return {
+      name,
+      namespace: 'default',
+      uid: `${cluster}-${name}`,
+      creationTimestamp: '2026-01-01T00:00:00Z',
+    };
+  }
+
+  function makePod(name: string, cluster: string) {
+    return new Pod(
+      {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: metadata(name, cluster),
+        spec: { containers: [] },
+        status: {},
+      } as any,
+      cluster
+    );
+  }
+
+  async function openFromSearch(startPath: string, kind: string, name: string) {
+    window.history.pushState({}, '', startPath);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Provider store={store}>
+          <MemoryRouter initialEntries={[startPath]}>
+            <GlobalSearchContent defaultValue="" maxWidth={500} onBlur={() => {}} />
+            <LocationProbe />
+          </MemoryRouter>
+        </Provider>
+      </QueryClientProvider>
+    );
+
+    await userEvent.type(screen.getByRole('combobox'), name);
+    await userEvent.click(
+      await screen.findByRole('option', { name: new RegExp(`${kind} • default.*${name}`) })
+    );
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    currentPath = '';
+    store.dispatch(setDetailDrawerEnabled(false));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.pushState({}, '', '/');
+  });
+
+  it("opens a pod's full-page details in the pod's own cluster", async () => {
+    mockList(Pod, [makePod('bravo-only-pod', 'bravo')]);
+
+    await openFromSearch('/c/alpha+bravo/pods', 'Pod', 'bravo-only-pod');
+
+    await waitFor(() => expect(currentPath).toBe('/c/bravo+alpha/pods/default/bravo-only-pod'));
+  });
+
+  it('keeps the cluster order for a pod from the first cluster', async () => {
+    mockList(Pod, [makePod('alpha-only-pod', 'alpha')]);
+
+    await openFromSearch('/c/alpha+bravo/pods', 'Pod', 'alpha-only-pod');
+
+    await waitFor(() => expect(currentPath).toBe('/c/alpha+bravo/pods/default/alpha-only-pod'));
+  });
+
+  it('opens a pod in a single selected cluster', async () => {
+    mockList(Pod, [makePod('solo-pod', 'alpha')]);
+
+    await openFromSearch('/c/alpha/pods', 'Pod', 'solo-pod');
+
+    await waitFor(() => expect(currentPath).toBe('/c/alpha/pods/default/solo-pod'));
+  });
+
+  it('opens the details page, not the list, for an Endpoints result', async () => {
+    const endpoints = new Endpoints(
+      { apiVersion: 'v1', kind: 'Endpoints', metadata: metadata('my-svc', 'bravo') } as any,
+      'bravo'
+    );
+    mockList(Endpoints, [endpoints]);
+
+    await openFromSearch('/c/alpha+bravo/pods', 'Endpoints', 'my-svc');
+
+    await waitFor(() => expect(currentPath).toBe('/c/bravo+alpha/endpoints/default/my-svc'));
   });
 });

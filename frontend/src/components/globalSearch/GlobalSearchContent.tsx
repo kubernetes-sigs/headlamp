@@ -254,12 +254,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       makeKubeObjectResults(resources, item => {
         const search = new URLSearchParams(location.search);
         search.set('node', item.metadata.uid);
-        const url = isMap
-          ? createRouteURL('map') + `?` + search
-          : createRouteURL(item.kind, {
-              name: item.metadata.name,
-              namespace: item.metadata.namespace,
-            });
+        const url = isMap ? createRouteURL('map') + `?` + search : item.getDetailsLink();
 
         if (drawerEnabled) {
           Activity.launch({
