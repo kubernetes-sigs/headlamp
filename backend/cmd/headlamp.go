@@ -89,6 +89,7 @@ const (
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
+	statelessCacheMu  sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
 }
