@@ -26,134 +26,14 @@ import {
   loadClusterSettings,
 } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
-import { apply } from '../../lib/k8s/api/v1/apply';
-import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
-import { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 import store from '../../redux/stores/store';
+import { createNodeShellSession, NodeShellSession } from './nodeShellSession';
 
 interface NodeShellTerminalProps {
   item: Node;
   onClose?: () => void;
-}
-
-const shellPod = (
-  name: string,
-  namespace: string,
-  nodeName: string,
-  nodeShellImage: string,
-  command: string[] = ['sh']
-) => {
-  return {
-    kind: 'Pod',
-    apiVersion: 'v1',
-    metadata: {
-      name,
-      namespace,
-    },
-    spec: {
-      nodeName,
-      restartPolicy: 'Never',
-      terminationGracePeriodSeconds: 30,
-      hostPID: true,
-      hostIPC: true,
-      hostNetwork: true,
-      tolerations: [
-        {
-          operator: 'Exists',
-        },
-      ],
-      containers: [
-        {
-          name: 'debugger',
-          image: nodeShellImage,
-          command,
-          terminationMessagePolicy: 'File',
-          tty: true,
-          stdin: true,
-          stdinOnce: true,
-          volumeMounts: [
-            {
-              mountPath: '/host',
-              name: 'host-root',
-            },
-          ],
-        },
-      ],
-      volumes: [
-        {
-          name: 'host-root',
-          hostPath: {
-            path: '/',
-            type: 'Directory',
-          },
-        },
-      ],
-    },
-  } as unknown as KubePod;
-};
-
-function uniqueString() {
-  const alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
-  let res = '';
-
-  for (let i = 0; i < 5; i++) {
-    const idx = Math.floor(Math.random() * alphabet.length);
-    res += alphabet[idx];
-  }
-
-  return res;
-}
-
-/**
- * Creates the node debugger pod and opens an attach stream to it.
- *
- * @param item - Node to open a shell on
- * @param cluster - Cluster the node belongs to, already resolved by the caller
- * @param onExec - Stream results callback
- * @param onError - Error handler callback, called with the pod creation failure message when the
- *                  thrown value carries one, and with undefined otherwise so the caller can supply a
- *                  translated fallback
- * @returns Object with the stream if successful, empty object on error
- */
-async function shell(
-  item: Node,
-  cluster: string,
-  onExec: StreamResultsCb,
-  onError: (message?: string) => void
-) {
-  const clusterSettings = loadClusterSettings(cluster);
-  const config = clusterSettings.nodeShellTerminal;
-  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
-  const defaultImage = store.getState().config.defaultNodeShellImage;
-  const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
-  const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
-  const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
-  const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
-  try {
-    await apply(kubePod, cluster);
-  } catch (e) {
-    console.error('Error:DebugNode: creating pod', e);
-    onError(e instanceof Error ? e.message : undefined);
-    return {};
-  }
-  const tty = true;
-  const stdin = true;
-  const stdout = true;
-  const stderr = true;
-  const url = `/api/v1/namespaces/${namespace}/pods/${podName}/attach?container=debugger&stdin=${
-    stdin ? 1 : 0
-  }&stderr=${stderr ? 1 : 0}&stdout=${stdout ? 1 : 0}&tty=${tty ? 1 : 0}`;
-  const additionalProtocols = [
-    'v4.channel.k8s.io',
-    'v3.channel.k8s.io',
-    'v2.channel.k8s.io',
-    'channel.k8s.io',
-  ];
-  return {
-    stream: stream(url, onExec, { cluster, additionalProtocols, isJson: false }),
-  };
 }
 
 export function NodeShellTerminal(props: NodeShellTerminalProps) {
@@ -161,12 +41,15 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const sessionClosedRef = useRef(false);
+  const shellSessionRef = useRef<NodeShellSession | null>(null);
   const { t } = useTranslation(['translation']);
   const { enqueueSnackbar } = useSnackbar();
 
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
     connectStream: async onDataCallback => {
+      sessionClosedRef.current = false;
       const cluster = getCluster();
       if (!cluster) {
         const message = t('translation|No cluster selected');
@@ -178,16 +61,51 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       }
 
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, cluster, onDataCallback, (errorMessage?: string) => {
-        const message = errorMessage || t('translation|Failed to create node shell pod');
+      const clusterSettings = loadClusterSettings(cluster);
+      const config = clusterSettings.nodeShellTerminal;
+      const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
+      const defaultImage = store.getState().config.defaultNodeShellImage;
+      const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
+      const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
+
+      try {
+        const session = await createNodeShellSession(
+          item.getName(),
+          cluster,
+          namespace,
+          linuxImage,
+          onDataCallback,
+          () => {
+            sessionClosedRef.current = true;
+            enqueueSnackbar(
+              t('translation|Node shell connection failed; cleaning up the debug session'),
+              {
+                variant: 'error',
+              }
+            );
+          },
+          reportCleanupError
+        );
+
+        if (sessionClosedRef.current) {
+          await session.cleanup().catch(reportCleanupError);
+          return { stream: null };
+        }
+
+        shellSessionRef.current = session;
+        return { stream: session.stream };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t('translation|Failed to create node shell pod');
         enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
           variant: 'error',
         });
         xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
-      });
-      return {
-        stream,
-      };
+        return {
+          stream: null,
+          initialMessage: `${t('translation|Error')}: ${message}`,
+        };
+      }
     },
     onClose: wrappedOnClose,
     errorHandlers: {
@@ -229,7 +147,9 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   };
 
   function wrappedOnClose() {
+    sessionClosedRef.current = true;
     requestShellExit('dialog-close');
+    cleanupNodeShellSession();
     if (onClose) {
       onClose();
     }
@@ -286,17 +206,46 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     const xterm = xtermc.xterm;
     xterm.clear();
     xterm.write('Failed to connect…\r\n');
+    sessionClosedRef.current = true;
+    cleanupNodeShellSession();
+  }
+
+  function reportCleanupError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    enqueueSnackbar(t('translation|Failed to clean up node shell: {{message}}', { message }), {
+      variant: 'error',
+    });
+  }
+
+  function cleanupNodeShellSession() {
+    const session = shellSessionRef.current;
+    if (!session) {
+      return;
+    }
+
+    void session
+      .cleanup()
+      .then(() => {
+        if (shellSessionRef.current === session) {
+          shellSessionRef.current = null;
+        }
+      })
+      .catch(reportCleanupError);
   }
 
   useEffect(() => {
     const handleBeforeUnload = () => {
+      sessionClosedRef.current = true;
       requestShellExit('window-beforeunload');
+      cleanupNodeShellSession();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      sessionClosedRef.current = true;
+      cleanupNodeShellSession();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
