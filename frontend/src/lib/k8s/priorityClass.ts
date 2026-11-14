@@ -33,7 +33,7 @@ class PriorityClass extends KubeObject<KubePriorityClass> {
   static getBaseObject(): KubePriorityClass {
     const baseObject = super.getBaseObject() as KubePriorityClass;
     baseObject.value = 0;
-    baseObject.preemptionPolicy = '';
+    baseObject.preemptionPolicy = 'PreemptLowerPriority';
     baseObject.globalDefault = false;
     baseObject.description = '';
     return baseObject;
