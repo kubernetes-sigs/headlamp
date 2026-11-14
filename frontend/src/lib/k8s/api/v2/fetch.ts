@@ -53,8 +53,32 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
     // Try to parse error message from response
     let maybeErrorMessage: string | undefined;
     try {
-      const body = await response.json();
-      maybeErrorMessage = typeof body === 'string' ? body : body.message;
+      if (typeof response.text === 'function') {
+        const text = await response.text();
+        try {
+          const body = JSON.parse(text);
+          if (typeof body === 'string') {
+            maybeErrorMessage = body;
+          } else if (body && typeof body === 'object') {
+            const candidate = body.message || body.error_description || body.error;
+            if (typeof candidate === 'string') {
+              maybeErrorMessage = candidate;
+            }
+          }
+        } catch {
+          maybeErrorMessage = text.trim() || undefined;
+        }
+      } else if (typeof response.json === 'function') {
+        const body = await response.json();
+        if (typeof body === 'string') {
+          maybeErrorMessage = body;
+        } else if (body && typeof body === 'object') {
+          const candidate = body.message || body.error_description || body.error;
+          if (typeof candidate === 'string') {
+            maybeErrorMessage = candidate;
+          }
+        }
+      }
     } catch (e) {
       console.debug(
         `Failed to parse error response body for ${url} (status ${response.status}):`,
