@@ -197,6 +197,72 @@ describe('activitySlice', () => {
       expect(nextState.history).toEqual([]);
     });
   });
+
+  describe('resize timer', () => {
+    const activity: Activity = {
+      id: '1',
+      content: 'Test',
+      location: 'full',
+    };
+    const stateWithActivity: ActivityState = {
+      history: ['1'],
+      activities: {
+        '1': activity,
+      },
+    };
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+
+    // Fire the pending timer the way the test teardown does, with the global
+    // window binding removed rather than set to undefined. Only a removed
+    // binding makes reading window throw, so setting it to undefined would
+    // not reproduce the failure.
+    function advanceWithoutWindow() {
+      Reflect.deleteProperty(globalThis, 'window');
+      try {
+        vi.advanceTimersByTime(200);
+      } finally {
+        Object.defineProperty(globalThis, 'window', windowDescriptor!);
+      }
+    }
+
+    it('dispatches a resize event after launchActivity', () => {
+      const onResize = vi.fn();
+      window.addEventListener('resize', onResize);
+      try {
+        reducer(initialState, launchActivity(activity));
+        vi.advanceTimersByTime(200);
+      } finally {
+        window.removeEventListener('resize', onResize);
+      }
+
+      expect(onResize).toHaveBeenCalledTimes(1);
+    });
+
+    it('dispatches a resize event after update', () => {
+      const onResize = vi.fn();
+      window.addEventListener('resize', onResize);
+      try {
+        reducer(stateWithActivity, update({ id: '1', title: 'New Title' }));
+        vi.advanceTimersByTime(200);
+      } finally {
+        window.removeEventListener('resize', onResize);
+      }
+
+      expect(onResize).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not throw when the launchActivity timer outlives the window', () => {
+      reducer(initialState, launchActivity(activity));
+
+      expect(advanceWithoutWindow).not.toThrow();
+    });
+
+    it('does not throw when the update timer outlives the window', () => {
+      reducer(stateWithActivity, update({ id: '1', title: 'New Title' }));
+
+      expect(advanceWithoutWindow).not.toThrow();
+    });
+  });
 });
 
 describe('Activity.requestClose', () => {
