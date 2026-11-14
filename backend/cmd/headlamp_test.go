@@ -3904,6 +3904,63 @@ func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp2.StatusCode)
 }
 
+// TestCacheMiddleware_ConcurrentFirstRequestsProxySetup runs concurrent first requests through the
+// cache middleware for a context whose proxy is not set up yet. Run with -race: the middleware must
+// not read the lazily set up proxy field of the context while ProxyRequest assigns it.
+func TestCacheMiddleware_ConcurrentFirstRequestsProxySetup(t *testing.T) {
+	fakeK8s := newFakeK8sServer(true)
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _, _, kContext, err := GetContextKeyAndKContext(w, r, c)
+		if err != nil {
+			return
+		}
+
+		assert.NoError(t, kContext.ProxyRequest(w, r))
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	const requests = 20
+
+	var wg sync.WaitGroup
+
+	codes := make([]int, requests)
+
+	for i := 0; i < requests; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			resp, err := httpRequestWithContext(
+				context.Background(), fmt.Sprintf("%s/clusters/test/api/v1/resource%d", ts.URL, i), http.MethodGet)
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			defer func() { _ = resp.Body.Close() }()
+
+			codes[i] = resp.StatusCode
+		}(i)
+	}
+
+	wg.Wait()
+
+	for _, code := range codes {
+		assert.Equal(t, http.StatusOK, code)
+	}
+}
+
 // TestCacheMiddleware_AuthErrorResponse test if the user is not authorized
 // to access a resource, CacheMiddleware should return AuthErrorResponse to
 // the client without going to k8 server.

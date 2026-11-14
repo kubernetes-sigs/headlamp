@@ -359,7 +359,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
+	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext.Copy())
 
 	next.ServeHTTP(rcw, r)
 
