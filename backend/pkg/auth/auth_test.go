@@ -1957,6 +1957,7 @@ func TestIdentityFromClaims_Success(t *testing.T) {
 	claims := map[string]interface{}{
 		"email":  "alice@example.com",
 		"groups": []interface{}{"dev", "ops"},
+		"exp":    float64(time.Now().Add(time.Hour).Unix()),
 	}
 
 	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
@@ -1971,6 +1972,7 @@ func TestIdentityFromClaims_DeduplicatesAuthenticatedGroup(t *testing.T) {
 	claims := map[string]interface{}{
 		"email":  "alice@example.com",
 		"groups": []interface{}{"system:authenticated", "dev", "system:authenticated"},
+		"exp":    float64(time.Now().Add(time.Hour).Unix()),
 	}
 
 	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
@@ -2005,6 +2007,7 @@ func TestIdentityFromClaims_FiltersSystemPrefixedGroups(t *testing.T) {
 	claims := map[string]interface{}{
 		"email":  "alice@example.com",
 		"groups": []interface{}{"system:masters", "dev", "system:authenticated"},
+		"exp":    float64(time.Now().Add(time.Hour).Unix()),
 	}
 
 	identity, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
@@ -2027,5 +2030,33 @@ func TestIdentityFromClaims_MissingUsernameClaim(t *testing.T) {
 		auth.CompileJMESPaths("preferred_username,upn,username,name"),
 		auth.CompileJMESPaths("groups"),
 	)
+	require.Error(t, err)
+}
+
+func TestIdentityFromClaims_RejectsUnparseableExpiry(t *testing.T) {
+	t.Parallel()
+
+	// exp as a JSON string, not a number: GetExpiryUnixTimeUTC's float64 cast fails. Before the
+	// fix, IdentityFromClaims discarded this error and returned a zero-value Expiry, which
+	// kubeconfig.Impersonation.Expired() treats as never expiring -- a silent, permanent
+	// impersonation grant instead of a rejected request.
+	claims := map[string]interface{}{
+		"email": "alice@example.com",
+		"exp":   "not-a-number",
+	}
+
+	_, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
+	require.Error(t, err)
+}
+
+func TestIdentityFromClaims_RejectsMissingExpiry(t *testing.T) {
+	t.Parallel()
+
+	// No exp claim at all: same fail-closed requirement as the unparseable-value case above.
+	claims := map[string]interface{}{
+		"email": "alice@example.com",
+	}
+
+	_, err := auth.IdentityFromClaims(claims, auth.CompileJMESPaths("email"), auth.CompileJMESPaths("groups"))
 	require.Error(t, err)
 }
