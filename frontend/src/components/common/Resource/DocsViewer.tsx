@@ -17,8 +17,6 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { TreeView } from '@mui/x-tree-view/TreeView';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import getDocDefinitions from '../../../lib/docs';
@@ -27,6 +25,102 @@ import Loader from '../Loader';
 
 export interface DocsViewerProps {
   docSpecs: { apiVersion?: string; kind: string }[];
+}
+
+function DocNode({ name, value }: { name: string; value: any }) {
+  const [open, setOpen] = React.useState(false);
+  const childProps = Object.entries(value.properties || {});
+
+  const isExpandable = !!value.description || childProps.length > 0;
+
+  const handleToggle = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+    if (isExpandable) {
+      setOpen(!open);
+    }
+  };
+
+  return (
+    <Box sx={{ mt: 0.5 }}>
+      <Box display="flex" alignItems="flex-start">
+        <Box
+          sx={{
+            mr: 0.5,
+            mt: 0.25,
+            cursor: isExpandable ? 'pointer' : 'default',
+            display: 'flex',
+            color: 'text.secondary',
+          }}
+          onClick={handleToggle}
+        >
+          {isExpandable ? (
+            <Icon
+              icon={open ? 'mdi:chevron-down' : 'mdi:chevron-right'}
+              width="1.2em"
+              height="1.2em"
+            />
+          ) : (
+            <Box sx={{ width: '1.2em' }} />
+          )}
+        </Box>
+        <Box sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+          <Box
+            onClick={handleToggle}
+            role={isExpandable ? 'button' : undefined}
+            tabIndex={isExpandable ? 0 : undefined}
+            aria-expanded={isExpandable ? open : undefined}
+            onKeyDown={event => {
+              if (isExpandable && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                setOpen(current => !current);
+              }
+            }}
+            sx={{ cursor: isExpandable ? 'pointer' : 'default', display: 'inline-block' }}
+          >
+            <Typography display="inline" sx={{ userSelect: 'text' }}>
+              {name}
+            </Typography>
+            &nbsp;
+            <Typography
+              display="inline"
+              color="textSecondary"
+              variant="caption"
+              sx={{ userSelect: 'text' }}
+            >
+              ({value.type})
+            </Typography>
+          </Box>
+          {isExpandable && (
+            <Box sx={{ pl: 2, display: open ? 'block' : 'none' }}>
+              {value.description && (
+                <Typography
+                  color="textSecondary"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    userSelect: 'text',
+                    mb: 1,
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {value.description}
+                </Typography>
+              )}
+              {childProps.length > 0 && (
+                <Box>
+                  {childProps.map(([childName, childValue]) => (
+                    <DocNode key={childName} name={childName} value={childValue} />
+                  ))}
+                </Box>
+              )}
+            </Box>
+          )}
+        </Box>
+      </Box>
+    </Box>
+  );
 }
 
 function DocsViewer(props: DocsViewerProps) {
@@ -81,28 +175,6 @@ function DocsViewer(props: DocsViewerProps) {
       });
   }, [docSpecs]);
 
-  function makeItems(name: string, value: any, key: string) {
-    return (
-      <TreeItem
-        key={key}
-        nodeId={`${key}`}
-        label={
-          <div>
-            <Typography display="inline">{name}</Typography>&nbsp;
-            <Typography display="inline" color="textSecondary" variant="caption">
-              ({value.type})
-            </Typography>
-          </div>
-        }
-      >
-        <Typography color="textSecondary">{value.description}</Typography>
-        {Object.entries(value.properties || {}).map(([name, value], i) =>
-          makeItems(name, value, `${key}_${i}`)
-        )}
-      </TreeItem>
-    );
-  }
-
   return (
     <>
       {docsLoading ? (
@@ -135,15 +207,11 @@ function DocsViewer(props: DocsViewerProps) {
                     docsType: docSpec.kind.trim(),
                   })}
                 </Typography>
-                <TreeView
-                  sx={{ flexGrow: 1, maxWidth: 400 }}
-                  defaultCollapseIcon={<Icon icon="mdi:chevron-down" />}
-                  defaultExpandIcon={<Icon icon="mdi:chevron-right" />}
-                >
-                  {Object.entries(docSpec.data.properties || {}).map(([name, value], i) =>
-                    makeItems(name, value, i.toString())
-                  )}
-                </TreeView>
+                <Box sx={{ flexGrow: 1, maxWidth: 400 }}>
+                  {Object.entries(docSpec.data.properties || {}).map(([name, value]) => (
+                    <DocNode key={name} name={name} value={value} />
+                  ))}
+                </Box>
               </Box>
             );
           }
