@@ -205,8 +205,8 @@ describe('Terminal', () => {
 
       fireEvent.contextMenu(document.getElementById('xterm-container')!);
 
-      expect(screen.getByRole('menuitem', { name: 'translation|Copy' })).toBeInTheDocument();
-      expect(screen.getByRole('menuitem', { name: 'translation|Paste' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeInTheDocument();
     });
 
     it('disables Paste when the socket is not ready', async () => {
@@ -214,7 +214,7 @@ describe('Terminal', () => {
 
       fireEvent.contextMenu(document.getElementById('xterm-container')!);
 
-      expect(screen.getByRole('menuitem', { name: 'translation|Paste' })).toHaveAttribute(
+      expect(screen.getByRole('menuitem', { name: 'Paste' })).toHaveAttribute(
         'aria-disabled',
         'true'
       );
@@ -226,7 +226,7 @@ describe('Terminal', () => {
 
       fireEvent.contextMenu(document.getElementById('xterm-container')!);
 
-      expect(screen.getByRole('menuitem', { name: 'translation|Copy' })).toHaveAttribute(
+      expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveAttribute(
         'aria-disabled',
         'true'
       );
@@ -242,7 +242,7 @@ describe('Terminal', () => {
       await renderTerminal({ readyState: 1, send: () => {} });
 
       fireEvent.contextMenu(document.getElementById('xterm-container')!);
-      fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Copy' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Copy' }));
       await act(() => new Promise(res => process.nextTick(res)));
 
       expect(writeText).toHaveBeenCalledWith('selected text');
@@ -256,7 +256,7 @@ describe('Terminal', () => {
       await renderTerminal({ readyState: 1, send });
 
       fireEvent.contextMenu(document.getElementById('xterm-container')!);
-      fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Paste' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Paste' }));
       await act(() => new Promise(res => process.nextTick(res)));
 
       expect(readText).toHaveBeenCalled();

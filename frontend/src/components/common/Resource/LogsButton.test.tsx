@@ -291,7 +291,7 @@ describe('LogsButton', () => {
       </TestContext>
     );
 
-    expect(screen.queryByLabelText('translation|Show logs')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Show logs')).not.toBeInTheDocument();
 
     const unknownItem = new MockKubeObject({ kind: 'Unknown', metadata: { name: 'unknown' } });
     rerender(
@@ -300,7 +300,7 @@ describe('LogsButton', () => {
       </TestContext>
     );
 
-    expect(screen.queryByLabelText('translation|Show logs')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Show logs')).not.toBeInTheDocument();
   });
 
   it('uses the Job spec.selector when launching logs for a Job', async () => {
@@ -417,13 +417,13 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
     await waitFor(() => {
       expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-        'translation|Failed to fetch pods: {{error}}',
+        expect.stringMatching(/Failed to fetch pods/i),
         expect.objectContaining({ variant: 'error' })
       );
     });
@@ -438,13 +438,13 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
     await waitFor(() => {
       expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-        'translation|Failed to fetch pods: {{error}}',
+        expect.stringMatching(/Failed to fetch pods/i),
         expect.objectContaining({ variant: 'error' })
       );
     });
@@ -459,13 +459,13 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
     await waitFor(() => {
       expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-        'translation|Failed to fetch pods: {{error}}',
+        expect.stringMatching(/Failed to fetch pods/i),
         expect.objectContaining({ variant: 'error' })
       );
     });
@@ -486,12 +486,12 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
     await waitFor(() => expect(screen.getByTestId('mock-log-viewer')).toBeInTheDocument());
-    expect(document.querySelectorAll('.MuiSelect-select')[3]).toHaveTextContent('translation|All');
+    expect(document.querySelectorAll('.MuiSelect-select')[3]).toHaveTextContent('All');
   });
 
   it('restores valid severities from storage', async () => {
@@ -503,7 +503,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
@@ -529,7 +529,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any, 'test-cluster')} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
@@ -561,7 +561,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     const { unmount } = render(<TestContext>{activityContent}</TestContext>);
 
@@ -636,17 +636,17 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
     const previousSwitch = await screen.findByRole('checkbox', {
-      name: 'translation|Show previous',
+      name: 'Show previous',
     });
     expect(previousSwitch).toBeEnabled();
     fireEvent.click(previousSwitch);
-    fireEvent.click(screen.getByRole('checkbox', { name: 'translation|Timestamps' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'translation|Follow' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Timestamps' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Follow' }));
 
     const selects = document.querySelectorAll('.MuiSelect-select');
     fireEvent.mouseDown(selects[2]);
@@ -929,7 +929,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    const button = screen.getByRole('button', { name: 'translation|Show logs' });
+    const button = screen.getByRole('button', { name: 'Show logs' });
     fireEvent.click(button);
 
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
