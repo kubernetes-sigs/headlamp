@@ -82,6 +82,9 @@
       "nested-interactive"
     ],
     "Resource/ResourceTableColumnChooser/Many Columns": ["label", "list", "nested-interactive"],
+    "Resource/ScaleButton/Scale Input Form": ["label"],
+    "Resource/ScaleButton/Minimum Replica Validation": ["label"],
+    "Resource/ScaleButton/Scale Success Feedback": ["color-contrast"],
     "Resource/UploadDialog/Default": ["aria-dialog-name"],
     "Resource/UploadDialog/File Selected": ["aria-dialog-name"],
     "Resource/UploadDialog/Upload Success": ["aria-dialog-name"],
