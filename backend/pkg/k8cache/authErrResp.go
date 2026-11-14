@@ -87,7 +87,7 @@ func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey 
 		Details: Details{
 			Kind: last,
 		},
-		Code: 403, // 403 is StatusCode for Forbidden user.
+		Code: http.StatusForbidden,
 	}
 
 	response, err := json.Marshal(authErrorResponse)
