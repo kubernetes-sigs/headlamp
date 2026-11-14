@@ -51,6 +51,9 @@ export async function apply<T extends KubeObjectInterface>(
   options: ApplyOptions = {}
 ): Promise<T> {
   const bodyToApply = _.cloneDeep(body);
+  if (!bodyToApply.metadata) {
+    bodyToApply.metadata = {} as typeof bodyToApply.metadata;
+  }
 
   let apiEndpoint;
   try {
@@ -65,7 +68,7 @@ export async function apply<T extends KubeObjectInterface>(
   // Check if the default namespace is needed. And we need to do this before
   // getting the apiEndpoint because it will affect the endpoint itself.
   const isNamespaced = apiEndpoint.isNamespaced;
-  const { namespace } = body.metadata;
+  const namespace = bodyToApply.metadata.namespace;
   if (!namespace && isNamespaced) {
     let defaultNamespace = 'default';
 
