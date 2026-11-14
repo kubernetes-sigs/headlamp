@@ -714,10 +714,19 @@ func IdentityFromClaims(
 			"resolved username claim %q must not use the reserved %q prefix", username, reservedIdentityPrefix)
 	}
 
-	// The verifier already rejected an expired token, so this is recorded only for later use:
-	// refusing to reuse this identity on a connection an automatic reconnect re-establishes
-	// after that token would have expired, without a fresh token to re-verify.
-	expiry, _ := GetExpiryUnixTimeUTC(claims)
+	// The verifier already rejected an expired token, so exp is always present and well-formed
+	// by the time a real, verified token reaches here -- but this is recorded for later use
+	// (refusing to reuse this identity on a connection an automatic reconnect re-establishes
+	// after that token would have expired, without a fresh token to re-verify), and
+	// kubeconfig.Impersonation.Expired() treats a zero Expiry as never expiring. Silently
+	// keeping a zero-value expiry on the one error path GetExpiryUnixTimeUTC has would turn
+	// any future change to how claims reach this function -- a different decode path, or a
+	// verifier someday configured to skip its own expiry check -- into a silent, permanent
+	// impersonation grant instead of a rejected request, so this fails closed instead.
+	expiry, err := GetExpiryUnixTimeUTC(claims)
+	if err != nil {
+		return kubeconfig.Impersonation{}, fmt.Errorf("resolving expiry claim: %w", err)
+	}
 
 	groups := stringSliceFromJMESPaths(claims, groupsPaths)
 	deduplicatedGroups := make([]string, 0, len(groups)+1)
