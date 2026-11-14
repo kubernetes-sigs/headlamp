@@ -176,8 +176,7 @@ function processAggregatedDiscoveryItems(items: any[], resultMap: Map<string, Ap
                 !resource.verbs ||
                 !resource.verbs.includes('list') ||
                 !resource.resource ||
-                !resource.responseKind?.kind ||
-                resource.responseKind?.kind.endsWith('List')
+                !resource.responseKind?.kind
               ) {
                 return;
               }
@@ -223,13 +222,7 @@ function processLegacyApiResourceList(
       kind?: string;
       verbs?: string[];
     }) => {
-      if (
-        !resource.verbs ||
-        !resource.verbs.includes('list') ||
-        !resource.name ||
-        !resource.kind ||
-        resource.kind.endsWith('List')
-      ) {
+      if (!resource.verbs || !resource.verbs.includes('list') || !resource.name || !resource.kind) {
         return;
       }
 
