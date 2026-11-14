@@ -73,7 +73,7 @@ export function NodeTaintsLabel(props: { node: Node }) {
   node.spec.taints.forEach(taint => {
     const format = formatTaint(taint);
     limits.push(
-      <Tooltip title={format} key={taint.key}>
+      <Tooltip title={format} key={format}>
         <PaddedChip label={format} variant="outlined" size="small" />
       </Tooltip>
     );
