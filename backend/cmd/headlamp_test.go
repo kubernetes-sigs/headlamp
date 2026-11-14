@@ -798,6 +798,201 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	}
 }
 
+func execCredentialKubeConfig(t *testing.T) string {
+	t.Helper()
+
+	config := api.NewConfig()
+	config.Clusters["desktop-cluster"] = &api.Cluster{Server: "https://127.0.0.1:6443"}
+	config.AuthInfos["desktop-user"] = &api.AuthInfo{
+		Exec: &api.ExecConfig{
+			APIVersion:         "client.authentication.k8s.io/v1beta1",
+			Command:            "cloud-auth-plugin",
+			Args:               []string{"get-token", "--cluster", "desktop-cluster"},
+			Env:                []api.ExecEnvVar{{Name: "CLOUD_PROFILE", Value: "desktop-profile"}},
+			InstallHint:        "Install cloud-auth-plugin",
+			ProvideClusterInfo: true,
+			InteractiveMode:    api.NeverExecInteractiveMode,
+		},
+	}
+	config.Contexts["desktop-context"] = &api.Context{
+		Cluster:  "desktop-cluster",
+		AuthInfo: "desktop-user",
+	}
+	config.CurrentContext = "desktop-context"
+
+	kubeConfig, err := clientcmd.Write(*config)
+	require.NoError(t, err)
+
+	return base64.StdEncoding.EncodeToString(kubeConfig)
+}
+
+func newDynamicClusterTestHandler(
+	t *testing.T,
+	useInCluster bool,
+	kubeConfigDir string,
+) (*HeadlampConfig, http.Handler) {
+	t.Helper()
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          useInCluster,
+				EnableDynamicClusters: true,
+				KubeConfigDir:         kubeConfigDir,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	return c, createHeadlampHandler(newTestHandlerCtx(t), c)
+}
+
+func serveDynamicClusterRequest(
+	t *testing.T,
+	handler http.Handler,
+	method string,
+	path string,
+	body interface{},
+	backendToken string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req, err := makeJSONReq(method, path, body)
+	require.NoError(t, err)
+
+	if backendToken != "" {
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+
+	return response
+}
+
+func requireExecCredential(t *testing.T, execProvider *api.ExecConfig) {
+	t.Helper()
+	require.NotNil(t, execProvider)
+	assert.Equal(t, "client.authentication.k8s.io/v1beta1", execProvider.APIVersion)
+	assert.Equal(t, "cloud-auth-plugin", execProvider.Command)
+	assert.Equal(t, []string{"get-token", "--cluster", "desktop-cluster"}, execProvider.Args)
+	assert.Equal(t, []api.ExecEnvVar{{Name: "CLOUD_PROFILE", Value: "desktop-profile"}}, execProvider.Env)
+	assert.Equal(t, "Install cloud-auth-plugin", execProvider.InstallHint)
+	assert.True(t, execProvider.ProvideClusterInfo)
+	assert.Equal(t, api.NeverExecInteractiveMode, execProvider.InteractiveMode)
+}
+
+func requireTokenProtectedExecContext(
+	t *testing.T,
+	store kubeconfig.ContextStore,
+	name string,
+) *kubeconfig.Context {
+	t.Helper()
+
+	stored, err := store.GetContext(name)
+	require.NoError(t, err)
+	require.Equal(t, kubeconfig.TokenProtectedDynamicCluster, stored.Source)
+	require.NotNil(t, stored.AuthInfo)
+	requireExecCredential(t, stored.AuthInfo.Exec)
+
+	restConfig, err := stored.RESTConfig()
+	require.NoError(t, err)
+	requireExecCredential(t, restConfig.ExecProvider)
+
+	return stored
+}
+
+func TestAuthenticatedDynamicClusterImportPreservesExecCredential(t *testing.T) {
+	const backendToken = "desktop-token"
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+	kubeConfigDir := t.TempDir()
+	c, handler := newDynamicClusterTestHandler(t, false, kubeConfigDir)
+	kubeConfig := execCredentialKubeConfig(t)
+
+	response := serveDynamicClusterRequest(t, handler, http.MethodPost, "/cluster", ClusterReq{
+		KubeConfig: &kubeConfig,
+	}, backendToken)
+	require.Equal(t, http.StatusCreated, response.Code)
+	requireTokenProtectedExecContext(t, c.KubeConfigStore, "desktop-context")
+
+	persistedPath, err := defaultHeadlampKubeConfigFile(kubeConfigDir)
+	require.NoError(t, err)
+	persisted, err := clientcmd.LoadFromFile(persistedPath)
+	require.NoError(t, err)
+	requireExecCredential(t, persisted.AuthInfos["desktop-user"].Exec)
+}
+
+func TestTokenProtectedDynamicClusterSurvivesReloadAndRename(t *testing.T) {
+	const backendToken = "desktop-token"
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+	kubeConfigDir := t.TempDir()
+	_, importHandler := newDynamicClusterTestHandler(t, false, kubeConfigDir)
+	kubeConfig := execCredentialKubeConfig(t)
+
+	importResponse := serveDynamicClusterRequest(t, importHandler, http.MethodPost, "/cluster", ClusterReq{
+		KubeConfig: &kubeConfig,
+	}, backendToken)
+	require.Equal(t, http.StatusCreated, importResponse.Code)
+
+	reloaded, reloadHandler := newDynamicClusterTestHandler(t, false, kubeConfigDir)
+	requireTokenProtectedExecContext(t, reloaded.KubeConfigStore, "desktop-context")
+
+	renameResponse := serveDynamicClusterRequest(t, reloadHandler, http.MethodPut, "/cluster/desktop-context",
+		RenameClusterRequest{
+			NewClusterName: "renamed-desktop",
+			Source:         "dynamic_cluster",
+		}, backendToken)
+	require.Equal(t, http.StatusCreated, renameResponse.Code)
+
+	_, err := reloaded.KubeConfigStore.GetContext("desktop-context")
+	assert.Error(t, err)
+	renamed := requireTokenProtectedExecContext(t, reloaded.KubeConfigStore, "renamed-desktop")
+	assert.Equal(t, "desktop-context", renamed.KubeConfigContextName)
+
+	reloadedAfterRename, _ := newDynamicClusterTestHandler(t, false, kubeConfigDir)
+	_, err = reloadedAfterRename.KubeConfigStore.GetContext("desktop-context")
+	assert.Error(t, err)
+	requireTokenProtectedExecContext(t, reloadedAfterRename.KubeConfigStore, "renamed-desktop")
+}
+
+func TestTokenlessDynamicClusterImportRejectsExecCredential(t *testing.T) {
+	tests := []struct {
+		name         string
+		useInCluster bool
+	}{
+		{name: "standalone server"},
+		{name: "in-cluster server", useInCluster: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+			kubeConfigDir := t.TempDir()
+			c, handler := newDynamicClusterTestHandler(t, test.useInCluster, kubeConfigDir)
+			kubeConfig := execCredentialKubeConfig(t)
+
+			response := serveDynamicClusterRequest(t, handler, http.MethodPost, "/cluster", ClusterReq{
+				KubeConfig: &kubeConfig,
+			}, "")
+			require.Equal(t, http.StatusBadRequest, response.Code)
+			assert.Contains(t, response.Body.String(), "getting contexts from kubeconfig")
+
+			_, err := c.KubeConfigStore.GetContext("desktop-context")
+			assert.Error(t, err)
+
+			persistedPath, err := defaultHeadlampKubeConfigFile(kubeConfigDir)
+			require.NoError(t, err)
+			_, err = os.Stat(persistedPath)
+			assert.ErrorIs(t, err, os.ErrNotExist)
+		})
+	}
+}
+
 func TestGetClustersClusterInventorySource(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	require.NoError(t, kubeConfigStore.AddContext(clusterInventoryConfigContext()))
@@ -2437,6 +2632,64 @@ func runClusterRenameTests(
 	//nolint:gosec // Writing test fixture file in testdata directory
 	err = os.WriteFile("./headlamp_testdata/kubeconfig_rename", resetConfigByte, 0o600)
 	require.NoError(t, err)
+}
+
+func TestUpdateCustomContextToCacheRejectsExecForDynamicCluster(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	original := &kubeconfig.Context{
+		Name:                  "dynamic-context",
+		KubeConfigContextName: "dynamic-context",
+		KubeContext: &api.Context{
+			Cluster:  "dynamic-cluster",
+			AuthInfo: "token-user",
+		},
+		Cluster: &api.Cluster{Server: "https://127.0.0.1:6443"},
+		AuthInfo: &api.AuthInfo{
+			Token: "test-token",
+		},
+		Source: kubeconfig.DynamicCluster,
+	}
+	require.NoError(t, store.AddContext(original))
+
+	config := api.NewConfig()
+	config.Clusters["dynamic-cluster"] = &api.Cluster{Server: "https://127.0.0.1:6443"}
+	config.Contexts["dynamic-context"] = &api.Context{
+		Cluster:  "dynamic-cluster",
+		AuthInfo: "exec-user",
+	}
+	config.AuthInfos["exec-user"] = &api.AuthInfo{
+		Exec: &api.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    "should-not-run",
+		},
+	}
+	// A valid sibling makes the loader return contexts alongside the error.
+	config.Contexts["sibling-context"] = &api.Context{
+		Cluster:  "dynamic-cluster",
+		AuthInfo: "sibling-user",
+	}
+	config.AuthInfos["sibling-user"] = &api.AuthInfo{Token: "sibling-token"}
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: store,
+			},
+		},
+	}
+
+	errs := c.updateCustomContextToCache(config, original.Name, kubeconfig.DynamicCluster)
+	require.NotEmpty(t, errs)
+	assert.ErrorContains(t, errors.Join(errs...), "exec credential plugins are not permitted in dynamic clusters")
+
+	stored, err := store.GetContext(original.Name)
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, stored.Source)
+	assert.Nil(t, stored.AuthInfo.Exec)
+	assert.Equal(t, "test-token", stored.AuthInfo.Token)
+
+	_, err = store.GetContext("sibling-context")
+	assert.Error(t, err, "rejected reload must not add sibling contexts")
 }
 
 // TestRenameCluster checks the cluster rename functionality.
