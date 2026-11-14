@@ -19,6 +19,10 @@ import { useParams } from 'react-router-dom';
 import ResourceClaim from '../../lib/k8s/resourceClaim';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
+import DeviceRequestsTable from './DeviceRequestsTable';
+import ResourceClaimAllocatedDevices from './ResourceClaimAllocatedDevices';
+import ResourceClaimConsumers from './ResourceClaimConsumers';
 import ResourceClaimStatus from './ResourceClaimStatus';
 
 export default function ResourceClaimDetails(props: {
@@ -55,6 +59,38 @@ export default function ResourceClaimDetails(props: {
               </Link>
             ),
             hide: !item.allocatedNodeName,
+          },
+        ]
+      }
+      extraSections={item =>
+        item && [
+          {
+            id: 'headlamp.resourceclaim-requests',
+            section: (
+              <SectionBox title={t('translation|Requests')}>
+                <DeviceRequestsTable
+                  requests={item.requests}
+                  cluster={item.cluster}
+                  emptyMessage={t('translation|This claim requests no devices.')}
+                />
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.resourceclaim-allocated-devices',
+            section: (
+              <SectionBox title={t('translation|Allocated Devices')}>
+                <ResourceClaimAllocatedDevices claim={item} />
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.resourceclaim-consumers',
+            section: (
+              <SectionBox title={t('translation|Used By')}>
+                <ResourceClaimConsumers claim={item} />
+              </SectionBox>
+            ),
           },
         ]
       }
