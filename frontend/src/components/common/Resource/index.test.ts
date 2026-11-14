@@ -46,6 +46,7 @@ const checkExports = [
   'DocsViewer',
   'DryRunPreviewDialog',
   'EditButton',
+  'EditMetadataMultipleButton',
   'EditorDialog',
   'EmptyStateActions',
   'EnvVarGrid',
