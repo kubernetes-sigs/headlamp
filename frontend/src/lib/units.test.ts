@@ -326,4 +326,30 @@ describe('divideK8sResources', () => {
     expect(divideK8sResources('1Gi', '1Mi')).toBe(1024);
     expect(divideK8sResources('1M', '1K')).toBe(1000);
   });
+
+  it('should throw an error when divisor is zero or negative', () => {
+    expect(() => divideK8sResources('1Gi', '0')).toThrow('Divisor must be greater than 0: 0');
+    expect(() => divideK8sResources('1Gi', '0m')).toThrow('Divisor must be greater than 0: 0m');
+    expect(() => divideK8sResources('1Gi', '-1Gi')).toThrow('Divisor must be greater than 0: -1Gi');
+    expect(() => divideK8sResources('500m', '0', 'cpu')).toThrow(
+      'Divisor must be greater than 0: 0'
+    );
+    expect(() => divideK8sResources('500m', '0m', 'cpu')).toThrow(
+      'Divisor must be greater than 0: 0m'
+    );
+    expect(() => divideK8sResources('500m', '-1', 'cpu')).toThrow(
+      'Divisor must be greater than 0: -1'
+    );
+  });
+
+  it('should throw an error when divisor is empty or invalid', () => {
+    expect(() => divideK8sResources('1Gi', '')).toThrow('Divisor must be greater than 0: ');
+    expect(() => divideK8sResources('1Gi', 'invalid')).toThrow(
+      'Divisor must be greater than 0: invalid'
+    );
+    expect(() => divideK8sResources('500m', '', 'cpu')).toThrow('Divisor must be greater than 0: ');
+    expect(() => divideK8sResources('500m', 'invalid', 'cpu')).toThrow(
+      'Divisor must be greater than 0: invalid'
+    );
+  });
 });

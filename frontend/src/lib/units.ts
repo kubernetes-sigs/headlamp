@@ -126,8 +126,11 @@ export function divideK8sResources(
   b: string,
   resourceType: 'cpu' | 'memory' = 'memory'
 ): number {
-  if (resourceType === 'cpu') {
-    return parseCpu(a) / parseCpu(b);
+  const divisor = resourceType === 'cpu' ? parseCpu(b) : parseUnitsOfBytes(b);
+  if (divisor <= 0 || !Number.isFinite(divisor)) {
+    throw new Error(`Divisor must be greater than 0: ${b}`);
   }
-  return parseUnitsOfBytes(a) / parseUnitsOfBytes(b);
+
+  const dividend = resourceType === 'cpu' ? parseCpu(a) : parseUnitsOfBytes(a);
+  return dividend / divisor;
 }
