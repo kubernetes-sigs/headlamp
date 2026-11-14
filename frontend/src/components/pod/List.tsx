@@ -116,12 +116,17 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
   );
 }
 
-function getReadinessGatesStatus(pods: Pod) {
+export function getReadinessGatesStatus(pods: Pod) {
   const readinessGates = pods?.spec?.readinessGates?.map(gate => gate.conditionType) || [];
   const readinessGatesMap: { [key: string]: string } = {};
   if (readinessGates.length === 0) {
     return readinessGatesMap;
   }
+
+  // Every gate counts towards the total, like kubectl. A gate with no condition yet is <none>.
+  readinessGates.forEach(gate => {
+    readinessGatesMap[gate] = '<none>';
+  });
 
   pods?.status?.conditions?.forEach(condition => {
     if (readinessGates.includes(condition.type)) {
