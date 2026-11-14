@@ -18,6 +18,9 @@
 import '@testing-library/jest-dom/vitest';
 import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
+import { initTestI18n } from './test/i18n';
+
+await initTestI18n();
 
 // xterm initializes canvas APIs during module setup, so install the canvas mock
 // here once for the entire Vitest environment instead of per test file.
