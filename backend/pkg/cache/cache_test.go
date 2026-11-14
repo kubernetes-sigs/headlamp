@@ -118,3 +118,64 @@ func TestCacheClose(t *testing.T) {
 	err = ch.Close()
 	assert.NoError(t, err)
 }
+
+func TestUpdateTTL(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("expired key returns ErrNotFound and is not refreshed", func(t *testing.T) {
+		ch := cache.New[string]()
+
+		t.Cleanup(func() { _ = ch.Close() })
+
+		require.NoError(t, ch.SetWithTTL(ctx, "k", "v", 20*time.Millisecond))
+		time.Sleep(40 * time.Millisecond)
+
+		_, err := ch.Get(ctx, "k")
+		assert.ErrorIs(t, err, cache.ErrNotFound)
+
+		err = ch.UpdateTTL(ctx, "k", 5*time.Second)
+		assert.ErrorIs(t, err, cache.ErrNotFound)
+
+		_, err = ch.Get(ctx, "k")
+		assert.ErrorIs(t, err, cache.ErrNotFound)
+	})
+
+	t.Run("missing key returns ErrNotFound", func(t *testing.T) {
+		ch := cache.New[string]()
+
+		t.Cleanup(func() { _ = ch.Close() })
+
+		err := ch.UpdateTTL(ctx, "missing", time.Second)
+		assert.ErrorIs(t, err, cache.ErrNotFound)
+	})
+
+	t.Run("live key TTL is extended", func(t *testing.T) {
+		ch := cache.New[string]()
+
+		t.Cleanup(func() { _ = ch.Close() })
+
+		require.NoError(t, ch.SetWithTTL(ctx, "k", "v", 80*time.Millisecond))
+		require.NoError(t, ch.UpdateTTL(ctx, "k", 2*time.Second))
+
+		time.Sleep(150 * time.Millisecond)
+
+		value, err := ch.Get(ctx, "k")
+		assert.NoError(t, err)
+		assert.Equal(t, "v", value)
+	})
+
+	t.Run("zero TTL clears expiry like SetWithTTL", func(t *testing.T) {
+		ch := cache.New[string]()
+
+		t.Cleanup(func() { _ = ch.Close() })
+
+		require.NoError(t, ch.SetWithTTL(ctx, "k", "v", 50*time.Millisecond))
+		require.NoError(t, ch.UpdateTTL(ctx, "k", 0))
+
+		time.Sleep(80 * time.Millisecond)
+
+		value, err := ch.Get(ctx, "k")
+		assert.NoError(t, err)
+		assert.Equal(t, "v", value)
+	})
+}
