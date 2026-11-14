@@ -224,6 +224,8 @@
   "Cluster IP": "IP adresa clusteru",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Kvóty prostředků",
   "Reference Kind": "Druh odkazu",
   "Reference Name": "Referenční název",

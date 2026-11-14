@@ -224,6 +224,8 @@
   "Cluster IP": "IP-adres van cluster",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Resourcequota's",
   "Reference Kind": "Verwijzingstype",
   "Reference Name": "Naam van verwijzing",
