@@ -15,6 +15,7 @@
  */
 
 import { createTheme } from '@mui/material/styles';
+import TablePagination from '@mui/material/TablePagination';
 import { act, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import ThemeProviderNexti18n from './ThemeProviderNexti18n';
@@ -89,5 +90,41 @@ describe('ThemeProviderNexti18n', () => {
 
     unmount();
     expect(mockI18n.off).toHaveBeenCalledWith('languageChanged', languageChanged);
+  });
+
+  it('applies Czech (cs) MUI localization', () => {
+    mockI18n.language = 'cs';
+
+    render(
+      <ThemeProviderNexti18n theme={createTheme()}>
+        <TablePagination
+          component="div"
+          count={100}
+          page={0}
+          rowsPerPage={10}
+          onPageChange={() => {}}
+        />
+      </ThemeProviderNexti18n>
+    );
+
+    expect(screen.getByText('Řádků na stránce:')).toBeInTheDocument();
+  });
+
+  it('applies Swedish (sv) MUI localization', () => {
+    mockI18n.language = 'sv';
+
+    render(
+      <ThemeProviderNexti18n theme={createTheme()}>
+        <TablePagination
+          component="div"
+          count={100}
+          page={0}
+          rowsPerPage={10}
+          onPageChange={() => {}}
+        />
+      </ThemeProviderNexti18n>
+    );
+
+    expect(screen.getByText('Rader per sida:')).toBeInTheDocument();
   });
 });
