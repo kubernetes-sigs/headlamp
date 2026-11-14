@@ -80,6 +80,52 @@ export function hasToken(cluster: string) {
   return !!getToken(cluster);
 }
 
+/** How long to wait for the cached refresh token cleanup before logging out anyway. */
+const CLEAR_REFRESH_TOKEN_TIMEOUT_MS = 3000;
+
+/**
+ * Encodes a cluster name for a `/clusters/<cluster>` path that has to match the auth cookie path.
+ *
+ * The backend scopes the cookie to the raw cluster name (see GetCookiePath), and browsers do not
+ * percent-decode the request path when matching it. The sub-delimiters ("$&+,;=") and ":" and
+ * "@" are valid in a path segment and stay as they are; everything else is encoded.
+ *
+ * @param cluster - The name of the cluster.
+ */
+function encodeClusterForCookiePath(cluster: string) {
+  return encodeURIComponent(cluster).replace(/%(?:24|26|2B|2C|3B|3D|3A|40)/gi, decodeURIComponent);
+}
+
+/**
+ * Asks the backend to drop the cached OIDC refresh token for the cluster's auth cookie.
+ *
+ * This has to run before the cookie is cleared and on a route under `/clusters/<cluster>`,
+ * because the browser only sends the cookie to that path. It is best effort: a failure must not
+ * block logout, since the cached entry expires on its own. The request is aborted after
+ * CLEAR_REFRESH_TOKEN_TIMEOUT_MS so a stalled backend cannot hold up clearing the cookie.
+ *
+ * @param cluster - The name of the cluster being logged out.
+ */
+async function clearCachedRefreshToken(cluster: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CLEAR_REFRESH_TOKEN_TIMEOUT_MS);
+
+  try {
+    await backendFetch(`/clusters/${encodeClusterForCookiePath(cluster)}/clear-refresh-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeadlampAPIHeaders(),
+      },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    console.error('Error clearing cached refresh token:', error);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /**
  * Sets token to the cookie via backend
  *
@@ -88,6 +134,10 @@ export function hasToken(cluster: string) {
  * @returns
  */
 async function setCookieToken(cluster: string, token: string | null) {
+  if (!token) {
+    await clearCachedRefreshToken(cluster);
+  }
+
   try {
     const endpoint = token
       ? `/clusters/${encodeURIComponent(cluster)}/set-token`

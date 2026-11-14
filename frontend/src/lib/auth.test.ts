@@ -207,7 +207,14 @@ describe('auth', () => {
         });
         mockBackendFetch.mockResolvedValue({ ok: true } as Response);
         await logout('sample');
-        expect(mockBackendFetch).toHaveBeenCalledExactlyOnceWith(
+        expect(mockBackendFetch).toHaveBeenCalledTimes(2);
+        expect(mockBackendFetch).toHaveBeenNthCalledWith(
+          1,
+          '/clusters/sample/clear-refresh-token',
+          expect.any(Object)
+        );
+        expect(mockBackendFetch).toHaveBeenNthCalledWith(
+          2,
           `/encoded-clusters/${encodeClusterPath('sample')}/clear-token`,
           expect.any(Object)
         );
@@ -302,7 +309,94 @@ describe('auth', () => {
 
       await expect(logout(cluster, true)).rejects.toThrow();
 
-      expect(mockBackendFetch).toHaveBeenCalledTimes(1);
+      // The best-effort refresh token cleanup, then the failing clear-token request.
+      expect(mockBackendFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('clears the cached refresh token before the cookie and does not fail if that fails', async () => {
+      const cluster = 'test-cluster';
+      mockProviderLogout.mockReturnValue(true);
+      mockBackendFetch
+        .mockRejectedValueOnce(new Error('network down'))
+        .mockResolvedValueOnce({ ok: true } as Response);
+
+      await expect(logout(cluster, true)).resolves.toBeUndefined();
+
+      expect(mockBackendFetch).toHaveBeenCalledTimes(2);
+      expect(mockBackendFetch).toHaveBeenNthCalledWith(
+        1,
+        `/clusters/${encodeURIComponent(cluster)}/clear-refresh-token`,
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(mockBackendFetch).toHaveBeenNthCalledWith(
+        2,
+        `/encoded-clusters/${encodeClusterPath(cluster)}/clear-token`,
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it.each([
+      ['prod:oidc', '/clusters/prod:oidc/clear-refresh-token'],
+      ['user@example.com', '/clusters/user@example.com/clear-refresh-token'],
+      ['prod+oidc', '/clusters/prod+oidc/clear-refresh-token'],
+      ['prod=oidc', '/clusters/prod=oidc/clear-refresh-token'],
+      ['a$b&c,d;e', '/clusters/a$b&c,d;e/clear-refresh-token'],
+      ['team a/b', '/clusters/team%20a%2Fb/clear-refresh-token'],
+    ])(
+      'keeps cookie-safe path characters in the cleanup path so the auth cookie path matches: %s',
+      async (cluster, expectedPath) => {
+        mockProviderLogout.mockReturnValue(true);
+        mockBackendFetch.mockResolvedValue({ ok: true } as Response);
+
+        await logout(cluster, true);
+
+        expect(mockBackendFetch).toHaveBeenNthCalledWith(
+          1,
+          expectedPath,
+          expect.objectContaining({ method: 'POST' })
+        );
+      }
+    );
+
+    it('gives up on a stalled refresh token cleanup and still clears the cookie', async () => {
+      vi.useFakeTimers();
+
+      try {
+        const cluster = 'test-cluster';
+        mockProviderLogout.mockReturnValue(true);
+        let cleanupSignal: AbortSignal | undefined;
+        mockBackendFetch
+          .mockImplementationOnce(
+            (_url, init) =>
+              new Promise((_resolve, reject) => {
+                cleanupSignal = init?.signal as AbortSignal;
+                cleanupSignal.addEventListener('abort', () =>
+                  reject(new DOMException('The operation was aborted.', 'AbortError'))
+                );
+              })
+          )
+          .mockResolvedValueOnce({ ok: true } as Response);
+
+        const loggedOut = logout(cluster, true);
+
+        // The cleanup is still pending, so the cookie has not been cleared yet.
+        await vi.advanceTimersByTimeAsync(2999);
+        expect(mockBackendFetch).toHaveBeenCalledTimes(1);
+        expect(cleanupSignal?.aborted).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(loggedOut).resolves.toBeUndefined();
+
+        expect(cleanupSignal?.aborted).toBe(true);
+        expect(mockBackendFetch).toHaveBeenCalledTimes(2);
+        expect(mockBackendFetch).toHaveBeenNthCalledWith(
+          2,
+          `/encoded-clusters/${encodeClusterPath(cluster)}/clear-token`,
+          expect.objectContaining({ method: 'POST' })
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should still redirect to oidc-logout when setToken fails for OIDC cluster', async () => {
@@ -319,6 +413,7 @@ describe('auth', () => {
         json: vi.fn().mockResolvedValue({ redirectURL: 'https://idp.example/logout' }),
       };
       mockBackendFetch
+        .mockResolvedValueOnce({ ok: true } as Response) // clear-refresh-token
         .mockResolvedValueOnce(failedSetTokenResponse as Response)
         .mockResolvedValueOnce(logoutResponse as Response);
 
@@ -443,6 +538,7 @@ describe('auth', () => {
         json: vi.fn().mockResolvedValue({ redirectURL: 'https://idp.example/logout' }),
       };
       mockBackendFetch
+        .mockResolvedValueOnce({ ok: true } as Response) // clear-refresh-token
         .mockResolvedValueOnce(failedClearResponse as Response)
         .mockResolvedValueOnce(logoutResponse as Response);
 
@@ -482,7 +578,12 @@ describe('auth', () => {
 
       expect(await deleteTokens()).toEqual([undefined, undefined, undefined]);
 
-      expect(mockBackendFetch).toHaveBeenCalledTimes(4);
+      // Per cluster: clear-refresh-token and clear-token (3 clusters), plus one oidc-logout.
+      expect(mockBackendFetch).toHaveBeenCalledTimes(7);
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        '/clusters/oidc-cluster/clear-refresh-token',
+        expect.objectContaining({ method: 'POST' })
+      );
       expect(mockBackendFetch).toHaveBeenCalledWith(
         `/encoded-clusters/${encodeClusterPath('oidc-cluster')}/clear-token`,
         expect.objectContaining({

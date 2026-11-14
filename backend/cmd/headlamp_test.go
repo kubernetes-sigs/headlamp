@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -5240,6 +5241,155 @@ func TestOIDCLogoutEndpointWithSpecialContext(t *testing.T) {
 			assertOIDCLogoutResponse(t, rr, tc, test.cluster)
 		})
 	}
+}
+
+// newLogoutCleanupSession serves the handler, logs in through set-token so the jar holds the real
+// path-scoped auth cookie, and seeds the refresh token cache entry for that cookie value. All
+// callers use the same "test-cluster" context and "test-cookie-value" auth cookie.
+func newLogoutCleanupSession(
+	t *testing.T,
+) (*httptest.Server, *http.Client, cache.Cache[interface{}]) {
+	t.Helper()
+
+	return newLogoutCleanupSessionWithBroadcast(t, false)
+}
+
+// newLogoutCleanupSessionWithBroadcast is newLogoutCleanupSession with --oidc-use-token-broadcast
+// set as given.
+func newLogoutCleanupSessionWithBroadcast(
+	t *testing.T, broadcast bool,
+) (*httptest.Server, *http.Client, cache.Cache[interface{}]) {
+	t.Helper()
+	setupTestEnv(t)
+
+	const (
+		cluster     = "test-cluster"
+		cookieValue = "test-cookie-value"
+	)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(newOIDCLogoutTestContext(t, cluster, "", false)))
+
+	tokenCache := cache.New[interface{}]()
+	require.NoError(t, tokenCache.Set(context.Background(), "oidc-token-"+cookieValue, "some-refresh-token"))
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore:       kubeConfigStore,
+				OidcUseTokenBroadcast: broadcast,
+			},
+			OidcSkipLogout:   true,
+			Cache:            tokenCache,
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	server := httptest.NewServer(createHeadlampHandler(newTestHandlerCtx(t), cfg))
+	t.Cleanup(server.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	client := &http.Client{Jar: jar}
+
+	postJSON(t, client, server.URL+"/clusters/"+cluster+"/set-token", map[string]string{"token": cookieValue})
+
+	return server, client, tokenCache
+}
+
+// TestOIDCLogoutDeletesCachedRefreshToken covers the regression where logging out left the
+// session's cached OIDC refresh token (written by auth.CacheRefreshedToken) in the cache. The
+// auth cookie is scoped to /clusters/<cluster>, so the browser does not send it to the
+// clear-token and oidc-logout routes. The test uses a cookie jar to follow that path scoping and
+// replays the frontend's logout sequence.
+func TestOIDCLogoutDeletesCachedRefreshToken(t *testing.T) {
+	const (
+		testCluster = "test-cluster"
+		cookieValue = "test-cookie-value"
+		cacheKey    = "oidc-token-" + cookieValue
+	)
+
+	encodedLogoutPath := "/encoded-clusters/" + auth.EncodeClusterForURL(testCluster)
+
+	t.Run("logout routes alone do not receive the auth cookie", func(t *testing.T) {
+		server, client, tokenCache := newLogoutCleanupSession(t)
+
+		postJSON(t, client, server.URL+encodedLogoutPath+"/clear-token", map[string]string{"token": ""})
+		postJSON(t, client, server.URL+encodedLogoutPath+"/oidc-logout", nil)
+
+		_, err := tokenCache.Get(context.Background(), cacheKey)
+		assert.NoError(t, err, "the cookie is not sent to these routes, so they cannot delete the entry")
+	})
+
+	t.Run("cleanup route before clearing the cookie deletes the cached refresh token", func(t *testing.T) {
+		server, client, tokenCache := newLogoutCleanupSession(t)
+
+		postJSON(t, client, server.URL+"/clusters/"+testCluster+"/clear-refresh-token", nil)
+		postJSON(t, client, server.URL+encodedLogoutPath+"/clear-token", map[string]string{"token": ""})
+		postJSON(t, client, server.URL+encodedLogoutPath+"/oidc-logout", nil)
+
+		_, err := tokenCache.Get(context.Background(), cacheKey)
+		assert.ErrorIs(t, err, cache.ErrNotFound, "expected the cached refresh token to be deleted on logout")
+	})
+
+	t.Run("cleanup route without a cookie succeeds and deletes nothing", func(t *testing.T) {
+		server, _, tokenCache := newLogoutCleanupSession(t)
+
+		postJSON(t, &http.Client{}, server.URL+"/clusters/"+testCluster+"/clear-refresh-token", nil)
+
+		_, err := tokenCache.Get(context.Background(), cacheKey)
+		assert.NoError(t, err)
+	})
+
+	t.Run("cleanup route rejects a non-JSON content type and deletes nothing", func(t *testing.T) {
+		server, client, tokenCache := newLogoutCleanupSession(t)
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+			server.URL+"/clusters/"+testCluster+"/clear-refresh-token",
+			strings.NewReader("token=anything"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+
+		defer func() { _ = resp.Body.Close() }()
+
+		assert.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
+
+		_, err = tokenCache.Get(context.Background(), cacheKey)
+		assert.NoError(t, err, "a rejected request must not delete the cached entry")
+	})
+}
+
+// TestOIDCLogoutKeepsSharedRefreshTokenWithBroadcast covers --oidc-use-token-broadcast, where
+// sibling clusters hold the same auth token and so share one refresh token cache entry. Logging
+// out of one cluster must not delete it, or the other clusters could no longer refresh.
+func TestOIDCLogoutKeepsSharedRefreshTokenWithBroadcast(t *testing.T) {
+	server, client, tokenCache := newLogoutCleanupSessionWithBroadcast(t, true)
+
+	postJSON(t, client, server.URL+"/clusters/test-cluster/clear-refresh-token", nil)
+
+	_, err := tokenCache.Get(context.Background(), "oidc-token-test-cookie-value")
+	assert.NoError(t, err, "a shared entry must survive one cluster logging out so the others can still refresh")
+}
+
+// postJSON sends a JSON POST with the client and requires a 200 response.
+func postJSON(t *testing.T, client *http.Client, target string, body interface{}) {
+	t.Helper()
+
+	req, err := makeJSONReq(http.MethodPost, target, body)
+	require.NoError(t, err)
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode, target)
 }
 
 func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
