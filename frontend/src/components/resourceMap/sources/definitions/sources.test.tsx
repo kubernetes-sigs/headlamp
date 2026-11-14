@@ -123,6 +123,19 @@ describe('useGetAllSources', () => {
     expect(findLeaf(result.current, 'Pod')).toBeDefined();
   });
 
+  it('puts the namespaced and cluster scoped RBAC kinds in the Security group', () => {
+    const { result } = renderHook(() => useGetAllSources());
+    const security = findGroup(result.current, 'security');
+
+    expect(security.sources.map(source => source.id)).toEqual([
+      'ServiceAccount',
+      'rbac.authorization.k8s.io/Role',
+      'rbac.authorization.k8s.io/RoleBinding',
+      'rbac.authorization.k8s.io/ClusterRole',
+      'rbac.authorization.k8s.io/ClusterRoleBinding',
+    ]);
+  });
+
   it('loads leaf data as null and then converts Kubernetes objects to graph nodes', () => {
     const pod = new Pod({ metadata: { uid: 'pod-1', name: 'pod-1' } } as any, 'cluster-a');
     const useList = vi.spyOn(Pod, 'useList').mockReturnValue([null] as any);
