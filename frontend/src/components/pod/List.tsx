@@ -145,11 +145,12 @@ function getContainerDisplayStatus(container: KubeContainerStatus, t: TFunction)
       tooltipLines.push(t('translation|Reason: {{ reason }}', { reason: state.waiting.reason }));
     }
   } else if (state.terminated) {
-    color = 'green';
     label = t('translation|Terminated');
-    if (state.terminated.reason === 'Error') {
-      color = 'red';
-    }
+    // A non-zero exit code means the container failed, whatever the reason
+    // (Error, OOMKilled, ContainerCannotRun, ...). A reason of "Error" stays
+    // red even with exit code 0, as it was before. Anything else is green.
+    const exitedCleanly = state.terminated.exitCode === 0 && state.terminated.reason !== 'Error';
+    color = exitedCleanly ? 'green' : 'red';
     if (state.terminated.reason) {
       tooltipLines.push(t('translation|Reason: {{ reason }}', { reason: state.terminated.reason }));
     }
