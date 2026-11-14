@@ -252,7 +252,7 @@ const useDefaultNamespaceFallback = (
       selectedNamespaces.size === 0
     ) {
       const defaultNamespaceFromKubeconfig =
-        allClustersConfigs[currentCluster]?.meta_data.namespace;
+        allClustersConfigs[currentCluster]?.meta_data?.namespace;
 
       if (defaultNamespaceFromKubeconfig) {
         dispatch(setNamespaceFilter([defaultNamespaceFromKubeconfig]));

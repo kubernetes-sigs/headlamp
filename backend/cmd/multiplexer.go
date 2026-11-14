@@ -519,6 +519,11 @@ func (m *Multiplexer) clusterConnectionToken(
 	clusterContext *kubeconfig.Context,
 	requestToken *string,
 ) (*string, error) {
+	if clusterContext.RequiresUserAuthentication() &&
+		(requestToken == nil || strings.TrimSpace(*requestToken) == "") {
+		return nil, errUserAuthRequired
+	}
+
 	if !m.unsafeUseServiceAccountToken || !clusterContext.UsesInClusterServiceAccountToken() {
 		return requestToken, nil
 	}
@@ -958,6 +963,13 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
+	if token == nil || strings.TrimSpace(*token) == "" {
+		clusterContext, err := m.kubeConfigStore.GetContext(msg.ClusterID)
+		if err == nil && clusterContext.RequiresUserAuthentication() {
+			return nil, errUserAuthRequired
+		}
+	}
+
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
 
 	m.mutex.RLock()

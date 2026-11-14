@@ -14,23 +14,19 @@
  * limitations under the License.
  */
 
+import { getClusterDisplayName } from '../../../helpers/clusterPresentation';
 import { useClustersConf } from '../../../lib/k8s';
 
 /**
- * Gets the names of the clusters from the clusters configuration.
- * If the cluster has a custom name, it will be used instead of the default name.
- * The clusters are sorted by their names.
+ * Sorts clusters by display name while preserving connection keys and source objects.
  *
- * @returns An array of name sorted clusters.
+ * @param clusters - The clusters configuration, or null while it is loading.
+ * @returns The clusters sorted by display name, then by connection key. Empty while loading.
  */
 export function getCustomClusterNames(clusters: ReturnType<typeof useClustersConf>) {
-  if (clusters === null) {
-    return [];
-  }
-  return Object.values(clusters)
-    .map(c => ({
-      ...c,
-      name: c.meta_data?.extensions?.headlamp_info?.customName || c.name,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return Object.values(clusters || {}).sort(
+    (a, b) =>
+      getClusterDisplayName(a).localeCompare(getClusterDisplayName(b)) ||
+      a.name.localeCompare(b.name)
+  );
 }

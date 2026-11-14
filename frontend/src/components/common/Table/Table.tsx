@@ -536,11 +536,19 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const mergedColumnVisibility = useMemo(
     () => ({
-      ...(tableProps.state?.columnVisibility ?? {}),
-      ...columnVisibility,
+      // A change callback keeps local visibility at its initial value, so the caller's map
+      // is the complete value and local visibility only stands in while it is absent.
+      ...(tableProps.onColumnVisibilityChange
+        ? tableProps.state?.columnVisibility ?? columnVisibility
+        : { ...tableProps.state?.columnVisibility, ...columnVisibility }),
       ...responsiveHidden,
     }),
-    [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
+    [
+      tableProps.onColumnVisibilityChange,
+      tableProps.state?.columnVisibility,
+      columnVisibility,
+      responsiveHidden,
+    ]
   );
 
   // With faceting on, MRT installs TanStack's own implementation for every column, so ours
@@ -624,7 +632,7 @@ export default function Table<RowItem extends Record<string, any>>({
       }
     },
     onGlobalFilterChange: setGlobalFilter,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: tableProps.onColumnVisibilityChange ?? setColumnVisibility,
     renderToolbarInternalActions: ({ table: tbl }) => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && tbl.getSelectedRowModel().rows.length !== 0;
@@ -973,6 +981,7 @@ const MemoHeadCell = memo(
   },
   (a, b) =>
     a.header.column.id === b.header.column.id &&
+    a.header.column.columnDef.header === b.header.column.columnDef.header &&
     a.sorting === b.sorting &&
     a.isFiltered === b.isFiltered &&
     a.showColumnFilters === b.showColumnFilters &&
@@ -1040,6 +1049,8 @@ const MemoCell = memo(
   },
   (a, b) =>
     a.cell.getValue() === b.cell.getValue() &&
+    a.cell.row.original === b.cell.row.original &&
+    a.cell.column.columnDef.Cell === b.cell.column.columnDef.Cell &&
     (a.cell.column.id === 'mrt-row-select' && b.cell.column.id === 'mrt-row-select'
       ? a.canSelect === b.canSelect && a.isRowSelected === b.isRowSelected
       : true)

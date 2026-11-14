@@ -166,7 +166,8 @@ test('recovers from a corrected config error on scheduled refetch', async ({ pag
   await expect.poll(() => Date.now() - lastConfigRequestAt).toBeGreaterThan(750);
   allowRecovery = true;
 
-  const testCluster = page.locator('table tbody tr td a', { hasText: /^test$/ });
+  const testCluster = page.locator('table tbody tr td a[href="/c/test/"]');
+  const test2Cluster = page.locator('table tbody tr td a[href="/c/test2/"]');
   const recoveredDuringRetryWindow = await testCluster
     .waitFor({ state: 'visible', timeout: 3000 })
     .then(
@@ -178,7 +179,9 @@ test('recovers from a corrected config error on scheduled refetch', async ({ pag
 
   await expect.poll(() => recoveryStatus, { timeout: 15_000 }).toBe(200);
   await expect(testCluster).toBeVisible();
-  await expect(page.locator('table tbody tr td a', { hasText: /^test2$/ })).toBeVisible();
+  await expect(testCluster.getByText('test', { exact: true })).toBeVisible();
+  await expect(test2Cluster).toBeVisible();
+  await expect(test2Cluster.getByText('test2', { exact: true })).toBeVisible();
 });
 
 test('multi tab create delete pod', async ({ browser }) => {

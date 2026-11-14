@@ -15,6 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { TestContext } from '../../test';
 import ClusterChooser from './ClusterChooser';
 
 export default {
@@ -45,7 +46,11 @@ const Template: StoryFn = args => {
     clickHandler: () => {},
     ...args,
   };
-  return <ClusterChooser {...defaultProps} />;
+  return (
+    <TestContext>
+      <ClusterChooser {...defaultProps} />
+    </TestContext>
+  );
 };
 
 export const Normal = Template.bind({});

@@ -15,7 +15,16 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Box, DialogContentText } from '@mui/material';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Typography,
+} from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
@@ -27,6 +36,13 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import helpers from '../../../helpers';
+import {
+  getClusterField,
+  getClusterSource,
+  getClusterSourceLabel,
+  translateClusterLabel,
+} from '../../../helpers/clusterPresentation';
+import { useClusterPresentation } from '../../../helpers/useClusterPresentation';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
@@ -35,6 +51,7 @@ import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+import CopyButton from '../../common/Resource/CopyButton';
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -51,6 +68,10 @@ export default function ClusterContextMenu({
   onClusterRemoved = () => window.location.reload(),
 }: ClusterContextMenuProps) {
   const { t } = useTranslation(['translation']);
+  const { getLabel, sources } = useClusterPresentation();
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const source = sources.find(view => view.id === getClusterSource(cluster));
+  const detailFields = [...(source?.columns || []), ...(source?.detailFields || [])];
   const history = useHistory();
   const dispatch = useDispatch();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -164,6 +185,14 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setDetailsOpen(true);
+            handleMenuClose();
+          }}
+        >
+          <ListItemText>{t('Connection details')}</ListItemText>
+        </MenuItem>
         {(!menuItems || menuItems.length === 0) &&
           ((cluster.meta_data?.source === 'dynamic_cluster' &&
             (helpers.isElectron() || isDynamicClusterEnabled)) ||
@@ -189,6 +218,50 @@ export default function ClusterContextMenu({
           );
         })}
       </Menu>
+      <Dialog
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        aria-labelledby={`${menuId}-details`}
+      >
+        <DialogTitle id={`${menuId}-details`}>{t('Connection details')}</DialogTitle>
+        <DialogContent sx={{ overflowWrap: 'anywhere' }}>
+          <Typography variant="h6">{getLabel(cluster).name}</Typography>
+          <Typography color="text.secondary">
+            {translateClusterLabel(getClusterSourceLabel(cluster, sources), t)}
+          </Typography>
+          <Box component="dl" sx={{ '& dt': { mt: 2, color: 'text.secondary' }, '& dd': { m: 0 } }}>
+            <dt>{t('Connection ID')}</dt>
+            <dd>
+              {cluster.name}
+              <CopyButton text={cluster.name} />
+            </dd>
+            {cluster.server && (
+              <>
+                <dt>{t('API server')}</dt>
+                <dd>{cluster.server}</dd>
+              </>
+            )}
+            {detailFields.map(column => (
+              <React.Fragment key={column.key}>
+                <dt>{translateClusterLabel(column.label, t)}</dt>
+                <dd>{getClusterField(cluster, column.key) || '—'}</dd>
+              </React.Fragment>
+            ))}
+            {getClusterField(cluster, 'root') &&
+              !detailFields.some(field => field.key === 'root') && (
+                <>
+                  <dt>{t('Management context')}</dt>
+                  <dd>{getClusterField(cluster, 'root')}</dd>
+                </>
+              )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsOpen(false)}>{t('Close')}</Button>
+        </DialogActions>
+      </Dialog>
       <ConfirmDialog
         open={openConfirmDialog === 'deleteDynamic'}
         handleClose={() => setOpenConfirmDialog('')}

@@ -80,6 +80,27 @@ fall back to the pod's service account or forward that credential to an external
 context. Legacy unscoped routes remain available for existing callers, but
 cookie-only browser clients should use the cluster-scoped routes.
 
+## Kubernetes response cache
+
+With `--cache-enabled`, users share resource responses within the same cluster
+connection. Each GET still checks the caller's permissions through a Kubernetes
+SelfSubjectAccessReview. Keys distinguish API versions, resources, namespaces,
+names, query parameters and the `Accept` representation. For example,
+`/api/v1/namespaces/team/pods/shared` and
+`/api/v1/namespaces/team/secrets/shared` never share an entry.
+
+A shared metadata list/watch invalidates each resource scope. It uses the
+connection's credentials when available, or a requesting user's token for a
+connection without stored credentials. Tokens are not saved to the context
+store. Until the watch is synchronized, and whenever it disconnects, requests go
+directly to Kubernetes. Authorization-check errors also bypass the cache.
+Watch events and writes invalidate both existing responses and pending fills;
+idle watches stop after ten minutes. Streaming, paginated, conditional, range,
+impersonated and subresource requests bypass the response cache, as do requests
+for a specific resource version or with `Cache-Control: no-cache`. Only successful
+Kubernetes objects are stored, and never responses that set cookies, send
+`Cache-Control: no-store` or vary on anything but `Accept` and `Accept-Encoding`.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
@@ -197,12 +218,11 @@ expiration.
 
 | Rank | Change | Expected memory effect | Trade-off |
 | --- | --- | --- | --- |
-| 1 | Store only object metadata in cache-invalidation informers | 70–99% of informer object heap, depending on resource payload size | Informer handlers cannot later consume spec or status without removing the transform |
-| 2 | Share cache-invalidation watchers for equivalent cluster connections | Avoids duplicated informer stores and goroutines for stateless users | Requires careful authentication and watcher lifecycle isolation |
-| 3 | Add byte and entry limits to the Kubernetes response cache | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate |
-| 4 | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry | Narrows the internal cache API |
-| 5 | Initialize proxy transports only when a context is first used | Saves per-context TLS and transport state for unused contexts | Adds synchronization to the first request |
-| 6 | Lower `GOGC` for the desktop backend | About 2–4.5 MiB in measured idle/request workloads | More frequent GC and modestly higher CPU use |
+| 1 | Share cache-invalidation watchers for equivalent cluster connections | Avoids duplicated informer stores and goroutines for stateless users | Requires careful authentication and watcher lifecycle isolation |
+| 2 | Add byte and entry limits to the Kubernetes response cache | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate |
+| 3 | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry | Narrows the internal cache API |
+| 4 | Initialize proxy transports only when a context is first used | Saves per-context TLS and transport state for unused contexts | Adds synchronization to the first request |
+| 5 | Lower `GOGC` for the desktop backend | About 2–4.5 MiB in measured idle/request workloads | More frequent GC and modestly higher CPU use |
 
 The desktop launcher defaults its bundled backend to `GOGC=25`, while preserving
 an explicitly configured `GOGC`. In isolated measurements, `GOGC=50` reduced

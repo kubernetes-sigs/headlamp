@@ -42,12 +42,11 @@ test.describe('multi-cluster setup', () => {
     page,
   }) => {
     for (const clusterName of ['test', 'test2']) {
-      const clusterAnchor = page.locator('table tbody tr td a', {
-        hasText: new RegExp(`^${clusterName}$`),
-      });
+      const clusterAnchor = page.locator(`table tbody tr td a[href="/c/${clusterName}/"]`);
       await expect(clusterAnchor).toHaveCount(1);
       await expect(clusterAnchor).toBeVisible();
       await expect(clusterAnchor).toHaveAttribute('href', `/c/${clusterName}/`);
+      await expect(clusterAnchor.getByText(clusterName, { exact: true })).toBeVisible();
 
       const clusterRow = clusterAnchor.locator('../../..');
 
@@ -95,11 +94,10 @@ test.describe('multi-cluster setup', () => {
   test("user should be able to login to 'test' cluster, perform logout and return to cluster selection", async ({
     page,
   }) => {
-    const testClusterAnchor = page.locator('table tbody tr td a', {
-      hasText: /^test$/,
-    });
+    const testClusterAnchor = page.locator('table tbody tr td a[href="/c/test/"]');
     await expect(testClusterAnchor).toBeVisible();
     await expect(testClusterAnchor).toHaveAttribute('href', '/c/test/');
+    await expect(testClusterAnchor.getByText('test', { exact: true })).toBeVisible();
 
     await Promise.all([page.waitForNavigation(), testClusterAnchor.click()]);
 
@@ -117,11 +115,10 @@ test.describe('multi-cluster setup', () => {
   test("user should be able to login to 'test2' cluster, perform logout and return to cluster selection", async ({
     page,
   }) => {
-    const test2ClusterAnchor = page.locator('table tbody tr td a', {
-      hasText: /^test2$/,
-    });
+    const test2ClusterAnchor = page.locator('table tbody tr td a[href="/c/test2/"]');
     await expect(test2ClusterAnchor).toBeVisible();
     await expect(test2ClusterAnchor).toHaveAttribute('href', '/c/test2/');
+    await expect(test2ClusterAnchor.getByText('test2', { exact: true })).toBeVisible();
 
     await Promise.all([page.waitForNavigation(), test2ClusterAnchor.click()]);
 

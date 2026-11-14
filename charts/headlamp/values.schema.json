@@ -1,6 +1,29 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "definitions": {
+    "discoveryNamespaces": {
+      "type": "array",
+      "description": "Management namespaces watched for cluster discovery. Empty uses each root default namespace; [\"*\"] watches all and requires equivalent cluster-wide RBAC permissions",
+      "uniqueItems": true,
+      "default": [],
+      "anyOf": [
+        {
+          "description": "\"*\" must be used on its own",
+          "items": { "enum": ["*"] },
+          "maxItems": 1
+        },
+        {
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          }
+        }
+      ]
+    }
+  },
   "properties": {
     "replicaCount": {
       "type": "integer",
@@ -286,6 +309,23 @@
           "type": "string",
           "description": "Path of private key file for TLS"
         },
+        "clusterAPI": {
+          "type": "object",
+          "description": "Cluster API v1beta2 discovery configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Cluster API discovery with per-user OIDC",
+              "default": false
+            },
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter Cluster resources",
+              "default": "!headlamp.dev/ignore"
+            },
+            "namespaces": { "$ref": "#/definitions/discoveryNamespaces" }
+          }
+        },
         "clusterInventory": {
           "type": "object",
           "description": "Experimental/alpha Cluster Inventory configuration",
@@ -295,64 +335,12 @@
               "description": "Enable experimental/alpha Cluster Inventory discovery",
               "default": false
             },
-            "accessProvidersConfig": {
-              "type": "object",
-              "description": "Experimental/alpha Cluster Inventory access providers config",
-              "default": {}
-            },
-            "plugins": {
-              "type": "array",
-              "description": "Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries",
-              "items": {
-                "type": "object",
-                "required": ["name", "image", "mountPath"],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "maxLength": 63,
-                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                    "description": "DNS label name of the plugin image volume"
-                  },
-                  "image": {
-                    "type": "string",
-                    "description": "Image reference for the plugin image volume"
-                  },
-                  "mountPath": {
-                    "type": "string",
-                    "pattern": "^/",
-                    "description": "Absolute read-only mount path for the plugin image volume"
-                  }
-                },
-                "additionalProperties": false
-              },
-              "default": []
-            },
             "labelSelector": {
               "type": "string",
               "description": "Kubernetes label selector used to filter experimental/alpha ClusterProfile resources",
               "default": "!headlamp.dev/ignore"
             },
-            "namespaces": {
-              "type": "array",
-              "description": "Namespaces watched for experimental/alpha ClusterProfile resources. Empty uses the Headlamp pod namespace for in-cluster roots and the kubeconfig context namespace for kubeconfig roots; [\"*\"] watches all and requires equivalent cluster-wide RBAC permissions",
-              "uniqueItems": true,
-              "default": [],
-              "anyOf": [
-                {
-                  "description": "\"*\" must be used on its own",
-                  "items": { "enum": ["*"] },
-                  "maxItems": 1
-                },
-                {
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 63,
-                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                  }
-                }
-              ]
-            },
+            "namespaces": { "$ref": "#/definitions/discoveryNamespaces" },
             "rootReconcileInterval": {
               "type": "string",
               "description": "Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
