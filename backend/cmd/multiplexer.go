@@ -49,6 +49,8 @@ const (
 const (
 	// HeartbeatInterval is the interval at which the multiplexer sends heartbeat messages to the client.
 	HeartbeatInterval = 30 * time.Second
+	// PingWriteTimeout is the maximum time to wait for a heartbeat ping to be written.
+	PingWriteTimeout = 10 * time.Second
 	// HandshakeTimeout is the timeout for the handshake with the client.
 	HandshakeTimeout = 45 * time.Second
 	// CleanupRoutineInterval is the interval at which the multiplexer cleans up unused connections.
@@ -93,6 +95,9 @@ type Connection struct {
 	mu sync.RWMutex
 	// writeMu is a mutex to synchronize access to the write operations.
 	writeMu sync.Mutex
+	// wsWriteMu serializes data writes to WSConn. gorilla/websocket supports
+	// only one concurrent writer (control frames via WriteControl excepted).
+	wsWriteMu sync.Mutex
 	// closed is a flag to indicate if the connection is closed.
 	closed bool
 	// usesServiceAccountToken is true when Token was loaded from the
@@ -556,6 +561,12 @@ func (m *Multiplexer) dialWebSocket(
 	return conn, nil
 }
 
+// sendPing sends a ping frame to the cluster. WriteControl is safe to call
+// concurrently with other write methods, so it does not race with data writes.
+func (m *Multiplexer) sendPing(conn *Connection) error {
+	return conn.WSConn.WriteControl(websocket.PingMessage, nil, time.Now().Add(PingWriteTimeout))
+}
+
 // monitorConnection monitors the health of a connection and attempts to reconnect if necessary.
 func (m *Multiplexer) monitorConnection(conn *Connection) {
 	heartbeat := time.NewTicker(HeartbeatInterval)
@@ -568,7 +579,7 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-heartbeat.C:
-			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := m.sendPing(conn); err != nil {
 				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 
 				if newConn, err := m.reconnect(conn); err != nil {
@@ -858,7 +869,10 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 
 // writeMessageToCluster writes a message to the cluster WebSocket connection.
 func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error {
+	conn.wsWriteMu.Lock()
 	err := conn.WSConn.WriteMessage(websocket.BinaryMessage, data)
+	conn.wsWriteMu.Unlock()
+
 	if err != nil {
 		conn.updateStatus(StateError, err)
 		logger.Log(
