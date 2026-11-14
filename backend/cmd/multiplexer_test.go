@@ -606,7 +606,7 @@ func TestCleanupConnectionKeepsReplacement(t *testing.T) {
 	replacement := &Connection{}
 	m.connections[key] = replacement
 
-	m.cleanupConnection(key, previous)
+	previous.safeClose()
 
 	assert.True(t, previous.IsClosed())
 	assert.Same(t, replacement, m.connections[key])
@@ -990,10 +990,14 @@ func TestReconnect(t *testing.T) {
 
 	// The replaced connection has been closed.
 	newConn, err = m.reconnect(conn)
-	assert.ErrorContains(t, err, "cannot reconnect closed connection")
+	assert.ErrorIs(t, err, errSubscriptionInactive)
 	assert.Nil(t, newConn)
 
 	conn = m.createConnection("non-existent", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+	connKey = m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, clientConn)
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
 	newConn, err = m.reconnect(conn)
 	assert.ErrorContains(t, err, "getting context: key not found")
 	assert.Nil(t, newConn)
@@ -1541,13 +1545,16 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 	// Now send a new message with a new token
 	newToken := "new-refreshed-token"
 
-	// Get the same connection, but with a new token
+	// A changed token cannot inherit the original token's authenticated socket.
 	conn2, err := m.getOrCreateConnection(msg, clientConn, &newToken)
-	assert.NoError(t, err)
-	assert.Equal(t, conn, conn2, "Should return the same connection instance")
+	require.ErrorContains(t, err, "connection credentials changed")
+	require.Nil(t, conn2)
+	assert.Equal(t, &originalToken, conn.Token)
 
-	// Verify the token was updated
-	assert.Equal(t, &newToken, conn2.Token, "Token should be updated to the new value")
+	conn2, err = m.getOrCreateConnection(msg, clientConn, &originalToken)
+	require.NoError(t, err)
+	assert.Same(t, conn, conn2)
+	t.Cleanup(conn.safeClose)
 }
 
 func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) {
@@ -1630,15 +1637,15 @@ func TestReconnect_WithToken(t *testing.T) {
 	t.Cleanup(newConn.safeClose)
 	assert.Equal(t, &originalToken, newConn.Token, "Token should be preserved during reconnection")
 
-	// Now update the token and verify it's used in reconnection
+	// Rejected replacement credentials must not change later reconnect authentication.
 	newToken := "new-refreshed-token"
-	require.NoError(t, m.refreshConnectionToken(newConn, &newToken))
+	require.ErrorContains(t, m.refreshConnectionToken(newConn, &newToken), "connection credentials changed")
 
-	// Reconnect with the new token
+	// Reconnect with the original authenticated credential.
 	reconnConn, err := m.reconnect(newConn)
 	require.NoError(t, err)
 	t.Cleanup(reconnConn.safeClose)
-	assert.Equal(t, &newToken, reconnConn.Token, "Updated token should be used during reconnection")
+	assert.Equal(t, &originalToken, reconnConn.Token)
 }
 
 func TestMonitorConnection_Reconnect(t *testing.T) {

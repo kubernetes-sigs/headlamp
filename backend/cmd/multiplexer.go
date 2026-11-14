@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -57,6 +58,11 @@ const (
 	SecureWebSocketScheme = "wss"
 	// MultiplexerProtocol is the public subprotocol selected for client connections.
 	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
+)
+
+var (
+	errSubscriptionInactive = errors.New("subscription is no longer active")
+	errReconnectInProgress  = errors.New("subscription is already reconnecting")
 )
 
 // ConnectionState represents the current state of a connection.
@@ -102,6 +108,8 @@ type Connection struct {
 	Token *string
 	// closeOnce is used to ensure the connection is closed only once.
 	closeOnce sync.Once
+	// reconnecting serializes replacement dials; guarded by Multiplexer.mutex.
+	reconnecting bool
 }
 
 // Message represents a WebSocket message structure.
@@ -132,6 +140,7 @@ type connectionKey struct {
 
 // Multiplexer manages multiple WebSocket connections.
 type Multiplexer struct {
+	// Entries own subscriptions independently of the current transport's lifetime.
 	connections map[connectionKey]*Connection
 	// mutex is a mutex to synchronize access to the connections.
 	mutex sync.RWMutex
@@ -234,7 +243,7 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 // readServiceAccountToken reads the service account token from path, caching the value
 // per path and refreshing it when the file's mtime changes (e.g. kubelet token rotation).
 func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
-	stat, err := os.Stat(path) //nolint:gosec // Service account token file path from cluster config
+	stat, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("stat service account token file: %w", err)
 	}
@@ -594,15 +603,22 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-heartbeat.C:
-			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err == nil {
+				continue
+			} else {
 				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
-
-				if _, err := m.reconnect(conn); err != nil {
-					logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
-				} else {
-					return
-				}
 			}
+		}
+
+		_, err := m.reconnect(conn)
+		if err == nil || errors.Is(err, errSubscriptionInactive) || errors.Is(err, errReconnectInProgress) {
+			return
+		}
+
+		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+
+		if conn.IsClosed() {
+			return
 		}
 	}
 }
@@ -610,12 +626,33 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 // reconnect attempts to reestablish a connection.
 func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	conn.mu.RLock()
-	clientConn, token, closed := conn.Client, conn.Token, conn.closed
+	clientConn, token := conn.Client, conn.Token
 	conn.mu.RUnlock()
 
-	if closed || clientConn == nil {
-		return nil, fmt.Errorf("cannot reconnect closed connection")
+	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, clientConn)
+	m.mutex.Lock()
+	if clientConn == nil || m.connections[key] != conn {
+		m.mutex.Unlock()
+		return nil, errSubscriptionInactive
 	}
+
+	if conn.reconnecting {
+		m.mutex.Unlock()
+		return nil, errReconnectInProgress
+	}
+
+	conn.reconnecting = true
+	m.mutex.Unlock()
+
+	defer func() {
+		m.mutex.Lock()
+
+		conn.reconnecting = false
+		if m.connections[key] == conn && conn.IsClosed() {
+			delete(m.connections, key)
+		}
+		m.mutex.Unlock()
+	}()
 
 	newConn, err := m.establishClusterConnection(
 		conn.ClusterID,
@@ -631,7 +668,6 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		return nil, err
 	}
 
-	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, clientConn)
 	if err := m.startConnection(key, newConn, conn); err != nil {
 		return nil, err
 	}
@@ -731,11 +767,18 @@ func (m *Multiplexer) processClientMessage(
 	}
 
 	conn.mu.RLock()
-	connected := conn.Status.State == StateConnected
+	connected := !conn.closed && conn.Status.State == StateConnected && conn.WSConn != nil
 	conn.mu.RUnlock()
 
-	if connected {
-		_ = m.writeMessageToCluster(conn, []byte(msg.Data))
+	if !connected {
+		m.handleConnectionError(lockClientConn, msg,
+			fmt.Errorf("subscription is not connected; retry after reconnection or reopen the subscription"))
+
+		return
+	}
+
+	if err := m.writeMessageToCluster(conn, []byte(msg.Data)); err != nil {
+		m.handleConnectionError(lockClientConn, msg, err)
 	}
 }
 
@@ -792,7 +835,7 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 }
 
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
-// If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
+// Reusing a socket requires the same credentials as its upstream handshake.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, clientConn)
 
@@ -826,19 +869,24 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {
-	if requestToken == nil {
-		return nil
-	}
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
 
 	if conn.usesServiceAccountToken {
 		return nil
 	}
 
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
+	var current, requested string
+	if conn.Token != nil {
+		current = *conn.Token
+	}
 
-	if conn.Token == nil || *conn.Token != *requestToken {
-		conn.Token = requestToken
+	if requestToken != nil {
+		requested = *requestToken
+	}
+
+	if current != requested {
+		return fmt.Errorf("connection credentials changed; open a new subscription")
 	}
 
 	return nil
@@ -905,8 +953,8 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 
 // handleClusterMessages handles messages from a cluster connection.
 func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, clientConn)
-	defer m.cleanupConnection(connKey, conn)
+	// Reader exit closes only the transport; its monitor can reclaim the active subscription.
+	defer conn.safeClose()
 
 	var lastResourceVersion string
 
@@ -1085,17 +1133,6 @@ func (m *Multiplexer) sendDataMessage(
 	conn.mu.Unlock()
 
 	return nil
-}
-
-// cleanupConnection performs cleanup for a connection.
-func (m *Multiplexer) cleanupConnection(connKey connectionKey, conn *Connection) {
-	conn.safeClose()
-
-	m.mutex.Lock()
-	if m.connections[connKey] == conn {
-		delete(m.connections, connKey)
-	}
-	m.mutex.Unlock()
 }
 
 // createWrapperMessage creates a wrapper message for a cluster connection.

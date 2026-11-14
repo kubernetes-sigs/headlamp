@@ -49,6 +49,41 @@ backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
 
+## Multiplexed WebSocket ownership
+
+Each `/wsMultiplexer` client socket owns its upstream subscriptions. Routing
+`userId` values are not authenticated identities: a second socket using identical
+cluster/path/user fields must establish its own upstream connection with its own
+credentials. Its `CLOSE` messages and disconnect cannot stop another client's
+subscription.
+
+An upstream connection retains the credential used for its handshake. Changing
+credentials requires a new subscription/client connection; replacing a stored
+token cannot reauthenticate an existing socket. Explicit unsafe service-account
+mode still uses its configured service-account credential, with separate
+subscriptions per client.
+
+Reader cleanup closes only the current transport, not its active subscription.
+An already requested reconnect can claim ownership even if cleanup finishes
+before that claim; claiming ownership is atomic with explicit cancellation.
+Explicit `CLOSE` or client disconnect removes ownership, so a late dial cannot resurrect it.
+Requests while the transport is reconnecting receive an explicit retry error
+rather than silently losing their payload. Upstream write failures also return
+an error to the requesting client.
+Reader completion alone does not automatically redial or repeat a completed
+operation. Clients close and reopen the subscription to start a new operation.
+
+Protocol-level end-to-end tests use real client WebSockets, the production
+multiplexer handler, and a local TLS upstream that rejects forged credentials:
+
+```bash
+cd backend
+go test -race ./cmd -run 'Test(MultiplexerAuthenticatedClientIsolation|ReconnectReaderCleanupBeforeClaim|ReconnectReaderCleanupDuringDial|ReconnectDoesNotRestoreClosedSubscription)$' -count=20
+```
+
+These tests do not require a live Kubernetes cluster or enable multiplexing in
+the frontend. Ordinary logs/terminal streams use their direct cluster endpoints.
+
 ## Service proxy content isolation
 
 Service proxy responses set `Content-Security-Policy: sandbox` and
