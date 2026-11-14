@@ -157,6 +157,14 @@ macOS copyright attribution, and Linux vendor. Set `platforms.linux.maintainer`
 separately to a package contact in `Name <email>` form. Missing or empty fields
 retain the values from `app/package.json`.
 
+`product.backendAppName` optionally sets the backend's `--app-name` independently
+of the Electron display name. It is used in Kubernetes user agents, backend
+`--version` output, and backend-served HTML/SPA page titles (including headless
+browser mode). It does not change the Electron app name or profile directories.
+Omitting it preserves the Electron app name. When present it must contain a
+non-space character and only printable ASCII; invalid values stop Electron
+packaging and runtime manifest loading.
+
 `product.trayIcon` optionally selects a system tray icon using a path relative
 to the packaged resources directory. Declare the same file in `resources` so
 Electron Builder copies it into the package.

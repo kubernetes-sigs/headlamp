@@ -621,6 +621,7 @@ describe('product metadata', () => {
           name: 'example-desktop',
           companyName: 'Example Company',
           productName: 'Example Desktop',
+          backendAppName: 'Example backend',
           version: '1.2.3',
           appId: 'io.example.desktop',
           artifactName: '${name}-${version}.${ext}',
@@ -660,14 +661,77 @@ describe('product metadata', () => {
     });
   });
 
-  it.each(['name', 'companyName', 'productName', 'version', 'appId', 'artifactName', 'trayIcon'])(
-    'rejects a non-string product.%s',
-    field => {
-      expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
-        `Build manifest product.${field} must be a string`
-      );
+  it('keeps the backend name out of Electron Builder identity', () => {
+    const defaults = { productName: 'Example Desktop', appId: 'io.example.desktop' };
+    expect(
+      applyProductMetadata(defaults, { product: { backendAppName: 'Example backend' } })
+    ).toEqual({ ...defaults, extraMetadata: {} });
+  });
+
+  it.each([
+    '',
+    '   ',
+    '\t',
+    'Example\nbackend',
+    'Example\rbackend',
+    'Example\0backend',
+    'Example\x7f',
+    'Exámple',
+  ])('rejects an invalid backend name during packaging: %j', backendAppName => {
+    expect(() => applyProductMetadata({}, { product: { backendAppName } })).toThrow(
+      'Build manifest product.backendAppName must be non-blank printable ASCII'
+    );
+  });
+
+  it('validates backend names when Electron Builder loads its configuration', () => {
+    const manifestFile = temporaryFile(JSON.stringify({ product: { backendAppName: '' } }));
+    // A separate process avoids Electron Builder's configuration module cache.
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [
+          '-e',
+          `
+        require('app-builder-lib/out/util/config/config')
+          .getConfig(${JSON.stringify(appPath)}, 'electron-builder.config.ts', {})
+          .catch(error => { console.error(error.message); process.exit(1); });
+      `,
+        ],
+        {
+          cwd: appPath,
+          env: { ...process.env, HEADLAMP_BUILD_MANIFEST: manifestFile },
+          stdio: 'pipe',
+        }
+      )
+    ).toThrow('Build manifest product.backendAppName');
+  });
+
+  it('declares backend name constraints in the build manifest schema', () => {
+    const schema = JSON.parse(
+      fs.readFileSync(path.join(appPath, 'app-build-manifest.schema.json'), 'utf8')
+    );
+    const validate = addFormats(new Ajv()).compile(schema);
+    expect(validate({ product: {} })).toBe(true);
+    expect(validate({ product: { backendAppName: 'Example backend' } })).toBe(true);
+    for (const backendAppName of [1, null, '', '  ', '\t', 'Example\nbackend', 'Exámple']) {
+      expect(validate({ product: { backendAppName } })).toBe(false);
     }
-  );
+  });
+
+  it.each([
+    'name',
+    'companyName',
+    'productName',
+    'backendAppName',
+    'version',
+    'appId',
+    'artifactName',
+    'trayIcon',
+  ])('rejects a non-string product.%s', field => {
+    expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
+      `Build manifest product.${field} must be a string`
+    );
+  });
 
   it('declares product company metadata in the build manifest schema', () => {
     const schema = JSON.parse(
