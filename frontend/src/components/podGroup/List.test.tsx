@@ -124,7 +124,13 @@ describe('PodGroupList', () => {
   it('shows a condition the API has not decided as a neutral unknown', () => {
     const props = renderList();
     const status = column(props, 'status');
-    const undecided = { schedulingCondition: { type: 'PodGroupScheduled', status: 'Unknown' } };
+    const undecided = {
+      schedulingCondition: {
+        type: 'PodGroupScheduled',
+        status: 'Unknown',
+        reason: 'WaitingForPods',
+      },
+    };
     const pending = { schedulingCondition: { type: 'PodGroupScheduled', status: 'False' } };
 
     expect(status.getValue(undecided)).toBe('translation|Unknown');
