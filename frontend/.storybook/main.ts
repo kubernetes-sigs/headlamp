@@ -15,6 +15,7 @@
  */
 
 import type { StorybookConfig } from '@storybook/react-vite';
+import { fileURLToPath } from 'node:url';
 
 // Please also update: plugins/headlamp-plugin/config/.storybook/main.js
 
@@ -34,6 +35,17 @@ export default {
     config.esbuild = {
       ...config.esbuild,
       jsx: 'automatic',
+    };
+
+    // Scan preview imports before serving stories to avoid late dependency
+    // optimization invalidating chunks while the MSW loader initializes.
+    const entries = config.optimizeDeps?.entries;
+    config.optimizeDeps = {
+      ...config.optimizeDeps,
+      entries: [
+        ...(Array.isArray(entries) ? entries : entries ? [entries] : []),
+        fileURLToPath(new URL('./preview.tsx', import.meta.url)),
+      ],
     };
 
     return config;
