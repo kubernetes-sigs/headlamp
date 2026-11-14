@@ -5267,36 +5267,539 @@ func TestSetTokenEndpointPreservesLegacyLeadingTildeContext(t *testing.T) {
 	assert.Equal(t, "/clusters/~YWJj", rr.Result().Cookies()[0].Path)
 }
 
-func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
+func TestSetTokenEndpointLiftsLogoutMarkerOnlyWithBroadcast(t *testing.T) {
 	setupTestEnv(t)
 
-	cfg := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
+	for _, broadcast := range []bool{false, true} {
+		t.Run(fmt.Sprintf("broadcast=%t", broadcast), func(t *testing.T) {
+			cfg := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(), SessionTTL: 3600, OidcUseTokenBroadcast: broadcast,
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
 
-	for _, cluster := range []string{"team/cluster", "team/../prod", "~YWJj"} {
-		t.Run(cluster, func(t *testing.T) {
-			req, err := makeJSONReq(http.MethodPost,
-				"/encoded-clusters/"+auth.EncodeClusterForURL(cluster)+"/clear-token", map[string]string{
-					"token": "",
-				})
+			req, err := makeJSONReq(http.MethodPost, "/clusters/main/set-token", map[string]string{"token": "private"})
 			require.NoError(t, err)
-			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()
 			createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
-
 			require.Equal(t, http.StatusOK, rr.Code)
-			require.Len(t, rr.Result().Cookies(), 1)
-			assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0", rr.Result().Cookies()[0].Name)
-			assert.Equal(t, "/clusters/"+cluster, rr.Result().Cookies()[0].Path)
-			assert.Equal(t, -1, rr.Result().Cookies()[0].MaxAge)
+
+			byName := map[string]*http.Cookie{}
+			for _, ck := range rr.Result().Cookies() {
+				byName[ck.Name] = ck
+			}
+
+			require.NotNil(t, byName["headlamp-auth-main.0"])
+			assert.Equal(t, "private", byName["headlamp-auth-main.0"].Value)
+
+			if !broadcast {
+				assert.Nil(t, byName[auth.LogoutMarkerName("main")], "no new cookies when token broadcast is off")
+				return
+			}
+
+			require.NotNil(t, byName[auth.LogoutMarkerName("main")], "a manual token lifts the logout marker")
+			assert.Equal(t, -1, byName[auth.LogoutMarkerName("main")].MaxAge)
+			assert.Equal(t, "/clusters/", byName[auth.LogoutMarkerName("main")].Path, "markers live on the shared path")
+		})
+	}
+}
+
+func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
+	setupTestEnv(t)
+
+	for _, broadcast := range []bool{false, true} {
+		cfg := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore:       kubeconfig.NewContextStore(),
+					OidcUseTokenBroadcast: broadcast,
+					SessionTTL:            1800,
+				},
+				Cache:            cache.New[interface{}](),
+				TelemetryHandler: &telemetry.RequestHandler{},
+			},
+		}
+
+		for _, cluster := range []string{"team/cluster", "team/../prod", "~YWJj"} {
+			t.Run(fmt.Sprintf("broadcast=%t/%s", broadcast, cluster), func(t *testing.T) {
+				req, err := makeJSONReq(http.MethodPost,
+					"/encoded-clusters/"+auth.EncodeClusterForURL(cluster)+"/clear-token", map[string]string{
+						"token": "",
+					})
+				require.NoError(t, err)
+				req.Header.Set("Content-Type", "application/json")
+
+				rr := httptest.NewRecorder()
+				createHeadlampHandler(newTestHandlerCtx(t), cfg).ServeHTTP(rr, req)
+				require.Equal(t, http.StatusOK, rr.Code)
+
+				cookies := rr.Result().Cookies()
+				assert.Equal(t, "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0", cookies[0].Name)
+				assert.Equal(t, -1, cookies[0].MaxAge)
+
+				if !broadcast {
+					// Without token broadcast there is no shared token to mark out of.
+					require.Len(t, cookies, 1)
+				} else {
+					// The cluster is marked out of the shared token; the route is under
+					// /encoded-clusters/ yet sets /clusters/ paths.
+					require.Len(t, cookies, 2)
+					assert.Equal(t, auth.LogoutMarkerName(cluster), cookies[1].Name)
+					assert.Equal(t, "1", cookies[1].Value)
+					assert.Equal(t, 1800, cookies[1].MaxAge, "the marker gets the session TTL and slides with the shared cookie")
+					assert.Equal(t, "/clusters/", cookies[1].Path, "markers live on the shared path")
+				}
+
+				assert.Equal(t, "/clusters/"+cluster, cookies[0].Path)
+
+				for _, cookie := range cookies {
+					assert.True(t, cookie.HttpOnly)
+				}
+			})
+		}
+	}
+}
+
+// newSharedTokenTestStore returns a store with "main", an operator-configured
+// cluster on the issuer, and "evil", a client-added (dynamic) cluster that
+// claims the same issuer + client-id; both point at server.
+func newSharedTokenTestStore(t *testing.T, server string) kubeconfig.ContextStore {
+	t.Helper()
+
+	store := kubeconfig.NewContextStore()
+
+	for _, name := range []string{"main", "evil"} {
+		kCtx := &kubeconfig.Context{
+			Name:     name,
+			Source:   kubeconfig.KubeConfig,
+			Cluster:  &api.Cluster{Server: server, InsecureSkipTLSVerify: true},
+			AuthInfo: &api.AuthInfo{},
+			OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: "https://idp.example.com", ClientID: "client-id"},
+		}
+		if name == "evil" {
+			kCtx.Source = kubeconfig.DynamicCluster
+		}
+
+		require.NoError(t, store.AddContext(kCtx))
+	}
+
+	return store
+}
+
+// newClusterRoutesHandler mounts the cluster API routes the way the server does
+// (under the base URL when set) behind the common middleware.
+func newClusterRoutesHandler(c *HeadlampConfig) http.Handler {
+	root := mux.NewRouter()
+
+	sub := root
+	if c.BaseURL != "" {
+		sub = root.PathPrefix(c.BaseURL).Subrouter()
+	}
+
+	handleClusterAPI(c, sub)
+
+	return c.OIDCTokenRefreshMiddleware(root)
+}
+
+func TestClusterRequestHandlerStripsSharedTokenCookies(t *testing.T) { //nolint:funlen // Table of cookie cases.
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	key := auth.SharedTokenKey("https://idp.example.com", "client-id")
+	sharedToken := "shared-token"
+
+	var receivedAuth, receivedCookie string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedCookie = r.Header.Get("Cookie")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	tests := []struct {
+		name       string
+		cluster    string
+		cookie     string
+		wantAuth   string
+		wantCookie string
+	}{
+		{
+			name:    "own cookie wins and shared cookies are stripped",
+			cluster: "main",
+			cookie: "headlamp-auth-main.0=own-token; headlamp-auth~shared-" + key + ".0=" + sharedToken + "; " +
+				auth.LogoutMarkerName("main") + "=1; other=keep",
+			wantAuth:   "Bearer own-token",
+			wantCookie: "headlamp-auth-main.0=own-token; " + auth.LogoutMarkerName("main") + "=1; other=keep",
+		},
+		{
+			name:       "cluster on the issuer authenticates with the shared token but does not forward it",
+			cluster:    "main",
+			cookie:     "other=keep; headlamp-auth~shared-" + key + ".0=" + sharedToken,
+			wantAuth:   "Bearer " + sharedToken,
+			wantCookie: "other=keep",
+		},
+		{
+			name:       "logged-out cluster does not use the shared token",
+			cluster:    "main",
+			cookie:     auth.LogoutMarkerName("main") + "=1; headlamp-auth~shared-" + key + ".0=" + sharedToken,
+			wantAuth:   "",
+			wantCookie: auth.LogoutMarkerName("main") + "=1",
+		},
+		{
+			name:       "dynamic cluster never receives the shared token",
+			cluster:    "evil",
+			cookie:     "headlamp-auth~shared-" + key + ".0=" + sharedToken,
+			wantAuth:   "",
+			wantCookie: "",
+		},
+	}
+
+	for _, baseURL := range []string{"", "/headlamp"} {
+		c := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore:       newSharedTokenTestStore(t, kubeAPI.URL),
+					BaseURL:               baseURL,
+					OidcUseTokenBroadcast: true,
+				},
+				Cache:            cache.New[interface{}](),
+				TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+				TelemetryHandler: &telemetry.RequestHandler{},
+			},
+		}
+		handler := newClusterRoutesHandler(c)
+
+		for _, tc := range tests {
+			t.Run("base="+baseURL+"/"+tc.name, func(t *testing.T) {
+				receivedAuth, receivedCookie = "", ""
+
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+					baseURL+"/clusters/"+tc.cluster+"/api/v1/pods", nil)
+				req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+				req.Header.Set("Cookie", tc.cookie)
+
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+
+				assert.Equal(t, http.StatusOK, rr.Code)
+				assert.Equal(t, tc.wantAuth, receivedAuth)
+				assert.Equal(t, tc.wantCookie, receivedCookie)
+				assert.NotContains(t, receivedCookie, "headlamp-auth~shared-")
+			})
+		}
+	}
+}
+
+// TestClusterRoutesNeverSeeSharedTokenCookies covers routes other than the API
+// proxy: whatever handler runs under /clusters/{cluster}/ gets the request with
+// the shared cookies removed and the cluster's token already in Authorization.
+func TestClusterRoutesNeverSeeSharedTokenCookies(t *testing.T) { //nolint:funlen // Table of route cases.
+	key := auth.SharedTokenKey("https://idp.example.com", "client-id")
+	sharedToken := "shared-token"
+	shared := "headlamp-auth~shared-" + key + ".0=" + sharedToken
+
+	tests := []struct {
+		path, cookie, wantAuth, wantCookie string
+	}{
+		{"/clusters/main/portforward", "other=keep; " + shared, "Bearer " + sharedToken, "other=keep"},
+		{"/clusters/main/portforward", "headlamp-auth-main.0=own; " + shared, "Bearer own", "headlamp-auth-main.0=own"},
+		{"/clusters/evil/portforward", shared, "", ""},
+		{
+			"/clusters/main/portforward",
+			auth.LogoutMarkerName("main") + "=1; " + shared,
+			"",
+			auth.LogoutMarkerName("main") + "=1",
+		},
+	}
+
+	// Without the flag the middleware only strips residual shared cookies; it
+	// reads nothing, promotes nothing and sets nothing.
+	t.Run("broadcast off", func(t *testing.T) {
+		c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: newSharedTokenTestStore(t, "https://unused")},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		}}
+
+		var seenAuth, seenCookie string
+
+		handler := c.OIDCTokenRefreshMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			seenAuth = r.Header.Get("Authorization")
+			seenCookie = r.Header.Get("Cookie")
+		}))
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/portforward", nil)
+		req.Header.Set("Cookie", "other=keep; "+shared)
+
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		assert.Empty(t, seenAuth)
+		assert.Equal(t, "other=keep", seenCookie, "a shared cookie left over from when the flag was on is stripped")
+		assert.Empty(t, rr.Result().Cookies())
+	})
+
+	for _, baseURL := range []string{"", "/headlamp"} {
+		c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: newSharedTokenTestStore(t, "https://unused"), BaseURL: baseURL, OidcUseTokenBroadcast: true,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		}}
+
+		var seenAuth, seenCookie string
+
+		handler := c.OIDCTokenRefreshMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			seenAuth = r.Header.Get("Authorization")
+			seenCookie = r.Header.Get("Cookie")
+		}))
+
+		for _, tc := range tests {
+			t.Run("base="+baseURL+tc.path+" "+tc.cookie, func(t *testing.T) {
+				seenAuth, seenCookie = "", ""
+
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+tc.path, nil)
+				req.Header.Set("Cookie", tc.cookie)
+				handler.ServeHTTP(httptest.NewRecorder(), req)
+
+				assert.Equal(t, tc.wantAuth, seenAuth)
+				assert.Equal(t, tc.wantCookie, seenCookie)
+			})
+		}
+	}
+}
+
+// oidcTestKubeconfig returns a kubeconfig with one context, named name, that
+// authenticates with the same OIDC provider as the operator's clusters.
+func oidcTestKubeconfig(name, server string) []byte {
+	return []byte(fmt.Sprintf(`apiVersion: v1
+kind: Config
+current-context: %[1]s
+clusters:
+- name: %[1]s
+  cluster:
+    server: %[2]s
+    insecure-skip-tls-verify: true
+contexts:
+- name: %[1]s
+  context:
+    cluster: %[1]s
+    user: %[1]s
+users:
+- name: %[1]s
+  user:
+    auth-provider:
+      name: oidc
+      config:
+        idp-issuer-url: https://idp.example.com
+        client-id: client-id
+`, name, server))
+}
+
+// TestRenameKeepsWhoMayReceiveTheSharedToken checks that renaming a cluster
+// neither makes a client-uploaded cluster eligible for the shared token nor
+// makes an operator-configured one lose it. The rename reloads the cluster
+// from its kubeconfig file, which must not drop where the cluster came from.
+func TestRenameKeepsWhoMayReceiveTheSharedToken(t *testing.T) { //nolint:funlen // Two flows with their setup.
+	const (
+		backendToken = "test-backend-token"
+		sharedToken  = "shared-token"
+	)
+
+	key := auth.SharedTokenKey("https://idp.example.com", "client-id")
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	newConfig := func(cfg *headlampconfig.HeadlampCFG) *HeadlampConfig {
+		cfg.KubeConfigStore = kubeconfig.NewContextStore()
+		cfg.OidcUseTokenBroadcast = true
+
+		return &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      cfg,
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		}}
+	}
+
+	sharedCookie := "headlamp-auth~shared-" + key + ".0=" + sharedToken
+
+	// listPods asks the cluster for its pods with the given cookies and returns
+	// the Authorization header the API server received. A cluster that has no
+	// token for the request never reaches the API server.
+	listPods := func(t *testing.T, routes http.Handler, cluster, cookie string) string {
+		t.Helper()
+		// getResponseFromRestrictedEndpoint unsets the token after each call.
+		t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+		receivedAuth = ""
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster+"/api/v1/pods", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Cookie", cookie)
+
+		routes.ServeHTTP(httptest.NewRecorder(), req)
+
+		return receivedAuth
+	}
+
+	rename := func(t *testing.T, handler http.Handler, cluster string, req RenameClusterRequest) {
+		t.Helper()
+
+		r, err := getResponseFromRestrictedEndpoint(handler, "PUT", "/cluster/"+cluster+"?ClusterID="+cluster, req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, r.Code)
+	}
+
+	t.Run("a cluster uploaded by a client never gets the shared token", func(t *testing.T) {
+		c := newConfig(&headlampconfig.HeadlampCFG{EnableDynamicClusters: true, KubeConfigDir: t.TempDir()})
+		handler := createHeadlampHandler(newTestHandlerCtx(t), c)
+		routes := newClusterRoutesHandler(c)
+
+		upload := base64.StdEncoding.EncodeToString(oidcTestKubeconfig("evil", kubeAPI.URL))
+		r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", ClusterReq{KubeConfig: &upload})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, r.Code)
+
+		assert.Empty(t, listPods(t, routes, "evil", sharedCookie), "before the rename")
+
+		rename(t, handler, "evil", RenameClusterRequest{NewClusterName: "renamed"})
+
+		// the cluster is now known by its custom name
+		kCtx, err := c.KubeConfigStore.GetContext("renamed")
+		require.NoError(t, err)
+		assert.Equal(t, kubeconfig.DynamicCluster, kCtx.Source)
+		assert.Empty(t, listPods(t, routes, "renamed", sharedCookie), "after the rename")
+
+		// The cluster itself is reachable and only the shared token is withheld:
+		// with a token of its own, the request gets to the API server.
+		assert.Equal(t, "Bearer own-token", listPods(t, routes, "renamed", "headlamp-auth-renamed.0=own-token"))
+	})
+
+	t.Run("an operator cluster keeps the shared token", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "kubeconfig")
+		require.NoError(t, os.WriteFile(path, oidcTestKubeconfig("main", kubeAPI.URL), 0o600))
+
+		// KubeConfigDir keeps the handler away from the developer's own
+		// dynamic clusters file.
+		c := newConfig(&headlampconfig.HeadlampCFG{
+			KubeConfigPath:        path,
+			KubeConfigDir:         t.TempDir(),
+			EnableDynamicClusters: true,
+		})
+		require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(c.KubeConfigStore, path, kubeconfig.KubeConfig, nil))
+
+		handler := createHeadlampHandler(newTestHandlerCtx(t), c)
+		routes := newClusterRoutesHandler(c)
+
+		assert.Equal(t, "Bearer "+sharedToken, listPods(t, routes, "main", sharedCookie), "before the rename")
+
+		rename(t, handler, "main", RenameClusterRequest{NewClusterName: "renamed", Source: kubeConfigSource})
+
+		kCtx, err := c.KubeConfigStore.GetContext("renamed")
+		require.NoError(t, err)
+		assert.Equal(t, kubeconfig.KubeConfig, kCtx.Source)
+		assert.Equal(t, "Bearer "+sharedToken, listPods(t, routes, "renamed", sharedCookie), "after the rename")
+	})
+}
+
+func TestStoreOIDCLoginTokenSharesSourceWhenBroadcast(t *testing.T) { //nolint:funlen // Covers both login flows.
+	const issuer, clientID = "https://idp.example.com", "client-id"
+
+	newCtx := func(name string) *kubeconfig.Context {
+		return &kubeconfig.Context{
+			Name:     name,
+			Source:   kubeconfig.KubeConfig,
+			AuthInfo: &api.AuthInfo{},
+			OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: issuer, ClientID: clientID},
+		}
+	}
+	dynamicCtx := func(name string) *kubeconfig.Context {
+		kCtx := newCtx(name)
+		kCtx.Source = kubeconfig.DynamicCluster
+
+		return kCtx
+	}
+
+	tests := []struct {
+		name      string
+		broadcast bool
+		contexts  []*kubeconfig.Context
+		wantOwn   bool
+	}{
+		{"broadcast with siblings shares the source token", true, []*kubeconfig.Context{newCtx("src"), newCtx("dst")}, false},
+		{"broadcast without siblings keeps the own cookie", true, []*kubeconfig.Context{newCtx("src")}, true},
+		{"no broadcast keeps the own cookie", false, []*kubeconfig.Context{newCtx("src"), newCtx("dst")}, true},
+		{"dynamic source keeps the own cookie", true, []*kubeconfig.Context{dynamicCtx("src"), newCtx("dst")}, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			for _, c := range tc.contexts {
+				require.NoError(t, store.AddContext(c))
+			}
+
+			cfg := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore: store, SessionTTL: 3600, OidcUseTokenBroadcast: tc.broadcast,
+				},
+			}}
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oidc-callback", nil)
+
+			empty := httptest.NewRecorder()
+			require.NoError(t, cfg.storeOIDCLoginToken(empty, req, "src", ""), "empty token is a no-op, as before")
+			assert.Empty(t, empty.Result().Cookies())
+
+			rr := httptest.NewRecorder()
+			require.NoError(t, cfg.storeOIDCLoginToken(rr, req, "src", "the-token"))
+
+			byName := map[string]*http.Cookie{}
+			for _, ck := range rr.Result().Cookies() {
+				byName[ck.Name] = ck
+			}
+
+			own := byName["headlamp-auth-src.0"]
+			require.NotNil(t, own)
+			assert.Nil(t, byName["headlamp-auth-src.shared"], "no link cookies")
+
+			if tc.broadcast {
+				require.NotNil(t, byName[auth.LogoutMarkerName("src")], "a login lifts the logout marker")
+				assert.Equal(t, -1, byName[auth.LogoutMarkerName("src")].MaxAge)
+			} else {
+				assert.Nil(t, byName[auth.LogoutMarkerName("src")], "no new cookies when token broadcast is off")
+			}
+
+			shared := byName["headlamp-auth~shared-"+auth.SharedTokenKey(issuer, clientID)+".0"]
+
+			if tc.wantOwn {
+				assert.Equal(t, "the-token", own.Value)
+				assert.Nil(t, shared)
+				assert.Nil(t, byName[auth.LogoutMarkerName("dst")], "siblings are untouched when nothing is shared")
+			} else {
+				assert.Empty(t, own.Value, "source chunk zero must be cleared when the token is shared")
+				assert.Equal(t, -1, own.MaxAge)
+				require.NotNil(t, shared, "the token must be stored in the shared cookie")
+				assert.Equal(t, "the-token", shared.Value)
+				require.NotNil(t, byName[auth.LogoutMarkerName("dst")], "siblings' logout markers are lifted too")
+			}
 		})
 	}
 }
