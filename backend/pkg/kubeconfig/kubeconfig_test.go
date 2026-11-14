@@ -1516,3 +1516,36 @@ func TestSkipKubeContextInCommaSeparatedString(t *testing.T) {
 		})
 	}
 }
+
+// TestSameGroupSet locks in SameGroupSet's contract as the single shared implementation moved
+// here from cmd/multiplexer.go's sameGroups and pkg/portforward/store.go's sameGroupSet (they
+// were byte-for-byte duplicates, kept separate only because pkg/portforward could not import
+// the main cmd package): group membership is a set, not a sequence, so reordering and duplicate
+// entries must not be treated as a changed identity.
+func TestSameGroupSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		a, b []string
+		want bool
+	}{
+		{name: "identical order", a: []string{"dev", "ops"}, b: []string{"dev", "ops"}, want: true},
+		{name: "reordered", a: []string{"dev", "ops"}, b: []string{"ops", "dev"}, want: true},
+		{
+			name: "duplicate collapses to same set",
+			a:    []string{"dev", "dev"}, b: []string{"dev"}, want: true,
+		},
+		{name: "different membership", a: []string{"dev"}, b: []string{"ops"}, want: false},
+		{name: "different size", a: []string{"dev", "ops"}, b: []string{"dev"}, want: false},
+		{name: "both empty", a: nil, b: []string{}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, kubeconfig.SameGroupSet(tt.a, tt.b))
+		})
+	}
+}

@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -989,29 +988,7 @@ func sameImpersonation(a, b *kubeconfig.Impersonation) bool {
 		return a == b
 	}
 
-	return a.Username == b.Username && sameGroups(a.Groups, b.Groups)
-}
-
-// sameGroups reports whether a and b contain the same group memberships, ignoring order: group
-// membership is a set, not a sequence, and a refreshed token's claims are not guaranteed to
-// repeat the same order as the token it replaces, even for the identical identity. Comparing
-// them as ordered slices would otherwise reject that refreshed token's connection as "a
-// different identity" purely because of reordering.
-func sameGroups(a, b []string) bool {
-	sortedA := slices.Clone(a)
-	sortedB := slices.Clone(b)
-
-	slices.Sort(sortedA)
-	slices.Sort(sortedB)
-
-	// Compacted after sorting, not just sorted: group membership is a set, so a duplicate
-	// entry (for example a refresh that changes ["dev", "dev"] to ["dev"]) must not be treated
-	// as a different identity -- it has the same authorization semantics either way, and a
-	// length-only comparison would otherwise tear down the connection over it.
-	sortedA = slices.Compact(sortedA)
-	sortedB = slices.Compact(sortedB)
-
-	return slices.Equal(sortedA, sortedB)
+	return a.Username == b.Username && kubeconfig.SameGroupSet(a.Groups, b.Groups)
 }
 
 func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -263,6 +264,23 @@ type Impersonation struct {
 // rather than refusing silently.
 func (imp Impersonation) Expired() bool {
 	return !imp.Expiry.IsZero() && time.Now().After(imp.Expiry)
+}
+
+// SameGroupSet reports whether a and b contain the same group membership, ignoring order and
+// duplicates: group membership is a set, not a sequence, and a refreshed token's claims are not
+// guaranteed to repeat the same order (or dedupe identically) as the token it replaces, even for
+// the identical identity. Comparing them as ordered slices would otherwise reject a refreshed
+// token's connection as "a different identity" purely because of reordering, or treat a
+// duplicate entry (for example a refresh that changes ["dev", "dev"] to ["dev"]) as a change in
+// authorization when it carries the same semantics either way.
+func SameGroupSet(a, b []string) bool {
+	sortedA := slices.Clone(a)
+	sortedB := slices.Clone(b)
+
+	slices.Sort(sortedA)
+	slices.Sort(sortedB)
+
+	return slices.Equal(slices.Compact(sortedA), slices.Compact(sortedB))
 }
 
 // WithImpersonation returns a copy of the context whose client configs act as imp.
