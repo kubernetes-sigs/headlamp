@@ -18,12 +18,16 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
 import Link from '../common/Link';
+import { PhaseLabel } from '../common/PhaseLabel';
 import { DetailsGrid } from '../common/Resource';
-import { StatusLabelByPhase } from './utils';
 
+/**
+ * A claim is Pending until it binds (normal while waiting for its first
+ * consumer), Bound once it has a volume, and Lost if that volume is gone.
+ */
 export function makePVCStatusLabel(item: PersistentVolumeClaim) {
   const status = item.status?.phase ?? '';
-  return StatusLabelByPhase(status);
+  return <PhaseLabel phase={status} successPhase="Bound" warningPhases={['Pending']} />;
 }
 
 export default function VolumeClaimDetails(props: {
