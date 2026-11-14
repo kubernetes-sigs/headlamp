@@ -74,6 +74,7 @@
   "Device Classes": "Classes de périphériques",
   "Drivers": "Pilotes",
   "Resource Claims": "Demandes de ressources",
+  "Pod": "",
   "Resource Claim Templates": "Modèles de demande de ressources",
   "Subsets": "Sous-ensembles",
   "Endpoint: {{ name }}": "Endpoint : {{ name }}",
