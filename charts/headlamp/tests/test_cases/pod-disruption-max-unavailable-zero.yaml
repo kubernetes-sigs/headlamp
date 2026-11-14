@@ -1,0 +1,4 @@
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 0
+  minAvailable: null
