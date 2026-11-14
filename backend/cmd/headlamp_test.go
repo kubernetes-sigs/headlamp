@@ -3445,7 +3445,7 @@ func TestHandleClusterHelm(t *testing.T) {
 			"GET",
 			"/clusters/test-cluster/helm/release/history",
 			"test-token",
-			http.StatusInternalServerError,
+			http.StatusBadRequest,
 		},
 		{
 			"List Releases - Invalid Token",

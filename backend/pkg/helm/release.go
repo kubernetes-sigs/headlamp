@@ -290,20 +290,32 @@ type GetReleaseHistoryRequest struct {
 	Namespace string `json:"namespace" validate:"required"`
 }
 
+func (req *GetReleaseHistoryRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(req)
+}
+
+func decodeGetReleaseHistoryRequest(r *http.Request) (GetReleaseHistoryRequest, error) {
+	var req GetReleaseHistoryRequest
+
+	decoder := schema.NewDecoder()
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		return req, err
+	}
+
+	return req, req.Validate()
+}
+
 type GetReleaseHistoryResponse struct {
 	Releases []*release.Release `json:"releases"`
 }
 
 func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
-	var req GetReleaseHistoryRequest
-
-	decoder := schema.NewDecoder()
-
-	err := decoder.Decode(&req, r.URL.Query())
+	req, err := decodeGetReleaseHistoryRequest(r)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory},
-			err, "decoding request")
+			err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return

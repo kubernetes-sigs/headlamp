@@ -117,3 +117,93 @@ func TestReleaseExists(t *testing.T) {
 		})
 	}
 }
+
+func TestGetReleaseHistoryRequest_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     GetReleaseHistoryRequest
+		wantErr bool
+	}{
+		{
+			name: "valid request",
+			req: GetReleaseHistoryRequest{
+				Name:      "my-release",
+				Namespace: "default",
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing name",
+			req: GetReleaseHistoryRequest{
+				Namespace: "default",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing namespace",
+			req: GetReleaseHistoryRequest{
+				Name: "my-release",
+			},
+			wantErr: true,
+		},
+		{
+			name:    "missing both",
+			req:     GetReleaseHistoryRequest{},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetReleaseHistory_Validation(t *testing.T) {
+	h := &Handler{}
+
+	tests := []struct {
+		name       string
+		url        string
+		wantStatus int
+	}{
+		{
+			name:       "missing both name and namespace",
+			url:        "/clusters/minikube/helm/releases/history",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing namespace",
+			url:        "/clusters/minikube/helm/releases/history?name=my-release",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing name",
+			url:        "/clusters/minikube/helm/releases/history?namespace=default",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "empty name and namespace",
+			url:        "/clusters/minikube/helm/releases/history?name=&namespace=",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			h.GetReleaseHistory(nil, rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+		})
+	}
+}
