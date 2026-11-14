@@ -37,6 +37,7 @@ func TestCacheKeyBelongsToContext(t *testing.T) {
 		{"+pods+default+minikube", "minikube", true},
 		{"+pods+default+prod%2Bcluster", "prod+cluster", true},
 		{"+pods+default+prod%252Bcluster", "prod%2Bcluster", true},
+		{"+pods+default+prod%2Bcluster+labelSelector=app%253Dfrontend", "prod+cluster", true},
 		{"+pods+default+prod%2Bcluster", "prod%2Bcluster", false},
 		{"apps+deployments+default+minikube", "minikube", true},
 		{"+pods+default+other", "minikube", false},
@@ -78,7 +79,11 @@ func TestPurgeCacheForContext_EscapedContextKey(t *testing.T) {
 	const contextKey = "prod+cluster"
 
 	podsURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
+	queryPodsURL := podsURL
+	queryPodsURL.RawQuery = "labelSelector=app%3Dfrontend"
 	podsKey, err := k8cache.GenerateKey(&podsURL, contextKey)
+	require.NoError(t, err)
+	queryPodsKey, err := k8cache.GenerateKey(&queryPodsURL, contextKey)
 	require.NoError(t, err)
 
 	otherURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
@@ -89,11 +94,14 @@ func TestPurgeCacheForContext_EscapedContextKey(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, k8scache.Set(ctx, podsKey, "pods-data"))
+	require.NoError(t, k8scache.Set(ctx, queryPodsKey, "filtered-pods-data"))
 	require.NoError(t, k8scache.Set(ctx, otherKey, "other-data"))
 
 	k8cache.PurgeCacheForContext(k8scache, contextKey)
 
 	_, err = k8scache.Get(ctx, podsKey)
+	assert.Error(t, err)
+	_, err = k8scache.Get(ctx, queryPodsKey)
 	assert.Error(t, err)
 
 	val, err := k8scache.Get(ctx, otherKey)

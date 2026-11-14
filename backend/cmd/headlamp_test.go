@@ -3652,7 +3652,7 @@ func resetCacheMiddlewareTestState() {
 		_ = k8sResponseCache.Close()
 	}
 
-	k8sResponseCache = cache.New[string]()
+	k8sResponseCache = cache.NewWithPrefixIndex[string]()
 }
 
 // newHeadlampConfig create mock HeadlampConfig for testing CacheMiddleware
@@ -3769,7 +3769,7 @@ func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
 //nolint:funlen // Test verifies caching behavior for versioned resources
 func TestCacheMiddleware_CachesResourceNamedVersion(t *testing.T) {
 	oldCache := k8sResponseCache
-	k8sResponseCache = cache.New[string]()
+	k8sResponseCache = cache.NewWithPrefixIndex[string]()
 
 	t.Cleanup(func() { k8sResponseCache = oldCache })
 

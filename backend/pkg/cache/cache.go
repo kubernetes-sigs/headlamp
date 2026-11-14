@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ type Cache[T any] interface {
 	Delete(ctx context.Context, key string) error
 	Get(ctx context.Context, key string) (T, error)
 	GetAll(ctx context.Context, selectFunc Matcher) (map[string]T, error)
+	GetByPrefix(ctx context.Context, prefix string) (map[string]T, error)
 	UpdateTTL(ctx context.Context, key string, ttl time.Duration) error
 	SetOnEvicted(f func(key string, value T))
 	Close() error
@@ -52,6 +54,7 @@ type cacheValue[T any] struct {
 }
 type cache[T any] struct {
 	store           map[string]cacheValue[T]
+	prefixes        map[string]map[string]struct{}
 	lock            sync.RWMutex
 	cleanUpInterval time.Duration
 	onEvicted       func(key string, value T)
@@ -60,10 +63,24 @@ type cache[T any] struct {
 
 // New creates a new cache.
 func New[T any]() Cache[T] {
+	return newCache[T](false)
+}
+
+// NewWithPrefixIndex creates a new cache that indexes delimiter-terminated
+// prefixes for faster prefix lookups. Use it for keys with a bounded number
+// of delimiters, since each delimiter adds an index entry.
+func NewWithPrefixIndex[T any]() Cache[T] {
+	return newCache[T](true)
+}
+
+func newCache[T any](indexPrefixes bool) Cache[T] {
 	cache := &cache[T]{
 		store:           make(map[string]cacheValue[T]),
 		cleanUpInterval: cleanUpInterval,
 		stop:            make(chan struct{}),
+	}
+	if indexPrefixes {
+		cache.prefixes = make(map[string]map[string]struct{})
 	}
 
 	go cache.cleanUp()
@@ -90,6 +107,7 @@ func (c *cache[T]) SetWithTTL(ctx context.Context, key string, value T, ttl time
 		value:     value,
 		expiresAt: expiresAt,
 	}
+	c.addPrefixes(key)
 
 	return nil
 }
@@ -100,8 +118,76 @@ func (c *cache[T]) Delete(ctx context.Context, key string) error {
 	defer c.lock.Unlock()
 
 	delete(c.store, key)
+	c.removePrefixes(key)
 
 	return nil
+}
+
+func (c *cache[T]) addPrefixes(key string) {
+	if c.prefixes == nil {
+		return
+	}
+
+	for i := 1; i <= len(key); i++ {
+		if key[i-1] != '+' {
+			continue
+		}
+
+		prefix := key[:i]
+
+		if c.prefixes[prefix] == nil {
+			c.prefixes[strings.Clone(prefix)] = make(map[string]struct{})
+		}
+
+		c.prefixes[prefix][key] = struct{}{}
+	}
+}
+
+func (c *cache[T]) removePrefixes(key string) {
+	if c.prefixes == nil {
+		return
+	}
+
+	for i := 1; i <= len(key); i++ {
+		if key[i-1] != '+' {
+			continue
+		}
+
+		prefix := key[:i]
+
+		delete(c.prefixes[prefix], key)
+
+		if len(c.prefixes[prefix]) == 0 {
+			delete(c.prefixes, prefix)
+		}
+	}
+}
+
+func (c *cache[T]) GetByPrefix(ctx context.Context, prefix string) (map[string]T, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	values := make(map[string]T)
+
+	if c.prefixes == nil || prefix == "" || prefix[len(prefix)-1] != '+' {
+		now := time.Now()
+		for key, value := range c.store {
+			if strings.HasPrefix(key, prefix) &&
+				(value.expiresAt.IsZero() || value.expiresAt.After(now)) {
+				values[key] = value.value
+			}
+		}
+
+		return values, nil
+	}
+
+	for key := range c.prefixes[prefix] {
+		if value, ok := c.store[key]; ok && (value.expiresAt.IsZero() || value.expiresAt.After(time.Now())) {
+			values[key] = value.value
+		}
+	}
+
+	return values, nil
 }
 
 // Get retrieves a value from the cache.
@@ -163,6 +249,7 @@ func (c *cache[T]) cleanUp() {
 					evictedValues = append(evictedValues, value.value)
 
 					delete(c.store, key)
+					c.removePrefixes(key)
 				}
 			}
 

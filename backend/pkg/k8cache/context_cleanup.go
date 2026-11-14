@@ -16,25 +16,25 @@ package k8cache
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 // cacheKeyBelongsToContext reports whether a k8cache entry key belongs to the
-// given Headlamp context. Keys use the format group+resource+namespace+context.
+// given Headlamp context. Keys use group+resource+namespace+context with an
+// optional query component after the context.
 func cacheKeyBelongsToContext(key, contextKey string) bool {
 	if contextKey == "" {
 		return false
 	}
 
-	parts := strings.SplitN(key, "+", 4)
-	if len(parts) < 4 {
+	parts, ok := parseCacheKey(key)
+	if !ok {
 		return false
 	}
 
-	return parts[3] == escapeCacheKeySegment(contextKey)
+	return parts.context == contextKey
 }
 
 // PurgeCacheForContext removes all cached API responses for a removed context.
@@ -100,9 +100,9 @@ func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} 
 	}
 
 	for key := range allKeys {
-		parts := strings.SplitN(key, "+", 4)
-		if len(parts) == 4 && parts[3] != "" {
-			keys[unescapeCacheKeySegment(parts[3])] = struct{}{}
+		parts, ok := parseCacheKey(key)
+		if ok && parts.context != "" {
+			keys[parts.context] = struct{}{}
 		}
 	}
 
