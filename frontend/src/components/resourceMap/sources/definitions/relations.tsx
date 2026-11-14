@@ -342,6 +342,15 @@ const serviceAccountToDaemonSets = makeRelation(
     ds.metadata.namespace === sa.metadata.namespace
 );
 
+const serviceAccountToStatefulSets = makeRelation(
+  'sa-statefulset',
+  ServiceAccount,
+  StatefulSet,
+  (sa, statefulSet) =>
+    (statefulSet.spec?.template?.spec?.serviceAccountName ?? 'default') === sa.metadata.name &&
+    statefulSet.metadata.namespace === sa.metadata.namespace
+);
+
 const pvcToPods = makeRelation(
   'pvc-pod',
   PersistentVolumeClaim,
@@ -508,6 +517,7 @@ const staticRelations = [
   roleBindingToServiceAccount,
   serviceAccountToDeployments,
   serviceAccountToDaemonSets,
+  serviceAccountToStatefulSets,
   pvcToPods,
   podToOwner,
   replicaSetToOwner,

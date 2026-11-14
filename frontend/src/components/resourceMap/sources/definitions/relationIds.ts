@@ -33,6 +33,7 @@ export const BUILT_IN_RELATION_IDS = [
   'rolebinding-sa',
   'sa-deployment',
   'sa-daemonset',
+  'sa-statefulset',
   'pvc-pod',
   'job-cronjob',
   'job-jobset',
