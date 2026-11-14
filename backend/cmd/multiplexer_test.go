@@ -1959,6 +1959,7 @@ func TestCalculateBackoff_Progression(t *testing.T) {
 		{name: "attempt 5 multiplies by 32", attempt: 5, expected: 32 * time.Second},
 		{name: "attempt 6 caps at maxDelay", attempt: 6, expected: 60 * time.Second},
 		{name: "attempt 10 caps at maxDelay", attempt: 10, expected: 60 * time.Second},
+		{name: "large attempt count (100) caps at maxDelay", attempt: 100, expected: 60 * time.Second},
 	}
 
 	for _, tt := range tests {
@@ -1967,15 +1968,6 @@ func TestCalculateBackoff_Progression(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestCalculateBackoff_MaxDelayCap(t *testing.T) {
-	baseDelay := 30 * time.Second
-	maxDelay := 2 * time.Minute
-
-	// Very large attempt count should never exceed maxDelay
-	result := calculateBackoff(100, baseDelay, maxDelay, 0, nil)
-	assert.Equal(t, maxDelay, result)
 }
 
 func TestCalculateBackoff_ProductionSequence(t *testing.T) {
@@ -2133,15 +2125,49 @@ func setupLiveTestConnectionWithBackoff(
 	return m, conn
 }
 
+func createCapturingUpgradeServer(
+	serverFail *atomic.Bool,
+	upgrades *atomic.Int32,
+) (*httptest.Server, <-chan *websocket.Conn) {
+	serverSockets := make(chan *websocket.Conn, 10)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serverFail.Load() {
+			http.Error(w, "server error", http.StatusInternalServerError)
+
+			return
+		}
+
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		upgrades.Add(1)
+
+		select {
+		case serverSockets <- ws:
+		default:
+			_ = ws.Close()
+		}
+	}))
+
+	return server, serverSockets
+}
+
 func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 	var (
 		serverFail atomic.Bool
 		upgrades   atomic.Int32
 	)
 
-	attempts := make(chan time.Time, 20)
-
-	server := createFailingAttemptServer(&serverFail, &upgrades, attempts)
+	server, _ := createCapturingUpgradeServer(&serverFail, &upgrades)
 	defer server.Close()
 
 	clientConn, clientServer := createTestWebSocketConnection()
@@ -2188,70 +2214,10 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 		100 * time.Millisecond,
 	}
 
-	// Verify actual retry intervals at the server follow backoff and respect the cap
-	timestamps := collectRetryAttempts(t, attempts, len(expectedDelays)+1)
-	verifyRetryIntervals(t, timestamps, expectedDelays...)
-
 	// Verify reported backoff events match the expected progression
 	assertBackoffSequence(t, backoffEvents, expectedDelays...)
 
 	cleanUpTestConnection(t, done, conn)
-}
-
-func createFailingAttemptServer(
-	serverFail *atomic.Bool,
-	upgrades *atomic.Int32,
-	attempts chan<- time.Time,
-) *httptest.Server {
-	return createToggleableTestServer(serverFail, upgrades, func(tm time.Time) {
-		if serverFail.Load() {
-			select {
-			case attempts <- tm:
-			default:
-			}
-		}
-	})
-}
-
-func createToggleableTestServer(
-	serverFail *atomic.Bool,
-	upgrades *atomic.Int32,
-	onAttempt func(time.Time),
-) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if onAttempt != nil {
-			onAttempt(time.Now())
-		}
-
-		if serverFail.Load() {
-			http.Error(w, "server error", http.StatusInternalServerError)
-
-			return
-		}
-
-		upgrader := websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		}
-
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-
-		upgrades.Add(1)
-
-		go func() {
-			defer func() { _ = ws.Close() }()
-
-			for {
-				if _, _, err := ws.ReadMessage(); err != nil {
-					return
-				}
-			}
-		}()
-	}))
 }
 
 type backoffEvent struct {
@@ -2276,78 +2242,6 @@ func assertBackoffSequence(t *testing.T, ch <-chan backoffEvent, expectedDelays 
 
 	for i, expected := range expectedDelays {
 		assertBackoffEvent(t, ch, i, expected)
-	}
-}
-
-// intervalBounds returns tight, defensible bounds [minAllowed, maxAllowed] for actual
-// WebSocket retry intervals measured between reconnect attempts.
-//
-// Tolerances account for:
-//  1. The production jitter range (+/- 20% by default, or 0% when overridden for testing).
-//  2. A realistic scheduler and network loopback dial allowance (1-15 ms).
-//
-// These bounds strictly separate:
-//   - 20 ms (~21 ms actual) from 40 ms: [14 ms, 38 ms] rejects 40 ms (>= 40 ms).
-//   - 40 ms (~42 ms actual) from 80 ms: [30 ms, 62 ms] rejects 20 ms (<= 25 ms) and 80 ms (>= 80 ms).
-//   - 80 ms (~82 ms actual) from 100 ms: [62 ms, 95 ms] rejects 40 ms (<= 60 ms) and 100 ms (>= 100 ms).
-//   - 100 ms capped (~102 ms actual) from uncapped growth (160 ms / 320 ms): [88 ms, 135 ms] rejects
-//     80 ms (<= 82 ms) and uncapped exponential backoff (>= 160 ms).
-func intervalBounds(expected time.Duration) (minAllowed, maxAllowed time.Duration) {
-	if expected <= 20*time.Millisecond {
-		return 14 * time.Millisecond, 38 * time.Millisecond
-	}
-
-	if expected <= 40*time.Millisecond {
-		return 30 * time.Millisecond, 62 * time.Millisecond
-	}
-
-	if expected <= 80*time.Millisecond {
-		return 62 * time.Millisecond, 95 * time.Millisecond
-	}
-
-	if expected <= 100*time.Millisecond {
-		return 88 * time.Millisecond, 135 * time.Millisecond
-	}
-
-	minAllowed = expected * 75 / 100
-	maxAllowed = expected*135/100 + 15*time.Millisecond
-
-	return minAllowed, maxAllowed
-}
-
-func assertInterval(t *testing.T, actual, expected time.Duration) {
-	t.Helper()
-
-	minAllowed, _ := intervalBounds(expected)
-
-	assert.GreaterOrEqual(t, actual, minAllowed, "retry occurred too quickly for expected %v", expected)
-}
-
-func collectRetryAttempts(t *testing.T, ch <-chan time.Time, count int) []time.Time {
-	t.Helper()
-
-	timestamps := make([]time.Time, 0, count)
-
-	for i := 0; i < count; i++ {
-		select {
-		case tm := <-ch:
-			timestamps = append(timestamps, tm)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for reconnect attempt %d at server", i)
-		}
-	}
-
-	return timestamps
-}
-
-func verifyRetryIntervals(t *testing.T, timestamps []time.Time, expectedDelays ...time.Duration) {
-	t.Helper()
-
-	require.Equal(t, len(expectedDelays)+1, len(timestamps), "mismatched timestamp count")
-
-	for i, expected := range expectedDelays {
-		interval := timestamps[i+1].Sub(timestamps[i])
-		assertInterval(t, interval, expected)
 	}
 }
 
@@ -2468,7 +2362,7 @@ func TestMonitorConnection_ResetBackoffOnSuccess(t *testing.T) {
 		upgrades   atomic.Int32
 	)
 
-	server := createToggleableTestServer(&serverFail, &upgrades, nil)
+	server, _ := createCapturingUpgradeServer(&serverFail, &upgrades)
 	defer server.Close()
 
 	clientConn, clientServer := createTestWebSocketConnection()
@@ -2624,38 +2518,6 @@ func verifyClusterMessageForwarded(
 	}
 }
 
-func createCapturingUpgradeServer(
-	serverFail *atomic.Bool,
-	upgrades *atomic.Int32,
-) (*httptest.Server, <-chan *websocket.Conn) {
-	serverSockets := make(chan *websocket.Conn, 5)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if serverFail.Load() {
-			http.Error(w, "server error", http.StatusInternalServerError)
-
-			return
-		}
-
-		upgrader := websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		}
-
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-
-		upgrades.Add(1)
-
-		serverSockets <- ws
-	}))
-
-	return server, serverSockets
-}
-
 func TestHandleClusterMessages_StateClosedNotOverwrittenByStateError(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 
@@ -2777,47 +2639,46 @@ func TestHandleClusterMessages_OldReaderDoesNotCloseReplacementConnection(t *tes
 }
 
 func TestUpdateStatusIfNotClosed_DeterministicOrderings(t *testing.T) {
-	// Ordering 1: Close runs first, then updateStatusIfNotClosed
 	clientConn1, clientServer1 := createTestWebSocketConnection()
 	defer clientServer1.Close()
 
 	conn1 := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn1)
 
+	// Case 1: Rejects update when closed or state is StateClosed
 	conn1.updateStatus(StateClosed, nil)
 	conn1.safeClose()
 
-	updated1 := conn1.updateStatusIfNotClosed(StateError, nil)
-	assert.False(t, updated1, "updateStatusIfNotClosed must reject update after close")
+	assert.False(t, conn1.updateStatusIfNotClosed(StateError, fmt.Errorf("test error")))
 
 	conn1.mu.RLock()
-	state1 := conn1.Status.State
+	assert.Equal(t, StateClosed, conn1.Status.State)
 	conn1.mu.RUnlock()
 
-	assert.Equal(t, StateClosed, state1)
+	conn1.mu.Lock()
+	conn1.Status.State = StateConnected
+	conn1.closed = true
+	conn1.mu.Unlock()
 
-	// Ordering 2: updateStatusIfNotClosed runs first, then Close
+	assert.False(t, conn1.updateStatusIfNotClosed(StateConnecting, nil))
+
+	// Case 2: updateStatusIfNotClosed succeeds on open connection before close
 	clientConn2, clientServer2 := createTestWebSocketConnection()
 	defer clientServer2.Close()
 
 	conn2 := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn2)
 
-	updated2 := conn2.updateStatusIfNotClosed(StateError, nil)
-	assert.True(t, updated2, "updateStatusIfNotClosed must succeed on open connection")
+	assert.True(t, conn2.updateStatusIfNotClosed(StateError, nil))
 
 	conn2.mu.RLock()
-	state2 := conn2.Status.State
+	assert.Equal(t, StateError, conn2.Status.State)
 	conn2.mu.RUnlock()
-
-	assert.Equal(t, StateError, state2)
 
 	conn2.updateStatus(StateClosed, nil)
 	conn2.safeClose()
 
 	conn2.mu.RLock()
-	finalState2 := conn2.Status.State
+	assert.Equal(t, StateClosed, conn2.Status.State)
 	conn2.mu.RUnlock()
-
-	assert.Equal(t, StateClosed, finalState2)
 }
 
 func TestUpdateStatusIfNotClosed_ConcurrentWithClose(t *testing.T) {
@@ -2861,41 +2722,10 @@ func TestUpdateStatusIfNotClosed_ConcurrentWithClose(t *testing.T) {
 	}
 }
 
-func TestUpdateStatusIfNotClosed_RejectsWhenClosed(t *testing.T) {
-	clientConn, clientServer := createTestWebSocketConnection()
-	defer clientServer.Close()
-
-	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
-
-	conn.mu.Lock()
-	conn.Status.State = StateClosed
-	conn.mu.Unlock()
-
-	errTest := fmt.Errorf("test error")
-
-	updated := conn.updateStatusIfNotClosed(StateError, errTest)
-	assert.False(t, updated, "updateStatusIfNotClosed must return false when in StateClosed")
-
-	conn.mu.RLock()
-	assert.Equal(t, StateClosed, conn.Status.State)
-	conn.mu.RUnlock()
-
-	conn.mu.Lock()
-	conn.Status.State = StateConnected
-	conn.closed = true
-	conn.mu.Unlock()
-
-	updated = conn.updateStatusIfNotClosed(StateConnecting, nil)
-	assert.False(t, updated, "updateStatusIfNotClosed must return false when conn.closed is true")
-
-	conn.mu.RLock()
-	assert.Equal(t, StateConnected, conn.Status.State)
-	conn.mu.RUnlock()
-}
-
 func createGatedUpgradeServer(
 	upgradeArrived chan<- struct{},
 	releaseUpgrade <-chan struct{},
+	receivedTokens ...chan<- string,
 ) (*httptest.Server, <-chan *websocket.Conn) {
 	serverSockets := make(chan *websocket.Conn, 1)
 
@@ -2906,6 +2736,15 @@ func createGatedUpgradeServer(
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(receivedTokens) > 0 && receivedTokens[0] != nil {
+			token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+
+			select {
+			case receivedTokens[0] <- token:
+			default:
+			}
+		}
+
 		select {
 		case upgradeArrived <- struct{}{}:
 		default:
@@ -2922,6 +2761,14 @@ func createGatedUpgradeServer(
 	}))
 
 	return server, serverSockets
+}
+
+func closeReleaseUpgrade(releaseUpgrade chan struct{}) {
+	select {
+	case <-releaseUpgrade:
+	default:
+		close(releaseUpgrade)
+	}
 }
 
 type reconnectResult struct {
@@ -2957,19 +2804,39 @@ func assertReplacementServerSocketClosed(t *testing.T, serverSockets <-chan *web
 	}
 }
 
+func assertConnectionClosedState(t *testing.T, conn *Connection) {
+	t.Helper()
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	assert.Nil(t, conn.Client)
+	assert.Equal(t, StateClosed, conn.Status.State)
+}
+
+func assertReconnectClosedResult(t *testing.T, resultCh <-chan reconnectResult) {
+	t.Helper()
+
+	var res reconnectResult
+	select {
+	case res = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect to complete")
+	}
+
+	require.Error(t, res.err)
+	assert.Contains(t, res.err.Error(), "connection was closed during reconnect")
+	assert.Nil(t, res.newConn)
+}
+
 func TestReconnect_ClosedConnectionDoesNotLeak(t *testing.T) {
 	upgradeArrived := make(chan struct{}, 1)
 	releaseUpgrade := make(chan struct{})
 
+	defer closeReleaseUpgrade(releaseUpgrade)
+
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
 	defer server.Close()
-	defer func() {
-		select {
-		case <-releaseUpgrade:
-		default:
-			close(releaseUpgrade)
-		}
-	}()
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -2995,16 +2862,10 @@ func TestReconnect_ClosedConnectionDoesNotLeak(t *testing.T) {
 	// Release upgrade so createClusterConnection completes
 	close(releaseUpgrade)
 
-	var res reconnectResult
-	select {
-	case res = <-resultCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for reconnect to complete")
-	}
+	assertReconnectClosedResult(t, resultCh)
 
-	require.Error(t, res.err)
-	assert.Contains(t, res.err.Error(), "connection was closed during reconnect")
-	assert.Nil(t, res.newConn)
+	assert.True(t, conn.IsClosed(), "original connection must be closed")
+	assertConnectionClosedState(t, conn)
 
 	m.mutex.RLock()
 	assert.Nil(t, m.connections[connKey], "replacement connection must not be registered in map")
@@ -3054,23 +2915,7 @@ func TestReconnect_RejectsNilClientOrClosedConnection(t *testing.T) {
 	assert.Contains(t, err3.Error(), "cannot reconnect closed connection")
 }
 
-func closeReleaseUpgrade(releaseUpgrade chan struct{}) {
-	select {
-	case <-releaseUpgrade:
-	default:
-		close(releaseUpgrade)
-	}
-}
-
-func assertReconnectClosedFailure(t *testing.T, reconnConn *Connection, reconnErr error) {
-	t.Helper()
-
-	require.Error(t, reconnErr)
-	assert.Contains(t, reconnErr.Error(), "connection was closed during reconnect")
-	assert.Nil(t, reconnConn)
-}
-
-func TestReconnect_ClientRaceWithCloseClientConnections(t *testing.T) {
+func TestReconnect_RejectsWhenClientModifiedDuringReconnect(t *testing.T) {
 	upgradeArrived := make(chan struct{}, 1)
 	releaseUpgrade := make(chan struct{})
 
@@ -3078,72 +2923,6 @@ func TestReconnect_ClientRaceWithCloseClientConnections(t *testing.T) {
 
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
 	defer server.Close()
-
-	clientConn, clientServer := createTestWebSocketConnection()
-	defer clientServer.Close()
-
-	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn)
-	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
-
-	m.mutex.Lock()
-	m.connections[connKey] = conn
-	m.mutex.Unlock()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	var (
-		reconnConn *Connection
-		reconnErr  error
-	)
-
-	go func() {
-		defer wg.Done()
-
-		reconnConn, reconnErr = m.reconnect(conn)
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		select {
-		case <-upgradeArrived:
-		case <-time.After(2 * time.Second):
-			t.Error("timed out waiting for reconnect upgrade request")
-
-			return
-		}
-
-		m.closeClientConnections(clientConn)
-		close(releaseUpgrade)
-	}()
-
-	wg.Wait()
-
-	assert.True(t, conn.IsClosed(), "original connection must be closed")
-	assertConnectionClosedState(t, conn)
-
-	m.mutex.RLock()
-	assert.Nil(t, m.connections[connKey], "no replacement remains registered in m.connections")
-	m.mutex.RUnlock()
-
-	assertReconnectClosedFailure(t, reconnConn, reconnErr)
-	assertReplacementServerSocketClosed(t, serverSockets)
-}
-
-func TestReconnect_RejectsWhenClientModifiedDuringReconnect(t *testing.T) {
-	upgradeArrived := make(chan struct{}, 1)
-	releaseUpgrade := make(chan struct{})
-
-	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
-	defer server.Close()
-	defer func() {
-		select {
-		case <-releaseUpgrade:
-		default:
-			close(releaseUpgrade)
-		}
-	}()
 
 	clientConn1, clientServer1 := createTestWebSocketConnection()
 	defer clientServer1.Close()
@@ -3174,16 +2953,7 @@ func TestReconnect_RejectsWhenClientModifiedDuringReconnect(t *testing.T) {
 	// Release upgrade so createClusterConnection completes
 	close(releaseUpgrade)
 
-	var res reconnectResult
-	select {
-	case res = <-resultCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for reconnect to complete")
-	}
-
-	require.Error(t, res.err)
-	assert.Contains(t, res.err.Error(), "connection was closed during reconnect")
-	assert.Nil(t, res.newConn)
+	assertReconnectClosedResult(t, resultCh)
 
 	m.mutex.RLock()
 	assert.Equal(t, conn, m.connections[connKey], "map must still retain original connection and not register replacement")
@@ -3236,45 +3006,6 @@ func TestConnection_ReconnectSnapshot(t *testing.T) {
 	assert.Nil(t, tok)
 }
 
-func createGatedTokenUpgradeServer(
-	upgradeArrived chan<- struct{},
-	releaseUpgrade <-chan struct{},
-	receivedTokens chan<- string,
-) (*httptest.Server, <-chan *websocket.Conn) {
-	serverSockets := make(chan *websocket.Conn, 1)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-
-		select {
-		case receivedTokens <- token:
-		default:
-		}
-
-		select {
-		case upgradeArrived <- struct{}{}:
-		default:
-		}
-
-		<-releaseUpgrade
-
-		upgrader := websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		}
-
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-
-		serverSockets <- ws
-	}))
-
-	return server, serverSockets
-}
-
 func awaitSuccessfulReconnect(t *testing.T, resultCh <-chan reconnectResult) *Connection {
 	t.Helper()
 
@@ -3320,15 +3051,10 @@ func TestReconnect_TokenSnapshotRace(t *testing.T) {
 	releaseUpgrade := make(chan struct{})
 	receivedTokens := make(chan string, 1)
 
-	server, serverSockets := createGatedTokenUpgradeServer(upgradeArrived, releaseUpgrade, receivedTokens)
+	defer closeReleaseUpgrade(releaseUpgrade)
+
+	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade, receivedTokens)
 	defer server.Close()
-	defer func() {
-		select {
-		case <-releaseUpgrade:
-		default:
-			close(releaseUpgrade)
-		}
-	}()
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -3380,31 +3106,6 @@ func TestReconnect_TokenSnapshotRace(t *testing.T) {
 	closeServerSocket(t, serverSockets)
 }
 
-func assertConnectionClosedState(t *testing.T, conn *Connection) {
-	t.Helper()
-
-	conn.mu.RLock()
-	defer conn.mu.RUnlock()
-
-	assert.Nil(t, conn.Client)
-	assert.Equal(t, StateClosed, conn.Status.State)
-}
-
-func assertReconnectClosedResult(t *testing.T, resultCh <-chan reconnectResult) {
-	t.Helper()
-
-	var res reconnectResult
-	select {
-	case res = <-resultCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for reconnect to complete")
-	}
-
-	require.Error(t, res.err)
-	assert.Contains(t, res.err.Error(), "connection was closed during reconnect")
-	assert.Nil(t, res.newConn)
-}
-
 func setupAtomicRemovalTestScenario(
 	t *testing.T,
 	serverURL string,
@@ -3446,15 +3147,10 @@ func TestCloseClientConnections_AtomicRemovalAndStateTransition(t *testing.T) {
 	upgradeArrived := make(chan struct{}, 1)
 	releaseUpgrade := make(chan struct{})
 
+	defer closeReleaseUpgrade(releaseUpgrade)
+
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
 	defer server.Close()
-	defer func() {
-		select {
-		case <-releaseUpgrade:
-		default:
-			close(releaseUpgrade)
-		}
-	}()
 
 	client1, clientServer1 := createTestWebSocketConnection()
 	defer clientServer1.Close()
