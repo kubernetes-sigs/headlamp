@@ -19,6 +19,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { getXtermTheme } from '../../components/common/xtermTheme';
+import { XTERM_DEFAULT_OPTIONS } from '../xterm/options';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -76,6 +77,9 @@ export interface TerminalStreamOptions {
     cursorStyle?: 'block' | 'underline' | 'bar';
     scrollback?: number;
     rows?: number;
+    allowProposedApi?: boolean;
+    fontFamily?: string;
+    lineHeight?: number;
     windowsMode?: boolean;
   };
 }
@@ -259,12 +263,9 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       detectOS && ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
 
     const defaultOptions = {
-      cursorBlink: true,
-      cursorStyle: 'underline' as const,
-      scrollback: 10000,
+      ...XTERM_DEFAULT_OPTIONS,
       rows: 30,
       windowsMode: isWindows,
-      allowProposedApi: true,
       theme: xtermTheme,
     };
 

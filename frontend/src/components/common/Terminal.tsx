@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next';
 import { isElectron } from '../../helpers/isElectron';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
+import { XTERM_DEFAULT_OPTIONS } from '../../lib/xterm/options';
 import { Dialog } from './Dialog';
 import { getXtermTheme } from './xtermTheme';
 
@@ -309,12 +310,9 @@ export default function Terminal(props: TerminalProps) {
       const isWindows = ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
       xtermRef.current = {
         xterm: new XTerminal({
-          cursorBlink: true,
-          cursorStyle: 'underline',
-          scrollback: 10000,
-          rows: 30, // initial rows before fit
+          ...XTERM_DEFAULT_OPTIONS,
+          rows: 30,
           windowsMode: isWindows,
-          allowProposedApi: true,
           theme: xtermTheme,
         }),
         connected: false,
