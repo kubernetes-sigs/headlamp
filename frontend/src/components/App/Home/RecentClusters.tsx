@@ -29,6 +29,7 @@ import { formatClusterPathParam, getClusterPrefixedPath } from '../../../lib/clu
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { MULTI_HOME_ENABLED } from './config';
+import { getClusterDisplayLabel } from './customClusterNames';
 import SquareButton from './SquareButton';
 const ToggleButton = styled(MuiToggledButton)({
   textTransform: 'none',
@@ -51,7 +52,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
       focusRipple
       icon={icon}
       iconColor={appearance.accentColor}
-      label={cluster.name}
+      label={getClusterDisplayLabel(cluster)}
       ref={ref}
       onClick={onClick}
     />
@@ -76,7 +77,7 @@ export default function RecentClusters(props: RecentClustersProps) {
     }
   }, []);
   const { t } = useTranslation('translation');
-  const [selectedClusters, setSelectedClusters] = React.useState<Cluster[]>([]);
+  const [selectedClusterNames, setSelectedClusterNames] = React.useState<string[]>([]);
 
   const recentClustersLabelId = 'recent-clusters-label';
   const maxRecentClusters = 3;
@@ -109,6 +110,26 @@ export default function RecentClusters(props: RecentClustersProps) {
   } else {
     recentClusters = clusters;
   }
+
+  // Keep selected options available for deselection when a display-name
+  // change moves them out of the truncated recent-cluster fallback.
+  for (const selectedName of selectedClusterNames) {
+    const selectedCluster = clusters.find(cluster => cluster.name === selectedName);
+    if (!selectedCluster || recentClusters.some(cluster => cluster.name === selectedName)) {
+      continue;
+    }
+
+    const replacementIndex = recentClusters.findLastIndex(
+      cluster => !selectedClusterNames.includes(cluster.name)
+    );
+    if (replacementIndex >= 0) {
+      recentClusters[replacementIndex] = selectedCluster;
+    }
+  }
+
+  const selectedClusters = selectedClusterNames
+    .map(name => clusters.find(cluster => cluster.name === name))
+    .filter((cluster): cluster is Cluster => !!cluster);
 
   function onClusterButtonClicked(cluster: Cluster) {
     setRecentCluster(cluster);
@@ -158,14 +179,14 @@ export default function RecentClusters(props: RecentClustersProps) {
       {doMulti && (
         <Grid container item alignItems="center">
           <ToggleButtonGroup
-            value={selectedClusters}
-            onChange={(event, clusters) => setSelectedClusters(clusters)}
+            value={selectedClusterNames}
+            onChange={(_event, names) => setSelectedClusterNames(names)}
             aria-label={t('Selected clusters')}
             exclusive={false}
           >
             {recentClusters.map(cluster => (
-              <ToggleButton key={cluster.name} value={cluster}>
-                {cluster.name}
+              <ToggleButton key={cluster.name} value={cluster.name}>
+                {getClusterDisplayLabel(cluster)}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
