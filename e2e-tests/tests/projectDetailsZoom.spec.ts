@@ -14,42 +14,32 @@
  * limitations under the License.
  */
 
-import { expect, test } from "@playwright/test";
-import { HeadlampPage } from "./headlampPage";
+import { expect, test } from '@playwright/test';
+import { HeadlampPage } from './headlampPage';
 
-test("project tabs and resources remain usable at 200% text zoom", async ({
-  page,
-}, testInfo) => {
+test('project tabs and resources remain usable at 200% text zoom', async ({ page }, testInfo) => {
   const token = process.env.HEADLAMP_TEST_TOKEN;
   if (!token) {
-    test.skip(
-      true,
-      "HEADLAMP_TEST_TOKEN is not set; cannot create the project fixture."
-    );
+    test.skip(true, 'HEADLAMP_TEST_TOKEN is not set; cannot create the project fixture.');
   }
 
-  const fixtureId = `${testInfo.workerIndex}-${
-    testInfo.retry
-  }-${Date.now().toString(36)}`;
+  const fixtureId = `${testInfo.workerIndex}-${testInfo.retry}-${Date.now().toString(36)}`;
   const namespaceName = `project-zoom-${fixtureId}`;
   const projectName = namespaceName;
   const configMapName = `zoom-config-${fixtureId}`;
   const headers = { Authorization: `Bearer ${token}` };
   const namespaceURL = `/clusters/test/api/v1/namespaces/${namespaceName}`;
-  const createNamespace = await page.request.post(
-    "/clusters/test/api/v1/namespaces",
-    {
-      headers,
-      data: {
-        apiVersion: "v1",
-        kind: "Namespace",
-        metadata: {
-          name: namespaceName,
-          labels: { "headlamp.dev/project-id": projectName },
-        },
+  const createNamespace = await page.request.post('/clusters/test/api/v1/namespaces', {
+    headers,
+    data: {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: {
+        name: namespaceName,
+        labels: { 'headlamp.dev/project-id': projectName },
       },
-    }
-  );
+    },
+  });
   expect(createNamespace.status(), await createNamespace.text()).toBe(201);
 
   try {
@@ -58,42 +48,38 @@ test("project tabs and resources remain usable at 200% text zoom", async ({
       {
         headers,
         data: {
-          apiVersion: "v1",
-          kind: "ConfigMap",
+          apiVersion: 'v1',
+          kind: 'ConfigMap',
           metadata: { name: configMapName, namespace: namespaceName },
-          data: { purpose: "project zoom e2e coverage" },
+          data: { purpose: 'project zoom e2e coverage' },
         },
       }
     );
     expect(createConfigMap.status(), await createConfigMap.text()).toBe(201);
 
     const headlampPage = new HeadlampPage(page);
-    await headlampPage.navigateToCluster("test", token);
+    await headlampPage.navigateToCluster('test', token);
     await headlampPage.navigateTopage(`/project/${projectName}`);
 
-    const tabs = page.getByRole("tablist");
+    const tabs = page.getByRole('tablist');
     await expect(tabs).toBeVisible({ timeout: 30_000 });
 
     await page.setViewportSize({ width: 640, height: 384 });
-    await page.addStyleTag({ content: ":root { font-size: 200%; }" });
+    await page.addStyleTag({ content: ':root { font-size: 200%; }' });
 
-    const tabScroller = tabs.locator("..");
+    const tabScroller = tabs.locator('..');
     await expect(tabScroller).toHaveClass(/MuiTabs-scrollableX/);
     await expect
-      .poll(() =>
-        tabScroller.evaluate(
-          (element) => element.scrollWidth > element.clientWidth
-        )
-      )
+      .poll(() => tabScroller.evaluate(element => element.scrollWidth > element.clientWidth))
       .toBe(true);
-    const defaultTabs = tabs.getByRole("tab");
+    const defaultTabs = tabs.getByRole('tab');
     for (let index = 0; index < 4; index += 1) {
       await expect(defaultTabs.nth(index)).toBeAttached();
     }
 
     await defaultTabs.nth(1).click();
-    await page.getByRole("button", { name: /Configuration/ }).click();
-    const configMapCell = page.getByRole("cell", { name: configMapName });
+    await page.getByRole('button', { name: /Configuration/ }).click();
+    const configMapCell = page.getByRole('cell', { name: configMapName });
     await configMapCell.scrollIntoViewIfNeeded();
     await expect(configMapCell).toBeInViewport();
   } finally {
