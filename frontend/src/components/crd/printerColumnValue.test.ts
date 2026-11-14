@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { localeDate } from '../../lib/util';
-import { getPrinterColumnValue } from './printerColumnValue';
+import { getPrinterColumnValue, toJSONPathPlus } from './printerColumnValue';
 
 describe('getPrinterColumnValue', () => {
   const dateCol = { name: 'Finished', type: 'date', jsonPath: '.status.completionTime' };
@@ -44,5 +44,73 @@ describe('getPrinterColumnValue', () => {
       'Running'
     );
     expect(getPrinterColumnValue(item, { type: 'integer', jsonPath: '.status.missing' })).toBe('');
+  });
+
+  it('reads a label key with escaped dots, as Cluster API printer columns do', () => {
+    const item = {
+      jsonData: { metadata: { labels: { 'cluster.x-k8s.io/cluster-name': 'prod-eu' } } },
+    };
+
+    expect(
+      getPrinterColumnValue(item, {
+        type: 'string',
+        jsonPath: '.metadata.labels.cluster\\.x-k8s\\.io/cluster-name',
+      })
+    ).toBe('prod-eu');
+  });
+
+  it('evaluates a filter on a label key with escaped dots', () => {
+    const item = {
+      jsonData: {
+        spec: {
+          machines: [
+            { name: 'a', labels: { 'cluster.x-k8s.io/cluster-name': 'dev' } },
+            { name: 'b', labels: { 'cluster.x-k8s.io/cluster-name': 'prod' } },
+          ],
+        },
+      },
+    };
+
+    expect(
+      getPrinterColumnValue(item, {
+        type: 'string',
+        jsonPath: '.spec.machines[?(@.labels.cluster\\.x-k8s\\.io/cluster-name=="prod")].name',
+      })
+    ).toBe('b');
+  });
+});
+
+describe('toJSONPathPlus', () => {
+  it('leaves paths without escaped dots unchanged', () => {
+    expect(toJSONPathPlus('.status.phase')).toBe('.status.phase');
+    expect(toJSONPathPlus('.status.conditions[?(@.type=="Ready")].status')).toBe(
+      '.status.conditions[?(@.type=="Ready")].status'
+    );
+  });
+
+  it('rewrites a key with escaped dots in bracket notation', () => {
+    expect(toJSONPathPlus('.metadata.labels.cluster\\.x-k8s\\.io/cluster-name')).toBe(
+      ".metadata.labels['cluster.x-k8s.io/cluster-name']"
+    );
+  });
+
+  it('rewrites escaped-dot fields inside a filter', () => {
+    expect(
+      toJSONPathPlus(
+        '.spec.items[?(@.metadata.labels.cluster\\.x-k8s\\.io/cluster-name=="prod")].name'
+      )
+    ).toBe('.spec.items[?(@.metadata.labels[\'cluster.x-k8s.io/cluster-name\']=="prod")].name');
+  });
+
+  it('leaves quoted strings in a filter alone', () => {
+    expect(toJSONPathPlus('.spec.items[?(@.note=="a\\.b")].example\\.com/name')).toBe(
+      '.spec.items[?(@.note=="a\\.b")][\'example.com/name\']'
+    );
+  });
+
+  it('keeps the rest of the path after the escaped key', () => {
+    expect(toJSONPathPlus('.spec.example\\.com/items[0].name')).toBe(
+      ".spec['example.com/items'][0].name"
+    );
   });
 });
