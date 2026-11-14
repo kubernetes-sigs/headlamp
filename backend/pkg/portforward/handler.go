@@ -150,7 +150,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 }
 
 //nolint:funlen // Validates and starts a forward using the authenticated owner's cache scope.
-func startPortForwardForOwner(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
+func startPortForwardForOwner(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool, contextKey, cacheKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
@@ -213,19 +213,11 @@ func startPortForwardForOwner(kubeConfigStore kubeconfig.ContextStore, cache cac
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	kContext, err := kubeConfigStore.GetContext(contextKey)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey},
-			err, "getting kubeconfig context")
-
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
 	token := ""
 
 	if !unsafeUseServiceAccountToken || !kContext.UsesInClusterServiceAccountToken() {
+		var err error
+
 		token, err = requestToken(r)
 		if err != nil {
 			logger.Log(logger.LevelWarn, nil, err, "reading portforward credentials")
@@ -240,7 +232,7 @@ func startPortForwardForOwner(kubeConfigStore kubeconfig.ContextStore, cache cac
 		kContext.AuthInfo = &api.AuthInfo{Token: token}
 	}
 
-	err = startPortForward(kContext, cache, p, token, cacheKey, requestClusterName)
+	err := startPortForward(kContext, cache, p, token, cacheKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 

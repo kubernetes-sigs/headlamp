@@ -103,6 +103,17 @@ func portForwardTestRequest(t *testing.T, server, method, path, token, body stri
 	return response.StatusCode, string(data)
 }
 
+func testPortForwardOwnerKey(t *testing.T, store kubeconfig.ContextStore,
+	contextKey string, user authenticationv1.UserInfo,
+) string {
+	t.Helper()
+
+	kContext, err := store.GetContext(contextKey)
+	require.NoError(t, err)
+
+	return portForwardOwnerKey(contextKey, kContext.Cluster, user)
+}
+
 //nolint:funlen // Exercises real HTTP requests, upstream authentication, and session-control isolation together.
 func TestPortForwardAuthenticatedOwnershipEndToEnd(t *testing.T) {
 	upstream := newPortForwardTestAPI(t)
@@ -111,7 +122,7 @@ func TestPortForwardAuthenticatedOwnershipEndToEnd(t *testing.T) {
 
 	t.Cleanup(func() { _ = sessions.Close() })
 
-	ownerKey := portForwardOwnerKey("shared", authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
+	ownerKey := testPortForwardOwnerKey(t, store, "shared", authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
 	closed := make(chan struct{})
 	victim := portForward{
 		ID: "victim", Cluster: "shared", cacheKey: ownerKey, Pod: "private-pod",
@@ -265,7 +276,7 @@ func TestPortForwardCreationKeepsOwnerScope(t *testing.T) {
 
 	t.Cleanup(func() { _ = sessions.Close() })
 
-	key := portForwardOwnerKey("shared", authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
+	key := testPortForwardOwnerKey(t, store, "shared", authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
 	for _, state := range []string{RUNNING, RECONNECTING, STOPPED} {
 		victim := portForward{ID: "same-id", Cluster: "shared", cacheKey: key, Status: state}
 		portforwardstore(sessions, victim)
@@ -302,7 +313,7 @@ func TestPortForwardCookieOwnership(t *testing.T) {
 
 	t.Cleanup(func() { _ = sessions.Close() })
 
-	key := portForwardOwnerKey("shared", authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
+	key := testPortForwardOwnerKey(t, store, "shared", authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
 	portforwardstore(sessions, portForward{ID: "cookie-owner", Cluster: "shared", cacheKey: key})
 
 	for _, token := range []string{"alice", "alice-refreshed", "bob"} {

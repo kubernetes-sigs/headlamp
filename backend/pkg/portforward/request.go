@@ -3,6 +3,7 @@ package portforward
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,23 +20,38 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-func portForwardOwnerKey(contextKey string, user authenticationv1.UserInfo) string {
-	identity := fmt.Sprintf("%q:%q:%q", contextKey, user.Username, user.UID)
+func portForwardOwnerKey(contextKey string, cluster *api.Cluster, user authenticationv1.UserInfo) string {
+	authority := fmt.Sprintf("%q:%q:%t:%q:%q:%q", cluster.Server, cluster.TLSServerName,
+		cluster.InsecureSkipTLSVerify, cluster.CertificateAuthority, cluster.CertificateAuthorityData, cluster.ProxyURL)
+	identity := fmt.Sprintf("%q:%q:%q:%q", contextKey, authority, user.Username, user.UID)
+
 	return fmt.Sprintf("portforward-owner:%x", sha256.Sum256([]byte(identity)))
 }
 
 func requestToken(r *http.Request) (string, error) {
-	if header := r.Header.Get("Authorization"); header != "" {
-		return auth.BearerTokenValue(header), nil
+	if headers, supplied := r.Header["Authorization"]; supplied {
+		if len(headers) != 1 {
+			return "", errors.New("exactly one authorization credential is required")
+		}
+
+		token := auth.BearerTokenValue(headers[0])
+		if token == "" {
+			return "", errors.New("supplied authorization credential is empty")
+		}
+
+		return token, nil
 	}
 
-	return auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
+	clusterName := mux.Vars(r)["clusterName"]
+	if auth.SanitizeClusterName(clusterName) == "" {
+		return "", nil
+	}
+
+	return auth.GetTokenFromCookie(r, clusterName)
 }
 
 // RequestHandler authenticates all port-forward operations and isolates their
 // cached sessions by the Kubernetes-verified principal, not a client routing ID.
-//
-//nolint:funlen // Authentication must complete before dispatching any local session operation.
 func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool, contextKey string, w http.ResponseWriter, r *http.Request,
 ) {
@@ -47,10 +63,35 @@ func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interfac
 		return
 	}
 
+	handleRequestContext(kContext, sessions, unsafeUseServiceAccountToken, contextKey, !kContext.Internal, w, r)
+}
+
+// RequestHandlerWithContext uses a context freshly resolved from this request's
+// kubeconfig, never credentials inherited from a cached stateless routing key.
+func RequestHandlerWithContext(kContext *kubeconfig.Context, sessions cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool, contextKey string, w http.ResponseWriter, r *http.Request,
+) {
+	handleRequestContext(kContext, sessions, unsafeUseServiceAccountToken, contextKey, true, w, r)
+}
+
+//nolint:funlen // Authentication must complete before dispatching any local session operation.
+func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool, contextKey string, allowContextCredentials bool,
+	w http.ResponseWriter, r *http.Request,
+) {
+	kContext = kContext.Copy()
+
 	token, err := requestToken(r)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading portforward credentials")
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+
+		return
+	}
+
+	if token == "" && !allowContextCredentials {
+		logger.Log(logger.LevelWarn, nil, nil, "cached stateless portforward context requires request credentials")
+		http.Error(w, "authentication required", http.StatusUnauthorized)
 
 		return
 	}
@@ -65,7 +106,6 @@ func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interfac
 		return
 	}
 
-	kContext = kContext.Copy()
 	if token != "" {
 		// A user token must never authenticate through a stored certificate or token file instead.
 		kContext.AuthInfo = &api.AuthInfo{Token: token}
@@ -106,11 +146,11 @@ func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interfac
 		return
 	}
 
-	cacheKey := portForwardOwnerKey(contextKey, user)
+	cacheKey := portForwardOwnerKey(contextKey, kContext.Cluster, user)
 
 	switch r.Method {
 	case http.MethodPost:
-		startPortForwardForOwner(store, sessions, unsafeUseServiceAccountToken, contextKey, cacheKey, w, r)
+		startPortForwardForOwner(kContext, sessions, unsafeUseServiceAccountToken, contextKey, cacheKey, w, r)
 	case http.MethodDelete:
 		StopOrDeletePortForward(sessions, cacheKey, w, r)
 	case http.MethodGet:

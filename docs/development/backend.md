@@ -94,13 +94,29 @@ tokens cannot fall back to a configured certificate or token file. Static
 kubeconfig credentials still work when no user token is supplied.
 When proxy authentication is enabled, its configured token header takes
 precedence and is subject to the same Kubernetes identity verification.
+Using `Authorization` itself as that proxy header is supported case-insensitively;
+an existing Bearer prefix is normalized only once. An explicitly supplied empty
+credential is rejected, never replaced by a cookie or stored identity. Static
+contexts with names that cannot form cookie names can still use their configured
+credentials when no Authorization header was supplied.
 
-Sessions are scoped by the exact context key and the Kubernetes-returned username
-and UID. Another user cannot list, inspect, stop, delete, or overwrite them by
+Sessions are scoped by the exact context key, API server/TLS/proxy authority, and
+the Kubernetes-returned username and UID. Another user cannot list, inspect,
+stop, delete, or overwrite them by
 supplying the same forwarding ID. Refreshed tokens for the same principal retain
 access; a different UID does not. Public cluster names and response shapes remain
 unchanged. Existing unowned cache entries are not adopted by the next caller.
 The store is in memory; no persistent session migration is required.
+
+Stateless requests resolve their supplied `KUBECONFIG` afresh and use that same
+context snapshot for authentication and forward creation. A cached routing key
+cannot supply another caller's credentials. `X-HEADLAMP-USER-ID` is a routing
+label, not authentication. Requests addressing a cached internal context without
+their own token or request kubeconfig cannot borrow its stored credentials.
+Recreating a context with a different endpoint or TLS/proxy trust configuration
+does not grant access to existing sessions even if that endpoint claims the same
+username and UID. Restoring the original authority with valid credentials retains
+access across context-cache expiry.
 
 In-cluster service-account credentials are not used in place of a missing user
 token unless unsafe service-account mode was explicitly enabled. That unsafe
@@ -112,6 +128,13 @@ Run the local HTTP end-to-end and ownership regressions without a Kubernetes clu
 ```bash
 cd backend
 go test -race ./pkg/portforward ./cmd -run 'TestPortForward(AuthenticatedOwnershipEndToEnd|AuthenticationFailsClosed|CreationKeepsOwnerScope|CookieOwnership|RoutesRejectForgedCredentials)$' -count=20
+```
+
+Header, Unicode-name, authority-replacement and stateless-cache regressions:
+
+```bash
+cd backend
+go test -race ./pkg/portforward ./cmd -run '^TestPortForward(ProxyAuthorizationNormalization|RejectsEmptySuppliedCredentials|UnicodeStaticContext|ContextReplacementPinsAuthority|Stateless.*)$' -count=20
 ```
 
 These tests use the production request handler and real HTTP/TLS connections to a
