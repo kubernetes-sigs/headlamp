@@ -21,6 +21,34 @@ import { ApiResource } from '../../../lib/k8s/api/v2/ApiResource';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/cluster';
 import { useNamespaces } from '../../../redux/filterSlice';
 
+export const matchesApiIdentity = (
+  registeredClass: KubeObjectClass,
+  resource: ApiResource
+): boolean => {
+  return (
+    (Array.isArray(registeredClass.apiVersion)
+      ? registeredClass.apiVersion.includes(resource.apiVersion)
+      : registeredClass.apiVersion === resource.apiVersion) &&
+    registeredClass.apiName === resource.pluralName &&
+    registeredClass.isNamespaced === resource.isNamespaced
+  );
+};
+
+const getKubeObjectClass = (resource: ApiResource): KubeObjectClass => {
+  const registeredClass = (ResourceClasses as Record<string, KubeObjectClass>)[resource.kind];
+
+  if (registeredClass && matchesApiIdentity(registeredClass, resource)) {
+    return registeredClass;
+  }
+
+  return class extends KubeObject {
+    static kind = resource.kind;
+    static apiVersion = resource.apiVersion;
+    static apiName = resource.pluralName;
+    static isNamespaced = resource.isNamespaced;
+  };
+};
+
 /**
  * A hook that fetches and returns a list of Kubernetes objects for the specified resources.
  *
@@ -41,22 +69,7 @@ export const useKubeLists = (
   requests?: Array<{ cluster: string; namespaces?: string[] }>
 ) => {
   const defaultNamespaces = useNamespaces();
-  const classes = useMemo(
-    () =>
-      resources
-        .map(
-          it =>
-            (ResourceClasses as Record<string, KubeObjectClass>)[it.kind] ??
-            class extends KubeObject {
-              static kind = it.kind;
-              static apiVersion = it.apiVersion;
-              static apiName = it.pluralName;
-              static isNamespaced = it.isNamespaced;
-            }
-        )
-        .filter(Boolean) as KubeObjectClass[],
-    [resources]
-  );
+  const classes = useMemo(() => resources.map(getKubeObjectClass), [resources]);
 
   const data = classes.map(it =>
     it.useList({
