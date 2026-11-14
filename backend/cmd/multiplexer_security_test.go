@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -155,7 +156,7 @@ func TestReconnectReaderCleanupDuringDial(t *testing.T) {
 			result := make(chan reconnectResult, 1)
 
 			go func() {
-				conn, err := m.reconnect(previous)
+				conn, err := m.reconnect(previous, previous.Query, errors.New("ping write failed"))
 				result <- reconnectResult{conn, err}
 			}()
 
@@ -164,6 +165,8 @@ func TestReconnectReaderCleanupDuringDial(t *testing.T) {
 			case <-time.After(3 * time.Second):
 				t.Fatal("reconnect did not reach gated dial")
 			}
+
+			readMultiplexerTestMessage(t, client.conn, "STATUS") // Heartbeat failed.
 
 			previous.safeClose()
 
@@ -193,8 +196,9 @@ func TestReconnectReaderCleanupDuringDial(t *testing.T) {
 					require.ErrorContains(t, got.err, "subscription changed")
 					require.Nil(t, got.conn)
 					m.mutex.RLock()
-					require.Empty(t, m.connections)
+					remaining := len(m.connections)
 					m.mutex.RUnlock()
+					require.Zero(t, remaining)
 
 					return
 				}
@@ -240,7 +244,7 @@ func TestReconnectReaderCleanupBeforeClaim(t *testing.T) {
 				m.closeClientConnections(client)
 			}
 
-			replacement, err := m.reconnect(previous)
+			replacement, err := m.reconnect(previous, previous.Query, nil)
 			if cancel != "none" {
 				require.Error(t, err)
 				require.Nil(t, replacement)
@@ -275,16 +279,80 @@ func TestMonitorConnectionDoesNotReplayCompletedStream(t *testing.T) {
 
 	previous := m.createConnection("shared", "user",
 		"/api/v1/namespaces/default/pods/p/exec", "command=probe", client, nil)
+	ws, wsServer := createTestWebSocketConn()
+	t.Cleanup(wsServer.Close)
+
+	previous.WSConn = ws
 	key := m.createConnectionKey(previous.ClusterID, previous.Path, previous.UserID, client)
 	m.connections[key] = previous
 	previous.safeClose()
 
-	m.monitorConnection(previous)
+	heartbeat := make(chan time.Time, 1)
+	heartbeat <- time.Now()
+
+	m.monitorConnectionWithHeartbeat(previous, heartbeat)
 	readMultiplexerTestMessage(t, client.conn, "STATUS")
+
+	// A ping may also fail just before the reader closes the transport.
+	replacement, err := m.reconnect(previous, previous.Query, errors.New("ping write failed"))
+	require.ErrorIs(t, err, errSubscriptionInactive)
+	require.Nil(t, replacement)
+
 	m.mutex.RLock()
-	replacement := m.connections[key]
+	current := m.connections[key]
 	m.mutex.RUnlock()
-	require.Same(t, previous, replacement, "reader completion must not repeat a completed operation")
+	require.Same(t, previous, current, "reader completion must not repeat a completed operation")
+}
+
+func TestMultiplexerRequestReopensCompletedStream(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		_, payload, err := ws.ReadMessage()
+		if err != nil {
+			return
+		}
+
+		if err := ws.WriteMessage(websocket.TextMessage, []byte(r.URL.RawQuery+":"+string(payload))); err != nil {
+			return
+		}
+
+		_ = ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			time.Now().Add(time.Second))
+	}))
+	t.Cleanup(upstream.Close)
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "shared",
+		Cluster: &api.Cluster{Server: upstream.URL, InsecureSkipTLSVerify: true},
+	}))
+	m := NewMultiplexer(store, false)
+	server := httptest.NewServer(http.HandlerFunc(m.HandleClientWebSocket))
+	t.Cleanup(server.Close)
+
+	client := dialMultiplexerTestClient(t, server.URL)
+	msg := Message{
+		Type: "REQUEST", ClusterID: "shared", Path: "/api/v1/pods", UserID: "user",
+		Query: "watch=true", Data: "first request",
+	}
+	require.NoError(t, client.WriteJSON(msg))
+	readMultiplexerTestMessage(t, client, "STATUS")
+	require.Equal(t, "watch=true:first request", readMultiplexerTestMessage(t, client, "DATA").Data)
+	require.JSONEq(t, `{"state":"closed","error":""}`, readMultiplexerTestMessage(t, client, "STATUS").Data)
+
+	msg.Query = "watch=true&resourceVersion=42"
+	msg.Data = "new request"
+	require.NoError(t, client.WriteJSON(msg))
+	readMultiplexerTestMessage(t, client, "STATUS")
+	require.Equal(t, "watch=true&resourceVersion=42:new request", readMultiplexerTestMessage(t, client, "DATA").Data)
 }
 
 func TestMultiplexerRequestWriteFailureReturnsError(t *testing.T) {

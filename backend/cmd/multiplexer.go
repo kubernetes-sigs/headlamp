@@ -62,7 +62,7 @@ const (
 
 var (
 	errSubscriptionInactive = errors.New("subscription is no longer active")
-	errReconnectInProgress  = errors.New("subscription is already reconnecting")
+	errReconnectInProgress  = errors.New("subscription is already reconnecting; retry after reconnection")
 )
 
 // ConnectionState represents the current state of a connection.
@@ -596,69 +596,85 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 	heartbeat := time.NewTicker(HeartbeatInterval)
 	defer heartbeat.Stop()
 
+	m.monitorConnectionWithHeartbeat(conn, heartbeat.C)
+}
+
+func (m *Multiplexer) monitorConnectionWithHeartbeat(conn *Connection, heartbeat <-chan time.Time) {
 	for {
 		select {
 		case <-conn.Done:
 			conn.updateStatus(StateClosed, nil)
 
 			return
-		case <-heartbeat.C:
-			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err == nil {
-				continue
-			} else {
-				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
+		case <-heartbeat:
+			if conn.IsClosed() {
+				return
 			}
-		}
 
-		_, err := m.reconnect(conn)
-		if err == nil || errors.Is(err, errSubscriptionInactive) || errors.Is(err, errReconnectInProgress) {
-			return
-		}
+			err := conn.WSConn.WriteControl(websocket.PingMessage, nil, time.Now().Add(HeartbeatInterval))
+			if err == nil {
+				continue
+			}
 
-		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+			if errors.Is(err, websocket.ErrCloseSent) {
+				return
+			}
 
-		if conn.IsClosed() {
-			return
+			_, err = m.reconnect(conn, conn.Query, err)
+			if err == nil || errors.Is(err, errSubscriptionInactive) || errors.Is(err, errReconnectInProgress) {
+				return
+			}
+
+			logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+
+			if conn.IsClosed() {
+				return
+			}
 		}
 	}
 }
 
-// reconnect attempts to reestablish a connection.
-func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
+// reconnect replaces the upstream transport for a subscription. A heartbeat can
+// reserve a replacement only while the reader is still active.
+func (m *Multiplexer) reconnect(conn *Connection, query string, heartbeatErr error) (*Connection, error) {
+	m.mutex.Lock()
 	conn.mu.RLock()
 	clientConn, token := conn.Client, conn.Token
-	conn.mu.RUnlock()
-
 	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, clientConn)
-	m.mutex.Lock()
-	if clientConn == nil || m.connections[key] != conn {
-		m.mutex.Unlock()
-		return nil, errSubscriptionInactive
+
+	var claimErr error
+
+	switch {
+	case clientConn == nil || m.connections[key] != conn || (heartbeatErr != nil && conn.closed):
+		claimErr = errSubscriptionInactive
+	case conn.reconnecting:
+		claimErr = errReconnectInProgress
+	default:
+		conn.reconnecting = true
 	}
 
-	if conn.reconnecting {
-		m.mutex.Unlock()
-		return nil, errReconnectInProgress
-	}
-
-	conn.reconnecting = true
+	conn.mu.RUnlock()
 	m.mutex.Unlock()
+
+	if claimErr != nil {
+		return nil, claimErr
+	}
 
 	defer func() {
 		m.mutex.Lock()
-
 		conn.reconnecting = false
-		if m.connections[key] == conn && conn.IsClosed() {
-			delete(m.connections, key)
-		}
 		m.mutex.Unlock()
 	}()
+
+	if heartbeatErr != nil {
+		conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", heartbeatErr))
+	}
 
 	newConn, err := m.establishClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
-		conn.Query,
+		query,
 		clientConn,
 		token,
 	)
@@ -840,28 +856,34 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, clientConn)
 
 	m.mutex.RLock()
-	conn, exists := m.connections[connKey]
+	conn := m.connections[connKey]
 	m.mutex.RUnlock()
 
-	if !exists {
-		var err error
-
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
-		if err != nil {
-			logger.Log(
-				logger.LevelError,
-				map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
-				err,
-				"establishing cluster connection",
-			)
-
+	if conn != nil {
+		if err := m.refreshConnectionToken(conn, token); err != nil {
 			return nil, err
 		}
 
-		if err := m.startConnection(connKey, conn, nil); err != nil {
-			return nil, err
+		if conn.IsClosed() {
+			return m.reconnect(conn, msg.Query, nil)
 		}
-	} else if err := m.refreshConnectionToken(conn, token); err != nil {
+
+		return conn, nil
+	}
+
+	conn, err := m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+	if err != nil {
+		logger.Log(
+			logger.LevelError,
+			map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
+			err,
+			"establishing cluster connection",
+		)
+
+		return nil, err
+	}
+
+	if err := m.startConnection(connKey, conn, nil); err != nil {
 		return nil, err
 	}
 
@@ -953,7 +975,7 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 
 // handleClusterMessages handles messages from a cluster connection.
 func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
-	// Reader exit closes only the transport; its monitor can reclaim the active subscription.
+	// Keep the subscription available for an in-flight replacement or a new request.
 	defer conn.safeClose()
 
 	var lastResourceVersion string

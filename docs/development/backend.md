@@ -63,22 +63,19 @@ token cannot reauthenticate an existing socket. Explicit unsafe service-account
 mode still uses its configured service-account credential, with separate
 subscriptions per client.
 
-Reader cleanup closes only the current transport, not its active subscription.
-An already requested reconnect can claim ownership even if cleanup finishes
-before that claim; claiming ownership is atomic with explicit cancellation.
-Explicit `CLOSE` or client disconnect removes ownership, so a late dial cannot resurrect it.
-Requests while the transport is reconnecting receive an explicit retry error
-rather than silently losing their payload. Upstream write failures also return
-an error to the requesting client.
-Reader completion alone does not automatically redial or repeat a completed
-operation. Clients close and reopen the subscription to start a new operation.
+Reader cleanup closes the upstream socket and leaves the subscription available
+to its client. A heartbeat can reserve a replacement while the reader is active.
+If the reader exits first, a new `REQUEST` opens the upstream socket using that
+request's query. `CLOSE` and client disconnect cancel a pending replacement.
+Requests received during a replacement get a retry error. The multiplexer also
+reports upstream write failures to the requesting client.
 
 Protocol-level end-to-end tests use real client WebSockets, the production
 multiplexer handler, and a local TLS upstream that rejects forged credentials:
 
 ```bash
 cd backend
-go test -race ./cmd -run 'Test(MultiplexerAuthenticatedClientIsolation|ReconnectReaderCleanupBeforeClaim|ReconnectReaderCleanupDuringDial|ReconnectDoesNotRestoreClosedSubscription)$' -count=20
+go test -race ./cmd -run 'Test(Multiplexer|Reconnect|MonitorConnection)' -count=20
 ```
 
 These tests do not require a live Kubernetes cluster or enable multiplexing in

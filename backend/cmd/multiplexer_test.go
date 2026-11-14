@@ -972,7 +972,7 @@ func TestReconnect(t *testing.T) {
 	m.connections[connKey] = conn
 
 	// Test successful reconnection
-	newConn, err := m.reconnect(conn)
+	newConn, err := m.reconnect(conn, conn.Query, nil)
 	require.NoError(t, err)
 	t.Cleanup(newConn.safeClose)
 	newConn.mu.RLock()
@@ -989,7 +989,7 @@ func TestReconnect(t *testing.T) {
 	assert.Equal(t, "after reconnect", readMultiplexerTestMessage(t, clientConn.conn, "DATA").Data)
 
 	// The replaced connection has been closed.
-	newConn, err = m.reconnect(conn)
+	newConn, err = m.reconnect(conn, conn.Query, nil)
 	assert.ErrorIs(t, err, errSubscriptionInactive)
 	assert.Nil(t, newConn)
 
@@ -998,7 +998,7 @@ func TestReconnect(t *testing.T) {
 	m.mutex.Lock()
 	m.connections[connKey] = conn
 	m.mutex.Unlock()
-	newConn, err = m.reconnect(conn)
+	newConn, err = m.reconnect(conn, conn.Query, nil)
 	assert.ErrorContains(t, err, "getting context: key not found")
 	assert.Nil(t, newConn)
 }
@@ -1038,7 +1038,7 @@ func TestReconnectDoesNotRestoreClosedSubscription(t *testing.T) {
 	result := make(chan error, 1)
 
 	go func() {
-		_, err := m.reconnect(conn)
+		_, err := m.reconnect(conn, conn.Query, nil)
 		result <- err
 	}()
 
@@ -1632,7 +1632,7 @@ func TestReconnect_WithToken(t *testing.T) {
 	m.connections[connKey] = conn
 
 	// Test reconnection with the same token
-	newConn, err := m.reconnect(conn)
+	newConn, err := m.reconnect(conn, conn.Query, nil)
 	require.NoError(t, err)
 	t.Cleanup(newConn.safeClose)
 	assert.Equal(t, &originalToken, newConn.Token, "Token should be preserved during reconnection")
@@ -1642,7 +1642,7 @@ func TestReconnect_WithToken(t *testing.T) {
 	require.ErrorContains(t, m.refreshConnectionToken(newConn, &newToken), "connection credentials changed")
 
 	// Reconnect with the original authenticated credential.
-	reconnConn, err := m.reconnect(newConn)
+	reconnConn, err := m.reconnect(newConn, newConn.Query, nil)
 	require.NoError(t, err)
 	t.Cleanup(reconnConn.safeClose)
 	assert.Equal(t, &originalToken, reconnConn.Token)
