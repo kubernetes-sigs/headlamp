@@ -22,6 +22,57 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { supportedLanguages } from '../config';
 
+const MENU_MAX_HEIGHT = 300;
+// Minimum space below to keep the dropdown below the select box (approx. 1 menu item).
+const MENU_MIN_HEIGHT = 56;
+// Extra margin beyond MUI Popover's marginThreshold (16px) to prevent overlap.
+const POPOVER_MARGIN = 20;
+// Minimum width so the select box matches menu width across language lengths.
+const SELECT_MIN_WIDTH = 120;
+// Minimum height of MUI Popover Paper (built-in minHeight and marginThreshold are 16px).
+const PAPER_MIN_HEIGHT = 16;
+
+export interface MenuPlacement {
+  above: boolean;
+  maxHeight: number;
+  isAnchorVisible: boolean;
+}
+
+/**
+ * Computes dropdown placement: maxHeight, orientation, and whether the anchor
+ * is in view. Capping height keeps the menu from overlapping the select box;
+ * when the select box is outside the viewport, isAnchorVisible is false.
+ */
+export function computeMenuPlacement(
+  viewportHeight: number,
+  rect: { top: number; bottom: number }
+): MenuPlacement {
+  if (rect.top >= viewportHeight || rect.bottom <= 0) {
+    return { above: false, maxHeight: 0, isAnchorVisible: false };
+  }
+
+  const cap = (space: number) => Math.max(0, Math.min(MENU_MAX_HEIGHT, space - POPOVER_MARGIN));
+  const maxHeightBelow = cap(viewportHeight - rect.bottom);
+  if (maxHeightBelow >= MENU_MIN_HEIGHT) {
+    return { above: false, maxHeight: maxHeightBelow, isAnchorVisible: true };
+  }
+
+  // Not enough space below: check space above.
+  const maxHeightAbove = cap(rect.top);
+
+  // When neither side has enough space to fit the paper's minimum 16px height
+  // without overlapping the select box, don't open the menu.
+  if (maxHeightBelow < PAPER_MIN_HEIGHT && maxHeightAbove < PAPER_MIN_HEIGHT) {
+    return { above: false, maxHeight: 0, isAnchorVisible: false };
+  }
+
+  if (maxHeightAbove > maxHeightBelow) {
+    return { above: true, maxHeight: maxHeightAbove, isAnchorVisible: true };
+  }
+
+  return { above: false, maxHeight: maxHeightBelow, isAnchorVisible: true };
+}
+
 export interface LocaleSelectProps {
   /** Whether to show the title label above the select dropdown. */
   showTitle?: boolean;
@@ -62,6 +113,49 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     i18n.changeLanguage(lng);
   };
 
+  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>({
+    above: false,
+    maxHeight: MENU_MAX_HEIGHT,
+    isAnchorVisible: true,
+  });
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuAnchorRef = React.useRef<HTMLElement | null>(null);
+
+  const handleOpen = (event: React.SyntheticEvent) => {
+    menuAnchorRef.current = event.currentTarget as HTMLElement;
+    const rect = menuAnchorRef.current.getBoundingClientRect();
+    const placement = computeMenuPlacement(window.innerHeight, rect);
+    setMenuPlacement(placement);
+    setMenuOpen(placement.isAnchorVisible);
+  };
+
+  const handleClose = () => setMenuOpen(false);
+
+  // Update placement on resize or scroll, and dismiss if the select box leaves the viewport.
+  React.useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+    const updatePlacement = () => {
+      const anchor = menuAnchorRef.current;
+      if (!anchor) {
+        return;
+      }
+      const placement = computeMenuPlacement(window.innerHeight, anchor.getBoundingClientRect());
+      if (!placement.isAnchorVisible) {
+        setMenuOpen(false);
+        return;
+      }
+      setMenuPlacement(placement);
+    };
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [menuOpen]);
+
   /**
    * Retrieves full language names for supported languages from the i18next configuration.
    *
@@ -91,12 +185,33 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     <FormControl {...formControlProps}>
       {props.showTitle && <FormLabel component="legend">{t('Select locale')}</FormLabel>}
       <Select
+        open={menuOpen}
         value={i18n.resolvedLanguage || i18n.language || 'en'}
         onChange={changeLng}
+        onOpen={handleOpen}
+        onClose={handleClose}
         size="small"
         variant="outlined"
         SelectDisplayProps={extraInputProps}
         inputProps={{ 'aria-label': t('Select locale'), ...extraInputProps }}
+        MenuProps={{
+          anchorOrigin: {
+            vertical: menuPlacement.above ? 'top' : 'bottom',
+            horizontal: 'left',
+          },
+          transformOrigin: {
+            vertical: menuPlacement.above ? 'bottom' : 'top',
+            horizontal: 'left',
+          },
+          PaperProps: {
+            style: {
+              maxHeight: menuPlacement.maxHeight,
+              minHeight: 0,
+              display: menuPlacement.isAnchorVisible ? undefined : 'none',
+            },
+          },
+        }}
+        sx={{ minWidth: SELECT_MIN_WIDTH }}
       >
         {(i18n?.options?.supportedLngs || [])
           .filter(lng => lng !== 'cimode')
