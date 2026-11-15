@@ -34,6 +34,22 @@ This command starts the Rsbuild development server for the frontend
 (by default at `localhost:3000`). To use the Vite fallback, run
 `npm --prefix frontend run start:vite`.
 
+The Vite fallback keeps the process polyfill scoped to modules so Go's
+`wasm_exec.js` can initialize its browser process object. The compatibility
+test builds small and greater-than-64-MB Go WASM modules and runs them in a
+browser under both the development server and a production build. It also
+checks process, Buffer, and stream consumers.
+
+With Go and the frontend and e2e dependencies installed, run:
+
+```sh
+cd e2e-tests
+npx playwright install chromium
+npm run test:wasm
+```
+
+Set `CHROME_PATH` to an existing Chrome executable to use it for this test.
+
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview)
 for network requests. If you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
 
