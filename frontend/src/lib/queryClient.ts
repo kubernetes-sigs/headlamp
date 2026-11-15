@@ -15,6 +15,7 @@
  */
 
 import { QueryClient } from '@tanstack/react-query';
+import { resetDiscoveredNamespaces } from '../helpers/clusterSettings';
 
 /**
  * Determines whether React Query should retry a failed query.
@@ -67,4 +68,21 @@ export const queryClient = new QueryClient({
  */
 export function invalidateClusterUserInfo() {
   return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+}
+
+/**
+ * Forgets the namespaces discovered for the previous identity (see
+ * lib/k8s/accessibleNamespaces.ts) and makes discovery run again.
+ *
+ * Call it whenever the identity may change: token set or cleared, logout, and
+ * OIDC login. Without a cluster it resets every cluster, because the backend
+ * may broadcast an OIDC token to sibling clusters.
+ *
+ * @param cluster - The cluster whose identity changed, or undefined for all.
+ */
+export function resetAccessibleNamespaces(cluster?: string) {
+  resetDiscoveredNamespaces(cluster);
+  return queryClient.removeQueries({
+    queryKey: cluster ? ['accessibleNamespaces', cluster] : ['accessibleNamespaces'],
+  });
 }

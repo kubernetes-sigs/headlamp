@@ -26,7 +26,7 @@ import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
-import { invalidateClusterUserInfo } from '../../lib/queryClient';
+import { invalidateClusterUserInfo, resetAccessibleNamespaces } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
@@ -289,6 +289,8 @@ function AuthChooser({ children }: AuthChooserProps) {
         // Invalidate every cluster's cached identity, not just this one: the
         // backend may have broadcast the new token to sibling clusters.
         invalidateClusterUserInfo();
+        // Discovered namespaces belong to the previous identity, on every cluster.
+        resetAccessibleNamespaces();
         history.replace(from);
       }}
       handleBackButtonPress={() => {
