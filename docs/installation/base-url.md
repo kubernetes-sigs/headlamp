@@ -20,8 +20,22 @@ If in doubt, host Headlamp on a separate origin (domain or port, don't use the `
 
 ### Dev mode
 
+First, build the backend. This creates the `backend/headlamp-server` binary, which is not present in a fresh clone of the repository:
+
+```bash
+npm run backend:build
+npm run frontend:install
+```
+
+Then start the backend in one terminal:
+
 ```bash
 ./backend/headlamp-server -dev -base-url /headlamp
+```
+
+And the frontend in a second terminal:
+
+```bash
 PUBLIC_URL="/headlamp" npm run frontend:start
 ```
 
@@ -29,8 +43,17 @@ Then go to <http://localhost:3000/headlamp/> in your browser.
 
 ### Static build mode
 
+First, build the backend and the frontend. The backend build creates the `backend/headlamp-server` binary, and the frontend build creates the `frontend/build` directory that the backend will serve:
+
 ```bash
+npm run backend:build
+npm run frontend:install
 npm run frontend:build
+```
+
+Then start the backend and tell it to serve the built frontend:
+
+```bash
 ./backend/headlamp-server -dev -base-url /headlamp -html-static-dir frontend/build
 ```
 
@@ -38,12 +61,23 @@ Then go to <http://localhost:4466/headlamp/> in your browser.
 
 ### Docker mode
 
-Append `--base-url /headlamp` to the docker run command. Note the extra "-".
+Append `-base-url /headlamp` to the end of the `docker run` command, after the
+image name:
+
+```bash
+docker run --rm -p 4466:4466 ghcr.io/headlamp-k8s/headlamp:latest -base-url /headlamp
+```
+
+Then go to <http://localhost:4466/headlamp/> in your browser.
+
+> **Note:** Use `http://`, not `https://`. Headlamp serves plain HTTP by
+> default, so opening `https://localhost:4466/headlamp/` will fail.
 
 ### Kubernetes
 
 You can modify your kubernetes deployment file to add `-base-url /headlamp`
 to the containers args. Additionally, update the livenessProbe and readinessProbe paths accordingly to match the base-url.
+
 ```yaml
 args:
   - "-in-cluster"
@@ -56,5 +90,5 @@ livenessProbe:
 
 readinessProbe:
   httpGet:
-    path: /headlamp/  
+    path: /headlamp/   # note the trailing slash
 ```
