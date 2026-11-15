@@ -19,13 +19,19 @@ import {
   clearResolvedAllowedNamespaces,
   ClusterSettings,
   getCombinedAllowedNamespaces,
+  getDiscoveredNamespaces,
+  getDiscoveredNamespacesVersion,
+  getDiscoveryGeneration,
   hasAllowedNamespacesRestriction,
   isResolvedAllowedNamespacesStale,
   loadClusterSettings,
   loadResolvedAllowedNamespaces,
+  resetDiscoveredNamespaces,
+  setDiscoveredNamespaces,
   storeClusterSettings,
   storeResolvedAllowedNamespaces,
   subscribeToClusterSettings,
+  subscribeDiscoveredNamespaces,
 } from './clusterSettings';
 
 describe('clusterSettings', () => {
@@ -296,6 +302,76 @@ describe('clusterSettings', () => {
       storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
       storeResolvedAllowedNamespaces('prod', 'team=frontend', []);
       expect(hasAllowedNamespacesRestriction('prod')).toBe(true);
+    });
+  });
+
+  describe('discovered namespaces', () => {
+    afterEach(() => {
+      setDiscoveredNamespaces('prod', null);
+      setDiscoveredNamespaces('dev', null);
+    });
+
+    it('are used when no namespaces are configured', () => {
+      setDiscoveredNamespaces('prod', ['b', 'a', 'a']);
+      expect(getDiscoveredNamespaces('prod')).toEqual(['a', 'b']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b']);
+      expect(hasAllowedNamespacesRestriction('prod')).toBe(true);
+    });
+
+    it('restrict the cluster even when empty', () => {
+      setDiscoveredNamespaces('prod', []);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual([]);
+      expect(hasAllowedNamespacesRestriction('prod')).toBe(true);
+    });
+
+    it('are ignored when namespaces are configured manually', () => {
+      storeClusterSettings('prod', { allowedNamespaces: ['manual'] });
+      setDiscoveredNamespaces('prod', ['discovered']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['manual']);
+    });
+
+    it('are ignored when a selector is configured', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['selected']);
+      setDiscoveredNamespaces('prod', ['discovered']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['selected']);
+    });
+
+    it('can be cleared', () => {
+      setDiscoveredNamespaces('prod', ['a']);
+      setDiscoveredNamespaces('prod', null);
+      expect(getDiscoveredNamespaces('prod')).toBeUndefined();
+      expect(hasAllowedNamespacesRestriction('prod')).toBe(false);
+    });
+
+    it('notifies subscribers on changes only', () => {
+      const listener = vi.fn();
+      const unsubscribe = subscribeDiscoveredNamespaces(listener);
+      const version = getDiscoveredNamespacesVersion();
+
+      setDiscoveredNamespaces('prod', ['b', 'a']);
+      setDiscoveredNamespaces('prod', ['a', 'b']);
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(getDiscoveredNamespacesVersion()).toBe(version + 1);
+
+      unsubscribe();
+      setDiscoveredNamespaces('prod', null);
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('reset clears one or all clusters and starts a new generation', () => {
+      const generation = getDiscoveryGeneration();
+      setDiscoveredNamespaces('prod', ['a']);
+      setDiscoveredNamespaces('dev', ['b']);
+
+      resetDiscoveredNamespaces('prod');
+      expect(getDiscoveredNamespaces('prod')).toBeUndefined();
+      expect(getDiscoveredNamespaces('dev')).toEqual(['b']);
+      expect(getDiscoveryGeneration()).toBe(generation + 1);
+
+      resetDiscoveredNamespaces();
+      expect(getDiscoveredNamespaces('dev')).toBeUndefined();
+      expect(getDiscoveryGeneration()).toBe(generation + 2);
     });
   });
 
