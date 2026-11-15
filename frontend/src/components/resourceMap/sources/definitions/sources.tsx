@@ -98,13 +98,16 @@ const BUILTIN_CRD_KINDS = [
 
 /**
  * Create a GraphSource from KubeObject class definition
+ * @param cl - The class of the objects to list.
+ * @param clusters - The clusters to list from, for an API that only some clusters serve.
+ * Defaults to the selected clusters.
  */
-const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
+const makeKubeSource = (cl: KubeObjectClass, clusters?: string[]): GraphSource => ({
   id: makeKubeSourceId(cl),
   label: cl.apiName,
   icon: <KubeIcon kind={cl.kind as any} apiGroup={cl.apiGroupName} />,
   useData() {
-    const [items] = cl.useList({ namespace: useNamespaces() });
+    const [items] = cl.useList({ namespace: useNamespaces(), clusters });
 
     return useMemo(() => (items ? { nodes: items?.map(makeKubeObjectNode) } : null), [items]);
   },
