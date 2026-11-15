@@ -17,7 +17,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { setDiscoveredNamespaces } from '../../../../helpers/clusterSettings';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import {
@@ -26,6 +27,7 @@ import {
   kubeObjectListQuery,
   ListResponse,
   makeListRequests,
+  matchesLabelSelectorString,
   useKubeObjectList,
   useWatchKubeObjectLists,
 } from './useKubeObjectList';
@@ -539,6 +541,125 @@ describe('useKubeObjectList', () => {
     );
 
     await waitFor(() => expect(mockClusterFetch).not.toHaveBeenCalled());
+  });
+
+  describe('with discovered namespaces', () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+      cluster?: string;
+
+      constructor(public jsonData: any) {}
+    } as any;
+
+    function namespaceQuery() {
+      return kubeObjectListQuery(
+        namespaceClass,
+        { version: 'v1', resource: 'namespaces' },
+        undefined,
+        'restricted',
+        {}
+      );
+    }
+
+    afterEach(() => {
+      setDiscoveredNamespaces('restricted', null);
+    });
+
+    it('lists discovered namespaces and leaves out the ones the user may not get', async () => {
+      setDiscoveredNamespaces('restricted', ['team-a', 'team-b']);
+      mockClusterFetch
+        .mockResolvedValueOnce({
+          json: () => Promise.resolve({ metadata: { name: 'team-a', uid: 'a' } }),
+        } as Response)
+        .mockRejectedValueOnce(new ApiError('Forbidden', { status: 403 }));
+
+      const query = namespaceQuery();
+      const response = await (query.queryFn as any)();
+      const items = response.list.items as Array<{ cluster: string; jsonData: any }>;
+
+      expect(query.queryKey).toContainEqual(
+        expect.objectContaining({ discoveredNamespaces: ['team-a', 'team-b'] })
+      );
+      // No objects without a uid are made up for namespaces the user cannot read.
+      expect(items.map(item => item.jsonData.metadata.name)).toEqual(['team-a']);
+      expect(items[0].jsonData.metadata.uid).toBe('a');
+      expect(items[0].cluster).toBe('restricted');
+    });
+
+    it('refreshes discovered namespace metadata and preserves an explicit interval', () => {
+      setDiscoveredNamespaces('restricted', ['team-a']);
+
+      expect(namespaceQuery().refetchInterval).toBe(60 * 1000);
+      expect(
+        kubeObjectListQuery(
+          namespaceClass,
+          { version: 'v1', resource: 'namespaces' },
+          undefined,
+          'restricted',
+          {},
+          1234
+        ).refetchInterval
+      ).toBe(1234);
+    });
+
+    it('propagates other errors for discovered namespaces', async () => {
+      setDiscoveredNamespaces('restricted', ['team-a']);
+      mockClusterFetch.mockRejectedValueOnce(new ApiError('Boom', { status: 500 }));
+
+      await expect((namespaceQuery().queryFn as any)()).rejects.toMatchObject({
+        status: 500,
+        cluster: 'restricted',
+        namespace: 'team-a',
+      });
+    });
+
+    it('applies the requested label selector to discovered namespaces', async () => {
+      setDiscoveredNamespaces('restricted', ['team-a', 'team-b', 'team-c']);
+      mockClusterFetch
+        .mockResolvedValueOnce({
+          json: () =>
+            Promise.resolve({ metadata: { name: 'team-a', labels: { team: 'frontend' } } }),
+        } as Response)
+        .mockResolvedValueOnce({
+          json: () =>
+            Promise.resolve({ metadata: { name: 'team-b', labels: { team: 'backend' } } }),
+        } as Response)
+        // Not readable: left out.
+        .mockRejectedValueOnce(new ApiError('Forbidden', { status: 403 }));
+
+      const query = kubeObjectListQuery(
+        namespaceClass,
+        { version: 'v1', resource: 'namespaces' },
+        undefined,
+        'restricted',
+        { labelSelector: 'team=frontend' }
+      );
+      const response = await (query.queryFn as any)();
+
+      expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual([
+        'team-a',
+      ]);
+    });
+
+    it('ignores discovered namespaces when namespaces are configured', async () => {
+      localStorage.setItem(
+        'cluster_settings.restricted',
+        JSON.stringify({ allowedNamespaces: ['manual'] })
+      );
+      setDiscoveredNamespaces('restricted', ['discovered']);
+      mockClusterFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve({ metadata: { name: 'manual' } }),
+      } as Response);
+
+      const response = await (namespaceQuery().queryFn as any)();
+
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+      expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual([
+        'manual',
+      ]);
+    });
   });
 
   it('fetches allowed namespaces individually without starting a cluster-wide watch', async () => {
@@ -1782,5 +1903,36 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         )
       ).toBe(true)
     );
+  });
+});
+
+describe('matchesLabelSelectorString', () => {
+  const labels = { team: 'frontend', env: 'dev' };
+
+  it.each([
+    ['team=frontend', true],
+    ['team==frontend', true],
+    ['team=backend', false],
+    ['team!=backend', true],
+    ['team!=frontend', false],
+    ['missing!=x', true],
+    ['env in (dev,test)', true],
+    ['env in (prod)', false],
+    ['env notin (prod)', true],
+    ['missing notin (prod)', true],
+    ['team', true],
+    ['missing', false],
+    ['!missing', true],
+    ['!team', false],
+    ['team=frontend,env in (dev, test)', true],
+    ['team=frontend,env=prod', false],
+    ['', true],
+  ])('%s matches: %s', (selector, expected) => {
+    expect(matchesLabelSelectorString(selector, labels)).toBe(expected);
+  });
+
+  it('treats missing labels as no labels', () => {
+    expect(matchesLabelSelectorString('team=frontend', undefined)).toBe(false);
+    expect(matchesLabelSelectorString('!team', undefined)).toBe(true);
   });
 });

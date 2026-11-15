@@ -18,6 +18,7 @@ import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  getDiscoveredNamespaces,
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
@@ -45,6 +46,7 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
+const DISCOVERED_NAMESPACE_REFRESH_MS = 60 * 1000;
 
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
@@ -82,6 +84,107 @@ export interface ListResponse<K extends KubeObject> {
  * @param refetchInterval - Optional query refetch interval.
  * @returns Query options for the synthesized restricted Namespace list.
  */
+/**
+ * Checks labels against a Kubernetes label selector string, supporting
+ * equality-based (`k=v`, `k==v`, `k!=v`) and set-based (`k in (a,b)`,
+ * `k notin (a,b)`, `k`, `!k`) requirements separated by commas.
+ *
+ * @param selector - The label selector, e.g. "team=frontend,env in (dev,test)".
+ * @param labels - The labels of the object.
+ * @returns Whether every requirement matches.
+ */
+export function matchesLabelSelectorString(
+  selector: string,
+  labels: Record<string, string> = {}
+): boolean {
+  const requirements: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of selector) {
+    if (char === '(') depth++;
+    if (char === ')') depth--;
+    if (char === ',' && depth === 0) {
+      requirements.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  requirements.push(current);
+
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(labels, key);
+
+  return requirements
+    .map(requirement => requirement.trim())
+    .filter(Boolean)
+    .every(requirement => {
+      let match = requirement.match(/^([^\s!=]+)\s+(in|notin)\s*\((.*)\)$/);
+      if (match) {
+        const values = match[3].split(',').map(value => value.trim());
+        const inSet = has(match[1]) && values.includes(labels[match[1]]);
+        return match[2] === 'in' ? inSet : !inSet;
+      }
+      match = requirement.match(/^([^\s!=]+)\s*!=\s*(.*)$/);
+      if (match) {
+        return labels[match[1]] !== match[2].trim();
+      }
+      match = requirement.match(/^([^\s!=]+)\s*==?\s*(.*)$/);
+      if (match) {
+        return has(match[1]) && labels[match[1]] === match[2].trim();
+      }
+      match = requirement.match(/^!\s*(\S+)$/);
+      if (match) {
+        return !has(match[1]);
+      }
+      return has(requirement);
+    });
+}
+
+/**
+ * Loads a namespace the user was found to have access to. Discovery does not
+ * guarantee "get namespaces": a namespace that is forbidden or gone is left out
+ * of the Namespace list instead of failing it (it still restricts list
+ * routing and the namespace filter, which only need the name).
+ *
+ * @param kubeObjectClass - The Namespace class.
+ * @param cluster - The cluster name.
+ * @param name - The namespace name.
+ * @param requestedSelector - The label selector of the request, if any.
+ * @returns The namespace object, or null when it is not readable or does not
+ *          match the selector.
+ */
+async function discoveredNamespaceObject<K extends KubeObject>(
+  kubeObjectClass: KubeObjectClass,
+  cluster: string,
+  name: string,
+  requestedSelector?: string
+): Promise<K | null> {
+  let item: any;
+  try {
+    item = await clusterFetch(makeUrl(['api', 'v1', 'namespaces', name]), { cluster }).then(
+      response => response.json()
+    );
+    if (item.metadata?.managedFields) {
+      delete item.metadata.managedFields;
+    }
+  } catch (error) {
+    if (!(error instanceof ApiError) || ![403, 404].includes(error.status ?? 0)) {
+      if (error instanceof ApiError) {
+        error.cluster = cluster;
+        error.namespace = name;
+      }
+      throw error;
+    }
+    return null;
+  }
+  if (requestedSelector && !matchesLabelSelectorString(requestedSelector, item.metadata?.labels)) {
+    return null;
+  }
+  const kubeObject = new kubeObjectClass(item) as K;
+  kubeObject.cluster = cluster;
+  return kubeObject;
+}
+
 function allowedNamespaceListQuery<K extends KubeObject>(
   kubeObjectClass: KubeObjectClass,
   cluster: string,
@@ -93,10 +196,20 @@ function allowedNamespaceListQuery<K extends KubeObject>(
   const configuredSelector = settings.allowedNamespacesSelector?.trim();
   const requestedSelector = queryParams.labelSelector?.trim();
   const selector = [configuredSelector, requestedSelector].filter(Boolean).join(',');
+  // Discovered namespaces only apply when nothing is configured (settings win).
+  const discoveredNamespaces =
+    allowedNamespaces.length === 0 && !configuredSelector
+      ? getDiscoveredNamespaces(cluster) ?? []
+      : [];
+  const discoveryRestricted =
+    allowedNamespaces.length === 0 &&
+    !configuredSelector &&
+    getDiscoveredNamespaces(cluster) !== undefined;
 
   return {
     placeholderData: null,
-    refetchInterval,
+    refetchInterval:
+      refetchInterval ?? (discoveryRestricted ? DISCOVERED_NAMESPACE_REFRESH_MS : undefined),
     retry: kubeRequestRetry,
     queryKey: [
       'kubeObject',
@@ -105,10 +218,10 @@ function allowedNamespaceListQuery<K extends KubeObject>(
       kubeObjectClass.apiName,
       cluster,
       '',
-      { allowedNamespaces, selector },
+      { allowedNamespaces, selector, discoveredNamespaces },
     ],
     queryFn: async () => {
-      const [manualItems, selectorList] = await Promise.all([
+      const [manualItems, selectorList, discoveredItems] = await Promise.all([
         Promise.all(
           allowedNamespaces.map(async name => {
             try {
@@ -142,6 +255,11 @@ function allowedNamespaceListQuery<K extends KubeObject>(
                 throw error;
               })
           : Promise.resolve(null),
+        Promise.all(
+          discoveredNamespaces.map(name =>
+            discoveredNamespaceObject<K>(kubeObjectClass, cluster, name, requestedSelector)
+          )
+        ).then(items => items.filter((item): item is Awaited<K> => item !== null)),
       ]);
 
       const selectorItems = (selectorList?.items ?? []).map((item: any) => {
@@ -154,7 +272,7 @@ function allowedNamespaceListQuery<K extends KubeObject>(
         kubeObject.cluster = cluster;
         return kubeObject;
       });
-      const items = [...manualItems, ...selectorItems].filter(
+      const items = [...manualItems, ...selectorItems, ...discoveredItems].filter(
         (item, index, allItems) =>
           allItems.findIndex(
             candidate => candidate.jsonData.metadata.name === item.jsonData.metadata.name

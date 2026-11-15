@@ -22,4 +22,5 @@ export const AllowedNamespacesResolutionContext = React.createContext('');
 export const AllowedNamespacesSelectorContext = React.createContext<{
   registerCluster: (cluster: string) => () => void;
   waiting: boolean;
+  discoveryWaiting?: boolean;
 } | null>(null);

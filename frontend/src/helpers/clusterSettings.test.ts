@@ -30,8 +30,8 @@ import {
   setDiscoveredNamespaces,
   storeClusterSettings,
   storeResolvedAllowedNamespaces,
-  subscribeToClusterSettings,
   subscribeDiscoveredNamespaces,
+  subscribeToClusterSettings,
 } from './clusterSettings';
 
 describe('clusterSettings', () => {
