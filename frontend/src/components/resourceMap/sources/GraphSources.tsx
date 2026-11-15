@@ -387,9 +387,10 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
         });
       });
 
+      // Only the sources that still exist count: a group can disappear while its sources are
+      // selected and loading, such as Devices once no selected cluster serves its API.
       const isLoading =
-        sourceData.size === 0 ||
-        selectedSources?.values()?.some?.(source => sourceData.get(source) === null);
+        sourceData.size === 0 || selectedSourceIds.some(id => sourceData.get(id) === null);
 
       return {
         nodes,

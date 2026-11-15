@@ -28,6 +28,7 @@ import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
+import DeviceClass from '../../../../lib/k8s/deviceClass';
 import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
@@ -54,6 +55,9 @@ import PodGroup from '../../../../lib/k8s/podGroup';
 import PriorityClass from '../../../../lib/k8s/priorityClass';
 import ReferenceGrant from '../../../../lib/k8s/referenceGrant';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
+import { useClustersServing } from '../../../../lib/k8s/resourceAvailability';
+import ResourceClaim from '../../../../lib/k8s/resourceClaim';
+import ResourceClaimTemplate from '../../../../lib/k8s/resourceClaimTemplate';
 import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
@@ -205,6 +209,7 @@ export function useGetAllSources(): GraphSource[] {
   const gatewayKinds = new Set(availableGatewayL4RouteKinds);
   const tcpRouteEnabled = gatewayKinds.has('TCPRoute');
   const udpRouteEnabled = gatewayKinds.has('UDPRoute');
+  const devicesClusters = useClustersServing(DeviceClass);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -257,6 +262,28 @@ export function useGetAllSources(): GraphSource[] {
         ),
         sources: [makeKubeSource(PersistentVolumeClaim)],
       },
+      ...(devicesClusters?.length
+        ? [
+            {
+              id: 'devices',
+              label: t('glossary|Devices (alpha)'),
+              icon: (
+                <Icon
+                  icon="mdi:expansion-card"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('configuration')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeKubeSource(DeviceClass, devicesClusters),
+                makeKubeSource(ResourceClaim, devicesClusters),
+                makeKubeSource(ResourceClaimTemplate, devicesClusters),
+              ],
+            },
+          ]
+        : []),
       {
         id: 'cluster',
         label: 'Cluster',
@@ -423,6 +450,7 @@ export function useGetAllSources(): GraphSource[] {
     workloadClusters,
     compositePodGroupsEnabled,
     compositePodGroupClusters,
+    devicesClusters,
     t,
   ]);
 }
