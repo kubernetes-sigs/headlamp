@@ -25,6 +25,7 @@ import CRD from '../../../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../../../lib/k8s/gatewayL4RouteAvailability';
 import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
+import ResourceClaim from '../../../../lib/k8s/resourceClaim';
 import {
   useCompositePodGroupClustersByVersion,
   usePodGroupClustersByVersion,
@@ -382,5 +383,32 @@ describe('useGetAllSources', () => {
 
     expect(findLeaf(result.current, 'ConfigMap')?.label).toBe(ConfigMap.apiName);
     expect(findLeaf(result.current, 'Pod')?.label).toBe(Pod.apiName);
+  });
+  it('adds the Devices group, listing only the clusters that serve DRA', () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a', 'cluster-b']);
+    vi.mocked(useQuery).mockImplementation(
+      ({ queryKey }) =>
+        ({ data: queryKey[0] === 'clustersServing' ? ['cluster-b'] : [] } as ReturnType<
+          typeof useQuery
+        >)
+    );
+    const useList = vi.spyOn(ResourceClaim, 'useList').mockReturnValue([null] as any);
+
+    const { result } = renderHook(() => useGetAllSources());
+    const devices = findGroup(result.current, 'devices');
+    renderHook(() => findLeaf(result.current, 'resource.k8s.io/ResourceClaim')!.useData());
+
+    expect(result.current.map(source => source.id).slice(0, 3)).toEqual([
+      'workloads',
+      'storage',
+      'devices',
+    ]);
+    expect(devices.isEnabledByDefault).toBe(false);
+    expect(devices.sources.map(source => source.id)).toEqual([
+      'resource.k8s.io/DeviceClass',
+      'resource.k8s.io/ResourceClaim',
+      'resource.k8s.io/ResourceClaimTemplate',
+    ]);
+    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'], clusters: ['cluster-b'] });
   });
 });
