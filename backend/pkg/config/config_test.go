@@ -1478,3 +1478,32 @@ func TestClusterAPIDiscoveryConfiguration(t *testing.T) {
 	require.False(t, parsed.DiscoverySources["cluster_inventory"].Enabled)
 	require.Equal(t, "workloads", parsed.DiscoverySources["cluster_api"].Namespaces)
 }
+
+func TestParseNamespaceDiscoveryRequiresInCluster(t *testing.T) {
+	_, err := config.Parse([]string{"go run ./cmd", "--enable-namespace-discovery"})
+	require.ErrorContains(t, err, "--enable-namespace-discovery is only meant to be used with --in-cluster")
+
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster", "--enable-namespace-discovery"})
+	require.NoError(t, err)
+	assert.True(t, conf.EnableNamespaceDiscovery)
+}
+
+func TestParseNamespaceDiscoveryLimits(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster", "--enable-namespace-discovery"})
+	require.NoError(t, err)
+	assert.InDelta(t, config.DefaultNamespaceDiscoveryQPS, conf.NamespaceDiscoveryQPS, 0)
+	assert.Equal(t, config.DefaultNamespaceDiscoveryTimeout, conf.NamespaceDiscoveryTimeout)
+
+	conf, err = config.Parse([]string{
+		"go run ./cmd", "--in-cluster", "--enable-namespace-discovery",
+		"--namespace-discovery-qps=500", "--namespace-discovery-timeout=2m",
+	})
+	require.NoError(t, err)
+	assert.InDelta(t, 500, conf.NamespaceDiscoveryQPS, 0)
+	assert.Equal(t, 2*time.Minute, conf.NamespaceDiscoveryTimeout)
+
+	_, err = config.Parse([]string{
+		"go run ./cmd", "--in-cluster", "--enable-namespace-discovery", "--namespace-discovery-qps=0",
+	})
+	require.ErrorContains(t, err, "must be greater than zero")
+}
