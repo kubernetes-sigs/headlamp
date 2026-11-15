@@ -21,10 +21,57 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const {
+  checkLintTypeScript,
   getNativeTypeScriptCommand,
   getUpgradeOverrides,
   usesNativeTypeScript,
 } = require('./bin/typescript');
+
+function installLintCompiler(directory, legacy, nested = false) {
+  const parser = path.join(directory, 'node_modules', '@typescript-eslint', 'typescript-estree');
+  fs.mkdirSync(parser, { recursive: true });
+  fs.writeFileSync(path.join(parser, 'package.json'), JSON.stringify({ main: 'index.js' }));
+  fs.writeFileSync(path.join(parser, 'index.js'), '');
+  const compiler = path.join(nested ? parser : directory, 'node_modules', 'typescript');
+  fs.mkdirSync(compiler, { recursive: true });
+  fs.writeFileSync(
+    path.join(compiler, 'index.js'),
+    legacy
+      ? 'exports.createSourceFile = () => {}; exports.transpileModule = () => {};'
+      : 'exports.version = "7.0.2";'
+  );
+}
+
+test('lint reports native compiler overrides with recovery instructions', t => {
+  const directory = fixture(t);
+  installLintCompiler(directory, false);
+  assert.throws(() => checkLintTypeScript(directory), /Remove the global TypeScript override/);
+});
+
+test('lint command reports incompatible tooling before starting ESLint', t => {
+  const directory = fixture(t);
+  installLintCompiler(directory, false);
+  const result = spawnSync(
+    process.execPath,
+    [path.join(__dirname, 'bin/headlamp-plugin.js'), 'lint', directory],
+    { encoding: 'utf8' }
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /Remove the global TypeScript override/);
+});
+
+test('lint accepts the legacy compiler API', t => {
+  const directory = fixture(t);
+  installLintCompiler(directory, true);
+  assert.equal(checkLintTypeScript(directory), undefined);
+});
+
+test('lint uses a nested legacy compiler even when the project compiler is native', t => {
+  const directory = fixture(t);
+  installLintCompiler(directory, false);
+  installLintCompiler(directory, true, true);
+  assert.equal(checkLintTypeScript(directory), undefined);
+});
 
 function fixture(t, packageJson = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-typescript-'));

@@ -162,6 +162,10 @@ opt-in support described here; it is not available in the published 0.14.0 tooli
    Do not override every TypeScript dependency to version 7: tools importing
    `typescript` still need the legacy JavaScript compiler API.
 
+   If linting reports that the compiler resolved by typescript-eslint lacks the
+   legacy compiler API, check the override and reinstall dependencies. Keep
+   `@typescript/native` separate from the `typescript` package used by linting.
+
 3. Refresh the lockfile and verify a clean install:
 
    ```bash

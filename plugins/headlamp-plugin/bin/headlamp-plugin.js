@@ -29,7 +29,11 @@ const child_process = require('child_process');
 const validate = require('validate-npm-package-name');
 const yargs = require('yargs/yargs');
 const headlampPluginPkg = require('../package.json');
-const { getNativeTypeScriptCommand, getUpgradeOverrides } = require('./typescript');
+const {
+  checkLintTypeScript,
+  getNativeTypeScriptCommand,
+  getUpgradeOverrides,
+} = require('./typescript');
 const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl');
 const { table } = require('table');
 const tar = require('tar');
@@ -1444,7 +1448,7 @@ function lint(packageFolder, fix) {
   const script = `eslint --cache -c package.json --max-warnings 0 --ext .js,.ts,.tsx src/${
     fix ? ' --fix' : ''
   }`;
-  return runScriptOnPackages(packageFolder, 'lint', script, {});
+  return runScriptOnPackages(packageFolder, 'lint', script, {}, checkLintTypeScript);
 }
 
 /**
