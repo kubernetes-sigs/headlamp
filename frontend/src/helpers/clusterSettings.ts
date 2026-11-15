@@ -206,6 +206,125 @@ export function isResolvedAllowedNamespacesStale(
 }
 
 /**
+ * Namespaces the backend reported as accessible for users who cannot list
+ * namespaces (see lib/k8s/accessibleNamespaces.ts). Kept in memory only: it is
+ * derived from the current user's permissions and must not outlive the session.
+ * A missing entry means no discovered restriction applies.
+ */
+const discoveredNamespaces = new Map<string, string[]>();
+
+/**
+ * Bumped whenever the identity may have changed (login, logout, token change).
+ * It is part of the discovery query key, so a response for an older identity
+ * can never be written back after a reset.
+ */
+let discoveryGeneration = 0;
+
+/** Bumped on every change, for useSyncExternalStore subscribers. */
+let discoveredNamespacesVersion = 0;
+
+const discoveredNamespacesListeners = new Set<() => void>();
+
+function notifyDiscoveredNamespacesChanged() {
+  discoveredNamespacesVersion++;
+  discoveredNamespacesListeners.forEach(listener => listener());
+}
+
+/**
+ * Subscribes to changes of the discovered namespaces (useSyncExternalStore).
+ *
+ * @param listener - Called after every change.
+ * @returns A function that removes the listener.
+ */
+export function subscribeDiscoveredNamespaces(listener: () => void): () => void {
+  discoveredNamespacesListeners.add(listener);
+  return () => discoveredNamespacesListeners.delete(listener);
+}
+
+/**
+ * Returns a number that changes whenever the discovered namespaces change.
+ */
+export function getDiscoveredNamespacesVersion(): number {
+  return discoveredNamespacesVersion;
+}
+
+/**
+ * Returns the current discovery generation (see resetDiscoveredNamespaces).
+ */
+export function getDiscoveryGeneration(): number {
+  return discoveryGeneration;
+}
+
+function sameNamespaceList(a: string[] | undefined, b: string[] | undefined): boolean {
+  if (a === undefined || b === undefined) {
+    return a === b;
+  }
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/**
+ * Stores or clears the namespaces discovered for a cluster.
+ *
+ * @param clusterName - The name of the cluster.
+ * @param namespaces - The accessible namespaces, or null to drop the restriction.
+ */
+export function setDiscoveredNamespaces(clusterName: string, namespaces: string[] | null) {
+  if (!clusterName) {
+    return;
+  }
+  const next = namespaces === null ? undefined : [...new Set(namespaces)].sort();
+  if (sameNamespaceList(discoveredNamespaces.get(clusterName), next)) {
+    return;
+  }
+  if (next === undefined) {
+    discoveredNamespaces.delete(clusterName);
+  } else {
+    discoveredNamespaces.set(clusterName, next);
+  }
+  notifyDiscoveredNamespacesChanged();
+}
+
+/**
+ * Drops discovered namespaces after the identity may have changed and starts a
+ * new discovery generation, so in-flight results for the old identity are ignored.
+ *
+ * @param clusterName - The cluster to reset, or undefined for all clusters (e.g.
+ *                      after an OIDC login whose token may be broadcast to siblings).
+ */
+export function resetDiscoveredNamespaces(clusterName?: string) {
+  if (clusterName) {
+    discoveredNamespaces.delete(clusterName);
+  } else {
+    discoveredNamespaces.clear();
+  }
+  discoveryGeneration++;
+  notifyDiscoveredNamespacesChanged();
+}
+
+/**
+ * Returns the namespaces discovered for a cluster, or undefined when discovery
+ * does not restrict this cluster.
+ *
+ * @param clusterName - The name of the cluster.
+ */
+export function getDiscoveredNamespaces(clusterName: string): string[] | undefined {
+  return discoveredNamespaces.get(clusterName);
+}
+
+/**
+ * Whether the cluster settings configure namespaces explicitly (manual list or
+ * label selector). Such settings take precedence over discovered namespaces.
+ *
+ * @param settings - The cluster settings.
+ */
+function hasConfiguredAllowedNamespaces(settings: ClusterSettings): boolean {
+  return (
+    (settings.allowedNamespaces?.length ?? 0) > 0 ||
+    Boolean(settings.allowedNamespacesSelector?.trim())
+  );
+}
+
+/**
  * Returns the combined list of allowed namespaces for a cluster: the manually
  * configured ones plus the ones resolved from the namespace label selector (if
  * any). The result is sorted and does not contain duplicates.
@@ -214,11 +333,17 @@ export function isResolvedAllowedNamespacesStale(
  * configured selector, so a stale list left over from a previous selector is
  * never used.
  *
+ * When nothing is configured, the namespaces discovered for users who cannot
+ * list namespaces are returned instead.
+ *
  * @param cluster - The name of the cluster.
  * @returns The combined list of allowed namespaces.
  */
 export function getCombinedAllowedNamespaces(cluster: string): string[] {
   const settings = loadClusterSettings(cluster);
+  if (!hasConfiguredAllowedNamespaces(settings)) {
+    return getDiscoveredNamespaces(cluster) ?? [];
+  }
   const selector = settings.allowedNamespacesSelector?.trim() || '';
   const cache = selector ? loadResolvedAllowedNamespaces(cluster) : null;
   const resolved = cache && cache.selector === selector ? cache.namespaces : [];
@@ -226,15 +351,29 @@ export function getCombinedAllowedNamespaces(cluster: string): string[] {
 }
 
 /**
- * Checks whether a cluster has an explicit or selector-based namespace restriction.
+ * Whether the only namespace restriction of a cluster comes from namespace
+ * discovery (nothing configured in the settings). Discovery only checks a few
+ * resource kinds, so callers may lift it for kinds the user can list cluster-wide.
+ *
+ * @param cluster - The name of the cluster.
+ */
+export function isRestrictedOnlyByDiscovery(cluster: string): boolean {
+  return (
+    !hasConfiguredAllowedNamespaces(loadClusterSettings(cluster)) &&
+    getDiscoveredNamespaces(cluster) !== undefined
+  );
+}
+
+/**
+ * Checks whether a cluster has an explicit, selector-based or discovered namespace restriction.
  *
  * @param cluster - Cluster whose settings should be checked.
- * @returns Whether namespace access is restricted, including when a selector resolves empty.
+ * @returns Whether namespace access is restricted, including when a selector or
+ *          discovery resolves empty.
  */
 export function hasAllowedNamespacesRestriction(cluster: string): boolean {
-  const settings = loadClusterSettings(cluster);
   return (
-    (settings.allowedNamespaces?.length ?? 0) > 0 ||
-    Boolean(settings.allowedNamespacesSelector?.trim())
+    hasConfiguredAllowedNamespaces(loadClusterSettings(cluster)) ||
+    getDiscoveredNamespaces(cluster) !== undefined
   );
 }
