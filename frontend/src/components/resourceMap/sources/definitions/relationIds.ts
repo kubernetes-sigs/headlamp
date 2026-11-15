@@ -34,6 +34,8 @@ export const BUILT_IN_RELATION_IDS = [
   'sa-deployment',
   'sa-daemonset',
   'pvc-pod',
+  'pod-resourceclaim',
+  'pod-resourceclaimtemplate',
   'job-cronjob',
   'job-jobset',
   'statefulset-leaderworkerset',
