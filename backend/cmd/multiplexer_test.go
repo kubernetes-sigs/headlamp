@@ -693,6 +693,7 @@ func createMockKubeAPIServer() *httptest.Server {
 	return server
 }
 
+//nolint:funlen // Test exercises connection lifecycle with query updates and cleanups.
 func TestGetOrCreateConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	m := NewMultiplexer(store, false)
@@ -738,11 +739,214 @@ func TestGetOrCreateConnection(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
+	// Test getting connection when query changes (should close old and create new)
+	msgDifferentQuery := msg
+	msgDifferentQuery.Query = "watch=true&resourceVersion=200"
+
+	connNewQuery, err := m.getOrCreateConnection(msgDifferentQuery, clientConn, &token)
+	assert.NoError(t, err)
+	assert.NotNil(t, connNewQuery)
+	assert.NotEqual(t, conn, connNewQuery, "Should create a new connection when query changes")
+	assert.Equal(t, "watch=true&resourceVersion=200", connNewQuery.Query)
+
+	// Test getting connection when client connection changes (e.g. client reconnected before old client cleanup)
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	connNewClient, err := m.getOrCreateConnection(msgDifferentQuery, clientConn2, &token)
+	assert.NoError(t, err)
+	assert.NotNil(t, connNewClient)
+	assert.NotEqual(t, connNewQuery, connNewClient, "Should create a new connection when client connection changes")
+	assert.Equal(t, clientConn2, connNewClient.Client)
+
+	diffKey := m.createConnectionKey(msgDifferentQuery.ClusterID, msgDifferentQuery.Path, msgDifferentQuery.UserID)
+
+	// Simulate old client cleanup occurring after reconnection:
+	// it should not close or remove the new connection belonging to clientConn2
+	m.closeClientConnections(clientConn)
+	m.mutex.RLock()
+	currentConn, exists := m.connections[diffKey]
+	m.mutex.RUnlock()
+	assert.True(t, exists)
+	assert.Equal(t, connNewClient, currentConn)
+
+	// Ensure old connection teardown does not delete the replacement connection from connections map
+	m.removeConnection(connNewQuery)
+	m.mutex.RLock()
+	currentConnAfterOldCleanup, existsAfterOldCleanup := m.connections[diffKey]
+	m.mutex.RUnlock()
+	assert.True(t, existsAfterOldCleanup)
+	assert.Equal(t, connNewClient, currentConnAfterOldCleanup)
+
 	// Test with invalid cluster
 	msg.ClusterID = "non-existent-cluster"
 	conn3, err := m.getOrCreateConnection(msg, clientConn, &token)
 	assert.Error(t, err)
 	assert.Nil(t, conn3)
+}
+
+//nolint:funlen // Test exercises connection replacement and interleaved stale retirement.
+func TestInterleavedConnectionReplacement(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                   mockServer.URL,
+			InsecureSkipTLSVerify:    true,
+			CertificateAuthorityData: nil,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	token := "test-token"
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/pods",
+		Query:     "watch=true",
+		UserID:    "user1",
+	}
+
+	// 1. Initial client establishes connection
+	connOld, err := m.getOrCreateConnection(msg, clientConn1, &token)
+	require.NoError(t, err)
+	require.NotNil(t, connOld)
+
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+
+	// 2. Replacement connection installed (e.g. client reconnected or query updated)
+	msgUpdated := msg
+	msgUpdated.Query = "watch=true&resourceVersion=100"
+	connNew, err := m.getOrCreateConnection(msgUpdated, clientConn2, &token)
+	require.NoError(t, err)
+	require.NotNil(t, connNew)
+	assert.NotEqual(t, connOld, connNew)
+
+	// Verify replacement connection is active in connections registry
+	m.mutex.RLock()
+	currentConn := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.Equal(t, connNew, currentConn)
+
+	// 3. Stale handler reading old connection attempts retirement via removeConnection.
+	// Since connOld no longer owns connKey in the registry, connNew must NOT be removed or closed.
+	m.removeConnection(connOld)
+
+	m.mutex.RLock()
+	currentConnAfterStaleRetire := m.connections[connKey]
+	m.mutex.RUnlock()
+	assert.Equal(t, connNew, currentConnAfterStaleRetire)
+
+	connNew.mu.RLock()
+	newClosed := connNew.closed
+	connNew.mu.RUnlock()
+	assert.False(t, newClosed, "Replacement connection must remain open after stale retirement")
+
+	connOld.mu.RLock()
+	oldClosed := connOld.closed
+	connOld.mu.RUnlock()
+	assert.True(t, oldClosed, "Old connection must be closed")
+}
+
+//nolint:funlen // Test exercises race safety between replaceRegistered and getOrCreateConnection.
+func TestReplaceRegistered_KeyLockSerialization(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                   mockServer.URL,
+			InsecureSkipTLSVerify:    true,
+			CertificateAuthorityData: nil,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	token := "test-token"
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/pods",
+		Query:     "watch=true",
+		UserID:    "user1",
+	}
+
+	conn1, err := m.getOrCreateConnection(msg, clientConn1, &token)
+	require.NoError(t, err)
+	require.NotNil(t, conn1)
+
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+
+	heartbeatConn := &Connection{
+		ClusterID: msg.ClusterID,
+		Path:      msg.Path,
+		UserID:    msg.UserID,
+		Query:     msg.Query,
+		Client:    clientConn1,
+	}
+
+	msgUpdated := msg
+	msgUpdated.Query = "watch=true&resourceVersion=300"
+
+	// Acquire key lock to simulate getOrCreateConnection in progress
+	unlock := m.acquireKeyLock(connKey)
+
+	replaceDone := make(chan bool)
+
+	go func() {
+		// replaceRegistered will wait for the key lock
+		res := m.replaceRegistered(conn1, heartbeatConn)
+		replaceDone <- res
+	}()
+
+	// Query update retires conn1 and installs new connection
+	m.removeConnection(conn1)
+
+	connQueryUpdate, err := m.establishClusterConnection(
+		msgUpdated.ClusterID,
+		msgUpdated.UserID,
+		msgUpdated.Path,
+		msgUpdated.Query,
+		clientConn2,
+		&token,
+	)
+	require.NoError(t, err)
+
+	// Release key lock allowing replaceRegistered to proceed
+	unlock()
+
+	replaced := <-replaceDone
+	assert.False(t, replaced, "replaceRegistered should fail because conn1 was retired during query update")
+
+	m.mutex.RLock()
+	currentConn := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Equal(
+		t,
+		connQueryUpdate,
+		currentConn,
+		"Current connection must remain the query update, not overwritten by heartbeat",
+	)
 }
 
 func TestEstablishClusterConnection(t *testing.T) {
