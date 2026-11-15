@@ -26,6 +26,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import zlib from 'node:zlib';
 import * as tar from 'tar';
 import {
+  validateDigestFormat,
+  verifyArchiveDigest,
+} from '../../plugins/pluginctl/src/archive-integrity.js';
+import {
   type BuildManifest,
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
@@ -108,19 +112,6 @@ export function pathsReferToSameFile(firstPath: string, secondPath: string): boo
   };
 
   return canonicalize(firstPath) === canonicalize(secondPath);
-}
-
-/**
- * Validates the syntax of a declared SHA-256 digest.
- *
- * @param digest Hexadecimal SHA-256 digest to validate.
- * @returns Nothing when the digest has the expected format.
- * @throws When the digest is not exactly 64 hexadecimal characters.
- */
-function validateDigestFormat(digest: string): void {
-  if (!/^[a-f0-9]{64}$/i.test(digest)) {
-    throw new Error(`Invalid SHA-256 digest for plugin archive: ${digest}`);
-  }
 }
 
 /**
@@ -256,42 +247,6 @@ export function applyEnabledByDefault(
   } catch (error) {
     fs.rmSync(temporaryPath, { force: true });
     throw new Error(`Failed to apply enabledByDefault for plugin ${name}`, { cause: error });
-  }
-}
-
-/**
- * Verifies a plugin archive against its declared SHA-256 digest.
- *
- * @param archivePath Path to the plugin archive.
- * @param expectedDigest Expected hexadecimal SHA-256 digest, when declared.
- * @returns Nothing when no digest is declared or the digest matches.
- * @throws When the digest is malformed or does not match the archive.
- */
-export function verifyArchiveDigest(archivePath: string, expectedDigest?: string): void {
-  if (expectedDigest === undefined) {
-    return;
-  }
-  validateDigestFormat(expectedDigest);
-
-  const hash = crypto.createHash('sha256');
-  const buffer = Buffer.allocUnsafe(64 * 1024);
-  const descriptor = fs.openSync(archivePath, 'r');
-  try {
-    let bytesRead: number;
-    do {
-      bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
-      if (bytesRead > 0) {
-        hash.update(buffer.subarray(0, bytesRead));
-      }
-    } while (bytesRead > 0);
-  } finally {
-    fs.closeSync(descriptor);
-  }
-  const actualDigest = hash.digest('hex');
-  if (actualDigest.toLowerCase() !== expectedDigest.toLowerCase()) {
-    throw new Error(
-      `Plugin archive SHA-256 mismatch: expected ${expectedDigest}, got ${actualDigest}`
-    );
   }
 }
 
@@ -769,3 +724,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode = 1;
   });
 }
+
+export { verifyArchiveDigest };
