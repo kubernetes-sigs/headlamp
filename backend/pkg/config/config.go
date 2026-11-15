@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
@@ -116,7 +117,12 @@ type Config struct {
 	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
+	EnableNamespaceDiscovery     bool   `koanf:"enable-namespace-discovery"`
 	OidcAutoLogin                bool   `koanf:"oidc-auto-login"`
+
+	// Limits of one namespace discovery run (see addNamespaceDiscoveryFlags).
+	NamespaceDiscoveryQPS     float64       `koanf:"namespace-discovery-qps"`
+	NamespaceDiscoveryTimeout time.Duration `koanf:"namespace-discovery-timeout"`
 
 	// OidcAPIProxy is the URL of an external Kubernetes API proxy through
 	// which all Kubernetes API requests are routed instead of the
@@ -360,6 +366,14 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 	if !c.InCluster && (c.UnsafeUseServiceAccountToken || c.ServiceAccountTokenPath != "") {
 		return errors.New("--unsafe-use-service-account-token and --service-account-token-path " +
 			"flags are only meant to be used with --in-cluster")
+	}
+
+	if c.EnableNamespaceDiscovery && !c.InCluster {
+		return errors.New("--enable-namespace-discovery is only meant to be used with --in-cluster")
+	}
+
+	if c.EnableNamespaceDiscovery && (c.NamespaceDiscoveryQPS <= 0 || c.NamespaceDiscoveryTimeout <= 0) {
+		return errors.New("--namespace-discovery-qps and --namespace-discovery-timeout must be greater than zero")
 	}
 
 	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
@@ -734,6 +748,7 @@ func flagset(appName string) *flag.FlagSet {
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
+	addNamespaceDiscoveryFlags(f)
 
 	return f
 }
@@ -851,6 +866,24 @@ func addTelemetryFlags(f *flag.FlagSet) {
 	f.Bool("use-otlp-http", false, "Use HTTP instead of gRPC for OTLP export")
 	f.Bool("stdout-trace-enabled", false, "Enable tracing output to stdout")
 	f.Float64("sampling-rate", 1.0, "Sampling rate for traces")
+}
+
+// Defaults for namespace discovery. A run needs up to 5 access reviews per
+// namespace the user cannot access, so the defaults cover roughly 600 namespaces.
+const (
+	DefaultNamespaceDiscoveryQPS     = 100
+	DefaultNamespaceDiscoveryTimeout = 30 * time.Second
+)
+
+func addNamespaceDiscoveryFlags(f *flag.FlagSet) {
+	f.Bool("enable-namespace-discovery", false,
+		"In-cluster only: list namespace names with the Headlamp service account and show users "+
+			"who cannot list namespaces the ones they can access (checked with their own token)")
+	f.Float64("namespace-discovery-qps", DefaultNamespaceDiscoveryQPS,
+		"Access reviews per second for one namespace discovery run. A run needs up to "+
+			"4 reviews per namespace, so raise this (or the timeout) for clusters with many namespaces")
+	f.Duration("namespace-discovery-timeout", DefaultNamespaceDiscoveryTimeout,
+		"Time limit for one namespace discovery run")
 }
 
 func addTLSFlags(f *flag.FlagSet) {

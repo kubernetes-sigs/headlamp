@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
@@ -116,6 +117,9 @@ type HeadlampCFG struct {
 	ForceTheme                   string
 	UnsafeUseServiceAccountToken bool
 	ServiceAccountTokenPath      string
+	EnableNamespaceDiscovery     bool
+	NamespaceDiscoveryQPS        float64
+	NamespaceDiscoveryTimeout    time.Duration
 
 	DiscoverySources map[string]clusterdiscovery.Settings
 }
