@@ -36,6 +36,8 @@ export const BUILT_IN_RELATION_IDS = [
   'pvc-pod',
   'pod-resourceclaim',
   'pod-resourceclaimtemplate',
+  'resourceclaim-deviceclass',
+  'resourceclaimtemplate-deviceclass',
   'job-cronjob',
   'job-jobset',
   'statefulset-leaderworkerset',

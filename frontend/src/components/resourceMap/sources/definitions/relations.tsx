@@ -24,6 +24,7 @@ import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
+import DeviceClass from '../../../../lib/k8s/deviceClass';
 import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
@@ -434,6 +435,24 @@ const podToResourceClaimTemplate = makeNamedRelation(
   pod => pod.resourceClaims.flatMap(claim => (claim.templateName ? [claim.templateName] : []))
 );
 
+// Every claim for the same kind of device names one device class, so splitting the class
+// out keeps it from merging all of those workloads into a single group.
+const resourceClaimToDeviceClass = makeNamedRelation(
+  'resourceclaim-deviceclass',
+  ResourceClaim,
+  DeviceClass,
+  claim => claim.requestedClasses,
+  { nonGroupingSide: 'target' }
+);
+
+const resourceClaimTemplateToDeviceClass = makeNamedRelation(
+  'resourceclaimtemplate-deviceclass',
+  ResourceClaimTemplate,
+  DeviceClass,
+  template => template.requestedClasses,
+  { nonGroupingSide: 'target' }
+);
+
 const podToOwner = makeOwnerRelation(Pod);
 const replicaSetToOwner = makeOwnerRelation(ReplicaSet);
 
@@ -631,6 +650,8 @@ const staticRelations = [
   pvcToPods,
   podToResourceClaim,
   podToResourceClaimTemplate,
+  resourceClaimToDeviceClass,
+  resourceClaimTemplateToDeviceClass,
   podToOwner,
   replicaSetToOwner,
   jobToCronJob,
