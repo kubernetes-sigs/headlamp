@@ -92,6 +92,24 @@ fieldSeletor restricts the list of returned objects by their fields. Defaults to
 
 ___
 
+### fieldValidation
+
+• `Optional` **fieldValidation**: `string`
+
+fieldValidation tells the apiserver how to treat unknown or duplicate fields in the
+request body. Can be 'Ignore', 'Warn' (apiserver default) or 'Strict'.
+
+With anything but 'Strict' those fields are dropped and only reported through response
+warning headers, so a typo silently does nothing.
+
+**`see`** https://kubernetes.io/docs/reference/using-api/api-concepts/#field-validation
+
+#### Defined in
+
+[lib/k8s/api/v1/queryParameters.ts:75](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/api/v1/queryParameters.ts#L75)
+
+___
+
 ### labelSelector
 
 • `Optional` **labelSelector**: `string`
