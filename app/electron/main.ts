@@ -50,6 +50,7 @@ import {
 import { createCertificateSetup } from './certificates';
 import { setupClusterRegistrationHandler } from './cluster-registration';
 import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
+import { cleanupGitHubOAuth, setupGitHubOAuth } from './githubOAuth';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
 import {
@@ -1715,7 +1716,6 @@ function startElectron() {
         preload: `${__dirname}/preload.js`,
       },
     });
-    protocolHandler.attachToWebContents(mainWindow.webContents);
     const privatePluginCapabilities = setupRunCmdHandlers(
       mainWindow,
       ipcMain,
@@ -1733,6 +1733,18 @@ function startElectron() {
       isDev ? path.join(__dirname, '..', 'resources') : process.resourcesPath,
       startUrl
     );
+    // Register after command capabilities (absent authorization denies every
+    // request) and before the protocol handler can become ready for this window.
+    setupGitHubOAuth({
+      mainWindow,
+      trustedStartUrl: startUrl,
+      protocolScheme,
+      config: appBuildManifest.githubOAuth,
+      isDev,
+      authorizeGitHubOAuth: privatePluginCapabilities?.authorizeGitHubOAuth,
+      isGitHubOAuthCapabilityLive: privatePluginCapabilities?.isGitHubOAuthCapabilityLive,
+    });
+    protocolHandler.attachToWebContents(mainWindow.webContents);
 
     applyZoom();
 
@@ -1811,6 +1823,7 @@ function startElectron() {
     });
 
     mainWindow.on('closed', () => {
+      cleanupGitHubOAuth();
       mainWindow = null;
     });
 
@@ -2076,6 +2089,7 @@ function startElectron() {
     isQuitting = true;
     // Persist any zoom change still waiting on the debounced save.
     flushZoomFactorSave();
+    cleanupGitHubOAuth();
     cleanupHeadlampTray();
     hasTray = false;
     i18n.off('languageChanged');

@@ -285,6 +285,53 @@ regenerated after a main-frame reload and revoked when the window closes. A
 token from another plugin, another window, or a previous load is rejected before
 a process is created.
 
+## Private GitHub OAuth
+
+A desktop product can grant GitHub browser authentication to an exact verified
+plugin identity using `runCommands[].githubOAuth: true`. This uses the same
+provenance-verified capability registration as commands, but does not grant
+command execution. The grant is allowed only for `shipped` and `development`
+inventories, not `user` installations. See [product configuration](../app.md#github-browser-authentication)
+for the optional GitHub App client and callback registrations.
+
+Headlamp injects a lexical `pluginGitHubOAuth` only into granted plugins:
+
+```ts
+interface GitHubOAuthResult {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
+declare const pluginGitHubOAuth: {
+  startGitHubOAuth(): Promise<{ success: boolean; error?: string }>;
+  onGitHubOAuthCallback(callback: (result: GitHubOAuthResult) => void): () => void;
+  refreshGitHubOAuth(refreshToken: string): Promise<GitHubOAuthResult>;
+};
+```
+
+Subscribe before starting sign-in. The callback receives the token result only
+for that facade; the start promise resolves with token-free status when the flow
+completes, fails, or is cancelled. Unsubscribe when the consumer is disposed.
+Refresh returns its result directly and does not emit a sign-in callback.
+`expiresAt` is an ISO timestamp. Check `success` before using token fields.
+Continue saving tokens through the plugin's existing scoped `pluginSecureStorage`;
+this API does not introduce a new store or migrate old entries.
+
+There is no global token-bearing event or unrestricted
+`window.desktopApi.startGitHubOAuth`, `onGitHubOAuthCallback`, or
+`refreshGitHubOAuth` API. Consumers of older downstream bridges must switch to
+the injected facade and receive an explicit product grant, without a global
+fallback. Browser-only plugins and ungranted desktop plugins receive no facade.
+
+The preload request methods require an opaque granted capability. The main
+process checks the trusted window and document and rechecks the live grant
+before delivering asynchronous results. Capture the facade locally rather than
+publishing it on `window`. Plugins still share a JavaScript realm: this limits
+direct unauthorized API use, not malicious code with same-realm access.
+
 ## Security Considerations
 
 Reviewers should treat every command grant as security-sensitive. A permitted

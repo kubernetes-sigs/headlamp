@@ -66,6 +66,7 @@ import {
   getDormantDevelopmentPluginSettings,
 } from './developmentPlugins';
 import { fetchPluginResource } from './fetchPluginResource';
+import { captureGitHubOAuthBridge, getPluginGitHubOAuthArgValues } from './githubOAuth';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -666,6 +667,7 @@ export async function fetchAndExecutePlugins(
   const pluginDesktopApiSend = window?.desktopApi?.send;
   const pluginDesktopApiReceive = window?.desktopApi?.receive;
   const pluginRegisterCluster = window?.desktopApi?.registerCluster;
+  const pluginGitHubOAuthBridge = captureGitHubOAuthBridge(window?.desktopApi?.githubOAuth);
   const internalRunCommand = runCommand;
   const PrivateFunction = Function;
   const internalRunPlugin = runPlugin;
@@ -746,6 +748,13 @@ export async function fetchAndExecutePlugins(
           );
           argumentNames.push(...registrationArgs);
           argumentValues.push(...registrationValues);
+          const [gitHubOAuthArgs, gitHubOAuthValues] = getPluginGitHubOAuthArgValues(
+            commandCapabilities,
+            packageInfosToExecute[index],
+            pluginGitHubOAuthBridge
+          );
+          argumentNames.push(...gitHubOAuthArgs);
+          argumentValues.push(...gitHubOAuthValues);
           const storageNamespace = secureStorageNamespaces[index];
           const storageCapability = storageNamespace
             ? secureStorageCapabilities[storageNamespace]

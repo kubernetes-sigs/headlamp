@@ -26,6 +26,16 @@
       "description": "Plugins downloaded and bundled into the desktop package.",
       "items": { "$ref": "#/definitions/plugin" }
     },
+    "githubOAuth": {
+      "type": "object",
+      "description": "Optional GitHub App client used for browser sign-in by trusted product plugins. Desktop apps are public clients, so the secret is embedded in the package and is not confidential.",
+      "required": ["clientId", "clientSecret"],
+      "additionalProperties": false,
+      "properties": {
+        "clientId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,256}$" },
+        "clientSecret": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,256}$" }
+      }
+    },
     "commandSets": {
       "type": "object",
       "description": "Reusable named command grant arrays. A runCommands policy composes one or more with commandSets instead of repeating commands.",
@@ -262,6 +272,10 @@
           "maxItems": 16,
           "uniqueItems": true,
           "items": { "$ref": "#/definitions/clusterRegistrationProvider" }
+        },
+        "githubOAuth": {
+          "type": "boolean",
+          "description": "Grants these exact plugin identities the product's top-level githubOAuth client through their private command capability. Not allowed for user-installed plugins."
         }
       },
       "required": ["environment", "pluginLocation", "plugins"],
@@ -302,7 +316,8 @@
           },
           "then": {
             "properties": {
-              "clusterRegistrationProviders": { "maxItems": 0 }
+              "clusterRegistrationProviders": { "maxItems": 0 },
+              "githubOAuth": { "const": false }
             }
           }
         }
