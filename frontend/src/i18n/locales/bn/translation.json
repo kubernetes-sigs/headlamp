@@ -809,6 +809,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "এন্ডপয়েন্ট",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "পুনরায় চেষ্টার বাজেট",
   "Not specified": "নির্দিষ্ট করা হয়নি",
   "Min Retry Rate": "সর্বনিম্ন পুনরায় চেষ্টার হার",

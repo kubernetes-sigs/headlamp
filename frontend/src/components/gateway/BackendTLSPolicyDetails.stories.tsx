@@ -18,7 +18,11 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import BackendTLSPolicyDetails from './BackendTLSPolicyDetails';
-import { DEFAULT_BACKEND_TLS_POLICY } from './storyHelper';
+import {
+  CA_REFS_BACKEND_TLS_POLICY,
+  DEFAULT_BACKEND_TLS_POLICY,
+  WELL_KNOWN_CA_BACKEND_TLS_POLICY,
+} from './storyHelper';
 
 export default {
   title: 'BackendTLSPolicy/DetailsView',
@@ -74,3 +78,31 @@ const Template: StoryFn = () => {
 };
 
 export const Basic = Template.bind({});
+
+export const WellKnownCACertificates = Template.bind({});
+WellKnownCACertificates.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/gateway.networking.k8s.io/v1/namespaces/default/backendtlspolicies/example-policy`,
+          () => HttpResponse.json(WELL_KNOWN_CA_BACKEND_TLS_POLICY)
+        ),
+      ],
+    },
+  },
+};
+
+export const CACertificateRefs = Template.bind({});
+CACertificateRefs.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/gateway.networking.k8s.io/v1/namespaces/default/backendtlspolicies/example-policy`,
+          () => HttpResponse.json(CA_REFS_BACKEND_TLS_POLICY)
+        ),
+      ],
+    },
+  },
+};

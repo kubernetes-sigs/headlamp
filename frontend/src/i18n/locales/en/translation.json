@@ -809,6 +809,7 @@
   "Add endpoint": "Add endpoint",
   "New Endpoint": "New Endpoint",
   "Endpoints": "Endpoints",
+  "Well-Known CA Certificates": "Well-Known CA Certificates",
   "Retry Budget": "Retry Budget",
   "Not specified": "Not specified",
   "Min Retry Rate": "Min Retry Rate",
