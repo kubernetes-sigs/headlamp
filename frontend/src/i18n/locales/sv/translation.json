@@ -839,6 +839,7 @@
   "Targets": "Mål",
   "more…": "mer...",
   "Default": "Standard",
+  "(default host)": "",
   "Host": "Värddator",
   "Completions": "",
   "Number of successfully finished pods required.": "",

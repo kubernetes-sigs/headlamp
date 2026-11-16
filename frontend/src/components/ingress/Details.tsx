@@ -248,10 +248,17 @@ export default function IngressDetails(props: {
             name: 'TLS',
             value: (
               <LabelListItem
-                labels={ingress.spec?.tls?.map(
-                  (tls: { hosts: string[]; secretName: string }) =>
-                    `${tls.secretName} › ${tls.hosts.join(', ')}`
-                )}
+                labels={ingress.spec?.tls
+                  ?.map(tls => {
+                    // Both fields are optional in the Ingress API. A secret without
+                    // hosts applies to the controller's default host, so keep the
+                    // "secret › hosts" shape for it too.
+                    const hosts = tls.hosts?.length
+                      ? tls.hosts.join(', ')
+                      : tls.secretName && t('translation|(default host)');
+                    return [tls.secretName, hosts].filter(Boolean).join(' › ');
+                  })
+                  .filter(Boolean)}
               />
             ),
           },

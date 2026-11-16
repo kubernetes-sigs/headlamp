@@ -839,6 +839,7 @@
   "Targets": "Tárolók",
   "more…": "egyebek…",
   "Default": "Alapértelmezett",
+  "(default host)": "",
   "Host": "Gazdagép",
   "Completions": "",
   "Number of successfully finished pods required.": "",

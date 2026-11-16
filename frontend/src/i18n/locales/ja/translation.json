@@ -832,6 +832,7 @@
   "Targets": "ターゲット",
   "more…": "もっと…",
   "Default": "デフォルト",
+  "(default host)": "",
   "Host": "ホスト",
   "Completions": "",
   "Number of successfully finished pods required.": "",
