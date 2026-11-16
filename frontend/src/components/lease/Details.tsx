@@ -36,15 +36,15 @@ export function LeaseDetails(props: { name?: string; namespace?: string; cluster
         item && [
           {
             name: t('Holder Identity'),
-            value: item.spec.holderIdentity,
+            value: item.spec?.holderIdentity ?? '-',
           },
           {
             name: t('Lease Duration Seconds'),
-            value: item.spec.leaseDurationSeconds,
+            value: item.spec?.leaseDurationSeconds ?? '-',
           },
           {
             name: t('Renew Time'),
-            value: <DateLabel date={item.spec.renewTime} />,
+            value: item.spec?.renewTime ? <DateLabel date={item.spec.renewTime} /> : '-',
           },
         ]
       }

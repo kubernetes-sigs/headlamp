@@ -86,4 +86,20 @@ describe('LeaseDetails', () => {
     const props = mockDetailsGrid.mock.calls[0][0];
     expect(props.extraInfo(null)).toBeFalsy();
   });
+
+  it('handles lease with undefined spec gracefully', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'lease' }}>
+        <LeaseDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const extraInfo = props.extraInfo({ metadata: { name: 'lease' } });
+    const byName = Object.fromEntries(extraInfo.map((f: any) => [f.name, f.value]));
+
+    expect(byName['Holder Identity']).toBe('-');
+    expect(byName['Lease Duration Seconds']).toBe('-');
+    expect(byName['Renew Time']).toBe('-');
+  });
 });
