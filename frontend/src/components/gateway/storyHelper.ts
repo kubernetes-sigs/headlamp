@@ -426,3 +426,18 @@ export const DEFAULT_BACKEND_TRAFFIC_POLICY: KubeBackendTrafficPolicy = {
     },
   },
 };
+
+export const COOKIE_BACKEND_TRAFFIC_POLICY: KubeBackendTrafficPolicy = {
+  ...DEFAULT_BACKEND_TRAFFIC_POLICY,
+  spec: {
+    ...DEFAULT_BACKEND_TRAFFIC_POLICY.spec,
+    sessionPersistence: {
+      sessionName: 'session-id',
+      type: 'Cookie',
+      absoluteTimeout: '1h',
+      cookieConfig: {
+        lifetimeType: 'Permanent',
+      },
+    },
+  },
+};

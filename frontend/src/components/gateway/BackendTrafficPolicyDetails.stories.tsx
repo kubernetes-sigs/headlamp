@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import BackendTrafficPolicyDetails from './BackendTrafficPolicyDetails';
-import { DEFAULT_BACKEND_TRAFFIC_POLICY } from './storyHelper';
+import { COOKIE_BACKEND_TRAFFIC_POLICY, DEFAULT_BACKEND_TRAFFIC_POLICY } from './storyHelper';
 
 export default {
   title: 'BackendTrafficPolicy/DetailsView',
@@ -66,3 +66,17 @@ const Template: StoryFn = () => {
 };
 
 export const Basic = Template.bind({});
+
+export const CookieSessionPersistence = Template.bind({});
+CookieSessionPersistence.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies/example-traffic-policy`,
+          () => HttpResponse.json(COOKIE_BACKEND_TRAFFIC_POLICY)
+        ),
+      ],
+    },
+  },
+};

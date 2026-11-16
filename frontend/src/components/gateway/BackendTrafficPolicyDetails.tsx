@@ -23,6 +23,21 @@ import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
 
+/**
+ * Formats session persistence settings as "key: value" labels. Nested objects such as
+ * cookieConfig are flattened to dotted keys (cookieConfig.lifetimeType: Permanent), since
+ * String() would render them as "[object Object]".
+ */
+export function formatSessionPersistence(settings: Record<string, unknown>, prefix = ''): string[] {
+  return Object.entries(settings).flatMap(([key, value]) => {
+    const label = prefix ? `${prefix}.${key}` : key;
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      return formatSessionPersistence(value as Record<string, unknown>, label);
+    }
+    return [`${label}: ${Array.isArray(value) ? value.join(', ') : String(value)}`];
+  });
+}
+
 interface RetryConstraint {
   budget?: {
     percent?: number;
@@ -104,11 +119,7 @@ export default function BackendTrafficPolicyDetails(props: { name?: string; name
             section: (
               <SectionBox title={t('Session Persistence')}>
                 {item.sessionPersistence ? (
-                  <LabelListItem
-                    labels={Object.entries(item.sessionPersistence).map(
-                      ([key, value]) => `${key}: ${String(value)}`
-                    )}
-                  />
+                  <LabelListItem labels={formatSessionPersistence(item.sessionPersistence)} />
                 ) : (
                   <EmptyContent>{t('No session persistence configured')}</EmptyContent>
                 )}
