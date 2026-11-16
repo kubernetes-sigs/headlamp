@@ -108,6 +108,30 @@ Default.parameters = {
   },
 };
 
+export const WithMatchExpressions = Template.bind({});
+WithMatchExpressions.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint`,
+          () =>
+            HttpResponse.json({
+              ...mockPDB,
+              spec: {
+                minAvailable: 1,
+                selector: {
+                  matchLabels: { 'k8s-app': 'kube-dns' },
+                  matchExpressions: [{ key: 'tier', operator: 'In', values: ['web', 'api'] }],
+                },
+              },
+            })
+        ),
+      ],
+    },
+  },
+};
+
 export const Error = Template.bind({});
 Error.parameters = {
   msw: {

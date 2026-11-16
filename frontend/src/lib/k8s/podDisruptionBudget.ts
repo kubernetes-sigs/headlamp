@@ -14,21 +14,14 @@
  * limitations under the License.
  */
 
+import type { LabelSelector } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import { matchExpressionSimplifier, matchLabelsSimplifier } from './labelSelector';
 
 export interface KubePDB extends KubeObjectInterface {
   spec: {
-    selector: {
-      matchLabels: {
-        [key: string]: string;
-      };
-      matchExpressions?: {
-        key: string;
-        operator: string;
-        values: string[];
-      };
-    };
+    selector: LabelSelector;
     minAvailable?: number;
     maxUnavailable?: number;
   };
@@ -73,13 +66,11 @@ class PDB extends KubeObject<KubePDB> {
   }
 
   get selectors(): string[] {
-    const selectors: string[] = [];
-    const matchLabels = this.spec?.selector?.matchLabels;
-    if (!matchLabels) return selectors;
-    Object.keys(matchLabels).forEach(key => {
-      selectors.push(`${key}: ${matchLabels[key]}`);
-    });
-    return selectors;
+    const selector = this.spec?.selector;
+    return [
+      ...(matchLabelsSimplifier(selector?.matchLabels) || []),
+      ...(matchExpressionSimplifier(selector?.matchExpressions) || []),
+    ];
   }
 }
 
