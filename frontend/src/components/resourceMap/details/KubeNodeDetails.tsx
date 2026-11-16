@@ -17,6 +17,7 @@
 import { Box } from '@mui/system';
 import { lazy, memo, ReactElement, Suspense, useEffect } from 'react';
 // We use React.lazy below to load the workload classes so we don't create circular dependencies.
+import CompositePodGroupDetails from '../../compositePodGroup/Details';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
@@ -46,11 +47,13 @@ import { NetworkPolicyDetails } from '../../networkpolicy/Details';
 import NodeDetails from '../../node/Details';
 import PodDetails from '../../pod/Details';
 import PDBDetails from '../../podDisruptionBudget/Details';
+import PodGroupDetails from '../../podGroup/Details';
 import PriorityClassDetails from '../../priorityClass/Details';
 import ResourceQuotaDetails from '../../resourceQuota/Details';
 import RoleBindingDetails from '../../role/BindingDetails';
 import RoleDetails from '../../role/Details';
 import { RuntimeClassDetails } from '../../runtimeClass/Details';
+import SchedulingWorkloadDetails from '../../schedulingWorkload/Details';
 import SecretDetails from '../../secret/Details';
 import ServiceDetails from '../../service/Details';
 import ServiceAccountDetails from '../../serviceaccount/Details';
@@ -162,6 +165,9 @@ const kindComponentMap: Record<
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,
   XBackendTrafficPolicy: BackendTLSPolicyDetails,
+  Workload: SchedulingWorkloadDetails,
+  CompositePodGroup: CompositePodGroupDetails,
+  PodGroup: PodGroupDetails,
 };
 
 export { canRenderDetails } from './supportedKinds';
