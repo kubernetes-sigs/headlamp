@@ -104,6 +104,7 @@ jobs:
       - name: Sign chart packages with cosign (keyless)
         id: sign
         if: steps.cr.outputs.changed_charts != ''
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           CHANGED_CHARTS: ${{ steps.cr.outputs.changed_charts }}
@@ -173,4 +174,48 @@ jobs:
             pkg="${release#*=}"
             cp "$BUNDLE_PATH" ".cr-release-attest/${pkg}.intoto.jsonl"
             gh release upload "$tag" ".cr-release-attest/${pkg}.intoto.jsonl"
+          done
+
+      - name: Verify published chart signatures and provenance
+        if: steps.cr.outputs.changed_charts != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGED_CHARTS: ${{ steps.cr.outputs.changed_charts }}
+        run: |
+          verification_dir=$(mktemp -d)
+          trap 'rm -rf "$verification_dir"' EXIT
+          identity='https://github.com/kubernetes-sigs/headlamp/.github/workflows/helm-chart-release.yml@refs/heads/main'
+          issuer='https://token.actions.githubusercontent.com'
+          IFS=',' read -ra charts <<< "$CHANGED_CHARTS"
+          for chart in "${charts[@]}"; do
+            metadata=$(helm show chart "$chart")
+            name=$(awk '/^name:/ { print $2; exit }' <<< "$metadata")
+            version=$(awk '/^version:/ { print $2; exit }' <<< "$metadata")
+            if [ -z "$name" ] || [ -z "$version" ]; then
+              echo "::error::Chart metadata is missing name or version: ${chart}"
+              exit 1
+            fi
+            tag="${name}-helm-${version}"
+            pkg="${name}-${version}.tgz"
+            commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)
+            if [ "$commit" != "$GITHUB_SHA" ]; then
+              echo "::notice::Verification skipped for ${tag}: release commit ${commit} differs from workflow commit ${GITHUB_SHA}; historical assets are left unchanged"
+              continue
+            fi
+            directory="${verification_dir}/${tag}"
+            mkdir -p "$directory"
+            for asset in "$pkg" "${pkg}.sigstore.json" "${pkg}.intoto.jsonl"; do
+              gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+                --pattern "$asset" --dir "$directory"
+            done
+            cosign verify-blob "${directory}/${pkg}" \
+              --bundle "${directory}/${pkg}.sigstore.json" \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer "$issuer"
+            cosign verify-blob-attestation "${directory}/${pkg}" \
+              --bundle "${directory}/${pkg}.intoto.jsonl" \
+              --type https://slsa.dev/provenance/v1 \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer "$issuer"
           done

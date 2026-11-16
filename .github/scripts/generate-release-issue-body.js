@@ -89,6 +89,11 @@ Please write a comment if you're going to test an item and if you've completed t
   - Go to the Pods page and choose a pod
   - Verify the Prometheus plugin shows at the top and displays correctly
 
+- [ ] **Chart: Verify published signatures and provenance**
+  - After the chart release, confirm the Release Charts workflow verified that chart; a skipped verification does not count
+  - Follow [Verifying Releases](https://headlamp.dev/docs/latest/installation/verify-releases/#helm-chart) using the published chart version in a fresh directory
+  - Record the chart version and successful verification workflow run in this issue before marking chart release verification complete
+
 - [ ] **App: Test Plugin Catalog**
   - Run the app
   - Verify the Plugin Catalog sidebar item is available and open it

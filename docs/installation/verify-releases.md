@@ -116,6 +116,14 @@ Chart releases on GitHub (`headlamp-helm-X.Y.Z`) include the chart package,
 additionally include `headlamp-X.Y.Z.tgz.sigstore.json` (a Sigstore signature
 bundle) and `headlamp-X.Y.Z.tgz.intoto.jsonl` (SLSA provenance).
 
+The chart release workflow verifies the downloaded package against both published
+bundles before reporting success for releases created from that workflow's
+commit, including reruns. This is a post-publication check: a failed run may
+leave an incomplete release that needs attention. Releases from other commits
+are left unchanged and reported as skipped, not verified; a skipped check does
+not satisfy the release checklist. Release coordinators should also record an independent
+verification using the commands below.
+
 To verify the chart with cosign, download the chart and its signature bundle,
 then check that it was signed by the chart release workflow running from the
 `main` branch:

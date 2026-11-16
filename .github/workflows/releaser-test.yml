@@ -4,12 +4,20 @@ on:
   pull_request:
     paths:
       - 'tools/releaser/**'
+      - '.github/scripts/test-release-provenance.py'
+      - '.github/scripts/generate-release-issue-body.js'
+      - '.github/workflows/helm-chart-release.yml'
+      - '.github/workflows/push-release-assets.yml'
       - '.github/workflows/releaser-test.yml'
   push:
     branches:
       - main
     paths:
       - 'tools/releaser/**'
+      - '.github/scripts/test-release-provenance.py'
+      - '.github/scripts/generate-release-issue-body.js'
+      - '.github/workflows/helm-chart-release.yml'
+      - '.github/workflows/push-release-assets.yml'
       - '.github/workflows/releaser-test.yml'
 
 permissions:
@@ -36,3 +44,7 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Test release verification gates
+        working-directory: .
+        run: python3 .github/scripts/test-release-provenance.py
