@@ -5,6 +5,9 @@ on:
     paths:
       - 'tools/releaser/**'
       - '.github/scripts/test-release-provenance.py'
+      - '.github/scripts/sdk-release*.js'
+      - '.github/workflows/publish-headlamp-plugin.yml'
+      - 'plugins/headlamp-plugin/package.json'
       - '.github/scripts/generate-release-issue-body.js'
       - '.github/workflows/helm-chart-release.yml'
       - '.github/workflows/push-release-assets.yml'
@@ -15,6 +18,9 @@ on:
     paths:
       - 'tools/releaser/**'
       - '.github/scripts/test-release-provenance.py'
+      - '.github/scripts/sdk-release*.js'
+      - '.github/workflows/publish-headlamp-plugin.yml'
+      - 'plugins/headlamp-plugin/package.json'
       - '.github/scripts/generate-release-issue-body.js'
       - '.github/workflows/helm-chart-release.yml'
       - '.github/workflows/push-release-assets.yml'
@@ -48,3 +54,7 @@ jobs:
       - name: Test release verification gates
         working-directory: .
         run: python3 .github/scripts/test-release-provenance.py
+
+      - name: Test SDK publication guards
+        working-directory: .
+        run: node --test .github/scripts/sdk-release.test.js
