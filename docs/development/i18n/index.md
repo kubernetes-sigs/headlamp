@@ -4,8 +4,18 @@ sidebar_label: Internationalization
 sidebar_position: 5
 ---
 
-Headlamp's internationalization uses the i18next, i18next-parser, and
+Headlamp's internationalization uses the i18next, i18next-cli, and
 react-i18next libraries.
+
+Run `npm run i18n` from the frontend or app directory to extract keys.
+The bundled configuration preserves dynamic keys and shared namespaces.
+Plugins using `headlamp-plugin i18n` without a custom config need no changes.
+Custom extraction configs must use `i18next.config.*`; legacy-only configs fail
+with migration guidance rather than being ignored. Run
+`npx i18next-cli migrate-config i18next-parser.config.js` in the plugin directory
+and review the generated config. Plugins invoking the old `i18next` executable
+directly must update their script to use `i18next-cli extract`. This changes
+development tooling, not the runtime format of installed plugins.
 
 ## Default language, and locales
 

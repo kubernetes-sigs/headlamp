@@ -36,6 +36,7 @@ function testHeadlampPlugin() {
   run('npm', ['run', 'test:typescript']);
   run('npm', ['run', 'test:storybook-mocks']);
   run('npm', ['run', 'test:upgrade']);
+  run('npm', ['run', 'test:i18n']);
   run('npm', ['run', 'build']);
   checkFileContains(join('lib', 'index.js'), 'DefaultCreateProject');
   checkFileContains(join('lib', 'index.d.ts'), 'DefaultCreateProject');

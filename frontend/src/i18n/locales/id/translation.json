@@ -815,7 +815,7 @@
   "No rules data to be shown.": "Tidak ada data aturan yang akan ditampilkan.",
   "Section Name": "Nama Bagian",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Tekan<1>{formatShortcutKey(searchShortcutKey)}</1>untuk mencari",
+  "Press<1>{{shortcut}}</1>to search": "Tekan<1>{{shortcut}}</1>untuk mencari",
   "Search resources, pages, clusters by name": "Cari sumber daya, halaman, kluster berdasarkan nama",
   "Current Namespace": "Namespace Saat Ini",
   "Set namespace: {{namespace}}": "Tetapkan namespace: {{namespace}}",
@@ -1136,5 +1136,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

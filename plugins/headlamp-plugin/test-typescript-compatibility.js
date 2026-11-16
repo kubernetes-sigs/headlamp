@@ -106,7 +106,7 @@ function checkCompilerApis(directory) {
   );
   for (const [name, consumerRequire] of [
     ['parser', estreeRequire],
-    ...['ts-loader', 'react-docgen-typescript', 'i18next-parser'].map(name => [
+    ...['ts-loader', 'react-docgen-typescript'].map(name => [
       name,
       createRequire(toolingRequire.resolve(name)),
     ]),

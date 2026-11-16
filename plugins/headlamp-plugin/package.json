@@ -15,6 +15,7 @@
     "test:typescript:compatibility": "node test-typescript-compatibility.js",
     "test:storybook-mocks": "vitest run -c config/vite.config.mjs storybookBaseMocks.test.ts",
     "test:upgrade": "node --test test-upgrade.js",
+    "test:i18n": "node --test test-i18n.js",
     "update-dependencies": "node dependencies-sync.js update && npm install && node scripts/copy-package-lock.js",
     "check-dependencies": "node dependencies-sync.js check",
     "copy-package-lock": "node scripts/copy-package-lock.js"
@@ -82,7 +83,7 @@
     "fuse.js": "^7.0.0",
     "i18next": "^23.15.1",
     "i18next-browser-languagedetector": "^8.0.0",
-    "i18next-parser": "^9.1.0",
+    "i18next-cli": "1.85.1",
     "js-base64": "^3.7.2",
     "js-yaml": "^4.3.2",
     "jsdom": "^24.0.0",

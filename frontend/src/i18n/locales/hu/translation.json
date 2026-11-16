@@ -822,7 +822,7 @@
   "No rules data to be shown.": "Nincsenek megjeleníthető szabályadatok.",
   "Section Name": "Szakasz neve",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "A kereséshez nyomja le a<1>{formatShortcutKey(searchShortcutKey)}</1>billentyűkombinációt",
+  "Press<1>{{shortcut}}</1>to search": "A kereséshez nyomja le a<1>{{shortcut}}</1>billentyűkombinációt",
   "Search resources, pages, clusters by name": "Erőforrások, lapok és fürtök keresése név szerint",
   "Current Namespace": "Aktuális névtér",
   "Set namespace: {{namespace}}": "Névtér beállítása: {{namespace}}",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

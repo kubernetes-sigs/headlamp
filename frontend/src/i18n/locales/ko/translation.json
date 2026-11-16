@@ -815,7 +815,7 @@
   "No rules data to be shown.": "표시할 규칙 데이터가 없습니다.",
   "Section Name": "섹션 이름",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "",
+  "Press<1>{{shortcut}}</1>to search": "",
   "Search resources, pages, clusters by name": "이름으로 리소스, 페이지, 클러스터 검색",
   "Current Namespace": "",
   "Set namespace: {{namespace}}": "",
@@ -1136,5 +1136,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

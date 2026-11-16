@@ -1496,13 +1496,35 @@ function test(packageFolder) {
  * This will configure the plugin for internationalization by:
  * 1. Adding "i18n": ["en", "es", ...] to package.json headlamp config with supported locales
  * 2. Creating the locales directory structure
- * 3. Adding npm script for i18n extraction using bundled i18next-parser
- * 4. Creating i18next parser configuration
- * 5. Running i18next-parser to extract translatable strings
+ * 3. Adding npm script for i18n extraction using bundled i18next-cli
+ * 4. Configuring translation locales
+ * 5. Running i18next-cli to extract translatable strings
  *
  * @param packageFolder {string} - folder where the package is.
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
+function extractTranslations(packageFolder) {
+  const localConfig = ['ts', 'js', 'mjs', 'cjs']
+    .map(extension => path.join(packageFolder, `i18next.config.${extension}`))
+    .find(filename => fs.existsSync(filename));
+  const legacyConfig = ['js', 'ts', 'mjs', 'cjs']
+    .map(extension => path.join(packageFolder, `i18next-parser.config.${extension}`))
+    .find(filename => fs.existsSync(filename));
+  if (!localConfig && legacyConfig) {
+    throw new Error(
+      `Migrate ${path.basename(legacyConfig)} to i18next.config.* before extracting. ` +
+        `Run npx i18next-cli migrate-config ${path.basename(legacyConfig)} and review the result.`
+    );
+  }
+  const config = localConfig || path.join(__dirname, '..', 'config', 'i18next.config.cjs');
+  const cliPackage = require.resolve('i18next-cli/package.json');
+  const cli = path.resolve(path.dirname(cliPackage), require(cliPackage).bin['i18next-cli']);
+  child_process.execFileSync(process.execPath, [cli, 'extract', '--config', config], {
+    stdio: 'inherit',
+    cwd: packageFolder,
+  });
+}
+
 function setupI18n(packageFolder) {
   if (!fs.existsSync(packageFolder)) {
     console.error(`"${packageFolder}" does not exist. Not setting up i18n.`);
@@ -1583,32 +1605,9 @@ function setupI18n(packageFolder) {
         }
       });
 
-      // Check if there's a local config file - if not, we'll use the bundled one
-      const localConfigPath = 'i18next-parser.config.js';
-      if (fs.existsSync(localConfigPath)) {
-        console.log(`⚙️ Using existing local i18next-parser configuration`);
-      } else {
-        console.log(`⚙️ Using default i18next-parser configuration from headlamp-plugin`);
-      }
-
-      // Run i18next-parser to extract translatable strings
       console.log(`🔍 Extracting translatable strings from source code...`);
-      const i18nextPath = path.join(__dirname, '..', 'node_modules', '.bin', 'i18next' + binExt);
-      const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
-
-      try {
-        child_process.execFileSync(
-          ...viaCmd(i18nextPath, ['src/**/*.{ts,tsx,js,jsx}', '-c', bundledConfigPath]),
-          {
-            stdio: 'inherit',
-            cwd: process.cwd(),
-          }
-        );
-        console.log(`📝 Successfully extracted translatable strings`);
-      } catch (error) {
-        console.warn(`⚠️ Warning: Failed to run i18next-parser: ${error.message}`);
-        console.log(`💡 You can manually run: npm run i18n`);
-      }
+      extractTranslations(process.cwd());
+      console.log(`📝 Successfully extracted translatable strings`);
 
       console.log(`\n🎉 i18n setup complete for ${packageJson.name}!`);
       console.log(`\n📖 Next steps:`);
@@ -1619,8 +1618,7 @@ function setupI18n(packageFolder) {
       console.log(`2. Add more locales: npm run i18n <locale> (e.g., npm run i18n es)`);
       console.log(`3. Extract updated translatable strings: npm run i18n`);
       console.log(`4. Add translations in locales/<locale>/translation.json`);
-      console.log(`\n💡 Note: Using default i18next-parser configuration from headlamp-plugin.`);
-      console.log(`   If you need custom configuration, create your own i18next-parser.config.js`);
+      console.log(`\n💡 For custom extraction settings, create an i18next.config.js file.`);
 
       return true;
     } catch (error) {
@@ -1657,25 +1655,22 @@ function setupI18n(packageFolder) {
     return allSuccessful;
   }
 
-  // Try to set up i18n for a single package first
-  const singlePackageResult = setupI18nForPackage(packageFolder);
+  if (fs.existsSync(path.join(packageFolder, 'package.json'))) {
+    return setupI18nForPackage(packageFolder) ? 0 : 1;
+  }
 
-  if (!singlePackageResult) {
-    // If it's not a single package, try treating it as a folder of packages
-    const folderResult = setupI18nForFolderOfPackages();
-    if (!folderResult) {
-      console.error(
-        `"${packageFolder}" does not contain a package or packages. Not setting up i18n.`
-      );
-      return 1;
-    }
+  if (!setupI18nForFolderOfPackages()) {
+    console.error(
+      `Could not set up i18n packages in "${packageFolder}". Check package manifests and extraction errors.`
+    );
+    return 1;
   }
 
   return 0;
 }
 
 /**
- * Run i18next-parser to extract translatable strings from a plugin.
+ * Run i18next-cli to extract translatable strings from a plugin.
  * This is called when the user runs 'headlamp-plugin i18n' directly.
  * If a locale is provided, it will be added to the supported locales in package.json.
  *
@@ -1786,42 +1781,8 @@ function extractI18n(packageFolder, newLocale) {
       }
     }
 
-    // Check for local config first, then fall back to bundled config
-    const localConfigPath = path.join(packageFolder, 'i18next-parser.config.js');
-    const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
-
-    let configToUse = '';
-    if (fs.existsSync(localConfigPath)) {
-      configToUse = './i18next-parser.config.js';
-      console.log(`🔍 Using local i18next-parser configuration`);
-    } else if (fs.existsSync(bundledConfigPath)) {
-      configToUse = bundledConfigPath;
-      console.log(`🔍 Using bundled i18next-parser configuration`);
-    } else {
-      console.error(
-        `❌ No i18next-parser configuration found. Run 'headlamp-plugin setup-i18n' first.`
-      );
-      return 1;
-    }
-
     console.log(`🔍 Extracting translatable strings from ${packageJson.name || packageFolder}...`);
-
-    // Use npx to run i18next from the headlamp-plugin package
-    const headlampPluginPath = path.join(__dirname, '..');
-    child_process.execFileSync(
-      ...viaCmd('npx' + binExt, [
-        '--prefix',
-        headlampPluginPath,
-        'i18next',
-        'src/**/*.{ts,tsx,js,jsx}',
-        '-c',
-        configToUse,
-      ]),
-      {
-        stdio: 'inherit',
-        cwd: packageFolder,
-      }
-    );
+    extractTranslations(packageFolder);
 
     console.log(
       `✅ Successfully extracted translatable strings for ${packageJson.name || packageFolder}`

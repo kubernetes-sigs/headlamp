@@ -822,7 +822,7 @@
   "No rules data to be shown.": "Gösterilecek kural verisi yok.",
   "Section Name": "Bölüm Adı",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Aramak için<1>{formatShortcutKey(searchShortcutKey)}</1>tuşuna basın",
+  "Press<1>{{shortcut}}</1>to search": "Aramak için<1>{{shortcut}}</1>tuşuna basın",
   "Search resources, pages, clusters by name": "Kaynakları, sayfaları ve kümeleri ada göre ara",
   "Current Namespace": "Geçerli Ad Alanı",
   "Set namespace: {{namespace}}": "Ad alanını ayarlayın: {{namespace}}",
@@ -1148,5 +1148,8 @@
   "Go to Pods": "Podlara Git",
   "Navigate to the Pods list": "Pod listesine git",
   "Go to Deployments": "Dağıtımlara Git",
-  "Navigate to the Deployments list": "Dağıtım listesine git"
+  "Navigate to the Deployments list": "Dağıtım listesine git",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

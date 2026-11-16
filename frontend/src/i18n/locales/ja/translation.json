@@ -815,7 +815,7 @@
   "No rules data to be shown.": "表示するルールデータがありません。",
   "Section Name": "セクション名",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "",
+  "Press<1>{{shortcut}}</1>to search": "",
   "Search resources, pages, clusters by name": "名前でリソース、ページ、クラスターを検索",
   "Current Namespace": "",
   "Set namespace: {{namespace}}": "",
@@ -1136,5 +1136,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }

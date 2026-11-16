@@ -80,7 +80,7 @@ export default function VpaList() {
           <Paper variant="outlined">
             <Empty>
               <Typography style={{ textAlign: 'center' }}>
-                <Trans t={t}>
+                <Trans t={t} i18nKey="Vertical Pod Autoscaler is not enabled. <1>Learn More</1>">
                   Vertical Pod Autoscaler is not enabled.&nbsp;
                   <Link
                     href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler#installation"

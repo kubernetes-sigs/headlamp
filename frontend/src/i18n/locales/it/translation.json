@@ -829,7 +829,7 @@
   "No rules data to be shown.": "Nessun dato sulle regole da mostrare.",
   "Section Name": "Nome Sezione",
   "Parent Status": "",
-  "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "",
+  "Press<1>{{shortcut}}</1>to search": "",
   "Search resources, pages, clusters by name": "Cerca risorse, pagine, cluster per nome",
   "Current Namespace": "",
   "Set namespace: {{namespace}}": "",
@@ -1160,5 +1160,8 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "development": "",
+  "user-installed": "",
+  "shipped": ""
 }
