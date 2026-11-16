@@ -170,6 +170,19 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 		return fmt.Errorf("error getting existing contexts: %w", err)
 	}
 
+	// A renamed context is stored under its custom name, not the one in the file.
+	newNames := make(map[string]struct{}, len(newContexts))
+
+	for i := range newContexts {
+		name, err := storeName(&newContexts[i])
+		if err != nil {
+			// AddContext refuses this context for the same reason.
+			continue
+		}
+
+		newNames[name] = struct{}{}
+	}
+
 	// Find and remove contexts that no longer exist in the kubeconfig
 	// but only for contexts that came from KubeConfig source
 	for _, existingCtx := range existingContexts {
@@ -178,17 +191,7 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 			continue
 		}
 
-		found := false
-
-		for _, newCtx := range newContexts {
-			if existingCtx.Name == newCtx.Name {
-				found = true
-
-				break
-			}
-		}
-
-		if !found {
+		if _, found := newNames[existingCtx.Name]; !found {
 			err := kubeConfigStore.RemoveContext(existingCtx.Name)
 			if err != nil {
 				logger.Log(logger.LevelError, nil, err, "error removing context")

@@ -232,6 +232,75 @@ func TestSyncContextsMissingFile(t *testing.T) {
 	require.Equal(t, dynamicName, contexts[0].Name)
 }
 
+// removalRecorder is a ContextStore that records the contexts removed from it.
+type removalRecorder struct {
+	kubeconfig.ContextStore
+
+	removed []string
+}
+
+func (s *removalRecorder) RemoveContext(name string) error {
+	s.removed = append(s.removed, name)
+
+	return s.ContextStore.RemoveContext(name)
+}
+
+// TestSyncContextsKeepsRenamedContext: a sync does not remove a renamed
+// context, unless its custom name is gone from the file.
+func TestSyncContextsKeepsRenamedContext(t *testing.T) {
+	const (
+		original = "minikube"
+		renamed  = "renamed-cluster"
+		other    = "docker-desktop"
+	)
+
+	kubeConfigPath := filepath.Join(t.TempDir(), "config")
+
+	// setCustomName writes the custom name the way a rename does ("" clears it).
+	setCustomName := func(t *testing.T, name string) {
+		t.Helper()
+
+		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
+		require.NoError(t, err)
+
+		if name != "" {
+			config.Contexts[original].Extensions["headlamp_info"] = &kubeconfig.CustomObject{CustomName: name}
+		}
+
+		require.NoError(t, clientcmd.WriteToFile(*config, kubeConfigPath))
+	}
+
+	names := func(t *testing.T, store kubeconfig.ContextStore) []string {
+		t.Helper()
+
+		contexts, err := store.GetContexts()
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(contexts))
+		for _, kCtx := range contexts {
+			names = append(names, kCtx.Name)
+		}
+
+		return names
+	}
+
+	setCustomName(t, renamed)
+
+	store := &removalRecorder{ContextStore: kubeconfig.NewContextStore()}
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+	require.ElementsMatch(t, []string{other, renamed}, names(t, store))
+
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+	require.Empty(t, store.removed, "nothing left the file")
+	require.ElementsMatch(t, []string{other, renamed}, names(t, store))
+
+	setCustomName(t, "")
+
+	require.NoError(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+	require.Equal(t, []string{renamed}, store.removed)
+	require.ElementsMatch(t, []string{other, original}, names(t, store))
+}
+
 // captureErrorLogs records the messages logged at error level until the test ends.
 func captureErrorLogs(t *testing.T) func() []string {
 	t.Helper()
