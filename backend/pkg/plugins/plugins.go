@@ -677,5 +677,7 @@ func isSubdirectory(parentDir, dirPath string) bool {
 		return false
 	}
 
-	return !strings.HasPrefix(rel, "..") && !strings.HasPrefix(rel, ".")
+	// Reject the parent itself and any path that escapes it, but allow
+	// child directories whose names start with a dot.
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
