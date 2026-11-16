@@ -660,7 +660,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
                 <ListItemIcon>
                   <Icon icon={meta.icon} width="20" />
                 </ListItemIcon>
-                <ListItemText>{t(meta.labelKey)}</ListItemText>
+                <ListItemText>{t(meta.labelKey, { ns: ['glossary', 'translation'] })}</ListItemText>
               </MenuItem>
             ))}
           </React.Fragment>
