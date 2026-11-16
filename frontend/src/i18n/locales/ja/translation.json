@@ -406,9 +406,12 @@
   "To confirm, type {{ name }} in the field below.": "",
   "Namespace name": "",
   "Are you sure you want to delete the following items?": "以下のアイテムを削除してもよろしいですか？",
+  "and {{ count }} more_other": "",
+  "Pods deleted instead of evicted because eviction is not permitted: {{ pods }}.": "",
+  "Pods skipped because their eviction permission could not be verified: {{ pods }}.": "",
+  "Deleted {{ itemsLength }} items.": "{{ itemsLength }} 個のアイテムを削除しました。",
   "Deleting {{ itemsLength }} items…": "{{ itemsLength }} 個のアイテムを削除中…",
   "Cancelled deletion of {{ itemsLength }} items.": "{{ itemsLength }} 個のアイテムの削除をキャンセルしました。",
-  "Deleted {{ itemsLength }} items.": "{{ itemsLength }} 個のアイテムを削除しました。",
   "Error deleting {{ itemsLength }} items.": "{{ itemsLength }} 個のアイテムの削除中にエラーが発生しました。",
   "Delete items": "アイテムの削除",
   "Your selection includes system namespaces. Deleting them may break your cluster.": "",
@@ -1136,5 +1139,6 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "and {{ count }} more_one": ""
 }
