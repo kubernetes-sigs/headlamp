@@ -35,10 +35,13 @@ EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
 APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
-# Build flags with version and app name
-BUILD_VERSION_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
+APP_VERSION := $(APP_VERSION)
+APP_NAME := $(APP_NAME)
+export APP_VERSION APP_NAME
+# The shared driver combines version metadata with caller-supplied Go flags.
+BUILD_VERSION_FLAGS := --version-metadata
 # embed build flags
-EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
+EMBED_BUILD_FLAGS := $(BUILD_VERSION_FLAGS) --embed
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
@@ -54,6 +57,46 @@ ifeq ($(OS), Windows_NT)
 	endif
 else
 	UNIXSHELL = true
+endif
+
+# Bootstrap the stdlib-only driver for the host, never for a caller's cross-build
+# target. Only these Go subprocesses receive the sanitized environment.
+# Probe the executing shell: cmd.exe retains single quotes; POSIX shells remove
+# them. Windows Make may fall back to cmd.exe while SHELL still names sh.exe.
+# The semicolon prevents Make from launching an external echo directly.
+BACKEND_POSIX_SHELL := $(shell echo 'headlamp-posix-shell';)
+BACKEND_BOOTSTRAP_SETTINGS = GOENV=off GO111MODULE=off GOTOOLCHAIN=local GOFLAGS= GOWORK=off CGO_ENABLED=0 GOOS= GOARCH= GOEXPERIMENT= GO386= GOAMD64= GOARM= GOARM64= GOMIPS= GOMIPS64= GOPPC64= GORISCV64= GOWASM= GOFIPS140=off
+# Resolve once on first use, so unrelated targets do not invoke Go.
+ifeq ($(BACKEND_POSIX_SHELL),headlamp-posix-shell)
+	BACKEND_BOOTSTRAP_ENV = $(BACKEND_BOOTSTRAP_SETTINGS)
+	BACKEND_BUILD_HOST = $(eval BACKEND_BUILD_HOST := $(shell $(BACKEND_BOOTSTRAP_ENV) go env GOHOSTOS GOHOSTARCH))$(BACKEND_BUILD_HOST)
+else
+	BACKEND_BOOTSTRAP_CMD = $(foreach setting,$(BACKEND_BOOTSTRAP_SETTINGS),set "$(setting)"&&)
+	BACKEND_BUILD_HOST = $(eval BACKEND_BUILD_HOST := $(shell $(BACKEND_BOOTSTRAP_CMD) go env GOHOSTOS GOHOSTARCH))$(BACKEND_BUILD_HOST)
+	BACKEND_BUILD_ID := $(shell echo %RANDOM%-%RANDOM%-%RANDOM%)
+endif
+BACKEND_BUILD_TOOL = $(CURDIR)/backend/.build/backend-build-$(word 1,$(BACKEND_BUILD_HOST))-$(word 2,$(BACKEND_BUILD_HOST))
+BACKEND_BUILD_EXE_EXT = $(if $(filter windows,$(word 1,$(BACKEND_BUILD_HOST))),.exe)
+BACKEND_BUILD_TOOL_WINDOWS = $(BACKEND_BUILD_TOOL)-$(BACKEND_BUILD_ID)-$@$(BACKEND_BUILD_EXE_EXT)
+
+# Use a distinct executable for each recipe so concurrent builds never replace
+# a running Windows executable. Go's cache handles unchanged source/toolchains.
+ifeq ($(BACKEND_POSIX_SHELL),headlamp-posix-shell)
+define build-backend
+	@set -e; \
+	tool="$(BACKEND_BUILD_TOOL)-$$$$$(BACKEND_BUILD_EXE_EXT)"; \
+	trap 'status=$$?; if command -v rm >/dev/null 2>&1; then if ! rm -f "$$tool"; then printf "Failed to remove bootstrap: %s\n" "$$tool" >&2; if [ "$$status" -eq 0 ]; then status=1; fi; fi; else printf "Bootstrap retained (rm unavailable): %s\n" "$$tool" >&2; fi; exit "$$status"' 0; \
+	trap 'exit 130' INT; trap 'exit 129' HUP; trap 'exit 143' TERM; \
+	$(BACKEND_BOOTSTRAP_ENV) go build -o "$$tool" tools/build-backend.go; \
+	cd backend; \
+	$(2) "$$tool" $(1)
+endef
+else
+# Separate recipe shells keep bootstrap-only set commands out of the backend.
+define build-backend
+	$(BACKEND_BOOTSTRAP_CMD) go build -o "$(BACKEND_BUILD_TOOL_WINDOWS)" tools/build-backend.go
+	cd backend && $(foreach setting,$(2),set "$(setting)"&&) "$(BACKEND_BUILD_TOOL_WINDOWS)" $(1) && (del /Q "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" & if exist "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" (echo Failed to remove backend bootstrap: "$(BACKEND_BUILD_TOOL_WINDOWS)" >&2 & exit /B 1)) || (if exist "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" del /Q "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" & exit /B 1)
+endef
 endif
 
 all: backend frontend
@@ -122,13 +165,13 @@ app-i18n-check: app/node_modules/.package-lock.json
 
 .PHONY: backend
 backend:
-	cd backend && go build $(BUILD_VERSION_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+	$(call build-backend,$(BUILD_VERSION_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd)
 
 .PHONY: backend-embed
 backend-embed:
 	REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN=false $(MAKE) frontend-build
 	$(MAKE) backend-embed-prepare
-	cd backend && go build $(EMBED_BUILD_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd)
 
 # New multi-platform build targets
 .PHONY: backend-embed-all
@@ -185,17 +228,17 @@ backend-embed-windows:
 
 backend-embed-windows-arm64:
 	@echo "Building for windows/arm64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe ./cmd,CGO_ENABLED=0 GOOS=windows GOARCH=arm64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe"
 
 backend-embed-windows-amd64:
 	@echo "Building for windows/amd64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe ./cmd,CGO_ENABLED=0 GOOS=windows GOARCH=amd64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe"
 
 backend-embed-windows-386:
 	@echo "Building for windows/386 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe ./cmd,CGO_ENABLED=0 GOOS=windows GOARCH=386)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe"
 
 # macOS(darwin) builds
@@ -208,12 +251,12 @@ backend-embed-darwin:
 
 backend-embed-darwin-amd64:
 	@echo "Building for darwin/amd64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64 ./cmd,CGO_ENABLED=0 GOOS=darwin GOARCH=amd64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64"
 
 backend-embed-darwin-arm64:
 	@echo "Building for darwin/arm64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64 ./cmd,CGO_ENABLED=0 GOOS=darwin GOARCH=arm64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64"
 
 # Linux builds
@@ -227,17 +270,17 @@ backend-embed-linux:
 
 backend-embed-linux-amd64:
 	@echo "Building for linux/amd64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64 ./cmd,CGO_ENABLED=0 GOOS=linux GOARCH=amd64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64"
 
 backend-embed-linux-arm64:
 	@echo "Building for linux/arm64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64 ./cmd,CGO_ENABLED=0 GOOS=linux GOARCH=arm64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64"
 
 backend-embed-linux-386:
 	@echo "Building for linux/386 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_386 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_386 ./cmd,CGO_ENABLED=0 GOOS=linux GOARCH=386)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_386"
 
 .PHONY: backend-test

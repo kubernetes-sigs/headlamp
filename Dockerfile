@@ -10,8 +10,10 @@ WORKDIR /headlamp
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG GOFLAGS
 ENV GOPATH=/go \
     GOPROXY=https://proxy.golang.org \
+    GOFLAGS=${GOFLAGS} \
     GO111MODULE=on\
     CGO_ENABLED=0\ 
     GOOS=${TARGETOS}\

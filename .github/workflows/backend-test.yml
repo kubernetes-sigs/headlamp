@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'Makefile'
+      - 'tools/build-backend.go'
       - '.github/workflows/backend-test.yml'
   push:
     branches:
