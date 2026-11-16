@@ -67,6 +67,7 @@ import {
 } from './developmentPlugins';
 import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
+import { getPluginBaseName, isOfficiallyScoped } from './officialScope';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
@@ -242,33 +243,51 @@ export function filterSources(
  * Apply priority-based plugin loading logic.
  *
  * When multiple versions of the same plugin exist across different locations:
+ * - Plugins renamed into the official scope take priority over their old unscoped name
  * - Priority order: development > user > shipped
  * - Only the highest priority ENABLED version is loaded
- * - If a higher priority version is disabled, the next enabled version is loaded
+ * - If a higher priority version is disabled, the next enabled version is loaded, without
+ *   falling back to a name outside the official scope
  * - Lower priority versions are marked with isLoaded=false and overriddenBy info
  *
  * @param plugins List of all plugins from all locations
+ * @param blockedPluginNames Names of installed plugins that are not allowed to load, such as
+ *   development plugins while development mode is off. They are never loaded, but a scoped one
+ *   still stops its old unscoped name from loading.
  * @returns Plugins with isLoaded and overriddenBy fields set appropriately
  */
-export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
-  // Group plugins by name
+export function applyPluginPriority(
+  plugins: PluginInfo[],
+  blockedPluginNames: string[] = []
+): PluginInfo[] {
+  const blockedOfficialNames = new Set(
+    blockedPluginNames.filter(name => isOfficiallyScoped({ name })).map(getPluginBaseName)
+  );
+
+  // Group plugins by name, ignoring the official scope
   const pluginsByName = new Map<string, PluginInfo[]>();
 
   plugins.forEach(plugin => {
-    const existing = pluginsByName.get(plugin.name) || [];
+    const name = getPluginBaseName(plugin.name);
+    const existing = pluginsByName.get(name) || [];
     existing.push(plugin);
-    pluginsByName.set(plugin.name, existing);
+    pluginsByName.set(name, existing);
   });
 
   const result: PluginInfo[] = [];
 
   // Process each plugin name group
-  pluginsByName.forEach(versions => {
+  pluginsByName.forEach((versions, name) => {
+    const hasBlockedOfficialVersion = blockedOfficialNames.has(name);
+
     if (versions.length === 1) {
-      // Only one version exists, mark it as loaded if enabled
+      // Only one version exists, mark it as loaded if enabled and not blocked by a scoped one
       result.push({
         ...versions[0],
-        isLoaded: versions[0].isEnabled !== false,
+        isLoaded:
+          versions[0].isEnabled !== false &&
+          (isOfficiallyScoped(versions[0]) || !hasBlockedOfficialVersion),
+        overriddenBy: undefined,
       });
       return;
     }
@@ -287,10 +306,16 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
       return aPriority - bPriority;
     });
 
+    // A name we do not control must not run while the scoped package is installed, even if that
+    // package is disabled
+    const officialVersions = sortedVersions.filter(isOfficiallyScoped);
+    const candidates =
+      officialVersions.length > 0 || hasBlockedOfficialVersion ? officialVersions : sortedVersions;
+
     // Find the highest priority enabled version
     let loadedVersion: PluginInfo | null = null;
 
-    for (const version of sortedVersions) {
+    for (const version of candidates) {
       if (version.isEnabled !== false) {
         loadedVersion = version;
         break;
@@ -304,9 +329,10 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
         result.push({
           ...version,
           isLoaded: true,
+          overriddenBy: undefined,
         });
       } else {
-        // This version is overridden by a higher priority version
+        // This version is overridden by a higher priority version, or by a disabled scoped one
         result.push({
           ...version,
           isLoaded: false,
@@ -516,6 +542,21 @@ export async function fetchAndExecutePlugins(
   // Extract paths for fetching plugin files
   const pluginPaths = pluginMetadataList.map(metadata => metadata.path);
 
+  // Read only the package.json of blocked plugins, never their code, because the folder name does
+  // not show whether a plugin is in the official scope
+  const blockedPluginNamesPromise = Promise.all(
+    discoveredPluginMetadata
+      .filter(metadata => !pluginMetadataList.includes(metadata))
+      .map(metadata =>
+        fetchPluginResource(
+          `${getAppUrl()}${metadata.path}/package.json`,
+          headers,
+          async response => (response.ok ? (await response.json()).name : undefined),
+          remainingStartupTime(deadline)
+        ).catch(() => undefined)
+      )
+  );
+
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
       fetchPluginResource(
@@ -572,8 +613,12 @@ export async function fetchAndExecutePlugins(
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
 
+  const blockedPluginNames = (await blockedPluginNamesPromise).filter(
+    (name): name is string => typeof name === 'string'
+  );
+
   // Apply priority-based loading logic
-  updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages);
+  updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages, blockedPluginNames);
 
   // Notify settings of changes
   onSettingsChange([...updatedSettingsPackages, ...dormantDevelopmentPluginSettings]);

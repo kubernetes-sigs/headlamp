@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { ConfigStore } from '../../../plugin/configStore';
+import { isBlockedByOfficialPlugin } from '../../../plugin/officialScope';
 import { PluginInfo } from '../../../plugin/pluginsSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -66,8 +67,11 @@ function canOpenPluginFolder(plugin: PluginInfo): boolean {
   return !!(folderName && plugin.type);
 }
 
-const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
-  const { plugin } = props;
+const PluginSettingsDetailsInitializer = (props: {
+  plugin: PluginInfo;
+  isBlockedByOfficialPlugin?: boolean;
+}) => {
+  const { plugin, isBlockedByOfficialPlugin } = props;
   const store = new ConfigStore(plugin.name);
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
@@ -93,6 +97,7 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
     <PluginSettingsDetailsPure
       config={config}
       plugin={plugin}
+      isBlockedByOfficialPlugin={isBlockedByOfficialPlugin}
       onSave={handleSave}
       onDelete={handleDeleteConfirm}
     />
@@ -122,7 +127,14 @@ export default function PluginSettingsDetails() {
     return <NotFoundComponent />;
   }
 
-  return <PluginSettingsDetailsInitializer plugin={plugin} />;
+  return (
+    <PluginSettingsDetailsInitializer
+      plugin={plugin}
+      isBlockedByOfficialPlugin={
+        plugin.isEnabled !== false && isBlockedByOfficialPlugin(plugin, pluginSettings)
+      }
+    />
+  );
 }
 
 const ScrollableBox = (props: BoxProps) => (
@@ -146,6 +158,7 @@ const ScrollableBox = (props: BoxProps) => (
  * @property {PluginInfo} plugin - Information about the plugin.
  * @property {(data: { [key: string]: any }) => void} [onSave] - Optional callback function that is called when the settings are saved. The function receives an object representing the updated configuration settings for the plugin.
  * @property {() => void} onDelete - Callback function that is called when the plugin is requested to be deleted. This function does not take any parameters and does not return anything.
+ * @property {boolean} [isBlockedByOfficialPlugin] - Optional. True if an @headlamp-k8s version of this plugin is installed, which stops it loading.
  *
  * @see PluginInfo - Refer to the PluginInfo documentation for details on what this object should contain.
  */
@@ -154,10 +167,11 @@ export interface PluginSettingsDetailsPureProps {
   plugin: PluginInfo;
   onSave?: (data: { [key: string]: any }) => void;
   onDelete: () => void;
+  isBlockedByOfficialPlugin?: boolean;
 }
 
 export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps) {
-  const { config, plugin, onSave, onDelete } = props;
+  const { config, plugin, onSave, onDelete, isBlockedByOfficialPlugin } = props;
   const { t } = useTranslation(['translation']);
   const [data, setData] = useState<{ [key: string]: any } | undefined>(config);
   const enableSaveButton = useMemo(() => !_.isEqual(config, data), [config, data]);
@@ -237,7 +251,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
                   }
                 />
               ),
-              plugin.isLoaded === false && plugin.overriddenBy && (
+              plugin.isLoaded === false && (plugin.overriddenBy || plugin.isEnabled !== false) && (
                 <Chip
                   label={t('translation|Not Loaded')}
                   size="small"
@@ -294,20 +308,24 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
             {plugin.description}
           </Typography>
         )}
-        {plugin.isLoaded === false && plugin.overriddenBy && (
+        {plugin.isLoaded === false && (isBlockedByOfficialPlugin || plugin.overriddenBy) && (
           <Box mt={2} p={2} sx={{ bgcolor: 'warning.light', borderRadius: 1 }}>
             <Typography variant="body2">
-              {t(
-                'translation|This plugin is not currently loaded because a "{{type}}" version is being used instead.',
-                {
-                  type:
-                    plugin.overriddenBy === 'development'
-                      ? t('translation|development')
-                      : plugin.overriddenBy === 'user'
-                      ? t('translation|user-installed')
-                      : t('translation|shipped'),
-                }
-              )}
+              {isBlockedByOfficialPlugin
+                ? t(
+                    'translation|This plugin is not loaded because a @headlamp-k8s version of it is installed.'
+                  )
+                : t(
+                    'translation|This plugin is not currently loaded because a "{{type}}" version is being used instead.',
+                    {
+                      type:
+                        plugin.overriddenBy === 'development'
+                          ? t('translation|development')
+                          : plugin.overriddenBy === 'user'
+                          ? t('translation|user-installed')
+                          : t('translation|shipped'),
+                    }
+                  )}
             </Typography>
           </Box>
         )}
