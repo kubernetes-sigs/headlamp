@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import IngressClass from '../../lib/k8s/ingressClass';
+import IngressClass, { formatIngressClassParameters } from '../../lib/k8s/ingressClass';
 import { DetailsGrid } from '../common/Resource';
 
 export default function IngressClassDetails(props: { name?: string; cluster?: string }) {
@@ -33,8 +33,17 @@ export default function IngressClassDetails(props: { name?: string; cluster?: st
       extraInfo={item =>
         item && [
           {
+            name: t('Controller'),
+            value: item.spec?.controller,
+          },
+          {
             name: t('translation|Default'),
             value: item.isDefault ? t('translation|Yes') : t('translation|No'),
+          },
+          {
+            name: t('Parameters'),
+            value: item.spec?.parameters && formatIngressClassParameters(item.spec.parameters),
+            hide: !item.spec?.parameters,
           },
         ]
       }

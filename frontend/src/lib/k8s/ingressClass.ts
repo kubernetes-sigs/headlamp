@@ -17,11 +17,30 @@
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
+/** A reference to a resource with additional configuration for an IngressClass's controller. */
+export interface IngressClassParametersReference {
+  apiGroup?: string;
+  kind: string;
+  name: string;
+  /** "Cluster" (the default) or "Namespace". */
+  scope?: string;
+  /** Set when scope is "Namespace". */
+  namespace?: string;
+}
+
 export interface KubeIngressClass extends KubeObjectInterface {
   spec: {
     controller: string;
+    parameters?: IngressClassParametersReference;
     [key: string]: any;
   };
+}
+
+/** Formats a parameters reference as kind[.apiGroup]/name, with the namespace if it has one. */
+export function formatIngressClassParameters(parameters: IngressClassParametersReference): string {
+  const kind = parameters.apiGroup ? `${parameters.kind}.${parameters.apiGroup}` : parameters.kind;
+  const reference = `${kind}/${parameters.name}`;
+  return parameters.namespace ? `${reference} (${parameters.namespace})` : reference;
 }
 
 class IngressClass extends KubeObject<KubeIngressClass> {
