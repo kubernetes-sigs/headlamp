@@ -966,12 +966,16 @@ export class PluginManager {
    * @param {string} name - The name of the plugin to uninstall.
    * @param {string} [folder=defaultUserPluginsDir()] - The folder where the plugin is installed.
    * @param {function} [progressCallback=null] - Optional callback for progress updates.
+   * @param {function} [beforeRemove] - Optional cleanup that runs with the bundle's folder name
+   * before the bundle is deleted. If it throws, the bundle is kept and the uninstall fails, so a
+   * retry can find the bundle and run the cleanup again.
    * @returns {void}
    */
   static uninstall(
     name: string,
     folder = defaultUserPluginsDir(),
-    progressCallback: null | ProgressCallback = null
+    progressCallback: null | ProgressCallback = null,
+    beforeRemove?: (folderName: string) => void
   ) {
     try {
       // @todo: should list call take progressCallback?
@@ -990,6 +994,7 @@ export class PluginManager {
       }
 
       if (fs.existsSync(pluginDir)) {
+        beforeRemove?.(plugin.folderName);
         fs.rmSync(pluginDir, { recursive: true, force: true });
         removePluginInstallationReceipt(pluginDir);
       } else {

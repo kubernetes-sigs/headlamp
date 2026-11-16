@@ -44,7 +44,7 @@ export async function checkRelease(releaseVersion: string): Promise<void> {
     const artifactsComplete = await checkArtifactsForRelease(release);
 
     if (artifactsComplete) {
-      console.log(chalk.green('✅ All required artifacts (Mac, Linux, Windows, and the checksums signature) are present'));
+      console.log(chalk.green('✅ All required artifacts (Mac, Linux, Windows, the checksums signature, and provenance) are present'));
     } else {
       console.error(chalk.red('❌ Some required artifacts are missing from the release'));
     }

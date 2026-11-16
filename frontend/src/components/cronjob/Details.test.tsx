@@ -205,4 +205,59 @@ describe('CronJobDetails: Spawn Job', () => {
 
     expect(spawnAuthCluster()).toBe(OWNER_CLUSTER);
   });
+
+  function openSpawnDialogWithName(name: string) {
+    render(
+      <TestContext>
+        <CronJobDetails name="test-cronjob" namespace="default" cluster={OWNER_CLUSTER} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByLabelText('translation|Spawn Job'));
+    fireEvent.change(screen.getByLabelText('translation|Job Name'), { target: { value: name } });
+    return screen.getByRole('button', { name: 'translation|Spawn' });
+  }
+
+  const formatMessage =
+    "translation|Job names must contain only lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.";
+
+  // The API server rejects these names, but only after the dialog has closed and the
+  // undo grace period has passed, so the dialog has to catch them.
+  it.each([
+    ['capitals and spaces', 'Nightly Report', formatMessage],
+    ['a trailing dash', 'nightly-report-', formatMessage],
+    [
+      'more than 63 characters',
+      'a'.repeat(64),
+      'translation|Job names must be under 64 characters.',
+    ],
+  ])('keeps Spawn disabled for a name with %s', (_case, name, message) => {
+    const spawn = openSpawnDialogWithName(name);
+
+    expect(spawn).toBeDisabled();
+    expect(screen.getByText(message)).toBeInTheDocument();
+    fireEvent.click(spawn);
+    expect(capturedAction.current).toBeNull();
+  });
+
+  it('keeps Spawn disabled for an empty name', () => {
+    const spawn = openSpawnDialogWithName('');
+
+    expect(spawn).toBeDisabled();
+    fireEvent.click(spawn);
+    expect(capturedAction.current).toBeNull();
+  });
+
+  it('spawns the Job with an edited name the API accepts', async () => {
+    const spawn = openSpawnDialogWithName('nightly.report-2');
+
+    expect(spawn).toBeEnabled();
+    expect(screen.queryByText(formatMessage)).not.toBeInTheDocument();
+    fireEvent.click(spawn);
+    expect(capturedAction.current).not.toBeNull();
+    await capturedAction.current!();
+
+    expect(mockApply).toHaveBeenCalledTimes(1);
+    expect(mockApply.mock.calls[0][0].metadata.name).toBe('nightly.report-2');
+  });
 });

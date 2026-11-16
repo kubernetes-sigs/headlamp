@@ -1175,6 +1175,9 @@ export async function handleRunCommand(
   let child: ChildProcessWithoutNullStreams;
   try {
     child = spawn(command, args, {
+      // Electron has no console on Windows, so each console program it
+      // starts would open a new, visible console window.
+      windowsHide: true,
       ...commandData.options,
       shell: false,
       env: {

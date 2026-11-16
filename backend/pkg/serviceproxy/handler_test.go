@@ -261,6 +261,8 @@ func TestRequestHandlerSendsNoCacheHeaders(t *testing.T) {
 	assert.Equal(t, "no-cache", resp.Header.Get("Pragma"))
 	assert.Equal(t, "0", resp.Header.Get("X-Accel-Expires"))
 	assert.NotEmpty(t, resp.Header.Get("Expires"))
+	assert.Equal(t, "sandbox", resp.Header.Get("Content-Security-Policy"))
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
 }
 
 // createMockService creates a mock Kubernetes service for testing.
@@ -500,7 +502,16 @@ func TestGetServiceFromCluster(t *testing.T) {
 				"forbidden-service",
 				nil,
 			),
-			expectedStatus: http.StatusNotFound,
+			expectedStatus: http.StatusForbidden,
+			expectError:    true,
+		},
+		{
+			name:           "internal server error from cluster",
+			namespace:      "default",
+			serviceName:    "failing-service",
+			setupService:   false,
+			mockError:      k8serrors.NewInternalError(errors.New("etcd connection timeout")),
+			expectedStatus: http.StatusInternalServerError,
 			expectError:    true,
 		},
 	}

@@ -5,7 +5,7 @@ sidebar_position: 4
 ---
 
 This section has information on how to contribute to Headlamp. It assumes you have cloned
-this repository (or your own Github fork).
+this repository (or your own GitHub fork).
 Any contributions to the project are accepted under the terms of the project's
 license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE)).
 
@@ -55,7 +55,8 @@ Follow these steps when submitting a PR to ensure it meets the project’s stand
 Run the following commands from your project directory:
 
 - `npm run frontend:test` - Run the test suite
-- `npm run frontend:lint` - Format your code to match the project
+- `npm run frontend:lint` - Check code for lint and formatting issues
+- `npm run frontend:lint:fix` - Automatically fix lint and formatting issues where possible
 
 These steps ensure your code is functional, well-typed, and formatted consistently.
 
@@ -187,8 +188,12 @@ out Kinvolk's
 
 ## Testing
 
-The frontend is tested via Storybook-related snapshots. So new components should have
-an associated story when possible.
+Major new functionality must include automated tests that exercise the new
+behavior. These tests must be part of the project's automated test suite, and
+reviewers must verify that they are included before approving the pull request.
+
+The frontend test suite includes Storybook-related tests. New components should
+have an associated story when possible.
 
 For running the frontend tests, use the following command:
 

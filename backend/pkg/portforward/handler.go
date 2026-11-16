@@ -140,7 +140,7 @@ func getFreePort() (int, error) {
 
 // StartPortForward handles the port forward request.
 //
-//nolint:funlen
+//nolint:funlen // Handler validates request, allocates port, and starts port-forwarding routine
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
 	contextKey string,
@@ -166,7 +166,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	// deterministically and avoid unnecessary listener churn.
 	if existingPF, err := getPortForwardByID(cache, contextKey, p.ID); err == nil &&
 		(existingPF.Status == RUNNING || existingPF.Status == RECONNECTING) {
-		//nolint:goconst
+		//nolint:goconst // Repeated log message keys are clearer inline than as package constants
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID already exists")
 		http.Error(w, "portforward with this ID is already active", http.StatusConflict)
@@ -596,7 +596,7 @@ func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
 // It returns (true, false) on success, (false, true) to abort retries,
 // or (false, false) when the caller should retry.
 //
-//nolint:cyclop
+//nolint:cyclop // Reconnection state machine handles complex recovery branches
 func tryReconnectOnce(
 	clientset *kubernetes.Clientset,
 	cache cache.Cache[interface{}],

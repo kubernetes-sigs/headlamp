@@ -403,6 +403,13 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         stableQueryParams ?? {}
       ).queryKey;
 
+      // The watch's resource version expired, so it cannot report what changed since, such
+      // as deletions. List again to replace the cached list; the watch then resumes from it.
+      if (update.type === 'ERROR' && update.object?.code === 410) {
+        client.invalidateQueries({ queryKey });
+        return;
+      }
+
       // Update React Query cache with new data
       client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
         if (!oldResponse) {
@@ -624,6 +631,29 @@ function flattenListRequests(
   );
 }
 
+/**
+ * Whether a currently-watched list is still covered by one of the given requests.
+ *
+ * An empty-string namespace is a real, valid value: it means "all namespaces" for a
+ * namespaced resource, and it is what a request with no namespace filter produces.
+ * Because it is falsy, matching it against a request's namespace list needs an
+ * explicit undefined check rather than a truthiness check, or the watch entry is
+ * dropped every render and immediately re-added, looping setState (see 9542b5cb5).
+ * The unfiltered branch keeps the falsy check on purpose, so a watch on '' still
+ * matches a request that asks for no particular namespace.
+ */
+export function isWatchedListStillRequested(
+  watching: { cluster: string; namespace?: string },
+  requests: Array<{ cluster: string; namespaces?: string[] }>
+): boolean {
+  return requests.some(request => {
+    if (watching.cluster !== request?.cluster) return false;
+    return !request.namespaces?.length
+      ? !watching.namespace
+      : watching.namespace !== undefined && request.namespaces.includes(watching.namespace);
+  });
+}
+
 function getPositiveLimit(queryParams: QueryParameters): number | undefined {
   const limit = Number(queryParams.limit);
 
@@ -815,14 +845,8 @@ export function useKubeObjectList<K extends KubeObject>({
 
   useEffect(() => {
     setListsToWatch(currentListsToWatch => {
-      const keptListsToWatch = currentListsToWatch.filter(
-        watching =>
-          requests.find(request => {
-            if (watching.cluster !== request?.cluster) return false;
-            return !request.namespaces?.length
-              ? !watching.namespace
-              : !!watching.namespace && request.namespaces.includes(watching.namespace);
-          }) !== undefined
+      const keptListsToWatch = currentListsToWatch.filter(watching =>
+        isWatchedListStillRequested(watching, requests)
       );
 
       if (!shouldWatch) {

@@ -4,7 +4,7 @@ sidebar_label: Linux
 sidebar_position: 1
 ---
 
-We ship Headlamp the Linux desktop in several formats: [Flatpak](#flatpak), [AppImage](#appimage), [Tarballs](#tarballs).
+We ship Headlamp for the Linux desktop in several formats: [Flatpak](#flatpak), [AppImage](#appimage), [Tarballs](#tarballs).
 
 ## Flatpak
 
@@ -24,7 +24,7 @@ flatpak run io.kinvolk.Headlamp
 
 ### Upgrading
 
-To upgrading Headlamp when it's installed via Flatpak, run:
+To upgrade Headlamp when it's installed via Flatpak, run:
 
 ```bash
 flatpak update io.kinvolk.Headlamp

@@ -342,7 +342,11 @@ export default function PortForwardingList() {
                 <Box display={'flex'} alignItems="center">
                   <MuiLink
                     onClick={() => {
-                      window.open(`http://localhost:${portforward.port}`, '_blank');
+                      window.open(
+                        `http://localhost:${portforward.port}`,
+                        '_blank',
+                        'noopener,noreferrer'
+                      );
                     }}
                     sx={theme =>
                       portforward.status === PORT_FORWARD_RUNNING_STATUS

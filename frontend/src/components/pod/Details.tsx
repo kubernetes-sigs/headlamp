@@ -62,6 +62,7 @@ import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
+import PodResourceClaimsSection from './PodResourceClaimsSection';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
@@ -234,6 +235,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
   function handleContainerChange(event: any) {
     setContainer(event.target.value);
     setHasJsonLogs(false);
+    // The new container may never have restarted, so don't carry "Previous" over to it
+    setShowPrevious(false);
   }
 
   function handleLinesChange(event: any) {
@@ -245,9 +248,13 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   function hasContainerRestarted() {
-    const cont = item?.status?.containerStatuses?.find(
-      (c: KubeContainerStatus) => c.name === container
-    );
+    // The container picker also lists init and ephemeral containers, so look in every status list
+    const statuses: KubeContainerStatus[] = [
+      ...(item?.status?.containerStatuses ?? []),
+      ...(item?.status?.initContainerStatuses ?? []),
+      ...(item?.status?.ephemeralContainerStatuses ?? []),
+    ];
+    const cont = statuses.find(c => c.name === container);
     if (!cont) {
       return false;
     }
@@ -373,7 +380,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
                 {i}
               </MenuItem>
             ))}
-            <MenuItem value={-1}>All</MenuItem>
+            <MenuItem value={-1}>{t('translation|All')}</MenuItem>
           </Select>
         </FormControl>,
         <LightTooltip
@@ -933,6 +940,14 @@ export default function PodDetails(props: PodDetailsProps) {
             id: 'headlamp.pod-containers',
             section: <ContainersSection resource={item} />,
           },
+          ...(item.resourceClaims.length > 0
+            ? [
+                {
+                  id: 'headlamp.pod-resource-claims',
+                  section: <PodResourceClaimsSection pod={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.pod-volumes',
             section: <VolumeSection resource={item?.jsonData} />,

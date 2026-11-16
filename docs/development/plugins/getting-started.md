@@ -92,15 +92,16 @@ This command:
 - Makes the plugin available to Headlamp
 - Watches file changes to automatically rebuild the plugin
 
-When using a packaged Headlamp Desktop app, open **Settings > Plugins** and
-enable **Plugin Development Mode**. Packaged apps do not load plugins from the
+When using a packaged Headlamp Desktop app, open **Settings > Plugins**. Under
+the **Installed Plugins** list, expand **Advanced** and enable **Load development
+plugins**. Packaged apps do not load plugins from the
 local development directory by default. Only enable this setting when you trust
 every plugin in that directory.
 
 ### Step 5: See Your Plugin in Action
 
-1. **Desktop App**: Open Headlamp Desktop after enabling **Plugin
-   Development Mode** in **Settings > Plugins**; or
+1. **Desktop App**: Open Headlamp Desktop after enabling **Load development plugins**
+   under **Advanced** in **Settings > Plugins**; or
 2. **Run Headlamp in development mode**: Start the Headlamp development server (see [development guide](../index.md)).
 
 You should see "Hello" text in the top navigation bar!
@@ -134,6 +135,70 @@ registerAppBarAction(<HelloButton />);
 ```
 
 Save the file and watch Headlamp automatically reload with your changes!
+
+## TypeScript versions
+
+Generated plugins use TypeScript 5.6.2 by default. You can opt into stable TypeScript 7
+for `headlamp-plugin tsc` while keeping a legacy compiler API for ESLint,
+Storybook, and translation extraction.
+
+This setup requires a `headlamp-plugin` release containing the TypeScript 7
+opt-in support described here; it is not available in the published 0.14.0 tooling.
+
+1. Add these development dependencies to your plugin's `package.json`:
+
+   ```json
+   {
+     "devDependencies": {
+       "@typescript/native": "npm:typescript@^7.0.2",
+       "typescript": "npm:@typescript/typescript6@^6.0.2"
+     }
+   }
+   ```
+
+   Keep your existing dependencies, including `@kinvolk/headlamp-plugin`.
+
+2. Remove **only** the `typescript` entry from the root `overrides` object.
+   Do not override every TypeScript dependency to version 7: tools importing
+   `typescript` still need the legacy JavaScript compiler API.
+
+3. Refresh the lockfile and verify a clean install:
+
+   ```bash
+   npm install
+   npm ci
+   npm run lint
+   npm run tsc
+   ```
+
+When `@typescript/native` is declared in `dependencies` or `devDependencies`,
+`headlamp-plugin tsc` runs that package's installed compiler directly. A missing,
+broken, prerelease, or non-7 compiler produces an error instead of falling back
+to a legacy compiler. Projects without this dependency keep their existing checker.
+The compatibility package provides `tsc6`; the native package provides `tsc`, so
+those executables do not conflict.
+
+You can check the two compiler versions with:
+
+```bash
+node node_modules/@typescript/native/bin/tsc --version
+node -p "require('typescript').version"
+```
+
+The compatibility checks use Node 24/npm 11, TypeScript 7.0.2,
+`@typescript/typescript6` 6.0.2, and typescript-eslint 8.72.0 or newer.
+The compatibility package resolves a TypeScript 6 compiler; individual tools may
+also retain a supported nested TypeScript 5 dependency. This is **TypeScript 7
+checking alongside legacy tooling**, not native TypeScript 7 support throughout
+the toolchain. Syntax that legacy parsers cannot handle is not covered.
+
+Prefer Headlamp's public exports, such as `useTranslation` from
+`@kinvolk/headlamp-plugin/lib`. If you import another library directly, declare it
+as a dependency rather than relying on a transitive package being hoisted.
+
+`headlamp-plugin upgrade` preserves this opt-in by leaving out the template's
+TypeScript override. Its existing behavior for other overrides is unchanged:
+it replaces them with the template values rather than merging custom entries.
 
 ## Understanding Plugin Development
 

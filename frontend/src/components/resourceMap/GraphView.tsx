@@ -34,11 +34,10 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
 import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
-import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
+import { selectEffectiveSettings } from '../../settings/useAdminSettings';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { MAP_PERFORMANCE_FEATURES_ENABLED } from './config';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
@@ -71,6 +70,7 @@ import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
 import { useQueryParamsState } from './useQueryParamsState';
+import { useSyncNamespaceParam } from './useSyncNamespaceParam';
 
 // Re-exported here for backwards compatibility with existing consumers that
 // imported these from GraphView.tsx. The actual definitions live in
@@ -132,17 +132,12 @@ function GraphViewContent({
   defaultFilters = defaultFiltersValue,
 }: GraphViewInternalProps) {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
 
   // List of selected namespaces
   const namespaces = useTypedSelector(state => state.filter).namespaces;
 
   // Sync namespace and URL
-  const [namespacesParam] = useQueryParamsState<string>('namespace', '');
-  useEffect(() => {
-    const list = namespacesParam?.split(' ') ?? [];
-    dispatch(setNamespaceFilter(list));
-  }, [namespacesParam, dispatch]);
+  useSyncNamespaceParam();
 
   // Filters
   const [hasErrorsFilter, setHasErrorsFilter] = useState(false);
@@ -181,7 +176,9 @@ function GraphViewContent({
   // Performance stats visibility
   const [showPerformanceStats, setShowPerformanceStats] = useState(false);
   // Expand by Default
-  const expandLargeGraph = useTypedSelector(state => state.config.settings.expandLargeGraph);
+  const expandLargeGraph = useTypedSelector(
+    state => selectEffectiveSettings(state).expandLargeGraph
+  );
 
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();

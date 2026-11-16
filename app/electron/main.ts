@@ -93,6 +93,7 @@ import {
   isTrayIconEnabled,
   setTrayIconEnabled,
 } from './tray';
+import { isAppUrl, isSafeExternalUrl } from './urlSafety';
 import windowSize from './windowSize';
 import {
   clampZoom,
@@ -627,14 +628,16 @@ class PluginManagerEventListeners {
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
 
-    const installedPlugin = PluginManager.list(destinationFolder)?.find(
-      plugin => plugin.pluginName === pluginName
+    PluginManager.uninstall(
+      pluginName,
+      destinationFolder,
+      progress => {
+        updateCache(progress);
+      },
+      // Clear the consents of the bundle being removed while it can still be found: if saving
+      // them fails, the uninstall stops and can be retried.
+      bundleName => removeRunCmdConsent(pluginName, bundleName)
     );
-    removeRunCmdConsent(pluginName, installedPlugin?.folderName);
-
-    PluginManager.uninstall(pluginName, destinationFolder, progress => {
-      updateCache(progress);
-    });
   }
 
   /**
@@ -1286,6 +1289,7 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
       menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        startUrl,
         openExternal: url => shell.openExternal(url),
         openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
         adjustZoom,
@@ -1738,12 +1742,15 @@ function startElectron() {
     setMenu(mainWindow, currentMenu);
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      // allow all urls starting with app startUrl to open in electron
-      if (url.startsWith(startUrl)) {
+      // allow urls belonging to the app's own frontend to open in electron
+      if (isAppUrl(url, startUrl)) {
         return { action: 'allow' };
       }
-      // otherwise open url in a browser and prevent default
-      shell.openExternal(url);
+      // otherwise open url in a browser and prevent default, but only for
+      // safe schemes; renderer-supplied custom schemes never reach the OS.
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
       return { action: 'deny' };
     });
 
@@ -1831,12 +1838,14 @@ function startElectron() {
     to the default browser
     */
     mainWindow.webContents.on('will-navigate', (event, encodedUrl) => {
-      const url = decodeURI(encodedUrl);
-      if (url.startsWith(startUrl)) {
+      if (isAppUrl(encodedUrl, startUrl)) {
         return;
       }
       event.preventDefault();
-      shell.openExternal(url);
+      // Only safe schemes reach the OS shell opener.
+      if (isSafeExternalUrl(encodedUrl)) {
+        shell.openExternal(encodedUrl);
+      }
     });
 
     i18n.on('languageChanged', () => {

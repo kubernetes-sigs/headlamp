@@ -122,6 +122,11 @@ export function useKubeObject<K extends KubeObject>({
   /** Cluster name */
   cluster?: string;
   queryParams?: QueryParameters;
+  /**
+   * Seed data to use before the query resolves. Must be reference-stable across
+   * renders (memoize it or capture it once) — an object rebuilt on every render
+   * will cause repeated re-renders.
+   */
   initialData?: K;
 }): [K | null, ApiError | null] & QueryResponse<K, ApiError> {
   type Instance = K;

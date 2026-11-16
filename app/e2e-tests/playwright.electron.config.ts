@@ -42,6 +42,7 @@ export default defineConfig({
     'oauthProvider.spec.ts',
     'protocolScheme.spec.ts',
     'frontendBuild.spec.ts',
+    'kubeConfigImport.spec.ts',
     'runtimeProductIdentity.spec.ts',
   ],
   timeout: 60 * 1000,

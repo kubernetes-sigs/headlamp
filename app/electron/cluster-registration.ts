@@ -227,6 +227,8 @@ async function executeCommandWithShellEnvironment(
     const child = spawn(command, args, {
       env: environment,
       shell: false,
+      // Without this, the Azure CLI opens a console window on Windows.
+      windowsHide: true,
     });
     child.stdout?.on('data', () => {});
     child.stderr?.on('data', () => {});
@@ -444,7 +446,7 @@ function getNamedEntries<T extends NamedKubeConfigEntry>(
   key: 'clusters' | 'contexts' | 'users'
 ): T[] {
   const entries = config[key];
-  if (entries === undefined) {
+  if (entries === undefined || entries === null) {
     const empty: T[] = [];
     config[key] = empty;
     return empty;

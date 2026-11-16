@@ -30,8 +30,8 @@ jobs:
     permissions:
       actions: write # needed to upload artifacts
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-    - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 22.x
     - name: Check if sha256 lines changed in this PR for verifying image digest changes
@@ -97,7 +97,7 @@ jobs:
       run: kubectl get pods -A
     - name: Restore image-cache Folder
       id: cache-image-restore2
-      uses: actions/cache/restore@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/image-cache
         # cache the container image. All the paths this PR depends on except the e2e-tests folder for the key.
@@ -283,7 +283,7 @@ jobs:
           exit $EXIT_CODE
         fi
     - name: Set up Helm
-      uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       with:
         version: v3.18.4
     - name: Deploy Headlamp via Helm and run plugin manager tests
@@ -345,11 +345,11 @@ jobs:
     - name: Cache image-cache Folder
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       id: cache-image-save
-      uses: actions/cache/save@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/image-cache
         key: ${{ steps.cache-image-restore2.outputs.cache-primary-key }}
-    - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       if: always()
       with:
         name: e2e-tests-report

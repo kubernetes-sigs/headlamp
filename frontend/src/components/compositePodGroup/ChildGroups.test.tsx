@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import '../../i18n/config';
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';

@@ -45,7 +45,11 @@
         aria-live="polite"
         class="MuiBox-root css-1txv3mw"
       >
-        This is an example plugin with normal save.
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-faquoc-MuiTypography-root"
+        >
+          This is an example plugin with normal save.
+        </p>
         <div
           class="MuiBox-root css-oo7k07"
           style="height: 70vh;"

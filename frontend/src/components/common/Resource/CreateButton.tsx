@@ -30,6 +30,7 @@ import CronJob from '../../../lib/k8s/cronJob';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import Endpoints from '../../../lib/k8s/endpoints';
+import EndpointSlice from '../../../lib/k8s/endpointSlices';
 import Job from '../../../lib/k8s/job';
 import PersistentVolumeClaim from '../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../lib/k8s/pod';
@@ -41,6 +42,7 @@ import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
 import CreateDaemonSetForm from '../../daemonset/CreateDaemonSetForm';
 import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
 import CreateEndpointsForm from '../../endpoints/CreateEndpointsForm';
+import CreateEndpointSliceForm from '../../endpointSlices/CreateEndpointSliceForm';
 import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
@@ -61,6 +63,7 @@ export const RESOURCE_DEFINITIONS = {
   PersistentVolumeClaim: { class: PersistentVolumeClaim, form: CreatePVCForm },
   Service: { class: Service, form: CreateServiceForm },
   Endpoints: { class: Endpoints, form: CreateEndpointsForm },
+  EndpointSlice: { class: EndpointSlice, form: CreateEndpointSliceForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;

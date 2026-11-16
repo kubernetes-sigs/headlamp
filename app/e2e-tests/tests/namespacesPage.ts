@@ -84,22 +84,17 @@ export class NamespacesPage {
     await page.waitForSelector(`text=${name}`);
     await page.click(`a:has-text("${name}")`);
 
-    await page.waitForSelector('button[aria-label="Delete"]');
-    await page.click('button[aria-label="Delete"]');
+    const drawer = page.getByRole('complementary', { name: `Namespace ${name}`, exact: true });
+    await drawer.getByRole('button', { name: 'Delete', exact: true }).click();
 
     await page.waitForLoadState('load');
 
-    // This is a ConfirmDialog. Its confirm button reads "Delete" here and "Yes"
-    // in other places, so key off the stable aria-label instead of the text.
-    await page.waitForSelector('button[aria-label="confirm-button"]');
+    const dialog = page.getByRole('dialog', { name: 'Delete item', exact: true });
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
-    await page.waitForLoadState('load');
-
-    await page.click('button[aria-label="confirm-button"]');
-
-    await page.waitForSelector('h1:has-text("Namespaces")');
-    await page.waitForSelector('td:has-text("Terminating")');
-
-    await expect(page.locator(`a:has-text("${name}")`)).toBeHidden();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('link', { name, exact: true })).toBeHidden();
+    await drawer.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(drawer).toBeHidden();
   }
 }

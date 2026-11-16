@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import { PodLogViewer } from './Details';
@@ -111,6 +111,81 @@ describe('PodLogViewer', () => {
       );
 
       expect(getLogs).toHaveBeenCalledWith('nginx', expect.any(Function), expect.any(Object));
+    });
+  });
+
+  describe('Previous toggle', () => {
+    function makePodWithInitContainer(initRestartCount: number) {
+      const pod = makeMockPod(vi.fn(() => () => {}));
+      pod.spec.initContainers = [{ name: 'init-db' }];
+      pod.status.initContainerStatuses = [
+        {
+          name: 'init-db',
+          state: { waiting: { reason: 'CrashLoopBackOff' } },
+          restartCount: initRestartCount,
+        },
+      ];
+      return pod;
+    }
+
+    function previousSwitch() {
+      return document.querySelector('input[name="checkPrevious"]');
+    }
+
+    it('is enabled for an init container that has restarted', () => {
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer
+            open
+            item={makePodWithInitContainer(3)}
+            onClose={() => {}}
+            initialContainer="init-db"
+          />
+        </TestContext>
+      );
+
+      expect(previousSwitch()).toBeEnabled();
+    });
+
+    it('stays disabled for an init container that has not restarted', () => {
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer
+            open
+            item={makePodWithInitContainer(0)}
+            onClose={() => {}}
+            initialContainer="init-db"
+          />
+        </TestContext>
+      );
+
+      expect(previousSwitch()).toBeDisabled();
+    });
+
+    it('turns off when switching to a container that has not restarted', async () => {
+      const getLogs = vi.fn(() => () => {});
+      const pod = makePodWithInitContainer(3);
+      pod.getLogs = getLogs;
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={pod} onClose={() => {}} initialContainer="init-db" />
+        </TestContext>
+      );
+
+      fireEvent.click(previousSwitch()!);
+      expect(previousSwitch()).toBeChecked();
+
+      // Pick "nginx" (no restarts) in the container picker
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: /Container/ }));
+      fireEvent.click(await screen.findByRole('option', { name: 'nginx' }));
+
+      await waitFor(() => expect(previousSwitch()).not.toBeChecked());
+      expect(previousSwitch()).toBeDisabled();
+      expect(getLogs).toHaveBeenLastCalledWith(
+        'nginx',
+        expect.any(Function),
+        expect.objectContaining({ showPrevious: false })
+      );
     });
   });
 });

@@ -45,6 +45,25 @@
       "properties": {
         "name": { "type": "string" },
         "productName": { "type": "string" },
+        "errorReporting": {
+          "type": "object",
+          "description": "Product-specific GitHub crash-reporting destination and button text.",
+          "properties": {
+            "githubIssueUrl": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "description": "Full GitHub issue creation URL. Existing query parameters, such as labels, are preserved."
+            },
+            "buttonLabel": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Product-owned label for the crash-report button."
+            }
+          },
+          "required": ["githubIssueUrl"],
+          "additionalProperties": false
+        },
         "companyName": {
           "type": "string",
           "description": "Company attribution used for Windows and macOS metadata and the Linux vendor field."

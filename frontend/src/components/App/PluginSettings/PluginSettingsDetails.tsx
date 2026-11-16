@@ -271,14 +271,29 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
                   ]
                 : []
             }
-            subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+            subtitle={
+              author ? (
+                <Typography
+                  component="span"
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ display: 'block', fontStyle: 'normal', mt: 0.5 }}
+                >
+                  {t('translation|Published by {{author}}', { author })}
+                </Typography>
+              ) : undefined
+            }
             noPadding={false}
             headerStyle="main"
           />
         }
         backLink={'/settings/plugins'}
       >
-        {plugin.description}
+        {plugin.description && (
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            {plugin.description}
+          </Typography>
+        )}
         {plugin.isLoaded === false && plugin.overriddenBy && (
           <Box mt={2} p={2} sx={{ bgcolor: 'warning.light', borderRadius: 1 }}>
             <Typography variant="body2">

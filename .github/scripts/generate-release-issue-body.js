@@ -75,7 +75,7 @@ Please write a comment if you're going to test an item and if you've completed t
   - Verify that the list reflects the changes
 
 - [ ] **App: Run with plugins**
-  - Build app with plugins: \`make && make app\`
+  - Build app with plugins: \`make backend && make app\`
   - Run the app (UI should load in less than 1 minute)
   - Verify plugins are present: App Catalog, Prometheus, App Catalog
 

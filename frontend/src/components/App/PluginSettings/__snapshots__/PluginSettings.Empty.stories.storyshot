@@ -3,6 +3,24 @@
     <div
       aria-label="Plugin Settings Test Page"
     >
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+        tabindex="0"
+        type="button"
+      >
+        <span
+          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        />
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          style="padding-top: 3px;"
+        >
+          Back
+        </p>
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </button>
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -18,7 +36,7 @@
               <h1
                 class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
-                Plugins
+                Plugin Settings
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
@@ -29,6 +47,15 @@
         <div
           class="MuiBox-root css-1txv3mw"
         >
+          <div
+            class="MuiBox-root css-1fg81o4"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h4 css-1wbghzm-MuiTypography-root"
+            >
+              Installed Plugins
+            </h2>
+          </div>
           <div
             class="MuiBox-root css-8atqhb"
           >

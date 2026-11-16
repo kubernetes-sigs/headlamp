@@ -25,6 +25,13 @@ You can install the required frontend, app, and backend dependencies by running:
 npm run install:all
 ```
 
+## Code scanning
+
+The [Semgrep workflow](https://github.com/kubernetes-sigs/headlamp/blob/main/.github/workflows/semgrep.yml)
+checks Go, JavaScript, and TypeScript for potential security issues on pull
+requests and pushes to `main`, alongside existing CodeQL scans. Findings are
+available in GitHub code scanning for review.
+
 ## Build the code
 
 Headlamp is composed of a `backend` and a `frontend`.
@@ -46,6 +53,26 @@ and
 ```bash
 npm run frontend:build
 ```
+
+## Container image digests
+
+`npm run image:verify-image-digests` checks the pinned image itself for a
+multi-platform index supporting Linux amd64 and arm64. An upstream tag moving
+does not invalidate an existing pin.
+
+`npm run image:update-image-digests` resolves the existing tags in `Dockerfile`
+and `Dockerfile.plugins`, validates their indexes, and updates only the digests.
+Both commands require Docker Buildx and registry access.
+
+The existing weekly Docker Dependabot job groups image updates into PRs,
+including digest-only changes when a tag has not changed. Dependabot is the
+single periodic updater; use the manual command above only when needed.
+
+Container CI validates pins when Dockerfile digest lines change. The **Test image
+digest tooling** workflow runs offline unit tests only when the digest tool,
+its tests, or that workflow changes. Neither requires unchanged pins to follow a
+moving upstream tag, and there is no separate scheduled updater or bot-token
+requirement for digest maintenance.
 
 ## Run the code
 

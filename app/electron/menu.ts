@@ -15,9 +15,11 @@
  */
 
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
+import { isAppUrl, isSafeExternalUrl } from './urlSafety';
 
 export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the app window) */
+  /** A URL to open: an app URL is opened in the app window, an http(s) URL in the
+   * external browser. Anything else is ignored. */
   url?: string;
   /** The submenus of this menu */
   submenu?: AppMenu[];
@@ -28,6 +30,9 @@ export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'clic
 }
 
 interface MenuActions {
+  /** The URL the app window was started with. Menu URLs are validated against
+   * it, because the menu spec comes from the renderer. */
+  startUrl: string;
   openExternal(url: string): Promise<void>;
   openAboutDialog(): void;
   adjustZoom(delta: number): void;
@@ -61,10 +66,18 @@ export function menusToTemplate(
       menu.click = () => actions.setZoom(1.0);
     } else if (url) {
       menu.click = () => {
-        const openUrl =
-          mainWindow && !url.startsWith('http')
-            ? mainWindow.webContents.loadURL(url)
-            : actions.openExternal(url);
+        // Validate before either sink: only an app URL may be loaded into the
+        // window, which runs with the app's preload script, and only an http(s)
+        // URL may be handed to the OS shell opener.
+        let openUrl: Promise<void>;
+        if (mainWindow && isAppUrl(url, actions.startUrl)) {
+          openUrl = mainWindow.webContents.loadURL(url);
+        } else if (isSafeExternalUrl(url)) {
+          openUrl = actions.openExternal(url);
+        } else {
+          console.warn(`Ignoring menu URL ${url}: not an app URL nor an http(s) URL.`);
+          return;
+        }
         void openUrl.catch(error => console.error(`Failed to open menu URL ${url}:`, error));
       };
     }

@@ -1,0 +1,29 @@
+<body>
+  <div>
+    <nav
+      class="MuiTypography-root MuiTypography-body1 MuiBreadcrumbs-root css-ojlt14-MuiTypography-root-MuiBreadcrumbs-root"
+    >
+      <ol
+        class="MuiBreadcrumbs-ol css-4pdmu4-MuiBreadcrumbs-ol"
+      >
+        <li
+          class="MuiBreadcrumbs-li"
+        >
+          <div
+            aria-label="Home"
+            class="MuiBox-root css-1921pvu"
+            data-mui-internal-clone-element="true"
+          >
+             
+             
+            <div
+              class="MuiBox-root css-1o4wo1x"
+            >
+              Home
+            </div>
+          </div>
+        </li>
+      </ol>
+    </nav>
+  </div>
+</body>

@@ -57,14 +57,22 @@ headlamp-plugin --help
                                             Options:
                                                   --version          Show version number
                                               -c, --config           Path to plugin configuration file
-                                                  --folderName       Name of the folder to install the plugin 
-                                                  --headlampVersion  Version of headlamp to install the plugin 
+                                                  --folderName       Name of the folder to install the plugin
+                                                  --headlampVersion  Version of headlamp to install the plugin
                                               -q, --quiet            Do not print logs
                                               -w, --watch            Watch config file for changes and automatically
                                                                     reinstall plugins
   headlamp-plugin.js update [pluginName]    Update the plugin to the latest version.
   headlamp-plugin.js uninstall [pluginName] Uninstall the plugin.
 ```
+
+## TypeScript versions
+
+The default plugin compiler remains TypeScript 5.6.2. Plugin projects can opt into
+stable TypeScript 7 for type-checking while retaining a compatible legacy compiler
+API for linting, Storybook, and i18n extraction. See the
+[TypeScript setup and limitations](../../docs/development/plugins/getting-started.md#typescript-versions).
+Do not globally override `typescript` to version 7.
 
 ## Template for installing plugins from a configuration file
 
@@ -101,6 +109,28 @@ See test-headlamp-plugin.js for some basic integration tests.
 
 See test-headlamp-plugin-published.js for testing published packages.
 
+Run the fast compiler-selection and upgrade-policy tests with:
+
+```bash
+npm run test:typescript
+```
+
+After building and packing the local tooling, run the standalone compatibility
+matrix (Node 24/npm 11) with:
+
+```bash
+npm run build
+npm pack
+npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.14.0.tgz
+```
+
+Use the tarball filename produced by `npm pack` for the current version. The matrix
+uses clean packed consumers, checks the TypeScript 5 baseline and TypeScript 7
+opt-in, and exercises lint, type-checking, tests, builds, Storybook, i18n, and
+upgrades. It needs registry access, including for the normal upgrade's audit step.
+It is intentionally separate from the default integration harness because it
+performs multiple full installations.
+
 #### linking to use local version of headlamp-plugin
 
 Use your changes inside a plugin with an npm feature called linking:
@@ -127,6 +157,22 @@ cd plugins/headlamp-plugin
 node ./bin/headlamp-plugin.js create myplugin --link
 ```
 
+### Storybook and test tooling
+
+The toolkit uses Storybook 10 and Vitest 5. Storybook configuration must use ESM;
+the shared configuration is `config/.storybook/main.mjs`. Existing custom
+CommonJS Storybook configurations must be migrated when upgrading.
+
+Plugin development requires Node 22.12 or newer supported by Vitest 5.
+Istanbul coverage's Babel dependencies require Node 22.18 or newer on the
+Node 22 line, or Node 24.11 or newer on the Node 24 line.
+
+Use `headlamp-plugin upgrade` to refresh template-managed scripts, TypeScript
+files, lint configuration, and overrides, including Vitest/coverage and the
+`webpack-dev-middleware` override (`^7.4.6`). npm does not apply the toolkit's
+overrides when it is installed as a dependency. Review any separately declared
+tooling dependencies and custom Storybook configuration for compatibility.
+
 ### Keep the dependencies in sync with the frontend/
 
 Run `npm run update-dependencies` so the packages are kept up to date with there.
@@ -135,13 +181,27 @@ A lot of the packages are shared between the two, but some are not. See
 dependencies-sync.js for lists of dependencies which are shared/not-shared.
 You may need to update these lists when adding/removing packages.
 
+Storybook versions intentionally differ from the frontend until its separate
+Storybook 10 migration is complete.
+
 Run `npm run check-dependencies` to see if frontend/package.json and
 headlamp-plugin/package.json are synced. This is run in CI to make sure when dependencies
 are changed, they are synced appropriately.
 
 ### Upgrading to an alpha release
 
-You can try an alpha release for testing with the following command.
+Commit or back up your plugin first. The upgrade command replaces template-managed
+configuration, regenerates `node_modules` and the lockfile, runs `npm audit fix`,
+and formats, lints, and type-checks the plugin. Review the resulting diff;
+custom Storybook configuration and your Node installation are not migrated.
+
+After publication, upgrade to a specific prerelease with:
+
+```bash
+npx @kinvolk/headlamp-plugin@0.15.0-alpha.0 upgrade --headlamp-plugin-version=0.15.0-alpha.0 your-plugin-folder
+```
+
+Or explicitly opt in to whichever prerelease is currently tagged `alpha`:
 
 ```bash
 npx @kinvolk/headlamp-plugin@alpha upgrade --headlamp-plugin-version=alpha your-plugin-folder

@@ -61,7 +61,7 @@ async function navigateToSettings(page: Page) {
 
 async function verifyClusterName(page: Page, expectedName: string) {
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.locator('a[href="#/settings/cluster"]').click();
+  await page.locator('a[href$="#/settings/cluster"]').click();
   // Check the cluster name in the cluster selector combobox
   await expect(page.locator(`input[placeholder="${expectedName}"]`)).toBeVisible();
 }
@@ -73,12 +73,11 @@ async function renameCluster(
   confirm: boolean = true
 ) {
   await page.fill(`input[placeholder="${fromName}"]`, toName);
-  await page.getByRole('button', { name: 'Apply' }).click();
-  // ConfirmDialog sets aria-label="confirm-button"/"cancel-button", which becomes
-  // the accessible name and overrides the visible "Yes"/"No" text.
-  await page.getByRole('button', { name: confirm ? 'confirm-button' : 'cancel-button' }).click();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Change name', exact: true });
+  await dialog.getByRole('button', { name: confirm ? 'Yes' : 'No', exact: true }).click();
   await page.waitForLoadState('load');
-  await page.locator(`a[href="#/c/${toName}/"]`).click();
+  await page.getByRole('link', { name: toName, exact: true }).click();
 }
 
 // Setup
@@ -121,10 +120,10 @@ test.describe('Cluster rename functionality', () => {
 
     // Test invalid inputs
     await page.fill('input[placeholder="minikube"]', TEST_CONFIG.invalidName);
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
 
     await page.fill('input[placeholder="minikube"]', '');
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
 
     // Test successful rename
     await renameCluster(page, TEST_CONFIG.originalName, TEST_CONFIG.newName);

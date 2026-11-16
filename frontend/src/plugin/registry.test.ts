@@ -229,13 +229,11 @@ describe('registerResourceRelationProvider', () => {
 describe('registerAppTheme', () => {
   beforeEach(() => {
     localStorage.clear();
-    delete (localStorage as any).headlampThemePreference;
     activeStore = configureStore({ reducer: reducers });
   });
 
   afterEach(() => {
     localStorage.clear();
-    delete (localStorage as any).headlampThemePreference;
   });
 
   it.each([undefined, { default: false }])(

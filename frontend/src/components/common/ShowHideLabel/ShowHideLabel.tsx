@@ -45,7 +45,7 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
       return [children, true];
     }
 
-    return [children.substr(0, maxChars), children.length > maxChars];
+    return [children.slice(0, Math.max(0, maxChars)), children.length > maxChars];
   }, [children, expanded, maxChars]);
 
   if (!children) {

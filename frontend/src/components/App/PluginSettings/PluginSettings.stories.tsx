@@ -42,7 +42,7 @@ const setDevelopmentPlugins = fn();
 
 export const PackagedDesktopDevelopmentMode = Template.bind({});
 PackagedDesktopDevelopmentMode.args = {
-  plugins: [],
+  plugins: createDemoData(2),
   onSave: fn(),
   showDevelopmentPluginsSetting: true,
   developmentPluginsEnabled: false,
@@ -53,6 +53,10 @@ PackagedDesktopDevelopmentMode.parameters = {
 };
 PackagedDesktopDevelopmentMode.play = async ({ canvasElement }) => {
   setDevelopmentPlugins.mockClear();
+  await expect(await within(canvasElement).findByRole('button', { name: 'Back' })).toBeVisible();
+  const advanced = within(canvasElement).getByRole('button', { name: /^Advanced/ });
+  expect(advanced).toHaveAttribute('aria-expanded', 'false');
+  await userEvent.click(advanced);
   const pluginDevelopmentMode = await within(canvasElement).findByRole('checkbox', {
     name: 'Load development plugins',
   });

@@ -90,6 +90,9 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 				"", "", "", "",
 				false,
 				"",
+				"",
+				"",
+				false,
 				tt.unsafeUseServiceAccountToken,
 				tt.serviceAccountTokenPath,
 			)

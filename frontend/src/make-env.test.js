@@ -182,6 +182,10 @@ test('uses custom product metadata and the source commit', async () => {
       product: {
         version: '1.2.3',
         productName: 'Example Desktop',
+        errorReporting: {
+          githubIssueUrl: 'https://github.com/example/product/issues/new?labels=bug',
+          buttonLabel: 'Contact support',
+        },
       },
     },
     sourceCommit: '0123456789abcdef',
@@ -192,6 +196,9 @@ test('uses custom product metadata and the source commit', async () => {
     REACT_APP_HEADLAMP_GIT_VERSION: '0123456789abcdef',
     REACT_APP_HEADLAMP_PRODUCT_NAME: 'Example Desktop',
     REACT_APP_HEADLAMP_PRODUCT_VERSION: '1.2.3',
+    REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL:
+      'https://github.com/example/product/issues/new?labels=bug',
+    REACT_APP_HEADLAMP_ERROR_REPORT_BUTTON_LABEL: 'Contact support',
   });
 });
 
@@ -248,6 +255,27 @@ test.each([
   ['a non-object product', { product: 'Example Desktop' }],
   ['a non-string version', { product: { version: 123 } }],
   ['a non-string product name', { product: { productName: ['Example Desktop'] } }],
+  ['a non-object error-reporting value', { product: { errorReporting: [] } }],
+  [
+    'an error-reporting value without a GitHub issue URL',
+    { product: { errorReporting: { buttonLabel: 'Contact support' } } },
+  ],
+  ['an invalid GitHub issue URL', { product: { errorReporting: { githubIssueUrl: 'not a URL' } } }],
+  [
+    'a non-HTTP GitHub issue URL',
+    { product: { errorReporting: { githubIssueUrl: 'file:///tmp/issues' } } },
+  ],
+  [
+    'an empty error-reporting button label',
+    {
+      product: {
+        errorReporting: {
+          githubIssueUrl: 'https://github.com/example/product/issues/new',
+          buttonLabel: ' ',
+        },
+      },
+    },
+  ],
 ])('rejects %s', async (_description, manifest) => {
   await expect(createEnv({ manifest, sourceCommit: 'source-commit' })).rejects.toThrow();
 });

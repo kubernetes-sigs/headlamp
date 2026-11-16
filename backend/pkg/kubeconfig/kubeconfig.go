@@ -2,7 +2,10 @@ package kubeconfig
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -123,6 +126,8 @@ type Context struct {
 	Error       string                 `json:"error"`
 	// KubeConfigPath is the file path for the kubeconfig file.
 	KubeConfigPath string `json:"kubeConfigPath"`
+	// KubeConfigContextName is the original on-disk context key, before display-name changes.
+	KubeConfigContextName string `json:"-"`
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
 	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
@@ -151,6 +156,11 @@ func (c *Context) Copy() *Context {
 			caCert := *c.OidcConf.CACert
 			oidcConf.CACert = &caCert
 		}
+
+		if c.OidcConf.APIProxy != nil {
+			apiProxy := *c.OidcConf.APIProxy
+			oidcConf.APIProxy = &apiProxy
+		}
 	}
 
 	var kubeContext *api.Context
@@ -169,17 +179,18 @@ func (c *Context) Copy() *Context {
 	}
 
 	return &Context{
-		Name:             c.Name,
-		KubeContext:      kubeContext,
-		Cluster:          cluster,
-		AuthInfo:         authInfo,
-		Source:           c.Source,
-		OidcConf:         oidcConf,
-		Internal:         c.Internal,
-		Error:            c.Error,
-		KubeConfigPath:   c.KubeConfigPath,
-		ClusterID:        c.ClusterID,
-		ClusterInventory: c.ClusterInventory.DeepCopy(),
+		Name:                  c.Name,
+		KubeContext:           kubeContext,
+		Cluster:               cluster,
+		AuthInfo:              authInfo,
+		Source:                c.Source,
+		OidcConf:              oidcConf,
+		Internal:              c.Internal,
+		Error:                 c.Error,
+		KubeConfigPath:        c.KubeConfigPath,
+		KubeConfigContextName: c.KubeConfigContextName,
+		ClusterID:             c.ClusterID,
+		ClusterInventory:      c.ClusterInventory.DeepCopy(),
 	}
 }
 
@@ -205,6 +216,24 @@ type OidcConfig struct {
 	SkipTLSVerify *bool
 	// OIDC CA certificate.
 	CACert *string
+	// APIProxy is an optional external Kubernetes API proxy that all cluster
+	// traffic of the context is routed through instead of the kube-apiserver.
+	APIProxy *APIProxySettings
+}
+
+// APIProxySettings describes an external Kubernetes API proxy (an OIDC-aware
+// gateway in front of the kube-apiserver). When a context has one, every
+// client built from the context (reverse proxy, WebSocket watches, Helm,
+// port-forward, cache) talks to the proxy instead of the kube-apiserver and
+// authenticates with the user's bearer token only.
+type APIProxySettings struct {
+	// URL is the absolute http(s) URL of the proxy, optionally with a path prefix.
+	URL string
+	// CACert is a PEM bundle used to verify the proxy certificate. Empty
+	// means the system roots are used.
+	CACert string
+	// SkipTLSVerify disables verification of the proxy certificate. Testing only.
+	SkipTLSVerify bool
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -287,7 +316,7 @@ type Base64Error struct {
 
 // Error returns a string representation of the error.
 func (e Base64Error) Error() string {
-	var messages []string //nolint:prealloc
+	var messages []string //nolint:prealloc // Small slice allocated only on error formatting
 
 	for _, err := range e.Errors {
 		messages = append(messages, err.Error())
@@ -328,7 +357,159 @@ func (c *Context) ClientConfig() clientcmd.ClientConfig {
 		},
 	}
 
-	return clientcmd.NewNonInteractiveClientConfig(conf, c.Name, nil, nil)
+	return &apiProxyClientConfig{
+		base:    clientcmd.NewNonInteractiveClientConfig(conf, c.Name, nil, nil),
+		context: c,
+	}
+}
+
+// apiProxyClientConfig is a clientcmd.ClientConfig whose rest.Config is
+// redirected to the context's API proxy when one is configured, so that every
+// client built from the context (Helm, port-forward, cache, multiplexer, ...)
+// shares the same effective gateway settings.
+type apiProxyClientConfig struct {
+	base    clientcmd.ClientConfig
+	context *Context
+}
+
+func (a *apiProxyClientConfig) RawConfig() (api.Config, error) { return a.base.RawConfig() }
+
+func (a *apiProxyClientConfig) Namespace() (string, bool, error) { return a.base.Namespace() }
+
+func (a *apiProxyClientConfig) ConfigAccess() clientcmd.ConfigAccess { return a.base.ConfigAccess() }
+
+func (a *apiProxyClientConfig) ClientConfig() (*rest.Config, error) {
+	conf, err := a.base.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return a.context.applyAPIProxy(conf)
+}
+
+// applyAPIProxy redirects conf to the context's API proxy when one is
+// configured, mirroring Kiali's api_proxy handling: Host becomes the proxy URL
+// and the TLS settings are replaced by the proxy's own, so neither the
+// kube-apiserver CA nor client certificates are used towards the proxy.
+// HTTP/1.1 is forced because external proxies frequently send GOAWAY frames
+// mid-request, which the Go HTTP/2 client cannot retry once the request body
+// has been written; HTTP/1.1 retries transparently.
+func (c *Context) applyAPIProxy(conf *rest.Config) (*rest.Config, error) {
+	apiProxy, err := c.APIProxy()
+	if err != nil {
+		return nil, err
+	}
+
+	if apiProxy == nil {
+		return conf, nil
+	}
+
+	// Resolve the auth provider before Host is swapped, see
+	// bindAuthProvider.
+	if err := c.bindAuthProvider(conf); err != nil {
+		return nil, err
+	}
+
+	tlsConf := rest.TLSClientConfig{NextProtos: []string{"http/1.1"}}
+
+	switch {
+	case apiProxy.SkipTLSVerify:
+		tlsConf.Insecure = true
+	case apiProxy.CACert != "":
+		tlsConf.CAData = []byte(apiProxy.CACert)
+	}
+
+	conf.Host = apiProxy.URL
+	conf.TLSClientConfig = tlsConf
+
+	return conf, nil
+}
+
+// bindAuthProvider resolves the auth provider of conf (the kubeconfig
+// auth-provider, e.g. oidc) under a key tied to the credentials of this
+// context, and installs it as a transport wrapper in place of
+// conf.AuthProvider.
+//
+// client-go caches auth providers by the cluster address (rest.Config.Host)
+// together with the issuer and client ID. With an API proxy, Host is the
+// proxy URL, so every context that shares the proxy, issuer and client ID
+// would share one cached provider. Requests without their own bearer token
+// (background watches, discovery, kubeconfig-only credentials) would then
+// carry the id-token of whichever context created the provider first and
+// run with that context's permissions.
+func (c *Context) bindAuthProvider(conf *rest.Config) error {
+	if conf.AuthProvider == nil {
+		return nil
+	}
+
+	// Mirror client-go, which refuses this combination when it builds the
+	// transport; we clear AuthProvider below, so it would not see it.
+	if conf.ExecProvider != nil {
+		return errors.New("execProvider and authProvider cannot be used in combination")
+	}
+
+	provider, err := rest.GetAuthProvider(c.authProviderCacheKey(conf.AuthProvider.Config), conf.AuthProvider,
+		conf.AuthConfigPersister)
+	if err != nil {
+		return fmt.Errorf("setting up auth provider for api-proxy: %w", err)
+	}
+
+	conf.Wrap(provider.WrapTransport)
+	conf.AuthProvider = nil
+
+	return nil
+}
+
+// authProviderCacheKey returns the cluster address under which client-go
+// caches this context's auth provider, given the provider's config.
+//
+// Contexts holding the same refresh token are one login and must share a
+// provider: it serializes refreshes and keeps the current refresh token in
+// memory, so an issuer that rotates refresh tokens does not reject the second
+// context with invalid_grant. Contexts with different credentials never share
+// one, and neither do contexts with different client secrets, so a stale
+// secret cannot fail the refreshes of a context holding the current one. Only
+// a digest is used, to keep the secrets out of the key.
+func (c *Context) authProviderCacheKey(authConfig map[string]string) string {
+	for _, field := range []string{"refresh-token", "id-token"} {
+		if value := authConfig[field]; value != "" {
+			digest := sha256.Sum256([]byte(authConfig["client-secret"] + "\x00" + value))
+			return "api-proxy#" + field + "=" + hex.EncodeToString(digest[:])
+		}
+	}
+
+	return "api-proxy#context=" + url.QueryEscape(c.Name)
+}
+
+// UpstreamURL returns the URL cluster requests are sent to: the API proxy
+// when one is configured, the cluster server otherwise.
+func (c *Context) UpstreamURL() (*url.URL, error) {
+	apiProxy, err := c.APIProxy()
+	if err != nil {
+		return nil, err
+	}
+
+	if apiProxy != nil {
+		return url.Parse(apiProxy.URL)
+	}
+
+	return url.Parse(c.Cluster.Server)
+}
+
+// APIProxy returns the API proxy settings of the context, or nil when cluster
+// traffic goes straight to the kube-apiserver. In-cluster contexts get the
+// settings from the --oidc-api-proxy flags, kubeconfig contexts from the
+// api-proxy keys of their oidc auth-provider config.
+func (c *Context) APIProxy() (*APIProxySettings, error) {
+	if c.OidcConf != nil {
+		return c.OidcConf.APIProxy, nil
+	}
+
+	if c.AuthInfo == nil || c.AuthInfo.AuthProvider == nil {
+		return nil, nil //nolint:nilnil // nil settings mean "no proxy"
+	}
+
+	return parseAPIProxyConfig(c.AuthInfo.AuthProvider.Config)
 }
 
 // RESTConfig returns a rest.Config for the context.
@@ -403,7 +584,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec
+		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA certificate file path is loaded from kubeconfig
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -424,13 +605,59 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		caCert = &caCertString
 	}
 
+	apiProxy, err := parseAPIProxyConfig(c.AuthInfo.AuthProvider.Config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &OidcConfig{
 		ClientID:     c.AuthInfo.AuthProvider.Config["client-id"],
 		ClientSecret: c.AuthInfo.AuthProvider.Config["client-secret"],
 		Scopes:       strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
 		IdpIssuerURL: c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
 		CACert:       caCert,
+		APIProxy:     apiProxy,
 	}, nil
+}
+
+// parseAPIProxyConfig extracts the optional api-proxy fields from an
+// auth-provider config map:
+//
+//	api-proxy                 : URL of the external Kubernetes API proxy
+//	api-proxy-ca-data         : base64-encoded PEM CA bundle for the proxy
+//	api-proxy-skip-tls-verify : "true"/"false" — disable TLS verification
+//
+// It returns nil when api-proxy is not set.
+func parseAPIProxyConfig(cfg map[string]string) (*APIProxySettings, error) {
+	apiProxy := strings.TrimSpace(cfg["api-proxy"])
+	if apiProxy == "" {
+		return nil, nil //nolint:nilnil // nil settings mean "no proxy"
+	}
+
+	proxyURL, err := url.Parse(apiProxy)
+	if err != nil || proxyURL.Host == "" || (proxyURL.Scheme != "http" && proxyURL.Scheme != "https") {
+		return nil, fmt.Errorf("api-proxy %q is not a valid http(s) URL", apiProxy)
+	}
+
+	settings := &APIProxySettings{
+		URL:           apiProxy,
+		SkipTLSVerify: strings.EqualFold(cfg["api-proxy-skip-tls-verify"], "true"),
+	}
+
+	if data := cfg["api-proxy-ca-data"]; data != "" {
+		decoded, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding base64 api-proxy-ca-data: %w", err)
+		}
+
+		if !x509.NewCertPool().AppendCertsFromPEM(decoded) {
+			return nil, errors.New("api-proxy-ca-data does not contain a PEM encoded certificate")
+		}
+
+		settings.CACert = string(decoded)
+	}
+
+	return settings, nil
 }
 
 // ProxyRequest proxies the given request to the cluster.
@@ -477,15 +704,10 @@ func (c *Context) SourceStr() string {
 	}
 }
 
-// SetupProxy sets up a reverse proxy for the context.
-func (c *Context) SetupProxy() error {
-	URL, err := url.Parse(c.Cluster.Server)
-	if err != nil {
-		return err
-	}
-
-	proxy := httputil.NewSingleHostReverseProxy(URL)
-
+// setupProxyTransport configures the reverse proxy transport. The REST config
+// already points at the API proxy when one is configured, so the same
+// transport serves both cases.
+func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
 	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
 	if c.AuthType() == "oidc" {
@@ -512,27 +734,55 @@ func (c *Context) SetupProxy() error {
 	}
 
 	restConf, err := c.RESTConfig()
-	if err == nil {
-		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
-			// Static bearer/basic auth takes precedence over exec in client-go.
-			if restConf.ExecProvider != nil &&
-				restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
-				roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
-			}
+	if err != nil {
+		return err
+	}
 
-			// Wrap the round tripper to add Headlamp User-Agent
-			proxy.Transport = &userAgentRoundTripper{
-				base:      roundTripper,
-				userAgent: buildUserAgent(),
-			}
+	roundTripper, err := makeTransportFor(restConf)
+	if err != nil {
+		return err
+	}
+
+	// Static bearer/basic auth takes precedence over exec in client-go.
+	if restConf.ExecProvider != nil &&
+		restConf.BearerToken == "" && restConf.BearerTokenFile == "" && restConf.Username == "" {
+		roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
+	}
+
+	// Wrap the round tripper to add Headlamp User-Agent
+	proxy.Transport = &userAgentRoundTripper{
+		base:      roundTripper,
+		userAgent: buildUserAgent(),
+	}
+
+	return nil
+}
+
+// SetupProxy sets up a reverse proxy for the context.
+//
+// When the context has an API proxy configured, the reverse proxy targets the
+// proxy URL instead of the kube-apiserver from the cluster definition. The
+// user's bearer token is forwarded as-is in the Authorization header by the
+// request handler.
+func (c *Context) SetupProxy() error {
+	URL, err := c.UpstreamURL()
+	if err != nil {
+		return err
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(URL)
+
+	if err := c.setupProxyTransport(proxy); err != nil {
+		// Without a dedicated transport the default one would silently
+		// bypass the proxy TLS settings, so fail loudly when a proxy is set.
+		// Direct clusters keep the previous behaviour of falling back to the
+		// default transport.
+		if apiProxy, _ := c.APIProxy(); apiProxy != nil {
+			return fmt.Errorf("setting up api-proxy transport: %w", err)
 		}
 	}
 
 	c.proxy = proxy
-
-	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
-		nil, "Proxy setup")
 
 	return nil
 }
@@ -557,7 +807,7 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
-	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
+	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec // Kubeconfig file path is provided via configuration
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
@@ -1129,21 +1379,23 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
-	// Make contextName DNS friendly.
-	contextName = MakeDNSFriendly(contextName)
-
 	newContext := Context{
-		Name:        contextName,
-		KubeContext: context,
-		Cluster:     cluster,
-		AuthInfo:    authInfo,
-		Source:      source,
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigContextName: contextName,
+		KubeContext:           context,
+		Cluster:               cluster,
+		AuthInfo:              authInfo,
+		Source:                source,
+	}
+
+	if _, err := newContext.APIProxy(); err != nil {
+		return Context{}, ContextError{ContextName: contextName, Reason: fmt.Sprintf("invalid api-proxy config: %v", err)}
 	}
 
 	if !skipProxySetup {
 		err := newContext.SetupProxy()
 		if err != nil {
-			return Context{}, ContextError{ContextName: contextName, Reason: fmt.Sprintf("couldn't setup proxy: %v", err)}
+			return Context{}, ContextError{ContextName: newContext.Name, Reason: fmt.Sprintf("couldn't setup proxy: %v", err)}
 		}
 	}
 
@@ -1165,20 +1417,19 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		// Note: nil authInfo is valid as authInfo can be provided by token.
 		authInfo := config.AuthInfos[context.AuthInfo]
 
-		// Make contextName DNS friendly.
-		contextName = MakeDNSFriendly(contextName)
-
 		context := Context{
-			Name:        contextName,
-			KubeContext: context,
-			Cluster:     cluster,
-			AuthInfo:    authInfo,
+			Name:                  MakeDNSFriendly(contextName),
+			KubeConfigPath:        context.LocationOfOrigin,
+			KubeConfigContextName: contextName,
+			KubeContext:           context,
+			Cluster:               cluster,
+			AuthInfo:              authInfo,
 		}
 
 		if !skipProxySetup {
 			err := context.SetupProxy()
 			if err != nil {
-				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", contextName, err))
+				errors = append(errors, fmt.Errorf("couldnt setup proxy for context: %q, err:%q", context.Name, err))
 				continue
 			}
 		}
@@ -1274,6 +1525,9 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcAPIProxy string,
+	oidcAPIProxyCACert string,
+	oidcAPIProxySkipTLSVerify bool,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) (*Context, error) {
@@ -1295,6 +1549,9 @@ func GetInClusterContext(
 		oidcScopes,
 		oidcSkipTLSVerify,
 		oidcCACert,
+		oidcAPIProxy,
+		oidcAPIProxyCACert,
+		oidcAPIProxySkipTLSVerify,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
 	), nil
@@ -1309,6 +1566,9 @@ func newInClusterContextFromConfig(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcAPIProxy string,
+	oidcAPIProxyCACert string,
+	oidcAPIProxySkipTLSVerify bool,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) *Context {
@@ -1337,20 +1597,17 @@ func newInClusterContextFromConfig(
 	var oidcConf *OidcConfig
 
 	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
-		var caCert *string
-		if oidcCACert != "" {
-			caCert = &oidcCACert
-		}
-
-		// client secret is optional for in-cluster OIDC configuration
-		oidcConf = &OidcConfig{
-			ClientID:      oidcClientID,
-			ClientSecret:  oidcClientSecret,
-			IdpIssuerURL:  oidcIssuerURL,
-			Scopes:        strings.Split(oidcScopes, ","),
-			SkipTLSVerify: &oidcSkipTLSVerify,
-			CACert:        caCert,
-		}
+		oidcConf = newInClusterOidcConfig(
+			oidcClientID,
+			oidcClientSecret,
+			oidcIssuerURL,
+			oidcScopes,
+			oidcSkipTLSVerify,
+			oidcCACert,
+			oidcAPIProxy,
+			oidcAPIProxyCACert,
+			oidcAPIProxySkipTLSVerify,
+		)
 	}
 
 	return &Context{
@@ -1360,6 +1617,45 @@ func newInClusterContextFromConfig(
 		AuthInfo:    inClusterAuthInfo,
 		Source:      InCluster,
 		OidcConf:    oidcConf,
+	}
+}
+
+// newInClusterOidcConfig builds the OidcConfig for the in-cluster context.
+// Empty CA bundles are stored as nil so that no TLS pool is built for them.
+func newInClusterOidcConfig(
+	oidcClientID string,
+	oidcClientSecret string,
+	oidcIssuerURL string,
+	oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
+	oidcAPIProxy string,
+	oidcAPIProxyCACert string,
+	oidcAPIProxySkipTLSVerify bool,
+) *OidcConfig {
+	var caCert *string
+	if oidcCACert != "" {
+		caCert = &oidcCACert
+	}
+
+	var apiProxy *APIProxySettings
+	if oidcAPIProxy != "" {
+		apiProxy = &APIProxySettings{
+			URL:           oidcAPIProxy,
+			CACert:        oidcAPIProxyCACert,
+			SkipTLSVerify: oidcAPIProxySkipTLSVerify,
+		}
+	}
+
+	// client secret is optional for in-cluster OIDC configuration
+	return &OidcConfig{
+		ClientID:      oidcClientID,
+		ClientSecret:  oidcClientSecret,
+		IdpIssuerURL:  oidcIssuerURL,
+		Scopes:        strings.Split(oidcScopes, ","),
+		SkipTLSVerify: &oidcSkipTLSVerify,
+		CACert:        caCert,
+		APIProxy:      apiProxy,
 	}
 }
 
@@ -1376,16 +1672,21 @@ func AllowAllKubeContext(_ Context) bool {
 // whose names are in the given comma-separated string.
 // For example, if pass the "a,b" for blackKubeContextNameStr,
 // the contexts named "a" and "b" will be skipped.
+// A context matches by its name in the kubeconfig or by its DNS-friendly name.
 func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
 	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
 	blackKubeContextNameMap := map[string]bool{}
 
 	for _, blackKubeContextName := range blackKubeContextNameList {
-		blackKubeContextNameMap[blackKubeContextName] = true
+		name := strings.TrimSpace(blackKubeContextName)
+		if name != "" {
+			blackKubeContextNameMap[name] = true
+		}
 	}
 
 	return func(kubeContext Context) bool {
-		return blackKubeContextNameMap[kubeContext.Name]
+		return blackKubeContextNameMap[kubeContext.Name] ||
+			blackKubeContextNameMap[kubeContext.KubeConfigContextName]
 	}
 }
 

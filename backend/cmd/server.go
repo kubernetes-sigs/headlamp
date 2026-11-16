@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -104,11 +105,17 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
 		ProxyURLs: func() []string {
-			if conf.ProxyURLs == "" {
-				return []string{}
+			proxyURLs := []string{}
+
+			// Trim the spaces around each entry, because a pattern like
+			// " https://b.com" never matches, and drop empty entries.
+			for _, proxyURL := range strings.Split(conf.ProxyURLs, ",") {
+				if proxyURL = strings.TrimSpace(proxyURL); proxyURL != "" {
+					proxyURLs = append(proxyURLs, proxyURL)
+				}
 			}
 
-			return strings.Split(conf.ProxyURLs, ",")
+			return proxyURLs
 		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
@@ -191,7 +198,7 @@ func loadOidcCACert(oidcCAFile string) string {
 		return ""
 	}
 
-	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec // CA file path is provided via CLI configuration
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 		os.Exit(1)
@@ -221,6 +228,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcAPIProxy:              conf.OidcAPIProxy,
+		OidcAPIProxySkipTLSVerify: conf.OidcAPIProxySkipTLSVerify,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,
@@ -229,6 +238,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
+		OidcAPIProxyCACert:        loadOidcCACert(conf.OidcAPIProxyCAFile),
 	}
 
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
@@ -243,10 +253,34 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
+	cfg.AdminSettings, err = loadAdminSettings(conf.SettingsPath)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading admin settings")
+		os.Exit(1)
+	}
+
 	return &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+}
+
+// loadAdminSettings reads and validates the admin settings JSON file.
+func loadAdminSettings(path string) (json.RawMessage, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // Settings file path is provided via CLI configuration
+	if err != nil {
+		return nil, fmt.Errorf("reading settings file: %w", err)
+	}
+
+	if !json.Valid(data) {
+		return nil, errors.New("settings file is not valid JSON")
+	}
+
+	return data, nil
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.

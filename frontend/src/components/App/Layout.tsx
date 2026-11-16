@@ -33,12 +33,17 @@ import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s'
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
+import { getUserSelectedThemeName } from '../../lib/themes';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
+import { setAdminSettings } from '../../settings/adminSettingsSlice';
+import { useClusterDefinedSettings } from '../../settings/fetchClusterSettings';
+import { parseAdminSettings } from '../../settings/parseAdminSettings';
+import { useSetting } from '../../settings/useAdminSettings';
 import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
 import { ActivitiesRenderer } from '../activity/Activity';
 import { ErrorPage, Loader } from '../common';
@@ -50,7 +55,7 @@ import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
 import ResourceShortcuts from './ResourceShortcuts';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
-import { applyBackendThemeConfig } from './themeSlice';
+import { applyAdminTheme, applyBackendThemeConfig, useAppThemes } from './themeSlice';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
 
@@ -179,6 +184,10 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       }
     }
 
+    if (config?.adminSettings) {
+      dispatch(setAdminSettings(parseAdminSettings(config.adminSettings)));
+    }
+
     dispatch(
       applyBackendThemeConfig({
         defaultLightTheme: config?.defaultLightTheme,
@@ -210,6 +219,31 @@ export default function Layout({}: LayoutProps) {
   const { t } = useTranslation();
   const allClusters = useClustersConf();
   const location = useLocation();
+
+  useClusterDefinedSettings();
+
+  // Bridge the admin theme to the active theme state. CLI forceTheme has
+  // precedence and is applied via applyBackendThemeConfig. A restricted admin
+  // theme always applies; otherwise the user's own pick wins and the admin
+  // theme is only the default.
+  const adminTheme = useSetting<string>('theme');
+  const appThemes = useAppThemes();
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  useEffect(() => {
+    if (forceTheme) {
+      return;
+    }
+    const restricted = adminTheme.disabled || adminTheme.hidden;
+    const target = restricted
+      ? adminTheme.value
+      : getUserSelectedThemeName(appThemes) ?? adminTheme.value;
+    if (target) {
+      dispatch(applyAdminTheme(target));
+    }
+    // appThemes is read only for the user's pick; theme registration alone must
+    // not re-apply the admin theme over what the user is looking at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminTheme.value, adminTheme.disabled, adminTheme.hidden, forceTheme, dispatch]);
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the

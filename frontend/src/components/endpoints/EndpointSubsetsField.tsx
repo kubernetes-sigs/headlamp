@@ -30,7 +30,7 @@ import type {
 import { useId } from '../../lib/util';
 import { FormTextField } from '../common/Resource/CreateResourceForm';
 import type { EndpointsDraft } from './CreateEndpointsForm';
-import { getEndpointIPIssue } from './endpointsValidation';
+import { type EndpointIPIssue, getEndpointIPIssue } from './endpointsValidation';
 
 type EndpointSubsetDraft = RecursivePartial<KubeEndpointSubset>;
 type EndpointAddressDraft = RecursivePartial<KubeEndpointAddress>;
@@ -38,6 +38,30 @@ type EndpointPortDraft = RecursivePartial<KubeEndpointPort>;
 type EndpointSubsetsDraft = NonNullable<EndpointsDraft['subsets']>;
 type EndpointAddressesDraft = NonNullable<EndpointSubsetDraft['addresses']>;
 type EndpointPortsDraft = NonNullable<EndpointSubsetDraft['ports']>;
+
+/** User-facing explanation for an endpoint IP the API server rejects. */
+export function getEndpointIPIssueText(issue: EndpointIPIssue, t: (key: string) => string): string {
+  switch (issue) {
+    case 'malformed':
+      return t('translation|Enter a valid IPv4 or IPv6 address.');
+    case 'ipv4-mapped':
+      return t(
+        'translation|IPv4-mapped IPv6 addresses are not allowed. Use the plain IPv4 address instead.'
+      );
+    case 'unspecified':
+      return t('translation|Unspecified addresses (0.0.0.0, ::) are not allowed for endpoints.');
+    case 'loopback':
+      return t('translation|Loopback addresses (127.0.0.0/8, ::1) are not allowed for endpoints.');
+    case 'link-local':
+      return t(
+        'translation|Link-local addresses (169.254.0.0/16, fe80::/10) are not allowed for endpoints.'
+      );
+    case 'link-local-multicast':
+      return t(
+        'translation|Link-local multicast addresses (224.0.0.0/24, or IPv6 multicast with link-local scope, ffx2::) are not allowed for endpoints.'
+      );
+  }
+}
 
 export interface EndpointSubsetsFieldProps {
   value: EndpointsDraft['subsets'];
@@ -190,30 +214,8 @@ function EndpointAddressesField(props: EndpointAddressesFieldProps) {
     if (typeof ip !== 'string' || ip === '') {
       return undefined;
     }
-    switch (getEndpointIPIssue(ip)) {
-      case 'malformed':
-        return t('translation|Enter a valid IPv4 or IPv6 address.');
-      case 'ipv4-mapped':
-        return t(
-          'translation|IPv4-mapped IPv6 addresses are not allowed. Use the plain IPv4 address instead.'
-        );
-      case 'unspecified':
-        return t('translation|Unspecified addresses (0.0.0.0, ::) are not allowed for endpoints.');
-      case 'loopback':
-        return t(
-          'translation|Loopback addresses (127.0.0.0/8, ::1) are not allowed for endpoints.'
-        );
-      case 'link-local':
-        return t(
-          'translation|Link-local addresses (169.254.0.0/16, fe80::/10) are not allowed for endpoints.'
-        );
-      case 'link-local-multicast':
-        return t(
-          'translation|Link-local multicast addresses (224.0.0.0/24, or IPv6 multicast with link-local scope, ffx2::) are not allowed for endpoints.'
-        );
-      default:
-        return undefined;
-    }
+    const issue = getEndpointIPIssue(ip);
+    return issue ? getEndpointIPIssueText(issue, t) : undefined;
   }
 
   return (

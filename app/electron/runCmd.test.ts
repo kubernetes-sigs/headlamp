@@ -939,6 +939,25 @@ describe('handleRunCommand', () => {
     );
   });
 
+  it('hides the console window of the spawned command', async () => {
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: {},
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await expect(
+      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 })
+    ).resolves.toBeUndefined();
+    expect(spawnMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({ windowsHide: true })
+    );
+  });
+
   it('runs plugin scripts with the Electron executable', async () => {
     const { loadSettings } = await import('./settings');
     const originalResourcesPath = process.resourcesPath;

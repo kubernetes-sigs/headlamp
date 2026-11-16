@@ -2,6 +2,7 @@ package headlampconfig
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -29,6 +30,16 @@ type HeadlampConfig struct {
 	OidcUseAccessToken        bool
 	OidcSkipTLSVerify         bool
 	OidcCACert                string
+	// OidcAPIProxy is the URL of an external Kubernetes API proxy. When
+	// set, cluster API requests are routed through this URL instead of
+	// the kube-apiserver from the kubeconfig. The OIDC bearer token is
+	// forwarded as-is in the Authorization header.
+	OidcAPIProxy string
+	// OidcAPIProxyCACert is the PEM-encoded CA bundle used to verify the
+	// api-proxy TLS certificate. Optional.
+	OidcAPIProxyCACert string
+	// OidcAPIProxySkipTLSVerify disables TLS verification for the api-proxy.
+	OidcAPIProxySkipTLSVerify bool
 	OidcUsePKCE               bool
 	OidcSkipLogout            bool
 	OidcScopes                []string
@@ -46,6 +57,7 @@ type HeadlampConfig struct {
 	ProxyAuthEmailHeader      string
 	ProxyAuthTokenHeader      string
 	ServerCtx                 context.Context
+	AdminSettings             json.RawMessage
 }
 
 type HeadlampCFG struct {

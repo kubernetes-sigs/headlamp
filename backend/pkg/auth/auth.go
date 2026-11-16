@@ -332,7 +332,8 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 
 		tlsSkipTransport := base.Clone()
 
-		tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		//nolint:gosec // Insecure skip verify explicitly requested by configuration
+		tlsCfg := &tls.Config{InsecureSkipVerify: true}
 		if base.TLSClientConfig != nil {
 			tlsCfg = base.TLSClientConfig.Clone()
 			tlsCfg.InsecureSkipVerify = true
@@ -375,6 +376,23 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 	}
 
 	return ctx
+}
+
+// WithClientTimeout returns a context whose HTTP client, the one oidc.ClientContext stores,
+// has the given timeout. It copies the client already in ctx (for example the one
+// ConfigureTLSContext installed) or http.DefaultClient, keeps its Transport and leaves the
+// original untouched. The timeout is on the client and not on the context because the
+// context can outlive the request that created it. Call it after the client is configured.
+func WithClientTimeout(ctx context.Context, timeout time.Duration) context.Context {
+	client := http.DefaultClient
+	if existing, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok && existing != nil {
+		client = existing
+	}
+
+	clientWithTimeout := *client
+	clientWithTimeout.Timeout = timeout
+
+	return oidc.ClientContext(ctx, &clientWithTimeout)
 }
 
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
@@ -625,6 +643,12 @@ func stringSliceFromJMESPaths(payload map[string]interface{}, paths []*jmespath.
 			return out
 		case []string:
 			return v
+		case string:
+			// The API server accepts a groups claim that is a single string,
+			// so treat it as one group rather than dropping it.
+			if v != "" {
+				return []string{v}
+			}
 		}
 	}
 

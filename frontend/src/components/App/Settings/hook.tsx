@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
 import { useTypedSelector } from '../../../redux/hooks';
+import { selectEffectiveSettings } from '../../../settings/useAdminSettings';
 
 export const useSettings = function (settingName?: string) {
-  const storeSettingEntries = useTypedSelector(state =>
-    settingName ? state.config.settings[settingName] : state.config.settings
-  );
-  const [settingEntries, setSettingEntries] = useState(storeSettingEntries);
+  const storeSettingEntries = useTypedSelector(state => {
+    const settings = selectEffectiveSettings(state);
+    return settingName ? settings[settingName] : settings;
+  });
 
-  useEffect(() => {
-    setSettingEntries(settingEntries);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeSettingEntries]);
-
-  return settingEntries;
+  return storeSettingEntries;
 };

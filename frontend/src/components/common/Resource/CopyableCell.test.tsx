@@ -38,19 +38,17 @@ describe('CopyableCell', () => {
       </TestContext>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'translation|Copy to clipboard' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy to clipboard' }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('10.0.0.1'));
-    expect(screen.getByRole('button', { name: 'translation|Copied!' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copied!' })).toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(1500);
     });
 
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'translation|Copy to clipboard' })
-      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Copy to clipboard' })).toBeInTheDocument()
     );
   });
 
@@ -62,8 +60,6 @@ describe('CopyableCell', () => {
     );
 
     expect(screen.getByText('empty')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'translation|Copy to clipboard' })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy to clipboard' })).not.toBeInTheDocument();
   });
 });

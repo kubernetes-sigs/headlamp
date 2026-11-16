@@ -103,7 +103,7 @@ _profile_ and _email_
 [scopes](https://openid.net/specs/openid-connect-basic-1_0.html#Scopes).
 Scopes can be overridden by using the `-oidc-scopes` option. Remember to
 include the default ones if you need them when using that option.
-For example, if you need to keep the default scopes and add Github's `repo`,
+For example, if you need to keep the default scopes and add GitHub's `repo`,
 then add them all to the option:
 
 `-oidc-scopes=profile,email,repo`
@@ -196,3 +196,10 @@ If you can sign in via OIDC but are returned to the "Sign in" screen with a mess
 Make sure the API server is configured for the same OIDC provider (via its `--oidc-issuer-url` / `--oidc-client-id` flags or the equivalent [structured authentication configuration](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server)), so that `--oidc-issuer-url` matches Headlamp's `-oidc-idp-issuer-url` and `--oidc-client-id` matches Headlamp's `-oidc-client-id`.
 
 Managed control planes (e.g. AKS, EKS, GKE) may not accept arbitrary OIDC flags on the API server. If that is the case, use the provider's managed identity/OIDC integration instead. When the API server rejects the token, Headlamp logs a warning containing `API server rejected the forwarded bearer token (401)`.
+
+### Routing cluster traffic through an API proxy
+
+If your platform requires all Kubernetes API traffic to pass through an
+OIDC-aware API proxy instead of reaching the kube-apiserver directly, see
+[OIDC API Proxy](./oidc-api-proxy.md) for the `-oidc-api-proxy` flags and the
+matching kubeconfig `auth-provider` keys.

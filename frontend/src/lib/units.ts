@@ -50,7 +50,7 @@ function parseUnitsOfBytes(value: string): number {
   // uppercase K is not a valid suffix, but it has been read as kilo here for a
   // long time, so it stays accepted.
   const groups = value.match(/(\d+(?:\.\d+)?)([BkKMGTPEe])?(i)?(\d+)?/) || [];
-  const number = parseFloat(groups[1]);
+  const number = parseFloat(groups[1]) * (value.startsWith('-') ? -1 : 1);
 
   // number ex. 1000
   if (groups[2] === undefined) {

@@ -88,6 +88,12 @@ func (h spaHandler) serveStatic(w http.ResponseWriter, r *http.Request, root *os
 	// per-encoding entries even when we end up serving the identity bytes.
 	setEncodingHeaders(w, "")
 
+	// Require revalidation of the SPA entry point so browsers do not
+	// reuse stale HTML after authentication state changes.
+	if rel == filepath.FromSlash(h.indexPath) {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+
 	if h.tryServeSidecar(w, r, root, rel) {
 		return
 	}

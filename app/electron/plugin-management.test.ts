@@ -616,11 +616,23 @@ describe('PluginManager', () => {
     // Reset progress array for uninstall
     progress.length = 0;
 
-    // Uninstall the plugin from the same directory
-    PluginManager.uninstall('headlamp_minikube', pluginDestDir, progressCallback);
+    // Uninstall the plugin from the same directory. Give it a package name that differs
+    // from its folder, as scoped packages have, so the cleanup must get the folder.
+    const packageJsonPath = path.join(pluginDir, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    fs.writeFileSync(
+      packageJsonPath,
+      JSON.stringify({ ...packageJson, name: '@example/minikube' })
+    );
+    const beforeRemove = vi.fn((folderName: string) => {
+      // Called while the bundle can still be found, so its cleanup can be retried
+      expect(fs.existsSync(path.join(pluginDestDir, folderName))).toBe(true);
+    });
+    PluginManager.uninstall('@example/minikube', pluginDestDir, progressCallback, beforeRemove);
 
     // Verify the plugin was uninstalled
     expect(fs.existsSync(pluginDir)).toBe(false);
+    expect(beforeRemove).toHaveBeenCalledExactlyOnceWith('headlamp_minikube');
 
     // Verify success message
     const successMessages = progress.filter(p => p.type === 'success');
@@ -634,6 +646,47 @@ describe('PluginManager', () => {
     if (fs.existsSync(testDataDir)) {
       fs.rmSync(testDataDir, { recursive: true });
     }
+  }, 30000);
+
+  it('keeps the bundle when the cleanup before uninstalling it fails', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'uninstall-cleanup-test-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'uninstall-cleanup-test-plugins');
+    await createMinimalPluginTarball(testDataDir);
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
+    const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+    await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, null, null);
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    const progress: any[] = [];
+
+    // For example, settings.json can't be written, so the bundle's consents can't be cleared.
+    PluginManager.uninstall(
+      'headlamp_minikube',
+      pluginDestDir,
+      update => progress.push(update),
+      () => {
+        throw new Error('settings.json is read-only');
+      }
+    );
+
+    expect(progress).toEqual([{ type: 'error', message: 'settings.json is read-only' }]);
+    expect(fs.existsSync(pluginDir)).toBe(true);
+
+    // A retry still finds the bundle, so its cleanup runs again.
+    const beforeRemove = vi.fn();
+    progress.length = 0;
+    PluginManager.uninstall(
+      'headlamp_minikube',
+      pluginDestDir,
+      update => progress.push(update),
+      beforeRemove
+    );
+
+    expect(beforeRemove).toHaveBeenCalledExactlyOnceWith('headlamp_minikube');
+    expect(progress).toEqual([{ type: 'success', message: 'Plugin Uninstalled' }]);
+    expect(fs.existsSync(pluginDir)).toBe(false);
+
+    fs.rmSync(pluginDestDir, { recursive: true, force: true });
+    fs.rmSync(testDataDir, { recursive: true, force: true });
   }, 30000);
 });
 

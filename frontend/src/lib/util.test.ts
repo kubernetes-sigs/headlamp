@@ -106,6 +106,16 @@ describe('getReadyReplicas / getTotalReplicas', () => {
     expect(getReadyReplicas(jobSet)).toBe(0);
     expect(getTotalReplicas(jobSet)).toBe(0);
   });
+
+  it('counts every node a DaemonSet should run on, not only the scheduled ones', () => {
+    const daemonSet = {
+      kind: 'DaemonSet',
+      spec: {},
+      status: { desiredNumberScheduled: 3, currentNumberScheduled: 2, numberReady: 2 },
+    } as any;
+    expect(getReadyReplicas(daemonSet)).toBe(2);
+    expect(getTotalReplicas(daemonSet)).toBe(3);
+  });
 });
 
 describe('combineClusterListErrors', () => {
@@ -244,6 +254,20 @@ describe('formatDuration (Kubernetes apimachinery parity)', () => {
       }
     );
   });
+
+  describe('non-finite and NaN values', () => {
+    it('returns <invalid> for NaN duration', () => {
+      expect(formatDuration(NaN)).toBe('<invalid>');
+      expect(formatDuration(NaN, { format: 'mini' })).toBe('<invalid>');
+    });
+
+    it('returns <invalid> for positive and negative Infinity', () => {
+      expect(formatDuration(Infinity)).toBe('<invalid>');
+      expect(formatDuration(-Infinity)).toBe('<invalid>');
+      expect(formatDuration(Infinity, { format: 'mini' })).toBe('<invalid>');
+      expect(formatDuration(-Infinity, { format: 'mini' })).toBe('<invalid>');
+    });
+  });
 });
 
 describe('timeAgo', () => {
@@ -257,6 +281,12 @@ describe('timeAgo', () => {
     );
     expect(timeAgo(start)).toBe('90d');
     expect(timeAgo(start, { format: 'mini' })).toBe('90d');
+  });
+
+  it('returns <invalid> for invalid or NaN dates', () => {
+    expect(timeAgo('invalid-date')).toBe('<invalid>');
+    expect(timeAgo(NaN)).toBe('<invalid>');
+    expect(timeAgo(new Date('invalid'))).toBe('<invalid>');
   });
 });
 
