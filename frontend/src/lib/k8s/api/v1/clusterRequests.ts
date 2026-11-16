@@ -194,7 +194,7 @@ export async function clusterRequest(
 
     let message = statusText;
     try {
-      if (isJSON) {
+      if (isJSON && !response.headers.get('Content-Type')?.startsWith('text/plain')) {
         const json = await response.json();
         message += ` - ${json.message}`;
       } else {

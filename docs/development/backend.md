@@ -138,6 +138,12 @@ npm run backend:format
 npm run backend:test
 ```
 
+Cluster lifecycle tests use temporary kubeconfigs and an explicit `KubeConfigDir`
+so persisted user clusters cannot affect assertions. Rename tests register the
+cluster routes directly rather than starting file watchers that can reload
+contexts during assertions. Real-cluster helpers also isolate `KubeConfigDir`
+without changing the home directory used by Kubernetes credentials.
+
 The development launcher's signal forwarding is tested by the app unit tests
 (`app/electron/run-backend.test.ts`):
 

@@ -33,7 +33,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -577,10 +576,6 @@ func TestGetConfigOmitsAdminSettingsWhenUnset(t *testing.T) {
 
 //nolint:gocognit,funlen // Integration test executes full dynamic cluster lifecycle
 func TestDynamicClusters(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
-		t.Skip("skipping integration test")
-	}
-
 	var (
 		newCluster        = "mynewcluster"
 		newClusterServer  = "https://mysupercluster.io"
@@ -664,6 +659,7 @@ func TestDynamicClusters(t *testing.T) {
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:          false,
 						KubeConfigPath:        "",
+						KubeConfigDir:         t.TempDir(),
 						EnableDynamicClusters: true,
 						KubeConfigStore:       kubeConfigStore,
 					},
@@ -672,8 +668,10 @@ func TestDynamicClusters(t *testing.T) {
 					TelemetryHandler: &telemetry.RequestHandler{},
 				},
 			}
-			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
-			initialClusterCount := len(c.getClusters())
+			handler := mux.NewRouter()
+			c.addClusterSetupRoute(handler)
+			handler.HandleFunc("/config", c.getConfig)
+			require.Empty(t, c.getClusters())
 
 			var resp *httptest.ResponseRecorder
 
@@ -735,9 +733,9 @@ func TestDynamicClusters(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				assert.Equal(t, initialClusterCount+tc.expectedNumClusters, len(clusterConfig.Clusters))
+				assert.Equal(t, tc.expectedNumClusters, len(clusterConfig.Clusters))
 				assert.Equal(t, len(clusterConfig.Clusters), len(config.Clusters))
-				assert.Equal(t, initialClusterCount+tc.expectedNumClusters, len(c.getClusters()))
+				assert.Equal(t, tc.expectedNumClusters, len(c.getClusters()))
 			}
 		})
 	}
@@ -2185,33 +2183,6 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 	assert.Equal(t, "OK", rr.Body.String())
 }
 
-// handleClusterRenameRequest handles a cluster rename request.
-func handleClusterRenameRequest(
-	t *testing.T,
-	handler http.Handler,
-	tc struct {
-		name          string
-		clusterReq    RenameClusterRequest
-		expectedState int
-	},
-) {
-	var r *httptest.ResponseRecorder
-
-	var err error
-
-	if tc.clusterReq.Source == "kubeconfig" {
-		url := "/cluster/minikubetestnondynamic?ClusterID=./headlamp_testdata/kubeconfig_rename:minikubetestnondynamic"
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
-	} else {
-		url := "/cluster/minikubetest?ClusterID=minikubetest"
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
-	}
-}
-
 // TestCheckUniqueName checks the CheckUniqueName function which checks if a new name is unique among existing contexts.
 func TestCheckUniqueName(t *testing.T) {
 	// Need the parsed *api.Config so we can reference the contexts
@@ -2536,34 +2507,16 @@ func TestCustomNameToExtensions(t *testing.T) {
 	}
 }
 
-// runClusterRenameTests used to run the cluster rename tests.
-func runClusterRenameTests(
-	t *testing.T,
-	handler http.Handler,
-	tests []struct {
-		name          string
-		clusterReq    RenameClusterRequest
-		expectedState int
-	},
-) {
-	resetConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig_rename")
-	require.NoError(t, err)
-
-	for _, tc := range tests {
-		handleClusterRenameRequest(t, handler, tc)
-	}
-
-	// This test modifies the test file, so we have to restore the test file at the end of the test.
-	//nolint:gosec // Writing test fixture file in testdata directory
-	err = os.WriteFile("./headlamp_testdata/kubeconfig_rename", resetConfigByte, 0o600)
-	require.NoError(t, err)
-}
-
 // TestRenameCluster checks the cluster rename functionality.
 // note: needed to split into multiple parts for linter.
 //
 //nolint:funlen // Test exercises cluster rename workflow and asserts state
 func TestRenameCluster(t *testing.T) {
+	renameConfig, err := clientcmd.LoadFromFile("./headlamp_testdata/kubeconfig_rename")
+	require.NoError(t, err)
+	kubeConfigPath := filepath.Join(t.TempDir(), "config")
+	require.NoError(t, clientcmd.WriteToFile(*renameConfig, kubeConfigPath))
+
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
 
@@ -2578,7 +2531,8 @@ func TestRenameCluster(t *testing.T) {
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:          false,
-				KubeConfigPath:        "./headlamp_testdata/kubeconfig_rename",
+				KubeConfigPath:        kubeConfigPath,
+				KubeConfigDir:         t.TempDir(),
 				EnableDynamicClusters: true,
 				KubeConfigStore:       kubeConfigStore,
 			},
@@ -2587,7 +2541,12 @@ func TestRenameCluster(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(
+		kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil,
+	))
+
+	handler := mux.NewRouter()
+	c.addClusterSetupRoute(handler)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -2598,11 +2557,13 @@ func TestRenameCluster(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		cluster       string
 		clusterReq    RenameClusterRequest
 		expectedState int
 	}{
 		{
-			name: "stateless",
+			name:    "stateless",
+			cluster: "minikubetest",
 			clusterReq: RenameClusterRequest{
 				NewClusterName: "minikubetestworksnew",
 				Stateless:      true,
@@ -2610,7 +2571,8 @@ func TestRenameCluster(t *testing.T) {
 			expectedState: http.StatusCreated,
 		},
 		{
-			name: "passStatefull",
+			name:    "passStatefull",
+			cluster: "minikubetestnondynamic",
 			clusterReq: RenameClusterRequest{
 				NewClusterName: "minikubetestworkskubeconfig",
 				Stateless:      false,
@@ -2620,13 +2582,26 @@ func TestRenameCluster(t *testing.T) {
 		},
 	}
 
-	runClusterRenameTests(t, handler, tests)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			response, err := getResponseFromRestrictedEndpoint(handler, "PUT", "/cluster/"+tc.cluster, tc.clusterReq)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedState, response.Code, response.Body.String())
 
-	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
-	require.NoError(t, remErr, "Failed to remove context: minikubetest")
+			clusters := c.getClusters()
+			clusterNames := make([]string, 0, len(clusters))
 
-	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestnondynamic")
-	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestnondynamic")
+			for _, cluster := range clusters {
+				clusterNames = append(clusterNames, cluster.Name)
+			}
+
+			assert.NotContains(t, clusterNames, tc.cluster)
+
+			if !tc.clusterReq.Stateless {
+				assert.Contains(t, clusterNames, tc.clusterReq.NewClusterName)
+			}
+		})
+	}
 
 	clusters := c.getClusters()
 	clustersByName := map[string]Cluster{}
@@ -2635,13 +2610,10 @@ func TestRenameCluster(t *testing.T) {
 		clustersByName[cl.Name] = cl
 	}
 
-	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The kubeconfig-backed rename persists the custom name and refreshes the store.
-	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
 	assert.Contains(t, clustersByName, "minikubetestworkskubeconfig",
 		"expected successful kubeconfig rename to create a new cluster name in the store")
 	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
-		"expected original kubeconfig context to be removed during cleanup")
+		"expected kubeconfig rename to remove the original context")
 	// The clusters added via POST should still be present.
 	assert.Contains(t, clustersByName, minikubeName, "expected minikube cluster to still exist")
 	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to still exist")
@@ -4153,6 +4125,23 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
 }
 
+func TestRealK8sHeadlampConfigIsolatesPersistence(t *testing.T) {
+	t.Setenv("KUBECONFIG", filepath.Join("headlamp_testdata", "kubeconfig"))
+
+	home := os.Getenv("HOME")
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+
+	c, cluster := newRealK8sHeadlampConfig(t)
+	require.NotEmpty(t, cluster)
+	require.DirExists(t, c.KubeConfigDir)
+	assert.Equal(t, home, os.Getenv("HOME"))
+	assert.Equal(t, configHome, os.Getenv("XDG_CONFIG_HOME"))
+
+	entries, err := os.ReadDir(c.KubeConfigDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
 // newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests
 // that use a real Kubernetes cluster (e.g. minikube in CI).
 // Uses a temp config dir so Headlamp's dynamic clusters file does not overwrite
@@ -4200,9 +4189,7 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 		t.Skipf("kubeconfig not found at %s, skipping real K8s integration test", kubeConfigPath)
 	}
 
-	tempDir, err := os.MkdirTemp("", "headlamp-integration-test")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
+	tempDir := t.TempDir()
 
 	pluginDir := filepath.Join(tempDir, "plugins")
 	userPluginDir := filepath.Join(tempDir, "user-plugins")
@@ -4210,23 +4197,9 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	require.NoError(t, os.MkdirAll(pluginDir, 0o750))
 	require.NoError(t, os.MkdirAll(userPluginDir, 0o750))
 
-	// Use temp dir as config home so Headlamp's dynamic clusters file
-	// (which can have stale minikube entries) does not overwrite the main kubeconfig.
-	tempConfigHome := filepath.Join(tempDir, "config-home")
-	if runtime.GOOS == "darwin" {
-		require.NoError(t, os.MkdirAll(
-			filepath.Join(tempConfigHome, "Library", "Application Support", "Headlamp", "kubeconfigs"),
-			0o750,
-		))
-		t.Cleanup(setEnvForTest(t, "HOME", tempConfigHome))
-	} else {
-		require.NoError(t, os.MkdirAll(filepath.Join(tempConfigHome, "Headlamp", "kubeconfigs"), 0o750))
-		t.Cleanup(setEnvForTest(t, "XDG_CONFIG_HOME", tempConfigHome))
-	}
-
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
+	err := kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
 	require.NoErrorf(t, err, "unable to load kubeconfig for real K8s integration test")
 
 	cfg, err := clientcmd.LoadFromFile(kubeConfigPath)
@@ -4259,6 +4232,7 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
 				KubeConfigPath:  kubeConfigPath,
+				KubeConfigDir:   t.TempDir(),
 				KubeConfigStore: kubeConfigStore,
 				CacheEnabled:    true,
 				PluginDir:       pluginDir,
@@ -4271,22 +4245,6 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	}
 
 	return c, clusterName
-}
-
-// setEnvForTest sets an env var for the test and returns a cleanup that restores it.
-func setEnvForTest(t *testing.T, key, value string) func() {
-	t.Helper()
-
-	old, had := os.LookupEnv(key)
-	require.NoError(t, os.Setenv(key, value))
-
-	return func() {
-		if had {
-			_ = os.Setenv(key, old)
-		} else {
-			_ = os.Unsetenv(key)
-		}
-	}
 }
 
 // TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s tests cache hit/miss with a

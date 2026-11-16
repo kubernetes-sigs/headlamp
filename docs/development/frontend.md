@@ -80,6 +80,11 @@ You can run `ci-lint` locally before pushing to catch any react-hooks violations
 
 ## Unit test reliability
 
+Cluster rename error tests exercise the real request helper with the backend's
+plain-text error responses. Even when a successful response is JSON, preserve
+the error body's details and HTTP status so the dialog explains why renaming
+failed rather than showing only "Bad Request".
+
 Sidebar hook tests mock CRD listing and resource availability rather than
 contacting a backend. They assert that no fetch requests escape, unmount hook
 consumers, and cancel and clear React Query work before restoring mocks. Keep
