@@ -47,7 +47,8 @@ const { servedSchedulingVersions } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../lib/k8s/api/v1/clusterRequests', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../lib/k8s/api/v1/clusterRequests')>();
+  type ClusterRequestsModule = typeof import('../../lib/k8s/api/v1/clusterRequests');
+  const actual = await importOriginal<ClusterRequestsModule>();
   return {
     ...actual,
     request: vi.fn(async (path: string, ...rest: any[]) => {
