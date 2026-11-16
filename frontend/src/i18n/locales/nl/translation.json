@@ -878,6 +878,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "Eindpunten",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "Budget opnieuw proberen",
   "Not specified": "Niet opgegeven",
   "Min Retry Rate": "Minimale herhalingsfrequentie",

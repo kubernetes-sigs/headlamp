@@ -885,6 +885,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "Points de terminaison",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "Budget de réessais",
   "Not specified": "Non spécifié",
   "Min Retry Rate": "Taux minimum de réessais",

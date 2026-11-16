@@ -252,13 +252,17 @@
             <div
               class="MuiBox-root css-1txv3mw"
             >
-              <span
-                aria-label="Hostname: example.com"
-                class=""
-                data-mui-internal-clone-element="true"
+              <div
+                class="MuiBox-root css-13o7eu2"
               >
-                Hostname: example.com
-              </span>
+                <span
+                  aria-label="Hostname: example.com"
+                  class=""
+                  data-mui-internal-clone-element="true"
+                >
+                  Hostname: example.com
+                </span>
+              </div>
             </div>
           </div>
         </div>
