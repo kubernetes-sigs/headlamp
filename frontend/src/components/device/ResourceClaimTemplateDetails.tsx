@@ -16,13 +16,10 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import type { DeviceRequest } from '../../lib/k8s/resourceClaim';
-import { getRequestedDeviceClasses } from '../../lib/k8s/resourceClaim';
 import ResourceClaimTemplate from '../../lib/k8s/resourceClaimTemplate';
-import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
-import SimpleTable from '../common/SimpleTable';
+import DeviceRequestsTable from './DeviceRequestsTable';
 
 export default function ResourceClaimTemplateDetails(props: {
   name?: string;
@@ -46,45 +43,9 @@ export default function ResourceClaimTemplateDetails(props: {
             id: 'headlamp.resourceclaimtemplate-requests',
             section: (
               <SectionBox title={t('translation|Requests')}>
-                <SimpleTable
-                  columns={[
-                    {
-                      label: t('translation|Request'),
-                      getter: (request: DeviceRequest) => request.name,
-                    },
-                    {
-                      label: t('glossary|Device Classes'),
-                      getter: (request: DeviceRequest) =>
-                        getRequestedDeviceClasses(request).map((className, index) => (
-                          <div key={`${className}-${index}`}>
-                            <Link
-                              routeName="deviceClass"
-                              params={{ name: className }}
-                              activeCluster={item.cluster}
-                            >
-                              {className}
-                            </Link>
-                          </div>
-                        )),
-                    },
-                    {
-                      label: t('translation|Count'),
-                      gridTemplate: 'min-content',
-                      getter: (request: DeviceRequest) =>
-                        request.exactly
-                          ? request.exactly.allocationMode === 'All'
-                            ? t('translation|All')
-                            : request.exactly.count ?? ''
-                          : request.firstAvailable?.map(subrequest => (
-                              <div key={subrequest.name}>
-                                {subrequest.allocationMode === 'All'
-                                  ? t('translation|All')
-                                  : subrequest.count ?? ''}
-                              </div>
-                            )),
-                    },
-                  ]}
-                  data={item.requests}
+                <DeviceRequestsTable
+                  requests={item.requests}
+                  cluster={item.cluster}
                   emptyMessage={t('translation|This template requests no devices.')}
                 />
               </SectionBox>
