@@ -107,6 +107,18 @@ function getPodsSelectorFilter(service?: Service) {
   return '';
 }
 
+// Only a running, ready pod that isn't being deleted can serve the service's traffic,
+// the same rule the backend uses when it reconnects through the service's endpoints.
+function isPodReadyForPortForward(pod: Pod) {
+  return (
+    pod.status?.phase === 'Running' &&
+    !pod.metadata.deletionTimestamp &&
+    (pod.status?.conditions || []).some(
+      condition => condition.type === 'Ready' && condition.status === 'True'
+    )
+  );
+}
+
 function checkIfPodPortForwarding(portforwardParam: {
   item: PortForwardState;
   namespace: string;
@@ -187,21 +199,30 @@ function PortForwardContent(props: PortForwardProps) {
     return getCluster();
   }, [resource]);
 
+  // A service without a selector has no pods of its own, so an empty filter would list every
+  // pod in the namespace and the port forward could land on an unrelated one.
+  const serviceHasSelector = !isPod && getPodsSelectorFilter(service) !== '';
+  const servicePod = React.useMemo(
+    () => (serviceHasSelector ? pods?.find(isPodReadyForPortForward) : undefined),
+    [serviceHasSelector, pods]
+  );
+
+  const portSourcePod = isPod ? pods?.[0] : servicePod ?? pods?.[0];
+  const canStart = isPod || !!servicePod;
+
   const numericContainerPort =
     typeof containerPort === 'string' && isNaN(parseInt(containerPort))
-      ? !pods || pods.length === 0
+      ? !portSourcePod
         ? 0
-        : getPortNumberFromPortName(pods[0].spec.containers, containerPort)
+        : getPortNumberFromPortName(portSourcePod.spec.containers, containerPort)
       : containerPort;
 
-  const displayPodName = React.useMemo(() => {
-    return isPod ? name : pods && pods.length > 0 ? pods[0].metadata.name : '';
-  }, [isPod, name, pods]);
+  const displayPodName = isPod ? name : servicePod?.metadata.name || '';
 
   const shouldRender =
     isElectron() &&
     !(!isPod && podsFetchError) &&
-    !(!isPod && (!pods || pods.length === 0)) &&
+    !(!isPod && (!serviceHasSelector || !pods)) &&
     !(isPod && (!resource || (resource as Pod).status.phase === 'Failed'));
 
   React.useEffect(() => {
@@ -270,17 +291,17 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   function startPortForwardWithSelection(chosenPort?: string) {
-    if (!namespace || !cluster || !pods) {
+    if (!namespace || !cluster || !canStart) {
       return;
     }
 
     setError(null);
 
     const resourceName = name || '';
-    const podNamespace = isPod ? namespace : pods[0].metadata.namespace!;
+    const podNamespace = isPod ? namespace : servicePod!.metadata.namespace!;
     const serviceNamespace = namespace;
     const serviceName = !isPod ? resourceName : '';
-    const podName = isPod ? resourceName : pods![0].metadata.name;
+    const podName = isPod ? resourceName : servicePod!.metadata.name;
     let port = chosenPort || portForward?.port;
 
     let address = 'localhost';
@@ -439,7 +460,7 @@ function PortForwardContent(props: PortForwardProps) {
               style={{
                 textTransform: 'none',
               }}
-              disabled={loading}
+              disabled={loading || !canStart}
             >
               <InlineIcon icon="mdi:fast-forward" width={20} />
               <Typography>{t('translation|Forward port')}</Typography>
@@ -463,7 +484,7 @@ function PortForwardContent(props: PortForwardProps) {
                 iconButtonProps={{
                   size: 'small',
                   color: 'primary',
-                  disabled: loading,
+                  disabled: loading || !canStart,
                 }}
                 width={'25'}
               />

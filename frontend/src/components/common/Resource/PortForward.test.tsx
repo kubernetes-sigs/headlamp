@@ -18,11 +18,13 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { TestContext } from '../../../test';
 import PortForward, { PORT_FORWARD_STOP_STATUS, PORT_FORWARDS_STORAGE_KEY } from './PortForward';
 
-const { mockListPortForward, mockStopOrDeletePortForward, mockUsePodList } = vi.hoisted(() => ({
-  mockListPortForward: vi.fn(),
-  mockStopOrDeletePortForward: vi.fn(),
-  mockUsePodList: vi.fn<(options: unknown) => [never[], null]>(() => [[], null]),
-}));
+const { mockListPortForward, mockStartPortForward, mockStopOrDeletePortForward, mockUsePodList } =
+  vi.hoisted(() => ({
+    mockListPortForward: vi.fn(),
+    mockStartPortForward: vi.fn(),
+    mockStopOrDeletePortForward: vi.fn(),
+    mockUsePodList: vi.fn<(options: unknown) => [any[], null]>(() => [[], null]),
+  }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -33,13 +35,16 @@ vi.mock('../../../helpers/isDockerDesktop', () => ({ isDockerDesktop: () => fals
 vi.mock('../../../lib/cluster', () => ({ getCluster: () => 'test-cluster' }));
 vi.mock('../../../lib/k8s/api/v1/portForward', () => ({
   listPortForward: (...args: any[]) => mockListPortForward(...args),
-  startPortForward: vi.fn(),
+  startPortForward: (...args: any[]) => mockStartPortForward(...args),
   stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
 }));
 vi.mock('../../../lib/k8s/pod', () => ({
   default: { useList: (options: any) => mockUsePodList(options) },
 }));
-vi.mock('../../portforward/PortForwardStartDialog', () => ({ default: () => null }));
+vi.mock('../../portforward/PortForwardStartDialog', () => ({
+  default: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) =>
+    open ? <button onClick={() => onConfirm()}>Confirm start</button> : null,
+}));
 
 const runningPortForward = {
   id: 'pf-1',
@@ -61,6 +66,35 @@ function makePod() {
     status: { phase: 'Running' },
     spec: { containers: [] },
   };
+}
+
+function makeServicePod(name: string, { phase = 'Running', ready = true, deleting = false } = {}) {
+  return {
+    kind: 'Pod',
+    cluster: 'project-cluster',
+    metadata: {
+      name,
+      namespace: 'default',
+      ...(deleting ? { deletionTimestamp: '2026-01-01T00:00:00Z' } : {}),
+    },
+    status: { phase, conditions: [{ type: 'Ready', status: ready ? 'True' : 'False' }] },
+    spec: { containers: [] },
+  };
+}
+
+function renderServicePortForward(selector?: Record<string, string>) {
+  const service = {
+    kind: 'Service',
+    cluster: 'project-cluster',
+    metadata: { name: 'my-service', namespace: 'default' },
+    jsonData: { spec: { selector } },
+  };
+
+  return render(
+    <TestContext>
+      <PortForward containerPort={80} resource={service as any} />
+    </TestContext>
+  );
 }
 
 function renderPortForward() {
@@ -214,5 +248,90 @@ describe('PortForward stop handler', () => {
     } finally {
       consoleWarnSpy.mockRestore();
     }
+  });
+
+  it('does not offer a port forward for a service without a selector', async () => {
+    mockListPortForward.mockResolvedValue([]);
+    // Without a selector the pod query isn't filtered, so it returns unrelated pods.
+    mockUsePodList.mockReturnValue([[makeServicePod('unrelated-pod')], null]);
+
+    renderServicePortForward();
+
+    await act(async () => {});
+    expect(screen.queryByLabelText(/Start port forward/i)).not.toBeInTheDocument();
+    expect(mockListPortForward).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'none of its pods are ready',
+      [
+        makeServicePod('pending-pod', { phase: 'Pending', ready: false }),
+        makeServicePod('unready-pod', { ready: false }),
+      ],
+    ],
+    ['it has no pods', []],
+  ])('disables starting a service port forward when %s', async (_, pods) => {
+    mockListPortForward.mockResolvedValue([]);
+    mockUsePodList.mockReturnValue([pods, null]);
+
+    renderServicePortForward({ app: 'my-service' });
+
+    expect(await screen.findByLabelText(/Start port forward/i)).toBeDisabled();
+  });
+
+  it.each([
+    ['no pod is ready', [makeServicePod('new-pod', { ready: false })]],
+    ['the service has no pods yet', []],
+  ])('keeps a reconnecting service port forward stoppable while %s', async (_, pods) => {
+    mockListPortForward.mockResolvedValue([
+      {
+        ...runningPortForward,
+        pod: 'old-pod',
+        service: 'my-service',
+        serviceNamespace: 'default',
+        cluster: 'project-cluster',
+        status: 'Reconnecting',
+      },
+    ]);
+    mockUsePodList.mockReturnValue([pods, null]);
+
+    renderServicePortForward({ app: 'my-service' });
+
+    expect(await screen.findByLabelText(/Stop port forward/i)).toBeInTheDocument();
+  });
+
+  it('forwards a service to its first ready pod', async () => {
+    mockListPortForward.mockResolvedValue([]);
+    mockStartPortForward.mockResolvedValue({ ...runningPortForward, pod: 'ready-pod' });
+    mockUsePodList.mockReturnValue([
+      [
+        makeServicePod('pending-pod', { phase: 'Pending', ready: false }),
+        makeServicePod('terminating-pod', { deleting: true }),
+        makeServicePod('ready-pod'),
+      ],
+      null,
+    ]);
+
+    renderServicePortForward({ app: 'my-service' });
+
+    await act(async () => {
+      fireEvent.click(await screen.findByLabelText(/Start port forward/i));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Confirm start'));
+    });
+
+    expect(mockStartPortForward).toHaveBeenCalledWith(
+      'project-cluster',
+      'default',
+      'ready-pod',
+      80,
+      'my-service',
+      'default',
+      undefined,
+      'localhost',
+      undefined
+    );
   });
 });
