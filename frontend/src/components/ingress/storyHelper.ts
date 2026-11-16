@@ -165,3 +165,17 @@ export const RESOURCE_DEFAULT_INGRESS_CLASS = {
     controller: 'test',
   },
 };
+
+export const RESOURCE_INGRESS_CLASS_WITH_PARAMETERS = {
+  ...RESOURCE_INGRESS_CLASS,
+  spec: {
+    controller: 'example.com/ingress-controller',
+    parameters: {
+      apiGroup: 'k8s.example.com',
+      kind: 'IngressParameters',
+      name: 'external-lb',
+      scope: 'Namespace',
+      namespace: 'ingress-system',
+    },
+  },
+};
