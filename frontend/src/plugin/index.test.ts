@@ -17,6 +17,7 @@
 import {
   applyPluginPriority,
   beforePluginStartupDeadline,
+  fetchAndExecutePlugins,
   initializePlugins,
   permissionSecretsFromApp,
 } from './index';
@@ -113,7 +114,37 @@ describe('plugin initialization', () => {
 
   afterEach(() => {
     window.plugins = originalPlugins;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('rejects failed plugin metadata downloads without publishing incomplete settings', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/plugins')) {
+        return new Response(
+          JSON.stringify([
+            { path: 'plugins/example', name: 'example', type: 'user', source: 'user' },
+          ])
+        );
+      }
+      if (url.endsWith('/main.js')) return new Response('');
+      if (url.endsWith('/package.json')) return new Response('', { status: 503 });
+      throw new Error(`Unexpected plugin request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('desktopApi', undefined);
+    const onSettingsChange = vi.fn();
+    const onIncompatible = vi.fn();
+    window.plugins = {};
+
+    await expect(
+      fetchAndExecutePlugins([], onSettingsChange, onIncompatible)
+    ).rejects.toMatchObject({ status: 503 });
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onSettingsChange).not.toHaveBeenCalled();
+    expect(onIncompatible).not.toHaveBeenCalled();
   });
 
   it('gives each plugin a registry and continues after one plugin fails', async () => {
