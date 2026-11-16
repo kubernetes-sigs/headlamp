@@ -815,8 +815,10 @@ func addOIDCFlags(f *flag.FlagSet) {
 			"in-cluster service account token and impersonate the OIDC user (Impersonate-User/Impersonate-Group "+
 			"headers) instead of forwarding the raw OIDC token as the Bearer credential. Use this when the API "+
 			"server does not trust Headlamp's OIDC issuer directly. Requires the service account to have RBAC "+
-			"'impersonate' permission on users/groups/serviceaccounts. Username/groups are resolved using the "+
-			"same --me-username-path/--me-groups-path JMESPath expressions used by the /me endpoint.")
+			"'impersonate' permission on users/groups (never serviceaccounts: IdentityFromClaims rejects every "+
+			"'system:'-prefixed username, which includes all service-account identities). Username/groups are "+
+			"resolved using the same --me-username-path/--me-groups-path JMESPath expressions used by the /me "+
+			"endpoint.")
 }
 
 func addProxyAuthFlags(f *flag.FlagSet) {
