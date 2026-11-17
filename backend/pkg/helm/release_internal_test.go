@@ -384,8 +384,13 @@ func apiServerConfig(t *testing.T, status int, body string) clientcmd.ClientConf
 	}))
 	t.Cleanup(srv.Close)
 
+	return clientConfigFor(srv.URL)
+}
+
+// clientConfigFor returns a client config for the API server at url.
+func clientConfigFor(url string) clientcmd.ClientConfig {
 	return clientcmd.NewDefaultClientConfig(api.Config{
-		Clusters:       map[string]*api.Cluster{"fake": {Server: srv.URL}},
+		Clusters:       map[string]*api.Cluster{"fake": {Server: url}},
 		AuthInfos:      map[string]*api.AuthInfo{"fake": {}},
 		Contexts:       map[string]*api.Context{"fake": {Cluster: "fake", AuthInfo: "fake"}},
 		CurrentContext: "fake",
@@ -448,4 +453,31 @@ func TestReleaseLookupErrorStatus(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestVerifyUserTimesOut(t *testing.T) {
+	defaultTimeout := verifyUserTimeout
+	verifyUserTimeout = 100 * time.Millisecond
+
+	t.Cleanup(func() { verifyUserTimeout = defaultTimeout })
+
+	// The fake API server stalls well past the timeout before it answers.
+	done := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(done) })
+
+	actionConfig, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+	require.NoError(t, err)
+
+	start := time.Now()
+
+	assert.False(t, VerifyUser(actionConfig, InstallRequest{}))
+	assert.Less(t, time.Since(start), 2*time.Second)
 }

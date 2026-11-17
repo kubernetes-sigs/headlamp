@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
@@ -706,6 +707,10 @@ func (h *Handler) getChart(
 	return chart, nil
 }
 
+// verifyUserTimeout bounds the whoami request, so an unreachable API server
+// fails the install instead of blocking it.
+var verifyUserTimeout = 10 * time.Second
+
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
 func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
@@ -713,7 +718,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting chart")
+			err, "getting REST config to verify user")
 
 		return false
 	}
@@ -722,24 +727,27 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting chart")
+			err, "creating client to verify user")
 
 		return false
 	}
 
-	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(),
+	ctx, cancel := context.WithTimeout(context.Background(), verifyUserTimeout)
+	defer cancel()
+
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(ctx,
 		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting chart")
+			err, "checking user identity")
 
 		return false
 	}
 
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+			errors.New("insufficient privileges"), "user is not authorized to perform this operation")
 
 		return false
 	}
