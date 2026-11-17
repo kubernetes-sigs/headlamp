@@ -74,6 +74,21 @@ API for linting, Storybook, and i18n extraction. See the
 [TypeScript setup and limitations](../../docs/development/plugins/getting-started.md#typescript-versions).
 Do not globally override `typescript` to version 7.
 
+The shared plugin configuration includes ES2022, DOM, and DOM.Iterable type
+libraries, so APIs such as `Array.prototype.at()` and iterable DOM collections
+do not need a plugin-specific `lib` override. The JavaScript emit target remains
+ES2017; these type libraries do not provide runtime polyfills.
+
+## Test configuration and options
+
+Configure tests in `package.json` under `headlamp.test`, with generic
+headlamp-plugin SDK CLI overrides. The headlamp-plugin SDK always excludes
+`node_modules` and `.git`.
+
+See [Testing Plugins](../../docs/development/plugins/building.md#testing-plugins)
+for the configuration schema, commands, upgrade behavior, and portability
+guidance.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:
@@ -121,7 +136,7 @@ matrix (Node 24/npm 11) with:
 ```bash
 npm run build
 npm pack
-npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.14.0.tgz
+npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.15.0-alpha.1.tgz
 ```
 
 Use the tarball filename produced by `npm pack` for the current version. The matrix
@@ -198,7 +213,7 @@ custom Storybook configuration and your Node installation are not migrated.
 After publication, upgrade to a specific prerelease with:
 
 ```bash
-npx @kinvolk/headlamp-plugin@0.15.0-alpha.0 upgrade --headlamp-plugin-version=0.15.0-alpha.0 your-plugin-folder
+npx @kinvolk/headlamp-plugin@0.15.0-alpha.1 upgrade --headlamp-plugin-version=0.15.0-alpha.1 your-plugin-folder
 ```
 
 Or explicitly opt in to whichever prerelease is currently tagged `alpha`:

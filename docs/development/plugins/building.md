@@ -6,6 +6,80 @@ sidebar_label: Building & Shipping
 Once you have a plugin ready, you may want to build it for production and
 deploy with Headlamp or publish it for other Headlamp users to enjoy.
 
+## Testing Plugins
+
+Run tests from your plugin directory with the scaffolded script:
+
+```bash
+npm run test
+```
+
+The script invokes `headlamp-plugin test`. The headlamp-plugin SDK owns test
+discovery and configuration, so you do not need to configure or invoke its
+underlying runner.
+
+### Configure Tests
+
+Store persistent settings in `package.json` under `headlamp.test`:
+
+```json
+{
+  "scripts": {
+    "test": "headlamp-plugin test"
+  },
+  "headlamp": {
+    "test": {
+      "include": ["src/**/*.test.{ts,tsx}"],
+      "exclude": ["packages/**", "e2e/**"],
+      "environment": "dom",
+      "watch": false
+    }
+  }
+}
+```
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| `include` | Glob patterns selecting test files. | JavaScript/TypeScript `.test` and `.spec` files, including JSX and module variants. |
+| `exclude` | Additional file globs to exclude. | No additional exclusions. |
+| `environment` | `"dom"` for a headlamp-plugin SDK-provided DOM environment, or `"node"` without a DOM. | `"dom"` |
+| `watch` | `true` to rerun tests when files change, or `false` for one run. | Automatic interactive/CI behavior. |
+
+The headlamp-plugin SDK **always excludes `node_modules` and `.git`**, even with
+custom `include` patterns or an empty `exclude` list. Do not repeat those
+exclusions in your configuration.
+
+Settings are read when the command starts; restart it after changing them.
+When testing a folder of plugins, each package uses its own `headlamp.test`
+settings. `headlamp-plugin upgrade` preserves these settings when it restores
+the managed test script.
+
+### Override Settings for One Run
+
+Use headlamp-plugin SDK options through the npm script:
+
+```bash
+# Run once, even if watch mode is configured
+npm run test -- --run
+
+# Enable or disable watch mode
+npm run test -- --watch
+npm run test -- --no-watch
+
+# Add an exclusion without replacing configured or mandatory exclusions
+npm run test -- --run --exclude "e2e/**"
+```
+
+Here, npm consumes the first `--` and passes the headlamp-plugin SDK options to
+`headlamp-plugin test`. Repeat `--exclude` to add more patterns; do not combine
+`--run` with `--watch`.
+
+To test a folder containing plugin packages:
+
+```bash
+npx @kinvolk/headlamp-plugin test ./my-plugins --run
+```
+
 ## Deploying Plugins (General Information)
 
 Once your plugin is built and tested, you need to deploy it to your Headlamp instances. This section covers all deployment scenarios.
