@@ -369,7 +369,7 @@
                 tabindex="0"
               >
                 <table
-                  class="MuiTable-root css-1f5u0uu-MuiTable-root"
+                  class="MuiTable-root css-15jmevm-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -407,6 +407,12 @@
                       >
                         Driver
                       </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Health
+                      </th>
                     </tr>
                   </thead>
                   <tbody
@@ -439,6 +445,15 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         gpu.example.com
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
+                        >
+                          Unknown
+                        </span>
                       </td>
                     </tr>
                   </tbody>

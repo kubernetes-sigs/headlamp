@@ -17,14 +17,15 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import Pod from '../../lib/k8s/pod';
 import ResourceClaim from '../../lib/k8s/resourceClaim';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import ResourceClaimAllocatedDevices from './ResourceClaimAllocatedDevices';
 import ResourceClaimConsumers from './ResourceClaimConsumers';
-import { RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
+import { DEVICE_HEALTH_POD, RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -40,11 +41,35 @@ const renderInContext = (ui: ReactElement) =>
   );
 
 const cluster = 'gpu-cluster';
-const [pendingClaim, sharedClaim, fallbackClaim] = RESOURCE_CLAIM_DUMMY_DATA.map(
+const [pendingClaim, sharedClaim, fallbackClaim, trainerClaim] = RESOURCE_CLAIM_DUMMY_DATA.map(
   claim => new ResourceClaim(claim, cluster)
 );
 
+/** Serves the given Pods by name, keeps loading when null, and fails for any other Pod. */
+const mockPods = (pods: Pod[] | null, isError = false) =>
+  vi.spyOn(Pod, 'useGet').mockImplementation(((name: string) => {
+    if (isError) {
+      return [null, { status: 403, message: 'forbidden' }];
+    }
+    if (pods === null) {
+      return [null, null];
+    }
+    const pod = pods.find(pod => pod.getName() === name);
+    return pod ? [pod, null] : [null, { status: 404, message: 'not found' }];
+  }) as any);
+
+const healthLabels = () =>
+  screen.queryAllByText(/^(Healthy|Unhealthy|Unknown)$/).map(label => label.textContent);
+
 describe('ResourceClaimAllocatedDevices', () => {
+  beforeEach(() => {
+    mockPods([]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('lists each granted device with its pool and driver', () => {
     renderInContext(<ResourceClaimAllocatedDevices claim={sharedClaim} />);
 
@@ -67,6 +92,79 @@ describe('ResourceClaimAllocatedDevices', () => {
     renderInContext(<ResourceClaimAllocatedDevices claim={pendingClaim} />);
 
     expect(screen.getByRole('status')).toHaveTextContent('No devices are allocated yet.');
+  });
+
+  it('shows the health the consuming Pod reports for each device', () => {
+    mockPods([new Pod(DEVICE_HEALTH_POD)]);
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
+
+    expect(healthLabels()).toEqual(['Healthy', 'Unhealthy']);
+    expect(screen.getByLabelText('ECC error count exceeded threshold')).toBeVisible();
+  });
+
+  it('lets the keyboard reach a health label that has a message', () => {
+    mockPods([new Pod(DEVICE_HEALTH_POD)]);
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
+
+    expect(screen.getByLabelText('ECC error count exceeded threshold')).toHaveAttribute(
+      'tabindex',
+      '0'
+    );
+    expect(screen.getByText('Healthy')).not.toHaveAttribute('tabindex');
+  });
+
+  it('fetches only the Pods the claim is reserved for', () => {
+    const useGet = mockPods([new Pod(DEVICE_HEALTH_POD)]);
+    const useList = vi.spyOn(Pod, 'useList');
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
+
+    expect(new Set(useGet.mock.calls.map(([name]) => name))).toEqual(new Set(['trainer-2']));
+    expect(useGet).toHaveBeenCalledWith('trainer-2', 'default', { cluster });
+    expect(useList).not.toHaveBeenCalled();
+  });
+
+  it('fetches no Pods when the claim has no devices', () => {
+    const useGet = mockPods([]);
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={pendingClaim} />);
+
+    expect(useGet).not.toHaveBeenCalled();
+  });
+
+  it('shows Unknown when no Pod reports the health', () => {
+    renderInContext(<ResourceClaimAllocatedDevices claim={sharedClaim} />);
+
+    expect(healthLabels()).toEqual(['Unknown']);
+  });
+
+  it('ignores Pods the claim is not reserved for', () => {
+    mockPods([
+      new Pod({ ...DEVICE_HEALTH_POD, metadata: { ...DEVICE_HEALTH_POD.metadata, uid: 'other' } }),
+    ]);
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
+
+    expect(healthLabels()).toEqual(['Unknown', 'Unknown']);
+  });
+
+  it('shows no health until the Pods are loaded', () => {
+    mockPods(null);
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
+
+    expect(screen.getByText('gpu-3')).toBeVisible();
+    expect(healthLabels()).toEqual([]);
+  });
+
+  it('shows Unknown when the Pods cannot be read', () => {
+    mockPods(null, true);
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
+
+    expect(healthLabels()).toEqual(['Unknown', 'Unknown']);
   });
 });
 

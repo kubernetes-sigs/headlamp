@@ -20,7 +20,7 @@ import type { ResourceClaimConsumerReference } from '../../lib/k8s/resourceClaim
 import Link from '../common/Link';
 import SimpleTable from '../common/SimpleTable';
 
-function isPod(consumer: ResourceClaimConsumerReference) {
+export function isPod(consumer: ResourceClaimConsumerReference) {
   return !consumer.apiGroup && consumer.resource === 'pods';
 }
 
