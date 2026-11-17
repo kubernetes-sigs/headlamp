@@ -24,8 +24,8 @@ import type Deployment from '../../lib/k8s/deployment';
  * arbitrary order.
  */
 export function sortByPods(d1: Deployment, d2: Deployment) {
-  const { replicas: r1, availableReplicas: avail1 } = d1.status;
-  const { replicas: r2, availableReplicas: avail2 } = d2.status;
+  const { replicas: r1, availableReplicas: avail1 } = d1.status ?? {};
+  const { replicas: r2, availableReplicas: avail2 } = d2.status ?? {};
 
   const availSorted = (avail1 ?? 0) - (avail2 ?? 0);
   if (availSorted === 0) {

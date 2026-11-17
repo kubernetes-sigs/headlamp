@@ -27,13 +27,13 @@ export default function DeploymentsList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
   function renderPods(deployment: Deployment) {
-    const { replicas, availableReplicas } = deployment.status;
+    const { replicas, availableReplicas } = deployment.status ?? {};
 
     return `${availableReplicas || 0}/${replicas || 0}`;
   }
 
   function renderConditions(deployment: Deployment) {
-    const { conditions } = deployment.status;
+    const conditions = deployment.status?.conditions;
     if (!conditions) {
       return null;
     }
@@ -49,7 +49,7 @@ export default function DeploymentsList() {
       return status === 'true' ? 'success' : status === 'false' ? 'warning' : 'error';
     }
 
-    return conditions
+    return [...conditions]
       .sort((c1: any, c2: any) => {
         if (c1.type < c2.type) {
           return -1;
@@ -83,7 +83,7 @@ export default function DeploymentsList() {
           id: 'pods',
           label: t('Pods'),
           disableFiltering: true,
-          getValue: deployment => deployment.status.availableReplicas ?? 0,
+          getValue: deployment => deployment.status?.availableReplicas ?? 0,
           render: deployment => renderPods(deployment),
           sort: sortByPods,
           gridTemplate: 'min-content',
@@ -91,13 +91,14 @@ export default function DeploymentsList() {
         {
           id: 'replicas',
           label: t('Replicas'),
-          getValue: deployment => deployment.spec.replicas || 0,
+          getValue: deployment => deployment.spec?.replicas || 0,
           gridTemplate: 'min-content',
         },
         {
           id: 'conditions',
           label: t('translation|Conditions'),
-          getValue: deployment => deployment.status?.conditions?.map((c: any) => c.type)?.join(''),
+          getValue: deployment =>
+            deployment.status?.conditions?.map((c: any) => c.type)?.join('') ?? '',
           render: deployment => renderConditions(deployment),
           gridTemplate: 'auto',
           cellProps: {
