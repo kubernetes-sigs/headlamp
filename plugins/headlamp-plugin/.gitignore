@@ -5,3 +5,4 @@ lib
 examples
 official-plugins
 .temp-official-plugins
+/coverage/

@@ -117,7 +117,7 @@ try {
   console.log(`Git hash: ${currentHash}`);
 } catch (error) {
   console.error('Failed to fetch official plugins:', error.message);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   // Clean up temporary directory
   if (fs.existsSync(tempDir)) {

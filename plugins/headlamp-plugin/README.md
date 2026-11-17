@@ -115,6 +115,53 @@ Run the fast compiler-selection and upgrade-policy tests with:
 npm run test:typescript
 ```
 
+Run the SDK-owned tooling tests and per-scope statement coverage with:
+
+```bash
+npm run test:tooling
+npm run test:coverage
+```
+
+The coverage command includes the existing compiler-selection and upgrade tests.
+The existing `test-headlamp-plugin.js` CI harness runs this command before its
+packed-consumer checks, retaining the separate Storybook mock contracts. Test
+files run sequentially to bound compiler/subprocess load without extending their
+individual timeouts.
+It requires **at least 80% statement coverage independently** for:
+
+- CLI code in `bin/headlamp-plugin.js` and `bin/typescript.js`.
+- The shipped Vite, i18next and Storybook configuration, including the TSX preview.
+- The JavaScript build-maintenance scripts and dependency synchronization.
+
+The exact file inventory is maintained in `test/helpers/coverage-scopes.cjs`.
+Unvisited files stay in the denominator. Copied frontend code, generated output,
+test harnesses, shipped test mocks, consumer templates and the generated MSW worker
+are not counted as production SDK tooling. The six TypeScript facade modules only
+reexport frontend bindings and contain no executable statements. The shell
+dependency-install wrapper is outside the JavaScript statement metric.
+
+Reports are written to `coverage/index.html`, `coverage/coverage-final.json`,
+`coverage/coverage-summary.json` and `coverage/scopes.json`. The command deletes
+its previous `coverage/` output before running and exits unsuccessfully if tests
+fail or any scope is below 80%, using the exact counters rather than a rounded
+percentage.
+
+These are offline behavior tests. They exercise real fixture files and CLI parsing;
+external npm/git/compiler/bundler operations are controlled at their API boundary
+to test failures and upgrade/watch decisions without changing installed packages,
+global npm links or user data. A separate real-process scenario verifies offline
+creation, extraction, packaging and archive checksums. CJS/ESM/TSX configuration is
+instrumented before the test-only module transformation so counters refer to the
+original source, and CLI child processes inherit collection.
+
+Collection-build regressions also run the real CLI and Vite against two distinct
+packages and verify each package's own bundle and Brotli output. Collection builds
+run sequentially because compilation temporarily changes the working directory.
+
+This command does not replace the real packed-consumer integration and TypeScript
+compatibility matrices described below, or the Storybook mock contracts. Those
+remain separate validation of the actual external tools.
+
 After building and packing the local tooling, run the standalone compatibility
 matrix (Node 24/npm 11) with:
 

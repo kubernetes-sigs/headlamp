@@ -27,7 +27,7 @@ const {
 } = require('./bin/typescript');
 
 function fixture(t, packageJson = {}) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-typescript-'));
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-typescript-')));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify(packageJson));
   fs.mkdirSync(path.join(directory, 'node_modules'));
