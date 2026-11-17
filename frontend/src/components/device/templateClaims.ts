@@ -26,14 +26,17 @@ export interface TemplateClaim {
  *
  * A generated claim does not point back at its template, so the Pods are the link:
  * each names the template in its spec and the generated claim in its status.
+ * Pods that have finished are left out, because Kubernetes deletes their generated claims.
  * @param templateName - The name of the template.
  * @param pods - The Pods in the template's namespace.
  * @returns One entry per Pod claim that uses the template.
  */
 export function getClaimsFromTemplate(templateName: string, pods: Pod[]): TemplateClaim[] {
-  return pods.flatMap(pod =>
-    pod.resourceClaims
-      .filter(claim => claim.source === 'template' && claim.templateName === templateName)
-      .map(claim => ({ pod, claimName: claim.claimName }))
-  );
+  return pods
+    .filter(pod => pod.status?.phase !== 'Succeeded' && pod.status?.phase !== 'Failed')
+    .flatMap(pod =>
+      pod.resourceClaims
+        .filter(claim => claim.source === 'template' && claim.templateName === templateName)
+        .map(claim => ({ pod, claimName: claim.claimName }))
+    );
 }

@@ -21,7 +21,8 @@ import { getClaimsFromTemplate } from './templateClaims';
 const pod = (
   name: string,
   spec: Partial<KubePod['spec']>,
-  resourceClaimStatuses?: KubePod['status']['resourceClaimStatuses']
+  resourceClaimStatuses?: KubePod['status']['resourceClaimStatuses'],
+  phase = 'Running'
 ) =>
   new Pod({
     apiVersion: 'v1',
@@ -29,7 +30,7 @@ const pod = (
     metadata: { name, namespace: 'default', uid: name, creationTimestamp: '' },
     spec: { containers: [], nodeName: '', ...spec },
     status: {
-      phase: 'Running',
+      phase,
       conditions: [],
       containerStatuses: [],
       startTime: '',
@@ -83,5 +84,21 @@ describe('getClaimsFromTemplate', () => {
     ];
 
     expect(rows('single-gpu', pods)).toEqual([]);
+  });
+
+  it('leaves out Pods that have finished', () => {
+    const resourceClaims = [{ name: 'gpu', resourceClaimTemplateName: 'single-gpu' }];
+    const pods = [
+      pod(
+        'done',
+        { resourceClaims },
+        [{ name: 'gpu', resourceClaimName: 'done-gpu-a1b2c' }],
+        'Succeeded'
+      ),
+      pod('crashed', { resourceClaims }, undefined, 'Failed'),
+      pod('running', { resourceClaims }, [{ name: 'gpu', resourceClaimName: 'running-gpu-d3e4f' }]),
+    ];
+
+    expect(rows('single-gpu', pods)).toEqual([['running', 'running-gpu-d3e4f']]);
   });
 });
