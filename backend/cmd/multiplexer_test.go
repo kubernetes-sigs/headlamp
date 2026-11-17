@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -2279,8 +2280,11 @@ func TestReconnectAbortsIfConnectionClosedDuringDial(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
 	connKey := m.createConnectionKey(clusterID, path, userID)
-	conn := m.createConnection(clusterID, userID, path, "watch=1", nil, nil)
+	conn := m.createConnection(clusterID, userID, path, "watch=1", clientConn, nil)
 
 	m.mutex.Lock()
 	m.connections[connKey] = conn
@@ -2729,7 +2733,10 @@ func TestReconnectClosesConnectionReplacedDuringDial(t *testing.T) {
 		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
 	}))
 
-	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", nil, nil)
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", clientConn, nil)
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
 
 	m.mutex.Lock()
@@ -2783,7 +2790,7 @@ func newPausedFailingHandshakeServer() (server *httptest.Server, dialStarted, re
 
 func TestReconnectClosesConnectionReplacedDuringFailedDial(t *testing.T) {
 	server, dialStarted, releaseDial := newPausedFailingHandshakeServer()
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	store := kubeconfig.NewContextStore()
 	m := NewMultiplexer(store, false)
@@ -2793,7 +2800,10 @@ func TestReconnectClosesConnectionReplacedDuringFailedDial(t *testing.T) {
 		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
 	}))
 
-	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", nil, nil)
+	clientConn, clientServer := createTestWebSocketConnection()
+	t.Cleanup(clientServer.Close)
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1", clientConn, nil)
 	conn.Status.State = StateError
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
 
@@ -2837,9 +2847,8 @@ func TestReconnectClosesConnectionReplacedDuringFailedDial(t *testing.T) {
 	assert.Equal(t, 0, failures)
 
 	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
 	assert.Same(t, replacement, m.connections[connKey])
+	m.mutex.RUnlock()
 	assert.False(t, replacement.IsClosed())
 }
 
@@ -3880,4 +3889,531 @@ func TestHandleClusterMessages_OldReaderDoesNotCloseReplacementConnection(t *tes
 	assert.Equal(t, StateConnected, newState, "replacement connection state must be unaffected")
 
 	newConn.safeClose()
+}
+
+func createGatedUpgradeServer(
+	upgradeArrived chan<- struct{},
+	releaseUpgrade <-chan struct{},
+	receivedTokens ...chan<- string,
+) (*httptest.Server, <-chan *websocket.Conn) {
+	serverSockets := make(chan *websocket.Conn, 1)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(receivedTokens) > 0 && receivedTokens[0] != nil {
+			token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+
+			select {
+			case receivedTokens[0] <- token:
+			default:
+			}
+		}
+
+		select {
+		case upgradeArrived <- struct{}{}:
+		default:
+		}
+
+		select {
+		case <-releaseUpgrade:
+		case <-r.Context().Done():
+			return
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		serverSockets <- ws
+	}))
+
+	return server, serverSockets
+}
+
+func closeReleaseUpgrade(releaseUpgrade chan struct{}) {
+	if releaseUpgrade == nil {
+		return
+	}
+
+	select {
+	case <-releaseUpgrade:
+	default:
+		close(releaseUpgrade)
+	}
+}
+
+func TestCreateGatedUpgradeServer_ShutdownWhileGatedDoesNotHang(t *testing.T) {
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+
+	server, _ := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
+
+	dialDone := make(chan struct{})
+
+	go func() {
+		defer close(dialDone)
+
+		wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+		ws, resp, _ := websocket.DefaultDialer.Dial(wsURL, nil)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+
+		if ws != nil {
+			_ = ws.Close()
+		}
+	}()
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for upgrade request to reach gated server")
+	}
+
+	// Shut down server while releaseUpgrade has NOT been released.
+	// Because createGatedUpgradeServer selects on r.Context().Done(), server.Close()
+	// terminates promptly without hanging on <-releaseUpgrade.
+	shutdownDone := make(chan struct{})
+
+	go func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+		close(shutdownDone)
+	}()
+
+	select {
+	case <-shutdownDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server.Close hung waiting for unreleased upgrade gate")
+	}
+
+	<-dialDone
+}
+
+type reconnectResult struct {
+	newConn *Connection
+	err     error
+}
+
+func startAsyncReconnect(m *Multiplexer, conn *Connection) <-chan reconnectResult {
+	resultCh := make(chan reconnectResult, 1)
+
+	go func() {
+		newConn, err := m.reconnect(conn)
+		resultCh <- reconnectResult{newConn: newConn, err: err}
+	}()
+
+	return resultCh
+}
+
+func verifyReplacementServerSocketClosed(srvWs *websocket.Conn, timeout time.Duration) error {
+	_ = srvWs.SetReadDeadline(time.Now().Add(timeout))
+
+	_, _, readErr := srvWs.ReadMessage()
+	if readErr == nil {
+		return fmt.Errorf("expected socket read error but read succeeded; socket is still open")
+	}
+
+	var netErr net.Error
+	if errors.As(readErr, &netErr) && netErr.Timeout() {
+		return fmt.Errorf("replacement server socket remained open until deadline (timeout): %w", readErr)
+	}
+
+	return nil
+}
+
+func assertReplacementServerSocketClosed(t *testing.T, serverSockets <-chan *websocket.Conn) {
+	t.Helper()
+
+	select {
+	case srvWs := <-serverSockets:
+		defer func() {
+			_ = srvWs.Close()
+		}()
+
+		err := verifyReplacementServerSocketClosed(srvWs, 2*time.Second)
+		require.NoError(t, err, "replacement server socket must be closed when newConn is closed")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket")
+	}
+}
+
+func TestVerifyReplacementServerSocketClosed_RejectsTimeout(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// 1. First connection: client remains open and idle.
+	// verifyReplacementServerSocketClosed must fail with timeout error (detecting socket leak).
+	clientWs1, resp1, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+
+	if resp1 != nil && resp1.Body != nil {
+		_ = resp1.Body.Close()
+	}
+
+	defer func() {
+		_ = clientWs1.Close()
+	}()
+
+	var srvWs1 *websocket.Conn
+
+	select {
+	case srvWs1 = <-serverSockets:
+		defer func() {
+			_ = srvWs1.Close()
+		}()
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket 1")
+	}
+
+	err = verifyReplacementServerSocketClosed(srvWs1, 10*time.Millisecond)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "replacement server socket remained open until deadline (timeout)")
+
+	// 2. Second connection: peer client closes promptly.
+	// verifyReplacementServerSocketClosed must succeed (detecting genuine peer closure).
+	clientWs2, resp2, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+
+	if resp2 != nil && resp2.Body != nil {
+		_ = resp2.Body.Close()
+	}
+
+	var srvWs2 *websocket.Conn
+
+	select {
+	case srvWs2 = <-serverSockets:
+		defer func() {
+			_ = srvWs2.Close()
+		}()
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket 2")
+	}
+
+	_ = clientWs2.Close()
+
+	err = verifyReplacementServerSocketClosed(srvWs2, 2*time.Second)
+	require.NoError(t, err)
+}
+
+func assertConnectionClosedState(t *testing.T, conn *Connection) {
+	t.Helper()
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	assert.Nil(t, conn.Client)
+	assert.Equal(t, StateClosed, conn.Status.State)
+}
+
+func assertReconnectClosedResult(t *testing.T, resultCh <-chan reconnectResult) {
+	t.Helper()
+
+	var res reconnectResult
+	select {
+	case res = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect to complete")
+	}
+
+	require.Error(t, res.err)
+	assert.Contains(t, res.err.Error(), "connection was closed during reconnect")
+	assert.Nil(t, res.newConn)
+}
+
+func TestReconnect_ClosedConnectionDoesNotLeak(t *testing.T) {
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+
+	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn)
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	resultCh := startAsyncReconnect(m, conn)
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect upgrade request to arrive at server")
+	}
+
+	// Close original connection through client disconnect while reconnect is in flight
+	m.closeClientConnections(clientConn)
+
+	// Release upgrade so createClusterConnection completes
+	close(releaseUpgrade)
+
+	assertReconnectClosedResult(t, resultCh)
+
+	assert.True(t, conn.IsClosed(), "original connection must be closed")
+	assertConnectionClosedState(t, conn)
+
+	m.mutex.RLock()
+	assert.Nil(t, m.connections[connKey], "replacement connection must not be registered in map")
+	m.mutex.RUnlock()
+
+	assertReplacementServerSocketClosed(t, serverSockets)
+}
+
+func TestReconnect_RejectsNilClientOrClosedConnection(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// 1. Connection with conn.closed = true
+	conn1 := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+
+	conn1.mu.Lock()
+	conn1.closed = true
+	conn1.mu.Unlock()
+
+	newConn1, err1 := m.reconnect(conn1)
+	assert.Error(t, err1)
+	assert.Nil(t, newConn1)
+	assert.Contains(t, err1.Error(), "cannot reconnect closed connection")
+
+	// 2. Connection with conn.Client = nil (disconnected)
+	conn2 := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+
+	conn2.mu.Lock()
+	conn2.Client = nil
+	conn2.mu.Unlock()
+
+	newConn2, err2 := m.reconnect(conn2)
+	assert.Error(t, err2)
+	assert.Nil(t, newConn2)
+	assert.Contains(t, err2.Error(), "cannot reconnect closed connection")
+
+	// 3. Connection safely closed via safeClose()
+	conn3 := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn3.safeClose()
+
+	newConn3, err3 := m.reconnect(conn3)
+	assert.Error(t, err3)
+	assert.Nil(t, newConn3)
+	assert.Contains(t, err3.Error(), "cannot reconnect closed connection")
+}
+
+func TestReconnect_RejectsWhenClientModifiedDuringReconnect(t *testing.T) {
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+
+	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
+
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn1)
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	resultCh := startAsyncReconnect(m, conn)
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect upgrade request to arrive at server")
+	}
+
+	// Change conn.Client while reconnect is in flight
+	conn.mu.Lock()
+	conn.Client = clientConn2
+	conn.mu.Unlock()
+
+	// Release upgrade so createClusterConnection completes
+	close(releaseUpgrade)
+
+	assertReconnectClosedResult(t, resultCh)
+
+	m.mutex.RLock()
+	assert.Equal(t, conn, m.connections[connKey], "map must still retain original connection and not register replacement")
+	m.mutex.RUnlock()
+
+	assertReplacementServerSocketClosed(t, serverSockets)
+	conn.safeClose()
+}
+
+func TestConnection_ReconnectSnapshot(t *testing.T) {
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	token := "test-token"
+	conn := &Connection{
+		Client: clientConn,
+		Token:  &token,
+	}
+
+	// 1. Active connection
+	c, tok := conn.reconnectSnapshot()
+	assert.Equal(t, clientConn, c)
+	require.NotNil(t, tok)
+	assert.Equal(t, "test-token", *tok)
+
+	// 2. Closed connection
+	conn.mu.Lock()
+	conn.closed = true
+	conn.mu.Unlock()
+
+	c, tok = conn.reconnectSnapshot()
+	assert.Nil(t, c)
+	assert.Nil(t, tok)
+
+	// 3. Connection with nil client
+	conn.mu.Lock()
+	conn.closed = false
+	conn.Client = nil
+	conn.mu.Unlock()
+
+	c, tok = conn.reconnectSnapshot()
+	assert.Nil(t, c)
+	assert.Nil(t, tok)
+
+	// 4. Nil connection receiver
+	var nilConn *Connection
+
+	c, tok = nilConn.reconnectSnapshot()
+	assert.Nil(t, c)
+	assert.Nil(t, tok)
+}
+
+func awaitSuccessfulReconnect(t *testing.T, resultCh <-chan reconnectResult) *Connection {
+	t.Helper()
+
+	var res reconnectResult
+	select {
+	case res = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect to complete")
+	}
+
+	require.NoError(t, res.err)
+	require.NotNil(t, res.newConn)
+
+	return res.newConn
+}
+
+func awaitReceivedToken(t *testing.T, receivedTokens <-chan string) string {
+	t.Helper()
+
+	select {
+	case receivedToken := <-receivedTokens:
+		return receivedToken
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for upgrade request token")
+
+		return ""
+	}
+}
+
+func closeServerSocket(t *testing.T, serverSockets <-chan *websocket.Conn) {
+	t.Helper()
+
+	select {
+	case srvWs := <-serverSockets:
+		_ = srvWs.Close()
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket")
+	}
+}
+
+func TestReconnect_TokenSnapshotRace(t *testing.T) {
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+	receivedTokens := make(chan string, 1)
+
+	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade, receivedTokens)
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupTestMultiplexerWithBackoff(t, server.URL, clientConn)
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	initialToken := "initial-token-snapshot"
+	conn.Token = &initialToken
+
+	m.mutex.Lock()
+	m.connections[connKey] = conn
+	m.mutex.Unlock()
+
+	resultCh := startAsyncReconnect(m, conn)
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect upgrade request to reach server")
+	}
+
+	// While reconnect upgrade is blocked at the server, refresh the original connection token
+	refreshedToken := "refreshed-token-updated"
+	err := m.refreshConnectionToken(conn, &refreshedToken)
+	require.NoError(t, err)
+
+	conn.mu.RLock()
+	require.NotNil(t, conn.Token)
+	assert.Equal(t, refreshedToken, *conn.Token, "original connection token must be refreshed")
+	conn.mu.RUnlock()
+
+	// Release upgrade so reconnect completes
+	close(releaseUpgrade)
+
+	newConn := awaitSuccessfulReconnect(t, resultCh)
+	defer newConn.safeClose()
+
+	// Verify the actual token sent in the upgrade request was the original snapshot
+	receivedToken := awaitReceivedToken(t, receivedTokens)
+	assert.Equal(t, initialToken, receivedToken,
+		"actual token sent in upgrade request must be the original snapshot token")
+
+	require.NotNil(t, newConn.Token)
+	assert.Equal(t, initialToken, *newConn.Token,
+		"replacement connection must retain snapshotted token")
+
+	conn.safeClose()
+	closeServerSocket(t, serverSockets)
 }

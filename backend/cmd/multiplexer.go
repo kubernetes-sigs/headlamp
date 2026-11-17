@@ -373,6 +373,39 @@ func (c *Connection) IsClosed() bool {
 	return c.closed
 }
 
+// activeClient returns the client connection if the connection is open, or nil otherwise.
+func (c *Connection) activeClient() *WSConnLock {
+	if c == nil {
+		return nil
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed {
+		return nil
+	}
+
+	return c.Client
+}
+
+// reconnectSnapshot returns the active client and token under lock if the connection is open,
+// or nil values if the connection is closed or has no client.
+func (c *Connection) reconnectSnapshot() (*WSConnLock, *string) {
+	if c == nil {
+		return nil, nil
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed || c.Client == nil {
+		return nil, nil
+	}
+
+	return c.Client, c.Token
+}
+
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
 	c.mu.Lock()
@@ -900,18 +933,14 @@ func (m *Multiplexer) handleReconnectFailure(
 
 // reconnect attempts to reestablish a connection.
 func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
-	if conn.IsClosed() {
+	clientConn, token := conn.reconnectSnapshot()
+	if clientConn == nil {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
 	if conn.WSConn != nil {
 		_ = conn.WSConn.Close()
 	}
-
-	conn.mu.RLock()
-	client := conn.Client
-	token := conn.Token
-	conn.mu.RUnlock()
 
 	// Take over the stream before reading the cursor: a message the old reader has already
 	// read but not forwarded is dropped here and replayed by the new watch.
@@ -930,7 +959,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		conn.UserID,
 		conn.Path,
 		resumeWatchQuery(conn.Query, resourceVersion),
-		client,
+		clientConn,
 		token,
 	)
 	if err != nil {
@@ -943,6 +972,12 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		}
 
 		return nil, err
+	}
+
+	if currentClient := conn.activeClient(); currentClient == nil || currentClient != clientConn {
+		newConn.safeClose()
+
+		return nil, fmt.Errorf("connection was closed during reconnect")
 	}
 
 	// Keep the query the client subscribed with, so its messages still route to it.
