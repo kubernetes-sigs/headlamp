@@ -430,6 +430,47 @@ registerClusterEmptyState(({ defaultContent }) => (
 
 ___
 
+### registerClusterStatus
+
+▸ **registerClusterStatus**(`item`): `void`
+
+Register a new cluster status component.
+
+Registered callbacks are tried in registration order for each cluster row;
+the first one that returns a React element is shown. Return `null` to let
+the next registered callback (and finally Headlamp's default status) handle
+the cluster. The callback is rendered as a React component, so it may use
+hooks.
+
+**`example`**
+
+```tsx
+import { registerClusterStatus } from '@kinvolk/headlamp-plugin/lib';
+import { ClusterStatus } from './ClusterStatus';
+registerClusterStatus(({ cluster, error }) => {
+  if (!isElectron() || !isMinikube(cluster)) {
+    return null;
+  }
+  return <ClusterStatus cluster={cluster} error={error} />;
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `item` | `ClusterStatusComponent` | The component to register. Receives `{ cluster, error }` props. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:973](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/plugin/registry.tsx#L973)
+
+___
+
 ### registerCustomCreateProject
 
 ▸ **registerCustomCreateProject**(`customCreateProject`): `void`
