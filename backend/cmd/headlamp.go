@@ -2490,7 +2490,10 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
 			}
 
-			if token == "" {
+			// The cookie is only a fallback. When the OIDC refresh middleware
+			// renews an expiring token it sets Authorization, while the request
+			// cookie still holds the old one.
+			if token == "" && strings.TrimSpace(r.Header.Get("Authorization")) == "" {
 				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
 			}
 
