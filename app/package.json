@@ -23,7 +23,7 @@
     "dev-only-app": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true HEADLAMP_BACKEND_TOKEN=headlamp electron .",
     "predev-only-app:debug": "npm run electron:install",
     "dev-only-app:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true HEADLAMP_BACKEND_TOKEN=headlamp electron . --remote-debugging-port=9222",
-    "electron:install": "install-electron",
+    "electron:install": "node scripts/install-electron.js",
     "format": "cd .. && npm run frontend:format",
     "i18n": "npx --no-install i18next ./electron/main.ts ./electron/protocolHandler.ts ./electron/developmentPlugins.ts -c ./electron/i18next-parser.config.ts",
     "i18n-check": "npm run i18n -- --fail-on-update",

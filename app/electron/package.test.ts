@@ -63,7 +63,7 @@ describe('desktop package configuration', () => {
     );
     const lockedElectron = packageLock.packages['node_modules/electron'];
 
-    expect(packageJson.scripts['electron:install']).toBe('install-electron');
+    expect(packageJson.scripts['electron:install']).toBe('node scripts/install-electron.js');
     for (const script of [
       'prebuild',
       'predev',
