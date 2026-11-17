@@ -19,7 +19,11 @@ import { http, HttpResponse } from 'msw';
 import type { KubeResourceSlice } from '../../lib/k8s/resourceSlice';
 import { API_BASE, TestContext } from '../../test';
 import ResourceSliceDetails from './ResourceSliceDetails';
-import { RESOURCE_SLICE_DUMMY_DATA, RESOURCE_SLICE_PER_DEVICE } from './storyHelper';
+import {
+  RESOURCE_SLICE_DUMMY_DATA,
+  RESOURCE_SLICE_PER_DEVICE,
+  RESOURCE_SLICE_TAINTED,
+} from './storyHelper';
 
 const [nodeSlice, allNodesSlice] = RESOURCE_SLICE_DUMMY_DATA;
 
@@ -67,6 +71,11 @@ AllNodes.parameters = { msw: { handlers: { story: handlersFor(allNodesSlice) } }
 export const PerDevice = Template.bind({});
 PerDevice.args = { name: RESOURCE_SLICE_PER_DEVICE.metadata.name };
 PerDevice.parameters = { msw: { handlers: { story: handlersFor(RESOURCE_SLICE_PER_DEVICE) } } };
+
+/** The driver tainted two of its devices, so the scheduler skips them. */
+export const Tainted = Template.bind({});
+Tainted.args = { name: RESOURCE_SLICE_TAINTED.metadata.name };
+Tainted.parameters = { msw: { handlers: { story: handlersFor(RESOURCE_SLICE_TAINTED) } } };
 
 export const Loading = Template.bind({});
 Loading.args = { name: nodeSlice.metadata.name };

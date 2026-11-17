@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import type ResourceSlice from '../../lib/k8s/resourceSlice';
 import type { ResourceSliceDevice } from '../../lib/k8s/resourceSlice';
 import SimpleTable from '../common/SimpleTable';
+import { formatTaint } from '../node/utils';
 import { formatDeviceAttribute } from './resourceSliceDevice';
 import { ResourceSliceDeviceNode } from './ResourceSliceNode';
 
@@ -37,6 +38,7 @@ function NameValueLines({ values }: { values: [string, string | undefined][] }) 
 
 export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }) {
   const { t } = useTranslation(['glossary', 'translation']);
+  const hasTaints = slice.devices.some(device => !!device.taints?.length);
 
   return (
     <SimpleTable
@@ -74,6 +76,17 @@ export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }
                 getter: (device: ResourceSliceDevice) => (
                   <ResourceSliceDeviceNode slice={slice} device={device} />
                 ),
+              },
+            ]
+          : []),
+        ...(hasTaints
+          ? [
+              {
+                label: t('translation|Taints'),
+                getter: (device: ResourceSliceDevice) =>
+                  device.taints?.map(taint => (
+                    <div key={`${taint.key}:${taint.effect}`}>{formatTaint(taint)}</div>
+                  )),
               },
             ]
           : []),

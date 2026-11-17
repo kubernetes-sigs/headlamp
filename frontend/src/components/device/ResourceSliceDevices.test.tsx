@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
 import type { KubeResourceSlice } from '../../lib/k8s/resourceSlice';
@@ -23,7 +23,11 @@ import ResourceSlice from '../../lib/k8s/resourceSlice';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import ResourceSliceDevices from './ResourceSliceDevices';
-import { RESOURCE_SLICE_DUMMY_DATA, RESOURCE_SLICE_PER_DEVICE } from './storyHelper';
+import {
+  RESOURCE_SLICE_DUMMY_DATA,
+  RESOURCE_SLICE_PER_DEVICE,
+  RESOURCE_SLICE_TAINTED,
+} from './storyHelper';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -82,5 +86,24 @@ describe('ResourceSliceDevices', () => {
       '/c/gpu-cluster/nodes/gpu-worker-0'
     );
     expect(screen.getByText('All nodes')).toBeVisible();
+  });
+
+  it('shows the taints of each device only when a device is tainted', () => {
+    const { unmount } = renderDevices(nodeSlice);
+    expect(screen.queryByText('Taints')).not.toBeInTheDocument();
+    unmount();
+
+    renderDevices(RESOURCE_SLICE_TAINTED);
+    expect(screen.getByText('Taints')).toBeVisible();
+    expect(
+      within(screen.getByText('gpu-0').closest('tr')!).getByText(
+        'gpu.example.com/ecc-errors=uncorrectable:NoExecute'
+      )
+    ).toBeVisible();
+    expect(
+      within(screen.getByText('gpu-1').closest('tr')!).getByText(
+        'gpu.example.com/maintenance:NoSchedule'
+      )
+    ).toBeVisible();
   });
 });

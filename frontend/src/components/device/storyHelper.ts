@@ -412,6 +412,28 @@ export const RESOURCE_SLICE_PER_DEVICE: KubeResourceSlice = {
   },
 };
 
+export const RESOURCE_SLICE_TAINTED: KubeResourceSlice = {
+  ...RESOURCE_SLICE_DUMMY_DATA[0],
+  metadata: {
+    ...RESOURCE_SLICE_DUMMY_DATA[0].metadata,
+    name: `${worker}-gpu.example.com-t4int`,
+    uid: 'resource-slice-uid-4',
+  },
+  spec: {
+    ...RESOURCE_SLICE_DUMMY_DATA[0].spec,
+    devices: [
+      {
+        ...gpu(0),
+        taints: [
+          { key: 'gpu.example.com/ecc-errors', value: 'uncorrectable', effect: 'NoExecute' },
+        ],
+      },
+      { ...gpu(1), taints: [{ key: 'gpu.example.com/maintenance', effect: 'NoSchedule' }] },
+      gpu(2),
+    ],
+  },
+};
+
 /** trainer-2 as the kubelet reports the health of the GPUs in its claim trainer-2-gpus-vfghv. */
 export const DEVICE_HEALTH_POD: KubePod = {
   ...podWithResourceClaims,
