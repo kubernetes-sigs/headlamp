@@ -1131,6 +1131,7 @@
   "Path: {{ path }}:{{ port }}": "Yol: {{ path }}:{{ port }}",
   "Operations": "İşlemler",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Hazır",
   "Up to date//context:replicas": "Güncel",
   "Available//context:replicas": "Kullanılabilir",

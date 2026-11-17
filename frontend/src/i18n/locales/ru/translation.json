@@ -1155,6 +1155,7 @@
   "Path: {{ path }}:{{ port }}": "Путь: {{ path }}:{{ port }}",
   "Operations": "Операции",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Готовые",
   "Up to date//context:replicas": "Актуальные",
   "Available//context:replicas": "Доступные",

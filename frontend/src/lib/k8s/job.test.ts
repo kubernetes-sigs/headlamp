@@ -45,9 +45,9 @@ describe('Job class', () => {
       );
     });
 
-    it('classifies a Suspended job as degraded', () => {
+    it('classifies a Suspended job as suspended', () => {
       expect(makeJob({ conditions: [{ type: 'Suspended', status: 'True' }] }).getHealth()).toBe(
-        'degraded'
+        'suspended'
       );
     });
 

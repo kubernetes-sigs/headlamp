@@ -1131,6 +1131,7 @@
   "Path: {{ path }}:{{ port }}": "Pad: {{ path }}:{{ port }}",
   "Operations": "Bewerkingen",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Gereed",
   "Up to date//context:replicas": "Bijgewerkt",
   "Available//context:replicas": "Beschikbaar",

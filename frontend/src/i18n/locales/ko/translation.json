@@ -1119,6 +1119,7 @@
   "Path: {{ path }}:{{ port }}": "경로: {{ path }}:{{ port }}",
   "Operations": "Operations",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "준비됨",
   "Up to date//context:replicas": "최신 상태",
   "Available//context:replicas": "사용 가능",

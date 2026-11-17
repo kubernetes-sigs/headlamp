@@ -1143,6 +1143,7 @@
   "Path: {{ path }}:{{ port }}": "Caminho: {{ path }}:{{ port }}",
   "Operations": "Operações",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Prontas",
   "Up to date//context:replicas": "Actualizadas",
   "Available//context:replicas": "Disponíveis",

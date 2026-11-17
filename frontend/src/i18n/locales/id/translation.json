@@ -1119,6 +1119,7 @@
   "Path: {{ path }}:{{ port }}": "Jalur: {{ path }}:{{ port }}",
   "Operations": "Operasi",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Siap",
   "Up to date//context:replicas": "Terbaru",
   "Available//context:replicas": "Tersedia",

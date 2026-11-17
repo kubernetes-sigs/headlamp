@@ -1155,6 +1155,7 @@
   "Path: {{ path }}:{{ port }}": "Cesta: {{ path }}:{{ port }}",
   "Operations": "Operace",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Připraveno",
   "Up to date//context:replicas": "Aktuální",
   "Available//context:replicas": "K dispozici",

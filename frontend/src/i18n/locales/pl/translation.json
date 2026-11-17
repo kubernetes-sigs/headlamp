@@ -1155,6 +1155,7 @@
   "Path: {{ path }}:{{ port }}": "Ścieżka: {{ path }}:{{ port }}",
   "Operations": "Operacje",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Gotowe",
   "Up to date//context:replicas": "Aktualny",
   "Available//context:replicas": "Dostępna",

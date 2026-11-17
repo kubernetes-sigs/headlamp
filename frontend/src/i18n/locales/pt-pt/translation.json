@@ -1143,6 +1143,7 @@
   "Path: {{ path }}:{{ port }}": "",
   "Operations": "",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "",
   "Up to date//context:replicas": "",
   "Available//context:replicas": "",

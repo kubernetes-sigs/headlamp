@@ -1131,6 +1131,7 @@
   "Path: {{ path }}:{{ port }}": "پاتھ: {{ path }}:{{ port }}",
   "Operations": "عملیات",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "تیار",
   "Up to date//context:replicas": "تازہ ترین",
   "Available//context:replicas": "دستیاب",

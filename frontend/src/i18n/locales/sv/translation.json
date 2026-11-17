@@ -1131,6 +1131,7 @@
   "Path: {{ path }}:{{ port }}": "Sökväg: {{ path }}:{{ port }}",
   "Operations": "Åtgärder",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Redo",
   "Up to date//context:replicas": "Uppdaterat",
   "Available//context:replicas": "Tillgängligt",

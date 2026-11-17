@@ -1131,6 +1131,7 @@
   "Path: {{ path }}:{{ port }}": "Pfad: {{ path }}:{{ port }}",
   "Operations": "Operationen",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Bereit",
   "Up to date//context:replicas": "Aktualisiert",
   "Available//context:replicas": "Verfügbar",

@@ -1179,6 +1179,7 @@
   "Path: {{ path }}:{{ port }}": "المسار: {{ path }}:{{ port }}",
   "Operations": "العمليات",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "جاهز",
   "Up to date//context:replicas": "محدّث",
   "Available//context:replicas": "متاح",

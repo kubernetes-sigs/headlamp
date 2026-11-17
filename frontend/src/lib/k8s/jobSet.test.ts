@@ -76,9 +76,9 @@ describe('JobSet class', () => {
       );
     });
 
-    it('classifies a Suspended job set as degraded', () => {
+    it('classifies a Suspended job set as suspended', () => {
       expect(makeJobSet({ conditions: [{ type: 'Suspended', status: 'True' }] }).getHealth()).toBe(
-        'degraded'
+        'suspended'
       );
     });
 

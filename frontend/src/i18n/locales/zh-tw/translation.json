@@ -1119,6 +1119,7 @@
   "Path: {{ path }}:{{ port }}": "路徑：{{ path }}:{{ port }}",
   "Operations": "操作",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "準備好",
   "Up to date//context:replicas": "最新",
   "Available//context:replicas": "可用",
