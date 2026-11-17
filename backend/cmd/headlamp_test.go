@@ -4986,6 +4986,71 @@ func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	assert.Empty(t, receivedProxyAuthToken)
 }
 
+// The refresh middleware renews an expired cookie token and puts the new one in
+// Authorization. The request's cookie still holds the expired token, so the
+// proxy must forward the header rather than read the cookie again.
+func TestClusterRequestHandlerForwardsRefreshedOIDCToken(t *testing.T) {
+	expiredToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"exp":1}`)) + ".signature"
+
+	var issuer, receivedAuth, receivedRefreshToken string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer": issuer, "token_endpoint": issuer + "/token",
+				"authorization_endpoint": issuer + "/authorize", "jwks_uri": issuer + "/keys",
+			})
+
+			return
+		}
+
+		_ = r.ParseForm()
+		receivedRefreshToken = r.Form.Get("refresh_token")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "renewed-access-token", "id_token": "renewed-id-token",
+			"token_type": "Bearer", "refresh_token": "new-refresh", "expires_in": 3600,
+		})
+	}))
+	t.Cleanup(provider.Close)
+	issuer = provider.URL
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name: "main", Source: kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: issuer, ClientID: "test-client"},
+	})
+	cfg.SessionTTL = 3600
+	require.NoError(t, cfg.Cache.Set(context.Background(), "oidc-token-"+expiredToken, "refresh-user-token"))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-main.0", Value: expiredToken,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	cfg.OIDCTokenRefreshMiddleware(router).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "refresh-user-token", receivedRefreshToken)
+	assert.Equal(t, "Bearer renewed-id-token", receivedAuth)
+	assert.Contains(t, strings.Join(rr.Header().Values("Set-Cookie"), "\n"),
+		"headlamp-auth-main.0=renewed-id-token;", "the refreshed token must also reach the browser")
+}
+
 func TestAllowedHosts(t *testing.T) {
 	hosts := allowedHosts("localhost", 4466)
 
