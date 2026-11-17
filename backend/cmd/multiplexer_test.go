@@ -3789,3 +3789,95 @@ func verifyClusterMessageForwarded(
 		}
 	}
 }
+
+func TestHandleClusterMessages_ClosesUpstreamSocketOnReaderExit(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 200*time.Millisecond)
+	srvWs := awaitServerSocket(t, serverSockets, "server socket upgrade")
+
+	// Close the server side to simulate upstream peer termination
+	_ = srvWs.Close()
+
+	m.handleClusterMessages(conn, clientConn)
+
+	assert.Error(t, conn.WSConn.WriteMessage(websocket.PingMessage, nil),
+		"upstream socket must be closed when reader exits")
+
+	conn.mu.RLock()
+	state := conn.Status.State
+	conn.mu.RUnlock()
+	assert.Equal(t, StateError, state, "status must be StateError upon reader exit")
+
+	select {
+	case <-conn.Done:
+		t.Fatal("conn.Done must remain open so monitorConnection can reconnect")
+	default:
+	}
+}
+
+func TestHandleClusterMessages_OldReaderDoesNotCloseReplacementConnection(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, oldConn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 200*time.Millisecond)
+	oldSrvWs := awaitServerSocket(t, serverSockets, "old server socket upgrade")
+
+	newConn, err := m.createClusterConnection(
+		"test-cluster",
+		"test-user",
+		"/api/v1/pods",
+		"",
+		clientConn,
+		nil,
+	)
+	require.NoError(t, err)
+
+	newSrvWs := awaitServerSocket(t, serverSockets, "new server socket upgrade")
+	defer func() { _ = newSrvWs.Close() }()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.mutex.Lock()
+	m.connections[connKey] = newConn
+	m.mutex.Unlock()
+
+	_ = oldSrvWs.Close()
+
+	m.handleClusterMessages(oldConn, clientConn)
+
+	assert.Error(t, oldConn.WSConn.WriteMessage(websocket.PingMessage, nil),
+		"old socket must be closed")
+
+	m.mutex.RLock()
+	activeConn := m.connections[connKey]
+	m.mutex.RUnlock()
+
+	assert.Equal(t, newConn, activeConn, "replacement connection must remain in map")
+
+	assert.NoError(t, newConn.WSConn.WriteMessage(websocket.PingMessage, nil),
+		"replacement socket must remain open and unaffected by old reader exit")
+
+	newConn.mu.RLock()
+	newState := newConn.Status.State
+	newConn.mu.RUnlock()
+	assert.Equal(t, StateConnected, newState, "replacement connection state must be unaffected")
+
+	newConn.safeClose()
+}
