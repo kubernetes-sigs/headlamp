@@ -204,6 +204,9 @@ an existing Bearer prefix is normalized only once. An explicitly supplied empty
 credential is rejected, never replaced by a cookie or stored identity. Static
 contexts with names that cannot form cookie names can still use their configured
 credentials when no Authorization header was supplied.
+The outer cluster OIDC middleware validates supplied Authorization before
+refresh: an expiring cookie cannot replace an invalid header or collapse multiple
+headers into an accepted credential. Legitimate cookie-only refresh still works.
 
 Sessions are scoped by the exact context key, API server/TLS/proxy authority, and
 the Kubernetes-returned username and UID. Another user cannot list, inspect,
