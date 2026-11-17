@@ -64,4 +64,16 @@ describe('LeaseList', () => {
     const holder = props.columns.find((c: any) => c?.id === 'holder');
     expect(holder.getValue(LEASE_DUMMY_DATA[0])).toBe('holder');
   });
+
+  it('returns fallback holder when spec is undefined', () => {
+    render(
+      <TestContext>
+        <LeaseList />
+      </TestContext>
+    );
+
+    const props = mockListView.mock.calls[0][0];
+    const holder = props.columns.find((c: any) => c?.id === 'holder');
+    expect(holder.getValue({} as any)).toBe('-');
+  });
 });
