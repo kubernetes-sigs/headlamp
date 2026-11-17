@@ -30,6 +30,7 @@ import * as monaco from 'monaco-editor';
 import React from 'react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { getResourceClass } from '../../lib/k8s';
 import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { Activity } from '../activity/Activity';
@@ -277,7 +278,16 @@ export function ResourceSearch({
                 gridTemplate: 'auto',
                 getValue: item => item.metadata.name,
                 render: item =>
-                  canRenderDetails(item.kind) ? <Link kubeObject={item} /> : item.metadata.name,
+                  // ResourceClasses isn't exhaustive (e.g. VerticalPodAutoscaler, the webhook
+                  // configs): only require the apiVersion group to match when the kind is
+                  // actually registered, so unregistered-but-supported kinds keep linking.
+                  canRenderDetails(item.kind) &&
+                  (!getResourceClass(item.kind) ||
+                    getResourceClass(item.kind, item.jsonData?.apiVersion)) ? (
+                    <Link kubeObject={item} />
+                  ) : (
+                    item.metadata.name
+                  ),
               },
               'namespace',
               {

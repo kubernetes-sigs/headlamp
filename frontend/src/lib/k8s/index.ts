@@ -49,10 +49,13 @@ function apiGroupOf(apiVersion: string): string {
  *   `apiVersion` is given and its group doesn't match any of the class's registered groups.
  */
 export function getResourceClass(kind: string, apiVersion?: string): KubeObjectClass | null {
-  const cls = (ResourceClasses as Record<string, KubeObjectClass>)[kind];
-  if (!cls) {
+  // Guard against `kind` resolving to an inherited property (e.g. "constructor" or
+  // "toString") instead of a registered resource class.
+  if (!Object.prototype.hasOwnProperty.call(ResourceClasses, kind)) {
     return null;
   }
+
+  const cls = (ResourceClasses as Record<string, KubeObjectClass>)[kind];
 
   if (!apiVersion) {
     return cls;

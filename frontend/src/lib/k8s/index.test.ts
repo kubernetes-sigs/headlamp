@@ -478,4 +478,16 @@ describe('getResourceClass', () => {
       ResourceClasses.PriorityClass
     );
   });
+
+  it('returns null for inherited Object.prototype properties instead of throwing', () => {
+    // `kind` can come straight off the wire (e.g. an ownerReference or an advanced-search
+    // result). A kind like "constructor" or "toString" is not an own property of the
+    // ResourceClasses map, but a plain `obj[kind]` lookup still finds it on the prototype
+    // chain, so it must be rejected before any apiVersion handling touches it.
+    expect(getResourceClass('constructor')).toBeNull();
+    expect(getResourceClass('toString')).toBeNull();
+    expect(() => getResourceClass('constructor', 'v1')).not.toThrow();
+    expect(getResourceClass('constructor', 'v1')).toBeNull();
+    expect(getResourceClass('hasOwnProperty', 'apps/v1')).toBeNull();
+  });
 });
