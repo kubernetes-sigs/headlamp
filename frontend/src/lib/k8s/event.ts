@@ -15,10 +15,10 @@
  */
 
 import { useMemo } from 'react';
-import { getResourceClass } from '.';
 import { request } from './api/v1/clusterRequests';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
+import { getResourceClass } from './getResourceClass';
 import type { KubeMetadata } from './KubeMetadata';
 import { KubeObject } from './KubeObject';
 

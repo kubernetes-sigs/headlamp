@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { getResourceClass } from '.';
 import { request } from './api/v1/clusterRequests';
+import { getResourceClass } from './getResourceClass';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
