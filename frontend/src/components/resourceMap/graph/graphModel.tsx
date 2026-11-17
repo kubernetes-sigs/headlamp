@@ -95,8 +95,11 @@ export interface GraphEdge {
    * Being edge-role-specific (rather than a plain boolean flag on the edge) keeps the
    * *other* endpoint — e.g. a Pod that happens to mount only RWX PVCs and so has no
    * "normal" edges — from being misidentified as shareable itself.
+   *
+   * 'both' names both endpoints, for an edge between two shareable resources, such as a
+   * ResourceClaimTemplate used by several workloads and the DeviceClass it asks for.
    */
-  nonGroupingSide?: 'source' | 'target';
+  nonGroupingSide?: 'source' | 'target' | 'both';
 }
 
 /**

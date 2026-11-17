@@ -432,11 +432,13 @@ const podToResourceClaimTemplate = makeNamedRelation(
   'pod-resourceclaimtemplate',
   Pod,
   ResourceClaimTemplate,
-  pod => pod.resourceClaims.flatMap(claim => (claim.templateName ? [claim.templateName] : []))
+  pod => pod.resourceClaims.flatMap(claim => (claim.templateName ? [claim.templateName] : [])),
+  { nonGroupingSide: 'target' }
 );
 
-// Every claim for the same kind of device names one device class, so splitting the class
-// out keeps it from merging all of those workloads into a single group.
+// Every claim for the same kind of device names one device class, and Pods of unrelated
+// workloads can share one template, so splitting them out keeps them from merging all of
+// those workloads into a single group.
 const resourceClaimToDeviceClass = makeNamedRelation(
   'resourceclaim-deviceclass',
   ResourceClaim,
@@ -450,7 +452,7 @@ const resourceClaimTemplateToDeviceClass = makeNamedRelation(
   ResourceClaimTemplate,
   DeviceClass,
   template => template.requestedClasses,
-  { nonGroupingSide: 'target' }
+  { nonGroupingSide: 'both' }
 );
 
 const podToOwner = makeOwnerRelation(Pod);

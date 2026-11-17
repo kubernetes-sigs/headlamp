@@ -870,6 +870,7 @@ describe('DRA relations', () => {
     );
 
     expect(targetsOf(edges)).toEqual(['template/scratch-nvme', 'template/single-gpu']);
+    expect(edges.every(edge => edge.nonGroupingSide === 'target')).toBe(true);
   });
 
   it('links claims and templates to every device class they can use, once each', () => {
@@ -895,8 +896,7 @@ describe('DRA relations', () => {
 
     expect(targetsOf(claimEdges)).toEqual(expected);
     expect(targetsOf(templateEdges)).toEqual(expected);
-    expect([...claimEdges, ...templateEdges].every(edge => edge.nonGroupingSide === 'target')).toBe(
-      true
-    );
+    expect(claimEdges.every(edge => edge.nonGroupingSide === 'target')).toBe(true);
+    expect(templateEdges.every(edge => edge.nonGroupingSide === 'both')).toBe(true);
   });
 });
