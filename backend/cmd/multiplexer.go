@@ -1232,6 +1232,12 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 
 // handleClusterMessages handles messages from a cluster connection.
 func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
+	defer func() {
+		if conn.WSConn != nil {
+			_ = conn.WSConn.Close()
+		}
+	}()
+
 	var lastResourceVersion string
 
 	for {
