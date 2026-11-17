@@ -17,7 +17,7 @@
 import type Deployment from '../../lib/k8s/deployment';
 import { sortByPods } from './sortByPods';
 
-function makeDeployment(name: string, status: Partial<Deployment['status']>) {
+function makeDeployment(name: string, status?: Partial<Deployment['status']>) {
   return { metadata: { name }, status } as Deployment;
 }
 
@@ -43,5 +43,19 @@ describe('sortByPods', () => {
 
   it('gives the same order no matter the initial one', () => {
     expect(namesInOrder([...deployments].reverse())).toEqual(namesInOrder(deployments));
+  });
+
+  it('handles deployments with undefined status without throwing', () => {
+    const listWithUndefinedStatus = [
+      makeDeployment('no-status', undefined),
+      makeDeployment('available-1', { replicas: 1, availableReplicas: 1 }),
+      makeDeployment('empty-status', {}),
+    ];
+    expect(() => namesInOrder(listWithUndefinedStatus)).not.toThrow();
+    expect(namesInOrder(listWithUndefinedStatus)).toEqual([
+      'no-status',
+      'empty-status',
+      'available-1',
+    ]);
   });
 });
