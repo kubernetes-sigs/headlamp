@@ -15,9 +15,11 @@
  */
 
 import type { KubeDeviceClass } from '../../lib/k8s/deviceClass';
+import type { KubePod } from '../../lib/k8s/pod';
 import type { KubeResourceClaim } from '../../lib/k8s/resourceClaim';
 import type { KubeResourceClaimTemplate } from '../../lib/k8s/resourceClaimTemplate';
 import type { KubeResourceSlice } from '../../lib/k8s/resourceSlice';
+import { podWithResourceClaims } from '../pod/storyHelper';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
@@ -407,5 +409,43 @@ export const RESOURCE_SLICE_PER_DEVICE: KubeResourceSlice = {
       { ...gpu(0), nodeName: worker },
       { ...gpu(1), allNodes: true },
     ],
+  },
+};
+
+/** trainer-2 as the kubelet reports the health of the GPUs in its claim trainer-2-gpus-vfghv. */
+export const DEVICE_HEALTH_POD: KubePod = {
+  ...podWithResourceClaims,
+  metadata: { ...podWithResourceClaims.metadata, name: 'trainer-2', uid: 'pod-uid-4' },
+  spec: {
+    ...podWithResourceClaims.spec,
+    resourceClaims: [{ name: 'gpus', resourceClaimTemplateName: 'multiple-gpus' }],
+    containers: podWithResourceClaims.spec.containers.map(container => ({
+      ...container,
+      resources: { claims: [{ name: 'gpus' }] },
+    })),
+  },
+  status: {
+    ...podWithResourceClaims.status,
+    resourceClaimStatuses: [{ name: 'gpus', resourceClaimName: 'trainer-2-gpus-vfghv' }],
+    extendedResourceClaimStatus: undefined,
+    containerStatuses: podWithResourceClaims.status.containerStatuses.map(status => ({
+      ...status,
+      allocatedResourcesStatus: [
+        {
+          name: 'claim:gpus/gpu-1',
+          resources: [{ resourceID: `gpu.example.com/${worker}/gpu-2`, health: 'Healthy' }],
+        },
+        {
+          name: 'claim:gpus/gpu-2',
+          resources: [
+            {
+              resourceID: `gpu.example.com/${worker}/gpu-3`,
+              health: 'Unhealthy',
+              message: 'ECC error count exceeded threshold',
+            },
+          ],
+        },
+      ],
+    })),
   },
 };
