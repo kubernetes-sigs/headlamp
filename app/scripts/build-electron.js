@@ -1,10 +1,31 @@
+/*
+ * Copyright 2026 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 'use strict';
 
 const esbuild = require('esbuild');
 const path = require('node:path');
+const fs = require('node:fs');
 
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
+const isCoverage = process.argv.includes('--coverage');
+if (isCoverage && isWatch) {
+  throw new Error('Desktop coverage builds do not support watch mode.');
+}
 // CJS bundling would otherwise inline these dynamic imports into main.js.
 // Separate entries keep their module graphs out of startup memory until first use.
 const mcpAdapterEntry = path.resolve(__dirname, '../electron/mcp/MCPAdapter.ts');
@@ -83,6 +104,23 @@ const entryPoints = [
 async function build() {
   for (const entry of entryPoints) {
     const options = { ...commonOptions, ...entry };
+    if (isCoverage) {
+      const { createCoveragePlugin } = require('./coverage');
+      options.plugins = [...(options.plugins || []), createCoveragePlugin()];
+      options.sourcemap = true;
+      options.minify = false;
+      const collector =
+        entry.outfile === entryPoints[0].outfile
+          ? 'main'
+          : entry.outfile.endsWith(`${path.sep}preload.js`)
+          ? 'preload'
+          : undefined;
+      if (collector) {
+        options.banner = {
+          js: fs.readFileSync(path.join(__dirname, `coverage-${collector}.js`), 'utf8'),
+        };
+      }
+    }
 
     if (isWatch) {
       const ctx = await esbuild.context(options);

@@ -16,29 +16,47 @@
 
 import { expect, test } from '@playwright/test';
 import fs from 'fs';
+import { createServer, Server } from 'node:http';
 import os from 'os';
 import path from 'path';
 import { _electron, ElectronApplication, Page } from 'playwright';
 
-const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
-const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
+const electronPath = require('electron') as string;
 const appPath = path.resolve(__dirname, '../../');
 const userDataDir = path.join(os.tmpdir(), `headlamp-e2e-zoom-${process.pid}`);
 
 let electronApp: ElectronApplication;
 let electronPage: Page;
+let backend: Server;
 
 if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
   test.beforeAll(async () => {
+    backend = createServer((request, response) => {
+      if (request.url === '/config') {
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+        return;
+      }
+      response.writeHead(404).end();
+    });
+    await new Promise<void>(resolve => backend.listen(0, '127.0.0.1', resolve));
+    const address = backend.address();
+    if (!address || typeof address === 'string') throw new Error('Backend did not acquire a port');
     electronApp = await _electron.launch({
       cwd: appPath,
       executablePath: electronPath,
-      args: ['.', `--user-data-dir=${userDataDir}`],
+      args: ['.', `--port=${address.port}`, `--user-data-dir=${userDataDir}`],
       env: {
         ...process.env,
+        HOME: userDataDir,
+        APPDATA: userDataDir,
+        LOCALAPPDATA: userDataDir,
+        XDG_CONFIG_HOME: userDataDir,
+        XDG_DATA_HOME: userDataDir,
         ELECTRON_DEV: 'true',
         ELECTRON_START_URL: 'data:text/html,<title>Headlamp zoom test</title>',
         EXTERNAL_SERVER: 'true',
+        HEADLAMP_CHECK_FOR_UPDATES: 'false',
+        HEADLAMP_MCP_ENABLE: 'false',
       },
     });
 
@@ -48,6 +66,11 @@ if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
 
   test.afterAll(async () => {
     await electronApp?.close();
+    if (backend?.listening) {
+      await new Promise<void>((resolve, reject) =>
+        backend.close(error => (error ? reject(error) : resolve()))
+      );
+    }
     fs.rmSync(userDataDir, { force: true, recursive: true });
   });
 }
