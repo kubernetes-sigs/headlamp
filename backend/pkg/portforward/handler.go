@@ -70,6 +70,21 @@ type portForwardRequest struct {
 	ServiceNamespace string `json:"serviceNamespace"`
 	TargetPort       string `json:"targetPort"`
 	Port             string `json:"port"`
+	Address          string `json:"address"`
+}
+
+// defaultPortForwardAddress is the address port forwards listen on when the
+// request doesn't ask for one.
+const defaultPortForwardAddress = "localhost"
+
+// allowedPortForwardAddresses are the addresses a port forward may listen on.
+// 0.0.0.0 is needed when the backend runs in a container (Docker Desktop
+// extension), so the forward is reachable through the container's published
+// ports; other interfaces are not allowed.
+var allowedPortForwardAddresses = map[string]bool{
+	"localhost": true,
+	"127.0.0.1": true,
+	"0.0.0.0":   true,
 }
 
 func (p *portForwardRequest) Validate() error {
@@ -83,6 +98,10 @@ func (p *portForwardRequest) Validate() error {
 
 	if p.TargetPort == "" {
 		return fmt.Errorf("targetPort is required")
+	}
+
+	if p.Address != "" && !allowedPortForwardAddresses[p.Address] {
+		return fmt.Errorf("address must be one of localhost, 127.0.0.1 or 0.0.0.0")
 	}
 
 	return nil
@@ -100,6 +119,7 @@ type portForward struct {
 	cacheKey         string       `json:"-"`
 	Port             string       `json:"port"`
 	TargetPort       string       `json:"targetPort"`
+	Address          string       `json:"address"`
 	Status           string       `json:"status"`
 	Error            string       `json:"error"`
 	rConf            *rest.Config `json:"-"` // needed for reconnect on pod restart
@@ -191,6 +211,10 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
+	}
+
+	if p.Address == "" {
+		p.Address = defaultPortForwardAddress
 	}
 
 	if p.Port == "" {
@@ -375,9 +399,10 @@ func buildPortForwardURL(host, namespace, podName, targetPort string) (*url.URL,
 }
 
 // initPortForwarder sets up the SPDY dialer and creates a new port forwarder.
-// It requires a REST config, namespace, pod name, and the port mapping string (e.g., "8080:80").
+// It requires a REST config, namespace, pod name, the address to listen on (e.g., "localhost"),
+// and the port mapping string (e.g., "8080:80").
 // It returns the port forwarder instance, stop/ready channels, an error buffer, or an error.
-func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping, targetPort string) (
+func initPortForwarder(rConf *rest.Config, namespace, podName, address, portMapping, targetPort string) (
 	*portforward.PortForwarder, chan struct{}, chan struct{}, *bytes.Buffer, error,
 ) {
 	roundTripper, upgrader, err := spdy.RoundTripperFor(rConf)
@@ -393,10 +418,19 @@ func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping, targ
 	// Path-routed proxies use WebSocket first; direct API endpoints use SPDY.
 	dialer := buildPortForwardDialer(rConf, fullURL, upgrader, roundTripper)
 
-	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
-	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
+	return newPortForwarder(dialer, address, portMapping, new(bytes.Buffer))
+}
 
-	forwarder, err := portforward.New(dialer, []string{portMapping}, stopChan, readyChan, out, errOut)
+// newPortForwarder creates a port forwarder that listens on the given address.
+func newPortForwarder(dialer httpstream.Dialer, address, portMapping string, out *bytes.Buffer) (
+	*portforward.PortForwarder, chan struct{}, chan struct{}, *bytes.Buffer, error,
+) {
+	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
+	errOut := new(bytes.Buffer)
+
+	forwarder, err := portforward.NewOnAddresses(
+		dialer, []string{address}, []string{portMapping}, stopChan, readyChan, out, errOut,
+	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create portforwarder: %w", err)
 	}
@@ -620,7 +654,7 @@ func tryReconnectOnce(
 	portMapping := pfDetails.Port + ":" + pfDetails.TargetPort
 
 	forwarder, stopChan, readyChan, errOut, err := initPortForwarder(
-		pfDetails.rConf, podNamespace, newPod, portMapping, pfDetails.TargetPort,
+		pfDetails.rConf, podNamespace, newPod, pfDetails.Address, portMapping, pfDetails.TargetPort,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "re-initializing port forwarder")
@@ -830,7 +864,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	)
 
 	forwarder, stopChan, readyChan, errOut, errInit = initPortForwarder(
-		rConf, p.Namespace, p.Pod, portMapping, p.TargetPort,
+		rConf, p.Namespace, p.Pod, p.Address, portMapping, p.TargetPort,
 	)
 	if errInit != nil {
 		return fmt.Errorf("failed to initialize port forwarder: %w", errInit)
@@ -847,6 +881,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		Service:          p.Service,
 		ServiceNamespace: p.ServiceNamespace,
 		TargetPort:       p.TargetPort,
+		Address:          p.Address,
 		Status:           RUNNING,
 		Port:             p.Port,
 		Error:            "",
