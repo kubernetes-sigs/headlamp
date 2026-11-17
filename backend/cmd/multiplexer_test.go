@@ -3399,11 +3399,16 @@ func setupLiveTestConnectionWithBackoff(
 func createCapturingUpgradeServer(
 	serverFail *atomic.Bool,
 	upgrades *atomic.Int32,
+	onFailedRequest ...func(time.Time),
 ) (*httptest.Server, <-chan *websocket.Conn) {
 	serverSockets := make(chan *websocket.Conn, 10)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if serverFail.Load() {
+			if len(onFailedRequest) > 0 && onFailedRequest[0] != nil {
+				onFailedRequest[0](time.Now())
+			}
+
 			http.Error(w, "server error", http.StatusInternalServerError)
 
 			return
@@ -3432,25 +3437,35 @@ func createCapturingUpgradeServer(
 	return server, serverSockets
 }
 
-func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
-	var (
-		serverFail atomic.Bool
-		upgrades   atomic.Int32
-	)
+func assertElapsedBackoffIntervals(
+	t *testing.T,
+	times []time.Time,
+	actualDelays []time.Duration,
+) {
+	t.Helper()
 
-	server, _ := createCapturingUpgradeServer(&serverFail, &upgrades)
-	defer server.Close()
+	require.GreaterOrEqual(t, len(times), len(actualDelays),
+		"expected at least %d recorded failed reconnect attempts, got %d", len(actualDelays), len(times))
 
-	clientConn, clientServer := createTestWebSocketConnection()
-	defer clientServer.Close()
+	// Timer granularity tolerance (OS scheduler jitter allowance)
+	const timerTolerance = 3 * time.Millisecond
 
-	m, conn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 100*time.Millisecond)
-	backoffEvents := make(chan backoffEvent, 10)
+	for i := 1; i < len(actualDelays); i++ {
+		elapsed := times[i].Sub(times[i-1])
+		scheduledDelay := actualDelays[i-1]
+		minExpected := scheduledDelay - timerTolerance
 
-	m.backoffScheduledFunc = func(attempt int, delay time.Duration) {
-		backoffEvents <- backoffEvent{attempt: attempt, delay: delay}
+		assert.GreaterOrEqual(t, elapsed, minExpected,
+			"reconnect attempt %d occurred too early: elapsed %v, expected at least %v (scheduled %v)",
+			i, elapsed, minExpected, scheduledDelay)
 	}
+}
 
+func startTestMonitorAndReader(
+	m *Multiplexer,
+	conn *Connection,
+	clientConn *WSConnLock,
+) (<-chan struct{}, <-chan struct{}) {
 	readerDone := make(chan struct{})
 
 	go func() {
@@ -3464,6 +3479,37 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 		m.monitorConnection(conn)
 		close(done)
 	}()
+
+	return readerDone, done
+}
+
+func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+		requestMu  sync.Mutex
+		failedReqs []time.Time
+	)
+
+	server, _ := createCapturingUpgradeServer(&serverFail, &upgrades, func(reqTime time.Time) {
+		requestMu.Lock()
+		defer requestMu.Unlock()
+
+		failedReqs = append(failedReqs, reqTime)
+	})
+	defer server.Close()
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	m, conn := setupLiveTestConnectionWithBackoff(t, server.URL, clientConn, 100*time.Millisecond)
+	backoffEvents := make(chan backoffEvent, 10)
+
+	m.backoffScheduledFunc = func(attempt int, delay time.Duration) {
+		backoffEvents <- backoffEvent{attempt: attempt, delay: delay}
+	}
+
+	readerDone, done := startTestMonitorAndReader(m, conn, clientConn)
 
 	// Break connection and make subsequent reconnect attempts fail
 	serverFail.Store(true)
@@ -3483,12 +3529,21 @@ func TestMonitorConnection_ReconnectFailureAppliesBackoff(t *testing.T) {
 		80 * time.Millisecond,
 		100 * time.Millisecond,
 		100 * time.Millisecond,
+		100 * time.Millisecond,
 	}
 
 	// Verify reported backoff events match the expected progression
-	assertBackoffSequence(t, backoffEvents, expectedDelays...)
+	actualDelays := assertBackoffSequence(t, backoffEvents, expectedDelays...)
 
 	cleanUpTestConnection(t, done, conn)
+
+	requestMu.Lock()
+
+	times := append([]time.Time(nil), failedReqs...)
+
+	requestMu.Unlock()
+
+	assertElapsedBackoffIntervals(t, times, actualDelays)
 }
 
 type backoffEvent struct {
@@ -3496,24 +3551,36 @@ type backoffEvent struct {
 	delay   time.Duration
 }
 
-func assertBackoffEvent(t *testing.T, ch <-chan backoffEvent, expectedAttempt int, expectedDelay time.Duration) {
+func assertBackoffEvent(
+	t *testing.T,
+	ch <-chan backoffEvent,
+	expectedAttempt int,
+	expectedDelay time.Duration,
+) time.Duration {
 	t.Helper()
 
 	select {
 	case ev := <-ch:
 		assert.Equal(t, expectedAttempt, ev.attempt)
 		assert.Equal(t, expectedDelay, ev.delay)
+
+		return ev.delay
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for backoff event")
+
+		return 0
 	}
 }
 
-func assertBackoffSequence(t *testing.T, ch <-chan backoffEvent, expectedDelays ...time.Duration) {
+func assertBackoffSequence(t *testing.T, ch <-chan backoffEvent, expectedDelays ...time.Duration) []time.Duration {
 	t.Helper()
 
+	actualDelays := make([]time.Duration, len(expectedDelays))
 	for i, expected := range expectedDelays {
-		assertBackoffEvent(t, ch, i, expected)
+		actualDelays[i] = assertBackoffEvent(t, ch, i, expected)
 	}
+
+	return actualDelays
 }
 
 func cleanUpTestConnection(t *testing.T, done <-chan struct{}, conns ...*Connection) {
