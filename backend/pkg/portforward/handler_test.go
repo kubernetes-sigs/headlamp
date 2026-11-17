@@ -61,6 +61,9 @@ func TestStartPortForward(t *testing.T) {
 	}
 
 	ch := cache.New[interface{}]()
+
+	t.Cleanup(func() { assert.NoError(t, ch.Close()) })
+
 	kubeConfigStore := kubeconfig.NewContextStore()
 	kubeConfigPath := getDefaultKubeConfigPath(t)
 	allContexts, contextLoadErrs, err := kubeconfig.LoadContextsFromFile(kubeConfigPath, kubeconfig.KubeConfig)
@@ -115,9 +118,8 @@ func TestStartPortForward(t *testing.T) {
 	require.NotEmpty(t, podName, "no suitable pod with exposed ports found in 'headlamp' namespace")
 	require.NotEmpty(t, targetPort)
 
-	req := &http.Request{
-		Header: make(http.Header),
-	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/clusters/minikube/portforward", nil)
 	resp := httptest.NewRecorder()
 	req = mux.SetURLVars(req, map[string]string{"clusterName": minikubeName})
 
@@ -163,6 +165,26 @@ func TestStartPortForward(t *testing.T) {
 	require.True(t, ok, "'id' field is not a string in StartPortForward response")
 	require.NotEmpty(t, id, "'id' field is empty in StartPortForward response")
 
+	cleanupPayload, err := json.Marshal(map[string]interface{}{"id": id, "stopOrDelete": false})
+	require.NoError(t, err)
+
+	deleted := false
+
+	t.Cleanup(func() {
+		if deleted {
+			return
+		}
+
+		// Test contexts are cancelled before cleanup; deletion still needs to authenticate.
+		cleanupReq := httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+			"/clusters/minikube/portforward", bytes.NewReader(cleanupPayload))
+		cleanupReq = mux.SetURLVars(cleanupReq, map[string]string{"clusterName": minikubeName})
+		cleanupResp := httptest.NewRecorder()
+		portforward.RequestHandler(kubeConfigStore, ch, false, minikubeName, cleanupResp, cleanupReq)
+		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound}, cleanupResp.Code,
+			"failed to clean up port-forward: %s", cleanupResp.Body.String())
+	})
+
 	time.Sleep((portforward.PodAvailabilityCheckTimer + 2) * time.Second)
 
 	targetURL := fmt.Sprintf("http://localhost:%s/config", port)
@@ -187,9 +209,8 @@ func TestStartPortForward(t *testing.T) {
 		t.Logf("Warning: Response from forwarded port did not contain 'incluster'. Content: %s", string(pfRespData))
 	}
 
-	stopReq := &http.Request{
-		Header: make(http.Header),
-	}
+	stopReq := httptest.NewRequestWithContext(t.Context(), http.MethodDelete,
+		"/clusters/minikube/portforward", nil)
 	stopResp := httptest.NewRecorder()
 
 	stopReqPayload := map[string]interface{}{
@@ -204,33 +225,25 @@ func TestStartPortForward(t *testing.T) {
 	stopReq.Header.Set("Content-Type", "application/json")
 	stopReq = mux.SetURLVars(stopReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.StopOrDeletePortForward(ch, minikubeName, stopResp, stopReq)
+	portforward.RequestHandler(kubeConfigStore, ch, false, minikubeName, stopResp, stopReq)
 
 	stopRes := stopResp.Result()
 
 	defer func() { _ = stopRes.Body.Close() }()
 
+	require.Equal(t, http.StatusOK, stopRes.StatusCode)
+
 	stopRespBody, err := io.ReadAll(stopRes.Body)
 	require.NoError(t, err)
 	require.Contains(t, string(stopRespBody), "stopped")
 
-	cacheKey := portforward.PortForwardStoreKeyForTest(minikubeName, id)
-	chState, err := ch.Get(context.Background(), cacheKey)
-	require.NoError(t, err, "failed to get port-forward state from cache with key %s", cacheKey)
-
-	chData, err := json.Marshal(chState)
-	require.NoError(t, err)
-	assert.Contains(t, string(chData), "Stopped")
-
-	listReq := &http.Request{
-		Header: make(http.Header),
-	}
+	listReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/clusters/minikube/portforward/list", nil)
 	listResp := httptest.NewRecorder()
 
-	listReq.URL = &url.URL{}
 	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.GetPortForwards(ch, minikubeName, listResp, listReq)
+	portforward.RequestHandler(kubeConfigStore, ch, false, minikubeName, listResp, listReq)
 
 	listRes := listResp.Result()
 
@@ -271,16 +284,13 @@ func TestStartPortForward(t *testing.T) {
 	assert.True(t, foundInList, "stopped port-forward ID %s not found in list or status not 'Stopped'", id)
 	assert.Equal(t, "[", string(listData[0]))
 
-	getReq := &http.Request{
-		Header: make(http.Header),
-	}
+	getReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/clusters/minikube/portforward?id="+url.QueryEscape(id), nil)
 	getResp := httptest.NewRecorder()
 
-	getReq.URL = &url.URL{}
-	getReq.URL.RawQuery = "id=" + id
 	getReq = mux.SetURLVars(getReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.GetPortForwardByID(ch, minikubeName, getResp, getReq)
+	portforward.RequestHandler(kubeConfigStore, ch, false, minikubeName, getResp, getReq)
 
 	getRes := getResp.Result()
 
@@ -297,10 +307,10 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, pfRespPayloadByID)
 	assert.Equal(t, id, pfRespPayloadByID["id"])
+	assert.Equal(t, portforward.STOPPED, pfRespPayloadByID["status"])
 
-	deleteReq := &http.Request{
-		Header: make(http.Header),
-	}
+	deleteReq := httptest.NewRequestWithContext(t.Context(), http.MethodDelete,
+		"/clusters/minikube/portforward", nil)
 	deleteResp := httptest.NewRecorder()
 
 	deleteReqPayload := map[string]interface{}{
@@ -315,21 +325,23 @@ func TestStartPortForward(t *testing.T) {
 	deleteReq.Header.Set("Content-Type", "application/json")
 	deleteReq = mux.SetURLVars(deleteReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.StopOrDeletePortForward(ch, minikubeName, deleteResp, deleteReq)
+	portforward.RequestHandler(kubeConfigStore, ch, false, minikubeName, deleteResp, deleteReq)
 
 	deleteRes := deleteResp.Result()
 
 	defer func() { _ = deleteRes.Body.Close() }()
 
+	require.Equal(t, http.StatusOK, deleteRes.StatusCode)
+
 	deleteRespBody, err := io.ReadAll(deleteRes.Body)
 	require.NoError(t, err)
 	require.Contains(t, string(deleteRespBody), "stopped")
 
-	require.Eventually(t, func() bool {
-		_, err := ch.Get(context.Background(), cacheKey)
-		return err != nil
-	}, 3*time.Second, 50*time.Millisecond,
-		"port-forward with key %s should be deleted from cache", cacheKey)
+	getResp = httptest.NewRecorder()
+	portforward.RequestHandler(kubeConfigStore, ch, false, minikubeName, getResp, getReq)
+	require.Equal(t, http.StatusNotFound, getResp.Code, "deleted forward must not be visible to its owner")
+
+	deleted = true
 }
 
 // TestGetPortForwardsClusterNameNotExposingUserID verifies that when a dynamic
