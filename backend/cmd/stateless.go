@@ -66,6 +66,11 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 
 // setKeyInCache sets the context in the cache with the given key.
 func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) error {
+	// Concurrent requests for the same key must not both see it missing and each add a context,
+	// as the later add replaces the first context and discards its already set up proxy.
+	c.statelessCacheMu.Lock()
+	defer c.statelessCacheMu.Unlock()
+
 	// check context is present
 	_, err := c.KubeConfigStore.GetContext(key)
 	if err != nil && err.Error() == "key not found" {

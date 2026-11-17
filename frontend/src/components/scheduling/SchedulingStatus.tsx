@@ -34,7 +34,7 @@ export function getSchedulingStatusText(
   condition: KubeCondition | undefined,
   t: Translate
 ): string {
-  if (!condition) {
+  if (!condition || condition.status === 'Unknown') {
     return t('translation|Unknown');
   }
   if (condition.reason) {

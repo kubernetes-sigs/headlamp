@@ -21,7 +21,7 @@ import { API_BASE, TestContext } from '../../test';
 import ResourceClaimDetails from './ResourceClaimDetails';
 import { RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
 
-const [pendingClaim, sharedClaim] = RESOURCE_CLAIM_DUMMY_DATA;
+const [pendingClaim, sharedClaim, fallbackClaim] = RESOURCE_CLAIM_DUMMY_DATA;
 const namespace = 'default';
 
 const collectionUrl = `${API_BASE}/apis/resource.k8s.io/v1/namespaces/${namespace}/resourceclaims`;
@@ -62,6 +62,11 @@ const Template: StoryFn<{ name: string }> = args => {
 export const InUse = Template.bind({});
 InUse.args = { name: sharedClaim.metadata.name };
 InUse.parameters = { msw: { handlers: { story: handlersFor(sharedClaim) } } };
+
+/** Allocated from the second alternative of a prioritized list. */
+export const ChosenAlternative = Template.bind({});
+ChosenAlternative.args = { name: fallbackClaim.metadata.name };
+ChosenAlternative.parameters = { msw: { handlers: { story: handlersFor(fallbackClaim) } } };
 
 /** Waiting for the scheduler: no allocation, so no node either. */
 export const Pending = Template.bind({});

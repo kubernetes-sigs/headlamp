@@ -7,6 +7,11 @@ on:
       - "frontend/**"
       - "e2e-tests/**"
       - "Makefile"
+      - "Dockerfile"
+      - "package.json"
+      - "tools/build-backend.js"
+      - "tools/build-backend.go"
+      - "tools/check-backend-debug/**"
       - "tools/build-dependencies.test.js"
       - ".github/scripts/generate-release-issue-body.js"
       - ".github/workflows/app-artifacts-mac.yml"
@@ -21,6 +26,11 @@ on:
       - "frontend/**"
       - "e2e-tests/**"
       - "Makefile"
+      - "Dockerfile"
+      - "package.json"
+      - "tools/build-backend.js"
+      - "tools/build-backend.go"
+      - "tools/check-backend-debug/**"
       - "tools/build-dependencies.test.js"
       - ".github/scripts/generate-release-issue-body.js"
       - ".github/workflows/app-artifacts-mac.yml"
@@ -30,6 +40,28 @@ permissions:
   contents: read
 
 jobs:
+  test-container-build-flags:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.*"
+          cache: false
+      - name: Build container backend with caller flags
+        run: |
+          docker build --target backend-build \
+            --build-arg "GOFLAGS=-trimpath=false -ldflags=-compressdwarf=false" \
+            --tag headlamp-backend-flags .
+      - name: Verify container backend debug information
+        run: |
+          set -euo pipefail
+          container=$(docker create headlamp-backend-flags)
+          trap 'docker rm "$container" >/dev/null' EXIT
+          docker cp "$container:/headlamp/backend/headlamp-server" "$RUNNER_TEMP/headlamp-container-debug"
+          go run tools/check-backend-debug/main.go "$RUNNER_TEMP/headlamp-container-debug"
+          "$RUNNER_TEMP/headlamp-container-debug" --version
+
   test-embedded-binary:
     runs-on: ubuntu-22.04
     strategy:

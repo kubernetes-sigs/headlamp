@@ -30,6 +30,51 @@ npm run backend:start
 The development launcher forwards `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGBREAK`
 to the backend, matching cross-env's signal handling.
 
+### Compiler flags and debugging information
+
+The npm and Makefile backend builds use a shared Go driver with no external
+dependencies. Make backend builds do not require Node.js. The npm path uses a
+small Node.js launcher, which does not add a requirement beyond npm itself.
+The stdlib-only bootstrap ignores surrounding module requirements; the actual
+backend build retains the caller's module and automatic toolchain settings.
+With no linker overrides, both retain the existing `-trimpath`, `-s`, and `-w`
+defaults.
+
+`GOFLAGS` settings, including those saved with `go env -w`, are honored.
+Use Go's `-ldflags` setting in `GOFLAGS` to replace the default stripping flags.
+Makefile builds retain the application version and name, and embedded builds add
+the required `embed` tag without discarding caller-supplied build tags.
+Package-specific `-ldflags` settings keep Go's matching and precedence rules.
+
+To retain symbol tables and DWARF debugging information:
+
+```bash
+GOFLAGS='-ldflags=' npm run backend:build
+GOFLAGS='-ldflags=' make backend
+```
+
+For easier stepping through unoptimized code with local source paths, use Go's
+quoting syntax for settings containing spaces:
+
+```bash
+GOFLAGS="-trimpath=false -ldflags= '-gcflags=all=-N -l'" make backend
+```
+
+These variables are inherited by desktop packaging hooks and embedded
+cross-compilation targets. `CC`, `CXX`, `CGO_CFLAGS`, `CGO_CXXFLAGS`, and
+`CGO_LDFLAGS` are passed through to Go unchanged when cgo is enabled; embedded
+cross-compilation targets continue to disable cgo.
+Generic C/C++ `CFLAGS` and `LDFLAGS` are not reinterpreted as Go options; use the
+Go and cgo variables above.
+The container build accepts `--build-arg GOFLAGS=...` and continues to use Go's
+unstripped defaults unless stripping is explicitly requested.
+
+CI exercises native Make/npm entrypoints on Linux, macOS, and Windows. Desktop
+packaging and a backend-only container build request
+`GOFLAGS='-trimpath=false -ldflags=-compressdwarf=false'`; the artifact verifier
+then checks the recorded flags and uncompressed DWARF entries in the resulting
+backend binaries, including packaged desktop resources.
+
 ## Backend token protection
 
 `HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend

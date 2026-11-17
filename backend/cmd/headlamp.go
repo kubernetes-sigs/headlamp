@@ -89,6 +89,7 @@ const (
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
+	statelessCacheMu  sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
 }
@@ -236,10 +237,12 @@ func evictExpiredOidcStates(m map[string]*OauthConfig, mu *sync.Mutex, ttl time.
 	}
 }
 
-// returns True if a file exists.
+// returns True if a regular (non-directory) file exists.
+// Any error from os.Stat (not exist, permission denied, not a directory, ...)
+// is treated as "does not exist", since info is nil in those cases.
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 
@@ -354,6 +357,12 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 	}
 
 	return fmt.Sprintf("%s://%s/oidc-callback", urlScheme, hostWithBaseURL)
+}
+
+func isCompactJWS(token string) bool {
+	parts := strings.Split(token, ".")
+
+	return len(parts) == 3 && parts[0] != "" && parts[1] != "" && parts[2] != ""
 }
 
 func sendOIDCLogoutRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) {
@@ -1551,20 +1560,32 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		tokenType := "id_token"
+		rawIDToken, _ := oauth2Token.Extra("id_token").(string)
+
+		rawUserToken := rawIDToken
 		if config.OidcUseAccessToken {
-			tokenType = "access_token"
+			rawUserToken = oauth2Token.AccessToken
+			if rawUserToken == "" {
+				logger.Log(logger.LevelError, nil, err, "no access_token field in oauth2 token")
+				http.Error(w, "No access_token field in oauth2 token.", http.StatusInternalServerError)
+
+				return
+			}
 		}
 
-		rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
-		if !ok {
-			logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
-			http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
+		tokenToVerify := rawUserToken
+		if !isCompactJWS(tokenToVerify) {
+			tokenToVerify = rawIDToken
+		}
+
+		if tokenToVerify == "" {
+			logger.Log(logger.LevelError, nil, err, "no id_token field in oauth2 token")
+			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
 
 			return
 		}
 
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, tokenToVerify)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
@@ -1582,11 +1603,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 
 			return
-		}
-
-		rawIDToken, _ := oauth2Token.Extra("id_token").(string)
-		if rawIDToken == "" && tokenType == "id_token" {
-			rawIDToken = rawUserToken
 		}
 
 		if err := config.Cache.Set(context.Background(),

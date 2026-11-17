@@ -16,3 +16,4 @@ plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
 .DS_Store
 /bin/
+backend/.build/

@@ -20,8 +20,8 @@ import unittest
 WORKFLOW = (Path(__file__).parents[1] / "workflows/push-release-assets.yml").read_text()
 
 
-def step_command(name):
-    step = WORKFLOW.split(f"      - name: {name}\n", 1)[1]
+def step_command(name, workflow=WORKFLOW):
+    step = workflow.split(f"      - name: {name}\n", 1)[1]
     header, script = step.split("        run: |\n", 1)
     script = textwrap.dedent(script.split("\n      - name:", 1)[0])
     bash = shutil.which("bash")
@@ -201,6 +201,130 @@ class ReleaseProvenanceTests(unittest.TestCase):
             "endpoint": "repos/kubernetes-sigs/headlamp/releases/assets/4",
         }))
         self.assertIn("API request failed", self.run_checks(success=False))
+
+
+class ChartVerificationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "bin").mkdir()
+        self.workflow = (
+            Path(__file__).parents[1] / "workflows/helm-chart-release.yml"
+        ).read_text()
+        self.config = {
+            "commit": "current",
+            "package": "published-chart",
+            "signature": "published-chart",
+            "provenance": "published-chart",
+            "identity": "https://github.com/kubernetes-sigs/headlamp/"
+                        ".github/workflows/helm-chart-release.yml@refs/heads/main",
+        }
+        self.write_tool("helm", """
+            print("name: headlamp\\nversion: 1.2.3")
+        """)
+        self.write_tool("gh", """
+            import json, pathlib, sys
+            root = pathlib.Path.cwd()
+            config = json.loads((root / "config.json").read_text())
+            args = sys.argv[1:]
+            if args[0] == "api":
+                if config.get("api_failure"):
+                    sys.exit("API request failed")
+                print(config["commit"])
+            elif args[:2] == ["release", "download"]:
+                asset = args[args.index("--pattern") + 1]
+                directory = pathlib.Path(args[args.index("--dir") + 1])
+                with (root / "downloads").open("a") as log:
+                    log.write(asset + "\\n")
+                if asset == config.get("missing"):
+                    sys.exit("Asset unavailable: " + asset)
+                if asset.endswith(".sigstore.json"):
+                    contents = json.dumps({"digest_of": config["signature"], "identity": config["identity"]})
+                elif asset.endswith(".intoto.jsonl"):
+                    contents = json.dumps({"digest_of": config["provenance"], "identity": config["identity"]})
+                else:
+                    contents = config["package"]
+                (directory / asset).write_text(contents)
+            else:
+                sys.exit("Unexpected gh command")
+        """)
+        self.write_tool("cosign", """
+            import json, pathlib, sys
+            args = sys.argv[1:]
+            bundle = json.loads(pathlib.Path(args[args.index("--bundle") + 1]).read_text())
+            assert args[args.index("--certificate-identity") + 1] == bundle["identity"], "Wrong identity"
+            assert args[args.index("--certificate-oidc-issuer") + 1] == "https://token.actions.githubusercontent.com"
+            assert pathlib.Path(args[1]).read_text() == bundle["digest_of"], "Digest mismatch"
+            if args[0] == "verify-blob-attestation":
+                assert args[args.index("--type") + 1] == "https://slsa.dev/provenance/v1"
+            else:
+                assert args[0] == "verify-blob"
+            with pathlib.Path("verified").open("a") as log:
+                log.write(args[0] + "\\n")
+        """)
+
+    def write_tool(self, name, source):
+        tool = self.root / "bin" / name
+        tool.write_text("#!/usr/bin/env python3\n" + textwrap.dedent(source))
+        tool.chmod(0o755)
+
+    def verify(self, success=True):
+        (self.root / "config.json").write_text(json.dumps(self.config))
+        result = subprocess.run(
+            step_command("Verify published chart signatures and provenance", self.workflow),
+            cwd=self.root, text=True, capture_output=True,
+            env={
+                **os.environ,
+                "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+                "GITHUB_REPOSITORY": "kubernetes-sigs/headlamp",
+                "GITHUB_SHA": "current",
+                "CHANGED_CHARTS": "charts/headlamp",
+            },
+        )
+        self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
+        return result.stdout + result.stderr
+
+    def test_published_assets_are_downloaded_and_both_signatures_checked(self):
+        self.verify()
+        self.assertEqual((self.root / "verified").read_text().splitlines(),
+                         ["verify-blob", "verify-blob-attestation"])
+        self.assertEqual(len((self.root / "downloads").read_text().splitlines()), 3)
+
+    def test_missing_signature_or_provenance_fails(self):
+        for suffix in (".sigstore.json", ".intoto.jsonl"):
+            with self.subTest(suffix=suffix):
+                self.config["missing"] = "headlamp-1.2.3.tgz" + suffix
+                self.assertIn("Asset unavailable", self.verify(success=False))
+
+    def test_changed_package_or_untrusted_identity_fails(self):
+        for field in ("signature", "provenance", "identity"):
+            with self.subTest(field=field):
+                original = self.config[field]
+                self.config[field] = "untrusted-or-different"
+                self.verify(success=False)
+                self.config[field] = original
+
+    def test_api_failure_stops_verification(self):
+        self.config["api_failure"] = True
+        self.assertIn("API request failed", self.verify(success=False))
+        self.assertFalse((self.root / "downloads").exists())
+
+    def test_historical_release_is_not_downloaded_or_changed(self):
+        self.config["commit"] = "older"
+        output = self.verify()
+        self.assertIn("::notice::Verification skipped for headlamp-helm-1.2.3", output)
+        self.assertIn("release commit older differs from workflow commit current", output)
+        self.assertFalse((self.root / "downloads").exists())
+        self.assertFalse((self.root / "verified").exists())
+
+    def test_release_checklist_requires_published_chart_verification(self):
+        generator = Path(__file__).with_name("generate-release-issue-body.js")
+        output = subprocess.check_output(
+            ["node", str(generator), "issue", "1.2.3", "v1.2.2", "tester"], text=True
+        )
+        self.assertIn("Chart: Verify published signatures and provenance", output)
+        self.assertIn("fresh directory", output)
 
 
 if __name__ == "__main__":
