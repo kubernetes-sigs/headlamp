@@ -37,6 +37,21 @@ export interface DeviceCapacity {
   value: string;
 }
 
+/**
+ * A taint a driver puts on a device. Claims that do not tolerate it cannot be
+ * allocated the device, and with `NoExecute` the Pods using it are evicted.
+ */
+export interface DeviceTaint {
+  /** The taint key, a label name. */
+  key: string;
+  /** The taint value, a label value. */
+  value?: string;
+  /** None, NoSchedule or NoExecute. Unknown effects behave like None. */
+  effect: string;
+  /** When the taint was added. */
+  timeAdded?: string;
+}
+
 /** One device that a driver publishes in a slice. */
 export interface ResourceSliceDevice {
   /** The device name, unique within the pool. */
@@ -54,6 +69,8 @@ export interface ResourceSliceDevice {
   nodeSelector?: { nodeSelectorTerms: NodeSelectorTerm[] };
   /** Set when every node in the cluster can use the device. */
   allNodes?: boolean;
+  /** The taints the driver put on the device. */
+  taints?: DeviceTaint[];
 }
 
 /** The pool a slice belongs to. A pool can span several slices. */
