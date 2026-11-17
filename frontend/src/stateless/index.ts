@@ -23,6 +23,7 @@ import { Cluster } from '../lib/k8s/cluster';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import { ConfigState, setStatelessConfig } from '../redux/configSlice';
 import store from '../redux/stores/store';
+import { enqueueConfigOperation } from './configOperationQueue';
 import { deleteClusterKubeconfig } from './deleteClusterKubeconfig';
 import { findKubeconfigByClusterName } from './findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from './getUserIdFromLocalStorage';
@@ -168,7 +169,7 @@ export function handleDataBaseError(event: DatabaseErrorEvent, reject: (reason?:
  * @throws Error if the kubeconfig is invalid.
  */
 export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<void> {
-  return new Promise<void>(async (resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const request = indexedDB.open('kubeconfigs', 1) as any;
 
     // The onupgradeneeded event is fired when the database is created for the first time.
@@ -212,7 +213,7 @@ export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<voi
 
     // The onerror event is fired when the database is opened.
     // This is where you handle errors.
-    request.onerror = handleDataBaseError;
+    request.onerror = (event: DatabaseErrorEvent) => handleDataBaseError(event, reject);
   });
 }
 
@@ -223,25 +224,43 @@ export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<voi
  * @throws Error if the kubeconfig is invalid.
  */
 export function getStatelessClusterKubeConfigs(): Promise<string[]> {
-  return new Promise<string[]>(async (resolve, reject) => {
-    const request = indexedDB.open('kubeconfigs', 1) as any;
+  return new Promise<string[]>((resolve, reject) => {
+    const request = indexedDB.open('kubeconfigs', 1);
 
     // The onupgradeneeded event is fired when the database is created for the first time.
-    request.onupgradeneeded = handleDatabaseUpgrade;
+    request.onupgradeneeded = (event: Event) => handleDatabaseUpgrade(event as DatabaseEvent);
 
     /** The onsuccess event is fired when the database is opened.
      * This event is where you specify the actions to take when the database is opened.
      * Once the database is opened, it creates a transaction and an object store.
      * It returns all the kubeconfigs from the object store.
      * */
-    request.onsuccess = function handleDatabaseSuccess(event: DatabaseEvent) {
-      const db = event.target ? event.target.result : null;
+    request.onsuccess = function handleDatabaseSuccess() {
+      const db = request.result;
 
       if (db) {
-        const transaction = db.transaction(['kubeconfigStore'], 'readonly');
+        let transaction: IDBTransaction;
+        try {
+          transaction = db.transaction(['kubeconfigStore'], 'readonly');
+        } catch (error) {
+          db.close();
+          console.error(error);
+          reject(error);
+          return;
+        }
         const store = transaction.objectStore('kubeconfigStore');
 
         const kubeconfigs: string[] = [];
+        transaction.oncomplete = () => {
+          db.close();
+          resolve(kubeconfigs);
+        };
+        transaction.onabort = () => {
+          db.close();
+          const error = transaction.error ?? new Error('Failed to read IndexedDB');
+          console.error(error);
+          reject(error);
+        };
 
         /** The onsuccess event is fired when the request has succeeded.
          * This is where you handle the results of the request.
@@ -254,9 +273,6 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
           if (cursor) {
             kubeconfigs.push(cursor.value.kubeconfig);
             cursor.continue();
-          } else {
-            // All kubeconfigs have been retrieved
-            resolve(kubeconfigs);
           }
         };
       } else {
@@ -266,7 +282,7 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
 
     // The onerror event is fired when the database is opened.
     // This is where you handle errors.
-    request.onerror = handleDataBaseError;
+    request.onerror = event => handleDataBaseError(event as DatabaseErrorEvent, reject);
   });
 }
 
@@ -411,11 +427,28 @@ export function isEqualClusterConfigs(
   });
 }
 
+let pendingStatelessRefresh: Promise<void> | undefined;
+
 /**
  * Parses the cluster config from the backend and updates the redux store
  * if the present stored config is different from the fetched one.
  */
-export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
+export function fetchStatelessClusterKubeConfigs(dispatch: any): Promise<void> {
+  if (!pendingStatelessRefresh) {
+    pendingStatelessRefresh = enqueueConfigOperation(() =>
+      refreshStatelessClusterKubeConfigs(dispatch)
+    )
+      .catch((err: Error) => {
+        console.error('Error getting config:', err);
+      })
+      .finally(() => {
+        pendingStatelessRefresh = undefined;
+      });
+  }
+  return pendingStatelessRefresh;
+}
+
+async function refreshStatelessClusterKubeConfigs(dispatch: any) {
   const config = await getStatelessClusterKubeConfigs();
 
   if (!config || config.length === 0) {
@@ -443,18 +476,17 @@ export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
     },
     false,
     false
-  )
-    .then((config: ParsedConfig) => {
-      const nextState = toStatelessConfigState(config);
-      const statelessClusters = store.getState().config.statelessClusters;
+  ).then(async (parsed: ParsedConfig) => {
+    if (!_.isEqual(config, await getStatelessClusterKubeConfigs())) {
+      return;
+    }
+    const nextState = toStatelessConfigState(parsed);
+    const statelessClusters = store.getState().config.statelessClusters;
 
-      if (isEqualClusterConfigs(statelessClusters, nextState.statelessClusters)) {
-        dispatch(setStatelessConfig(nextState));
-      }
-    })
-    .catch((err: Error) => {
-      console.error('Error getting config:', err);
-    });
+    if (isEqualClusterConfigs(statelessClusters, nextState.statelessClusters)) {
+      dispatch(setStatelessConfig(nextState));
+    }
+  });
 }
 
 const exportFunctions = {

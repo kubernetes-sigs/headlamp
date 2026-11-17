@@ -48,7 +48,10 @@ var _ headlampconfig.WebSocketMultiplexer = (*stubMultiplexer)(nil)
 // methods, so a no-op stub avoids that.
 type stubContextStore struct{}
 
-func (stubContextStore) AddContext(*kubeconfig.Context) error           { return nil }
+func (stubContextStore) AddContext(*kubeconfig.Context) error { return nil }
+func (stubContextStore) UpdateContextIfCurrent(*kubeconfig.Context, *kubeconfig.Context) error {
+	return nil
+}
 func (stubContextStore) GetContexts() ([]*kubeconfig.Context, error)    { return nil, nil }
 func (stubContextStore) GetContext(string) (*kubeconfig.Context, error) { return nil, nil }
 func (stubContextStore) RemoveContext(string) error                     { return nil }

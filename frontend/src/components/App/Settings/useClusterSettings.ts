@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
+import isEqual from 'lodash/isEqual';
 import React from 'react';
 import {
   ClusterSettings,
   loadClusterSettings,
   storeClusterSettings,
-  subscribeToClusterSettings,
 } from '../../../helpers/clusterSettings';
+import { CLUSTER_TAGS_CHANGED_EVENT } from '../../../helpers/clusterTags';
 
 /**
  * Single source of truth for a cluster's settings, backed by localStorage.
  *
- * Loads settings when `cluster` changes and subscribes to persisted changes.
- * The returned setter writes to both React state and localStorage synchronously.
+ * Loads settings when `cluster` changes. Independent tag overrides are refreshed
+ * from persisted notifications without replacing unrelated drafts.
  *
  * @param cluster - The cluster name to load/store settings for.
  * @returns A tuple of [settings, setSettings].
@@ -39,15 +40,47 @@ export function useClusterSettings(
   );
 
   React.useLayoutEffect(() => {
-    const reloadSettings = () => {
-      const next = cluster ? loadClusterSettings(cluster) : {};
-      setSettingsState(current =>
-        JSON.stringify(current) === JSON.stringify(next) ? current : next
-      );
+    setSettingsState(cluster ? loadClusterSettings(cluster) : {});
+  }, [cluster]);
+
+  React.useEffect(() => {
+    const refreshPersistedOverrides = (includeSelector: boolean) => {
+      const { tags, allowedNamespacesSelector } = loadClusterSettings(cluster);
+      setSettingsState(previous => {
+        if (
+          isEqual(previous.tags, tags) &&
+          (!includeSelector || previous.allowedNamespacesSelector === allowedNamespacesSelector)
+        ) {
+          return previous;
+        }
+        const next = { ...previous };
+        if (tags === undefined) {
+          delete next.tags;
+        } else {
+          next.tags = tags;
+        }
+        if (includeSelector) {
+          if (allowedNamespacesSelector === undefined) {
+            delete next.allowedNamespacesSelector;
+          } else {
+            next.allowedNamespacesSelector = allowedNamespacesSelector;
+          }
+        }
+        return next;
+      });
     };
-    const unsubscribe = cluster ? subscribeToClusterSettings(reloadSettings) : undefined;
-    reloadSettings();
-    return unsubscribe;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === `cluster_settings.${cluster}`) {
+        refreshPersistedOverrides(true);
+      }
+    };
+    const refreshTags = () => refreshPersistedOverrides(false);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener(CLUSTER_TAGS_CHANGED_EVENT, refreshTags);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener(CLUSTER_TAGS_CHANGED_EVENT, refreshTags);
+    };
   }, [cluster]);
 
   // Setter that writes to both React state and localStorage.
@@ -58,6 +91,12 @@ export function useClusterSettings(
         return;
       }
       const next = typeof action === 'function' ? action(loadClusterSettings(cluster)) : action;
+      const { tags } = loadClusterSettings(cluster);
+      if (tags === undefined) {
+        delete next.tags;
+      } else {
+        next.tags = tags;
+      }
       // Notify subscribers outside React's state updater, which may run during render.
       storeClusterSettings(cluster, next);
       setSettingsState(next);

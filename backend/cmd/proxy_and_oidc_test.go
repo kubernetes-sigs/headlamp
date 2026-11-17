@@ -49,6 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -667,7 +668,7 @@ func TestUpdateCustomContextAndLoadKubeconfig(t *testing.T) {
 			},
 		}
 
-		errs := hc.updateCustomContextToCache(&api.Config{}, "old-ctx")
+		errs := hc.updateCustomContextToCache(&api.Config{}, "old-ctx", "old-ctx", kubeConfigSource)
 		require.NotEmpty(t, errs)
 
 		cfg := &api.Config{
@@ -675,7 +676,7 @@ func TestUpdateCustomContextAndLoadKubeconfig(t *testing.T) {
 			AuthInfos: map[string]*api.AuthInfo{"u1": {Token: "tok"}},
 			Contexts:  map[string]*api.Context{"new-ctx": {Cluster: "c1", AuthInfo: "u1"}},
 		}
-		assert.Empty(t, hc.updateCustomContextToCache(cfg, "old-ctx"))
+		assert.Empty(t, hc.updateCustomContextToCache(cfg, "new-ctx", "new-ctx", kubeConfigSource))
 
 		_, err := store.GetContext("new-ctx")
 		assert.NoError(t, err)
@@ -685,7 +686,8 @@ func TestUpdateCustomContextAndLoadKubeconfig(t *testing.T) {
 		hc := &HeadlampConfig{
 			HeadlampConfig: &headlampconfig.HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					KubeConfigDir: t.TempDir(),
+					KubeConfigDir:   t.TempDir(),
+					KubeConfigStore: kubeconfig.NewContextStore(),
 				},
 			},
 		}
@@ -1322,8 +1324,10 @@ func TestNodeDrainStatusAndPluginDeleteSuccess(t *testing.T) {
 		cfg := &api.Config{
 			Contexts: map[string]*api.Context{"ctx1": {Cluster: "c1"}},
 		}
-		require.NoError(t, customNameToExtensions(cfg, "ctx1", "alias-1", filepath.Join(t.TempDir(), "cfg")))
-		require.Error(t, customNameToExtensions(cfg, "missing", "alias-1", filepath.Join(t.TempDir(), "cfg")))
+		path := filepath.Join(t.TempDir(), "cfg")
+		require.NoError(t, clientcmd.WriteToFile(*cfg, path))
+		require.NoError(t, customNameToExtensions(cfg, "ctx1", "alias-1", path))
+		require.Error(t, customNameToExtensions(cfg, "missing", "alias-1", path))
 	})
 }
 
