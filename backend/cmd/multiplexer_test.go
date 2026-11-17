@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -3690,6 +3691,22 @@ func startAsyncReconnect(m *Multiplexer, conn *Connection) <-chan reconnectResul
 	return resultCh
 }
 
+func verifyReplacementServerSocketClosed(srvWs *websocket.Conn, timeout time.Duration) error {
+	_ = srvWs.SetReadDeadline(time.Now().Add(timeout))
+
+	_, _, readErr := srvWs.ReadMessage()
+	if readErr == nil {
+		return fmt.Errorf("expected socket read error but read succeeded; socket is still open")
+	}
+
+	var netErr net.Error
+	if errors.As(readErr, &netErr) && netErr.Timeout() {
+		return fmt.Errorf("replacement server socket remained open until deadline (timeout): %w", readErr)
+	}
+
+	return nil
+}
+
 func assertReplacementServerSocketClosed(t *testing.T, serverSockets <-chan *websocket.Conn) {
 	t.Helper()
 
@@ -3699,12 +3716,76 @@ func assertReplacementServerSocketClosed(t *testing.T, serverSockets <-chan *web
 			_ = srvWs.Close()
 		}()
 
-		_ = srvWs.SetReadDeadline(time.Now().Add(2 * time.Second))
-		_, _, readErr := srvWs.ReadMessage()
-		assert.Error(t, readErr, "replacement server socket must be closed when newConn is closed")
+		err := verifyReplacementServerSocketClosed(srvWs, 2*time.Second)
+		require.NoError(t, err, "replacement server socket must be closed when newConn is closed")
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for server socket")
 	}
+}
+
+func TestVerifyReplacementServerSocketClosed_RejectsTimeout(t *testing.T) {
+	var (
+		serverFail atomic.Bool
+		upgrades   atomic.Int32
+	)
+
+	server, serverSockets := createCapturingUpgradeServer(&serverFail, &upgrades)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// 1. First connection: client remains open and idle.
+	// verifyReplacementServerSocketClosed must fail with timeout error (detecting socket leak).
+	clientWs1, resp1, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+
+	if resp1 != nil && resp1.Body != nil {
+		_ = resp1.Body.Close()
+	}
+
+	defer func() {
+		_ = clientWs1.Close()
+	}()
+
+	var srvWs1 *websocket.Conn
+
+	select {
+	case srvWs1 = <-serverSockets:
+		defer func() {
+			_ = srvWs1.Close()
+		}()
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket 1")
+	}
+
+	err = verifyReplacementServerSocketClosed(srvWs1, 10*time.Millisecond)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "replacement server socket remained open until deadline (timeout)")
+
+	// 2. Second connection: peer client closes promptly.
+	// verifyReplacementServerSocketClosed must succeed (detecting genuine peer closure).
+	clientWs2, resp2, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+
+	if resp2 != nil && resp2.Body != nil {
+		_ = resp2.Body.Close()
+	}
+
+	var srvWs2 *websocket.Conn
+
+	select {
+	case srvWs2 = <-serverSockets:
+		defer func() {
+			_ = srvWs2.Close()
+		}()
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server socket 2")
+	}
+
+	_ = clientWs2.Close()
+
+	err = verifyReplacementServerSocketClosed(srvWs2, 2*time.Second)
+	require.NoError(t, err)
 }
 
 func assertConnectionClosedState(t *testing.T, conn *Connection) {
