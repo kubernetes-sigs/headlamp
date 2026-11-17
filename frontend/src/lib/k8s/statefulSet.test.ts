@@ -136,17 +136,21 @@ describe('StatefulSet class', () => {
   });
 
   describe('rollback', () => {
-    const template = {
-      metadata: {
-        labels: {
-          app: 'myapp',
-          'controller-revision-hash': 'test-hash',
+    function makeTemplate(image: string) {
+      return {
+        metadata: {
+          labels: {
+            app: 'myapp',
+            'controller-revision-hash': 'test-hash',
+          },
         },
-      },
-      spec: {
-        containers: [{ name: 'db', image: 'postgres:16' }],
-      },
-    };
+        spec: {
+          containers: [{ name: 'db', image }],
+        },
+      };
+    }
+
+    const template = makeTemplate('postgres:16');
 
     function makeRevision(revision: number, revisionTemplate: any = template) {
       return {
@@ -166,8 +170,8 @@ describe('StatefulSet class', () => {
     it('rolls back to the previous revision', async () => {
       const sts = makeStatefulSet();
       vi.spyOn(sts as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
+        makeRevision(3, makeTemplate('postgres:17')),
+        makeRevision(2, makeTemplate('postgres:16')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -204,9 +208,9 @@ describe('StatefulSet class', () => {
     it('rolls back to a specific older revision', async () => {
       const sts = makeStatefulSet();
       vi.spyOn(sts as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
-        makeRevision(1),
+        makeRevision(3, makeTemplate('postgres:17')),
+        makeRevision(2, makeTemplate('postgres:16')),
+        makeRevision(1, makeTemplate('postgres:15')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -215,6 +219,9 @@ describe('StatefulSet class', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Rolled back to revision 1');
       expect(result.previousRevision).toBe(1);
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'postgres:15' }] } },
+      });
     });
 
     it('returns failure when no previous revision is available', async () => {
@@ -282,8 +289,8 @@ describe('StatefulSet class', () => {
       const sts = makeStatefulSet();
       const dryRunResult = { metadata: { name: 'test-statefulset' } };
       vi.spyOn(sts as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
+        makeRevision(3, makeTemplate('postgres:17')),
+        makeRevision(2, makeTemplate('postgres:16')),
       ]);
       mockedJsonPatch.mockResolvedValue(dryRunResult as any);
 
@@ -301,6 +308,9 @@ describe('StatefulSet class', () => {
         true,
         { cluster: sts.cluster }
       );
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'postgres:16' }] } },
+      });
     });
 
     it('returns failure when the patch request fails', async () => {
@@ -352,9 +362,9 @@ describe('StatefulSet class', () => {
     it('correctly sorts unsorted revisions and picks the second highest', async () => {
       const sts = makeStatefulSet();
       vi.spyOn(sts as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(1),
-        makeRevision(3),
-        makeRevision(2),
+        makeRevision(1, makeTemplate('postgres:15')),
+        makeRevision(3, makeTemplate('postgres:17')),
+        makeRevision(2, makeTemplate('postgres:16')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -363,6 +373,9 @@ describe('StatefulSet class', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Rolled back to revision 2');
       expect(result.previousRevision).toBe(2);
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'postgres:16' }] } },
+      });
     });
 
     it('handles non-Error exceptions gracefully', async () => {
@@ -444,9 +457,9 @@ describe('StatefulSet class', () => {
     it('accepts RollbackOptions object with toRevision', async () => {
       const sts = makeStatefulSet();
       vi.spyOn(sts as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
-        makeRevision(1),
+        makeRevision(3, makeTemplate('postgres:17')),
+        makeRevision(2, makeTemplate('postgres:16')),
+        makeRevision(1, makeTemplate('postgres:15')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -455,6 +468,9 @@ describe('StatefulSet class', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Rolled back to revision 1');
       expect(result.previousRevision).toBe(1);
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'postgres:15' }] } },
+      });
     });
 
     it('returns failure when getOwnedControllerRevisions rejects', async () => {

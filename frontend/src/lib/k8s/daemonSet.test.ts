@@ -157,17 +157,21 @@ describe('DaemonSet class', () => {
   });
 
   describe('rollback', () => {
-    const template = {
-      metadata: {
-        labels: {
-          app: 'myapp',
-          'controller-revision-hash': 'test-hash',
+    function makeTemplate(image: string) {
+      return {
+        metadata: {
+          labels: {
+            app: 'myapp',
+            'controller-revision-hash': 'test-hash',
+          },
         },
-      },
-      spec: {
-        containers: [{ name: 'app', image: 'myapp:v2' }],
-      },
-    };
+        spec: {
+          containers: [{ name: 'app', image }],
+        },
+      };
+    }
+
+    const template = makeTemplate('myapp:v2');
 
     function makeRevision(revision: number, revisionTemplate: any = template) {
       return {
@@ -187,8 +191,8 @@ describe('DaemonSet class', () => {
     it('rolls back to the previous revision', async () => {
       const ds = makeDaemonSet();
       vi.spyOn(ds as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
+        makeRevision(3, makeTemplate('myapp:v3')),
+        makeRevision(2, makeTemplate('myapp:v2')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -225,9 +229,9 @@ describe('DaemonSet class', () => {
     it('rolls back to a specific older revision', async () => {
       const ds = makeDaemonSet();
       vi.spyOn(ds as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
-        makeRevision(1),
+        makeRevision(3, makeTemplate('myapp:v3')),
+        makeRevision(2, makeTemplate('myapp:v2')),
+        makeRevision(1, makeTemplate('myapp:v1')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -236,6 +240,9 @@ describe('DaemonSet class', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Rolled back to revision 1');
       expect(result.previousRevision).toBe(1);
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'myapp:v1' }] } },
+      });
     });
 
     it('returns failure when no previous revision is available', async () => {
@@ -303,8 +310,8 @@ describe('DaemonSet class', () => {
       const ds = makeDaemonSet();
       const dryRunResult = { metadata: { name: 'test-daemonset' } };
       vi.spyOn(ds as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
+        makeRevision(3, makeTemplate('myapp:v3')),
+        makeRevision(2, makeTemplate('myapp:v2')),
       ]);
       mockedJsonPatch.mockResolvedValue(dryRunResult as any);
 
@@ -322,6 +329,9 @@ describe('DaemonSet class', () => {
         true,
         { cluster: ds.cluster }
       );
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'myapp:v2' }] } },
+      });
     });
 
     it('returns failure when the patch request fails', async () => {
@@ -373,9 +383,9 @@ describe('DaemonSet class', () => {
     it('correctly sorts unsorted revisions and picks the second highest', async () => {
       const ds = makeDaemonSet();
       vi.spyOn(ds as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(1),
-        makeRevision(3),
-        makeRevision(2),
+        makeRevision(1, makeTemplate('myapp:v1')),
+        makeRevision(3, makeTemplate('myapp:v3')),
+        makeRevision(2, makeTemplate('myapp:v2')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -384,6 +394,9 @@ describe('DaemonSet class', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Rolled back to revision 2');
       expect(result.previousRevision).toBe(2);
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'myapp:v2' }] } },
+      });
     });
 
     it('handles non-Error exceptions gracefully', async () => {
@@ -465,9 +478,9 @@ describe('DaemonSet class', () => {
     it('accepts RollbackOptions object with toRevision', async () => {
       const ds = makeDaemonSet();
       vi.spyOn(ds as any, 'getOwnedControllerRevisions').mockResolvedValue([
-        makeRevision(3),
-        makeRevision(2),
-        makeRevision(1),
+        makeRevision(3, makeTemplate('myapp:v3')),
+        makeRevision(2, makeTemplate('myapp:v2')),
+        makeRevision(1, makeTemplate('myapp:v1')),
       ]);
       mockedJsonPatch.mockResolvedValue({} as any);
 
@@ -476,6 +489,9 @@ describe('DaemonSet class', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Rolled back to revision 1');
       expect(result.previousRevision).toBe(1);
+      expect(mockedJsonPatch.mock.calls[0][1][0]).toMatchObject({
+        value: { spec: { containers: [{ image: 'myapp:v1' }] } },
+      });
     });
 
     it('returns failure when getOwnedControllerRevisions rejects', async () => {
