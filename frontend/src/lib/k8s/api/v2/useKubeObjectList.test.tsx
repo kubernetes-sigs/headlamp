@@ -24,7 +24,9 @@ import {
   DEFAULT_LIST_LIMIT,
   getResourceIdentity,
   getWatchQueryParamsKey,
+  isForbiddenError,
   isResourceVersionExpiredError,
+  isResourceVersionOlder,
   isWatchedListStillRequested,
   kubeObjectListQuery,
   ListResponse,
@@ -1161,6 +1163,62 @@ describe('isResourceVersionExpiredError', () => {
     expect(isResourceVersionExpiredError(null)).toBe(false);
     expect(isResourceVersionExpiredError(undefined)).toBe(false);
     expect(isResourceVersionExpiredError('not an object')).toBe(false);
+  });
+});
+
+describe('isForbiddenError', () => {
+  it('identifies HTTP 401 and 403 authorization failures in watch events and errors', () => {
+    expect(
+      isForbiddenError({
+        type: 'ERROR',
+        object: { code: 403, reason: 'Forbidden', message: 'pods is forbidden' },
+      })
+    ).toBe(true);
+    expect(
+      isForbiddenError({
+        type: 'ERROR',
+        object: { code: 401, reason: 'Unauthorized' },
+      })
+    ).toBe(true);
+    expect(
+      isForbiddenError({
+        type: 'ERROR',
+        object: { message: 'User unauthorized to watch resources' },
+      })
+    ).toBe(true);
+    expect(isForbiddenError({ status: 403, message: 'Forbidden' })).toBe(true);
+    expect(isForbiddenError(new Error('403 Forbidden'))).toBe(true);
+  });
+
+  it('returns false for transient or non-authorization errors', () => {
+    expect(
+      isForbiddenError({
+        type: 'ERROR',
+        object: { code: 500, reason: 'InternalServerError' },
+      })
+    ).toBe(false);
+    expect(
+      isForbiddenError({
+        type: 'ERROR',
+        object: { code: 410, reason: 'Expired' },
+      })
+    ).toBe(false);
+    expect(isForbiddenError(null)).toBe(false);
+    expect(isForbiddenError(undefined)).toBe(false);
+  });
+});
+
+describe('isResourceVersionOlder', () => {
+  it('returns true when first resourceVersion is numerically smaller', () => {
+    expect(isResourceVersionOlder('100', '200')).toBe(true);
+    expect(isResourceVersionOlder('200', '100')).toBe(false);
+    expect(isResourceVersionOlder('100', '100')).toBe(false);
+  });
+
+  it('handles undefined or non-numeric values gracefully', () => {
+    expect(isResourceVersionOlder(undefined, '100')).toBe(false);
+    expect(isResourceVersionOlder('100', undefined)).toBe(false);
+    expect(isResourceVersionOlder('abc', '100')).toBe(false);
   });
 });
 
@@ -4414,5 +4472,239 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     const subscribeB = mockSubscribe.mock.calls.find(call => call[1].includes('ns-b'));
     expect(subscribeB?.[2]).toContain('resourceVersion=20');
     expect(subscribeB?.[2]).not.toContain('resourceVersion=25');
+  });
+
+  it('stops retrying and does not notify onReconnect when receiving 403 Forbidden error in multiplexer mode', async () => {
+    const onReconnect = vi.fn();
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '100' }];
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+
+    const onMessageCallback = mockSubscribe.mock.calls[0][3];
+
+    // Deliver 403 Forbidden error event
+    act(() => {
+      onMessageCallback({
+        type: 'ERROR',
+        object: {
+          kind: 'Status',
+          apiVersion: 'v1',
+          code: 403,
+          reason: 'Forbidden',
+          message: 'pods is forbidden: cannot watch resource',
+        },
+      });
+    });
+
+    // Should NOT notify onReconnect on forbidden error
+    expect(onReconnect).not.toHaveBeenCalled();
+
+    // Trailing events should also be ignored
+    act(() => {
+      onMessageCallback({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '101'),
+      });
+    });
+
+    expect(onReconnect).not.toHaveBeenCalled();
+  });
+
+  it('applies backoff delay on transient subscription errors before invoking onReconnect in multiplexer mode', async () => {
+    vi.useFakeTimers();
+    try {
+      const onReconnect = vi.fn();
+      const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '100' }];
+
+      renderHook(
+        () =>
+          useWatchKubeObjectLists({
+            kubeObjectClass: mockClass,
+            endpoint: { version: 'v1', resource: 'pods' },
+            lists,
+            onReconnect,
+          }),
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          ),
+        }
+      );
+
+      expect(mockSubscribe).toHaveBeenCalled();
+      const onErrorCallback = mockSubscribe.mock.calls[0][4];
+
+      // Deliver transient network error
+      act(() => {
+        onErrorCallback(new Error('connection reset'));
+      });
+
+      // Immediately, onReconnect should NOT have been called due to backoff
+      expect(onReconnect).not.toHaveBeenCalled();
+
+      // Advance time by backoff delay (1000ms for first retry)
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      // Now onReconnect should have been called
+      expect(onReconnect).toHaveBeenCalledWith('cluster-a', 'namespace-a', '');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects callbacks from an old subscription when resource class changes on mounted hook', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const MockNode = class {
+      static apiVersion = 'v1';
+      static apiName = 'nodes';
+      static kind = 'Node';
+      static apiEndpoint = {
+        apiInfo: [{ group: '', version: 'v1', resource: 'nodes' }],
+      };
+      constructor(public jsonData: any) {}
+      get metadata() {
+        return this.jsonData?.metadata;
+      }
+    };
+
+    mockClusterFetch.mockImplementation(async (url: string | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/pods')) {
+        return {
+          json: async () => ({
+            kind: 'PodList',
+            apiVersion: 'v1',
+            metadata: { resourceVersion: '100' },
+            items: [makePod('pod-1', '100')],
+          }),
+        } as any;
+      }
+      return {
+        json: async () => ({
+          kind: 'NodeList',
+          apiVersion: 'v1',
+          metadata: { resourceVersion: '500' },
+          items: [],
+        }),
+      } as any;
+    });
+
+    let currentClass: any = mockClass;
+
+    const { rerender } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: currentClass,
+          requests: [{ cluster: 'cluster-a', namespaces: ['default'] }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+
+    const oldSubscribeCall = mockSubscribe.mock.calls.find(call => call[1].includes('/pods'));
+    expect(oldSubscribeCall).toBeDefined();
+    const oldOnMessage = oldSubscribeCall![3];
+
+    // Now change to MockNode
+    currentClass = MockNode;
+    mockSubscribe.mockClear();
+
+    rerender();
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+
+    // Fire old Pod watch callback
+    act(() => {
+      oldOnMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '999'),
+      });
+    });
+
+    // Node query cache should not have pod items or corrupted state
+    const nodeData = queryClient.getQueryData<any>([
+      'kubeObject',
+      'list',
+      'v1',
+      'nodes',
+      'cluster-a',
+      'default',
+      {},
+    ]);
+    expect(nodeData?.list?.metadata?.resourceVersion).toBe('500');
+  });
+
+  it('prevents stale LIST response from overwriting newer watch events in cache', () => {
+    const query = kubeObjectListQuery(
+      mockClass,
+      { version: 'v1', resource: 'pods' },
+      'default',
+      'cluster-a',
+      {}
+    );
+
+    const oldData = {
+      list: {
+        metadata: { resourceVersion: '205' },
+        items: [makePod('pod-1', '205')],
+      },
+      cluster: 'cluster-a',
+      namespace: 'default',
+    };
+
+    const staleNewData = {
+      list: {
+        metadata: { resourceVersion: '200' },
+        items: [makePod('pod-1', '200')],
+      },
+      cluster: 'cluster-a',
+      namespace: 'default',
+    };
+
+    // structuralSharing should return oldData because 200 is older than 205
+    const result = (query as any).structuralSharing(oldData, staleNewData);
+    expect(result).toBe(oldData);
+    expect(result.list.metadata.resourceVersion).toBe('205');
+
+    const freshNewData = {
+      list: {
+        metadata: { resourceVersion: '300' },
+        items: [makePod('pod-1', '300')],
+      },
+      cluster: 'cluster-a',
+      namespace: 'default',
+    };
+
+    // structuralSharing should accept newer data (300 >= 205)
+    const freshResult = (query as any).structuralSharing(oldData, freshNewData);
+    expect(freshResult).toBe(freshNewData);
+    expect(freshResult.list.metadata.resourceVersion).toBe('300');
   });
 });
