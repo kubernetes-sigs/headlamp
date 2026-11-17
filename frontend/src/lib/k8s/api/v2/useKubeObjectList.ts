@@ -1023,10 +1023,11 @@ export function useKubeObjectList<K extends KubeObject>({
       : null
   );
   const cleanedUpQueryParams = useMemo(() => {
-    const entries = Object.entries(queryParams ?? {})
-      .filter(([, value]) => value !== undefined && value !== '')
-      .sort(([a], [b]) => a.localeCompare(b));
-    return Object.fromEntries(entries);
+    if (!queryParamsKey) {
+      return {};
+    }
+    const entries = JSON.parse(queryParamsKey) as [string, any][] | null;
+    return entries ? Object.fromEntries(entries) : {};
   }, [queryParamsKey]);
   const listRequests = useMemo(() => flattenListRequests(requests), [requests]);
   const limit = getPositiveLimit(cleanedUpQueryParams);
