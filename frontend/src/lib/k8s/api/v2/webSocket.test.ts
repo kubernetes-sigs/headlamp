@@ -484,6 +484,56 @@ describe('useWebSockets', () => {
       hook.unmount();
     });
 
+    it('continues retrying when no close listener exists after repeated handshake failures', async () => {
+      const createdSockets: any[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listenersMap: Record<string, Function> = {};
+        const mockSocket = {
+          binaryType: '',
+          readyState: 0,
+          addEventListener: vi.fn((event: string, handler: Function) => {
+            listenersMap[event] = handler;
+          }),
+          close: vi.fn(),
+          listenersMap,
+        };
+        createdSockets.push(mockSocket);
+        return mockSocket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const hook = renderHook(() =>
+        useWebSockets({
+          connections: [{ cluster: '', url: '/api/v1/pods', onMessage: vi.fn() }],
+        })
+      );
+
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(1));
+
+      // First handshake failure
+      createdSockets[0].listenersMap.close(new CloseEvent('close'));
+
+      // Retry 1 (5s)
+      vi.advanceTimersByTime(5000);
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(2));
+
+      // Second handshake failure
+      createdSockets[1].listenersMap.close(new CloseEvent('close'));
+
+      // Retry 2 (10s)
+      vi.advanceTimersByTime(5000);
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(3));
+
+      // Third handshake failure
+      createdSockets[2].listenersMap.close(new CloseEvent('close'));
+
+      // Since there is no close listener, a retry timer must still be scheduled
+      vi.advanceTimersByTime(5000);
+      await vi.waitFor(() => expect(WebSocketMock).toHaveBeenCalledTimes(4));
+
+      hook.unmount();
+    });
+
     it('wakes up failed endpoint immediately when browser online event fires', async () => {
       const createdSockets: any[] = [];
       const WebSocketMock = vi.fn(function () {

@@ -274,20 +274,23 @@ export function useWebSockets<T>({
         handshakeFailureCounts.set(connectionKey, count);
 
         // If handshake fails repeatedly, notify close listeners so higher-level hooks
-        // can detect the failure and recover (e.g. relist or refresh credentials)
+        // can detect the failure and recover (e.g. relist or refresh credentials).
+        // If no close listeners exist, continue retrying with delayed attempts.
         if (count >= 3) {
           handshakeFailureCounts.delete(connectionKey);
           const callbacks = closeListeners.get(connectionKey) ?? (onClose ? [onClose] : []);
-          callbacks.forEach(callback => {
-            try {
-              callback(
-                new CloseEvent('close', { code: 1002, reason: 'Handshake failed repeatedly' })
-              );
-            } catch (err) {
-              console.error('WebSocket close listener error:', err);
-            }
-          });
-          return;
+          if (callbacks.length > 0) {
+            callbacks.forEach(callback => {
+              try {
+                callback(
+                  new CloseEvent('close', { code: 1002, reason: 'Handshake failed repeatedly' })
+                );
+              } catch (err) {
+                console.error('WebSocket close listener error:', err);
+              }
+            });
+            return;
+          }
         }
 
         const timer = setTimeout(() => {
