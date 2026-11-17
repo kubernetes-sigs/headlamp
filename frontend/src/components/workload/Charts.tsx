@@ -96,7 +96,10 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
 
   function getLabel() {
     if (counts) {
-      return total > 0 ? getPercentStr(counts.healthy, total) : '';
+      // Suspended items are paused on purpose, so they don't lower the
+      // percentage. When every item is suspended there's nothing to show.
+      const active = total - counts.suspended;
+      return active > 0 ? getPercentStr(counts.healthy, active) : '';
     }
     return total > 0 ? getPercentStr(total - partial, total) : '';
   }
