@@ -132,6 +132,20 @@ WithMatchExpressions.parameters = {
   },
 };
 
+export const WithEmptySelector = Template.bind({});
+WithEmptySelector.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint`,
+          () => HttpResponse.json({ ...mockPDB, spec: { minAvailable: 1, selector: {} } })
+        ),
+      ],
+    },
+  },
+};
+
 export const Error = Template.bind({});
 Error.parameters = {
   msw: {

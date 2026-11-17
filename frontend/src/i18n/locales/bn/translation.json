@@ -934,6 +934,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "মিনিট উপলব্ধ",
+  "All pods in the namespace": "",
   "Allowed disruptions": "অনুমতি বাধাগ্রস্ত",
   "Current//context:pods": "Current pods",
   "Total": "মোট",
