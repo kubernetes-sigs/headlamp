@@ -43,6 +43,9 @@ export const WebSocketManager = {
   /** Map of error handlers for each subscription path */
   errorListeners: new Map<string, Set<(err: Error) => void>>(),
 
+  /** Map of close handlers for each subscription path */
+  closeListeners: new Map<string, Set<() => void>>(),
+
   /** Set of paths that have received a COMPLETE message */
   completedPaths: new Set<string>(),
 
@@ -211,6 +214,7 @@ export const WebSocketManager = {
    * @param query - Query parameters
    * @param onMessage - Callback for handling incoming messages
    * @param onError - Callback for handling errors
+   * @param onClose - Callback for handling stream close
    * @returns Promise resolving to cleanup function
    */
   async subscribe(
@@ -218,7 +222,8 @@ export const WebSocketManager = {
     path: string,
     query: string,
     onMessage: (data: any) => void,
-    onError?: (err: Error) => void
+    onError?: (err: Error) => void,
+    onClose?: () => void
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
 
@@ -254,6 +259,13 @@ export const WebSocketManager = {
       this.errorListeners.set(key, errListeners);
     }
 
+    // Add close listener if provided
+    if (onClose) {
+      const clsListeners = this.closeListeners.get(key) || new Set();
+      clsListeners.add(onClose);
+      this.closeListeners.set(key, clsListeners);
+    }
+
     // Only establish connection and send REQUEST if this stream wasn't already active
     if (!isAlreadyActive) {
       const socket = await this.connect();
@@ -271,7 +283,7 @@ export const WebSocketManager = {
     }
 
     // Return cleanup function
-    return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+    return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError, onClose);
   },
 
   /**
@@ -302,7 +314,8 @@ export const WebSocketManager = {
     path: string,
     query: string,
     onMessage: (data: any) => void,
-    onError?: (err: Error) => void
+    onError?: (err: Error) => void,
+    onClose?: () => void
   ): void {
     const canonicalKey = this.keyAliases.get(key) || key;
 
@@ -368,6 +381,66 @@ export const WebSocketManager = {
         }
       }
     }
+
+    // Remove the close listener
+    if (onClose) {
+      const clsListeners = this.closeListeners.get(canonicalKey);
+      if (clsListeners) {
+        clsListeners.delete(onClose);
+        if (clsListeners.size === 0) {
+          this.closeListeners.delete(canonicalKey);
+        }
+      }
+    }
+  },
+
+  /**
+   * Handles per-stream closure from backend or upstream watch termination.
+   * Cleans up subscription tracking so subsequent subscribers can revive the stream.
+   * Notifies registered close listeners.
+   */
+  handleStreamClosed(clusterId: string, path: string, query?: string): void {
+    const keysToClose = new Set<string>();
+    if (query !== undefined && query !== '') {
+      const key = this.createKey(clusterId, path, query);
+      const canonicalKey = this.keyAliases.get(key) || key;
+      keysToClose.add(key);
+      keysToClose.add(canonicalKey);
+    } else {
+      const prefix = `${clusterId}:${path}:`;
+      for (const k of this.activeSubscriptions.keys()) {
+        if (k.startsWith(prefix)) {
+          keysToClose.add(k);
+        }
+      }
+      for (const k of this.listeners.keys()) {
+        if (k.startsWith(prefix)) {
+          keysToClose.add(k);
+        }
+      }
+      for (const k of this.closeListeners.keys()) {
+        if (k.startsWith(prefix)) {
+          keysToClose.add(k);
+        }
+      }
+    }
+
+    for (const key of keysToClose) {
+      this.failedStreams.add(key);
+      this.activeSubscriptions.delete(key);
+
+      const clsListeners = this.closeListeners.get(key);
+      if (clsListeners && clsListeners.size > 0) {
+        const toCall = Array.from(clsListeners);
+        for (const listener of toCall) {
+          try {
+            listener();
+          } catch (err) {
+            console.error('Failed to process WebSocket close listener:', err);
+          }
+        }
+      }
+    }
   },
 
   /**
@@ -402,6 +475,22 @@ export const WebSocketManager = {
       if (data.type === 'COMPLETE') {
         this.completedPaths.add(key);
         return;
+      }
+
+      // Handle STATUS messages from backend (e.g. state: "closed" or state: "error")
+      if (data.type === 'STATUS') {
+        let statusState = '';
+        try {
+          const parsedData = data.data ? JSON.parse(data.data) : {};
+          statusState = parsedData.state || '';
+        } catch (e) {
+          // ignore
+        }
+
+        if (statusState === 'closed') {
+          this.handleStreamClosed(data.clusterId, data.path, data.query);
+          return;
+        }
       }
 
       // Handle ERROR messages from backend
@@ -521,6 +610,7 @@ export const WebSocketManager = {
  * @param options.cluster - The Kubernetes cluster ID to watch
  * @param options.onMessage - Callback function to handle incoming messages
  * @param options.onError - Callback function to handle connection errors
+ * @param options.onClose - Callback function to handle stream close
  */
 export function useWebSocket<T>({
   url: createUrl,
@@ -528,6 +618,7 @@ export function useWebSocket<T>({
   cluster = '',
   onMessage,
   onError,
+  onClose,
 }: {
   /** Function that returns the WebSocket URL to connect to */
   url: () => string;
@@ -539,6 +630,8 @@ export function useWebSocket<T>({
   onMessage: (data: T) => void;
   /** Callback function to handle connection errors */
   onError?: (error: Error) => void;
+  /** Callback function to handle stream close */
+  onClose?: () => void;
 }) {
   const url = useMemo(() => (enabled ? createUrl() : ''), [enabled, createUrl]);
 
@@ -588,7 +681,8 @@ export function useWebSocket<T>({
           subscriptionPath,
           subscriptionQuery,
           stableOnMessage,
-          stableOnError
+          stableOnError,
+          ...(onClose ? [onClose] : [])
         );
         if (isCancelled) {
           unsubscribe();
@@ -604,7 +698,8 @@ export function useWebSocket<T>({
             subscriptionPath,
             subscriptionQuery,
             stableOnMessage,
-            stableOnError
+            stableOnError,
+            onClose
           );
         }
         if (isCancelled) {
@@ -623,7 +718,7 @@ export function useWebSocket<T>({
         cleanup();
       }
     };
-  }, [url, enabled, cluster, stableOnMessage, onError]);
+  }, [url, enabled, cluster, stableOnMessage, onError, onClose]);
 }
 
 /**

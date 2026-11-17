@@ -91,6 +91,8 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.connecting = false;
     WebSocketManager.isReconnecting = false;
     WebSocketManager.listeners.clear();
+    WebSocketManager.errorListeners.clear();
+    WebSocketManager.closeListeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.failedStreams.clear();
@@ -1262,6 +1264,65 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.failedStreams.has(key)).toBe(false);
 
       cleanup();
+      cleanup2();
+    });
+
+    it('notifies close listeners and allows subsequent subscriber to revive stream when upstream watch closes', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+
+      const onClose1 = vi.fn();
+      const cleanup1 = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        query,
+        onMessage,
+        undefined,
+        onClose1
+      );
+
+      await mockServer.connected;
+      const initialRequest = await mockServer.nextMessage;
+      expect(JSON.parse(initialRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      // Backend notifies that upstream watch closed (STATUS: closed)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed', error: '' }),
+        })
+      );
+
+      // Verify close listener was notified
+      await vi.waitFor(() => {
+        expect(onClose1).toHaveBeenCalledTimes(1);
+      });
+
+      // Stream must no longer be marked active
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+      expect(WebSocketManager.failedStreams.has(key)).toBe(true);
+
+      // A subsequent subscriber subscribes while listener 1 remains
+      const onMessage2 = vi.fn();
+      const cleanup2 = await WebSocketManager.subscribe(clusterName, path, query, onMessage2);
+
+      // A new REQUEST must be sent to backend to revive the dead stream
+      const reviveRequest = await mockServer.nextMessage;
+      expect(JSON.parse(reviveRequest as string)).toMatchObject({
+        type: 'REQUEST',
+        path,
+        clusterId: clusterName,
+      });
+
+      cleanup1();
       cleanup2();
     });
 
