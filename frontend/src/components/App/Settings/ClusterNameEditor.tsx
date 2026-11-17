@@ -25,6 +25,7 @@ import { Cluster } from '../../../lib/k8s/cluster';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import store from '../../../redux/stores/store';
 import { mergeStatelessConfigState } from '../../../stateless';
+import { enqueueConfigOperation } from '../../../stateless/configOperationQueue';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { updateStatelessClusterKubeconfig } from '../../../stateless/updateStatelessClusterKubeconfig';
 import { ConfirmButton, ConfirmDialog, NameValueTable } from '../../common';
@@ -58,7 +59,7 @@ export function ClusterNameEditor({
     if (clusterSettings?.currentName !== cluster) {
       setNewClusterName(clusterSettings?.currentName || '');
     }
-  }, [cluster, clusterSettings]);
+  }, [cluster, clusterSettings.currentName]);
 
   const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
   const source = clusterInfo?.meta_data?.source;
@@ -115,8 +116,8 @@ export function ClusterNameEditor({
 
   const handleUpdateClusterName = (source: string) => {
     try {
-      renameCluster(cluster || '', newClusterName, source, clusterID)
-        .then(async config => {
+      enqueueConfigOperation(() =>
+        renameCluster(cluster || '', newClusterName, source, clusterID).then(async config => {
           if (cluster) {
             const kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
             if (kubeconfig !== null) {
@@ -124,24 +125,22 @@ export function ClusterNameEditor({
               // Make another request for updated kubeconfig
               const updatedKubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
               if (updatedKubeconfig !== null) {
-                parseKubeConfig({ kubeconfig: updatedKubeconfig })
-                  .then((parsedConfig: any) => {
-                    storeNewClusterName(newClusterName);
-                    const currentStatelessClusters = store.getState().config.statelessClusters;
-                    dispatch(
-                      setStatelessConfig(
-                        mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
-                      )
-                    );
-                  })
-                  .catch((err: Error) => {
-                    console.error('Error updating cluster name:', err.message);
-                  });
+                const parsedConfig = await parseKubeConfig({ kubeconfig: updatedKubeconfig });
+                storeNewClusterName(newClusterName);
+                const currentStatelessClusters = store.getState().config.statelessClusters;
+                dispatch(
+                  setStatelessConfig(
+                    mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
+                  )
+                );
               }
             } else {
               dispatch(setConfig(config));
             }
           }
+        })
+      )
+        .then(() => {
           history.push('/');
           window.location.reload();
         })

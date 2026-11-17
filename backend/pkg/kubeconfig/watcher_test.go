@@ -14,9 +14,71 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/require"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
+
+func TestReloadWaitsForKubeconfigPublicationLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["cluster"] = &clientcmdapi.Cluster{Server: "https://localhost"}
+	config.AuthInfos["user"] = &clientcmdapi.AuthInfo{}
+	config.Contexts["context"] = &clientcmdapi.Context{Cluster: "cluster", AuthInfo: "user"}
+	require.NoError(t, clientcmd.WriteToFile(*config, path))
+
+	store := kubeconfig.NewContextStore()
+	publishing := make(chan struct{})
+	release := make(chan struct{})
+
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- kubeconfig.ModifyConfigFile(path, func(current *clientcmdapi.Config) error {
+			current.Contexts["context"].Extensions = map[string]k8sruntime.Object{
+				"headlamp_info": &k8sruntime.Unknown{Raw: []byte(`{"tags":{"env":"new"}}`)},
+			}
+
+			return nil
+		}, func(*clientcmdapi.Config) error {
+			close(publishing)
+			<-release
+
+			return nil
+		})
+	}()
+
+	select {
+	case <-publishing:
+	case err := <-writeDone:
+		t.Fatalf("write failed before publication: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("write did not reach publication")
+	}
+
+	t.Cleanup(func() { close(release) })
+
+	done := make(chan error, 1)
+	go func() {
+		done <- kubeconfig.LoadAndStoreKubeConfigs(store, path, kubeconfig.DynamicCluster, nil)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("reload bypassed publication lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	release <- struct{}{}
+
+	require.NoError(t, <-writeDone)
+	require.NoError(t, <-done)
+
+	current, err := store.GetContext("context")
+	require.NoError(t, err)
+
+	extension := current.KubeContext.Extensions["headlamp_info"].(*k8sruntime.Unknown)
+	require.JSONEq(t, `{"tags":{"env":"new"}}`, string(extension.Raw))
+}
 
 //nolint:funlen // Integration test function covering file watcher events across multiple kubeconfigs.
 func TestWatchAndLoadFiles(t *testing.T) {

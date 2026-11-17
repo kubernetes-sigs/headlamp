@@ -445,6 +445,10 @@ func (cacheStub) Get(ctx context.Context, k string) (interface{}, error) {
 	return nil, nil
 }
 
+func (cacheStub) UpdateIf(context.Context, string, interface{}, func(interface{}) bool) error {
+	return cache.ErrNotFound
+}
+
 func (cacheStub) GetAll(ctx context.Context, _ cache.Matcher) (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
 }
@@ -502,6 +506,29 @@ func (f *fakeCache) Set(_ context.Context, key string, val interface{}) error {
 	}{key, val})
 
 	return f.errOnSet
+}
+
+func (f *fakeCache) UpdateIf(ctx context.Context, key string, val interface{}, matches func(interface{}) bool) error {
+	if f.errOnGet != nil {
+		return f.errOnGet
+	}
+
+	current, ok := f.store[key]
+	if !ok {
+		return cache.ErrNotFound
+	}
+
+	if !matches(current) {
+		return errors.New("cache entry changed")
+	}
+
+	if err := f.Set(ctx, key, val); err != nil {
+		return err
+	}
+
+	f.store[key] = val
+
+	return nil
 }
 
 func (f *fakeCache) SetWithTTL(_ context.Context, key string, val interface{}, ttl time.Duration) error {

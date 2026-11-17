@@ -166,6 +166,8 @@ export interface KubeconfigObject {
         extension: {
           /** customName is the custom name for the cluster. */
           customName?: string;
+          /** Headlamp organization tags, unrelated to Kubernetes resource labels. */
+          tags?: Record<string, string>;
         };
       }>;
     };
