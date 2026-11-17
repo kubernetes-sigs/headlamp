@@ -39,6 +39,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	authv1 "k8s.io/api/authentication/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -231,6 +232,19 @@ func releaseExists(actionConfig *action.Configuration, name string) error {
 	return err
 }
 
+// releaseLookupError gives the HTTP status and log message for an error from
+// releaseExists, so only a missing release is answered with a 404.
+func releaseLookupError(err error) (int, string) {
+	switch {
+	case errors.Is(err, driver.ErrReleaseNotFound):
+		return http.StatusNotFound, "release not found"
+	case apierrors.IsForbidden(err):
+		return http.StatusForbidden, "checking release: forbidden"
+	default:
+		return http.StatusInternalServerError, "checking release"
+	}
+}
+
 func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req, err := decodeGetReleaseRequest(r)
@@ -253,10 +267,11 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetRelease},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -320,10 +335,11 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetReleaseHistory},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -399,10 +415,11 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opUninstallRelease},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -496,10 +513,11 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -815,8 +833,10 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
-		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
+	if err != nil {
+		status, message := releaseLookupError(err)
+		handleError(w, req.Name, err, message, status)
+
 		return
 	}
 
