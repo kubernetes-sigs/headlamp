@@ -3596,7 +3596,11 @@ func createGatedUpgradeServer(
 		default:
 		}
 
-		<-releaseUpgrade
+		select {
+		case <-releaseUpgrade:
+		case <-r.Context().Done():
+			return
+		}
 
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -3610,11 +3614,64 @@ func createGatedUpgradeServer(
 }
 
 func closeReleaseUpgrade(releaseUpgrade chan struct{}) {
+	if releaseUpgrade == nil {
+		return
+	}
+
 	select {
 	case <-releaseUpgrade:
 	default:
 		close(releaseUpgrade)
 	}
+}
+
+func TestCreateGatedUpgradeServer_ShutdownWhileGatedDoesNotHang(t *testing.T) {
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+
+	server, _ := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
+
+	dialDone := make(chan struct{})
+
+	go func() {
+		defer close(dialDone)
+
+		wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+		ws, resp, _ := websocket.DefaultDialer.Dial(wsURL, nil)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+
+		if ws != nil {
+			_ = ws.Close()
+		}
+	}()
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for upgrade request to reach gated server")
+	}
+
+	// Shut down server while releaseUpgrade has NOT been released.
+	// Because createGatedUpgradeServer selects on r.Context().Done(), server.Close()
+	// terminates promptly without hanging on <-releaseUpgrade.
+	shutdownDone := make(chan struct{})
+
+	go func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+		close(shutdownDone)
+	}()
+
+	select {
+	case <-shutdownDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server.Close hung waiting for unreleased upgrade gate")
+	}
+
+	<-dialDone
 }
 
 type reconnectResult struct {
@@ -3679,10 +3736,12 @@ func TestReconnect_ClosedConnectionDoesNotLeak(t *testing.T) {
 	upgradeArrived := make(chan struct{}, 1)
 	releaseUpgrade := make(chan struct{})
 
-	defer closeReleaseUpgrade(releaseUpgrade)
-
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
-	defer server.Close()
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -3765,10 +3824,12 @@ func TestReconnect_RejectsWhenClientModifiedDuringReconnect(t *testing.T) {
 	upgradeArrived := make(chan struct{}, 1)
 	releaseUpgrade := make(chan struct{})
 
-	defer closeReleaseUpgrade(releaseUpgrade)
-
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
-	defer server.Close()
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
 
 	clientConn1, clientServer1 := createTestWebSocketConnection()
 	defer clientServer1.Close()
@@ -3897,10 +3958,12 @@ func TestReconnect_TokenSnapshotRace(t *testing.T) {
 	releaseUpgrade := make(chan struct{})
 	receivedTokens := make(chan string, 1)
 
-	defer closeReleaseUpgrade(releaseUpgrade)
-
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade, receivedTokens)
-	defer server.Close()
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -3993,10 +4056,12 @@ func TestCloseClientConnections_AtomicRemovalAndStateTransition(t *testing.T) {
 	upgradeArrived := make(chan struct{}, 1)
 	releaseUpgrade := make(chan struct{})
 
-	defer closeReleaseUpgrade(releaseUpgrade)
-
 	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
-	defer server.Close()
+
+	t.Cleanup(func() {
+		closeReleaseUpgrade(releaseUpgrade)
+		server.Close()
+	})
 
 	client1, clientServer1 := createTestWebSocketConnection()
 	defer clientServer1.Close()
