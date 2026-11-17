@@ -2075,7 +2075,7 @@ func createFailServer(t *testing.T, requestTimes *[]time.Time, mu *sync.Mutex) *
 }
 
 // assertBackoffResults checks that each gap between reconnect attempts doubles, starting at
-// twice the heartbeat interval. A timer never fires early, so each gap is at least its
+// the heartbeat interval. A timer never fires early, so each gap is at least its
 // expected delay; it must also stay below the next delay, or the backoff did not double.
 func assertBackoffResults(t *testing.T, requestTimes []time.Time, mu *sync.Mutex, heartbeat time.Duration) {
 	t.Helper()
@@ -3364,6 +3364,34 @@ func verifyClusterMessageForwarded(
 	}
 }
 
+func TestHandleClusterMessages_StateClosedNotOverwrittenByStateError(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	conn.WSConn = wsConn.conn
+
+	conn.mu.Lock()
+	conn.Status.State = StateClosed
+	conn.mu.Unlock()
+
+	_ = wsConn.Close()
+
+	m.handleClusterMessages(conn, clientConn)
+
+	conn.mu.RLock()
+	finalState := conn.Status.State
+	conn.mu.RUnlock()
+
+	assert.Equal(t, StateClosed, finalState,
+		"handleClusterMessages defer must not overwrite StateClosed with StateError")
+}
+
 func TestHandleClusterMessages_ClosesUpstreamSocketOnReaderExit(t *testing.T) {
 	var (
 		serverFail atomic.Bool
@@ -3454,6 +3482,90 @@ func TestHandleClusterMessages_OldReaderDoesNotCloseReplacementConnection(t *tes
 	assert.Equal(t, StateConnected, newState, "replacement connection state must be unaffected")
 
 	newConn.safeClose()
+}
+
+func TestUpdateStatusIfNotClosed_DeterministicOrderings(t *testing.T) {
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	conn1 := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn1)
+
+	// Case 1: Rejects update when closed or state is StateClosed
+	conn1.updateStatus(StateClosed, nil)
+	conn1.safeClose()
+
+	assert.False(t, conn1.updateStatusIfNotClosed(StateError, fmt.Errorf("test error")))
+
+	conn1.mu.RLock()
+	assert.Equal(t, StateClosed, conn1.Status.State)
+	conn1.mu.RUnlock()
+
+	conn1.mu.Lock()
+	conn1.Status.State = StateConnected
+	conn1.closed = true
+	conn1.mu.Unlock()
+
+	assert.False(t, conn1.updateStatusIfNotClosed(StateConnecting, nil))
+
+	// Case 2: updateStatusIfNotClosed succeeds on open connection before close
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	conn2 := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn2)
+
+	assert.True(t, conn2.updateStatusIfNotClosed(StateError, nil))
+
+	conn2.mu.RLock()
+	assert.Equal(t, StateError, conn2.Status.State)
+	conn2.mu.RUnlock()
+
+	conn2.updateStatus(StateClosed, nil)
+	conn2.safeClose()
+
+	conn2.mu.RLock()
+	assert.Equal(t, StateClosed, conn2.Status.State)
+	conn2.mu.RUnlock()
+}
+
+func TestUpdateStatusIfNotClosed_ConcurrentWithClose(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		clientConn, clientServer := createTestWebSocketConnection()
+
+		conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+		start := make(chan struct{})
+
+		var wg sync.WaitGroup
+
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			conn.updateStatus(StateClosed, nil)
+			conn.safeClose()
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			_ = conn.updateStatusIfNotClosed(StateError, nil)
+		}()
+
+		close(start)
+		wg.Wait()
+
+		conn.mu.RLock()
+		finalState := conn.Status.State
+		conn.mu.RUnlock()
+
+		assert.Equal(t, StateClosed, finalState, "StateClosed must never be overwritten by StateError")
+		clientServer.Close()
+	}
 }
 
 func createGatedUpgradeServer(
@@ -3838,4 +3950,96 @@ func TestReconnect_TokenSnapshotRace(t *testing.T) {
 
 	conn.safeClose()
 	closeServerSocket(t, serverSockets)
+}
+
+func setupAtomicRemovalTestScenario(
+	t *testing.T,
+	serverURL string,
+	client1, client2 *WSConnLock,
+) (*Multiplexer, *Connection, *Connection, *Connection, string) {
+	t.Helper()
+
+	m, conn1 := setupTestMultiplexerWithBackoff(t, serverURL, client1)
+	connKey1 := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	conn2 := &Connection{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/services",
+		UserID:    "test-user",
+		Client:    client1,
+		Status:    ConnectionStatus{State: StateConnected},
+	}
+	connKey2 := m.createConnectionKey("test-cluster", "/api/v1/services", "test-user")
+
+	conn3 := &Connection{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/nodes",
+		UserID:    "test-user",
+		Client:    client2,
+		Status:    ConnectionStatus{State: StateConnected},
+	}
+	connKey3 := m.createConnectionKey("test-cluster", "/api/v1/nodes", "test-user")
+
+	m.mutex.Lock()
+	m.connections[connKey1] = conn1
+	m.connections[connKey2] = conn2
+	m.connections[connKey3] = conn3
+	m.mutex.Unlock()
+
+	return m, conn1, conn2, conn3, connKey1
+}
+
+func TestCloseClientConnections_AtomicRemovalAndStateTransition(t *testing.T) {
+	upgradeArrived := make(chan struct{}, 1)
+	releaseUpgrade := make(chan struct{})
+
+	defer closeReleaseUpgrade(releaseUpgrade)
+
+	server, serverSockets := createGatedUpgradeServer(upgradeArrived, releaseUpgrade)
+	defer server.Close()
+
+	client1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	client2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	m, conn1, conn2, conn3, connKey1 := setupAtomicRemovalTestScenario(t, server.URL, client1, client2)
+
+	resultCh := startAsyncReconnect(m, conn1)
+
+	select {
+	case <-upgradeArrived:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnect upgrade request")
+	}
+
+	// Close client1 connections while reconnect is in-flight.
+	// Atomic removal and state transition must set conn.Client = nil and StateClosed under m.mutex.
+	m.closeClientConnections(client1)
+
+	// Verify client1 connections are atomically removed and closed, while client2 remains untouched
+	m.mutex.RLock()
+	assert.Nil(t, m.connections[connKey1], "conn1 should be removed from multiplexer")
+	assert.Equal(t, conn3, m.connections[m.createConnectionKey("test-cluster", "/api/v1/nodes", "test-user")])
+	m.mutex.RUnlock()
+
+	assertConnectionClosedState(t, conn1)
+	assertConnectionClosedState(t, conn2)
+
+	conn3.mu.RLock()
+	assert.Equal(t, client2, conn3.Client, "conn3.Client must remain intact")
+	conn3.mu.RUnlock()
+
+	close(releaseUpgrade)
+
+	assertReconnectClosedResult(t, resultCh)
+
+	m.mutex.RLock()
+	assert.Nil(t, m.connections[connKey1], "conn1 replacement must not remain registered")
+	m.mutex.RUnlock()
+
+	assertReplacementServerSocketClosed(t, serverSockets)
+
+	conn3.safeClose()
 }
