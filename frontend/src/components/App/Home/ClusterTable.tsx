@@ -48,8 +48,10 @@ import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { getClusterPrefixedPath } from '../../../lib/util';
+import { ClusterStatusComponent } from '../../../redux/clusterProviderSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { Loader } from '../../common';
+import ErrorBoundary from '../../common/ErrorBoundary';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
 import { LightTooltip } from '../../common/Tooltip';
@@ -67,15 +69,24 @@ import { CONNECT_ON_CLUSTER_LINK, MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 import RegisteredClusterEmptyState from './RegisteredClusterEmptyState';
 
+// Module-level map so each registered callback gets a stable numeric key that
+// is derived from its identity, not from its position in the array.
+const statusKeyMap = new WeakMap<ClusterStatusComponent, number>();
+let statusKeyCounter = 0;
+
+function getStatusKey(fn: ClusterStatusComponent): string {
+  if (!statusKeyMap.has(fn)) {
+    statusKeyMap.set(fn, statusKeyCounter++);
+  }
+  return String(statusKeyMap.get(fn));
+}
+
 /**
- * ClusterStatus component displays the status of a cluster.
- * It shows an icon and a message indicating whether the cluster is active, loading, unavailable,
- * requires authentication, has insufficient permissions, or has an unhealthy control plane.
- *
- * @param {Object} props - The component props.
- * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
+ * Renders Headlamp's built-in cluster status (the "Active", "Connecting…",
+ * "Not connected", or error variant). Extracted so ClusterStatus can use it
+ * as the terminal fallback of the callback chain.
  */
-function ClusterStatus({
+function DefaultClusterStatus({
   error,
   cluster,
   isConnected,
@@ -90,20 +101,6 @@ function ClusterStatus({
 }) {
   const { t } = useTranslation(['translation']);
   const theme = useTheme();
-  const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
-  const renderedCustomStatus = useMemo(() => {
-    for (const Status of customStatuses) {
-      const renderedStatus = <Status cluster={cluster} error={error} />;
-      if (renderedStatus !== null) {
-        return renderedStatus;
-      }
-    }
-    return null;
-  }, [customStatuses, cluster, error]);
-
-  if (renderedCustomStatus !== null) {
-    return renderedCustomStatus;
-  }
 
   // Not in the auto-connect set and not yet contacted: show an explicit
   // "not connected" state with a connect action instead of the ambiguous "⋯".
@@ -162,6 +159,100 @@ function ClusterStatus({
     </LightTooltip>
   ) : (
     statusContent
+  );
+}
+
+interface StatusLinkProps {
+  statuses: ClusterStatusComponent[];
+  index: number;
+  cluster: Cluster;
+  error?: ApiError | null;
+  fallback: React.ReactElement;
+}
+
+/**
+ * Renders link `index` of the status callback chain, or the fallback once every
+ * callback has been tried.
+ *
+ * Each link is keyed by the identity of the callback it runs (not its index),
+ * so when plugins register more callbacks a link never inherits another
+ * callback's hook state. A callback that throws is caught by the link's
+ * ErrorBoundary, which renders the next link instead.
+ *
+ * The rest of the chain is passed on as a single `StatusChain` element, so it
+ * is only expanded when React actually renders it: when this link's callback
+ * returns null, or when it throws. Each render therefore builds one link per
+ * callback tried, not the whole remaining chain at every link.
+ */
+function StatusChain(props: StatusLinkProps) {
+  const { statuses, index, fallback } = props;
+  if (index >= statuses.length) {
+    return fallback;
+  }
+  return (
+    <ErrorBoundary
+      key={getStatusKey(statuses[index])}
+      fallback={<StatusChain {...props} index={index + 1} />}
+    >
+      <ClusterStatusLink {...props} />
+    </ErrorBoundary>
+  );
+}
+
+/**
+ * Runs one registered status callback. The callback is called as a function so
+ * that a null (or undefined) result can fall through to the next link; a JSX
+ * element would never be null. Because each callback runs in its own component
+ * instance, callbacks may use hooks.
+ */
+function ClusterStatusLink(props: StatusLinkProps) {
+  const { statuses, index, cluster, error } = props;
+  const result = statuses[index]({ cluster, error });
+  if (result !== null && result !== undefined) {
+    return result;
+  }
+  return <StatusChain {...props} index={index + 1} />;
+}
+
+/**
+ * ClusterStatus component displays the status of a cluster.
+ * It shows an icon and a message indicating whether the cluster is active, loading, unavailable,
+ * requires authentication, has insufficient permissions, or has an unhealthy control plane.
+ *
+ * @param {Object} props - The component props.
+ * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
+ */
+export function ClusterStatus({
+  error,
+  cluster,
+  isConnected,
+  onConnect,
+}: {
+  error?: ApiError | null;
+  cluster: Cluster;
+  /** Whether the cluster is in the auto-connect set (i.e. being polled). */
+  isConnected: boolean;
+  /** Connect to the cluster on demand so its status is loaded. */
+  onConnect: (clusterName: string) => void;
+}) {
+  const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
+  const defaultStatus = (
+    <DefaultClusterStatus
+      cluster={cluster}
+      error={error}
+      isConnected={isConnected}
+      onConnect={onConnect}
+    />
+  );
+
+  return (
+    <StatusChain
+      statuses={customStatuses}
+      index={0}
+      cluster={cluster}
+      error={error}
+      fallback={defaultStatus}
+    />
   );
 }
 
