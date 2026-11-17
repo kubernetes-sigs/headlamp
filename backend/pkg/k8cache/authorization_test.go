@@ -350,3 +350,75 @@ func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 		assert.Contains(t, w2.Body.String(), "next handler called")
 	})
 }
+
+// Table negotiation must never read or populate the ordinary resource cache.
+func TestServeFromCacheOrForwardToK8s_TableRepresentations(t *testing.T) {
+	for _, tableFirst := range []bool{true, false} {
+		t.Run(fmt.Sprintf("tableFirst=%t", tableFirst), func(t *testing.T) {
+			cache := NewMockCache()
+			normal := `{"kind":"SecretList","items":[{"data":{"token":"YQ=="}}]}`
+			table := `{"kind":"Table","rows":[]}`
+			calls := 0
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+
+				if r.Header.Get("Accept") != "" {
+					_, _ = w.Write([]byte(table))
+				} else {
+					_, _ = w.Write([]byte(normal))
+				}
+			})
+			request := func(asTable bool) {
+				r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/api/v1/secrets", nil)
+				want := normal
+
+				if asTable {
+					r.Header.Set("Accept", `application/json;as=Table;g=meta.k8s.io;v=v1,application/json`)
+
+					want = table
+				}
+
+				w := httptest.NewRecorder()
+				k8cache.ServeFromCacheOrForwardToK8s(cache, true, next, "same-key", w, r, k8cache.NewResponseCapture(w))
+				assert.JSONEq(t, want, w.Body.String())
+			}
+			request(tableFirst)
+			request(!tableFirst)
+			request(true)
+			request(false)
+			assert.Equal(t, 3, calls, "Table requests bypass cache while ordinary lists remain cached")
+		})
+	}
+}
+
+func TestServeFromCacheOrForwardToK8s_AcceptHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		headers []string
+		calls   int
+	}{
+		{"ordinary JSON", []string{"application/json"}, 1},
+		{"Table in second header", []string{"application/json", `application/json;as="Table";g=meta.k8s.io;v=v1`}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := NewMockCache()
+			calls := 0
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				_, _ = w.Write([]byte(`{"items":[]}`))
+			})
+			for range 2 {
+				r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/api/v1/secrets", nil)
+				for _, value := range tc.headers {
+					r.Header.Add("Accept", value)
+				}
+
+				w := httptest.NewRecorder()
+				k8cache.ServeFromCacheOrForwardToK8s(cache, true, next, "same-key", w, r, k8cache.NewResponseCapture(w))
+			}
+
+			assert.Equal(t, tc.calls, calls)
+		})
+	}
+}

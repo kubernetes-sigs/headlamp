@@ -21,6 +21,7 @@ package k8cache
 
 import (
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -570,6 +571,18 @@ func IsAllowed(
 func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, next http.Handler, key string,
 	w http.ResponseWriter, r *http.Request, rcw *ResponseCapture,
 ) {
+	// Cache keys describe resources, not negotiated representations. Table requests
+	// must bypass both reads and writes so they cannot mix with ordinary lists.
+	for _, accept := range r.Header.Values("Accept") {
+		for _, mediaRange := range strings.Split(accept, ",") {
+			_, params, err := mime.ParseMediaType(strings.TrimSpace(mediaRange))
+			if err == nil && params["as"] == "Table" {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+	}
+
 	served, _ := LoadFromCache(k8scache, isAllowed, key, w, r)
 	if served {
 		return

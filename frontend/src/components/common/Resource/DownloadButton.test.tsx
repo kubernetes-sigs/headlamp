@@ -73,4 +73,24 @@ describe('DownloadButton', () => {
     await waitFor(() => expect(mockEnqueueSnackbar).toHaveBeenCalled());
     expect(mockDump).not.toHaveBeenCalled();
   });
+  it('downloads a full Secret without requiring get permission', async () => {
+    mockFetchLatestKubeObject.mockRejectedValue({ status: 403 });
+    render(<DownloadButton item={latestSecret} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() =>
+      expect(mockDump).toHaveBeenCalledWith(latestSecret.jsonData, { lineWidth: -1 })
+    );
+    expect(mockFetchLatestKubeObject).not.toHaveBeenCalled();
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('still refreshes a compact Secret with zero keys', async () => {
+    mockFetchLatestKubeObject.mockRejectedValue({ status: 403 });
+    const empty = { ...secret, jsonData: { ...secret.jsonData, dataCount: 0 } } as KubeObject;
+    render(<DownloadButton item={empty} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(mockEnqueueSnackbar).toHaveBeenCalled());
+    expect(mockFetchLatestKubeObject).toHaveBeenCalledWith(empty);
+    expect(mockDump).not.toHaveBeenCalled();
+  });
 });

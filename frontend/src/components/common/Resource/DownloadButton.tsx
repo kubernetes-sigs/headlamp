@@ -43,7 +43,7 @@ function DownloadButton({ item, buttonStyle }: DownloadButtonProps) {
     }
 
     let resource = item;
-    if (item.kind === 'Secret') {
+    if (item.kind === 'Secret' && 'dataCount' in item.jsonData) {
       try {
         resource = await fetchLatestKubeObject(item);
       } catch {

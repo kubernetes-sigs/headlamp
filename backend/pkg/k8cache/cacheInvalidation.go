@@ -87,6 +87,8 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	}
 
 	freshReq.Header = r.Header.Clone()
+	// Re-prime the ordinary resource cache, never a negotiated Table response.
+	freshReq.Header.Set("Accept", "application/json")
 	next.ServeHTTP(w, r)
 
 	rr := httptest.NewRecorder()
