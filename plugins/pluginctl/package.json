@@ -7,7 +7,9 @@
   "private": false,
   "scripts": {
     "test": "node test-pluginctl.js",
-    "test:unit": "jest"
+    "test:unit": "jest",
+    "test:cli": "node --test test/cli.integration.js",
+    "test:coverage": "node scripts/test-coverage.js"
   },
   "publishConfig": {
     "access": "public"
@@ -32,9 +34,22 @@
     "yargs": "^17.7.2"
   },
   "devDependencies": {
-    "jest": "^30.0.0"
+    "jest": "^30.0.0",
+    "nyc": "^17.1.0"
   },
   "overrides": {
     "js-yaml": "^4.1.1"
+  },
+  "nyc": {
+    "all": true,
+    "include": [
+      "index.js",
+      "bin/**/*.js",
+      "src/**/*.js"
+    ],
+    "exclude": [
+      "**/*.test.js",
+      "**/*.e2e.js"
+    ]
   }
 }
