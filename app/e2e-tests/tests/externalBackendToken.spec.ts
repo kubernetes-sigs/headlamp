@@ -22,14 +22,12 @@ import { createServer } from 'http';
 import type { AddressInfo } from 'net';
 import os from 'os';
 import path from 'path';
-import { _electron } from 'playwright';
+import { _electron, ElectronApplication } from 'playwright';
 
 const backendToken = 'external-development-token';
-const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
-const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
+const electronPath = require('electron') as string;
 const appPath = path.resolve(__dirname, '../../');
 const userDataDir = path.join(os.tmpdir(), `headlamp-e2e-external-token-${process.pid}`);
-const internalBackendReadyMessage = 'HEADLAMP_BACKEND_READY';
 
 /** Waits briefly for a child exit event after test cleanup sends a termination signal. */
 async function waitForExit(child: ReturnType<typeof spawn>, timeoutMs = 5_000): Promise<boolean> {
@@ -84,10 +82,17 @@ test('waits for the authenticated external backend before opening a window', asy
     args: ['.', `--port=${port}`, `--user-data-dir=${userDataDir}`],
     env: {
       ...process.env,
+      HOME: userDataDir,
+      APPDATA: userDataDir,
+      LOCALAPPDATA: userDataDir,
+      XDG_CONFIG_HOME: userDataDir,
+      XDG_DATA_HOME: userDataDir,
       ELECTRON_DEV: 'true',
       ELECTRON_START_URL: 'data:text/html,<title>External backend token test</title>',
       EXTERNAL_SERVER: 'true',
       HEADLAMP_BACKEND_TOKEN: backendToken,
+      HEADLAMP_CHECK_FOR_UPDATES: 'false',
+      HEADLAMP_MCP_ENABLE: 'false',
     },
   });
 
@@ -143,11 +148,17 @@ test('does not send the internal backend token to an unrelated port owner', asyn
   const raceServerReadyPath = path.join(internalUserDataDir, 'race-server-ready');
   const raceServerPidPath = path.join(internalUserDataDir, 'race-server.pid');
   const receivedTokenPath = path.join(internalUserDataDir, 'received-token');
+  const kubeconfigPath = path.join(internalUserDataDir, 'empty-kubeconfig');
   let electronProcess: ReturnType<typeof spawn> | undefined;
-  let output = '';
+  let internalApp: ElectronApplication | undefined;
 
   try {
     fs.mkdirSync(internalUserDataDir, { recursive: true });
+    fs.writeFileSync(
+      kubeconfigPath,
+      JSON.stringify({ apiVersion: 'v1', kind: 'Config', clusters: [], users: [], contexts: [] }),
+      { mode: 0o600 }
+    );
     fs.writeFileSync(
       raceServerPath,
       `const fs = require('fs');
@@ -160,71 +171,87 @@ http.createServer((request, response) => {
 `
     );
     execFileSync('go', ['build', '-o', backendFixtureExecutable, backendFixturePath]);
-    const startedElectronProcess = spawn(
-      electronPath,
-      ['.', `--port=${occupiedPort}`, `--user-data-dir=${internalUserDataDir}`],
-      {
-        cwd: appPath,
-        detached: process.platform !== 'win32',
-        env: {
-          ...process.env,
-          ELECTRON_DEV: 'true',
-          ELECTRON_START_URL: 'data:text/html,<title>Internal backend readiness test</title>',
-          EXTERNAL_SERVER: 'false',
-          HEADLAMP_CHECK_FOR_UPDATES: 'false',
-          HEADLAMP_E2E_BACKEND_PATH: backendFixtureExecutable,
-          HEADLAMP_E2E_FIRST_ATTEMPT: firstAttemptPath,
-          HEADLAMP_E2E_NODE: process.execPath,
-          HEADLAMP_E2E_RACE_SERVER: raceServerPath,
-          HEADLAMP_E2E_RACE_SERVER_PID: raceServerPidPath,
-          HEADLAMP_E2E_RACE_SERVER_READY: raceServerReadyPath,
-          HEADLAMP_E2E_RECEIVED_TOKEN: receivedTokenPath,
-          HEADLAMP_MCP_ENABLE: 'false',
-        },
-        shell: process.platform === 'win32',
-        stdio: 'pipe',
-        windowsHide: true,
+    internalApp = await _electron.launch({
+      executablePath: electronPath,
+      args: [
+        '.',
+        `--port=${occupiedPort}`,
+        `--user-data-dir=${internalUserDataDir}`,
+        `--kubeconfig=${kubeconfigPath}`,
+      ],
+      cwd: appPath,
+      env: {
+        ...process.env,
+        HOME: internalUserDataDir,
+        APPDATA: internalUserDataDir,
+        LOCALAPPDATA: internalUserDataDir,
+        XDG_CONFIG_HOME: internalUserDataDir,
+        XDG_DATA_HOME: internalUserDataDir,
+        KUBECONFIG: kubeconfigPath,
+        ELECTRON_DEV: 'true',
+        ELECTRON_START_URL: 'data:text/html,<title>Internal backend readiness test</title>',
+        EXTERNAL_SERVER: 'false',
+        HEADLAMP_CHECK_FOR_UPDATES: 'false',
+        HEADLAMP_E2E_BACKEND_PATH: backendFixtureExecutable,
+        HEADLAMP_E2E_FIRST_ATTEMPT: firstAttemptPath,
+        HEADLAMP_E2E_NODE: process.execPath,
+        HEADLAMP_E2E_RACE_SERVER: raceServerPath,
+        HEADLAMP_E2E_RACE_SERVER_PID: raceServerPidPath,
+        HEADLAMP_E2E_RACE_SERVER_READY: raceServerReadyPath,
+        HEADLAMP_E2E_RECEIVED_TOKEN: receivedTokenPath,
+        HEADLAMP_MCP_ENABLE: 'false',
+      },
+    });
+    electronProcess = internalApp.process();
+    const page = await internalApp.firstWindow();
+    const readyPort = await page.evaluate(() => {
+      interface DesktopBridge {
+        receive(channel: string, callback: (port: number) => void): (() => void) | undefined;
+        send(channel: string): void;
       }
-    );
-    electronProcess = startedElectronProcess;
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error(`Timed out waiting for backend readiness:\n${output.slice(-2000)}`)),
-        20_000
-      );
-      const handleOutput = (data: Buffer) => {
-        output += data.toString();
-        if (output.includes(internalBackendReadyMessage)) {
+      const api = (window as Window & { desktopApi?: DesktopBridge }).desktopApi;
+      if (!api) throw new Error('Desktop preload bridge is unavailable');
+      return new Promise<number>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          unsubscribe?.();
+          reject(new Error('Timed out waiting for backend-port readiness'));
+        }, 20_000);
+        const unsubscribe = api.receive('backend-port', port => {
           clearTimeout(timeout);
-          resolve();
-        }
-      };
-      startedElectronProcess.stdout.on('data', handleOutput);
-      startedElectronProcess.stderr.on('data', handleOutput);
-      startedElectronProcess.once('error', error => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-      startedElectronProcess.once('exit', exitCode => {
-        clearTimeout(timeout);
-        reject(new Error(`Electron exited before backend readiness with code ${exitCode}`));
+          unsubscribe?.();
+          resolve(port);
+        });
+        api.send('request-backend-port');
       });
     });
 
-    expect(output).toContain('selected port became occupied; retrying');
+    expect(readyPort).toBeGreaterThan(occupiedPort);
+    expect(fs.readFileSync(firstAttemptPath, 'utf8')).toBe('complete');
     expect(receivedTokens).toEqual([]);
     expect(fs.existsSync(receivedTokenPath) ? fs.readFileSync(receivedTokenPath, 'utf8') : '').toBe(
       ''
     );
   } finally {
+    if (internalApp && electronProcess?.exitCode === null) {
+      try {
+        await internalApp.evaluate(({ app }) => {
+          setImmediate(() => app.quit());
+        });
+      } catch (error) {
+        if (electronProcess.exitCode === null) {
+          console.warn('Could not request graceful Electron shutdown:', error);
+        }
+      }
+      await waitForExit(electronProcess);
+    }
     if (electronProcess?.pid && electronProcess.exitCode === null) {
       if (process.platform === 'win32') {
         execFileSync('taskkill', ['/pid', String(electronProcess.pid), '/T', '/F']);
       } else {
-        process.kill(-electronProcess.pid, 'SIGTERM');
+        electronProcess.kill('SIGTERM');
       }
       if (!(await waitForExit(electronProcess)) && process.platform !== 'win32') {
-        process.kill(-electronProcess.pid, 'SIGKILL');
+        electronProcess.kill('SIGKILL');
         await waitForExit(electronProcess);
       }
     }

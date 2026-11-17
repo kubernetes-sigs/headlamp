@@ -23,9 +23,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { _electron, ElectronApplication, Page } from 'playwright';
 
-const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const appPath = path.resolve(__dirname, '../..');
-const electronPath = path.join(appPath, 'node_modules', '.bin', electronExecutable);
+const electronPath = require('electron') as string;
 const bundleName = 'cluster-registration-e2e';
 const packageName = '@headlamp-k8s/cluster-registration-e2e';
 const generatedKubeconfig = JSON.stringify({
@@ -138,6 +137,11 @@ test.describe('desktop cluster registration', () => {
       args: ['.', `--port=${port}`, `--user-data-dir=${path.join(manifestDirectory, 'profile')}`],
       env: {
         ...process.env,
+        HOME: manifestDirectory,
+        APPDATA: manifestDirectory,
+        LOCALAPPDATA: manifestDirectory,
+        XDG_CONFIG_HOME: manifestDirectory,
+        XDG_DATA_HOME: manifestDirectory,
         ELECTRON_DEV: 'true',
         ELECTRON_START_URL: 'data:text/html,<html></html>',
         EXTERNAL_SERVER: 'true',

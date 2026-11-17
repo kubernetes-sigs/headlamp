@@ -23,8 +23,7 @@ import os from 'os';
 import path from 'path';
 import { _electron, ElectronApplication, Page } from 'playwright';
 
-const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
-const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
+const electronPath = require('electron') as string;
 const appPath = path.resolve(__dirname, '../../');
 const runCommandPath = path.resolve(
   __dirname,
@@ -85,6 +84,11 @@ test.describe('desktop listener cleanup', () => {
       args: ['.', `--port=${port}`, `--user-data-dir=${userDataDirectory}`],
       env: {
         ...process.env,
+        HOME: userDataDirectory,
+        APPDATA: userDataDirectory,
+        LOCALAPPDATA: userDataDirectory,
+        XDG_CONFIG_HOME: userDataDirectory,
+        XDG_DATA_HOME: userDataDirectory,
         PATH: `${commandDirectory}${path.delimiter}${process.env.PATH || ''}`,
         NODE_ENV: 'development',
         ELECTRON_DEV: 'true',
