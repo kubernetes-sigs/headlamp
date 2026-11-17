@@ -408,11 +408,22 @@ func (c *Connection) reconnectSnapshot() (*WSConnLock, *string) {
 
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
+	c.updateStatusInternal(state, err, false)
+}
+
+// updateStatusIfNotClosed atomically updates the connection state and notifies the client,
+// unless the connection is closed or already in StateClosed.
+// It returns true if the status was updated, or false if the connection is closed.
+func (c *Connection) updateStatusIfNotClosed(state ConnectionState, err error) bool {
+	return c.updateStatusInternal(state, err, true)
+}
+
+func (c *Connection) updateStatusInternal(state ConnectionState, err error, disallowIfStateClosed bool) bool {
 	c.mu.Lock()
-	if c.closed {
+	if c.closed || (disallowIfStateClosed && c.Status.State == StateClosed) {
 		c.mu.Unlock()
 
-		return
+		return false
 	}
 
 	c.Status.State = state
@@ -430,7 +441,7 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 			c.safeClose()
 		}
 
-		return
+		return true
 	}
 
 	writeErr := c.writeStatusLocked()
@@ -448,6 +459,8 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 	if state == StateClosed {
 		c.safeClose()
 	}
+
+	return true
 }
 
 func (c *Connection) writeStatusLocked() error {
@@ -898,11 +911,7 @@ func (m *Multiplexer) handleHeartbeatTick(
 		return nil, false
 	}
 
-	newConn.mu.RLock()
-	clientConn := newConn.Client
-	newConn.mu.RUnlock()
-
-	if clientConn != nil {
+	if clientConn := newConn.activeClient(); clientConn != nil {
 		go m.handleClusterMessages(newConn, clientConn)
 	}
 
@@ -1142,28 +1151,22 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 
 	m.mutex.Lock()
 	for key, conn := range m.connections {
-		conn.mu.RLock()
-		isClient := conn.Client == clientConn
-		conn.mu.RUnlock()
-
-		if isClient {
-			connsToClose = append(connsToClose, conn)
-
-			delete(m.connections, key)
-		}
-	}
-	m.mutex.Unlock()
-
-	for _, conn := range connsToClose {
 		conn.mu.Lock()
 		if conn.Client == clientConn {
 			conn.Client = nil
 			conn.Status.State = StateClosed
 			conn.Status.LastMsg = time.Now()
 			conn.Status.Error = ""
+
+			delete(m.connections, key)
+
+			connsToClose = append(connsToClose, conn)
 		}
 		conn.mu.Unlock()
+	}
+	m.mutex.Unlock()
 
+	for _, conn := range connsToClose {
 		conn.safeClose()
 	}
 }
@@ -1419,7 +1422,7 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 				}
 
 				// Let monitorConnection handle reconnect/backoff on all read errors, including close frames.
-				conn.updateStatus(StateError, err)
+				conn.updateStatusIfNotClosed(StateError, err)
 
 				return
 			}
