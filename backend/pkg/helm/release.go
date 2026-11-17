@@ -781,7 +781,6 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 
 type UpgradeReleaseRequest struct {
 	CommonInstallUpdateRequest
-	Install *bool `json:"install"`
 }
 
 func (req *UpgradeReleaseRequest) Validate() error {
