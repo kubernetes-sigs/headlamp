@@ -77,6 +77,10 @@ export async function startPortForward(
   if (kubeconfig !== null) {
     headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
+  const trimmedPort = port?.trim();
+  const normalizedPort =
+    trimmedPort && /^[0-9]+$/.test(trimmedPort) ? String(Number(trimmedPort)) : port;
+
   const request: PortForwardRequest = {
     namespace,
     pod: podname,
@@ -85,7 +89,7 @@ export async function startPortForward(
     serviceNamespace,
     id: id,
     address,
-    port,
+    port: normalizedPort,
   };
   return clusterFetch('/portforward', {
     method: 'POST',

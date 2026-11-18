@@ -76,7 +76,7 @@ export default function PortForwardStartDialog(props: PortForwardStartDialogProp
     const err = validatePort(trimmedValue);
     setErrorText(err);
     if (err) return;
-    onConfirm(trimmedValue || undefined);
+    onConfirm(trimmedValue ? String(Number(trimmedValue)) : undefined);
   }
 
   function handleKeyDown(event: React.KeyboardEvent) {

@@ -235,15 +235,69 @@ func TestPortForwardRequestValidate(t *testing.T) {
 	err = req.Validate()
 	assert.EqualError(t, err, "pod name is required")
 
-	req.Pod = "pod"
+	req.Pod = "pod.example-1"
 
 	err = req.Validate()
 	assert.EqualError(t, err, "targetPort is required")
 
-	req.TargetPort = "targetPort"
+	req.TargetPort = "8080"
 
 	err = req.Validate()
 	assert.NoError(t, err)
+}
+
+func TestPortForwardRequestValidate_Allowlists(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*portForwardRequest)
+		wantErr string
+	}{
+		{"invalid namespace", func(r *portForwardRequest) { r.Namespace = "../kube-system" }, "invalid namespace"},
+		{"invalid pod", func(r *portForwardRequest) { r.Pod = "pod/../../secrets" }, "invalid pod name"},
+		{
+			"non-numeric targetPort",
+			func(r *portForwardRequest) { r.TargetPort = "targetPort" },
+			"targetPort must be a valid",
+		},
+		{"zero targetPort", func(r *portForwardRequest) { r.TargetPort = "0" }, "targetPort must be a valid"},
+		{"overflow targetPort", func(r *portForwardRequest) { r.TargetPort = "65536" }, "targetPort must be a valid"},
+		{"leading-zero targetPort", func(r *portForwardRequest) { r.TargetPort = "080" }, "targetPort must be a valid"},
+		{"invalid port", func(r *portForwardRequest) { r.Port = "99999" }, "port must be a valid"},
+		{"invalid service", func(r *portForwardRequest) { r.Service = "INVALID_SERVICE" }, "invalid service name"},
+		{"service missing ns", func(r *portForwardRequest) { r.Service = "svc" }, "serviceNamespace is required"},
+		{"invalid serviceNs", func(r *portForwardRequest) { r.ServiceNamespace = "../x" }, "invalid serviceNamespace"},
+		{"invalid id", func(r *portForwardRequest) { r.ID = "bad/id" }, "must be 1-128 characters"},
+		{
+			"id at max length",
+			func(r *portForwardRequest) { r.ID = string(bytes.Repeat([]byte("a"), maxPortForwardIDLength)) },
+			"",
+		},
+		{
+			"id exceeding max length",
+			func(r *portForwardRequest) { r.ID = string(bytes.Repeat([]byte("a"), maxPortForwardIDLength+1)) },
+			"must be 1-128 characters",
+		},
+		{"valid optional fields", func(r *portForwardRequest) {
+			r.Port = "18080"
+			r.Service = "my-service"
+			r.ServiceNamespace = "default"
+			r.ID = "pf-123.abc_def"
+		}, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := portForwardRequest{Namespace: "namespace", Pod: "pod.example-1", TargetPort: "8080"}
+			tt.mutate(&req)
+
+			err := req.Validate()
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
 }
 
 // TestBuildPortForwardURL ensures the upstream port-forward URL preserves the
@@ -432,6 +486,10 @@ func TestStopOrDeletePortForwardRequestValidate(t *testing.T) {
 
 	err := req.Validate()
 	assert.EqualError(t, err, "invalid request, id is required")
+
+	req.ID = "../bad"
+	err = req.Validate()
+	assert.ErrorContains(t, err, "must be 1-128 characters matching [A-Za-z0-9._-]")
 
 	req.ID = "id"
 

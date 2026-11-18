@@ -1189,6 +1189,25 @@ describe('apiProxy', () => {
         );
         expect(response).toEqual(mockStartResponse);
       });
+
+      it('Normalizes leading-zero port numbers before sending', async () => {
+        await apiProxy.startPortForward(
+          clusterName,
+          namespace,
+          podName,
+          containerPort,
+          service,
+          serviceNamespace,
+          '08080',
+          baseApiUrl,
+          mockId
+        );
+
+        const fetchMock = global.fetch as MockedFunction<typeof fetch>;
+        const [, init] = fetchMock.mock.calls[0];
+        const sentBody = JSON.parse(String(init?.body));
+        expect(sentBody.port).toBe('8080');
+      });
     });
 
     describe('stopOrDeletePortForward', () => {
