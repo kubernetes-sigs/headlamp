@@ -182,11 +182,14 @@ Kubernetes objects are stored, and never responses that set cookies, send
 
 ## Port-forward authentication and ownership
 
-Every port-forward create/list/get/stop/delete request authenticates to Kubernetes
-using `authentication.k8s.io/v1` SelfSubjectReview. The API server must support
-this endpoint and permit the authenticated user to create self-subject reviews.
-An unavailable/unsupported review endpoint fails closed rather than trusting
-unverified JWT claims or arbitrary nonempty bearer text.
+Port-forwarding requires **Kubernetes 1.28+**: every create/list/get/stop/delete
+request authenticates using `authentication.k8s.io/v1` SelfSubjectReview,
+[stable since Kubernetes 1.28](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#self-subject-review).
+The API server must permit the authenticated user to create self-subject reviews.
+On older clusters, the unsupported v1 endpoint causes port-forward requests to
+return HTTP 503 (Service Unavailable), rather than forwarding without verified
+ownership. An unavailable review endpoint also fails closed; unverified JWT
+claims or arbitrary nonempty bearer text are never trusted.
 
 An Authorization bearer token takes precedence over the cluster cookie. Supplied
 user tokens replace stored authentication methods for the request, so invalid
