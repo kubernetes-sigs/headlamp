@@ -4,6 +4,7 @@
   "Cluster selector": "クラスターセレクター",
   "Namespace": "ネームスペース",
   "Git Commit": "Git コミット",
+  "Audit Logs": "",
   "Memory": "メモリ",
   "CPU": "CPU",
   "Pods": "ポッド",

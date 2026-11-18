@@ -144,13 +144,13 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
 
   await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
 
-  const namespaceNode = page.locator(`[data-id="${namespace.metadata.uid}"]`);
+  const namespaceNode = page.locator(`.react-flow__node[data-id*="${namespace.metadata.uid}"]`);
   await expect(namespaceNode).toBeVisible({ timeout: 30_000 });
   await namespaceNode.getByRole('button').click();
 
   const assertExpandedTopology = async () => {
-    const parent = page.locator(`.react-flow__node.parent[data-id="${namespace.metadata.uid}"]`);
-    const children = page.locator(`.react-flow__node[data-id^="resize-test-pod-"]:not(.parent)`);
+    const parent = page.locator(`.react-flow__node.parent[data-id*="${namespace.metadata.uid}"]`);
+    const children = page.locator(`.react-flow__node[data-id*="resize-test-pod-"]:not(.parent)`);
 
     await expect(parent).toHaveCount(1);
     await expect(children).toHaveCount(500);
