@@ -174,12 +174,11 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 	var kubeconfigReq KubeconfigRequest
 
 	// Decode the JSON request body into the kubeconfigReq variable
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&kubeconfigReq); err != nil {
+	if err := decodeRequestBody(w, r, &kubeconfigReq); err != nil {
 		// Handle the error, return a bad request response
 		logger.Log(logger.LevelError, nil, err, "decoding config")
 
-		http.Error(w, "Invalid JSON request body", http.StatusBadRequest)
+		writeDecodeError(w, err, "Invalid JSON request body")
 
 		return
 	}

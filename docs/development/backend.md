@@ -111,6 +111,17 @@ Imports and deletions lock the same recorded path, including symlinks.
 File updates precede in-memory removal, so failures keep the stored cluster.
 Memory-only deletion does not require file-mutation permission.
 
+## JSON request body limits
+
+Cluster add and rename, node drain, token-setting, and kubeconfig-parsing
+endpoints accept one JSON value with a maximum body size of 1 MiB, including
+trailing whitespace. Larger bodies return `413 Request Entity Too Large`;
+malformed JSON or additional JSON values return `400 Bad Request`.
+Unknown fields remain accepted for compatibility.
+
+The limit is local to these endpoints, not global middleware. Kubernetes
+API proxy requests are unchanged and can still forward larger manifests.
+
 ## Node drain authentication
 
 The frontend submits node drains and polls their status through
