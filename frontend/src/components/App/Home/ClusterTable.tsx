@@ -17,18 +17,32 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   MRT_ColumnFiltersState,
+  MRT_ExpandedState,
   MRT_SortingState,
+  MRT_Updater,
   MRT_VisibilityState,
 } from 'material-react-table';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
 import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
+import {
+  ClusterTags,
+  collectClusterTagOptions,
+  formatClusterTag,
+  matchesClusterTagFilters,
+  parseClusterTagFilter,
+} from '../../../helpers/clusterTags';
 import { isElectron } from '../../../helpers/isElectron';
 import { setRecentCluster } from '../../../helpers/recentClusters';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
@@ -57,6 +71,7 @@ import { canSelectCluster } from './clusterStatus';
 import { CONNECT_ON_CLUSTER_LINK, MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 import RegisteredClusterEmptyState from './RegisteredClusterEmptyState';
+import { useClusterTags } from './useClusterTags';
 
 /**
  * ClusterStatus component displays the status of a cluster.
@@ -180,6 +195,58 @@ export interface ClusterTableProps {
  * ClusterTable component displays a table of clusters with their status, origin, and version.
  */
 const CLUSTER_TABLE_ID = 'home-clusters';
+/** Hidden column whose value is the cluster's value for the tag key being grouped by. */
+const TAG_GROUP_COLUMN_ID = 'tagGroup';
+/** Group value of clusters without the grouped label; not a valid label value, so it can't clash. */
+const UNGROUPED_VALUE = '<ungrouped>';
+
+/** The id MRT gives the row heading a group. */
+function getGroupRowId(groupValue: string) {
+  return `${TAG_GROUP_COLUMN_ID}:${groupValue}`;
+}
+
+/** Orders group values alphabetically, with the ungrouped clusters last. */
+function compareGroupValues(a: string, b: string) {
+  if (a === b) {
+    return 0;
+  }
+  if (a === UNGROUPED_VALUE) {
+    return 1;
+  }
+  if (b === UNGROUPED_VALUE) {
+    return -1;
+  }
+  return a.localeCompare(b);
+}
+
+/** Tags shown as chips; clicking one filters the table by that label. */
+function ClusterTagChips({
+  tags,
+  onSelect,
+}: {
+  tags: ClusterTags;
+  onSelect: (label: string) => void;
+}) {
+  const { t } = useTranslation(['translation']);
+  const texts = Object.entries(tags)
+    .map(([key, value]) => formatClusterTag(key, value))
+    .sort((a, b) => a.localeCompare(b));
+
+  return (
+    <Box display="flex" flexWrap="wrap" gap={0.5}>
+      {texts.map(text => (
+        <Chip
+          key={text}
+          label={text}
+          size="small"
+          variant="outlined"
+          onClick={() => onSelect(text)}
+          aria-label={t('translation|Filter by {{ label }}', { label: text })}
+        />
+      ))}
+    </Box>
+  );
+}
 
 export default function ClusterTable({
   customNameClusters,
@@ -242,6 +309,124 @@ export default function ClusterTable({
       setColumnFilters(old => (typeof updater === 'function' ? updater(old) : updater));
     },
     [setColumnFilters]
+  );
+
+  const clusterNames = useMemo(
+    () => (customNameClusters || []).map(cluster => cluster.name),
+    [customNameClusters]
+  );
+  const tagsByCluster = useClusterTags(clusterNames, customNameClusters);
+  const tagOptions = useMemo(() => collectClusterTagOptions(tagsByCluster), [tagsByCluster]);
+  const hasTags = tagOptions.keys.length > 0;
+
+  const [storedGroupBy, setStoredGroupBy] = useLocalStorageState<string>(
+    `table_group_by.${CLUSTER_TABLE_ID}`,
+    ''
+  );
+  const [groupMenuAnchor, setGroupMenuAnchor] = useState<HTMLElement | null>(null);
+  const groupButtonId = useId();
+  const groupMenuId = `${groupButtonId}-menu`;
+  const [collapsedGroups, setCollapsedGroups] = useLocalStorageState<Record<string, string[]>>(
+    `table_collapsed_groups.${CLUSTER_TABLE_ID}`,
+    {}
+  );
+
+  const groupBy = tagOptions.keys.includes(storedGroupBy) ? storedGroupBy : '';
+  // The Tags column is hidden by default without tags, so its standard column filter
+  // must not keep hiding clusters out of sight either.
+  const effectiveColumnFilters = useMemo(() => {
+    const filters = Array.isArray(columnFilters) ? columnFilters : [];
+    return hasTags ? filters : filters.filter(filter => filter.id !== 'tags');
+  }, [columnFilters, hasTags]);
+  const hasLabelFilter = effectiveColumnFilters.some(
+    filter => filter.id === 'tags' && !!filter.value
+  );
+  const exactLabelSelector = useMemo(() => {
+    const value = effectiveColumnFilters.find(filter => filter.id === 'tags')?.value;
+    return typeof value === 'string' ? parseClusterTagFilter(value) : null;
+  }, [effectiveColumnFilters]);
+  const filterByExactLabelSelector = useCallback(
+    (cluster: Cluster) =>
+      !exactLabelSelector ||
+      matchesClusterTagFilters(tagsByCluster[cluster.name] ?? {}, [exactLabelSelector]),
+    [exactLabelSelector, tagsByCluster]
+  );
+
+  const addLabelFilter = useCallback(
+    (text: string) =>
+      handleColumnFiltersChange(old => {
+        const current = Array.isArray(old) ? old : [];
+        const currentLabelFilter = current.find(filter => filter.id === 'tags');
+        if (currentLabelFilter?.value === text) {
+          return current.filter(filter => filter.id !== 'tags');
+        }
+        return [...current.filter(filter => filter.id !== 'tags'), { id: 'tags', value: text }];
+      }),
+    [handleColumnFiltersChange]
+  );
+
+  const getGroupValue = useCallback(
+    (cluster: Cluster) => {
+      const tags = tagsByCluster[cluster.name] ?? {};
+      return Object.prototype.hasOwnProperty.call(tags, groupBy) ? tags[groupBy] : UNGROUPED_VALUE;
+    },
+    [tagsByCluster, groupBy]
+  );
+
+  // Groups are listed in the order they first appear in the data, so sort it by group.
+  // The table caches cell values per row and rebuilds rows only when the data changes,
+  // so the data must also change with the status, warnings, versions and tags that the
+  // cells show, or they would keep showing what they first loaded with.
+  const tableData = useMemo(() => {
+    const list = Object.values(customNameClusters || []);
+    if (!groupBy) {
+      return list;
+    }
+    return [...list].sort((a, b) => compareGroupValues(getGroupValue(a), getGroupValue(b)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    customNameClusters,
+    groupBy,
+    getGroupValue,
+    versions,
+    errors,
+    warningLabels,
+    connectedClusterNames,
+    tagsByCluster,
+  ]);
+
+  const groupValues = useMemo(
+    () => (groupBy ? [...new Set(tableData.map(getGroupValue))] : []),
+    [groupBy, tableData, getGroupValue]
+  );
+
+  const collapsedForGroupBy = useMemo(() => {
+    const collapsed = groupBy && collapsedGroups ? collapsedGroups[groupBy] : undefined;
+    return Array.isArray(collapsed) ? collapsed : [];
+  }, [collapsedGroups, groupBy]);
+
+  const expanded = useMemo<Record<string, boolean>>(
+    () =>
+      Object.fromEntries(
+        groupValues.map(value => [getGroupRowId(value), !collapsedForGroupBy.includes(value)])
+      ),
+    [groupValues, collapsedForGroupBy]
+  );
+
+  const handleExpandedChange = useCallback(
+    (updater: MRT_Updater<MRT_ExpandedState>) => {
+      const next = typeof updater === 'function' ? updater(expanded) : updater;
+      const isExpanded = (value: string) =>
+        next === true || !!(next as Record<string, boolean>)[getGroupRowId(value)];
+      setCollapsedGroups(old => {
+        const previous = old && Array.isArray(old[groupBy]) ? old[groupBy] : [];
+        // Keep collapsed groups that are filtered out right now.
+        const hidden = previous.filter(value => !groupValues.includes(value));
+        const collapsed = [...hidden, ...groupValues.filter(value => !isExpanded(value))];
+        return { ...(old || {}), [groupBy]: collapsed };
+      });
+    },
+    [expanded, groupBy, groupValues, setCollapsedGroups]
   );
 
   /**
@@ -308,7 +493,7 @@ export default function ClusterTable({
     return <RegisteredClusterEmptyState defaultContent={defaultContent} />;
   }
 
-  return (
+  const table = (
     <Table
       columns={[
         {
@@ -385,6 +570,21 @@ export default function ClusterTable({
             isClusterConnected(name) ? versions[name]?.gitVersion || '⋯' : '',
         },
         {
+          id: 'tags',
+          header: t('translation|Tags'),
+          gridTemplate: 1.5,
+          responsivePriority: -1,
+          enableHiding: !hasLabelFilter,
+          accessorFn: cluster =>
+            Object.entries(tagsByCluster[cluster?.name] ?? {})
+              .map(([key, value]) => formatClusterTag(key, value))
+              .sort((a, b) => a.localeCompare(b))
+              .join(', '),
+          Cell: ({ row: { original } }) => (
+            <ClusterTagChips tags={tagsByCluster[original.name] ?? {}} onSelect={addLabelFilter} />
+          ),
+        },
+        {
           id: 'actions',
           header: t('Actions'),
           gridTemplate: 'min-content',
@@ -398,8 +598,94 @@ export default function ClusterTable({
           enableSorting: false,
           enableColumnFilter: false,
         },
+        ...(groupBy
+          ? [
+              {
+                id: TAG_GROUP_COLUMN_ID,
+                header: groupBy,
+                accessorFn: getGroupValue,
+                enableHiding: false,
+                visibleInShowHideMenu: false,
+                enableSorting: false,
+                enableColumnFilter: false,
+                enableGlobalFilter: false,
+                GroupedCell: ({ row }: { row: { groupingValue?: unknown } }) =>
+                  row.groupingValue === UNGROUPED_VALUE
+                    ? t('translation|Ungrouped')
+                    : formatClusterTag(groupBy, String(row.groupingValue)),
+              },
+            ]
+          : []),
       ]}
-      data={clustersList}
+      data={tableData}
+      // Selection is keyed by row id, so it must follow the cluster rather than its
+      // position, which changes when filtering or grouping. The prefix keeps ids apart
+      // from group row ids and from inherited object properties such as "constructor".
+      getRowId={cluster => `cluster:${cluster.name}`}
+      filterFunction={filterByExactLabelSelector}
+      enableGrouping={!!groupBy}
+      renderAdditionalToolbarActions={() =>
+        hasTags ? (
+          <>
+            <Tooltip
+              title={
+                groupBy
+                  ? `${t('translation|Group by tag')}: ${groupBy}`
+                  : t('translation|Group by tag')
+              }
+            >
+              <IconButton
+                id={groupButtonId}
+                aria-label={t('translation|Group by tag')}
+                aria-haspopup="menu"
+                aria-expanded={!!groupMenuAnchor || undefined}
+                aria-controls={groupMenuAnchor ? groupMenuId : undefined}
+                aria-pressed={!!groupBy}
+                color={groupBy ? 'primary' : 'default'}
+                onClick={event => setGroupMenuAnchor(event.currentTarget)}
+              >
+                <Icon icon="mdi:format-list-group" width={24} />
+              </IconButton>
+            </Tooltip>
+            <Menu
+              id={groupMenuId}
+              anchorEl={groupMenuAnchor}
+              open={!!groupMenuAnchor}
+              onClose={() => setGroupMenuAnchor(null)}
+              MenuListProps={{ 'aria-labelledby': groupButtonId }}
+              disableScrollLock
+            >
+              <MenuItem
+                role="menuitemradio"
+                aria-checked={!groupBy}
+                selected={!groupBy}
+                onClick={() => {
+                  setStoredGroupBy('');
+                  setGroupMenuAnchor(null);
+                }}
+              >
+                {t('translation|None')}
+              </MenuItem>
+              {tagOptions.keys.map(key => (
+                <MenuItem
+                  key={key}
+                  role="menuitemradio"
+                  aria-checked={groupBy === key}
+                  selected={groupBy === key}
+                  onClick={() => {
+                    setStoredGroupBy(key);
+                    setGroupMenuAnchor(null);
+                  }}
+                >
+                  {key}
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        ) : null
+      }
+      groupedColumnMode="remove"
+      onExpandedChange={handleExpandedChange}
       enableRowSelection={
         MULTI_HOME_ENABLED
           ? row => {
@@ -409,18 +695,28 @@ export default function ClusterTable({
           : false
       }
       state={{
-        columnVisibility,
+        columnVisibility: {
+          // Show the tags column by default once some cluster has tags.
+          tags: hasTags,
+          ...columnVisibility,
+          ...(hasLabelFilter ? { tags: true } : {}),
+          ...(groupBy ? { [TAG_GROUP_COLUMN_ID]: false } : {}),
+        },
         sorting,
-        columnFilters,
+        columnFilters: effectiveColumnFilters,
+        ...(groupBy ? { grouping: [TAG_GROUP_COLUMN_ID], expanded } : {}),
       }}
       onColumnVisibilityChange={handleColumnVisibilityChange}
       onSortingChange={handleSortingChange}
       onColumnFiltersChange={handleColumnFiltersChange}
-      muiToolbarAlertBannerProps={{
+      muiToolbarAlertBannerProps={({ table }) => ({
         sx: theme => ({
           background: theme.palette.background.muted,
+          // MRT also opens the banner while grouping, but it only holds the action for the
+          // selected clusters, so keep it hidden until some are selected.
+          ...(table.getFilteredSelectedRowModel().rows.length === 0 ? { display: 'none' } : {}),
         }),
-      }}
+      })}
       renderToolbarAlertBannerContent={({ table }) => (
         <Button
           variant="contained"
@@ -429,7 +725,7 @@ export default function ClusterTable({
           }}
           onClick={() => {
             const selectedClusterNames = table
-              .getSelectedRowModel()
+              .getFilteredSelectedRowModel()
               .rows.map(it => it.original.name);
             // Opening clusters counts as using them; record as recently-used.
             selectedClusterNames.forEach(name => setRecentCluster(name));
@@ -445,4 +741,6 @@ export default function ClusterTable({
       )}
     />
   );
+
+  return table;
 }

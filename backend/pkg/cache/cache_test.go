@@ -18,6 +18,7 @@ package cache_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -77,6 +78,37 @@ func TestCache(t *testing.T) {
 	// create cache
 	ch := cache.New[interface{}]()
 	testCache(ch, t)
+}
+
+func TestCacheConditionalUpdate(t *testing.T) {
+	ch := cache.New[string]()
+	ctx := t.Context()
+	matches := func(value string) bool { return value == "original" }
+	require.ErrorIs(t, ch.UpdateIf(ctx, "key", "updated", matches), cache.ErrNotFound)
+	require.NoError(t, ch.Set(ctx, "key", "original"))
+	require.NoError(t, ch.UpdateIf(ctx, "key", "updated", matches))
+	require.Error(t, ch.UpdateIf(ctx, "key", "stale", matches))
+	value, err := ch.Get(ctx, "key")
+	require.NoError(t, err)
+	require.Equal(t, "updated", value)
+	require.NoError(t, ch.Delete(ctx, "key"))
+	require.ErrorIs(t, ch.UpdateIf(ctx, "key", "stale", matches), cache.ErrNotFound)
+}
+
+func TestCacheConditionalUpdatePreservesExpiry(t *testing.T) {
+	ch := cache.New[string]()
+	ctx := t.Context()
+	require.NoError(t, ch.SetWithTTL(ctx, "key", "original", time.Second))
+	require.NoError(t, ch.UpdateIf(ctx, "key", "updated", func(value string) bool {
+		return value == "original"
+	}))
+	require.Eventually(t, func() bool {
+		_, err := ch.Get(ctx, "key")
+		return errors.Is(err, cache.ErrNotFound)
+	}, 3*time.Second, 10*time.Millisecond)
+	require.ErrorIs(t, ch.UpdateIf(ctx, "key", "stale", func(string) bool {
+		return true
+	}), cache.ErrNotFound)
 }
 
 func TestCacheGetAll(t *testing.T) {

@@ -73,6 +73,26 @@ func TestContextStore(t *testing.T) {
 	require.Equal(t, cache.ErrNotFound, err)
 }
 
+func TestContextStoreConditionalUpdate(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	original := &kubeconfig.Context{Name: "test", ClusterID: "file+test"}
+	require.NoError(t, store.AddContext(original))
+	updated := original.Copy()
+	require.NoError(t, store.UpdateContextIfCurrent(original, updated))
+	require.Error(t, store.UpdateContextIfCurrent(original, original.Copy()))
+
+	replacement := &kubeconfig.Context{Name: "test", ClusterID: "other+test"}
+	require.NoError(t, store.AddContext(replacement))
+	require.Error(t, store.UpdateContextIfCurrent(updated, original.Copy()))
+	current, err := store.GetContext("test")
+	require.NoError(t, err)
+	require.Same(t, replacement, current)
+	require.NoError(t, store.RemoveContext("test"))
+	require.ErrorIs(t, store.UpdateContextIfCurrent(replacement, original.Copy()), cache.ErrNotFound)
+	_, err = store.GetContext("test")
+	require.ErrorIs(t, err, cache.ErrNotFound)
+}
+
 func TestContextStoreListeners(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 
