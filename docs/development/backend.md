@@ -147,6 +147,10 @@ object version. This recovery requires LIST permission, and failures are surface
 through the query error. All observers adopt the fresh cursor, including when the
 fetching observer unmounts. Deleted objects report 404 while the watch remains
 active to observe recreation.
+New browser multiplexer sessions reconcile watches that have already applied
+events before resubscribing, rather than replaying their pinned opening queries
+into newer cached objects. This uses the same snapshot/error path on both v2
+and legacy servers, without changing routing identities or the wire protocol.
 The error's `retryReady` acknowledgement handles errors delivered after the
 connected status or normal completion without retrying against a stale
 pre-reconnect status. This retries only an outstanding rejected watch request.
@@ -189,8 +193,9 @@ connections send requests unpaced without request IDs or waiting for ACKs; STATU
 ERROR, DATA, and COMPLETE are never processing credits. COMPLETE is a watch-batch
 boundary, not subscription termination.
 For v2, one per-socket 60-second missing-ACK deadline reports an explicit error
-and closes the socket instead of silently abandoning the queue; this does not
-create a timer per subscription. The browser sends at most one unacknowledged
+and closes the socket with private code 4000, triggering bounded watch-only
+recovery and notifying finite-stream listeners. This does not create a timer
+per subscription. The browser sends at most one unacknowledged
 list-watch request per socket and keeps at most one queued request per active watch,
 so distinct-subscription bursts do not exhaust the backend's 32-slot queue.
 Concurrent socket opens share one promise rather than per-subscriber polling timers.

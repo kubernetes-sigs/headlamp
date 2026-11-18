@@ -419,9 +419,19 @@ describe('WebSocket Multiplexer', () => {
       expect((await receiveAckedWatch(mockServer)).path).toBe('/second');
     });
 
-    it('bounds waiting for processing confirmation from a negotiated v2 backend', async () => {
+    it('bounds missing ACKs with watch-only recovery and finite-stream error notification', async () => {
       vi.useFakeTimers();
       try {
+        const finiteError = vi.fn();
+        const finite = WebSocketManager.subscribe(
+          clusterName,
+          '/exec',
+          'command=probe',
+          vi.fn(),
+          finiteError
+        );
+        await vi.advanceTimersByTimeAsync(20);
+        await finite;
         const subscription = WebSocketManager.subscribe(
           clusterName,
           '/first',
@@ -432,13 +442,18 @@ describe('WebSocket Multiplexer', () => {
         );
         await vi.advanceTimersByTimeAsync(20);
         await subscription;
+        const original = WebSocketManager.socketMultiplexer;
         await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(20);
         expect(onError).toHaveBeenCalledWith(
           expect.objectContaining({
             message: expect.stringContaining('timed out'),
           })
         );
-        expect(WebSocketManager.socketMultiplexer).toBeNull();
+        expect(finiteError).toHaveBeenCalledOnce();
+        expect(WebSocketManager.socketMultiplexer).not.toBe(original);
+        expect(WebSocketManager.socketMultiplexer?.readyState).toBe(WebSocket.OPEN);
+        expect(WebSocketManager.inFlightWatchRequest?.message.path).toBe('/first');
       } finally {
         vi.useRealTimers();
       }
@@ -827,6 +842,69 @@ describe('WebSocket Multiplexer', () => {
       mockServer.send(JSON.stringify({ ...recovered, type: 'ACK' }));
       expect(WebSocketManager.inFlightWatchRequest).toBeNull();
       expect(WebSocketManager.overloadRecoveries).toBe(0);
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it('reconciles an updated watch before replaying its pinned route on a new socket', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=1';
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
+      await receiveAckedWatch(mockServer);
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          type: 'DATA',
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { resourceVersion: '2' } },
+          }),
+        })
+      );
+      await waitFor(() => expect(onMessage).toHaveBeenCalledOnce());
+      const original = WebSocketManager.socketMultiplexer!;
+      overloadSocket(original);
+      await waitFor(() =>
+        expect(onMessage).toHaveBeenLastCalledWith({
+          type: 'ERROR',
+          object: expect.objectContaining({ code: 410 }),
+        })
+      );
+      await waitFor(() =>
+        expect(WebSocketManager.socketMultiplexer?.readyState).toBe(WebSocket.OPEN)
+      );
+      expect(WebSocketManager.inFlightWatchRequest).toBeNull();
+      await WebSocketManager.subscribe(clusterName, path, query, vi.fn(), onError, {
+        retryWatch: true,
+      });
+      expect(WebSocketManager.inFlightWatchRequest).toBeNull();
+      const fresh = vi.fn();
+      await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        'watch=1&resourceVersion=3',
+        fresh,
+        onError,
+        {
+          retryWatch: true,
+        }
+      );
+      const request = await receiveAckedWatch(mockServer);
+      expect(request.query).toBe('watch=1&resourceVersion=3');
+      mockServer.send(
+        JSON.stringify({
+          ...request,
+          type: 'DATA',
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { resourceVersion: '4' } },
+          }),
+        })
+      );
+      await waitFor(() => expect(fresh).toHaveBeenCalledOnce());
       expect(onError).not.toHaveBeenCalled();
     });
 

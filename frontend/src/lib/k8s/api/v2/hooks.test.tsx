@@ -17,7 +17,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockedFunction,
+  onTestFinished,
+  vi,
+} from 'vitest';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import { kubeObjectQueryKey, useEndpoints, useKubeObject } from './hooks';
@@ -299,6 +308,33 @@ const MockPod = class {
   };
   constructor(public jsonData: any, public cluster?: string) {}
 } as any;
+
+const watchPod = (version: string) => ({
+  kind: 'Pod',
+  apiVersion: 'v1',
+  metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: version },
+});
+
+function renderWatchedPod(
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
+  const hook = renderHook(
+    () =>
+      useKubeObject({
+        kubeObjectClass: MockPod,
+        name: 'my-pod',
+        namespace: 'my-ns',
+        cluster: 'test',
+      }),
+    { wrapper: createWrapper(client) }
+  );
+  onTestFinished(async () => {
+    hook.unmount();
+    await client.cancelQueries();
+    client.clear();
+  });
+  return { ...hook, client, watch: () => mockUseWebSocket.mock.calls.at(-1)![0] };
+}
 
 describe('useKubeObject watch wiring', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -629,6 +665,114 @@ describe('useKubeObject watch wiring', () => {
     second.unmount();
     await client.cancelQueries();
     client.clear();
+  });
+
+  it('accepts an event before callback replacement after an unchanged live snapshot', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+    const hook = renderWatchedPod();
+    await waitFor(() => expect(hook.result.current.data).not.toBeNull());
+    const installedCallback = hook.watch().onMessage;
+    await act(async () => {
+      await hook.client.invalidateQueries({ queryKey: ['object'] });
+      installedCallback({ type: 'MODIFIED', object: watchPod('2') });
+    });
+    await waitFor(() =>
+      expect(hook.result.current.data?.jsonData.metadata.resourceVersion).toBe('2')
+    );
+    expect(hook.watch().url()).toContain('resourceVersion=1');
+  });
+
+  it('processes consecutive legacy updates, deletion and expiry before a render', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+    const hook = renderWatchedPod();
+    await waitFor(() => expect(mockUseWebSockets.mock.calls.at(-1)![0].enabled).toBe(true));
+    const callback = mockUseWebSockets.mock.calls.at(-1)![0].connections[0].onMessage;
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        kind: 'PodList',
+        apiVersion: 'v1',
+        items: [],
+        metadata: { resourceVersion: '20' },
+      })
+    );
+    act(() => {
+      callback({ type: 'MODIFIED', object: watchPod('2') });
+      callback({ type: 'DELETED', object: watchPod('3') });
+      callback({ type: 'ERROR', object: { code: 410 } });
+    });
+    await waitFor(() => {
+      expect(hook.result.current.error?.status).toBe(404);
+      expect(mockUseWebSockets.mock.calls.at(-1)![0].connections[0].url).toContain(
+        'resourceVersion=20'
+      );
+    });
+    expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the synthesized deletion error stable across parent renders', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+    const hook = renderWatchedPod();
+    await waitFor(() => expect(hook.watch().enabled).toBe(true));
+    act(() => hook.watch().onMessage({ type: 'DELETED', object: watchPod('2') }));
+    await waitFor(() => expect(hook.result.current.error?.status).toBe(404));
+    const missingError = hook.result.current.error;
+    hook.rerender();
+    expect(hook.result.current.error).toBe(missingError);
+  });
+
+  it('restores object type metadata omitted from a recovery list item', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+    const hook = renderWatchedPod();
+    await waitFor(() => expect(hook.watch().enabled).toBe(true));
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        kind: 'PodList',
+        apiVersion: 'v1',
+        metadata: { resourceVersion: '20' },
+        items: [{ metadata: watchPod('1').metadata }],
+      })
+    );
+    act(() => hook.watch().onMessage({ type: 'ERROR', object: { code: 410 } }));
+    await waitFor(() => expect(hook.watch().url()).toContain('resourceVersion=20'));
+    expect(hook.result.current.data?.jsonData.kind).toBe('Pod');
+    expect(hook.result.current.data?.jsonData.apiVersion).toBe('v1');
+  });
+
+  it('reconciles cached-null remounts and continues watching for recreation', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+    const first = renderWatchedPod();
+    await waitFor(() => expect(first.watch().enabled).toBe(true));
+    act(() => first.watch().onMessage({ type: 'DELETED', object: watchPod('2') }));
+    await waitFor(() => expect(first.result.current.error?.status).toBe(404));
+    first.unmount();
+    await waitFor(() =>
+      expect(first.client.getQueryCache().findAll({ queryKey: ['object-watch'] })).toHaveLength(0)
+    );
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        kind: 'PodList',
+        apiVersion: 'v1',
+        items: [],
+        metadata: { resourceVersion: '20' },
+      })
+    );
+    const second = renderWatchedPod(first.client);
+    await waitFor(() => {
+      expect(second.result.current.error?.status).toBe(404);
+      expect(second.watch().enabled).toBe(true);
+      expect(second.watch().url()).toContain('resourceVersion=20');
+    });
+    act(() => second.watch().onMessage({ type: 'ADDED', object: watchPod('21') }));
+    await waitFor(() =>
+      expect(second.result.current.data?.jsonData.metadata.resourceVersion).toBe('21')
+    );
+    expect(second.result.current.error).toBeNull();
+    expect(mockClusterFetch).toHaveBeenCalledTimes(2);
   });
 
   it('seeds a stale cached query with explicitly provided initial data', async () => {

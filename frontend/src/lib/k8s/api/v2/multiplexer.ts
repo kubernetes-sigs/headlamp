@@ -22,6 +22,7 @@ import { getBaseWsUrl } from './webSocket';
 const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
 const MULTIPLEXER_WATCH_PROTOCOL = 'headlamp.multiplexer.v2.k8s.io';
 const WATCH_REQUEST_TIMEOUT = 60_000;
+const WATCH_ACK_TIMEOUT_CLOSE_CODE = 4000;
 
 /**
  * WebSocket manager to handle connections across the application.
@@ -53,7 +54,15 @@ export const WebSocketManager = {
   /** Map of active WebSocket subscriptions with their details */
   activeSubscriptions: new Map<
     string,
-    { clusterId: string; path: string; query: string; userId: string; generation: number }
+    {
+      clusterId: string;
+      path: string;
+      query: string;
+      userId: string;
+      generation: number;
+      resourceVersion?: string;
+      needsSnapshot?: boolean;
+    }
   >(),
 
   /** Only known watch callers opt in; arbitrary/exec subscriptions never retry here. */
@@ -178,6 +187,29 @@ export const WebSocketManager = {
     this.activeSubscriptions.forEach((subscription, key) => {
       if (!this.retryableWatches.has(key) || !this.listeners.has(key)) return;
       const { clusterId, path, query, userId } = subscription;
+      if (
+        subscription.resourceVersion &&
+        subscription.resourceVersion !== new URLSearchParams(query).get('resourceVersion')
+      ) {
+        subscription.needsSnapshot = true;
+        // A new backend session has no resume cursor. Reconcile before it can
+        // replay the pinned opening query into an already updated cache.
+        this.handleWebSocketMessage(
+          new MessageEvent('message', {
+            data: JSON.stringify({
+              clusterId,
+              path,
+              query,
+              type: 'DATA',
+              data: JSON.stringify({
+                type: 'ERROR',
+                object: { kind: 'Status', apiVersion: 'v1', metadata: {}, code: 410 },
+              }),
+            }),
+          })
+        );
+        return;
+      }
       const requestMsg: WebSocketMessage = {
         clusterId,
         path,
@@ -365,8 +397,12 @@ export const WebSocketManager = {
 
     // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
-    if (event?.code === 1013) {
-      const error = new Error('Multiplexer overloaded; watch recovery is required');
+    if (event?.code === 1013 || event?.code === WATCH_ACK_TIMEOUT_CLOSE_CODE) {
+      const error = new Error(
+        event.code === WATCH_ACK_TIMEOUT_CLOSE_CODE
+          ? 'Multiplexer acknowledgement timed out; watch recovery is required'
+          : 'Multiplexer overloaded; watch recovery is required'
+      );
       console.error(error.message);
       this.notifyCloseErrors(
         [...this.errorListeners.keys()].filter(key => !this.retryableWatches.has(key)),
@@ -518,12 +554,27 @@ export const WebSocketManager = {
       if (update && typeof update === 'object') {
         const listeners = this.listeners.get(key);
         if (listeners) {
+          let delivered = false;
           for (const listener of listeners) {
             try {
               listener(update);
+              delivered = true;
             } catch (err) {
               console.error('Failed to process WebSocket message:', err);
             }
+          }
+          const resourceVersion =
+            update.object?.metadata?.resourceVersion ?? update.metadata?.resourceVersion;
+          const subscription = this.activeSubscriptions.get(key);
+          if (
+            delivered &&
+            subscription &&
+            this.retryableWatches.has(key) &&
+            update.type !== 'ERROR' &&
+            typeof resourceVersion === 'string' &&
+            resourceVersion
+          ) {
+            subscription.resourceVersion = resourceVersion;
           }
         }
       }
@@ -580,6 +631,7 @@ export const WebSocketManager = {
   },
 
   sendSubscriptionRequest(key: string, socket: WebSocket, request: WebSocketMessage): void {
+    if (this.activeSubscriptions.get(key)?.needsSnapshot) return;
     if (!this.retryableWatches.has(key) || socket.protocol !== MULTIPLEXER_WATCH_PROTOCOL) {
       socket.send(JSON.stringify(request));
       return;
@@ -621,7 +673,7 @@ export const WebSocketManager = {
         );
         console.error(error.message);
         this.notifyCloseErrors(this.retryableWatches, error);
-        socket.close();
+        socket.close(WATCH_ACK_TIMEOUT_CLOSE_CODE, 'processing confirmation timed out');
       }, WATCH_REQUEST_TIMEOUT);
       socket.send(JSON.stringify(pacedRequest));
       return;

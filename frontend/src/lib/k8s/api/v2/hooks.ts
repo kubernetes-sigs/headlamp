@@ -173,7 +173,9 @@ export function useKubeObject<K extends KubeObject>({
     (resourceVersion: string | undefined, missing = false) => {
       client.setQueryData<ObjectWatchState>(watchQueryKey, previous => ({
         resourceVersion: resourceVersion ?? '',
-        generation: (previous?.generation ?? 0) + 1,
+        generation:
+          (previous?.generation ?? 0) +
+          (previous?.resourceVersion === (resourceVersion ?? '') && !previous.expired ? 0 : 1),
         expired: false,
         missing,
       }));
@@ -204,7 +206,16 @@ export function useKubeObject<K extends KubeObject>({
         signal.throwIfAborted();
         const obj = list.items[0];
         setWatchSnapshot(list.metadata.resourceVersion, !obj);
-        return obj ? (new kubeObjectClass(obj, cluster) as Instance) : null;
+        return obj
+          ? (new kubeObjectClass(
+              {
+                ...obj,
+                kind: obj.kind ?? list.kind?.replace(/List$/, ''),
+                apiVersion: obj.apiVersion ?? list.apiVersion,
+              },
+              cluster
+            ) as Instance)
+          : null;
       }
       const url = makeUrl(
         [KubeObjectEndpoint.toUrl(endpoint!, namespace), name],
@@ -235,8 +246,32 @@ export function useKubeObject<K extends KubeObject>({
   useLayoutEffect(() => {
     if (data && watchState.resourceVersion === null) {
       setWatchSnapshot(data.jsonData.metadata.resourceVersion);
+    } else if (
+      query.isSuccess &&
+      !query.isPlaceholderData &&
+      query.data === null &&
+      watchState.resourceVersion === null &&
+      !client.getQueryData<ObjectWatchState>(watchQueryKey)?.expired
+    ) {
+      client.setQueryData<ObjectWatchState>(watchQueryKey, previous => ({
+        resourceVersion: null,
+        generation: previous?.generation ?? 0,
+        expired: true,
+        missing: true,
+      }));
+      void client.invalidateQueries({ queryKey, exact: true });
     }
-  }, [data, watchState.resourceVersion, setWatchSnapshot]);
+  }, [
+    client,
+    data,
+    query.data,
+    query.isSuccess,
+    query.isPlaceholderData,
+    queryKey,
+    watchQueryKey,
+    watchState.resourceVersion,
+    setWatchSnapshot,
+  ]);
   const watchReady = watchState.resourceVersion !== null && !watchState.expired;
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
   const watchResourceVersion = watchState.resourceVersion ?? '';
@@ -244,11 +279,7 @@ export function useKubeObject<K extends KubeObject>({
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
       const currentWatch = client.getQueryData<ObjectWatchState>(watchQueryKey);
-      if (
-        currentWatch?.expired ||
-        currentWatch?.generation !== watchState.generation ||
-        currentWatch.resourceVersion !== watchResourceVersion
-      ) {
+      if (currentWatch?.expired || currentWatch?.generation !== watchState.generation) {
         return;
       }
       if (update.type === 'ERROR') {
@@ -291,7 +322,6 @@ export function useKubeObject<K extends KubeObject>({
       queryKey,
       watchQueryKey,
       watchState.generation,
-      watchResourceVersion,
       kubeObjectClass,
       cluster,
       multiplexerEnabled,
@@ -345,10 +375,12 @@ export function useKubeObject<K extends KubeObject>({
     connections: connectionsRequests,
   });
 
-  const error =
-    endpointError ??
-    query.error ??
-    (watchState.missing ? new ApiError('Not found', { status: 404, cluster, namespace }) : null);
+  const missingError = useMemo(
+    () =>
+      watchState.missing ? new ApiError('Not found', { status: 404, cluster, namespace }) : null,
+    [watchState.missing, cluster, namespace]
+  );
+  const error = endpointError ?? query.error ?? missingError;
 
   // @ts-ignore
   return {
