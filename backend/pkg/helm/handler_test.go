@@ -19,11 +19,15 @@ package helm //nolint:testpackage // Tests cover unexported helm release handler
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -170,8 +174,67 @@ func TestRestConfigGetterToRESTMapper(t *testing.T) {
 	assert.NotNil(t, rm)
 }
 
+// TestRestConfigGetter_EnforcesImpersonationDeadline locks in a fix for a gap where
+// impersonationExpired() was checked only once, right before Helm's single, synchronous Run()
+// call: an action already past that check when Run() starts could still keep issuing Kubernetes
+// mutations under Headlamp's own ServiceAccount for as long as that one call took, with nothing
+// to stop it once the user's verified session had actually expired. ToRESTConfig now wraps the
+// transport so every underlying HTTP call -- not just the check before the first one -- is
+// bounded by the same absolute deadline. This test makes the server hang indefinitely, so the
+// request can only return via that deadline, never via the server responding on its own.
+func TestRestConfigGetter_EnforcesImpersonationDeadline(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	cfg := clientcmdapi.NewConfig()
+	cfg.Clusters["test"] = &clientcmdapi.Cluster{Server: srv.URL}
+	cfg.AuthInfos["test"] = &clientcmdapi.AuthInfo{}
+	cfg.Contexts["test"] = &clientcmdapi.Context{Cluster: "test", AuthInfo: "test"}
+	cfg.CurrentContext = "test"
+	clientConfig := clientcmd.NewDefaultClientConfig(*cfg, &clientcmd.ConfigOverrides{})
+
+	getter := &restConfigGetter{
+		clientConfig:        clientConfig,
+		namespace:           "default",
+		impersonationExpiry: time.Now().Add(50 * time.Millisecond),
+	}
+
+	restConfig, err := getter.ToRESTConfig()
+	require.NoError(t, err)
+	require.NotNil(t, restConfig.WrapTransport)
+
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, err = httpClient.Do(req) //nolint:bodyclose // The deadline aborts the request; there is no body to close.
+	elapsed := time.Since(start)
+
+	require.Error(t, err, "the request must fail once the deadline passes, not hang forever against a server "+
+		"that never responds")
+	assert.Less(t, elapsed, 5*time.Second,
+		"the request must be aborted at the deadline, not run for however long the caller's "+
+			"own context would otherwise allow")
+}
+
+// TestRestConfigGetter_NoDeadlineWhenImpersonationExpiryIsZero confirms read-only actions
+// (list/get/history), which pass the zero Time, are unaffected: ToRESTConfig must not install
+// any transport wrapping for them at all.
+func TestRestConfigGetter_NoDeadlineWhenImpersonationExpiryIsZero(t *testing.T) {
+	getter := &restConfigGetter{clientConfig: fakeClientConfig(), namespace: "default"}
+
+	restConfig, err := getter.ToRESTConfig()
+	require.NoError(t, err)
+	assert.Nil(t, restConfig.WrapTransport)
+}
+
 func TestNewActionConfig(t *testing.T) {
-	cfg, err := NewActionConfig(fakeClientConfig(), "default")
+	cfg, err := NewActionConfig(fakeClientConfig(), "default", time.Time{})
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 }
@@ -188,7 +251,7 @@ func TestNewActionConfigLogger(t *testing.T) {
 	})
 	defer logger.SetLogFunc(oldLogger)
 
-	cfg, err := NewActionConfig(fakeClientConfig(), "test-namespace")
+	cfg, err := NewActionConfig(fakeClientConfig(), "test-namespace", time.Time{})
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.NotNil(t, cfg.Log)
@@ -221,7 +284,7 @@ func TestNewActionConfigDeferredKubeError(t *testing.T) {
 	badCC := clientcmd.NewDefaultClientConfig(clientcmdapi.Config{}, &clientcmd.ConfigOverrides{})
 	// Helm defers kubeconfig errors to actual API calls, not Init
 	// so this returns a valid config even with empty kubeconfig
-	cfg, err := NewActionConfig(badCC, "default")
+	cfg, err := NewActionConfig(badCC, "default", time.Time{})
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 }

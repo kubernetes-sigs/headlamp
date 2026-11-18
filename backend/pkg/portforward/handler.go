@@ -58,6 +58,10 @@ const (
 const (
 	PodAvailabilityCheckTimer   = 5 // seconds
 	PortForwardReadinessTimeout = 30 * time.Second
+	// impersonationExpiryCheckInterval bounds how long a renewal (ExtendImpersonationExpiryForID/
+	// -ForCluster, from a concurrent status/list request) can go unnoticed by a readiness wait
+	// already in progress: see handlePortForwardReadiness's re-check loop.
+	impersonationExpiryCheckInterval = time.Second
 )
 
 var inFlightPortForwards sync.Map
@@ -103,6 +107,61 @@ type portForward struct {
 	Status           string       `json:"status"`
 	Error            string       `json:"error"`
 	rConf            *rest.Config `json:"-"` // needed for reconnect on pod restart
+	// impersonationExpiry is the verified identity's token expiry, when this port-forward was
+	// started under an impersonated identity (see kubeconfig.Impersonation.Expiry) -- zero
+	// otherwise. tryReconnectOnce refuses to reconnect past this time: a reconnect reuses rConf,
+	// which carries only the impersonated username/groups, not a token Kubernetes itself could
+	// use to re-verify or expire the identity, so this package is the only thing that can stop a
+	// service-backed port-forward from outliving the user's real session on its own.
+	impersonationExpiry time.Time
+	// impersonatedUsername and impersonatedGroups are the verified identity's username and
+	// group membership that impersonationExpiry belongs to (both empty when this port-forward
+	// was not started under impersonation). The Extend* functions in store.go compare both
+	// against a later request's freshly-verified identity before extending impersonationExpiry:
+	// username alone is not enough, since rConf's own Impersonate.Groups -- the actual
+	// authorization a reconnect or ongoing monitor call carries -- is fixed at start and never
+	// updated. A later re-verification for the same username but a group membership that has
+	// since shrunk (e.g. an admin revoking the user from a privileged group) must not extend
+	// this port-forward's expiry: doing so would let it keep running under rConf's original,
+	// now-stale groups for longer than that smaller membership's own token would ever have
+	// allowed, exactly the kind of leftover privilege this field exists to prevent.
+	impersonatedUsername string
+	impersonatedGroups   []string
+}
+
+// impersonationExpirySnapshot returns pf.impersonationExpiry under pf.mu (nil-safe, matching
+// setStatusAndSnapshot's convention below). Without the lock, this read races with
+// ExtendImpersonationExpiryForID/-ForCluster (store.go), which write the same field from an
+// HTTP-handler goroutine while the monitor goroutine reads it here: time.Time is a multi-word
+// struct, so an unsynchronized read/write pair is a genuine torn-read risk, not just a style nit.
+func (pf *portForward) impersonationExpirySnapshot() time.Time {
+	if pf.mu != nil {
+		pf.mu.Lock()
+		defer pf.mu.Unlock()
+	}
+
+	return pf.impersonationExpiry
+}
+
+// monitorAPICallTimeout bounds a single Kubernetes API call the monitor/reconnect loop makes
+// on pf's behalf, well under PodAvailabilityCheckTimer so a slow call still leaves the loop
+// room to keep ticking on schedule.
+const monitorAPICallTimeout = 3 * time.Second
+
+// monitorCallContext derives a context for a single API call the monitor or reconnect loop
+// makes, bounded by whichever is sooner: monitorAPICallTimeout, or pf's own impersonation
+// expiry when that applies. Without this, a stalled call on this same goroutine -- the one that
+// also checks impersonationExpiry between calls -- could keep an impersonated tunnel usable
+// past its verified identity's lifetime for as long as that one call takes to return on its
+// own; context.Background() has no bound on that at all.
+func monitorCallContext(pf *portForward) (context.Context, context.CancelFunc) {
+	deadline := time.Now().Add(monitorAPICallTimeout)
+
+	if expiry := pf.impersonationExpirySnapshot(); !expiry.IsZero() && expiry.Before(deadline) {
+		deadline = expiry
+	}
+
+	return context.WithDeadline(context.Background(), deadline)
 }
 
 // setStatusAndSnapshot updates the Status and Error fields and returns a
@@ -143,6 +202,7 @@ func getFreePort() (int, error) {
 //nolint:funlen // Handler validates request, allocates port, and starts port-forwarding routine
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
+	impersonation *kubeconfig.Impersonation,
 	contextKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
@@ -217,7 +277,10 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 
 	token := ""
 
-	if !unsafeUseServiceAccountToken || !kContext.UsesInClusterServiceAccountToken() {
+	switch {
+	case impersonation != nil:
+		kContext = kContext.WithImpersonation(*impersonation)
+	case !unsafeUseServiceAccountToken || !kContext.UsesInClusterServiceAccountToken():
 		// Check Authorization header first (consistent with ParseClusterAndToken),
 		// then fall back to the cluster cookie.
 		if authHeader := r.Header.Get("Authorization"); authHeader != "" {
@@ -229,7 +292,21 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		}
 	}
 
-	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName)
+	var impersonationExpiry time.Time
+
+	var impersonatedUsername string
+
+	var impersonatedGroups []string
+
+	if impersonation != nil {
+		impersonationExpiry = impersonation.Expiry
+		impersonatedUsername = impersonation.Username
+		impersonatedGroups = impersonation.Groups
+	}
+
+	err = startPortForward(
+		kContext, cache, p, token, contextKey, requestClusterName,
+		impersonationExpiry, impersonatedUsername, impersonatedGroups)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -454,13 +531,34 @@ func monitorPodAndManagePortForward(
 // handlePodCheck checks if the monitored pod is still alive and either
 // triggers reconnection (service-backed) or marks the PF stopped (direct).
 // Returns true when the caller (monitor loop) should exit.
+//
+// tryReconnectOnce's own expiry guard (see portForward.impersonationExpiry) only covers a
+// reconnect after the pod is found unhealthy; as long as the pod stays healthy, this function's
+// own periodic checkIfPodIsRunning call below -- itself an API call through the
+// ServiceAccount-backed clientset -- would otherwise keep running under an expired impersonated
+// identity indefinitely, with nothing to ever stop it. This check closes that gap by refusing to
+// make that call at all once the verified identity has expired, stopping the port-forward instead.
 func handlePodCheck(
 	clientset *kubernetes.Clientset,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	logParams map[string]string,
 ) bool {
-	err := checkIfPodIsRunning(clientset, pfDetails.Namespace, pfDetails.Pod)
+	if (kubeconfig.Impersonation{Expiry: pfDetails.impersonationExpirySnapshot()}).Expired() {
+		errMsg := "impersonated identity for this port-forward has expired; stopping monitor"
+		logger.Log(logger.LevelError, logParams, nil, errMsg)
+
+		pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
+		portforwardstore(cache, pfSnapshot)
+		safeCloseChan(pfDetails.closeChan)
+
+		return true
+	}
+
+	checkCtx, cancel := monitorCallContext(pfDetails)
+	defer cancel()
+
+	err := checkIfPodIsRunning(checkCtx, clientset, pfDetails.Namespace, pfDetails.Pod)
 	if err == nil {
 		return false // pod is fine
 	}
@@ -509,10 +607,10 @@ func handlePodCheck(
 // resolveServicePod queries the EndpointSlice API for the given service and
 // returns the name and namespace of the first ready pod backing the service.
 func resolveServicePod(
-	clientset kubernetes.Interface, serviceNamespace, serviceName string,
+	ctx context.Context, clientset kubernetes.Interface, serviceNamespace, serviceName string,
 ) (podName string, podNamespace string, err error) {
 	slices, err := clientset.DiscoveryV1().EndpointSlices(serviceNamespace).List(
-		context.Background(), v1.ListOptions{
+		ctx, v1.ListOptions{
 			LabelSelector: discoveryv1.LabelServiceName + "=" + serviceName,
 		})
 	if err != nil {
@@ -586,9 +684,20 @@ func attemptReconnect(
 	return false
 }
 
-// storeReconnecting persists the RECONNECTING status to the cache.
+// storeReconnecting persists the RECONNECTING status to the cache and re-registers pfDetails in
+// livePortForwards. The readiness failure that got tryReconnectOnce here (handlePortForwardError,
+// called from handlePortForwardReadiness on the attempt this one is about to retry after) already
+// deregistered it via portforwardstore's own STOPPED handling, even though this reconnect
+// sequence is not actually finished -- another attempt is about to run. Without re-registering
+// here, ExtendImpersonationExpiryForID/-ForCluster would silently no-op for the whole backoff
+// window before that next attempt, even though the browser keeps polling and re-verifying during
+// it; the extension could only take effect once some LATER attempt finally succeeds
+// (handlePortForwardSuccess), understating how long the user's actual session should keep this
+// port-forward alive once it reconnects. registerLivePortForward is idempotent, so this is safe
+// whether or not a prior attempt in the same sequence already deregistered it.
 func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
 	portforwardstore(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
+	registerLivePortForward(pfDetails)
 }
 
 // tryReconnectOnce resolves a new pod for the service, initialises a fresh
@@ -596,15 +705,30 @@ func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
 // It returns (true, false) on success, (false, true) to abort retries,
 // or (false, false) when the caller should retry.
 //
-//nolint:cyclop // Reconnection state machine handles complex recovery branches
+//nolint:cyclop,funlen // Reconnection state machine handles complex recovery branches
 func tryReconnectOnce(
 	clientset *kubernetes.Clientset,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	logParams map[string]string,
 ) (ok bool, abort bool) {
+	if (kubeconfig.Impersonation{Expiry: pfDetails.impersonationExpirySnapshot()}).Expired() {
+		// Reached when this port-forward was started under an impersonated identity whose
+		// verified token has since expired. A reconnect would reuse pfDetails.rConf, which
+		// carries only the impersonated username/groups -- Kubernetes itself has no token to
+		// re-verify or expire here, so refusing is the only thing that stops this service-backed
+		// port-forward from outliving the user's real session (see portForward.impersonationExpiry).
+		logger.Log(logger.LevelError, logParams, nil,
+			"impersonated identity for this port-forward has expired; reconnect requires a fresh verified token")
+
+		return false, true
+	}
+
+	resolveCtx, cancel := monitorCallContext(pfDetails)
+	defer cancel()
+
 	newPod, podNamespace, err := resolveServicePod(
-		clientset, pfDetails.ServiceNamespace, pfDetails.Service)
+		resolveCtx, clientset, pfDetails.ServiceNamespace, pfDetails.Service)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "resolving service endpoint for reconnect")
 		storeReconnecting(cache, pfDetails)
@@ -682,12 +806,25 @@ func handlePortForwardSuccess(
 ) {
 	pfSnapshot := pfDetails.setStatusAndSnapshot(RUNNING, "")
 	portforwardstore(cache, pfSnapshot)
+
+	// A reconnect that failed its readiness check earlier (handlePortForwardError, called from
+	// handlePortForwardReadiness on the attempt this one supersedes) deregisters pfDetails from
+	// livePortForwards via portforwardstore's own STOPPED handling. If that attempt's retry
+	// loop then succeeds here, pfDetails is never re-registered anywhere else: re-asserting it
+	// on every successful readiness -- not only the very first one, from startPortForward --
+	// restores it, so GetPortForwards/GetPortForwardByID's expiry extension can still reach a
+	// port-forward that recovered from a transient reconnect failure. Idempotent when already
+	// registered (the common case), so this is always safe to call.
+	registerLivePortForward(pfDetails)
+
 	logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
 }
 
 // handlePortForwardReadiness waits for the port forward to be ready, handling potential
-// errors from errOut, timeouts, or premature stop signals.
+// errors from errOut, timeouts, premature stop signals, or an impersonation deadline passing.
 // It updates the portForward details in the cache based on the outcome.
+//
+//nolint:funlen // Select covers 5 distinct outcomes; splitting it would obscure that they race on one wait
 func handlePortForwardReadiness(
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
@@ -696,54 +833,90 @@ func handlePortForwardReadiness(
 	logParams map[string]string,
 	forwardErrChan <-chan error,
 ) error {
-	select {
-	case <-readyChan:
-		if errOut.String() != "" {
-			return handlePortForwardError(cache, pfDetails, logParams,
-				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
-		}
+	// A reconnect's new tunnel establishing successfully (readyChan firing) proves nothing
+	// about whether the impersonated identity authorizing it is still valid: the SPDY
+	// handshake this waits for can itself take long enough for impersonationExpiry to pass
+	// while it is in flight, exactly the "check once, then let a long-running operation
+	// proceed regardless" gap already fixed for Helm's actions (see NewActionConfig's
+	// deadlineEnforcingRoundTripper).
+	//
+	// This re-checks the CURRENT expiry periodically rather than arming a single timer from a
+	// one-time snapshot: a concurrent status/list request can renew impersonationExpiry
+	// (ExtendImpersonationExpiryForID/-ForCluster) while this wait is still in progress, and a
+	// timer built before that renewal would go stale, firing at the original deadline even
+	// though the live expiry has since moved later. The ticker only runs at all when
+	// impersonation applied to begin with; a port-forward with a zero expiry can never have one
+	// assigned later (extendPortForwardExpiry requires a nonzero expiry to extend in the first
+	// place), so nil-channel inaction here is permanent, not a one-time skip.
+	var impersonationCheck <-chan time.Time
 
-		handlePortForwardSuccess(cache, pfDetails, logParams)
-	case err, ok := <-forwardErrChan:
-		if !ok {
-			return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
-		}
+	if !pfDetails.impersonationExpirySnapshot().IsZero() {
+		ticker := time.NewTicker(impersonationExpiryCheckInterval)
+		defer ticker.Stop()
 
-		if err == nil {
-			return handlePortForwardError(cache, pfDetails, logParams, "portforward failed: nil error received")
-		}
-
-		return handlePortForwardError(cache, pfDetails, logParams, err.Error())
-	case <-time.After(PortForwardReadinessTimeout):
-		return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
-	case <-pfDetails.closeChan:
-		msg := "portforward stopped before becoming ready"
-
-		if pfDetails.mu != nil {
-			pfDetails.mu.Lock()
-		}
-
-		if pfDetails.Status == RUNNING {
-			pfDetails.Status = STOPPED
-		}
-
-		if pfDetails.Error == "" {
-			pfDetails.Error = msg
-		}
-
-		pfSnapshot := *pfDetails
-
-		if pfDetails.mu != nil {
-			pfDetails.mu.Unlock()
-		}
-
-		portforwardstore(cache, pfSnapshot)
-		logger.Log(logger.LevelInfo, logParams, nil, msg)
-
-		return errors.New(msg)
+		impersonationCheck = ticker.C
 	}
 
-	return nil
+	timeout := time.NewTimer(PortForwardReadinessTimeout)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case <-readyChan:
+			if errOut.String() != "" {
+				return handlePortForwardError(cache, pfDetails, logParams,
+					fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
+			}
+
+			handlePortForwardSuccess(cache, pfDetails, logParams)
+
+			return nil
+		case err, ok := <-forwardErrChan:
+			if !ok {
+				return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
+			}
+
+			if err == nil {
+				return handlePortForwardError(cache, pfDetails, logParams, "portforward failed: nil error received")
+			}
+
+			return handlePortForwardError(cache, pfDetails, logParams, err.Error())
+		case <-timeout.C:
+			return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
+		case <-impersonationCheck:
+			if (kubeconfig.Impersonation{Expiry: pfDetails.impersonationExpirySnapshot()}).Expired() {
+				return handlePortForwardError(cache, pfDetails, logParams,
+					"impersonated identity expired while waiting for portforward to become ready")
+			}
+			// Not expired as of this check (possibly renewed since the last one): keep waiting
+			// for readyChan/forwardErrChan/timeout/closeChan, re-checking again on the next tick.
+		case <-pfDetails.closeChan:
+			msg := "portforward stopped before becoming ready"
+
+			if pfDetails.mu != nil {
+				pfDetails.mu.Lock()
+			}
+
+			if pfDetails.Status == RUNNING {
+				pfDetails.Status = STOPPED
+			}
+
+			if pfDetails.Error == "" {
+				pfDetails.Error = msg
+			}
+
+			pfSnapshot := *pfDetails
+
+			if pfDetails.mu != nil {
+				pfDetails.mu.Unlock()
+			}
+
+			portforwardstore(cache, pfSnapshot)
+			logger.Log(logger.LevelInfo, logParams, nil, msg)
+
+			return errors.New(msg)
+		}
+	}
 }
 
 // forwardPortsAsync runs ForwardPorts in a goroutine, reporting errors via
@@ -808,6 +981,7 @@ func runAndMonitorPortForward(
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
 	p portForwardRequest, token string, clusterName string, requestClusterName string,
+	impersonationExpiry time.Time, impersonatedUsername string, impersonatedGroups []string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -837,28 +1011,31 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	}
 
 	pfDetails := &portForward{
-		mu:               &sync.Mutex{},
-		ID:               p.ID,
-		closeChan:        stopChan,
-		Pod:              p.Pod,
-		Cluster:          requestClusterName,
-		cacheKey:         clusterName,
-		Namespace:        p.Namespace,
-		Service:          p.Service,
-		ServiceNamespace: p.ServiceNamespace,
-		TargetPort:       p.TargetPort,
-		Status:           RUNNING,
-		Port:             p.Port,
-		Error:            "",
-		rConf:            rConf,
+		mu:                   &sync.Mutex{},
+		ID:                   p.ID,
+		closeChan:            stopChan,
+		Pod:                  p.Pod,
+		Cluster:              requestClusterName,
+		cacheKey:             clusterName,
+		Namespace:            p.Namespace,
+		Service:              p.Service,
+		ServiceNamespace:     p.ServiceNamespace,
+		TargetPort:           p.TargetPort,
+		Status:               RUNNING,
+		Port:                 p.Port,
+		Error:                "",
+		rConf:                rConf,
+		impersonationExpiry:  impersonationExpiry,
+		impersonatedUsername: impersonatedUsername,
+		impersonatedGroups:   impersonatedGroups,
 	}
+
+	registerLivePortForward(pfDetails)
 
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
 
-func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
-	ctx := context.Background()
-
+func checkIfPodIsRunning(ctx context.Context, clientset kubernetes.Interface, namespace string, pod string) error {
 	p, err := clientset.CoreV1().Pods(namespace).Get(ctx, pod, v1.GetOptions{})
 	if err != nil {
 		return err
@@ -925,8 +1102,15 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
 	http.Error(w, "failed to delete port forward "+err.Error(), http.StatusInternalServerError)
 }
 
-// GetPortForwards handles get port forwards request.
+// GetPortForwards handles get port forwards request. impersonation is the identity this
+// request just re-verified for contextKey, or nil when impersonation does not apply or could
+// not be verified; either way this request is still served (see ExtendImpersonationExpiryForCluster's
+// callers), but a non-nil impersonation also extends the impersonationExpiry of every live
+// port-forward it owns in this cluster, so a browser that keeps polling this endpoint on an
+// actively-refreshing session does not lose its port-forwards to the comparatively short
+// lifetime of any single verified ID token.
 func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
+	impersonation *kubeconfig.Impersonation,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	cluster := mux.Vars(r)["clusterName"]
@@ -935,6 +1119,10 @@ func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
 		http.Error(w, "cluster is required", http.StatusBadRequest)
 
 		return
+	}
+
+	if impersonation != nil {
+		ExtendImpersonationExpiryForCluster(contextKey, impersonation.Username, impersonation.Groups, impersonation.Expiry)
 	}
 
 	ports := getPortForwardList(cache, contextKey)
@@ -949,8 +1137,11 @@ func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
 	}
 }
 
-// GetPortForwardByID handles get port forward by id request.
+// GetPortForwardByID handles get port forward by id request. impersonation is the identity
+// this request just re-verified for contextKey, or nil when impersonation does not apply or
+// could not be verified; see GetPortForwards' doc comment for what it does with it.
 func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
+	impersonation *kubeconfig.Impersonation,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	cluster := mux.Vars(r)["clusterName"]
@@ -969,6 +1160,10 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
+	if impersonation != nil {
+		ExtendImpersonationExpiryForID(contextKey, id, impersonation.Username, impersonation.Groups, impersonation.Expiry)
+	}
+
 	p, err := getPortForwardByID(cache, contextKey, id)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting portforward by id")
@@ -977,20 +1172,31 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
-	type payload struct {
-		ID               string `json:"id"`
-		Pod              string `json:"pod"`
-		Service          string `json:"service"`
-		ServiceNamespace string `json:"serviceNamespace"`
-		Cluster          string `json:"cluster"`
-		Namespace        string `json:"namespace"`
-		Port             string `json:"port"`
-		TargetPort       string `json:"targetPort"`
-		Status           string `json:"status"`
-		Error            string `json:"error"`
-	}
+	w.Header().Set("Content-Type", "application/json")
 
-	portForwardStruct := payload{
+	if err := json.NewEncoder(w).Encode(portForwardByIDPayload(p, cluster)); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing json payload to response")
+		http.Error(w, "failed to write json payload "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
+type portForwardByIDResponse struct {
+	ID               string `json:"id"`
+	Pod              string `json:"pod"`
+	Service          string `json:"service"`
+	ServiceNamespace string `json:"serviceNamespace"`
+	Cluster          string `json:"cluster"`
+	Namespace        string `json:"namespace"`
+	Port             string `json:"port"`
+	TargetPort       string `json:"targetPort"`
+	Status           string `json:"status"`
+	Error            string `json:"error"`
+}
+
+func portForwardByIDPayload(p portForward, cluster string) portForwardByIDResponse {
+	return portForwardByIDResponse{
 		ID:               p.ID,
 		Pod:              p.Pod,
 		Namespace:        p.Namespace,
@@ -1001,14 +1207,5 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		TargetPort:       p.TargetPort,
 		Status:           p.Status,
 		Error:            p.Error,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(portForwardStruct); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing json payload to response")
-		http.Error(w, "failed to write json payload "+err.Error(), http.StatusInternalServerError)
-
-		return
 	}
 }
