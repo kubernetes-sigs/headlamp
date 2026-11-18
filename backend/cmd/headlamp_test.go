@@ -6111,3 +6111,103 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestBodySizeLimit(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{},
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handlers := []struct {
+		name   string
+		handle http.HandlerFunc
+	}{
+		{"addCluster", cfg.addCluster},
+		{"renameCluster", cfg.renameCluster},
+		{"handleNodeDrain", cfg.handleNodeDrain},
+		{"handleSetToken", cfg.handleSetToken},
+		{"parseKubeConfig", cfg.parseKubeConfig},
+	}
+	bodies := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{
+			"oversized JSON", `{"padding":"` + strings.Repeat("A", int(maxRequestBodySize)) + `"}`,
+			http.StatusRequestEntityTooLarge,
+		},
+		{
+			"oversized trailing whitespace", `{}` + strings.Repeat(" ", int(maxRequestBodySize)-1),
+			http.StatusRequestEntityTooLarge,
+		},
+		{"trailing JSON", `{} {}`, http.StatusBadRequest},
+		{"trailing garbage", `{} garbage`, http.StatusBadRequest},
+		{"malformed JSON", `{`, http.StatusBadRequest},
+	}
+
+	for _, handler := range handlers {
+		for _, body := range bodies {
+			t.Run(handler.name+"/"+body.name, func(t *testing.T) {
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/",
+					strings.NewReader(body.body))
+				req = mux.SetURLVars(req, map[string]string{"clusterName": "test-cluster"})
+				req.Header.Set("Content-Type", "application/json")
+				req.ContentLength = -1
+				rr := httptest.NewRecorder()
+
+				handler.handle(rr, req)
+
+				assert.Equal(t, body.status, rr.Code, rr.Body.String())
+				assert.Empty(t, rr.Result().Cookies())
+
+				if body.status == http.StatusRequestEntityTooLarge {
+					assert.Contains(t, rr.Body.String(), "http: request body too large")
+				}
+			})
+		}
+	}
+}
+
+func TestSetTokenRequestBodyBoundary(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{},
+		},
+	}
+	body := `{"token":"","extra":true}`
+	tests := []struct {
+		name   string
+		size   int
+		status int
+	}{
+		{"small request with unknown field", len(body), http.StatusOK},
+		{"one byte below limit", int(maxRequestBodySize) - 1, http.StatusOK},
+		{"exactly at limit", int(maxRequestBodySize), http.StatusOK},
+		{"one byte above limit", int(maxRequestBodySize) + 1, http.StatusRequestEntityTooLarge},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := body + strings.Repeat(" ", tt.size-len(body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/",
+				strings.NewReader(payload))
+			req = mux.SetURLVars(req, map[string]string{"clusterName": "test-cluster"})
+			rr := httptest.NewRecorder()
+
+			cfg.handleSetToken(rr, req)
+
+			assert.Equal(t, tt.status, rr.Code, rr.Body.String())
+
+			if tt.status == http.StatusOK {
+				assert.NotEmpty(t, rr.Result().Cookies())
+			} else {
+				assert.Empty(t, rr.Result().Cookies())
+			}
+		})
+	}
+}
