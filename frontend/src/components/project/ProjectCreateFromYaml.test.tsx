@@ -337,15 +337,39 @@ it('creates the namespace first, reports progress, then applies resources in tha
   expect(push).toHaveBeenCalledWith('/projects/new-project');
 });
 
-it('shows apply failures and does not apply the remaining resources or navigate', async () => {
+it('applies the remaining resources after a failure and reports what failed', async () => {
   apply.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('permission denied'));
   renderForm();
   fillProject();
   await loadUrl();
   fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-  expect(await screen.findByText('permission denied')).toBeInTheDocument();
+  expect(await screen.findByText('Some resources could not be created')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('ConfigMap settings: permission denied');
+  expect(screen.getByText('Secret credentials')).toBeInTheDocument();
+  expect(apply).toHaveBeenCalledTimes(3);
+  expect(apply).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      kind: 'Secret',
+      metadata: expect.objectContaining({ name: 'credentials' }),
+    }),
+    'cluster-a'
+  );
+  expect(push).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Go to project' }));
+  expect(push).toHaveBeenCalledWith('/projects/new-project');
+});
+
+it('stops and shows the error when the namespace cannot be created', async () => {
+  apply.mockRejectedValueOnce(new Error('namespaces is forbidden'));
+  renderForm();
+  fillProject();
+  await loadUrl();
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+  expect(await screen.findByText('namespaces is forbidden')).toBeInTheDocument();
   expect(screen.getByText('Something went wrong')).toBeInTheDocument();
-  expect(apply).toHaveBeenCalledTimes(2);
+  expect(apply).toHaveBeenCalledTimes(1);
   expect(push).not.toHaveBeenCalled();
 });

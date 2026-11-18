@@ -127,22 +127,42 @@ async function createProjectFromYaml({
     creatingResource: namespace,
   });
 
+  // Nothing else can be created without the namespace, so a failure here stops the creation.
   await apply(namespace, cluster);
 
+  // Like `kubectl apply`, keep applying the other resources when one fails, then report every
+  // failure.
+  const created: KubeObjectInterface[] = [];
+  const failed: FailedResource[] = [];
   for (const item of itemsToCreate) {
-    setCreationState(state => ({
+    setCreationState({
       stage: 'creating',
-      createdResources:
-        state.stage === 'creating' ? [...state.createdResources, state.creatingResource] : [],
+      createdResources: [namespace, ...created],
       creatingResource: item,
-    }));
-    await apply(item, cluster);
+    });
+    try {
+      await apply(item, cluster);
+      created.push(item);
+    } catch (error) {
+      failed.push({ resource: item, message: (error as Error).message });
+    }
+  }
+
+  if (failed.length > 0) {
+    setCreationState({ stage: 'partialFailure', name: k8sName, created, failed });
+    return false;
   }
 
   setCreationState({
     stage: 'success',
     name: k8sName,
   });
+  return true;
+}
+
+interface FailedResource {
+  resource: KubeObjectInterface;
+  message: string;
 }
 
 type CreationState =
@@ -153,6 +173,12 @@ type CreationState =
       creatingResource: KubeObjectInterface;
     }
   | { stage: 'success'; name: string }
+  | {
+      stage: 'partialFailure';
+      name: string;
+      created: KubeObjectInterface[];
+      failed: FailedResource[];
+    }
   | { stage: 'error'; error: ApiError };
 
 export function CreateNew() {
@@ -325,13 +351,15 @@ export function CreateNew() {
     }
 
     try {
-      await createProjectFromYaml({
+      const allCreated = await createProjectFromYaml({
         items,
         k8sName,
         cluster: selectedClusters!,
         setCreationState,
       });
-      history.push(createRouteURL('projectDetails', { name: k8sName }));
+      if (allCreated) {
+        history.push(createRouteURL('projectDetails', { name: k8sName }));
+      }
     } catch (e) {
       setCreationState({
         stage: 'error',
@@ -622,6 +650,50 @@ export function CreateNew() {
                 <CircularProgress size="1rem" />
               </Box>
             </Box>
+          </Box>
+        )}
+
+        {creationState.stage === 'partialFailure' && (
+          <Box>
+            <Typography variant="h1">{t('Some resources could not be created')}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              {t('The project was created, but these resources failed to apply:')}
+            </Typography>
+            <Box component="ul" role="alert">
+              {creationState.failed.map(({ resource, message }, index) => (
+                <Typography component="li" color="error" key={`failed-${index}`}>
+                  {t('{{kind}} {{name}}: {{message}}', {
+                    kind: resource.kind,
+                    name: resource.metadata.name,
+                    message,
+                  })}
+                </Typography>
+              ))}
+            </Box>
+            {creationState.created.length > 0 && (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  {t('Created resources:')}
+                </Typography>
+                <Box component="ul">
+                  {creationState.created.map((resource, index) => (
+                    <Typography component="li" key={`created-${index}`}>
+                      {resource.kind} {resource.metadata.name}
+                    </Typography>
+                  ))}
+                </Box>
+              </>
+            )}
+            <DialogActions>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  history.push(createRouteURL('projectDetails', { name: creationState.name }));
+                }}
+              >
+                {t('Go to project')}
+              </Button>
+            </DialogActions>
           </Box>
         )}
 
