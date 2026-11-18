@@ -381,6 +381,7 @@ export default function SimpleTable(props: SimpleTableProps) {
                   startIcon={<Icon icon="mdi:refresh" />}
                   onClick={() => {
                     setCurrentData(data);
+                    setDisplayData(data);
                     setPage(0);
                   }}
                 >
