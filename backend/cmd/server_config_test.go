@@ -126,3 +126,10 @@ func TestLoadAdminSettings(t *testing.T) {
 		require.ErrorContains(t, err, "not valid JSON")
 	})
 }
+
+func TestBuildHeadlampCFG_DisableTokenLogin(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	assert.False(t, buildHeadlampCFG(&config.Config{}, store).DisableTokenLogin)
+	assert.True(t, buildHeadlampCFG(&config.Config{DisableTokenLogin: true}, store).DisableTokenLogin)
+}
