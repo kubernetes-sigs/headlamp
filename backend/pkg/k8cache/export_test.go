@@ -11,26 +11,30 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// ExportedRunWatcher exposes runWatcher for testing.
+// ExportedRunWatcher exposes runWatcher for testing. It runs as the watcher
+// registered for contextKey, if any.
 func ExportedRunWatcher(
 	ctx context.Context,
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	w := &watcher{cancel: func() {}}
+	if registered, ok := watcherRegistry.Load(contextKey); ok {
+		w, _ = registered.(*watcher)
+	}
+
+	w.context = &kContext
+
+	runWatcher(ctx, k8scache, contextKey, w)
 }
 
-// ResetRegistries clears both registries for test isolation.
+// ResetRegistries clears the watcher registry for test isolation.
 // If no keys are provided, it clears all entries.
 func ResetRegistries(keys ...string) {
 	if len(keys) == 0 {
 		watcherRegistry.Range(func(key, _ interface{}) bool {
 			watcherRegistry.Delete(key)
-			return true
-		})
-		contextCancel.Range(func(key, _ interface{}) bool {
-			contextCancel.Delete(key)
 			return true
 		})
 
@@ -39,30 +43,31 @@ func ResetRegistries(keys ...string) {
 
 	for _, k := range keys {
 		watcherRegistry.Delete(k)
-		contextCancel.Delete(k)
 	}
 }
 
-// StoreTestRegistry populates both registries for test setup.
+// StoreTestRegistry registers a watcher for key with the given cancel function.
 func StoreTestRegistry(key string, cancel context.CancelFunc) {
-	watcherRegistry.Store(key, struct{}{})
-	contextCancel.Store(key, cancel)
+	watcherRegistry.Store(key, &watcher{cancel: cancel})
 }
 
-// StoreTestContextCancel stores a cancel function in the registry for tests.
+// StoreTestContextCancel registers a watcher for contextKey with the given
+// cancel function.
 func StoreTestContextCancel(contextKey string, cancel context.CancelFunc) {
-	contextCancel.Store(contextKey, cancel)
+	StoreTestRegistry(contextKey, cancel)
 }
 
-// RegistryLoaded checks if a key exists in both registries.
-func RegistryLoaded(key string) (watcher, cancel bool) {
-	_, watcher = watcherRegistry.Load(key)
-	_, cancel = contextCancel.Load(key)
+// RegistryLoaded reports whether a watcher is registered for key, and whether
+// it has a cancel function.
+func RegistryLoaded(key string) (registered, cancel bool) {
+	value, registered := watcherRegistry.Load(key)
+	if w, ok := value.(*watcher); ok {
+		cancel = w.cancel != nil
+	}
 
 	return
 }
 
-// ResetClientsetCache clears the clientset cache for test isolation.
 func ResetClientsetCache() {
 	mu.Lock()
 	defer mu.Unlock()
