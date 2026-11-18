@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+//nolint:funlen
 func TestReturnGVRList(t *testing.T) {
 	apiResourceLists := []*metav1.APIResourceList{
 		{
@@ -63,7 +64,17 @@ func TestReturnGVRList(t *testing.T) {
 			APIResources: []metav1.APIResource{
 				{
 					Name:  "leases",
-					Kind:  "Lease", // skipped: Kind in skipKinds
+					Kind:  "Lease", // skipped: Kind in skipKinds (high-frequency heartbeats)
+					Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
+				},
+			},
+		},
+		{
+			GroupVersion: "example.com/v1",
+			APIResources: []metav1.APIResource{
+				{
+					Name:  "pods", // skipped: wrong group for the resource name
+					Kind:  "Pod",
 					Verbs: metav1.Verbs{"create", "delete", "get", "list", "patch", "update", "watch"},
 				},
 			},

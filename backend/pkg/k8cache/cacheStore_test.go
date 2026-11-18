@@ -608,6 +608,95 @@ func TestFilterToCache(t *testing.T) {
 	}
 }
 
+// TestIsCacheBypassAPIPath verifies that only coordination.k8s.io Lease paths
+// and metrics.k8s.io paths are identified for cache bypass.
+//
+//nolint:funlen
+func TestIsCacheBypassAPIPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "cluster-scoped lease list",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/leases",
+			want: true,
+		},
+		{
+			name: "namespaced lease list",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/namespaces/kube-system/leases",
+			want: true,
+		},
+		{
+			name: "named lease",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/namespaces/kube-node-lease/leases/master-1",
+			want: true,
+		},
+		{
+			name: "lease subresource",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/namespaces/kube-system/leases/master-1/status",
+			want: true,
+		},
+		{
+			name: "other coordination.k8s.io resource",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1alpha1/leasecandidates",
+			want: false,
+		},
+		{
+			name: "leasecandidates in a namespace named leases",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1alpha1/namespaces/leases/leasecandidates/foo",
+			want: false,
+		},
+		{
+			name: "leasecandidates with a cluster named leases",
+			path: "/clusters/leases/apis/coordination.k8s.io/v1alpha1/leasecandidates",
+			want: false,
+		},
+		{
+			name: "unrelated group with leases segment",
+			path: "/clusters/minikube/apis/example.com/v1/leases",
+			want: false,
+		},
+		{
+			name: "pod metrics",
+			path: "/clusters/minikube/apis/metrics.k8s.io/v1beta1/pods",
+			want: true,
+		},
+		{
+			name: "namespaced pod metrics",
+			path: "/clusters/minikube/apis/metrics.k8s.io/v1beta1/namespaces/default/pods/nginx",
+			want: true,
+		},
+		{
+			name: "node metrics",
+			path: "/clusters/minikube/apis/metrics.k8s.io/v1beta1/nodes",
+			want: true,
+		},
+		{
+			name: "custom metrics are not bypassed",
+			path: "/clusters/minikube/apis/custom.metrics.k8s.io/v1beta2/namespaces/default/pods/nginx/foo",
+			want: false,
+		},
+		{
+			name: "core api pods",
+			path: "/clusters/minikube/api/v1/pods",
+			want: false,
+		},
+		{
+			name: "non kubernetes path",
+			path: "/plugins",
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, k8cache.IsCacheBypassAPIPath(tc.path))
+		})
+	}
+}
+
 // TestLoadFromCache tests whether the cache data is being served to the
 // client correctly.
 func TestLoadFromCache(t *testing.T) {
