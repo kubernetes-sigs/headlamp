@@ -68,6 +68,7 @@ type Config struct {
 	NodeShellImage         string `koanf:"node-shell-image"`
 	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
+	BackstageOrigin        string `koanf:"backstage-origin"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
@@ -656,6 +657,7 @@ func flagset(appName string) *flag.FlagSet {
 	return f
 }
 
+//nolint:funlen // Flag registration list for general server options
 func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Bool("version", false, "Print version information and exit")
 	f.String(
@@ -695,6 +697,8 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
+	f.String("backstage-origin", "",
+		"Comma-separated list of trusted Backstage origins for postMessage integration")
 	f.Bool("enable-helm", false, "Enable Helm operations")
 	f.Bool("enable-cluster-inventory", false,
 		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")

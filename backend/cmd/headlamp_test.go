@@ -6177,6 +6177,28 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestGetConfigIncludesBackstageOrigin(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				BackstageOrigin: "https://backstage.example.com",
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	rr := httptest.NewRecorder()
+	cfg.getConfig(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp clientConfig
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "https://backstage.example.com", resp.BackstageOrigin)
+}
+
 func TestRequestBodySizeLimit(t *testing.T) {
 	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
 

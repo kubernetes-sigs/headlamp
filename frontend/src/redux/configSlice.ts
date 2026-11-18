@@ -100,6 +100,10 @@ export interface ConfigState {
    * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
    */
   oidcAutoLogin: boolean | null;
+  /**
+   * Comma-separated list of trusted Backstage origins from the backend server.
+   */
+  backstageOrigin?: string;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
@@ -240,12 +244,16 @@ const configSlice = createSlice({
         defaultDarkTheme?: string;
         forceTheme?: string;
         oidcAutoLogin?: boolean;
+        backstageOrigin?: string;
       }>
     ) {
       state.clusters = action.payload.clusters;
 
       if (action.payload.oidcAutoLogin !== undefined) {
         state.oidcAutoLogin = action.payload.oidcAutoLogin;
+      }
+      if (action.payload.backstageOrigin !== undefined) {
+        state.backstageOrigin = action.payload.backstageOrigin;
       }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
