@@ -15,11 +15,15 @@ package k8cache_test
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var testKeyCounter int
@@ -118,4 +122,147 @@ func TestClientsetCacheLen_Accuracy(t *testing.T) {
 
 	k8cache.SeedClientsetCache("two", time.Now())
 	assert.Equal(t, 2, k8cache.ClientsetCacheLen())
+}
+
+func TestLRUEviction_CapacityLimit(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Setenv("HEADLAMP_MAX_CLIENTSETS", "3")
+
+	restoreCreator := k8cache.SetClientsetCreator(
+		func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+			return &kubernetes.Clientset{}, nil
+		},
+	)
+	defer restoreCreator()
+
+	ctx1 := &kubeconfig.Context{ClusterID: "c+1"}
+	ctx2 := &kubeconfig.Context{ClusterID: "c+2"}
+	ctx3 := &kubeconfig.Context{ClusterID: "c+3"}
+	ctx4 := &kubeconfig.Context{ClusterID: "c+4"}
+
+	_, err := k8cache.GetClientSet("ctx1", ctx1, "token1")
+	assert.NoError(t, err)
+	_, err = k8cache.GetClientSet("ctx2", ctx2, "token2")
+	assert.NoError(t, err)
+	_, err = k8cache.GetClientSet("ctx3", ctx3, "token3")
+	assert.NoError(t, err)
+
+	assert.Equal(t, 3, k8cache.ClientsetCacheLen())
+
+	_, err = k8cache.GetClientSet("ctx4", ctx4, "token4")
+	assert.NoError(t, err)
+
+	assert.Equal(t, 3, k8cache.ClientsetCacheLen())
+
+	calls := make(map[string]int)
+
+	k8cache.SetClientsetCreator(
+		func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+			calls[token]++
+
+			return &kubernetes.Clientset{}, nil
+		},
+	)
+
+	_, err = k8cache.GetClientSet("ctx1", ctx1, "token1")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, calls["token1"])
+
+	_, err = k8cache.GetClientSet("ctx4", ctx4, "token4")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, calls["token4"])
+}
+
+func TestLRUEviction_MoveToFront(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Setenv("HEADLAMP_MAX_CLIENTSETS", "3")
+
+	restoreCreator := k8cache.SetClientsetCreator(
+		func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+			return &kubernetes.Clientset{}, nil
+		},
+	)
+	defer restoreCreator()
+
+	ctx1 := &kubeconfig.Context{ClusterID: "c+1"}
+	ctx2 := &kubeconfig.Context{ClusterID: "c+2"}
+	ctx3 := &kubeconfig.Context{ClusterID: "c+3"}
+	ctx4 := &kubeconfig.Context{ClusterID: "c+4"}
+
+	_, err := k8cache.GetClientSet("ctx1", ctx1, "token1")
+	assert.NoError(t, err)
+	_, err = k8cache.GetClientSet("ctx2", ctx2, "token2")
+	assert.NoError(t, err)
+	_, err = k8cache.GetClientSet("ctx3", ctx3, "token3")
+	assert.NoError(t, err)
+
+	_, err = k8cache.GetClientSet("ctx1", ctx1, "token1")
+	assert.NoError(t, err)
+
+	_, err = k8cache.GetClientSet("ctx4", ctx4, "token4")
+	assert.NoError(t, err)
+
+	assert.Equal(t, 3, k8cache.ClientsetCacheLen())
+
+	calls := make(map[string]int)
+
+	k8cache.SetClientsetCreator(
+		func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+			calls[token]++
+
+			return &kubernetes.Clientset{}, nil
+		},
+	)
+
+	_, err = k8cache.GetClientSet("ctx1", ctx1, "token1")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, calls["token1"])
+
+	_, err = k8cache.GetClientSet("ctx2", ctx2, "token2")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, calls["token2"])
+}
+
+type mockTransport struct {
+	closeCalled bool
+}
+
+func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("mockTransport RoundTrip not implemented")
+}
+
+func (m *mockTransport) CloseIdleConnections() {
+	m.closeCalled = true
+}
+
+func TestLRUEviction_ClosesConnections(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Setenv("HEADLAMP_MAX_CLIENTSETS", "1")
+
+	tr := &mockTransport{}
+
+	restoreCreator := k8cache.SetClientsetCreator(
+		func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+			config := &rest.Config{
+				Host:      "http://localhost:8080",
+				Transport: tr,
+			}
+
+			return kubernetes.NewForConfig(config)
+		},
+	)
+	defer restoreCreator()
+
+	ctx1 := &kubeconfig.Context{ClusterID: "c+1"}
+	ctx2 := &kubeconfig.Context{ClusterID: "c+2"}
+
+	_, err := k8cache.GetClientSet("ctx1", ctx1, "token1")
+	assert.NoError(t, err)
+
+	assert.False(t, tr.closeCalled)
+
+	_, err = k8cache.GetClientSet("ctx2", ctx2, "token2")
+	assert.NoError(t, err)
+
+	assert.True(t, tr.closeCalled)
 }
