@@ -583,33 +583,73 @@ describe('LogsButton', () => {
     requestAnimationFrameSpy.mockRestore();
   });
 
-  it('clears the reconnect prompt when requested', async () => {
-    mockClusterFetch.mockResolvedValue({
-      json: async () => ({ items: [mockPodData] }),
-    });
+  it.each(['all pods', 'selected pod'])(
+    'restarts %s and clears the reconnect prompt',
+    async mode => {
+      mockClusterFetch.mockResolvedValue({
+        json: async () => ({ items: [mockPodData] }),
+      });
 
-    let onReconnectStop: (() => void) | undefined;
-    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
-      onReconnectStop = args.at(-1)?.onReconnectStop;
-      return () => {};
-    }) as any;
+      let onReconnectStop: (() => void) | undefined;
+      const cancels: Array<ReturnType<typeof vi.fn>> = [];
+      const getLogs = vi.spyOn(Pod.prototype, 'getLogs').mockImplementation((...args) => {
+        if (args.length === 3) {
+          onReconnectStop = args[2].onReconnectStop;
+        }
+        const cancel = vi.fn();
+        cancels.push(cancel);
+        return cancel;
+      });
 
-    render(
-      <TestContext>
-        <LogsButton item={new Deployment(deploymentData as any)} />
-      </TestContext>
-    );
-    fireEvent.click(screen.getByLabelText('Show logs'));
-    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
-    render(<TestContext>{activityContent}</TestContext>);
+      render(
+        <TestContext>
+          <LogsButton item={new Deployment(deploymentData as any)} />
+        </TestContext>
+      );
+      fireEvent.click(screen.getByLabelText('Show logs'));
+      const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+      render(<TestContext>{activityContent}</TestContext>);
 
-    await waitFor(() => expect(onReconnectStop).toBeDefined());
-    act(() => onReconnectStop?.());
-    fireEvent.click(await screen.findByRole('button', { name: 'Reconnect test stream' }));
+      await waitFor(() => expect(getLogs).toHaveBeenCalled());
+      if (mode === 'selected pod') {
+        const callsBefore = getLogs.mock.calls.length;
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Select Pod' }));
+        fireEvent.click(await screen.findByRole('option', { name: 'test-pod-1' }));
+        await waitFor(() => expect(getLogs).toHaveBeenCalledTimes(callsBefore + 1));
+      }
 
-    expect(mockXTermClear).toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: 'Reconnect test stream' })).not.toBeInTheDocument();
-  });
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Since' }));
+      fireEvent.click(await screen.findByRole('option', { name: 'Last 15 minutes' }));
+      await waitFor(() =>
+        expect(getLogs).toHaveBeenLastCalledWith(
+          'nginx',
+          expect.any(Function),
+          expect.objectContaining({ sinceSeconds: 900, follow: true })
+        )
+      );
+
+      const callsBeforeReconnect = getLogs.mock.calls.length;
+      const cancelPrevious = cancels[cancels.length - 1];
+      expect(cancelPrevious).not.toHaveBeenCalled();
+      mockXTermClear.mockClear();
+
+      act(() => onReconnectStop?.());
+      fireEvent.click(await screen.findByRole('button', { name: 'Reconnect test stream' }));
+
+      await waitFor(() => expect(getLogs).toHaveBeenCalledTimes(callsBeforeReconnect + 1));
+      expect(cancelPrevious).toHaveBeenCalledTimes(1);
+      expect(getLogs).toHaveBeenLastCalledWith(
+        'nginx',
+        expect.any(Function),
+        expect.objectContaining({ sinceSeconds: 900, follow: true })
+      );
+      expect(cancels[cancels.length - 1]).not.toHaveBeenCalled();
+      expect(mockXTermClear).toHaveBeenCalled();
+      expect(
+        screen.queryByRole('button', { name: 'Reconnect test stream' })
+      ).not.toBeInTheDocument();
+    }
+  );
 
   it('updates stream options for a restarted container', async () => {
     const restartedPod = {
