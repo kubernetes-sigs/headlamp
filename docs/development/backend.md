@@ -136,6 +136,13 @@ fall back to the pod's service account or forward that credential to an external
 context. Legacy unscoped routes remain available for existing callers, but
 cookie-only browser clients should use the cluster-scoped routes.
 
+## Helm release history
+
+`GET /clusters/<cluster>/helm/release/history` requires non-empty `name` and
+`namespace` query parameters. Missing or empty values return `400 Bad Request`
+before Helm accesses the cluster. Valid requests retain the existing
+`{"releases": [...]}` response and release-lookup error handling.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
