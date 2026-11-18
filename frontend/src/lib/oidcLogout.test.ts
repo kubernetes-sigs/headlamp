@@ -61,3 +61,33 @@ it('resolves a backend-relative transition against the application backend origi
     'https://headlamp.example/base/encoded-clusters/bWFpbg/oidc-logout/redirect?state=signed'
   );
 });
+
+it('rejects redirect URLs with unsupported protocols', async () => {
+  vi.stubGlobal('desktopApi', undefined);
+  vi.stubGlobal('location', { href: '' });
+  vi.mocked(getAppUrl).mockReturnValue('https://headlamp.example/base/');
+  vi.mocked(backendFetch).mockResolvedValue({
+    json: async () => ({
+      redirectURL: 'javascript:alert(1)',
+    }),
+  } as Response);
+
+  await expect(redirectToOIDCLogout('main')).rejects.toThrow(
+    'Invalid redirect URL protocol: javascript:'
+  );
+  expect(window.location.href).toBe('');
+});
+
+it('accepts valid https redirect URLs', async () => {
+  vi.stubGlobal('desktopApi', undefined);
+  vi.stubGlobal('location', { href: '' });
+  vi.mocked(getAppUrl).mockReturnValue('https://headlamp.example/base/');
+  vi.mocked(backendFetch).mockResolvedValue({
+    json: async () => ({
+      redirectURL: 'https://idp.example.com/logout',
+    }),
+  } as Response);
+
+  await redirectToOIDCLogout('main');
+  expect(window.location.href).toBe('https://idp.example.com/logout');
+});
