@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import WS from 'vitest-websocket-mock';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
@@ -55,6 +55,19 @@ vi.mock('./makeUrl', () => ({
 const clusterName = 'test-cluster';
 const userId = 'test-user';
 
+async function receiveAckedWatch(server: WS) {
+  const request = JSON.parse((await server.nextMessage) as string);
+  if (request.requestId) server.send(JSON.stringify({ ...request, type: 'ACK' }));
+  return request;
+}
+
+function overloadSocket(socket: WebSocket) {
+  const onclose = socket.onclose;
+  socket.onclose = null;
+  socket.close();
+  onclose?.call(socket, { code: 1013 } as CloseEvent);
+}
+
 describe('WebSocket Multiplexer', () => {
   let mockServer: WS;
   let onMessage: Mock<(data: any) => void>;
@@ -89,8 +102,21 @@ describe('WebSocket Multiplexer', () => {
     setBackendToken(null);
     WebSocketManager.socketMultiplexer = null;
     WebSocketManager.connecting = false;
+    WebSocketManager.connectionPromise = null;
+    WebSocketManager.connectionGeneration = 0;
     WebSocketManager.isReconnecting = false;
     WebSocketManager.listeners.clear();
+    WebSocketManager.errorListeners.clear();
+    WebSocketManager.retryableWatches.clear();
+    WebSocketManager.pendingWatchRetries.clear();
+    WebSocketManager.connectedRoutes.clear();
+    WebSocketManager.pendingWatchRequests.clear();
+    if (WebSocketManager.watchRequestTimeout) clearTimeout(WebSocketManager.watchRequestTimeout);
+    WebSocketManager.watchRequestTimeout = null;
+    WebSocketManager.inFlightWatchRequest = null;
+    WebSocketManager.subscriptionSequence = 0;
+    WebSocketManager.requestSequence = 0;
+    WebSocketManager.overloadRecoveries = 0;
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
@@ -98,16 +124,743 @@ describe('WebSocket Multiplexer', () => {
   });
 
   describe('WebSocketManager', () => {
+    it('ignores stale close/error/message events while replacing a closing socket', async () => {
+      await WebSocketManager.subscribe(clusterName, '/first', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      await receiveAckedWatch(mockServer);
+      const old = WebSocketManager.socketMultiplexer!;
+      const staleClose = old.onclose!;
+      const staleError = old.onerror!;
+      const staleMessage = old.onmessage!;
+      Object.defineProperty(old, 'readyState', { configurable: true, value: WebSocket.CLOSING });
+      const attempt = WebSocketManager.connect();
+      const sharedPromise = WebSocketManager.connectionPromise;
+      staleClose.call(old, { code: 1006 } as CloseEvent);
+      staleError.call(old, new Event('error'));
+      expect(WebSocketManager.connectionPromise).toBe(sharedPromise);
+      const replacement = await attempt;
+      expect(replacement).not.toBe(old);
+      const request = JSON.parse((await mockServer.nextMessage) as string);
+      expect(request.path).toBe('/first');
+      staleMessage.call(old, { data: JSON.stringify({ ...request, type: 'ACK' }) } as MessageEvent);
+      expect(WebSocketManager.inFlightWatchRequest?.requestId).toBe(request.requestId);
+      mockServer.send(JSON.stringify({ ...request, type: 'ACK' }));
+      staleClose.call(old, { code: 1006 } as CloseEvent);
+      expect(WebSocketManager.socketMultiplexer).toBe(replacement);
+      expect(await WebSocketManager.connect()).toBe(replacement);
+    });
+
+    it('queues a fresh same-key request when subscribe runs between handshake ERROR and ACK', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const retry = vi.fn(() => {
+        void WebSocketManager.subscribe(clusterName, path, query, vi.fn(), onError, {
+          retryWatch: true,
+        });
+      });
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, retry, {
+        retryWatch: true,
+      });
+      const initial = JSON.parse((await mockServer.nextMessage) as string);
+      mockServer.send(
+        JSON.stringify({
+          ...initial,
+          type: 'ERROR',
+          data: JSON.stringify({ error: 'dial failed' }),
+        })
+      );
+      await waitFor(() => expect(WebSocketManager.pendingWatchRequests.size).toBe(1));
+      expect(retry).toHaveBeenCalledOnce();
+      expect(WebSocketManager.inFlightWatchRequest?.requestId).toBe(initial.requestId);
+      mockServer.send(JSON.stringify({ ...initial, type: 'ACK' }));
+      const fresh = await receiveAckedWatch(mockServer);
+      expect(fresh.path).toBe(path);
+      expect(fresh.requestId).not.toBe(initial.requestId);
+    });
+
+    it('keeps connected readiness across COMPLETE version markers before a debounce remount', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=1';
+      const stop = await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
+      const initial = await receiveAckedWatch(mockServer);
+      mockServer.send(
+        JSON.stringify({ ...initial, type: 'STATUS', data: JSON.stringify({ state: 'connected' }) })
+      );
+      mockServer.send(JSON.stringify({ ...initial, type: 'COMPLETE' }));
+      mockServer.send(
+        JSON.stringify({
+          ...initial,
+          type: 'DATA',
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { resourceVersion: '2' } },
+          }),
+        })
+      );
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      stop();
+      await WebSocketManager.subscribe(clusterName, path, query, vi.fn(), onError, {
+        retryWatch: true,
+      });
+      expect(send).not.toHaveBeenCalled();
+      expect(
+        WebSocketManager.connectedRoutes.has(WebSocketManager.createKey(clusterName, path, query))
+      ).toBe(true);
+    });
+
+    it('does not pace quiet legacy same-path selectors or wait for nonexistent response credit', async () => {
+      mockServer.close();
+      mockServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`, {
+        selectProtocol: () => 'headlamp.multiplexer.k8s.io',
+      });
+      const queries = [
+        'watch=1&fieldSelector=reason%3DUpgrade',
+        'watch=1&fieldSelector=reason%3DSurge',
+      ];
+      await WebSocketManager.subscribe(clusterName, '/events', queries[0], onMessage, onError, {
+        retryWatch: true,
+      });
+      await mockServer.nextMessage;
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path: '/events',
+          query: '',
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'connected' }),
+        })
+      );
+      await WebSocketManager.subscribe(clusterName, '/events', queries[1], onMessage, onError, {
+        retryWatch: true,
+      });
+      expect(JSON.parse((await mockServer.nextMessage) as string)).toMatchObject({
+        query: queries[1],
+        type: 'REQUEST',
+      });
+      await WebSocketManager.subscribe(clusterName, '/pods', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      expect(JSON.parse((await mockServer.nextMessage) as string).path).toBe('/pods');
+      expect(WebSocketManager.inFlightWatchRequest).toBeNull();
+      expect(WebSocketManager.watchRequestTimeout).toBeNull();
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      await WebSocketManager.subscribe(clusterName, '/events', queries[0], vi.fn(), onError, {
+        retryWatch: true,
+      });
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it.each(['closed', 'error'])('reissues a same-query subscription after %s', async state => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
+      const initial = await receiveAckedWatch(mockServer);
+      mockServer.send(
+        JSON.stringify({
+          ...initial,
+          type: 'STATUS',
+          data: JSON.stringify({ state }),
+        })
+      );
+      if (state === 'error') {
+        mockServer.send(
+          JSON.stringify({
+            ...initial,
+            type: 'ERROR',
+            data: JSON.stringify({ error: 'handshake failed' }),
+          })
+        );
+      }
+      await WebSocketManager.subscribe(clusterName, path, query, vi.fn(), onError, {
+        retryWatch: true,
+      });
+      const reopened = await receiveAckedWatch(mockServer);
+      expect(reopened).toMatchObject({ clusterId: clusterName, path, query, type: 'REQUEST' });
+      expect(reopened.requestId).not.toBe(initial.requestId);
+    });
+
+    it('reuses a connected same-query watch across the unsubscribe debounce', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const stop = await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
+      const initial = await receiveAckedWatch(mockServer);
+      mockServer.send(
+        JSON.stringify({
+          ...initial,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'connected' }),
+        })
+      );
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      vi.useFakeTimers();
+      try {
+        stop();
+        await WebSocketManager.subscribe(clusterName, path, query, vi.fn(), onError, {
+          retryWatch: true,
+        });
+        await vi.advanceTimersByTimeAsync(100);
+        expect(send).not.toHaveBeenCalled();
+        expect(WebSocketManager.pendingUnsubscribes.size).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('queues a new same-key generation after CLOSE until the canceled request ACK arrives', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const stop = await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
+      const initial = JSON.parse((await mockServer.nextMessage) as string);
+      stop();
+      expect(JSON.parse((await mockServer.nextMessage) as string).type).toBe('CLOSE');
+      await WebSocketManager.subscribe(clusterName, path, query, vi.fn(), onError, {
+        retryWatch: true,
+      });
+      expect(WebSocketManager.pendingWatchRequests.size).toBe(1);
+      expect(WebSocketManager.inFlightWatchRequest?.requestId).toBe(initial.requestId);
+      mockServer.send(JSON.stringify({ ...initial, type: 'ACK' }));
+      const reopened = JSON.parse((await mockServer.nextMessage) as string);
+      expect(reopened).toMatchObject({ clusterId: clusterName, path, query, type: 'REQUEST' });
+      expect(reopened.requestId).not.toBe(initial.requestId);
+      mockServer.send(JSON.stringify({ ...reopened, type: 'ACK' }));
+    });
+
+    it.each([1000, 1006])(
+      'never automatically resubscribes generic or exec streams after close %s',
+      async code => {
+        await WebSocketManager.subscribe(
+          clusterName,
+          '/api/v1/pods/p/exec',
+          'command=probe',
+          onMessage,
+          onError
+        );
+        await mockServer.nextMessage;
+        await WebSocketManager.subscribe(clusterName, '/generic', 'watch=1', onMessage, onError);
+        await mockServer.nextMessage;
+        await WebSocketManager.subscribe(
+          clusterName,
+          '/safe-watch',
+          'watch=1',
+          onMessage,
+          onError,
+          { retryWatch: true }
+        );
+        await receiveAckedWatch(mockServer);
+        const socket = WebSocketManager.socketMultiplexer!;
+        socket.onclose = null;
+        mockServer.close();
+        WebSocketManager.handleWebSocketClose({ code } as CloseEvent);
+        const server = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+        await WebSocketManager.connect();
+        const recovered = await receiveAckedWatch(server);
+        expect(recovered.path).toBe('/safe-watch');
+        expect(server.messages).toHaveLength(1);
+        server.close();
+      }
+    );
+
+    it.each(['STATUS', 'ERROR', 'DATA'])(
+      'uses legacy %s credit when the backend does not send ACKs',
+      async type => {
+        mockServer.close();
+        mockServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`, {
+          selectProtocol: () => 'headlamp.multiplexer.k8s.io',
+        });
+        await Promise.all(
+          ['/first', '/second', '/third'].map(path =>
+            WebSocketManager.subscribe(clusterName, path, 'watch=1', onMessage, onError, {
+              retryWatch: true,
+            })
+          )
+        );
+        expect(WebSocketManager.socketMultiplexer?.protocol).toBe('headlamp.multiplexer.k8s.io');
+        for (const path of ['/first', '/second', '/third']) {
+          const request = JSON.parse((await mockServer.nextMessage) as string);
+          expect(request.path).toBe(path);
+          mockServer.send(
+            JSON.stringify({
+              clusterId: clusterName,
+              path,
+              type,
+              data: JSON.stringify({ state: 'connected', error: 'legacy handshake error' }),
+            })
+          );
+        }
+        expect(WebSocketManager.inFlightWatchRequest).toBeNull();
+        expect(WebSocketManager.pendingWatchRequests.size).toBe(0);
+      }
+    );
+
+    it('waits for the negotiated v2 ACK rather than treating STATUS as processing credit', async () => {
+      await WebSocketManager.subscribe(clusterName, '/first', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      const initial = JSON.parse((await mockServer.nextMessage) as string);
+      expect(WebSocketManager.socketMultiplexer?.protocol).toBe('headlamp.multiplexer.v2.k8s.io');
+      await WebSocketManager.subscribe(clusterName, '/second', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      mockServer.send(
+        JSON.stringify({ ...initial, type: 'STATUS', data: JSON.stringify({ state: 'connected' }) })
+      );
+      expect(WebSocketManager.inFlightWatchRequest?.requestId).toBe(initial.requestId);
+      expect(WebSocketManager.pendingWatchRequests.size).toBe(1);
+      mockServer.send(JSON.stringify({ ...initial, type: 'ACK' }));
+      expect((await receiveAckedWatch(mockServer)).path).toBe('/second');
+    });
+
+    it('bounds waiting for processing confirmation from a negotiated v2 backend', async () => {
+      vi.useFakeTimers();
+      try {
+        const subscription = WebSocketManager.subscribe(
+          clusterName,
+          '/first',
+          'watch=1',
+          onMessage,
+          onError,
+          { retryWatch: true }
+        );
+        await vi.advanceTimersByTimeAsync(20);
+        await subscription;
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(onError).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: expect.stringContaining('timed out'),
+          })
+        );
+        expect(WebSocketManager.socketMultiplexer).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('forwards two active selector queries on the same path without replacing either', async () => {
+      const path = '/api/v1/events';
+      const queries = [
+        'watch=1&fieldSelector=reason%3DUpgrade',
+        'watch=1&fieldSelector=reason%3DSurge',
+      ];
+      const callbacks = queries.map(() => vi.fn());
+      for (let index = 0; index < queries.length; index++) {
+        await WebSocketManager.subscribe(
+          clusterName,
+          path,
+          queries[index],
+          callbacks[index],
+          onError,
+          { retryWatch: true }
+        );
+        const request = await receiveAckedWatch(mockServer);
+        expect(request.reopen).toBeUndefined();
+        mockServer.send(
+          JSON.stringify({
+            ...request,
+            type: 'STATUS',
+            data: JSON.stringify({ state: 'connected' }),
+          })
+        );
+      }
+      queries.forEach((query, index) =>
+        mockServer.send(
+          JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            type: 'DATA',
+            data: JSON.stringify({ type: 'ADDED', index }),
+          })
+        )
+      );
+      callbacks.forEach((callback, index) => {
+        expect(callback).toHaveBeenCalledExactlyOnceWith({ type: 'ADDED', index });
+      });
+      expect(WebSocketManager.connectedRoutes.size).toBe(2);
+    });
+
+    it.each(['error-first', 'connected-first', 'stale-connected', 'completed-first'])(
+      'reopens an opted-in watch with its own query after replacement (%s)',
+      async order => {
+        const path = '/api/v1/pods';
+        const query = 'watch=1&resourceVersion=42';
+        await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+          retryWatch: true,
+        });
+        const originalSocket = WebSocketManager.socketMultiplexer!;
+        const initial = await receiveAckedWatch(mockServer);
+        const send = vi.spyOn(originalSocket, 'send');
+        (getUserIdFromLocalStorage as ReturnType<typeof vi.fn>).mockReturnValue('changed-user');
+        const connected = {
+          clusterId: clusterName,
+          path,
+          type: 'STATUS',
+          data: JSON.stringify({
+            state: order === 'completed-first' ? 'closed' : 'connected',
+            error: '',
+          }),
+        };
+        const rejected = {
+          clusterId: clusterName,
+          path,
+          query,
+          type: 'ERROR',
+          data: JSON.stringify({
+            code: 'subscription_reconnecting',
+            error: 'subscription is already reconnecting; retry after reconnection',
+            retryReady: order === 'connected-first' || order === 'completed-first',
+          }),
+        };
+        if (order === 'connected-first' || order === 'completed-first') {
+          mockServer.send(JSON.stringify(connected));
+          mockServer.send(JSON.stringify(rejected));
+        } else {
+          if (order === 'stale-connected') {
+            mockServer.send(JSON.stringify(connected));
+          }
+          mockServer.send(JSON.stringify(rejected));
+          await waitFor(() => expect(WebSocketManager.pendingWatchRetries.size).toBe(1));
+          expect(send).not.toHaveBeenCalled();
+          mockServer.send(JSON.stringify(connected));
+        }
+        expect(JSON.parse((await mockServer.nextMessage) as string)).toEqual({
+          ...initial,
+          query,
+          userId,
+          reopen: true,
+          requestId: expect.any(String),
+        });
+        expect(WebSocketManager.socketMultiplexer).toBe(originalSocket);
+        expect(WebSocketManager.pendingWatchRetries.size).toBe(0);
+        mockServer.send(JSON.stringify(connected));
+        const update = { type: 'ADDED', object: { metadata: { name: 'new-query-pod' } } };
+        mockServer.send(
+          JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query,
+            type: 'DATA',
+            data: JSON.stringify(update),
+          })
+        );
+        await waitFor(() => expect(onMessage).toHaveBeenCalledWith(update));
+        expect(onError).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it.each([
+      { path: '/api/v1/pods', query: 'watch=1', options: {} },
+      { path: '/api/v1/pods/p/exec', query: 'command=probe', options: { retryWatch: true } },
+    ])('does not retry generic/exec requests ($path)', async ({ path, query, options }) => {
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, options);
+      await receiveAckedWatch(mockServer);
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'connected' }),
+        })
+      );
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          type: 'ERROR',
+          data: JSON.stringify({
+            code: 'subscription_reconnecting',
+            error: 'retry after reconnection',
+          }),
+        })
+      );
+      await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('cancels a pending watch retry when its last listener unsubscribes', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=42';
+      const unsubscribe = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        query,
+        onMessage,
+        onError,
+        { retryWatch: true }
+      );
+      await receiveAckedWatch(mockServer);
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          type: 'ERROR',
+          data: JSON.stringify({
+            code: 'subscription_reconnecting',
+            error: 'retry after reconnection',
+          }),
+        })
+      );
+      await waitFor(() => expect(WebSocketManager.pendingWatchRetries.size).toBe(1));
+      unsubscribe();
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'connected' }),
+        })
+      );
+      expect(WebSocketManager.pendingWatchRetries.size).toBe(0);
+      expect(
+        send.mock.calls.filter(([message]) => JSON.parse(String(message)).type === 'REQUEST')
+      ).toHaveLength(0);
+    });
+
+    it('closes distinct queries on the same path independently', async () => {
+      const path = '/api/v1/pods';
+      const oldQuery = 'watch=1&resourceVersion=10';
+      const newQuery = 'watch=1&resourceVersion=42';
+      const stopOld = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        oldQuery,
+        onMessage,
+        onError,
+        {
+          retryWatch: true,
+        }
+      );
+      await receiveAckedWatch(mockServer);
+      const stopNew = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        newQuery,
+        onMessage,
+        onError,
+        {
+          retryWatch: true,
+        }
+      );
+      await receiveAckedWatch(mockServer);
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      vi.useFakeTimers();
+      try {
+        stopOld();
+        await vi.advanceTimersByTimeAsync(100);
+        expect(send).toHaveBeenCalledOnce();
+        expect(JSON.parse(String(send.mock.calls[0][0]))).toEqual({
+          clusterId: clusterName,
+          path,
+          query: oldQuery,
+          userId,
+          type: 'CLOSE',
+        });
+        stopNew();
+        await vi.advanceTimersByTimeAsync(100);
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(JSON.parse(String(send.mock.calls[1][0]))).toEqual({
+          clusterId: clusterName,
+          path,
+          query: newQuery,
+          userId,
+          type: 'CLOSE',
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not automatically reopen a normally completed watch', async () => {
+      await WebSocketManager.subscribe(clusterName, '/api/v1/pods', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      await receiveAckedWatch(mockServer);
+      const send = vi.spyOn(WebSocketManager.socketMultiplexer!, 'send');
+      mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path: '/api/v1/pods',
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed' }),
+        })
+      );
+      expect(WebSocketManager.pendingWatchRetries.size).toBe(0);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('paces a burst of 96 distinct list watches without losing an active subscription', async () => {
+      const callbacks = Array.from({ length: 96 }, () => vi.fn());
+      await Promise.all(
+        callbacks.map((callback, index) =>
+          WebSocketManager.subscribe(
+            clusterName,
+            `/api/v1/namespaces/ns-${index}/pods`,
+            'watch=1',
+            callback,
+            onError,
+            {
+              retryWatch: true,
+            }
+          )
+        )
+      );
+      expect(WebSocketManager.pendingWatchRequests.size).toBe(95);
+      const paths = new Set<string>();
+      for (let index = 0; index < callbacks.length; index++) {
+        const request = JSON.parse((await mockServer.nextMessage) as string);
+        expect(request.userId).toBe(userId);
+        expect(request.requestId).toBe(WebSocketManager.inFlightWatchRequest?.requestId);
+        paths.add(request.path);
+        mockServer.send(
+          JSON.stringify({
+            ...request,
+            type: 'DATA',
+            data: JSON.stringify({ type: 'ADDED', object: { index } }),
+          })
+        );
+        mockServer.send(JSON.stringify({ ...request, type: 'ACK' }));
+      }
+      await waitFor(() =>
+        expect(callbacks.every(callback => callback.mock.calls.length === 1)).toBe(true)
+      );
+      expect(paths.size).toBe(96);
+      expect(WebSocketManager.activeSubscriptions.size).toBe(96);
+      expect(WebSocketManager.pendingWatchRequests.size).toBe(0);
+      expect(WebSocketManager.inFlightWatchRequest).toBeNull();
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it('ignores malformed or unrelated ACKs without releasing another watch request', async () => {
+      await WebSocketManager.subscribe(clusterName, '/first', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      const initial = JSON.parse((await mockServer.nextMessage) as string);
+      await WebSocketManager.subscribe(clusterName, '/second', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      mockServer.send(JSON.stringify({ type: 'ACK' }));
+      mockServer.send(JSON.stringify({ type: 'ACK', requestId: 'unrelated' }));
+      expect(WebSocketManager.inFlightWatchRequest?.requestId).toBe(initial.requestId);
+      expect(WebSocketManager.pendingWatchRequests.size).toBe(1);
+      mockServer.send(JSON.stringify({ ...initial, type: 'ACK' }));
+      const next = JSON.parse((await mockServer.nextMessage) as string);
+      expect(next.path).toBe('/second');
+    });
+
+    it('opens a queued query independently after the preceding watch request is acknowledged', async () => {
+      const path = '/api/v1/pods';
+      await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        'watch=1&resourceVersion=10',
+        onMessage,
+        onError,
+        {
+          retryWatch: true,
+        }
+      );
+      const initial = JSON.parse((await mockServer.nextMessage) as string);
+      await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        'watch=1&resourceVersion=42',
+        onMessage,
+        onError,
+        {
+          retryWatch: true,
+        }
+      );
+      expect(WebSocketManager.pendingWatchRequests.size).toBe(1);
+      mockServer.send(
+        JSON.stringify({
+          ...initial,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'connected' }),
+        })
+      );
+      mockServer.send(JSON.stringify({ ...initial, type: 'ACK' }));
+      const next = JSON.parse((await mockServer.nextMessage) as string);
+      expect(next.query).toBe('watch=1&resourceVersion=42');
+      expect(next.reopen).toBeUndefined();
+      expect(next.requestId).not.toBe(initial.requestId);
+      expect(next.userId).toBe(userId);
+    });
+
+    it('recovers list watches after overload without replaying exec subscriptions', async () => {
+      await WebSocketManager.subscribe(clusterName, '/api/v1/pods', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      await receiveAckedWatch(mockServer);
+      const execError = vi.fn(() => {
+        throw new Error('subscriber callback failed');
+      });
+      await WebSocketManager.subscribe(
+        clusterName,
+        '/pods/p/exec',
+        'command=probe',
+        vi.fn(),
+        execError
+      );
+      await mockServer.nextMessage;
+      const original = WebSocketManager.socketMultiplexer!;
+      overloadSocket(original);
+      const recovered = JSON.parse((await mockServer.nextMessage) as string);
+      expect(recovered.path).toBe('/api/v1/pods');
+      expect(recovered.query).toBe('watch=1');
+      expect(recovered.requestId).toBeTruthy();
+      expect(WebSocketManager.socketMultiplexer).not.toBe(original);
+      expect(WebSocketManager.activeSubscriptions.size).toBe(2);
+      expect(execError).toHaveBeenCalledOnce();
+      mockServer.send(JSON.stringify({ ...recovered, type: 'ACK' }));
+      expect(WebSocketManager.inFlightWatchRequest).toBeNull();
+      expect(WebSocketManager.overloadRecoveries).toBe(0);
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it('bounds overload recovery to three attempts without processing progress', async () => {
+      await WebSocketManager.subscribe(clusterName, '/api/v1/pods', 'watch=1', onMessage, onError, {
+        retryWatch: true,
+      });
+      await mockServer.nextMessage;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        overloadSocket(WebSocketManager.socketMultiplexer!);
+        await mockServer.nextMessage;
+        expect(WebSocketManager.overloadRecoveries).toBe(attempt);
+      }
+      overloadSocket(WebSocketManager.socketMultiplexer!);
+      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.connectionPromise).toBeNull();
+      expect(onError).toHaveBeenCalledOnce();
+    });
+
     it.each([
       {
         name: 'with a backend token',
         token: 'desktop-token',
         protocols: [
+          'headlamp.multiplexer.v2.k8s.io',
           'headlamp.multiplexer.k8s.io',
           'base64url.headlamp.backend.authorization.k8s.io.ZGVza3RvcC10b2tlbg',
         ],
       },
-      { name: 'without a backend token', token: null, protocols: null },
+      {
+        name: 'without a backend token',
+        token: null,
+        protocols: ['headlamp.multiplexer.v2.k8s.io', 'headlamp.multiplexer.k8s.io'],
+      },
     ])('constructs the multiplexer socket $name', async testCase => {
       const socket = {
         readyState: WebSocket.CONNECTING as number,
@@ -162,7 +915,9 @@ describe('WebSocket Multiplexer', () => {
       const query = 'watch=true';
 
       // Subscribe to pod updates
-      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
       await mockServer.connected;
 
       // Get the subscription message
@@ -173,6 +928,7 @@ describe('WebSocket Multiplexer', () => {
         query,
         userId,
         type: 'REQUEST',
+        requestId: expect.any(String),
       });
 
       // Send a message from server
@@ -499,7 +1255,8 @@ describe('WebSocket Multiplexer', () => {
           '/api/v1/pods',
           '',
           expect.any(Function),
-          expect.any(Function)
+          expect.any(Function),
+          { retryWatch: false }
         );
       });
 
@@ -549,25 +1306,29 @@ describe('WebSocket Multiplexer', () => {
 
   describe('WebSocket error handling', () => {
     it('should reject concurrent callers when in-progress connection fails', async () => {
-      vi.useFakeTimers();
-
-      try {
-        // Manually set connecting = true to simulate an in-progress attempt
-        WebSocketManager.connecting = true;
-
-        // Start a concurrent caller — it enters the polling branch
-        const concurrentPromise = WebSocketManager.connect();
-
-        // Simulate the primary connection failing by resetting connecting to false
-        WebSocketManager.connecting = false;
-
-        // Advance timers so the setInterval tick fires and detects the failure
-        await vi.advanceTimersByTimeAsync(200);
-
-        await expect(concurrentPromise).rejects.toThrow('WebSocket connection failed');
-      } finally {
-        vi.useRealTimers();
-      }
+      const socket = {
+        readyState: WebSocket.CONNECTING,
+        onopen: null,
+        onerror: null as ((event: Event) => void) | null,
+        onclose: null,
+        onmessage: null,
+      };
+      const constructor = vi.fn(function () {
+        return socket;
+      });
+      Object.assign(constructor, { OPEN: WebSocket.OPEN, CONNECTING: WebSocket.CONNECTING });
+      vi.stubGlobal('WebSocket', constructor);
+      const first = WebSocketManager.connect();
+      const concurrent = WebSocketManager.connect();
+      const rejected = Promise.all([
+        expect(first).rejects.toThrow('WebSocket connection failed'),
+        expect(concurrent).rejects.toThrow('WebSocket connection failed'),
+      ]);
+      expect(constructor).toHaveBeenCalledOnce();
+      socket.onerror?.(new Event('error'));
+      await rejected;
+      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.connectionPromise).toBeNull();
     });
 
     it('should handle polling timeout', async () => {
@@ -603,7 +1364,9 @@ describe('WebSocket Multiplexer', () => {
       const query = 'watch=true';
 
       // First connection
-      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
       await mockServer.connected;
       await mockServer.nextMessage; // Skip initial subscription
 
@@ -628,6 +1391,7 @@ describe('WebSocket Multiplexer', () => {
         query,
         userId,
         type: 'REQUEST',
+        requestId: expect.any(String),
       });
 
       // Verify reconnection state is reset

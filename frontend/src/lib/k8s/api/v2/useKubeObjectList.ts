@@ -69,6 +69,8 @@ export interface ListResponse<K extends KubeObject> {
   namespace?: string;
   /** Whether this synthesized list must not start a cluster-wide watch */
   skipWatch?: boolean;
+  /** Opening cursor from the last list response, unchanged by watch updates. */
+  watchResourceVersion?: string;
 }
 
 /**
@@ -250,6 +252,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
           list: list as KubeList<K>,
           cluster,
           namespace,
+          watchResourceVersion: list.metadata.resourceVersion,
         };
 
         return response;
@@ -447,7 +450,8 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
         update => handleUpdate(update, cluster, namespace),
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
+        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error),
+        { retryWatch: true }
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {
@@ -838,6 +842,7 @@ export function useKubeObjectList<K extends KubeObject>({
   // Don't watch when results are paginated — the watch stream would deliver events
   // for resources outside our fetched page, causing the list to grow unboundedly.
   const shouldWatch = watch && !refetchInterval && !query.isLoading && !query.hasMore;
+  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
   const [listsToWatch, setListsToWatch] = useState<
     { cluster: string; namespace?: string; resourceVersion: string }[]
@@ -860,7 +865,9 @@ export function useKubeObjectList<K extends KubeObject>({
         .map(data => ({
           cluster: data!.cluster,
           namespace: data!.namespace,
-          resourceVersion: data!.list.metadata.resourceVersion,
+          resourceVersion: multiplexerEnabled
+            ? data!.watchResourceVersion ?? data!.list.metadata.resourceVersion
+            : data!.list.metadata.resourceVersion,
         }));
 
       if (
@@ -879,7 +886,7 @@ export function useKubeObjectList<K extends KubeObject>({
 
       return nextListsToWatch;
     });
-  }, [query.data, requests, shouldWatch]);
+  }, [query.data, requests, shouldWatch, multiplexerEnabled]);
 
   useWatchKubeObjectLists({
     lists: shouldWatch ? listsToWatch : [],
@@ -1000,6 +1007,7 @@ export function useKubeObjectList<K extends KubeObject>({
             if (!old) return old;
             return {
               ...old,
+              watchResourceVersion: raw.metadata.resourceVersion,
               list: {
                 ...old.list,
                 metadata: {

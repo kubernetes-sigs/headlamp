@@ -137,9 +137,16 @@ Once the pending replacement finishes, they explicitly send `REQUEST` with
 operation checks the existing handshake credential before replacing the socket.
 Both explicit replacements and heartbeat recovery resume from the last forwarded
 resource version and seed the replacement's cursor, even before its first event.
-Status and data keep the exact original query for routing. The browser pins each
-watch's opening resource version from its list or object GET until a relist/refetch
-establishes a new watch; cache updates do not change its subscription identity.
+Status and data keep the exact original query for routing. Multiplexed browser
+watches share the opening cursor per cached query and pin it until a relist/refetch;
+cache updates do not change their subscription identity. Legacy watches retain
+their mutable cursors because that transport does not reconnect on its own.
+After a single-object watch expires, a name-filtered collection LIST supplies a
+fresh snapshot and collection cursor: a named GET can keep returning an expired
+object version. This recovery requires LIST permission, and failures are surfaced
+through the query error. All observers adopt the fresh cursor, including when the
+fetching observer unmounts. Deleted objects report 404 while the watch remains
+active to observe recreation.
 The error's `retryReady` acknowledgement handles errors delivered after the
 connected status or normal completion without retrying against a stale
 pre-reconnect status. This retries only an outstanding rejected watch request.

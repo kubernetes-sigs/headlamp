@@ -20,6 +20,8 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { getBaseWsUrl } from './webSocket';
 
 const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
+const MULTIPLEXER_WATCH_PROTOCOL = 'headlamp.multiplexer.v2.k8s.io';
+const WATCH_REQUEST_TIMEOUT = 60_000;
 
 /**
  * WebSocket manager to handle connections across the application.
@@ -33,6 +35,8 @@ export const WebSocketManager = {
 
   /** Flag to track if a connection attempt is in progress */
   connecting: false,
+  connectionPromise: null as Promise<WebSocket> | null,
+  connectionGeneration: 0,
 
   /** Flag to track if we're reconnecting after a disconnect */
   isReconnecting: false,
@@ -47,7 +51,27 @@ export const WebSocketManager = {
   completedPaths: new Set<string>(),
 
   /** Map of active WebSocket subscriptions with their details */
-  activeSubscriptions: new Map<string, { clusterId: string; path: string; query: string }>(),
+  activeSubscriptions: new Map<
+    string,
+    { clusterId: string; path: string; query: string; userId: string; generation: number }
+  >(),
+
+  /** Only known watch callers opt in; arbitrary/exec subscriptions never retry here. */
+  retryableWatches: new Set<string>(),
+  pendingWatchRetries: new Set<string>(),
+  connectedRoutes: new Set<string>(),
+  pendingWatchRequests: new Map<string, WebSocketMessage>(),
+  inFlightWatchRequest: null as {
+    key: string;
+    requestId: string;
+    socket: WebSocket;
+    generation: number;
+    message: WebSocketMessage;
+  } | null,
+  watchRequestTimeout: null as ReturnType<typeof setTimeout> | null,
+  subscriptionSequence: 0,
+  requestSequence: 0,
+  overloadRecoveries: 0,
 
   /** Map to track pending unsubscribe operations for debouncing */
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
@@ -66,19 +90,7 @@ export const WebSocketManager = {
   /**
    * Establishes or returns an existing WebSocket connection.
    *
-   * This implementation uses a polling approach to handle concurrent connection attempts.
-   * While not ideal, it's a simple solution that works for most cases.
-   *
-   * Known limitations:
-   * 1. Polls every 100ms which may not be optimal for performance
-   * 2. May miss state changes that happen between polls
-   * 3. Has no timeout while waiting on an in-progress connection attempt; callers
-   *    will reject if that attempt fails and clears `this.connecting`, but can wait
-   *    indefinitely if it never reaches open, error, or close
-   *
-   * A more robust solution would use event listeners and Promise caching,
-   * but that adds complexity and potential race conditions to handle.
-   * The current polling approach, while not perfect, is simple and mostly reliable.
+   * Concurrent subscribers share one connection promise, without polling timers.
    *
    * @returns Promise resolving to WebSocket connection
    */
@@ -89,30 +101,25 @@ export const WebSocketManager = {
     }
 
     // Wait for existing connection attempt if in progress
-    if (this.connecting) {
-      return new Promise((resolve, reject) => {
-        const checkConnection = setInterval(() => {
-          if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
-            clearInterval(checkConnection);
-            resolve(this.socketMultiplexer!);
-          } else if (!this.connecting) {
-            clearInterval(checkConnection);
-            reject(new Error('WebSocket connection failed'));
-          }
-        }, 100);
-      });
+    if (this.connectionPromise) {
+      return this.connectionPromise;
     }
 
+    if (this.socketMultiplexer) {
+      this.handleWebSocketClose();
+    }
+    const generation = ++this.connectionGeneration;
     this.connecting = true;
     const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
 
-    return new Promise((resolve, reject) => {
+    const connection = new Promise<WebSocket>((resolve, reject) => {
       let socket: WebSocket;
+      let opened = false;
       try {
         const backendTokenProtocol = getHeadlampWebSocketProtocol();
-        socket = backendTokenProtocol
-          ? new WebSocket(wsUrl, [MULTIPLEXER_PROTOCOL, backendTokenProtocol])
-          : new WebSocket(wsUrl);
+        const protocols = [MULTIPLEXER_WATCH_PROTOCOL, MULTIPLEXER_PROTOCOL];
+        if (backendTokenProtocol) protocols.push(backendTokenProtocol);
+        socket = new WebSocket(wsUrl, protocols);
       } catch (e) {
         this.connecting = false;
         reject(e instanceof Error ? e : new Error(String(e)));
@@ -120,6 +127,12 @@ export const WebSocketManager = {
       }
 
       socket.onopen = () => {
+        if (generation !== this.connectionGeneration) {
+          socket.close();
+          reject(new Error('WebSocket connection superseded'));
+          return;
+        }
+        opened = true;
         this.socketMultiplexer = socket;
         this.connecting = false;
 
@@ -132,18 +145,29 @@ export const WebSocketManager = {
         resolve(socket);
       };
 
-      socket.onmessage = this.handleWebSocketMessage.bind(this);
+      socket.onmessage = event => {
+        if (generation === this.connectionGeneration) this.handleWebSocketMessage(event);
+      };
 
       socket.onerror = event => {
+        if (generation !== this.connectionGeneration) return;
         this.connecting = false;
         console.error('WebSocket error:', event);
         reject(new Error('WebSocket connection failed'));
       };
 
-      socket.onclose = () => {
-        this.handleWebSocketClose();
+      socket.onclose = event => {
+        if (!opened) reject(new Error('WebSocket closed before opening'));
+        if (generation !== this.connectionGeneration) return;
+        this.handleWebSocketClose(event);
       };
     });
+    this.connectionPromise = connection;
+    const clear = () => {
+      if (this.connectionPromise === connection) this.connectionPromise = null;
+    };
+    void connection.then(clear, clear);
+    return connection;
   },
 
   /**
@@ -151,8 +175,9 @@ export const WebSocketManager = {
    * @param socket - WebSocket connection to subscribe to
    */
   resubscribeAll(socket: WebSocket): void {
-    this.activeSubscriptions.forEach(({ clusterId, path, query }) => {
-      const userId = getUserIdFromLocalStorage();
+    this.activeSubscriptions.forEach((subscription, key) => {
+      if (!this.retryableWatches.has(key) || !this.listeners.has(key)) return;
+      const { clusterId, path, query, userId } = subscription;
       const requestMsg: WebSocketMessage = {
         clusterId,
         path,
@@ -160,7 +185,7 @@ export const WebSocketManager = {
         userId: userId || '',
         type: 'REQUEST',
       };
-      socket.send(JSON.stringify(requestMsg));
+      this.sendSubscriptionRequest(key, socket, requestMsg);
     });
   },
 
@@ -171,6 +196,7 @@ export const WebSocketManager = {
    * @param query - Query parameters
    * @param onMessage - Callback for handling incoming messages
    * @param onError - Callback for handling errors
+   * @param options - Enables reconnect retries only for known watch subscriptions.
    * @returns Promise resolving to cleanup function
    */
   async subscribe(
@@ -178,12 +204,29 @@ export const WebSocketManager = {
     path: string,
     query: string,
     onMessage: (data: any) => void,
-    onError?: (err: Error) => void
+    onError?: (err: Error) => void,
+    options: { retryWatch?: boolean } = {}
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
+    const subscription = this.activeSubscriptions.get(key) ?? {
+      clusterId,
+      path,
+      query,
+      userId: getUserIdFromLocalStorage() || '',
+      generation: ++this.subscriptionSequence,
+    };
+    const pendingUnsubscribe = this.pendingUnsubscribes.get(key);
+    if (pendingUnsubscribe) {
+      clearTimeout(pendingUnsubscribe);
+      this.pendingUnsubscribes.delete(key);
+    }
+    const watch = new URLSearchParams(query).get('watch');
+    if (options.retryWatch && (watch === 'true' || watch === '1')) {
+      this.retryableWatches.add(key);
+    }
 
     // Add to active subscriptions
-    this.activeSubscriptions.set(key, { clusterId, path, query });
+    this.activeSubscriptions.set(key, subscription);
 
     // Add message listener
     const listeners = this.listeners.get(key) || new Set();
@@ -199,15 +242,17 @@ export const WebSocketManager = {
 
     // Establish connection and send REQUEST
     const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
+    if (this.retryableWatches.has(key) && this.connectedRoutes.has(key)) {
+      return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+    }
     const requestMsg: WebSocketMessage = {
       clusterId,
       path,
       query,
-      userId: userId || '',
+      userId: subscription.userId,
       type: 'REQUEST',
     };
-    socket.send(JSON.stringify(requestMsg));
+    this.sendSubscriptionRequest(key, socket, requestMsg);
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
@@ -256,6 +301,9 @@ export const WebSocketManager = {
       listeners.delete(onMessage);
       if (listeners.size === 0) {
         this.listeners.delete(key);
+        this.retryableWatches.delete(key);
+        this.pendingWatchRetries.delete(key);
+        this.pendingWatchRequests.delete(key);
 
         // Delay unsubscription to handle rapid re-subscriptions
         // This prevents unnecessary WebSocket churn when a component quickly unmounts and remounts
@@ -263,16 +311,17 @@ export const WebSocketManager = {
         const timeout = setTimeout(() => {
           // Only unsubscribe if there are still no listeners
           if (!this.listeners.has(key)) {
+            const subscription = this.activeSubscriptions.get(key);
             this.activeSubscriptions.delete(key);
             this.completedPaths.delete(key);
+            this.connectedRoutes.delete(key);
 
-            if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
-              const userId = getUserIdFromLocalStorage();
+            if (subscription && this.socketMultiplexer?.readyState === WebSocket.OPEN) {
               const closeMsg: WebSocketMessage = {
                 clusterId,
                 path,
                 query,
-                userId: userId || '',
+                userId: subscription.userId,
                 type: 'CLOSE',
               };
               this.socketMultiplexer.send(JSON.stringify(closeMsg));
@@ -301,13 +350,42 @@ export const WebSocketManager = {
    * Handles WebSocket connection close event
    * Sets up state for potential reconnection
    */
-  handleWebSocketClose(): void {
+  handleWebSocketClose(event?: CloseEvent): void {
+    this.connectionGeneration++;
     this.socketMultiplexer = null;
     this.connecting = false;
+    this.connectionPromise = null;
     this.completedPaths.clear();
+    this.connectedRoutes.clear();
+    this.pendingWatchRetries.clear();
+    this.pendingWatchRequests.clear();
+    if (this.watchRequestTimeout) clearTimeout(this.watchRequestTimeout);
+    this.watchRequestTimeout = null;
+    this.inFlightWatchRequest = null;
 
     // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
+    if (event?.code === 1013) {
+      const error = new Error('Multiplexer overloaded; watch recovery is required');
+      console.error(error.message);
+      this.notifyCloseErrors(
+        [...this.errorListeners.keys()].filter(key => !this.retryableWatches.has(key)),
+        error
+      );
+      if ([...this.retryableWatches].some(key => this.listeners.has(key))) {
+        if (this.overloadRecoveries >= 3) {
+          this.notifyCloseErrors(this.retryableWatches, error);
+          return;
+        }
+        this.overloadRecoveries++;
+        void this.connect().catch(error => {
+          this.notifyCloseErrors(
+            this.retryableWatches,
+            error instanceof Error ? error : new Error(String(error))
+          );
+        });
+      }
+    }
   },
 
   /**
@@ -318,11 +396,40 @@ export const WebSocketManager = {
   handleWebSocketMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
+      if (data.type === 'ACK') {
+        const request = this.inFlightWatchRequest;
+        if (
+          request &&
+          request.requestId === data.requestId &&
+          request.socket === this.socketMultiplexer
+        ) {
+          this.finishWatchRequest();
+        }
+        return;
+      }
       if (!data.clusterId || !data.path) {
         return;
       }
 
       const key = this.createKey(data.clusterId, data.path, data.query || '');
+
+      if (data.type === 'STATUS') {
+        const status = data.data ? JSON.parse(data.data) : {};
+        const query =
+          this.socketMultiplexer?.protocol !== MULTIPLEXER_WATCH_PROTOCOL && !data.query
+            ? undefined
+            : data.query;
+        const keys = this.statusKeys(data.clusterId, data.path, query);
+        for (const route of keys) {
+          if (status.state === 'connected' && this.activeSubscriptions.has(route)) {
+            this.connectedRoutes.add(route);
+            this.retryPendingWatch(route);
+          } else {
+            this.connectedRoutes.delete(route);
+          }
+        }
+        return;
+      }
 
       // Handle COMPLETE messages
       if (data.type === 'COMPLETE') {
@@ -332,14 +439,33 @@ export const WebSocketManager = {
 
       // Handle ERROR messages from backend
       if (data.type === 'ERROR') {
+        this.connectedRoutes.delete(key);
         let errorMessage = 'Unknown error';
         try {
           const parsedData = data.data ? JSON.parse(data.data) : {};
           errorMessage = parsedData.error || errorMessage;
+          if (
+            parsedData.code === 'subscription_reconnecting' &&
+            this.retryableWatches.has(key) &&
+            this.listeners.has(key)
+          ) {
+            this.pendingWatchRetries.add(key);
+            // A pre-reconnect connected status is stale. Only the backend's
+            // writer-ordered readiness acknowledgement permits an immediate retry.
+            if (parsedData.retryReady === true) {
+              this.connectedRoutes.add(key);
+            } else {
+              this.connectedRoutes.delete(key);
+            }
+            this.retryPendingWatch(key);
+            return;
+          }
         } catch (e) {
           errorMessage = data.data || errorMessage;
         }
 
+        const subscription = this.activeSubscriptions.get(key);
+        if (subscription) subscription.generation = ++this.subscriptionSequence;
         const errListeners = this.errorListeners.get(key);
         if (errListeners && errListeners.size > 0) {
           const errorObj = new Error(errorMessage);
@@ -405,6 +531,102 @@ export const WebSocketManager = {
       console.error('Failed to process WebSocket message:', err);
     }
   },
+
+  statusKeys(clusterId: string, path: string, query?: string): string[] {
+    if (query !== undefined) return [this.createKey(clusterId, path, query)];
+    // Older backends omit the query from STATUS messages.
+    return [...this.activeSubscriptions]
+      .filter(
+        ([, subscription]) => subscription.clusterId === clusterId && subscription.path === path
+      )
+      .map(([key]) => key);
+  },
+
+  retryPendingWatch(key: string): void {
+    const socket = this.socketMultiplexer;
+    if (
+      socket?.readyState !== WebSocket.OPEN ||
+      !this.connectedRoutes.has(key) ||
+      !this.pendingWatchRetries.has(key)
+    ) {
+      return;
+    }
+    const subscription = this.activeSubscriptions.get(key);
+    if (subscription && this.retryableWatches.has(key) && this.listeners.has(key)) {
+      this.pendingWatchRetries.delete(key);
+      this.completedPaths.delete(key);
+      const { clusterId, path, query, userId } = subscription;
+      this.sendSubscriptionRequest(key, socket, {
+        clusterId,
+        path,
+        query,
+        userId,
+        type: 'REQUEST',
+        reopen: true,
+      });
+    }
+  },
+
+  notifyCloseErrors(keys: Iterable<string>, error: Error): void {
+    for (const key of keys) {
+      for (const listener of this.errorListeners.get(key) || []) {
+        try {
+          listener(error);
+        } catch (error) {
+          console.error('Failed to process WebSocket close error:', error);
+        }
+      }
+    }
+  },
+
+  sendSubscriptionRequest(key: string, socket: WebSocket, request: WebSocketMessage): void {
+    if (!this.retryableWatches.has(key) || socket.protocol !== MULTIPLEXER_WATCH_PROTOCOL) {
+      socket.send(JSON.stringify(request));
+      return;
+    }
+    if (
+      !request.reopen &&
+      (this.pendingWatchRequests.has(key) ||
+        (this.inFlightWatchRequest?.key === key &&
+          this.inFlightWatchRequest.generation === this.activeSubscriptions.get(key)?.generation))
+    )
+      return;
+    this.pendingWatchRequests.set(key, request);
+    this.flushWatchRequests();
+  },
+
+  finishWatchRequest(): void {
+    if (this.watchRequestTimeout) clearTimeout(this.watchRequestTimeout);
+    this.watchRequestTimeout = null;
+    this.inFlightWatchRequest = null;
+    this.overloadRecoveries = 0;
+    this.flushWatchRequests();
+  },
+
+  flushWatchRequests(): void {
+    const socket = this.socketMultiplexer;
+    if (socket?.readyState !== WebSocket.OPEN || this.inFlightWatchRequest) return;
+    for (const [key, request] of this.pendingWatchRequests) {
+      this.pendingWatchRequests.delete(key);
+      const subscription = this.activeSubscriptions.get(key);
+      if (!subscription || !this.retryableWatches.has(key) || !this.listeners.has(key)) continue;
+      const requestId = String(++this.requestSequence);
+      const generation = subscription.generation;
+      this.inFlightWatchRequest = { key, requestId, socket, generation, message: request };
+      const pacedRequest = { ...request, requestId };
+      this.watchRequestTimeout = setTimeout(() => {
+        if (this.inFlightWatchRequest?.requestId !== requestId) return;
+        const error = new Error(
+          'Multiplexer watch request timed out waiting for processing confirmation'
+        );
+        console.error(error.message);
+        this.notifyCloseErrors(this.retryableWatches, error);
+        socket.close();
+      }, WATCH_REQUEST_TIMEOUT);
+      socket.send(JSON.stringify(pacedRequest));
+      return;
+    }
+  },
 };
 
 /**
@@ -423,6 +645,7 @@ export function useWebSocket<T>({
   cluster = '',
   onMessage,
   onError,
+  retryWatch = false,
 }: {
   /** Function that returns the WebSocket URL to connect to */
   url: () => string;
@@ -434,6 +657,8 @@ export function useWebSocket<T>({
   onMessage: (data: T) => void;
   /** Callback function to handle connection errors */
   onError?: (error: Error) => void;
+  /** Only known Kubernetes watches may opt into pacing and automatic recovery. */
+  retryWatch?: boolean;
 }) {
   const url = useMemo(() => (enabled ? createUrl() : ''), [enabled, createUrl]);
 
@@ -483,7 +708,8 @@ export function useWebSocket<T>({
           subscriptionPath,
           subscriptionQuery,
           stableOnMessage,
-          stableOnError
+          stableOnError,
+          { retryWatch }
         );
         if (isCancelled) {
           unsubscribe();
@@ -518,7 +744,7 @@ export function useWebSocket<T>({
         cleanup();
       }
     };
-  }, [url, enabled, cluster, stableOnMessage, onError]);
+  }, [url, enabled, cluster, stableOnMessage, onError, retryWatch]);
 }
 
 /**
@@ -551,10 +777,14 @@ export interface WebSocketMessage {
   query: string;
 
   /**
-   * User identifier for authentication and authorization.
-   * Used to ensure users only receive updates for resources they have access to.
+   * Client routing identifier, not an authenticated identity.
+   * The socket handshake credentials authorize upstream requests.
    */
   userId: string;
+  /** Explicitly replace a watch transport using this request's query. */
+  reopen?: boolean;
+  /** Opt into a processing ACK, used to pace list-watch requests. */
+  requestId?: string;
 
   /**
    * Message type that indicates the purpose of the message:
