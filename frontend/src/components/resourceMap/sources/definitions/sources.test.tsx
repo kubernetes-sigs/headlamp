@@ -161,12 +161,12 @@ describe('useGetAllSources', () => {
     const { result, rerender } = renderHook(() => podSource.useData());
 
     expect(result.current).toBeNull();
-    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'] });
+    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'], clusters: ['cluster-a'] });
 
     useList.mockReturnValue([[pod]] as any);
     rerender();
 
-    expect(result.current).toEqual({ nodes: [{ id: 'pod-1', kubeObject: pod }] });
+    expect(result.current).toEqual({ nodes: [{ id: 'cluster-a_pod-1', kubeObject: pod }] });
   });
 
   it('adds the scheduling group only when the alpha APIs are served', () => {
