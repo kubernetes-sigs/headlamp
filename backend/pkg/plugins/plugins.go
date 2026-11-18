@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -677,7 +678,39 @@ func isSubdirectory(parentDir, dirPath string) bool {
 		return false
 	}
 
-	// Reject the parent itself and any path that escapes it, but allow
-	// child directories whose names start with a dot.
-	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	// filepath.Rel reports "." when the two paths are the same directory. A directory
+	// is not a subdirectory of itself, and returning true here would let an empty
+	// plugin name resolve to the plugin root.
+	if rel == "." {
+		return false
+	}
+
+	// filepath.IsLocal answers the question this guard is actually asking: does the
+	// path stay inside the tree it is relative to. It inspects path components, so a
+	// directory named "..foo" is recognised as a child while a real escape, which
+	// always produces a ".." component, is rejected.
+	if !filepath.IsLocal(rel) {
+		return false
+	}
+
+	// On Windows, Win32 strips trailing dots and spaces from path components,
+	// turning names like "..." or ". " into "." or ".." and allowing deletion
+	// of the plugin root itself.
+	if runtime.GOOS == "windows" && hasWindowsDotAlias(rel) {
+		return false
+	}
+
+	return true
+}
+
+func hasWindowsDotAlias(rel string) bool {
+	for _, part := range strings.FieldsFunc(rel, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}) {
+		if strings.TrimRight(part, ". ") == "" {
+			return true
+		}
+	}
+
+	return false
 }
