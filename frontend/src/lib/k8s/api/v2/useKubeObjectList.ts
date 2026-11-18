@@ -900,16 +900,25 @@ export function useKubeObjectList<K extends KubeObject>({
   );
 
   const queryClient = useQueryClient();
-  const loadMorePromiseRef = useRef<Promise<void> | null>(null);
+  const loadMoreInputKey = JSON.stringify([listRequestInputKey, paginationInputKey]);
+  const currentLoadMoreInputKeyRef = useRef(loadMoreInputKey);
+
+  useEffect(() => {
+    currentLoadMoreInputKeyRef.current = loadMoreInputKey;
+  }, [loadMoreInputKey]);
+  const loadMorePromiseRef = useRef<{
+    key: string;
+    promise: Promise<void>;
+  } | null>(null);
 
   const loadMore = useCallback(async () => {
     if (!endpoint) return;
 
-    if (loadMorePromiseRef.current) {
-      return loadMorePromiseRef.current;
+    if (loadMorePromiseRef.current?.key === loadMoreInputKey) {
+      return loadMorePromiseRef.current.promise;
     }
 
-    loadMorePromiseRef.current = (async () => {
+    const promise = (async () => {
       setPaginationError(null);
 
       if (hasPendingListRequests) {
@@ -932,6 +941,10 @@ export function useKubeObjectList<K extends KubeObject>({
         const results = await Promise.allSettled(
           nextQueries.map(q => queryClient.fetchQuery(q as any))
         );
+
+        if (currentLoadMoreInputKeyRef.current !== loadMoreInputKey) {
+          return;
+        }
 
         const rejectedResultIndex = results.findIndex(result => result.status === 'rejected');
         const rejectedResult = results[rejectedResultIndex];
@@ -1014,6 +1027,10 @@ export function useKubeObjectList<K extends KubeObject>({
         })
       );
 
+      if (currentLoadMoreInputKeyRef.current !== loadMoreInputKey) {
+        return;
+      }
+
       const rejectedResultIndex = results.findIndex(result => result.status === 'rejected');
       const rejectedResult = results[rejectedResultIndex];
       if (rejectedResult?.status === 'rejected') {
@@ -1024,10 +1041,17 @@ export function useKubeObjectList<K extends KubeObject>({
       }
     })();
 
+    loadMorePromiseRef.current = {
+      key: loadMoreInputKey,
+      promise,
+    };
+
     try {
-      return await loadMorePromiseRef.current;
+      return await promise;
     } finally {
-      loadMorePromiseRef.current = null;
+      if (loadMorePromiseRef.current?.promise === promise) {
+        loadMorePromiseRef.current = null;
+      }
     }
   }, [
     endpoint,
@@ -1040,6 +1064,7 @@ export function useKubeObjectList<K extends KubeObject>({
     kubeObjectClass,
     perRequestQueryParams,
     refetchInterval,
+    loadMoreInputKey,
   ]);
 
   // @ts-ignore - TS compiler gets confused with iterators

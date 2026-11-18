@@ -1470,6 +1470,288 @@ describe('useKubeObjectList', () => {
     expect(mockClusterFetch.mock.calls[1][0]).toBe('api/v1/pods?limit=1000&continue=token-1');
   });
 
+  it('should paginate the new cluster while the previous cluster page is pending', async () => {
+    const queryClient = new QueryClient();
+    const oldPage = deferred<Response>();
+
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-a1', '1')],
+              resourceVersion: '1',
+              continueToken: 'a-next',
+            })
+          ),
+      } as Response)
+      .mockReturnValueOnce(oldPage.promise)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-b1', '1')],
+              resourceVersion: '1',
+              continueToken: 'b-next',
+            })
+          ),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-b2', '2')],
+              resourceVersion: '2',
+            })
+          ),
+      } as Response);
+
+    const result = renderHook(
+      ({ cluster }: { cluster: string }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster }],
+          queryParams: { limit: DEFAULT_LIST_LIMIT },
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: { cluster: 'cluster-a' },
+      }
+    );
+
+    let firstLoad: Promise<void> | undefined;
+    let secondLoad: Promise<void> | undefined;
+
+    try {
+      // Cluster A initial page is ready.
+      await waitFor(() => expect(result.result.current.loadMore).toEqual(expect.any(Function)));
+
+      // Start A's second page and keep it pending.
+      act(() => {
+        firstLoad = result.result.current.loadMore?.();
+      });
+
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+
+      // Switch to cluster B while A's page is pending.
+      result.rerender({ cluster: 'cluster-b' });
+
+      await waitFor(() => {
+        expect(result.result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-b1');
+
+        expect(result.result.current.loadMore).toEqual(expect.any(Function));
+      });
+
+      expect(mockClusterFetch).toHaveBeenCalledTimes(3);
+      expect(mockClusterFetch.mock.calls.map(call => call[1]?.cluster)).toEqual([
+        'cluster-a',
+        'cluster-a',
+        'cluster-b',
+      ]);
+
+      // B must start its own pagination request.
+      act(() => {
+        secondLoad = result.result.current.loadMore?.();
+      });
+
+      // A is still pending, so B must not depend on A.
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(4));
+    } finally {
+      // Release A's pending request even if an assertion fails.
+      oldPage.resolve({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-a2', '2')],
+              resourceVersion: '2',
+            })
+          ),
+      } as Response);
+
+      await act(async () => {
+        await Promise.allSettled(
+          [firstLoad, secondLoad].filter(
+            (promise): promise is Promise<void> => promise !== undefined
+          )
+        );
+      });
+    }
+  });
+
+  it('should ignore a previous cluster pagination error after switching clusters', async () => {
+    const queryClient = new QueryClient();
+
+    let rejectOldPage!: (reason?: unknown) => void;
+    const oldPage = new Promise<Response>((_, reject) => {
+      rejectOldPage = reject;
+    });
+
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-a1', '1')],
+              continueToken: 'a-next',
+            })
+          ),
+      } as Response)
+      .mockReturnValueOnce(oldPage)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-b1', '1')],
+              continueToken: 'b-next',
+            })
+          ),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-b2', '2')],
+            })
+          ),
+      } as Response);
+
+    const result = renderHook(
+      ({ cluster }: { cluster: string }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster }],
+          queryParams: { limit: DEFAULT_LIST_LIMIT },
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: { cluster: 'cluster-a' },
+      }
+    );
+
+    await waitFor(() => expect(result.result.current.loadMore).toEqual(expect.any(Function)));
+
+    let firstLoad: Promise<void> | undefined;
+
+    try {
+      act(() => {
+        firstLoad = result.result.current.loadMore?.();
+      });
+
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+
+      result.rerender({ cluster: 'cluster-b' });
+
+      await waitFor(() =>
+        expect(result.result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-b1')
+      );
+
+      await act(async () => {
+        await result.result.current.loadMore?.();
+      });
+
+      expect(mockClusterFetch).toHaveBeenCalledTimes(4);
+
+      await waitFor(() => expect(result.result.current.items?.length).toBe(2));
+
+      expect(result.result.current.error).toBeNull();
+    } finally {
+      await act(async () => {
+        rejectOldPage(new ApiError('old cluster page failed', { status: 500 }));
+        await Promise.allSettled(
+          [firstLoad].filter((promise): promise is Promise<void> => promise !== undefined)
+        );
+      });
+    }
+
+    expect(result.result.current.error).toBeNull();
+    expect(result.result.current.isError).toBe(false);
+    expect(result.result.current.items?.map(item => item.jsonData.metadata.name)).toEqual([
+      'pod-b1',
+      'pod-b2',
+    ]);
+  });
+
+  it('should ignore a stale B pagination error after returning to cluster A', async () => {
+    const queryClient = new QueryClient();
+    const oldPage = deferred<Response>();
+
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a1', '1')] })),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-b1', '1')],
+              continueToken: 'b-next',
+            })
+          ),
+      } as Response)
+      .mockReturnValueOnce(oldPage.promise)
+      .mockImplementation((url, options) => {
+        if (url === 'api/v1/pods?limit=1000' && options?.cluster === 'cluster-a') {
+          return Promise.resolve({
+            json: () =>
+              Promise.resolve(
+                makeListResponse({
+                  items: [makePod('pod-a1', '1')],
+                })
+              ),
+          } as Response);
+        }
+
+        return Promise.reject(new Error(`Unexpected fetch: ${url}, cluster: ${options?.cluster}`));
+      });
+
+    const { result, rerender } = renderHook(
+      ({ cluster }: { cluster: string }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster }],
+          queryParams: { limit: DEFAULT_LIST_LIMIT },
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: { cluster: 'cluster-a' },
+      }
+    );
+
+    await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1'));
+
+    rerender({ cluster: 'cluster-b' });
+
+    await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-b1'));
+
+    let pendingLoad: Promise<void> | undefined;
+
+    try {
+      act(() => {
+        pendingLoad = result.current.loadMore?.();
+      });
+
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(3));
+
+      rerender({ cluster: 'cluster-a' });
+
+      await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1'));
+    } finally {
+      await act(async () => {
+        oldPage.resolve({
+          json: () => Promise.reject(new ApiError('old B page failed', { status: 500 })),
+        } as Response);
+
+        if (pendingLoad) {
+          await pendingLoad;
+        }
+      });
+    }
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.isError).toBe(false);
+    expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1');
+  });
+
   it('should call useKubeObjectList with 1 namespace after reducing amount of namespaces', async () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
     const queryClient = new QueryClient();
