@@ -15,6 +15,7 @@
  */
 
 import '../../i18n/config';
+import '../../lib/router';
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -37,18 +38,23 @@ const generatedClaim = new ResourceClaim({
 
 const theme = createMuiTheme({ base: 'light', name: 'light' });
 
+const cluster = 'gpu-cluster';
+const { namespace } = singleGpu.metadata;
+
 const listResult = <T,>(items: T[] | null, isError = false) =>
   ({ items, isLoading: false, isError } as any);
 
 function mockLists(pods: Pod[] | null, claims: ResourceClaim[] = [], podsFailed = false) {
-  vi.spyOn(Pod, 'useList').mockReturnValue(listResult(pods, podsFailed));
-  vi.spyOn(ResourceClaim, 'useList').mockReturnValue(listResult(claims));
+  return {
+    usePods: vi.spyOn(Pod, 'useList').mockReturnValue(listResult(pods, podsFailed)),
+    useClaims: vi.spyOn(ResourceClaim, 'useList').mockReturnValue(listResult(claims)),
+  };
 }
 
 const claimsTable = () => (
   <TestContext>
     <ThemeProvider theme={theme}>
-      <ResourceClaimTemplateClaims template={new ResourceClaimTemplate(singleGpu)} />
+      <ResourceClaimTemplateClaims template={new ResourceClaimTemplate(singleGpu, cluster)} />
     </ThemeProvider>
   </TestContext>
 );
@@ -61,12 +67,20 @@ describe('ResourceClaimTemplateClaims', () => {
   });
 
   it('shows each claim with its Pod and status', () => {
-    mockLists([new Pod(podWithResourceClaims)], [generatedClaim]);
+    const { usePods, useClaims } = mockLists([new Pod(podWithResourceClaims)], [generatedClaim]);
 
     renderClaims();
 
-    expect(screen.getByRole('link', { name: 'trainer-0-gpu-x7k2q' })).toBeVisible();
-    expect(screen.getByRole('link', { name: podWithResourceClaims.metadata.name })).toBeVisible();
+    expect(usePods).toHaveBeenCalledWith({ namespace, cluster });
+    expect(useClaims).toHaveBeenCalledWith({ namespace, cluster });
+    expect(screen.getByRole('link', { name: 'trainer-0-gpu-x7k2q' })).toHaveAttribute(
+      'href',
+      `/c/${cluster}/resourceclaims/${namespace}/trainer-0-gpu-x7k2q`
+    );
+    expect(screen.getByRole('link', { name: podWithResourceClaims.metadata.name })).toHaveAttribute(
+      'href',
+      `/c/${cluster}/pods/${namespace}/${podWithResourceClaims.metadata.name}`
+    );
     expect(screen.getByText('In use by 2')).toBeVisible();
   });
 
