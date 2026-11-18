@@ -320,7 +320,7 @@ func rewriteIndexHTML(staticDir string, baseURL string, productName string) {
 		mustWriteFile(indexBaseURL, d)
 	}
 
-	// replace baseURL starting from the original copy, incase we run this multiple times
+	// replace baseURL starting from the original copy, in case we run this multiple times
 	data := mustReadFile(indexBaseURL)
 	output := makeBaseURLReplacements(data, baseURL)
 	output = spa.ReplaceProductName(output, productName)
