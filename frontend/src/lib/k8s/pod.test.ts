@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
+import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { post } from './api/v1/clusterRequests';
+import * as streamingApi from './api/v1/streamingApi';
 import Pod from './pod';
+
+vi.mock('./api/v1/streamingApi', () => ({
+  stream: vi.fn(),
+}));
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -216,6 +222,133 @@ describe('Pod class', () => {
     it('classifies a Succeeded pod as healthy', () => {
       const pod = makePod({ phase: 'Succeeded' });
       expect(pod.getHealth()).toBe('healthy');
+    });
+  });
+
+  describe('getLogs', () => {
+    const pod = new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default' },
+    } as any);
+
+    it('prettifies JSON log line when prettifyLogs is true', () => {
+      let resultLogs: string[] = [];
+      vi.mocked(streamingApi.stream).mockImplementationOnce((url, onResults: any) => {
+        const rawLog = '2026-08-13T01:10:56Z {"level":"info","msg":"test"}';
+        onResults(Base64.encode(rawLog));
+        return { cancel: vi.fn(), getSocket: () => null };
+      });
+
+      pod.getLogs(
+        'container-1',
+        res => {
+          resultLogs = res.logs;
+        },
+        { prettifyLogs: true }
+      );
+
+      expect(resultLogs[0]).toContain('"level": "info"');
+      expect(resultLogs[0]).toContain('"msg": "test"');
+      expect(resultLogs[0]).toContain('2026-08-13T01:10:56Z');
+    });
+
+    it('unescapes JSON string literals when formatJsonValues is true', () => {
+      let resultLogs: string[] = [];
+      vi.mocked(streamingApi.stream).mockImplementationOnce((url, onResults: any) => {
+        const rawLog = '{"msg":"line1\\nline2"}';
+        onResults(Base64.encode(rawLog));
+        return { cancel: vi.fn(), getSocket: () => null };
+      });
+
+      pod.getLogs(
+        'container-1',
+        res => {
+          resultLogs = res.logs;
+        },
+        { prettifyLogs: true, formatJsonValues: true }
+      );
+
+      expect(resultLogs[0]).toContain('line1\nline2');
+    });
+
+    it('keeps line intact if it is not valid JSON', () => {
+      let resultLogs: string[] = [];
+      vi.mocked(streamingApi.stream).mockImplementationOnce((url, onResults: any) => {
+        const rawLog = 'This is a normal log line { without valid JSON';
+        onResults(Base64.encode(rawLog));
+        return { cancel: vi.fn(), getSocket: () => null };
+      });
+
+      pod.getLogs(
+        'container-1',
+        res => {
+          resultLogs = res.logs;
+        },
+        { prettifyLogs: true }
+      );
+
+      expect(resultLogs[0]).toBe('This is a normal log line { without valid JSON');
+    });
+
+    it('handles multiple lines in a single chunk', () => {
+      let resultLogs: string[] = [];
+      vi.mocked(streamingApi.stream).mockImplementationOnce((url, onResults: any) => {
+        const rawLog = 'prefix {"a":1}\nanother line {"b":2}';
+        onResults(Base64.encode(rawLog));
+        return { cancel: vi.fn(), getSocket: () => null };
+      });
+
+      pod.getLogs(
+        'container-1',
+        res => {
+          resultLogs = res.logs;
+        },
+        { prettifyLogs: true }
+      );
+
+      expect(resultLogs[0]).toContain('prefix\n{\n  "a": 1\n}');
+      expect(resultLogs[0]).toContain('another line\n{\n  "b": 2\n}');
+    });
+
+    it('preserves all lines in a mixed chunk and only prettifies eligible JSON', () => {
+      let resultLogs: string[] = [];
+
+      vi.mocked(streamingApi.stream).mockImplementationOnce((url, onResults: any) => {
+        const rawLog = [
+          '{"valid": "json"}',
+          'plain text line',
+          'malformed { json',
+          '/ # echo \'{"level":"info"}\'',
+          'prefix {"nested": "json"}',
+        ].join('\n');
+
+        onResults(Base64.encode(rawLog));
+        return { cancel: vi.fn(), getSocket: () => null };
+      });
+
+      pod.getLogs(
+        'container-1',
+        res => {
+          resultLogs = res.logs;
+        },
+        { prettifyLogs: true }
+      );
+
+      const expectedLog = [
+        '{',
+        '  "valid": "json"',
+        '}',
+        'plain text line',
+        'malformed { json',
+        '/ # echo \'{"level":"info"}\'',
+        'prefix',
+        '{',
+        '  "nested": "json"',
+        '}',
+      ].join('\n');
+
+      expect(resultLogs[0]).toBe(expectedLog);
     });
   });
 });
