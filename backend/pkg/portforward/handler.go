@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -42,6 +43,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // SA1019: client-go/tools/portforward still uses this; migrate when upstream does.
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -58,7 +60,11 @@ const (
 const (
 	PodAvailabilityCheckTimer   = 5 // seconds
 	PortForwardReadinessTimeout = 30 * time.Second
+	maxPortForwardBodyBytes     = 64 << 10
+	maxPortForwardIDLength      = 128
 )
+
+var portForwardBodyReadTimeout = 5 * time.Second
 
 var inFlightPortForwards sync.Map
 
@@ -72,17 +78,116 @@ type portForwardRequest struct {
 	Port             string `json:"port"`
 }
 
+func validatePortForwardID(id string) error {
+	if id == "" || len(id) > maxPortForwardIDLength {
+		return fmt.Errorf(
+			"invalid portforward id: must be 1-%d characters matching [A-Za-z0-9._-]",
+			maxPortForwardIDLength,
+		)
+	}
+
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		isLower := c >= 'a' && c <= 'z'
+		isUpper := c >= 'A' && c <= 'Z'
+		isDigit := c >= '0' && c <= '9'
+		isPunct := c == '.' || c == '_' || c == '-'
+
+		if !isLower && !isUpper && !isDigit && !isPunct {
+			return fmt.Errorf(
+				"invalid portforward id: must be 1-%d characters matching [A-Za-z0-9._-]",
+				maxPortForwardIDLength,
+			)
+		}
+	}
+
+	return nil
+}
+
+func validatePortNumber(field, raw string) error {
+	port, err := strconv.Atoi(raw)
+	if err != nil || port < 1 || port > 65535 || strconv.Itoa(port) != raw {
+		return fmt.Errorf("%s must be a valid port number between 1 and 65535", field)
+	}
+
+	return nil
+}
+
+func decodePortForwardJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	rc := http.NewResponseController(w)
+	if err := rc.SetReadDeadline(time.Now().Add(portForwardBodyReadTimeout)); err == nil {
+		defer func() { _ = rc.SetReadDeadline(time.Time{}) }()
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxPortForwardBodyBytes)
+	dec := json.NewDecoder(r.Body)
+
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return err
+		}
+
+		return errors.New("request body must contain a single JSON object")
+	}
+
+	return nil
+}
+
 func (p *portForwardRequest) Validate() error {
 	if p.Namespace == "" {
 		return fmt.Errorf("namespace is required")
+	}
+
+	if errs := validation.IsDNS1123Label(p.Namespace); len(errs) > 0 {
+		return fmt.Errorf("invalid namespace: %s", strings.Join(errs, "; "))
 	}
 
 	if p.Pod == "" {
 		return fmt.Errorf("pod name is required")
 	}
 
+	if errs := validation.IsDNS1123Subdomain(p.Pod); len(errs) > 0 {
+		return fmt.Errorf("invalid pod name: %s", strings.Join(errs, "; "))
+	}
+
 	if p.TargetPort == "" {
 		return fmt.Errorf("targetPort is required")
+	}
+
+	if err := validatePortNumber("targetPort", p.TargetPort); err != nil {
+		return err
+	}
+
+	if p.Port != "" {
+		if err := validatePortNumber("port", p.Port); err != nil {
+			return err
+		}
+	}
+
+	if p.Service != "" {
+		if errs := validation.IsDNS1123Label(p.Service); len(errs) > 0 {
+			return fmt.Errorf("invalid service name: %s", strings.Join(errs, "; "))
+		}
+
+		if p.ServiceNamespace == "" {
+			return fmt.Errorf("serviceNamespace is required when service is set")
+		}
+	}
+
+	if p.ServiceNamespace != "" {
+		if errs := validation.IsDNS1123Label(p.ServiceNamespace); len(errs) > 0 {
+			return fmt.Errorf("invalid serviceNamespace: %s", strings.Join(errs, "; "))
+		}
+	}
+
+	if p.ID != "" {
+		if err := validatePortForwardID(p.ID); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -148,7 +253,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 ) {
 	var p portForwardRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+	if err := decodePortForwardJSON(w, r, &p); err != nil {
 		logger.Log(logger.LevelError, nil, err, "decoding portforward payload")
 		http.Error(w, "failed to marshal port forward payload "+err.Error(), http.StatusBadRequest)
 
@@ -157,6 +262,13 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 
 	if p.ID == "" {
 		p.ID = uuid.New().String()
+	}
+
+	if err := p.Validate(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
 	}
 
 	requestClusterName := mux.Vars(r)["clusterName"]
@@ -185,13 +297,6 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	}
 
 	defer inFlightPortForwards.Delete(inFlightKey)
-
-	if err := p.Validate(); err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
-	}
 
 	if p.Port == "" {
 		freePort, err := getFreePort()
@@ -888,7 +993,7 @@ func (r *stopOrDeletePortForwardRequest) Validate() error {
 		return errors.New("invalid request, id is required")
 	}
 
-	return nil
+	return validatePortForwardID(r.ID)
 }
 
 // StopOrDeletePortForward handles stop or delete port forward request.
@@ -897,7 +1002,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
 ) {
 	var p stopOrDeletePortForwardRequest
 
-	err := json.NewDecoder(r.Body).Decode(&p)
+	err := decodePortForwardJSON(w, r, &p)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "decoding delete portforward payload")
 		http.Error(w, err.Error(), http.StatusBadRequest)
