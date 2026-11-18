@@ -157,6 +157,20 @@ describe('configSlice', () => {
     expect(state.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should update and clear backstageOrigin while preserving it when omitted', () => {
+    let state = configReducer(
+      initialState,
+      setConfig({ clusters: {}, backstageOrigin: 'https://backstage.example.com' })
+    );
+    expect(state.backstageOrigin).toBe('https://backstage.example.com');
+
+    state = configReducer(state, setConfig({ clusters: {} }));
+    expect(state.backstageOrigin).toBe('https://backstage.example.com');
+
+    state = configReducer(state, setConfig({ clusters: {}, backstageOrigin: '' }));
+    expect(state.backstageOrigin).toBe('');
+  });
+
   it('should handle setStatelessConfig', () => {
     const statelessClusters: ConfigState['statelessClusters'] = {
       'stateless-1': { name: 'stateless-1' } as Cluster,

@@ -213,6 +213,7 @@ type clientConfig struct {
 	DefaultDarkTheme          string          `json:"defaultDarkTheme,omitempty"`
 	ForceTheme                string          `json:"forceTheme,omitempty"`
 	OidcAutoLogin             bool            `json:"oidcAutoLogin"`
+	BackstageOrigin           string          `json:"backstageOrigin,omitempty"`
 	AdminSettings             json.RawMessage `json:"adminSettings,omitempty"`
 }
 
@@ -2816,6 +2817,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		DefaultDarkTheme:          c.DefaultDarkTheme,
 		ForceTheme:                c.ForceTheme,
 		OidcAutoLogin:             c.OidcAutoLogin,
+		BackstageOrigin:           c.BackstageOrigin,
 	}
 
 	if c.AdminSettings != nil {
