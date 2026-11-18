@@ -67,6 +67,12 @@ describe('ResourceClaimList', () => {
     expect(props.headerProps).toEqual({ titleSideActions: [] });
   });
 
+  it('says how claims are made when the list is empty', () => {
+    expect(renderList().emptyMessage).toBe(
+      'No resource claims yet. A claim is made when you create one, or when a Pod uses a resource claim template.'
+    );
+  });
+
   it('leaves the create action to the list once the probe has answered', () => {
     vi.mocked(useClustersServing).mockReturnValue(['dra']);
 
