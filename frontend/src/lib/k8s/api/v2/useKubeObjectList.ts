@@ -819,14 +819,23 @@ export function useKubeObjectList<K extends KubeObject>({
   emptyWhenNoRequests?: boolean;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
-  const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
+  const candidateNamespaces = useMemo(
+    () => [
+      ...new Set(
+        requests
+          .filter(it => it.cluster === requests[0]?.cluster)
+          .flatMap(it => it.namespaces ?? [])
+      ),
+    ],
+    [requests]
+  );
 
   // Get working endpoint from the first cluster
   // Now if clusters have different apiVersions for the same resource for example, this will not work
   const { endpoint, error: endpointError } = useEndpoints(
     requests.length === 0 ? [] : kubeObjectClass.apiEndpoint.apiInfo,
     requests[0]?.cluster,
-    maybeNamespace
+    candidateNamespaces
   );
 
   const cleanedUpQueryParams = Object.fromEntries(
